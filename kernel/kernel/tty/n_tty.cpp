@@ -57,11 +57,18 @@ void n_tty_receive_control_input(struct tty_echo_args *args, char c, struct tty 
         tty->input_buf_pos--;
         args->to_echo = "\b \b";
         args->len = 3;
+        tty->ldisc->column--;
 
         if (TTY_LFLAG(tty, ECHOCTL) && iscntrl(old_char) && should_print_special(old_char))
         {
             args->to_echo = "\b \b\b \b";
             args->len = 6;
+            tty->ldisc->column -= 2;
+        }
+        else if (old_char == '\t')
+        {
+            // TODO: Erasing tabs is hard
+            // n_tty_erase_tab(args, tty);
         }
 
         return;
@@ -159,16 +166,10 @@ static ssize_t try_process_write(const char *s, size_t len, struct tty *tty)
 
         switch (c)
         {
+            case '\r':
+            case '\t':
             case '\n': {
-                if (TTY_OFLAG(tty, ONLCR))
-                    goto write_and_process;
-                break;
-            }
-
-            case '\r': {
-                if (TTY_OFLAG(tty, OCRNL))
-                    goto write_and_process;
-                break;
+                goto write_and_process;
             }
         }
 
@@ -177,7 +178,10 @@ static ssize_t try_process_write(const char *s, size_t len, struct tty *tty)
 
 write_and_process:
     if (i != 0)
-        tty->write(buf, i, tty);
+    {
+        return tty->write(buf, i, tty);
+    }
+
     return i;
 }
 
@@ -188,6 +192,7 @@ static void n_tty_output_char(char c, struct tty *tty)
         case '\n': {
             if (TTY_OFLAG(tty, ONLCR))
             {
+                tty->ldisc->column = 0;
                 tty->write("\r\n", 2, tty);
                 return;
             }
@@ -199,11 +204,27 @@ static void n_tty_output_char(char c, struct tty *tty)
             if (TTY_OFLAG(tty, OCRNL))
             {
                 c = '\n';
-                break;
+                return;
             }
+
+            tty->ldisc->column = 0;
 
             /* TODO: ONOCR, OLCUC */
             break;
+        }
+
+        case '\t': {
+            unsigned int spaces = 8 - (tty->ldisc->column & 7);
+
+            if (TTY_OFLAG(tty, TABDLY) == TAB3)
+            {
+                // Convert tabs to spaces
+                tty->write("        ", spaces, tty);
+                return;
+            }
+
+            tty->ldisc->column += spaces;
+            break; // fallthrough
         }
     }
 
@@ -217,9 +238,14 @@ static ssize_t n_tty_write_out(const char *s, size_t length, struct tty *tty)
     {
         if (TTY_OFLAG(tty, OPOST))
         {
-            /* Try and send the largest string of characters that don't need output */
-            i += try_process_write(s + i, length - i, tty);
+            ssize_t status = try_process_write(s + i, length - i, tty);
 
+            if (status < 0)
+                return status;
+            /* Try and send the largest string of characters that don't need output */
+            i += status;
+
+            tty->ldisc->column += status;
             if (i != length)
             {
                 n_tty_output_char(*(s + i), tty);

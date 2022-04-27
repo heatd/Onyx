@@ -34,6 +34,8 @@ struct netkernel_error
 
 #define NETKERNEL_MSG_NETIF_GET_NETIFS 0x1000
 
+#define NETKERNEL_MSG_INET4_GET_ADDRS 0x1000
+
 struct sockaddr_nk
 {
     sa_family_t nk_family;

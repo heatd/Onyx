@@ -320,14 +320,15 @@ bool vterm_putc(utf32_t c, struct vterm *vt)
 
     if (c == '\t')
     {
-        bool did_scroll = false;
-        for (int i = 0; i < 8; i++)
-        {
-            if (vterm_putc(' ', vt) == true)
-                did_scroll = true;
-        }
+        // TODO: Support variable tab sizes
+        unsigned int next_stop = ALIGN_TO(vt->cursor_x + 1, 8);
+        if (next_stop >= vt->columns)
+            next_stop = vt->columns - 1;
 
-        return did_scroll;
+        vterm_dirty_cell(vt->cursor_x, vt->cursor_y, vt);
+
+        vt->cursor_x = next_stop;
+        return false;
     }
 
     struct framebuffer *fb = vt->fb;
@@ -1247,13 +1248,16 @@ size_t vterm::do_escape(const char *buffer, size_t len)
 
     char escape = csi_data.escape_character;
 
-#if 0
-	char buf[50];
-	if(in_csi) snprintf(buf, 50, "Seq: %c nargs %lu args {%lu, %lu}\n", escape, csi_data.nr_args, csi_data.args[0], csi_data.args[1]);
-	if(in_csi && !csi_data.dec_private) platform_serial_write(buf, strlen(buf));
-	//platform_serial_write("Seq: ", strlen("Seq: "));
-	//platform_serial_write(&escape, 1);
-	//platform_serial_write("\n", 1);
+#if 1
+    char buf[50];
+    if (in_csi)
+        snprintf(buf, 50, "Seq: %c nargs %lu args {%lu, %lu}\n", escape, csi_data.nr_args,
+                 csi_data.args[0], csi_data.args[1]);
+    if (in_csi && !csi_data.dec_private)
+        platform_serial_write(buf, strlen(buf));
+        // platform_serial_write("Seq: ", strlen("Seq: "));
+        // platform_serial_write(&escape, 1);
+        // platform_serial_write("\n", 1);
 #endif
 
     if (in_dec)
@@ -1303,9 +1307,9 @@ ssize_t vterm_write_tty(const void *buffer, size_t size, struct tty *tty)
             if (codepoint == UTF_INVALID_CODEPOINT)
                 codepoint = '?';
 #if 0
-			char x[9];
-			snprintf(x, 9, "%x\n", codepoint);
-			platform_serial_write(x, strlen(x));
+            char x[9];
+            snprintf(x, 9, "%x\n", codepoint);
+            platform_serial_write(x, strlen(x));
 #endif
             // platform_serial_write(data + i, 1);
             if (vterm_putc(codepoint, vt))

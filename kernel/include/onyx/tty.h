@@ -28,6 +28,7 @@ struct tty_ldisc_ops
 struct tty_line_disc
 {
     int ldisc;
+    unsigned int column; // Column for n_tty tab deletion purposes
     const struct tty_ldisc_ops *ops;
 };
 
