@@ -203,12 +203,14 @@ static void draw_char(uint32_t c, unsigned int x, unsigned int y, struct framebu
 
     buffer += y * fb->pitch + x * (fb->bpp / 8);
 
+    unsigned int font_start = c * font->height;
+
     for (int i = 0; i < 16; i++)
     {
         for (int j = 0; j < 8; j++)
         {
             struct color color;
-            unsigned char f = font->font_bitmap[c * font->height + i];
+            unsigned char f = font->font_bitmap[font_start + i];
 
             if (f & font->mask[j])
                 color = fg;
@@ -1248,7 +1250,7 @@ size_t vterm::do_escape(const char *buffer, size_t len)
 
     char escape = csi_data.escape_character;
 
-#if 1
+#if 0
     char buf[50];
     if (in_csi)
         snprintf(buf, 50, "Seq: %c nargs %lu args {%lu, %lu}\n", escape, csi_data.nr_args,
