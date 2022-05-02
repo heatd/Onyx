@@ -31,7 +31,7 @@ if [ "$ONYX_DONT_FORCE_CC_ENV" != "true" ]; then
 	export CFLAGS="$ONYX_CLANG_ARGS"
 	export CPPFLAGS="$ONYX_CLANG_ARGS"
 	export CXXFLAGS="$ONYX_CLANG_ARGS"
-	export LDFLAGS="--sysroot=$SYSROOT"
+	export LDFLAGS="$ONYX_CLANG_ARGS"
 	export ONYX_CROSS_COMPILE_PREFIX="${CLANG_PATH}/bin/"
 
 	fi
