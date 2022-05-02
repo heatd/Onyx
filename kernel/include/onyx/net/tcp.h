@@ -278,6 +278,7 @@ private:
     struct list_head tcp_ack_list;
     struct list_head pending_out_packets;
     wait_queue tcp_ack_wq;
+    wait_queue conn_wq;
     uint32_t seq_number;
     uint32_t ack_number;
     uint32_t last_ack_number;
@@ -410,12 +411,13 @@ public:
     tcp_socket()
         : inet_socket{}, state(tcp_state::TCP_STATE_CLOSED),
           type(SOCK_STREAM), packet_semaphore{}, packet_list_head{}, packet_lock{},
-          tcp_ack_list_lock{}, pending_out_packets{}, tcp_ack_wq{}, seq_number{0},
+          tcp_ack_list_lock{}, pending_out_packets{}, tcp_ack_wq{}, conn_wq{}, seq_number{0},
           ack_number{0}, send_lock{}, send_buffer{}, current_pos{}, mss{default_mss},
           window_size{0}, window_size_shift{default_window_size_shift}, our_window_size{UINT16_MAX},
           our_window_shift{default_window_size_shift}, expected_ack{0}, connection_pending{},
           pending_accept_list{}, pending_out_lock{}
     {
+        init_wait_queue_head(&conn_wq);
         INIT_LIST_HEAD(&tcp_ack_list);
         mutex_init(&send_lock);
         init_wait_queue_head(&tcp_ack_wq);

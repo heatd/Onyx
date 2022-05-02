@@ -665,6 +665,7 @@ void tcp_socket::conn_fail(int error)
 {
     sock_err = error;
     state = tcp_state::TCP_STATE_CLOSED;
+    wait_queue_wake_all(&conn_wq);
 }
 
 int tcp_socket::start_handshake(netif *nif, int flags)
@@ -734,6 +735,7 @@ void tcp_socket::finish_conn()
     expected_ack = ack_number;
     connected = true;
     sock_err = 0;
+    wait_queue_wake_all(&conn_wq);
 }
 
 int tcp_socket::start_connection(int flags)
@@ -1066,6 +1068,18 @@ short tcp_socket::poll(void *poll_file, short events)
     short avail_events = POLLOUT;
 
     scoped_lock g{rx_packet_list_lock};
+
+    if (state != tcp_state::TCP_STATE_ESTABLISHED)
+    {
+        avail_events &= ~POLLOUT;
+        if (events & POLLOUT)
+        {
+            if (connection_pending)
+                poll_wait_helper(poll_file, &conn_wq);
+        }
+
+        return avail_events & events;
+    }
 
     if (events & POLLIN)
     {
