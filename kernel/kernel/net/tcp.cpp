@@ -72,14 +72,14 @@ int tcp_socket::do_receive_syn_sent(const packet_handling_data &data)
     if ((flags & 0xff) != valid_flags)
         return -1;
 
-    window_size = ntohs(tcphdr->window_size) << window_size_shift;
-
     if (!parse_options(tcphdr))
     {
         /* Invalid packet */
         state = tcp_state::TCP_STATE_CLOSED;
         return -EIO;
     }
+
+    window_size = ntohs(tcphdr->window_size) << window_size_shift;
 
     auto starting_seq_number = ntohl(tcphdr->sequence_number);
     uint32_t seqs = 1;
@@ -144,6 +144,16 @@ void tcp_socket::do_ack(packetbuf *buf)
     last_ack_number = ack;
 
     g.unlock();
+
+    if (list_is_empty(&pending_out_packets))
+    {
+        // Try to send any possible pending packets
+        if (int st = try_to_send(); st < 0)
+        {
+            sock_err = -st;
+            return;
+        }
+    }
 }
 
 /**
@@ -233,6 +243,8 @@ int tcp_socket::handle_packet(const tcp_socket::packet_handling_data &data)
     cul::slice<uint8_t> buf{(uint8_t *) data.header + header_size, data_size};
 
     auto flags = htons(data.header->data_offset_and_flags);
+
+    window_size = ntohs(data.header->window_size) << window_size_shift;
 
     if (flags & TCP_FLAG_RST)
     {
@@ -445,7 +457,7 @@ ref_guard<packetbuf> tcp_packet::result()
     auto data_off = TCP_MAKE_DATA_OFF(tcp_header_length_to_data_off(header_size));
 
     /* Assume the max window size as the window size, for now */
-    header->window_size = htons(socket->window_size);
+    header->window_size = htons(socket->our_window_size);
     header->source_port = socket->saddr().port;
     header->sequence_number = htonl(socket->sequence_nr());
     header->data_offset_and_flags = htons(data_off | flags);
@@ -570,8 +582,7 @@ bool tcp_socket::parse_options(tcp_header *packet)
 }
 
 /* TODO: This doesn't apply to IPv6 */
-constexpr uint16_t tcp_headers_overhead =
-    sizeof(struct tcp_header) + sizeof(struct eth_header) + IPV4_MIN_HEADER_LEN;
+constexpr uint16_t tcp_headers_overhead = sizeof(struct tcp_header) + IPV4_MIN_HEADER_LEN;
 
 void tcp_out_timeout(clockevent *ev)
 {
@@ -760,7 +771,7 @@ int tcp_socket::start_connection(int flags)
 
     route_cache_valid = 1;
 
-    window_size = UINT16_MAX;
+    our_window_size = UINT16_MAX;
 
     int st = start_handshake(route_cache.nif, flags);
     if (st < 0)
@@ -803,27 +814,7 @@ int tcp_socket::connect(struct sockaddr *addr, socklen_t addrlen, int flags)
 
 ssize_t tcp_socket::queue_data(iovec *vec, int vlen, size_t len)
 {
-    if (current_pos + len > send_buffer.buf_size())
-    {
-        if (!send_buffer.alloc_buf(current_pos + len))
-        {
-            return -EINVAL;
-        }
-    }
-
-    uint8_t *ptr = send_buffer.get_buf() + current_pos;
-
-    for (int i = 0; i < vlen; i++, vec++)
-    {
-        if (copy_from_user(ptr, vec->iov_base, vec->iov_len) < 0)
-            return -EINVAL;
-
-        ptr += vec->iov_len;
-    }
-
-    current_pos += len;
-
-    return 0;
+    return pending_out.append_data(vec, vlen, 0, mss);
 }
 
 ssize_t tcp_socket::get_max_payload_len(uint16_t tcp_header_len)
@@ -831,56 +822,146 @@ ssize_t tcp_socket::get_max_payload_len(uint16_t tcp_header_len)
     return 0;
 }
 
-void tcp_socket::try_to_send()
-{
-/* TODO: Implement Nagle's algorithm.
- * Before we do that, we should probably have retransmission implemented.
+/**
+ * @brief Checks if we can send a packet according to nagle's algorithm
+ *
+ * @param buf Packetbuf to check
+ * @return True if possible, else false.
  */
-#if 0
-	if(window_size >= mss && current_pos >= mss)
-	{
-		cul::slice<const uint8_t> data{send_buffer.begin(), mss};
-		tcp_packet packet{data, this, TCP_FLAG_ACK | TCP_FLAG_PSH};
+bool tcp_socket::nagle_can_send(packetbuf *buf)
+{
+    // Note: pending_out_packets contains the packets that await an ACK (retransmission is done on
+    // this list)
+    return (other_window() >= mss && buf->length() == mss) || list_is_empty(&pending_out_packets);
+}
 
-		packet.send();
-
-		/* TODO: Implement retries in general? */
-		/* TODO: There's lots of room for improvement - maybe a list of buffer
-		 * would be a better idea and would avoid this gigantic memcpy we have below
-		 * due to vector.
-		 */
-		auto old_pos = current_pos;
-		current_pos -= data.size_bytes();
-
-		if(current_pos != 0)
-			memcpy(send_buffer.begin(), send_buffer.end() + 1, old_pos - current_pos);
-	}
-	else
-#endif
+/**
+ * @brief Sends a data segment
+ *
+ * @param buf Packetbuf to send
+ * @return 0 on success, negative error codes
+ */
+int tcp_socket::send_segment(packetbuf *buf)
+{
+    if (buf->transport_header)
     {
-        auto fam = get_proto_fam();
+        // We've tried sending this before, and it didn't work
+        // so just try to re-trigger sendpbuf
 
-        auto netif = fam->route(src_addr, dest_addr, domain);
-        /* TODO: Support TCP segmentation instead of relying on IPv4 segmentation */
-        cul::slice<const uint8_t> data{send_buffer.begin(), current_pos};
-        current_pos = 0;
-
-        tcp_packet packet{data, this, TCP_FLAG_ACK | TCP_FLAG_PSH, src_addr};
-
-        auto buf = packet.result();
-        if (!buf)
-        {
-            sock_err = ENOBUFS;
-            return;
-        }
-
-        auto ex = sendpbuf(buf);
+        // Horrible logic, should be separated into another function
+        auto segment_len = buf->tail - (buf->transport_header + sizeof(tcp_header));
+        auto ex = sendpbuf(ref_guard<packetbuf>{buf});
 
         if (ex.has_error())
+            return ex.error();
+
+        // Send went fine, decrement the window size
+        window_size -= segment_len;
+        return 0;
+    }
+
+    unsigned int flags = TCP_FLAG_ACK;
+    auto segment_len = buf->length();
+    tcp_header *header = (tcp_header *) buf->push_header(sizeof(tcp_header));
+    buf->transport_header = (unsigned char *) header;
+
+    memset(header, 0, sizeof(tcp_header));
+
+    auto &dest = daddr();
+
+    auto data_off = TCP_MAKE_DATA_OFF(tcp_header_length_to_data_off(sizeof(tcp_header)));
+
+    /* Assume the max window size as the window size, for now */
+    header->window_size = htons(our_window_size);
+    header->source_port = saddr().port;
+    header->sequence_number = htonl(sequence_nr());
+    header->data_offset_and_flags = htons(data_off | flags);
+    header->dest_port = dest.port;
+    header->urgent_pointer = 0;
+
+    if (flags & TCP_FLAG_ACK)
+        header->ack_number = htonl(acknowledge_nr());
+    else
+        header->ack_number = 0;
+
+    // TODO: options?
+
+    auto &route = route_cache;
+    auto nif = route.nif;
+
+    if (nif->flags & NETIF_SUPPORTS_CSUM_OFFLOAD && !needs_fragmenting(nif, buf))
+    {
+        /* TODO: Don't assume IPv4 */
+        header->checksum = ~tcpv4_calculate_checksum(
+            header, static_cast<uint16_t>(sizeof(tcp_header) + segment_len),
+            route.src_addr.in4.s_addr, route.dst_addr.in4.s_addr, false);
+        buf->csum_offset = &header->checksum;
+        buf->csum_start = (unsigned char *) header;
+        buf->needs_csum = 1;
+    }
+    else
+    {
+        header->checksum = tcpv4_calculate_checksum(
+            header, static_cast<uint16_t>(sizeof(tcp_header) + segment_len),
+            route.src_addr.in4.s_addr, route.dst_addr.in4.s_addr);
+    }
+
+    uint32_t seqs = segment_len;
+    if (flags & TCP_FLAG_SYN)
+        seqs++;
+
+    sequence_nr() += seqs;
+
+    auto ex = sendpbuf(ref_guard<packetbuf>{buf});
+
+    if (ex.has_error())
+        return ex.error();
+
+    // Send went fine, decrement the window size
+    window_size -= segment_len;
+    return 0;
+}
+
+/**
+ * @brief Try to send data
+ *
+ * @return 0 on success, negative error codes
+ */
+int tcp_socket::try_to_send()
+{
+    auto packet_list = pending_out.get_packet_list();
+
+    list_for_every_safe (packet_list)
+    {
+        auto pbf = list_head_cpp<packetbuf>::self_from_list_head(l);
+
+        // Need to stop: the window doesn't allow us to send data
+        if (other_window() < pbf->length())
         {
-            sock_err = -ex.error();
+            break;
+        }
+
+        // If we're on nagle and nagle doesn't allow us to send, stop sending
+        if (nagle_enabled && !nagle_can_send(pbf))
+        {
+            break;
+        }
+
+        // Pre-remove it, because if everything is successful
+        // it'll get appended to another list
+        list_remove(&pbf->list_node);
+
+        int st = send_segment(pbf);
+
+        // Error, re-append
+        if (st < 0)
+        {
+            list_add_tail(&pbf->list_node, packet_list);
+            return sock_err;
         }
     }
+
+    return 0;
 }
 
 ssize_t tcp_socket::sendmsg(const msghdr *msg, int flags)
@@ -888,26 +969,28 @@ ssize_t tcp_socket::sendmsg(const msghdr *msg, int flags)
     if (msg->msg_name)
         return -EISCONN;
 
+    scoped_hybrid_lock g{socket_lock, this};
+
+    if (!can_send())
+        return -ENOTCONN;
+
+    CONSUME_SOCK_ERR;
+
     auto len = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
 
     if (len < 0)
         return len;
 
-    if (len > UINT16_MAX)
-        return -EINVAL;
-
-    mutex_lock(&send_lock);
-
     auto st = queue_data(msg->msg_iov, msg->msg_iovlen, (size_t) len);
     if (st < 0)
     {
-        mutex_unlock(&send_lock);
         return st;
     }
 
-    try_to_send();
-
-    mutex_unlock(&send_lock);
+    if (int _st = try_to_send(); _st < 0)
+    {
+        return _st;
+    }
 
     return len;
 }
@@ -998,6 +1081,8 @@ ssize_t tcp_socket::recvmsg(msghdr *msg, int flags)
     auto iovlen = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
     if (iovlen < 0)
         return iovlen;
+
+    CONSUME_SOCK_ERR;
 
     auto st = get_segment(flags);
     if (st.has_error())

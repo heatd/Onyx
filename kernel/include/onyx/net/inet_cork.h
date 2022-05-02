@@ -20,6 +20,7 @@ protected:
     list_head packet_list;
     size_t packet_list_len;
     int pending_;
+    size_t length_;
 
     // Needed so we can check whether or not to let us have more datagrams
     int sock_type;
@@ -28,7 +29,7 @@ protected:
                          size_t max_packet_len, size_t skip_first);
 
 public:
-    inet_cork(int sock_type) : pending_{AF_UNSPEC}, sock_type{sock_type}
+    inet_cork(int sock_type) : pending_{AF_UNSPEC}, length_{}, sock_type{sock_type}
     {
         INIT_LIST_HEAD(&packet_list);
     }
@@ -37,14 +38,19 @@ public:
 
     int send(const iflow &flow, void (*prepare_headers)(packetbuf *buf, const iflow &flow));
 
-    list_head &get_packet_list()
+    list_head *get_packet_list()
     {
-        return packet_list;
+        return &packet_list;
     }
 
     int &pending()
     {
         return pending_;
+    }
+
+    size_t length() const
+    {
+        return length_;
     }
 };
 

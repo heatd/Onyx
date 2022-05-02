@@ -282,8 +282,6 @@ private:
     uint32_t seq_number;
     uint32_t ack_number;
     uint32_t last_ack_number;
-    mutex send_lock;
-    cul::vector<uint8_t> send_buffer;
     size_t current_pos;
     uint16_t mss;
     uint32_t window_size;
@@ -292,9 +290,12 @@ private:
     uint8_t our_window_shift;
     uint32_t expected_ack;
     bool connection_pending;
+    inet_cork pending_out;
     /* TODO: Add a lock for this stuff up here */
     struct list_head pending_accept_node;
     struct list_head pending_accept_list;
+
+    bool nagle_enabled : 1;
 
     template <typename pred>
     tcp_ack *find_ack(pred predicate)
@@ -409,20 +410,23 @@ public:
     static constexpr uint16_t default_window_size_shift = 0;
 
     tcp_socket()
-        : inet_socket{}, state(tcp_state::TCP_STATE_CLOSED),
-          type(SOCK_STREAM), packet_semaphore{}, packet_list_head{}, packet_lock{},
-          tcp_ack_list_lock{}, pending_out_packets{}, tcp_ack_wq{}, conn_wq{}, seq_number{0},
-          ack_number{0}, send_lock{}, send_buffer{}, current_pos{}, mss{default_mss},
+        : inet_socket{}, state(tcp_state::TCP_STATE_CLOSED), type(SOCK_STREAM), packet_semaphore{},
+          packet_list_head{}, packet_lock{}, tcp_ack_list_lock{}, pending_out_packets{},
+          tcp_ack_wq{}, conn_wq{}, seq_number{0}, ack_number{0}, current_pos{}, mss{default_mss},
           window_size{0}, window_size_shift{default_window_size_shift}, our_window_size{UINT16_MAX},
           our_window_shift{default_window_size_shift}, expected_ack{0}, connection_pending{},
-          pending_accept_list{}, pending_out_lock{}
+          pending_out{SOCK_STREAM}, pending_accept_list{}, nagle_enabled{true}, pending_out_lock{}
     {
         init_wait_queue_head(&conn_wq);
         INIT_LIST_HEAD(&tcp_ack_list);
-        mutex_init(&send_lock);
         init_wait_queue_head(&tcp_ack_wq);
         INIT_LIST_HEAD(&pending_out_packets);
         INIT_LIST_HEAD(&pending_accept_list);
+    }
+
+    bool can_send() const
+    {
+        return state == tcp_state::TCP_STATE_ESTABLISHED;
     }
 
     ~tcp_socket()
@@ -438,6 +442,11 @@ public:
     const inet_sock_address &daddr()
     {
         return dest_addr;
+    }
+
+    uint32_t other_window() const
+    {
+        return window_size;
     }
 
     int bind(struct sockaddr *addr, socklen_t addrlen) override;
@@ -465,8 +474,6 @@ public:
     }
 
     ssize_t queue_data(iovec *vec, int vlen, size_t count);
-
-    void try_to_send();
 
     int setsockopt(int level, int opt, const void *optval, socklen_t optlen) override;
     int getsockopt(int level, int opt, void *optval, socklen_t *optlen) override;
@@ -503,6 +510,29 @@ public:
      * @param error Error it failed with
      */
     void conn_fail(int error);
+
+    /**
+     * @brief Try to send data
+     *
+     * @return 0 on success, negative error codes
+     */
+    int try_to_send();
+
+    /**
+     * @brief Checks if we can send a packet according to nagle's algorithm
+     *
+     * @param buf Packetbuf to check
+     * @return True if possible, else false.
+     */
+    bool nagle_can_send(packetbuf *buf);
+
+    /**
+     * @brief Sends a data segment
+     *
+     * @param buf Packetbuf to send
+     * @return 0 on success, negative error codes
+     */
+    int send_segment(packetbuf *buf);
 };
 
 constexpr inline uint16_t tcp_header_length_to_data_off(uint16_t len)

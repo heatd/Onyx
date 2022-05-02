@@ -21,18 +21,19 @@ int inet_cork::append_data(const iovec *vec, size_t vec_len, size_t proto_hdr_si
             break;
 
         auto packet = list_head_cpp<packetbuf>::self_from_list_head(l);
+        auto packet_len = packet->length();
 
 #if DEBUG_INET_CORK
         printk("Length: %u\n", packet->length());
         printk("Max packet len %lu, proto hdr size %lu\n", max_packet_len, proto_hdr_size);
 #endif
 
-        if (packet->length() + proto_hdr_size < max_packet_len)
+        if (packet_len + proto_hdr_size < max_packet_len)
         {
             /* OOOH, we've got some room, let's expand! */
             const uint8_t *ubuf = (uint8_t *) vec->iov_base + read_in_vec;
             auto len = vec->iov_len - read_in_vec;
-            auto to_expand = cul::clamp(len, UINT_MAX);
+            unsigned int to_expand = cul::clamp(len, max_packet_len - packet_len);
 #if DEBUG_INET_CORK
             printk("Expanding buffer %u\n", to_expand);
 #endif
@@ -40,7 +41,7 @@ int inet_cork::append_data(const iovec *vec, size_t vec_len, size_t proto_hdr_si
 
             if (st < 0)
             {
-                return -ENOMEM;
+                return -ENOBUFS;
             }
 
 #if DEBUG_INET_CORK
@@ -67,7 +68,6 @@ int inet_cork::append_data(const iovec *vec, size_t vec_len, size_t proto_hdr_si
 int inet_cork::alloc_and_append(const iovec *vec, size_t vec_len, size_t proto_hdr_len,
                                 size_t max_packet_len, size_t skip_first)
 {
-    max_packet_len -= proto_hdr_len + PACKET_MAX_HEAD_LENGTH;
     size_t added_from_vec = 0;
     size_t vec_nr = 0;
     while (vec_len)
@@ -78,7 +78,7 @@ int inet_cork::alloc_and_append(const iovec *vec, size_t vec_len, size_t proto_h
 
         auto packet = new packetbuf;
         if (!packet)
-            return -ENOMEM;
+            return -ENOBUFS;
 
         auto iov_len = vec->iov_len;
 
@@ -90,27 +90,28 @@ int inet_cork::alloc_and_append(const iovec *vec, size_t vec_len, size_t proto_h
             iov_len -= skip_first;
         }
 
-        auto to_alloc = cul::clamp(iov_len - added_from_vec, max_packet_len);
+        auto max_payload = cul::clamp(iov_len - added_from_vec, max_packet_len - proto_hdr_len);
+        auto to_alloc = max_payload + proto_hdr_len + PACKET_MAX_HEAD_LENGTH;
 
         auto ubuf = (const uint8_t *) vec->iov_base + added_from_vec;
 
         if (!packet->allocate_space(to_alloc))
         {
             delete packet;
-            return -ENOMEM;
+            return -ENOBUFS;
         }
 
         packet->reserve_headers(proto_hdr_len + PACKET_MAX_HEAD_LENGTH);
 
-        auto st = packet->expand_buffer(ubuf, to_alloc);
+        auto st = packet->expand_buffer(ubuf, max_payload);
 
 #if DEBUG_INET_CORK
         printk("expand buffer %ld", st);
 #endif
 
-        assert((size_t) st == to_alloc);
+        assert((size_t) st == max_payload);
 
-        added_from_vec += to_alloc;
+        added_from_vec += max_payload;
 
         list_add_tail(&packet->list_node, &packet_list);
         packet_list_len++;

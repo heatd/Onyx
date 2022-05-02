@@ -336,10 +336,9 @@ ssize_t udp_socket::udp_sendmsg(const msghdr *msg, int flags, const inet_sock_ad
     }
 
 #if DEBUG_UDP_CORK
-    printk(
-        "appending %lu, total len %u\n", msg->msg_iov[0].iov_len,
-        list_head_cpp<packetbuf>::self_from_list_head(list_first_element(&cork.get_packet_list()))
-            ->length());
+    printk("appending %lu, total len %u\n", msg->msg_iov[0].iov_len,
+           list_head_cpp<packetbuf>::self_from_list_head(list_first_element(cork.get_packet_list()))
+               ->length());
 #endif
 
     if (!wanting_cork)

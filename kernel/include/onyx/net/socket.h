@@ -214,6 +214,22 @@ public:
         return (int) val;
     }
 
+    bool has_sock_err() const
+    {
+        return sock_err != 0;
+    }
+
+    int consume_sock_err()
+    {
+        int ret = -sock_err;
+        sock_err = 0;
+        return ret;
+    }
+
+#define CONSUME_SOCK_ERR \
+    if (has_sock_err())  \
+    return consume_sock_err()
+
     virtual int listen();
     virtual socket *accept(socket_conn_request *req);
     virtual int bind(sockaddr *addr, socklen_t addrlen);
