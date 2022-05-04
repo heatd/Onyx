@@ -874,3 +874,16 @@ bool inet_socket::needs_fragmenting(netif *nif, packetbuf *buf) const
 {
     return nif->mtu < buf->length() + get_headers_len();
 }
+
+/**
+ * @brief Check if we can offload the checksumming
+ *        Usually, this should be possible if there's no fragmenting needed and the interface
+ *        supports such a thing.
+ * @param nif Network interface
+ * @param buf Packet that we're trying to send
+ * @return True if possible, else false
+ */
+bool inet_socket::can_offload_csum(netif *nif, packetbuf *buf) const
+{
+    return nif->flags & NETIF_SUPPORTS_CSUM_OFFLOAD && !needs_fragmenting(nif, buf);
+}

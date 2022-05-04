@@ -10,6 +10,7 @@
 #include <onyx/net/ip.h>
 #include <onyx/net/ndp.h>
 #include <onyx/net/socket_table.h>
+#include <onyx/net/tcp.h>
 #include <onyx/net/udp.h>
 
 const struct in6_addr in6addr_any = IN6ADDR_ANY_INIT;
@@ -427,10 +428,32 @@ int handle_packet(netif *nif, packetbuf *buf)
     /* Adjust tail to point at the end of the ipv4 packet */
     buf->tail = (unsigned char *) header + iphdr_len + ntohs(header->payload_length);
 
+    inet_route route;
+    route.dst_addr.in6 = header->dst_addr;
+    route.gateway_addr = {};
+    route.src_addr.in6 = header->src_addr;
+    route.nif = nif;
+    route.mask.in6 = {}; // TODO
+    route.flags = 0;
+
+#if 0
+    // TODO
+    if (addr_is_multicast(header->dest_ip))
+    {
+        route.flags |= INET4_ROUTE_FLAG_MULTICAST;
+    }
+    else if (addr_is_broadcast(header->dest_ip, route))
+    {
+        route.flags |= INET4_ROUTE_FLAG_BROADCAST;
+    }
+#endif
+
     if (header->next_header == IPPROTO_ICMPV6)
         return icmpv6::handle_packet(nif, buf);
     else if (header->next_header == IPPROTO_UDP)
         return udp_handle_packet_v6(nif, buf);
+    else if (header->next_header == IPPROTO_TCP)
+        return tcp6_handle_packet(route, buf);
     else
     {
         /* Oh, no, an unhandled protocol! Send an ICMP error message */

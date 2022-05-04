@@ -124,6 +124,15 @@ inline void ipv4_to_sockaddr(in_addr_t addr, in_port_t port, sockaddr_in &in)
     memset(&in.sin_zero, 0, sizeof(in.sin_zero));
 }
 
+inline void ipv6_to_sockaddr(const in6_addr &addr, in_port_t port, sockaddr_in6 &in)
+{
+    in.sin6_addr = addr;
+    in.sin6_family = AF_INET6;
+    in.sin6_port = port;
+    in.sin6_scope_id = 0;
+    in.sin6_flowinfo = 0;
+}
+
 inline bool check_sockaddr_in(sockaddr_in *in)
 {
     if (in->sin_family != AF_INET)

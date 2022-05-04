@@ -151,6 +151,19 @@ struct inet_socket : public socket
 
     bool needs_fragmenting(netif *nif, packetbuf *buf) const;
 
+    /**
+     * @brief Check if we can offload the checksumming
+     *        Usually, this should be possible if there's no fragmenting needed and the interface
+     *        supports such a thing.
+     * @param nif Network interface
+     * @param buf Packet that we're trying to send
+     * @return True if possible, else false
+     */
+    bool can_offload_csum(netif *nif, packetbuf *buf) const;
+
+#define call_based_on_inet(func, ...) \
+    ((effective_domain() == AF_INET6) ? func<AF_INET6>(__VA_ARGS__) : func<AF_INET>(__VA_ARGS__))
+
 private:
     friend class ip::v4::proto_family;
     friend class ip::v6::proto_family;

@@ -22,8 +22,10 @@ socket_table tcp_table;
 
 const inet_proto tcp_proto{"tcp", &tcp_table};
 
-uint16_t tcpv4_calculate_checksum(tcp_header *header, uint16_t packet_length, uint32_t srcip,
+uint16_t tcpv4_calculate_checksum(const tcp_header *header, uint16_t packet_length, uint32_t srcip,
                                   uint32_t dstip, bool calc_data = true);
+uint16_t tcpv6_calculate_checksum(const tcp_header *header, uint16_t packet_length,
+                                  const in6_addr &srcip, const in6_addr &dstip, bool calc_data);
 
 #define TCP_MAKE_DATA_OFF(off) (off << TCP_DATA_OFFSET_SHIFT)
 
@@ -297,8 +299,8 @@ int tcp_socket::handle_packet(const tcp_socket::packet_handling_data &data)
     return 0;
 }
 
-int tcp_send_rst_no_socket(const sockaddr_in_both &dstaddr, in_port_t srcport, int domain,
-                           netif *nif)
+int tcp_send_rst_no_socket(const inet_route &route, in_port_t dstport, in_port_t srcport,
+                           int domain, netif *nif)
 {
     auto buf = make_refc<packetbuf>();
     if (!buf)
@@ -314,25 +316,37 @@ int tcp_send_rst_no_socket(const sockaddr_in_both &dstaddr, in_port_t srcport, i
     auto hdr = (tcp_header *) buf->push_header(sizeof(tcp_header));
 
     memset(hdr, 0, sizeof(tcp_header));
-    hdr->dest_port = dstaddr.in4.sin_port;
+    hdr->dest_port = dstport;
     hdr->source_port = srcport;
     hdr->data_offset_and_flags =
         htons(TCP_MAKE_DATA_OFF(tcp_header_length_to_data_off(sizeof(tcp_header))) | TCP_FLAG_RST);
-    hdr->checksum = tcpv4_calculate_checksum(hdr, sizeof(tcp_header), nif->local_ip.sin_addr.s_addr,
-                                             dstaddr.in4.sin_addr.s_addr);
+    hdr->checksum =
+        domain == AF_INET
+            ? tcpv4_calculate_checksum(hdr, sizeof(tcp_header), route.dst_addr.in4.s_addr,
+                                       route.src_addr.in4.s_addr)
+            : tcpv6_calculate_checksum(hdr, sizeof(tcp_header), route.dst_addr.in6,
+                                       route.src_addr.in6, true);
     /* TODO: Don't assume IPv4 */
 
-    inet_sock_address from{nif->local_ip.sin_addr, dstaddr.in4.sin_port};
-    inet_sock_address to{dstaddr.in4};
+    inet_sock_address from;
+    inet_sock_address to;
+    if (domain == AF_INET)
+    {
+        from = inet_sock_address{route.dst_addr.in4, dstport};
+        to = inet_sock_address{route.src_addr.in4, srcport};
+    }
+    else
+    {
+        from = inet_sock_address{route.dst_addr.in6, dstport, route.nif->if_id};
+        to = inet_sock_address{route.src_addr.in6, srcport, route.nif->if_id};
+    }
 
-    auto res = ip::v4::get_v4_proto()->route(from, to, domain);
+    iflow flow{route, IPPROTO_TCP, domain == AF_INET6};
 
-    if (res.has_error())
-        return res.error();
-
-    iflow flow{res.value(), IPPROTO_TCP, false};
-
-    return netif_send_packet(flow.nif, buf.get());
+    if (domain == AF_INET)
+        return ip::v4::send_packet(flow, buf.get());
+    else
+        return ip::v6::send_packet(flow, buf.get());
 }
 
 int tcp_handle_packet(const inet_route &route, packetbuf *buf)
@@ -358,15 +372,11 @@ int tcp_handle_packet(const inet_route &route, packetbuf *buf)
 
     if (!socket)
     {
-        sockaddr_in_both addr;
-        addr.in4.sin_addr.s_addr = ip_header->source_ip;
-        addr.in4.sin_family = AF_INET;
-        addr.in4.sin_port = header->source_port;
-
         auto flags = htons(header->data_offset_and_flags);
 
         if (!(flags & TCP_FLAG_RST))
-            tcp_send_rst_no_socket(addr, header->dest_port, AF_INET, route.nif);
+            tcp_send_rst_no_socket(route, header->dest_port, header->source_port, AF_INET,
+                                   route.nif);
         /* No socket bound, bad packet. */
         return 0;
     }
@@ -385,7 +395,52 @@ int tcp_handle_packet(const inet_route &route, packetbuf *buf)
     return st;
 }
 
-uint16_t tcpv4_calculate_checksum(tcp_header *header, uint16_t packet_length, uint32_t srcip,
+int tcp6_handle_packet(const inet_route &route, packetbuf *buf)
+{
+    auto ip_header = (struct ip6hdr *) buf->net_header;
+    int st = 0;
+    auto header = reinterpret_cast<tcp_header *>(buf->data);
+
+    if (!validate_tcp_packet(header, buf->length())) [[unlikely]]
+        return 0;
+
+    buf->transport_header = (unsigned char *) header;
+
+    // TCP connections don't run on broadcast/mcast
+    if (route.flags & (INET4_ROUTE_FLAG_BROADCAST | INET4_ROUTE_FLAG_MULTICAST))
+        return 0;
+
+    auto socket = inet6_resolve_socket<tcp_socket>(ip_header->src_addr, header->source_port,
+                                                   header->dest_port, IPPROTO_TCP, route.nif, false,
+                                                   &tcp_proto);
+    uint16_t tcp_payload_len = ntohs(ip_header->payload_length);
+
+    if (!socket)
+    {
+        auto flags = htons(header->data_offset_and_flags);
+
+        if (!(flags & TCP_FLAG_RST))
+            tcp_send_rst_no_socket(route, header->dest_port, header->source_port, AF_INET6,
+                                   route.nif);
+        /* No socket bound, bad packet. */
+        return 0;
+    }
+
+    sockaddr_in_both both;
+    ipv6_to_sockaddr(ip_header->src_addr, header->source_port, both.in6);
+
+    const tcp_socket::packet_handling_data handle_data{buf, header, tcp_payload_len, &both,
+                                                       AF_INET6};
+
+    socket->socket_lock.lock_bh();
+    st = socket->handle_packet(handle_data);
+    socket->socket_lock.unlock_bh();
+    socket->unref();
+
+    return st;
+}
+
+uint16_t tcpv4_calculate_checksum(const tcp_header *header, uint16_t packet_length, uint32_t srcip,
                                   uint32_t dstip, bool calc_data)
 {
     uint32_t proto = ((packet_length + IPPROTO_TCP) << 8);
@@ -400,6 +455,55 @@ uint16_t tcpv4_calculate_checksum(tcp_header *header, uint16_t packet_length, ui
         r = __ipsum_unfolded(header, packet_length, r);
 
     return ipsum_fold(r);
+}
+
+uint16_t tcpv6_calculate_checksum(const tcp_header *header, uint16_t packet_length,
+                                  const in6_addr &srcip, const in6_addr &dstip, bool calc_data)
+{
+    uint32_t proto = htonl(IPPROTO_TCP);
+    uint32_t pseudo_len = htonl(packet_length);
+
+    auto r = __ipsum_unfolded(&srcip, sizeof(srcip), 0);
+    r = __ipsum_unfolded(&dstip, sizeof(dstip), r);
+    r = __ipsum_unfolded(&pseudo_len, sizeof(pseudo_len), r);
+    r = __ipsum_unfolded(&proto, sizeof(proto), r);
+    assert(header->checksum == 0);
+
+    if (calc_data)
+        r = __ipsum_unfolded(header, packet_length, r);
+
+    return ipsum_fold(r);
+}
+
+/**
+ * @brief Calculates the TCP checksum
+ *
+ * @tparam domain Domain of the underlying L3 protocol
+ * @param header TCP header
+ * @param len Length of the packet
+ * @param src Src address
+ * @param dest Dest address
+ * @param do_rest_of_packet True if we need to checksum all of the packet (instead of relying on
+ *                          offloading)
+ * @return uint16_t The internet checksum
+ */
+template <int domain>
+uint16_t tcp_calculate_checksum(const tcp_header *header, uint16_t len, const inet_route::addr &src,
+                                const inet_route::addr &dest, bool do_rest_of_packet = true)
+{
+    uint16_t result = 0;
+    if constexpr (domain == AF_INET6)
+    {
+        result = tcpv6_calculate_checksum(header, len, src.in6, dest.in6, do_rest_of_packet);
+    }
+    else
+    {
+        result = tcpv4_calculate_checksum(header, len, src.in4.s_addr, dest.in4.s_addr,
+                                          do_rest_of_packet);
+    }
+
+    // Checksum offloading needs an unfolded checksum
+    return do_rest_of_packet ? result : ~result;
 }
 
 uint16_t tcp_packet::options_length() const
@@ -482,22 +586,23 @@ ref_guard<packetbuf> tcp_packet::result()
     auto &route = socket->route_cache;
     auto nif = route.nif;
 
-    if (nif->flags & NETIF_SUPPORTS_CSUM_OFFLOAD && !socket->needs_fragmenting(nif, buf.get()))
+    bool need_csum = true;
+
+    if (socket->can_offload_csum(nif, buf.get()))
     {
-        /* TODO: Don't assume IPv4 */
-        header->checksum =
-            ~tcpv4_calculate_checksum(header, static_cast<uint16_t>(header_size + length),
-                                      route.src_addr.in4.s_addr, route.dst_addr.in4.s_addr, false);
         buf->csum_offset = &header->checksum;
         buf->csum_start = (unsigned char *) header;
         buf->needs_csum = 1;
+        need_csum = false;
     }
-    else
-    {
-        header->checksum =
-            tcpv4_calculate_checksum(header, static_cast<uint16_t>(header_size + length),
-                                     route.src_addr.in4.s_addr, route.dst_addr.in4.s_addr);
-    }
+
+    // Ugly because we're out of the socket class so effective_domain() is a myth here.
+    header->checksum =
+        socket->effective_domain() == AF_INET6
+            ? tcp_calculate_checksum<AF_INET6>(header, static_cast<uint16_t>(header_size + length),
+                                               route.src_addr, route.dst_addr, need_csum)
+            : tcp_calculate_checksum<AF_INET>(header, static_cast<uint16_t>(header_size + length),
+                                              route.src_addr, route.dst_addr, need_csum);
 
     starting_seq_number = socket->sequence_nr();
     uint32_t seqs = length;
@@ -581,8 +686,7 @@ bool tcp_socket::parse_options(tcp_header *packet)
     return true;
 }
 
-/* TODO: This doesn't apply to IPv6 */
-constexpr uint16_t tcp_headers_overhead = sizeof(struct tcp_header) + IPV4_MIN_HEADER_LEN;
+constexpr uint16_t tcp_headers_overhead = sizeof(struct tcp_header);
 
 void tcp_out_timeout(clockevent *ev)
 {
@@ -606,14 +710,27 @@ void tcp_out_timeout(clockevent *ev)
     }
 
     t->transmission_try++;
+    tcp_socket *sock = t->sock;
 
-    iflow flow{t->sock->route_cache, IPPROTO_TCP, false};
+    iflow flow{sock->route_cache, IPPROTO_TCP, sock->effective_domain() == AF_INET6};
 
     // Since the packet has already been pre-prepared by the network stack
     // we can just send it straight through the network interface
     int st = netif_send_packet(flow.nif, t->buf.get());
-    // TODO: signal error
-    (void) st;
+
+    if (st < 0)
+    {
+        // If something failed, signal an error and stop retransmitting.
+        sock->sock_err = -st;
+        wait_queue_wake_all(&t->wq);
+        ev->flags &= ~CLOCKEVENT_FLAG_PULSE;
+        if (t->fail)
+            t->fail(t);
+        scoped_lock g{t->sock->pending_out_lock};
+        list_remove(&t->node);
+        return;
+    }
+
     hrtime_t next_timeout = 200;
     for (unsigned int i = 0; i < t->transmission_try; i++)
     {
@@ -632,7 +749,8 @@ void tcp_out_timeout(clockevent *ev)
  */
 expected<ref_guard<tcp_pending_out>, int> tcp_socket::sendpbuf(ref_guard<packetbuf> buf, bool noack)
 {
-    iflow flow{route_cache, IPPROTO_TCP, false};
+    const auto eff_domain = effective_domain();
+    iflow flow{route_cache, IPPROTO_TCP, eff_domain == AF_INET6};
     ref_guard<tcp_pending_out> pending;
     if (!noack)
     {
@@ -652,7 +770,11 @@ expected<ref_guard<tcp_pending_out>, int> tcp_socket::sendpbuf(ref_guard<packetb
         append_pending_out(pending.get());
     }
 
-    int st = ip::v4::send_packet(flow, buf.get());
+    int st = -EINVAL;
+    if (eff_domain == AF_INET)
+        st = ip::v4::send_packet(flow, buf.get());
+    else if (eff_domain == AF_INET6)
+        st = ip::v6::send_packet(flow, buf.get());
 
     if (st < 0)
         return unexpected{st};
@@ -686,7 +808,7 @@ int tcp_socket::start_handshake(netif *nif, int flags)
 
     tcp_option opt{TCP_OPTION_MSS, 4};
 
-    uint16_t our_mss = nif->mtu - tcp_headers_overhead;
+    uint16_t our_mss = nif->mtu - tcp_headers_overhead - get_headers_len();
     opt.data.mss = htons(our_mss);
 
     first_packet.append_option(&opt);
@@ -705,7 +827,7 @@ int tcp_socket::start_handshake(netif *nif, int flags)
 
     state = tcp_state::TCP_STATE_SYN_SENT;
 
-    // TODO: sendpbuf shold set fail and done_callback directly, as to avoid races
+    // TODO: sendpbuf should set fail and done_callback directly, as to avoid races
     if (flags & O_NONBLOCK)
     {
         val->fail = [](tcp_pending_out *pending) {
@@ -801,13 +923,13 @@ int tcp_socket::connect(struct sockaddr *addr, socklen_t addrlen, int flags)
     if (!validate_sockaddr_len_pair(addr, addrlen))
         return -EINVAL;
 
-    struct sockaddr_in *in = (struct sockaddr_in *) addr;
-    struct sockaddr_in6 *in6 = (sockaddr_in6 *) addr;
+    auto [dst, addr_domain] = sockaddr_to_isa(addr);
 
-    if (domain == AF_INET)
-        dest_addr = inet_sock_address{*in};
-    else
-        dest_addr = inet_sock_address{*in6};
+    bool on_ipv4_mode = addr_domain == AF_INET && domain == AF_INET6;
+
+    dest_addr = dst;
+
+    ipv4_on_inet6 = on_ipv4_mode;
 
     return start_connection(flags);
 }
@@ -889,22 +1011,19 @@ int tcp_socket::send_segment(packetbuf *buf)
     auto &route = route_cache;
     auto nif = route.nif;
 
-    if (nif->flags & NETIF_SUPPORTS_CSUM_OFFLOAD && !needs_fragmenting(nif, buf))
+    bool need_csum = true;
+
+    if (can_offload_csum(nif, buf))
     {
-        /* TODO: Don't assume IPv4 */
-        header->checksum = ~tcpv4_calculate_checksum(
-            header, static_cast<uint16_t>(sizeof(tcp_header) + segment_len),
-            route.src_addr.in4.s_addr, route.dst_addr.in4.s_addr, false);
         buf->csum_offset = &header->checksum;
         buf->csum_start = (unsigned char *) header;
         buf->needs_csum = 1;
+        need_csum = false;
     }
-    else
-    {
-        header->checksum = tcpv4_calculate_checksum(
-            header, static_cast<uint16_t>(sizeof(tcp_header) + segment_len),
-            route.src_addr.in4.s_addr, route.dst_addr.in4.s_addr);
-    }
+
+    header->checksum = call_based_on_inet(tcp_calculate_checksum, header,
+                                          static_cast<uint16_t>(sizeof(tcp_header) + segment_len),
+                                          route.src_addr, route.dst_addr, need_csum);
 
     uint32_t seqs = segment_len;
     if (flags & TCP_FLAG_SYN)

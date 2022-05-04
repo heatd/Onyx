@@ -654,5 +654,6 @@ struct tcp_pending_out : public refcountable
 struct socket *tcp_create_socket(int type);
 int tcp_init_netif(struct netif *netif);
 int tcp_handle_packet(const inet_route &route, packetbuf *buf);
+int tcp6_handle_packet(const inet_route &route, packetbuf *buf);
 
 #endif
