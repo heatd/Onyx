@@ -350,16 +350,16 @@ int send_packet(const iflow &flow, packetbuf *buf, cul::slice<ip_option> options
 
 bool valid_packet(struct ip_header *header, size_t size)
 {
-    if (ntohs(header->total_len) > size)
+    if (sizeof(struct ip_header) > size)
         return false;
 
-    if (sizeof(struct ip_header) > size)
+    if (header->version != 4)
         return false;
 
     if (header->ihl < 5)
         return false;
 
-    if (header->version != 4)
+    if (ntohs(header->total_len) > size)
         return false;
 
     return true;
