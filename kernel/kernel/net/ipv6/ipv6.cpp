@@ -398,13 +398,13 @@ socket *create_socket(int type, int protocol)
 
 bool valid_packet(const ip6hdr *header, size_t size)
 {
-    if (ntohs(header->payload_length) > size)
-        return false;
-
-    if (sizeof(struct ip_header) > size)
+    if (sizeof(struct ip6hdr) > size)
         return false;
 
     if (header->version != 6)
+        return false;
+
+    if (ntohs(header->payload_length) > size)
         return false;
 
     return true;
