@@ -161,3 +161,13 @@ int inet_cork::send(const iflow &flow, void (*prepare_headers)(packetbuf *buf, c
     pending = 0;
     return 0;
 }
+
+inet_cork::~inet_cork()
+{
+    list_for_every_safe (&packet_list)
+    {
+        auto packet = list_head_cpp<packetbuf>::self_from_list_head(l);
+        list_remove(&packet->list_node);
+        packet->unref();
+    }
+}

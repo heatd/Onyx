@@ -262,7 +262,7 @@ public:
     }
 };
 
-constexpr unsigned int tcp_retransmission_max = 5;
+constexpr unsigned int tcp_retransmission_max = 15;
 
 struct tcp_pending_out;
 
@@ -296,6 +296,8 @@ private:
     struct list_head pending_accept_list;
 
     bool nagle_enabled : 1;
+    // Done as a pointer so we save some space
+    unique_ptr<clockevent> time_wait_timer;
 
     template <typename pred>
     tcp_ack *find_ack(pred predicate)
@@ -400,6 +402,12 @@ private:
      */
     void send_ack();
 
+    /**
+     * @brief Put the socket in a TIME_WAIT state
+     *
+     */
+    void set_time_wait();
+
 public:
     struct spinlock pending_out_lock;
 
@@ -448,7 +456,8 @@ public:
           tcp_ack_wq{}, conn_wq{}, seq_number{0}, ack_number{0}, current_pos{}, mss{default_mss},
           window_size{0}, window_size_shift{default_window_size_shift}, our_window_size{UINT16_MAX},
           our_window_shift{default_window_size_shift}, expected_ack{0}, connection_pending{},
-          pending_out{SOCK_STREAM}, pending_accept_list{}, nagle_enabled{true}, pending_out_lock{}
+          pending_out{SOCK_STREAM}, pending_accept_list{}, nagle_enabled{true}, time_wait_timer{},
+          pending_out_lock{}
     {
         init_wait_queue_head(&conn_wq);
         INIT_LIST_HEAD(&tcp_ack_list);
@@ -459,14 +468,11 @@ public:
 
     bool can_send() const
     {
-        return state == tcp_state::TCP_STATE_ESTABLISHED;
+        return state == tcp_state::TCP_STATE_ESTABLISHED ||
+               state == tcp_state::TCP_STATE_CLOSE_WAIT;
     }
 
-    ~tcp_socket()
-    {
-        /* TODO: Implement shutdown code. */
-        // assert(state == tcp_state::TCP_STATE_CLOSED);
-    }
+    ~tcp_socket();
 
     const inet_sock_address &saddr()
     {

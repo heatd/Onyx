@@ -34,6 +34,8 @@ public:
         INIT_LIST_HEAD(&packet_list);
     }
 
+    ~inet_cork();
+
     int append_data(const iovec *vec, size_t vec_len, size_t proto_hdr_size, size_t max_packet_len);
 
     int send(const iflow &flow, void (*prepare_headers)(packetbuf *buf, const iflow &flow));

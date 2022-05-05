@@ -282,6 +282,31 @@ void tcp_socket::reset()
     state = tcp_state::TCP_STATE_CLOSED;
 }
 
+// The (maximum segment lifetime) MSL is defined as 120 seconds
+#define TCP_MSL 120
+
+void tcp_socket::set_time_wait()
+{
+    time_wait_timer = make_unique<clockevent>();
+    if (!time_wait_timer)
+    {
+        // Uhh, what?
+        // Maybe find a way to destroy ourselves here?
+        return;
+    }
+
+    // RFC793 says to remain in TIME_WAIT state for 2MSL seconds
+    time_wait_timer->deadline = clocksource_get_time() + 2 * TCP_MSL * NS_PER_SEC;
+    time_wait_timer->flags = 0;
+    time_wait_timer->priv = this;
+    time_wait_timer->callback = [](clockevent *ev) {
+        tcp_socket *sock = (tcp_socket *) ev->priv;
+
+        // Finally, unref ourselves.
+        sock->unref();
+    };
+}
+
 /**
  * @brief Handle an incoming FIN packet
  *
@@ -294,6 +319,10 @@ void tcp_socket::handle_fin(packetbuf *buf)
 
     switch (state)
     {
+        case tcp_state::TCP_STATE_LAST_ACK:
+            // Note: LAST_ACK -> CLOSED means you can just destroy the socket, no problem.
+            state = tcp_state::TCP_STATE_CLOSED;
+            break;
         case tcp_state::TCP_STATE_SYN_RECEIVED:
         case tcp_state::TCP_STATE_ESTABLISHED:
             send_ack();
@@ -308,6 +337,7 @@ void tcp_socket::handle_fin(packetbuf *buf)
         case tcp_state::TCP_STATE_FIN_WAIT_2:
             send_ack();
             state = tcp_state::TCP_STATE_TIME_WAIT;
+            set_time_wait();
             break;
         default:
             break;
@@ -1373,7 +1403,15 @@ void tcp_socket::close()
     {
         // If we're the last reference to the socket, shut it down
         shutdown(SHUTDOWN_RDWR);
-        // TODO: TIME_WAIT
+
+        if (state == tcp_state::TCP_STATE_CLOSED)
+        {
+            // If we're closed, we're not getting TIME_WAIT'd, so just unref()
+            unref();
+        }
+
+        // I genuinely don't know if there are leaks here.
+
         return;
     }
 
@@ -1637,4 +1675,21 @@ int tcp_socket::listen()
     state = tcp_state::TCP_STATE_LISTEN;
 
     return 0;
+}
+
+tcp_socket::~tcp_socket()
+{
+    assert(state == tcp_state::TCP_STATE_CLOSED || state == tcp_state::TCP_STATE_TIME_WAIT);
+
+    // Clear out the pending retransmitting packets
+    list_for_every_safe (&pending_out_packets)
+    {
+        auto pkt = list_head_cpp<tcp_pending_out>::self_from_list_head(l);
+        pkt->remove();
+        pkt->unref();
+    }
+
+    // the inet cork should clear itself out in the destructor
+
+    // unbinding should be done in inet_socket's destructor
 }
