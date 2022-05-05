@@ -154,6 +154,7 @@ public:
 
     hrtime_t rcv_timeout;
     hrtime_t snd_timeout;
+    unsigned int shutdown_state;
 
     /* Define a default constructor here */
     socket()
@@ -161,7 +162,7 @@ public:
           socket_lock{}, bound{}, connected{}, listener_sem{}, conn_req_list_lock{},
           conn_request_list{}, nr_pending{}, backlog{}, proto_domain{},
           rx_max_buf{DEFAULT_RX_MAX_BUF}, tx_max_buf{DEFAULT_TX_MAX_BUF}, reuse_addr{false},
-          rcv_timeout{0}, snd_timeout{0}
+          rcv_timeout{0}, snd_timeout{0}, shutdown_state{}
     {
         INIT_LIST_HEAD(&socket_backlog);
     }
@@ -238,6 +239,7 @@ public:
     virtual ssize_t recvmsg(struct msghdr *msg, int flags);
     virtual int getsockname(sockaddr *addr, socklen_t *addrlen);
     virtual int getpeername(sockaddr *addr, socklen_t *addrlen);
+    virtual int shutdown(int how);
     virtual int getsockopt(int level, int optname, void *optval, socklen_t *optlen) = 0;
     virtual int setsockopt(int level, int optname, const void *optval, socklen_t optlen) = 0;
 
@@ -268,5 +270,10 @@ sockaddr &sa_generic(T &s)
 #define SOL_ICMPV6 58
 
 void socket_init(struct socket *socket);
+
+// Internal representations of the shutdown state of the socket
+#define SHUTDOWN_RD   (1 << 0)
+#define SHUTDOWN_WR   (1 << 1)
+#define SHUTDOWN_RDWR (SHUTDOWN_RD | SHUTDOWN_WR)
 
 #endif

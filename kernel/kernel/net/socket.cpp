@@ -75,6 +75,12 @@ int socket::getpeername(sockaddr *addr, socklen_t *addrlen)
     return -EOPNOTSUPP;
 }
 
+int socket::shutdown(int how)
+{
+    shutdown_state = how;
+    return 0;
+}
+
 ssize_t recv_queue::recvfrom(void *_buf, size_t len, int flags, sockaddr *src_addr, socklen_t *slen)
 {
     char *buf = (char *) _buf;
@@ -695,7 +701,30 @@ out:
 
 int sys_shutdown(int sockfd, int how)
 {
-    return 0;
+    auto_file f = get_socket_fd(sockfd);
+    if (!f)
+        return -errno;
+    socket *sock = file_to_socket(f.get_file());
+
+    if (how != SHUT_RD && how != SHUT_WR && how != SHUT_RDWR)
+        return -EINVAL;
+
+    int internal_how = 0;
+
+    switch (how)
+    {
+        case SHUT_RD:
+            internal_how = SHUTDOWN_RD;
+            break;
+        case SHUT_WR:
+            internal_how = SHUTDOWN_WR;
+            break;
+        case SHUT_RDWR:
+            internal_how = SHUTDOWN_RDWR;
+            break;
+    }
+
+    return sock->shutdown(internal_how);
 }
 
 int check_af_support(int domain)

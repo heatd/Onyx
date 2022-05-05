@@ -367,6 +367,39 @@ private:
                                                    &rx_packet_list_lock);
     }
 
+    /**
+     * @brief Send a FIN segment to the remote host,
+     *        to signal that we don't have more data to send.
+     *
+     * @return 0 on success, negative error codes
+     */
+    int send_fin();
+
+    /**
+     * @brief Reset the connection
+     *
+     */
+    void reset();
+
+    /**
+     * @brief Send a reset segment
+     *
+     */
+    void send_reset();
+
+    /**
+     * @brief Handle an incoming FIN packet
+     *
+     * @param buf Packetbuf we got
+     */
+    void handle_fin(packetbuf *buf);
+
+    /**
+     * @brief Send an ACK segment
+     *
+     */
+    void send_ack();
+
 public:
     struct spinlock pending_out_lock;
 
@@ -477,7 +510,7 @@ public:
 
     int setsockopt(int level, int opt, const void *optval, socklen_t optlen) override;
     int getsockopt(int level, int opt, void *optval, socklen_t *optlen) override;
-    int shutdown(int how);
+    int shutdown(int how) override;
     void close() override;
     ssize_t recvmsg(msghdr *msg, int flags) override;
     short poll(void *poll_file, short events) override;

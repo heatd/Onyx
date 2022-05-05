@@ -52,6 +52,18 @@ public:
     {
         return length_;
     }
+
+    /**
+     * @brief Append a whole packetbuf to the end of the list
+     *        Note: Increments buf's reference count
+     *
+     * @param buf Packetbuf to append
+     */
+    void append_packet(packetbuf *buf)
+    {
+        packet_list_len++;
+        list_add_tail(&buf->list_node, &packet_list);
+    }
 };
 
 #endif

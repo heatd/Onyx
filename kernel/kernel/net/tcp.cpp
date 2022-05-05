@@ -27,6 +27,37 @@ uint16_t tcpv4_calculate_checksum(const tcp_header *header, uint16_t packet_leng
 uint16_t tcpv6_calculate_checksum(const tcp_header *header, uint16_t packet_length,
                                   const in6_addr &srcip, const in6_addr &dstip, bool calc_data);
 
+/**
+ * @brief Calculates the TCP checksum
+ *
+ * @tparam domain Domain of the underlying L3 protocol
+ * @param header TCP header
+ * @param len Length of the packet
+ * @param src Src address
+ * @param dest Dest address
+ * @param do_rest_of_packet True if we need to checksum all of the packet (instead of relying on
+ *                          offloading)
+ * @return uint16_t The internet checksum
+ */
+template <int domain>
+uint16_t tcp_calculate_checksum(const tcp_header *header, uint16_t len, const inet_route::addr &src,
+                                const inet_route::addr &dest, bool do_rest_of_packet = true)
+{
+    uint16_t result = 0;
+    if constexpr (domain == AF_INET6)
+    {
+        result = tcpv6_calculate_checksum(header, len, src.in6, dest.in6, do_rest_of_packet);
+    }
+    else
+    {
+        result = tcpv4_calculate_checksum(header, len, src.in4.s_addr, dest.in4.s_addr,
+                                          do_rest_of_packet);
+    }
+
+    // Checksum offloading needs an unfolded checksum
+    return do_rest_of_packet ? result : ~result;
+}
+
 #define TCP_MAKE_DATA_OFF(off) (off << TCP_DATA_OFFSET_SHIFT)
 
 int tcp_init_netif(struct netif *netif)
@@ -133,6 +164,14 @@ void tcp_socket::do_ack(packetbuf *buf)
         if (!pkt->ack_for_packet(last_ack_number, ack))
             continue;
 
+        auto tph = (tcp_header *) pkt->buf->transport_header;
+
+        if (ntohs(tph->data_offset_and_flags) & TCP_FLAG_FIN)
+        {
+            // We just got a FIN acked, move states to FIN_WAIT_2
+            state = tcp_state::TCP_STATE_FIN_WAIT_2;
+        }
+
         pkt->do_ack();
 
         wait_queue_wake_all(&pkt->wq);
@@ -158,6 +197,142 @@ void tcp_socket::do_ack(packetbuf *buf)
     }
 }
 
+/**
+ * @brief Send a reset segment
+ *
+ */
+void tcp_socket::send_reset()
+{
+    auto pbuf = make_refc<packetbuf>();
+
+    if (!pbuf)
+        return;
+
+    if (!pbuf->allocate_space(MAX_TCP_HEADER_LENGTH))
+        return;
+
+    pbuf->reserve_headers(MAX_TCP_HEADER_LENGTH);
+    tcp_header *tph = (tcp_header *) pbuf->push_header(sizeof(tcp_header));
+
+    unsigned int flags = TCP_FLAG_ACK | TCP_FLAG_FIN;
+
+    pbuf->transport_header = (unsigned char *) tph;
+
+    memset(tph, 0, sizeof(tcp_header));
+
+    auto &dest = daddr();
+
+    auto data_off = TCP_MAKE_DATA_OFF(tcp_header_length_to_data_off(sizeof(tcp_header)));
+
+    /* Assume the max window size as the window size, for now */
+    tph->window_size = htons(our_window_size);
+    tph->source_port = saddr().port;
+    tph->sequence_number = htonl(sequence_nr());
+    tph->data_offset_and_flags = htons(data_off | flags);
+    tph->dest_port = dest.port;
+    tph->urgent_pointer = 0;
+
+    tph->ack_number = htonl(acknowledge_nr());
+
+    auto &route = route_cache;
+    auto nif = route.nif;
+
+    bool need_csum = true;
+
+    if (can_offload_csum(nif, pbuf.get()))
+    {
+        pbuf->csum_offset = &tph->checksum;
+        pbuf->csum_start = (unsigned char *) tph;
+        pbuf->needs_csum = 1;
+        need_csum = false;
+    }
+
+    tph->checksum =
+        call_based_on_inet(tcp_calculate_checksum, tph, static_cast<uint16_t>(sizeof(tcp_header)),
+                           route.src_addr, route.dst_addr, need_csum);
+
+    iflow flow{route_cache, IPPROTO_TCP, effective_domain() == AF_INET6};
+
+    if (effective_domain() == AF_INET)
+        ip::v4::send_packet(flow, pbuf.get());
+    else
+        ip::v6::send_packet(flow, pbuf.get());
+}
+/**
+ * @brief Reset the connection
+ *
+ */
+void tcp_socket::reset()
+{
+    sock_err = ECONNRESET;
+
+    scoped_lock g{pending_out_lock};
+
+    list_for_every_safe (&pending_out_packets)
+    {
+        auto pkt = list_head_cpp<tcp_pending_out>::self_from_list_head(l);
+        pkt->reset = true;
+        wait_queue_wake_all(&pkt->wq);
+        pkt->remove();
+
+        /* Unref *must* be the last thing we do */
+        pkt->unref();
+    }
+
+    state = tcp_state::TCP_STATE_CLOSED;
+}
+
+/**
+ * @brief Handle an incoming FIN packet
+ *
+ * @param buf Packetbuf we got
+ */
+void tcp_socket::handle_fin(packetbuf *buf)
+{
+    // Shutdown RD
+    shutdown_state |= SHUTDOWN_RD;
+
+    switch (state)
+    {
+        case tcp_state::TCP_STATE_SYN_RECEIVED:
+        case tcp_state::TCP_STATE_ESTABLISHED:
+            send_ack();
+            // Move into CLOSE_WAIT (waiting for the client to CLOSE)
+            state = tcp_state::TCP_STATE_CLOSE_WAIT;
+            break;
+        case tcp_state::TCP_STATE_FIN_WAIT_1:
+            // Simultaneous close - go to CLOSING and ack it
+            send_ack();
+            state = tcp_state::TCP_STATE_CLOSING;
+            break;
+        case tcp_state::TCP_STATE_FIN_WAIT_2:
+            send_ack();
+            state = tcp_state::TCP_STATE_TIME_WAIT;
+            break;
+        default:
+            break;
+    }
+}
+
+/**
+ * @brief Send an ACK segment
+ *
+ */
+void tcp_socket::send_ack()
+{
+    tcp_packet pkt{{}, this, TCP_FLAG_ACK, src_addr};
+    auto pbuf = pkt.result();
+
+    if (!pbuf)
+    {
+        sock_err = ENOBUFS;
+    }
+
+    if (auto ex = sendpbuf(pbuf, true); ex.has_error())
+    {
+        sock_err = ex.error();
+    }
+}
 /**
  * @brief Handle packet recv on ESTABLISHED
  *
@@ -191,6 +366,20 @@ int tcp_socket::do_established_rcv(const packet_handling_data &data)
 
     ack_number = starting_seq_number + seqs;
 
+    // Send a reset if we got data and we're not queueing data anymore
+    if (shutdown_state & SHUTDOWN_RD && data_size != 0)
+    {
+        reset();
+        send_reset();
+        return 0;
+    }
+
+    if (flags & TCP_FLAG_FIN)
+    {
+        handle_fin(data.buffer);
+        return 0;
+    }
+
     if (data_size || flags & TCP_FLAG_FIN)
     {
         // If this wasn't a FIN packet, it has data
@@ -202,21 +391,7 @@ int tcp_socket::do_established_rcv(const packet_handling_data &data)
         }
 
         // Now ack it
-
-        tcp_packet pkt{{}, this, TCP_FLAG_ACK, src_addr};
-        auto pbuf = pkt.result();
-
-        if (!pbuf)
-        {
-            sock_err = ENOBUFS;
-            return 0;
-        }
-
-        if (auto ex = sendpbuf(pbuf, true); ex.has_error())
-        {
-            sock_err = ex.error();
-            return 0;
-        }
+        send_ack();
     }
     else if (data_size == 0 && (flags & 0xff) == TCP_FLAG_ACK)
     {
@@ -250,29 +425,26 @@ int tcp_socket::handle_packet(const tcp_socket::packet_handling_data &data)
 
     if (flags & TCP_FLAG_RST)
     {
-        sock_err = ECONNRESET;
-
-        scoped_lock g{pending_out_lock};
-
-        list_for_every_safe (&pending_out_packets)
-        {
-            auto pkt = list_head_cpp<tcp_pending_out>::self_from_list_head(l);
-            pkt->reset = true;
-            wait_queue_wake_all(&pkt->wq);
-            pkt->remove();
-
-            /* Unref *must* be the last thing we do */
-            pkt->unref();
-        }
-
+        reset();
         return 0;
     }
 
     if (state == tcp_state::TCP_STATE_SYN_SENT)
         return do_receive_syn_sent(data);
 
-    if (state == tcp_state::TCP_STATE_ESTABLISHED)
-        return do_established_rcv(data);
+    // All these states share a substancial amount of code.
+    switch (state)
+    {
+        case tcp_state::TCP_STATE_FIN_WAIT_1:
+        case tcp_state::TCP_STATE_FIN_WAIT_2:
+        case tcp_state::TCP_STATE_CLOSE_WAIT:
+        case tcp_state::TCP_STATE_CLOSING:
+        case tcp_state::TCP_STATE_LAST_ACK:
+        case tcp_state::TCP_STATE_ESTABLISHED:
+            return do_established_rcv(data);
+        default:
+            break;
+    }
 
     if (flags & TCP_FLAG_SYN)
     {
@@ -326,7 +498,6 @@ int tcp_send_rst_no_socket(const inet_route &route, in_port_t dstport, in_port_t
                                        route.src_addr.in4.s_addr)
             : tcpv6_calculate_checksum(hdr, sizeof(tcp_header), route.dst_addr.in6,
                                        route.src_addr.in6, true);
-    /* TODO: Don't assume IPv4 */
 
     inet_sock_address from;
     inet_sock_address to;
@@ -341,7 +512,13 @@ int tcp_send_rst_no_socket(const inet_route &route, in_port_t dstport, in_port_t
         to = inet_sock_address{route.src_addr.in6, srcport, route.nif->if_id};
     }
 
-    iflow flow{route, IPPROTO_TCP, domain == AF_INET6};
+    auto actual_route = (domain == AF_INET ? ip::v4::get_v4_proto() : ip::v6::get_v6_proto())
+                            ->route(from, to, domain);
+
+    if (actual_route.has_error())
+        return actual_route.error();
+
+    iflow flow{actual_route.value(), IPPROTO_TCP, domain == AF_INET6};
 
     if (domain == AF_INET)
         return ip::v4::send_packet(flow, buf.get());
@@ -473,37 +650,6 @@ uint16_t tcpv6_calculate_checksum(const tcp_header *header, uint16_t packet_leng
         r = __ipsum_unfolded(header, packet_length, r);
 
     return ipsum_fold(r);
-}
-
-/**
- * @brief Calculates the TCP checksum
- *
- * @tparam domain Domain of the underlying L3 protocol
- * @param header TCP header
- * @param len Length of the packet
- * @param src Src address
- * @param dest Dest address
- * @param do_rest_of_packet True if we need to checksum all of the packet (instead of relying on
- *                          offloading)
- * @return uint16_t The internet checksum
- */
-template <int domain>
-uint16_t tcp_calculate_checksum(const tcp_header *header, uint16_t len, const inet_route::addr &src,
-                                const inet_route::addr &dest, bool do_rest_of_packet = true)
-{
-    uint16_t result = 0;
-    if constexpr (domain == AF_INET6)
-    {
-        result = tcpv6_calculate_checksum(header, len, src.in6, dest.in6, do_rest_of_packet);
-    }
-    else
-    {
-        result = tcpv4_calculate_checksum(header, len, src.in4.s_addr, dest.in4.s_addr,
-                                          do_rest_of_packet);
-    }
-
-    // Checksum offloading needs an unfolded checksum
-    return do_rest_of_packet ? result : ~result;
 }
 
 uint16_t tcp_packet::options_length() const
@@ -1160,15 +1306,144 @@ struct socket *tcp_create_socket(int type)
     return sock;
 }
 
+/**
+ * @brief TCP shutdown(wr) state transition table
+ *
+ */
+static tcp_state post_wr_shutdown_states[] = {
+    [(int) tcp_state::TCP_STATE_LISTEN] = tcp_state::TCP_STATE_CLOSED,
+    [(int) tcp_state::TCP_STATE_SYN_SENT] = tcp_state::TCP_STATE_CLOSED,
+    [(int) tcp_state::TCP_STATE_SYN_RECEIVED] = tcp_state::TCP_STATE_FIN_WAIT_1,
+    [(int) tcp_state::TCP_STATE_ESTABLISHED] = tcp_state::TCP_STATE_FIN_WAIT_1,
+    [(int) tcp_state::TCP_STATE_FIN_WAIT_1] = tcp_state::TCP_STATE_FIN_WAIT_1,
+    [(int) tcp_state::TCP_STATE_FIN_WAIT_2] = tcp_state::TCP_STATE_FIN_WAIT_2,
+    [(int) tcp_state::TCP_STATE_CLOSE_WAIT] = tcp_state::TCP_STATE_LAST_ACK,
+    [(int) tcp_state::TCP_STATE_CLOSING] = tcp_state::TCP_STATE_CLOSING,
+    [(int) tcp_state::TCP_STATE_LAST_ACK] = tcp_state::TCP_STATE_LAST_ACK,
+    [(int) tcp_state::TCP_STATE_TIME_WAIT] = tcp_state::TCP_STATE_CLOSED,
+    [(int) tcp_state::TCP_STATE_CLOSED] = tcp_state::TCP_STATE_CLOSED,
+};
+
+/**
+ * @brief Test if we should send a fin on a shutdown
+ *
+ * @param old_state Old TCP connection state
+ * @return If true, we should send a fin, else false.
+ */
+static bool should_send_fin(tcp_state old_state)
+{
+    return old_state == tcp_state::TCP_STATE_ESTABLISHED ||
+           old_state == tcp_state::TCP_STATE_CLOSE_WAIT ||
+           old_state == tcp_state::TCP_STATE_SYN_RECEIVED;
+}
+
 int tcp_socket::shutdown(int how)
 {
+    scoped_hybrid_lock g{socket_lock, this};
+
+    if (how & SHUTDOWN_WR)
+    {
+        // Shutdown the write end
+        // Set the next state and send a FIN if necessary.
+        const auto old_state = state;
+        state = post_wr_shutdown_states[(int) state];
+
+        if (should_send_fin(old_state))
+        {
+            send_fin();
+            try_to_send();
+        }
+    }
+
+    shutdown_state = how;
+
+    // Lets find out needs to be woken up.
+    // For now, only readers need to be unblocked.
+    if (how & SHUTDOWN_RD)
+    {
+        wait_queue_wake_all(&rx_wq);
+    }
+
     return 0;
 }
 
 void tcp_socket::close()
 {
-    shutdown(SHUT_RDWR);
+    if (__get_refcount() == 1)
+    {
+        // If we're the last reference to the socket, shut it down
+        shutdown(SHUTDOWN_RDWR);
+        // TODO: TIME_WAIT
+        return;
+    }
+
     unref();
+}
+
+/**
+ * @brief Send a FIN segment to the remote host,
+ *        to signal that we don't have more data to send.
+ *
+ * @return 0 on success, negative error codes
+ */
+int tcp_socket::send_fin()
+{
+    // TODO: Maybe separating the tcp header building into a function
+    auto pbuf = make_refc<packetbuf>();
+
+    if (!pbuf)
+        return -ENOBUFS;
+
+    if (!pbuf->allocate_space(MAX_TCP_HEADER_LENGTH))
+        return -ENOBUFS;
+
+    pbuf->reserve_headers(MAX_TCP_HEADER_LENGTH);
+    tcp_header *tph = (tcp_header *) pbuf->push_header(sizeof(tcp_header));
+
+    unsigned int flags = TCP_FLAG_ACK | TCP_FLAG_FIN;
+
+    pbuf->transport_header = (unsigned char *) tph;
+
+    memset(tph, 0, sizeof(tcp_header));
+
+    auto &dest = daddr();
+
+    auto data_off = TCP_MAKE_DATA_OFF(tcp_header_length_to_data_off(sizeof(tcp_header)));
+
+    /* Assume the max window size as the window size, for now */
+    tph->window_size = htons(our_window_size);
+    tph->source_port = saddr().port;
+    tph->sequence_number = htonl(sequence_nr());
+    tph->data_offset_and_flags = htons(data_off | flags);
+    tph->dest_port = dest.port;
+    tph->urgent_pointer = 0;
+
+    tph->ack_number = htonl(acknowledge_nr());
+
+    auto &route = route_cache;
+    auto nif = route.nif;
+
+    bool need_csum = true;
+
+    if (can_offload_csum(nif, pbuf.get()))
+    {
+        pbuf->csum_offset = &tph->checksum;
+        pbuf->csum_start = (unsigned char *) tph;
+        pbuf->needs_csum = 1;
+        need_csum = false;
+    }
+
+    tph->checksum =
+        call_based_on_inet(tcp_calculate_checksum, tph, static_cast<uint16_t>(sizeof(tcp_header)),
+                           route.src_addr, route.dst_addr, need_csum);
+    pending_out.append_packet(pbuf.get());
+
+    // Note: Since we're shutting down the socket, there's no need to be careful wrt
+    // cork code trying to fit more sendmsg() data into our fin packet.
+
+    sequence_nr()++; // For the FIN
+
+    return 0;
 }
 
 expected<packetbuf *, int> tcp_socket::get_segment(int flags)
@@ -1187,6 +1462,9 @@ expected<packetbuf *, int> tcp_socket::get_segment(int flags)
         if (!buf && flags & MSG_DONTWAIT)
             return unexpected<int>{-EWOULDBLOCK};
 
+        if (!buf && shutdown_state & SHUTDOWN_RD)
+            return unexpected<int>{0};
+
         st = wait_for_segments();
     } while (!buf);
 
@@ -1201,6 +1479,8 @@ ssize_t tcp_socket::recvmsg(msghdr *msg, int flags)
     if (iovlen < 0)
         return iovlen;
 
+    scoped_hybrid_lock g{socket_lock, this};
+
     CONSUME_SOCK_ERR;
 
     auto st = get_segment(flags);
@@ -1208,6 +1488,7 @@ ssize_t tcp_socket::recvmsg(msghdr *msg, int flags)
         return st.error();
 
     auto buf = st.value();
+
     ssize_t read = min(iovlen, (long) buf->length());
     ssize_t was_read = 0;
     ssize_t to_ret = read;
@@ -1226,6 +1507,20 @@ ssize_t tcp_socket::recvmsg(msghdr *msg, int flags)
     {
         auto hdr = (tcp_header *) buf->transport_header;
         ip::copy_msgname_to_user(msg, buf, domain == AF_INET6, hdr->source_port);
+    }
+
+    auto tph = (tcp_header *) buf->transport_header;
+
+    if (ntohs(tph->data_offset_and_flags) & TCP_FLAG_FIN)
+    {
+        // FIN packet! Let's return EOF and, if !MSG_PEEK, discard it.
+        if (!(flags & MSG_PEEK))
+        {
+            list_remove(&buf->list_node);
+            buf->unref();
+        }
+
+        return 0;
     }
 
     for (int i = 0; i < msg->msg_iovlen; i++)
@@ -1269,11 +1564,20 @@ ssize_t tcp_socket::recvmsg(msghdr *msg, int flags)
 
 short tcp_socket::poll(void *poll_file, short events)
 {
-    short avail_events = POLLOUT;
+    // TODO: Find this stuff out. It's kind of confusing and there doesn't seem
+    // to be good documentation on this. Even the trusty UNIX Network Programming doesn't help...
+    short avail_events = 0;
+
+    scoped_hybrid_lock g2{socket_lock, this};
 
     scoped_lock g{rx_packet_list_lock};
 
-    if (state != tcp_state::TCP_STATE_ESTABLISHED)
+    if (state == tcp_state::TCP_STATE_CLOSED)
+    {
+        return POLLHUP;
+    }
+
+    if (state == tcp_state::TCP_STATE_SYN_SENT)
     {
         avail_events &= ~POLLOUT;
         if (events & POLLOUT)
@@ -1285,9 +1589,15 @@ short tcp_socket::poll(void *poll_file, short events)
         return avail_events & events;
     }
 
+    if (events & POLLOUT)
+    {
+        if (!(shutdown_state & SHUTDOWN_WR))
+            avail_events |= POLLOUT;
+    }
+
     if (events & POLLIN)
     {
-        if (has_data_available())
+        if (has_data_available() || shutdown_state & SHUTDOWN_RD)
             avail_events |= POLLIN;
         else
             poll_wait_helper(poll_file, &rx_wq);
