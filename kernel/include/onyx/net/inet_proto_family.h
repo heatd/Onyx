@@ -25,6 +25,7 @@ public:
     virtual expected<inet_route, int> route(const inet_sock_address &from,
                                             const inet_sock_address &to, int domain) = 0;
     virtual void unbind(inet_socket *sock) = 0;
+    bool add_socket(inet_socket *sock);
 };
 
 struct ip_option

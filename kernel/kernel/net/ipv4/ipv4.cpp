@@ -887,3 +887,10 @@ bool inet_socket::can_offload_csum(netif *nif, packetbuf *buf) const
 {
     return nif->flags & NETIF_SUPPORTS_CSUM_OFFLOAD && !needs_fragmenting(nif, buf);
 }
+
+bool inet_proto_family::add_socket(inet_socket *sock)
+{
+    auto proto_info = sock->proto_info;
+    auto sock_table = proto_info->get_socket_table();
+    return sock_table->add_socket(sock, ADD_SOCKET_UNLOCKED);
+}

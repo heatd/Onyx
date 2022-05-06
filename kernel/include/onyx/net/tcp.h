@@ -266,6 +266,59 @@ constexpr unsigned int tcp_retransmission_max = 15;
 
 struct tcp_pending_out;
 
+struct tcp_connection_req
+{
+    inet_sock_address from;
+    inet_sock_address to;
+    uint16_t mss;
+    uint32_t ack_number;
+    uint32_t seq_number;
+    uint32_t window_size;
+    uint8_t window_shift;
+    struct list_head list_node;
+    inet_route route;
+    int domain;
+    ref_guard<tcp_pending_out> syn_ack_pending;
+
+    static constexpr uint16_t default_mss = 536;
+
+    struct list_head received_data;
+
+    tcp_connection_req() = delete;
+    CLASS_DISALLOW_COPY(tcp_connection_req);
+    CLASS_DISALLOW_MOVE(tcp_connection_req);
+
+    tcp_connection_req(inet_route &&route, int domain)
+        : mss{default_mss}, route{cul::move(route)}, domain{domain}
+    {
+        INIT_LIST_HEAD(&received_data);
+    }
+
+    /**
+     * @brief Parse an incoming SYN
+     *
+     * @param tcphdr Pointer to the tcp header
+     * @return True if valid, else false
+     */
+    bool parse_syn(const tcp_header *tcphdr);
+
+    /**
+     * @brief Send a SYN-ACK packet
+     *
+     * @return 0 on success, negative error codes
+     */
+    int send_synack();
+
+    /**
+     * @brief Sends a packetbuf
+     *
+     * @param buf Packetbuf to send
+     * @param noack True if no ack is needed
+     * @return 0 on success,negative error codes
+     */
+    int sendpbuf(ref_guard<packetbuf> buf, bool noack);
+};
+
 class tcp_socket : public inet_socket
 {
 private:
@@ -298,6 +351,19 @@ private:
     bool nagle_enabled : 1;
     // Done as a pointer so we save some space
     unique_ptr<clockevent> time_wait_timer;
+
+    // Note: Both of these queues are bounded by the backlog
+
+    // The syn queue holds incoming connection requests and is matched against the ACK
+    // of the TCP handshake.
+    int syn_queue_len;
+    struct list_head syn_queue;
+    // The accept queue holds complete sockets ready to be accepted
+    int accept_queue_len;
+    struct list_head accept_queue;
+    wait_queue accept_wq;
+
+    list_head_cpp<tcp_socket> accept_node;
 
     template <typename pred>
     tcp_ack *find_ack(pred predicate)
@@ -408,6 +474,14 @@ private:
      */
     void set_time_wait();
 
+    /**
+     * @brief Makes an established connection from a connection request
+     *
+     * @param req Pointer to the tcp connection request
+     * @return 0 on success, negative error codes
+     */
+    int make_connection_from(const tcp_connection_req *req);
+
 public:
     struct spinlock pending_out_lock;
 
@@ -418,11 +492,12 @@ public:
         uint16_t tcp_segment_size;
         sockaddr_in_both *src_addr;
         int domain;
+        const inet_route &route;
 
         packet_handling_data(packetbuf *buffer, tcp_header *header, uint16_t segm_size,
-                             sockaddr_in_both *b, int domain)
+                             sockaddr_in_both *b, int domain, const inet_route &r)
             : buffer{buffer}, header(header), tcp_segment_size(segm_size),
-              src_addr(b), domain{domain}
+              src_addr(b), domain{domain}, route{r}
         {
         }
     };
@@ -443,6 +518,39 @@ public:
      */
     int do_established_rcv(const packet_handling_data &data);
 
+    /**
+     * @brief Handle packet recv on LISTEN
+     *
+     * @param data Packet handling data
+     * @return 0 on success, negative error codes
+     */
+    int do_listen_rcv(const packet_handling_data &data);
+
+    /**
+     * @brief Handle a SYN packet
+     *
+     * @param data Packet handling data
+     * @return 0 on success, negative error codes
+     */
+    int incoming_syn(const packet_handling_data &data);
+
+    /**
+     * @brief Accept a connection following an ACK
+     *
+     * @param data Packet handling data
+     * @return 0 on success, negative error codes
+     */
+    int handle_synack_ack(const packet_handling_data &data);
+
+    /**
+     * @brief Accept a connection
+     *
+     * @param req TCP connection request to accept and make into a socket
+     * @param data Packet handling data
+     * @return 0 on success, negative error codes
+     */
+    int accept_connection(tcp_connection_req *req, const packet_handling_data &data);
+
     int handle_packet(const packet_handling_data &data);
 
     friend class tcp_packet;
@@ -450,13 +558,15 @@ public:
     static constexpr uint16_t default_mss = 536;
     static constexpr uint16_t default_window_size_shift = 0;
 
+    // FIXME: Nagle's algorithm was disabled, as it isn't stable.
     tcp_socket()
         : inet_socket{}, state(tcp_state::TCP_STATE_CLOSED), type(SOCK_STREAM), packet_semaphore{},
           packet_list_head{}, packet_lock{}, tcp_ack_list_lock{}, pending_out_packets{},
           tcp_ack_wq{}, conn_wq{}, seq_number{0}, ack_number{0}, current_pos{}, mss{default_mss},
           window_size{0}, window_size_shift{default_window_size_shift}, our_window_size{UINT16_MAX},
           our_window_shift{default_window_size_shift}, expected_ack{0}, connection_pending{},
-          pending_out{SOCK_STREAM}, pending_accept_list{}, nagle_enabled{true}, time_wait_timer{},
+          pending_out{SOCK_STREAM}, pending_accept_list{}, nagle_enabled{false}, time_wait_timer{},
+          syn_queue_len{}, syn_queue{}, accept_queue_len{}, accept_queue{}, accept_node{this},
           pending_out_lock{}
     {
         init_wait_queue_head(&conn_wq);
@@ -464,6 +574,9 @@ public:
         init_wait_queue_head(&tcp_ack_wq);
         INIT_LIST_HEAD(&pending_out_packets);
         INIT_LIST_HEAD(&pending_accept_list);
+        INIT_LIST_HEAD(&syn_queue);
+        INIT_LIST_HEAD(&accept_queue);
+        init_wait_queue_head(&accept_wq);
     }
 
     bool can_send() const
@@ -523,6 +636,7 @@ public:
 
     int getsockname(sockaddr *addr, socklen_t *len) override;
     int getpeername(sockaddr *addr, socklen_t *len) override;
+    socket *accept(int flags) override;
 
     int listen() override;
 
@@ -594,7 +708,11 @@ struct tcp_pending_out : public refcountable
     struct clockevent timer;
     list_head_cpp<tcp_pending_out> node;
     unsigned int transmission_try{};
-    tcp_socket *sock;
+    union {
+        tcp_socket *sock;
+        tcp_connection_req *req;
+    };
+
     bool acked{};
     bool reset{};
     wait_queue wq;
@@ -603,6 +721,12 @@ struct tcp_pending_out : public refcountable
 
     tcp_pending_out(tcp_socket *s)
         : refcountable(), node{this}, transmission_try{}, sock{s}, fail{}, done_callback{}
+    {
+        init_wait_queue_head(&wq);
+    }
+
+    tcp_pending_out(tcp_connection_req *r)
+        : refcountable(), node{this}, transmission_try{}, req{r}, fail{}, done_callback{}
     {
         init_wait_queue_head(&wq);
     }

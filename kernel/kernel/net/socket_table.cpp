@@ -58,6 +58,9 @@ bool socket_table::add_socket(inet_socket *sock, unsigned int flags)
     const socket_id id(sock->proto, sock->domain, sock->src_addr, sock->dest_addr);
     auto hash = inet_socket::make_hash_from_id(id);
 
+#if 0
+    printk("Binding source %u dest %u\n", sock->src_addr.port, sock->dest_addr.port);
+#endif
     if (!unlocked)
         lock(hash);
 

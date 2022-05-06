@@ -163,6 +163,21 @@ inline T *inet_resolve_socket(in_addr_t src, in_port_t port_src, in_port_t port_
 }
 
 template <typename T>
+inline T *inet_resolve_socket_conn(in_addr_t src, in_port_t port_src, in_port_t port_dst, int proto,
+                                   netif *nif, const inet_proto *proto_info,
+                                   unsigned int instance = 0)
+{
+    // Try to get a socket that's connected first
+    if (auto sock = inet_resolve_socket<T>(src, port_src, port_dst, proto, nif, false, proto_info,
+                                           instance);
+        sock != nullptr)
+        return sock;
+
+    // Then a listening socket
+    return inet_resolve_socket<T>(src, port_src, port_dst, proto, nif, true, proto_info, instance);
+}
+
+template <typename T>
 inline T *inet6_resolve_socket(const in6_addr &src, in_port_t port_src, in_port_t port_dst,
                                int proto, netif *nif, bool ign_dst, const inet_proto *proto_info,
                                unsigned int instance = 0)
@@ -179,6 +194,21 @@ inline T *inet6_resolve_socket(const in6_addr &src, in_port_t port_src, in_port_
     auto socket = proto_info->get_socket_table()->get_socket(id, flags, instance);
 
     return static_cast<T *>(socket);
+}
+
+template <typename T>
+inline T *inet6_resolve_socket_conn(const in6_addr &src, in_port_t port_src, in_port_t port_dst,
+                                    int proto, netif *nif, const inet_proto *proto_info,
+                                    unsigned int instance = 0)
+{
+    // Try to get a socket that's connected first
+    if (auto sock = inet6_resolve_socket<T>(src, port_src, port_dst, proto, nif, false, proto_info,
+                                            instance);
+        sock != nullptr)
+        return sock;
+
+    // Then a listening socket
+    return inet6_resolve_socket<T>(src, port_src, port_dst, proto, nif, true, proto_info, instance);
 }
 
 /* Ports under 1024 are privileged; they can only bound to by root. */

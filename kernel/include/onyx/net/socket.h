@@ -232,7 +232,7 @@ public:
     return consume_sock_err()
 
     virtual int listen();
-    virtual socket *accept(socket_conn_request *req);
+    virtual socket *accept(int flags);
     virtual int bind(sockaddr *addr, socklen_t addrlen);
     virtual int connect(sockaddr *addr, socklen_t addrlen, int flags);
     virtual ssize_t sendmsg(const struct msghdr *msg, int flags);

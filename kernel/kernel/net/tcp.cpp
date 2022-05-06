@@ -363,6 +363,356 @@ void tcp_socket::send_ack()
         sock_err = ex.error();
     }
 }
+
+static constexpr uint16_t min_header_size = sizeof(tcp_header);
+
+/**
+ * @brief Parse an incoming SYN
+ *
+ * @param tcphdr Pointer to the tcp header
+ * @return True if valid, else false
+ */
+bool tcp_connection_req::parse_syn(const tcp_header *tcphdr)
+{
+    uint16_t data_off = ntohs(tcphdr->data_offset_and_flags) >> TCP_DATA_OFFSET_SHIFT;
+
+    window_size = tcphdr->window_size;
+    ack_number = ntohl(tcphdr->sequence_number) + 1; // 1 for the SYN
+
+    if (data_off == tcp_header_length_to_data_off(min_header_size))
+        return true;
+
+    auto data_off_bytes = tcp_header_data_off_to_length(data_off);
+
+    const uint8_t *options = reinterpret_cast<const uint8_t *>(tcphdr + 1);
+    const uint8_t *end = options + (data_off_bytes - min_header_size);
+
+    while (options != end)
+    {
+        uint8_t opt_byte = *options;
+
+        /* The layout of TCP options is [byte 0 - option kind]
+         * [byte 1 - option length ] [byte 2...length - option data]
+         */
+
+        if (opt_byte == TCP_OPTION_END_OF_OPTIONS)
+            break;
+
+        if (opt_byte == TCP_OPTION_NOP)
+        {
+            options++;
+            continue;
+        }
+
+        uint8_t length = *(options + 1);
+
+        switch (opt_byte)
+        {
+            case TCP_OPTION_MSS:
+
+                mss = *(uint16_t *) (options + 2);
+                mss = ntohs(mss);
+                break;
+            case TCP_OPTION_WINDOW_SCALE:
+
+                uint8_t wss = *(options + 2);
+                window_shift = wss;
+                window_size = window_size << window_shift;
+                break;
+        }
+
+        options += length;
+    }
+
+    return true;
+}
+
+/**
+ * @brief Send a SYN-ACK packet
+ *
+ * @return 0 on success, negative error codes
+ */
+int tcp_connection_req::send_synack()
+{
+    auto buf = make_refc<packetbuf>();
+    if (!buf)
+        return -ENOBUFS;
+
+    if (!buf->allocate_space(MAX_TCP_HEADER_LENGTH))
+        return -ENOBUFS;
+
+    buf->reserve_headers(MAX_TCP_HEADER_LENGTH);
+    size_t header_len = sizeof(tcp_header);
+    // Push any options we need to send
+    uint8_t *mss_option = (uint8_t *) buf->push_header(4);
+    header_len += 4;
+    mss_option[0] = TCP_OPTION_MSS;
+    mss_option[1] = 4;
+    auto inet_hdr_len = domain == AF_INET ? sizeof(ip_header) : sizeof(ip6hdr);
+    uint16_t our_mss = htons(route.nif->mtu - sizeof(tcp_header) - inet_hdr_len);
+    memcpy(&mss_option[2], &our_mss, sizeof(our_mss));
+
+    auto tph = (tcp_header *) buf->push_header(sizeof(tcp_header));
+    tph->ack_number = htonl(ack_number);
+    tph->source_port = from.port;
+    tph->dest_port = to.port;
+    tph->urgent_pointer = 0;
+    tph->window_size = UINT16_MAX;
+    tph->sequence_number = htonl(seq_number);
+    tph->checksum = 0;
+    tph->data_offset_and_flags = htons(
+        TCP_MAKE_DATA_OFF(tcp_header_length_to_data_off(header_len)) | TCP_FLAG_SYN | TCP_FLAG_ACK);
+    tph->checksum = domain == AF_INET
+                        ? tcpv4_calculate_checksum(tph, header_len, route.dst_addr.in4.s_addr,
+                                                   route.src_addr.in4.s_addr)
+                        : tcpv6_calculate_checksum(tph, header_len, route.dst_addr.in6,
+                                                   route.src_addr.in6, true);
+
+    return sendpbuf(buf, false);
+}
+
+/**
+ * @brief Handle a SYN packet
+ *
+ * @param data Packet handling data
+ * @return 0 on success, negative error codes
+ */
+int tcp_socket::incoming_syn(const packet_handling_data &data)
+{
+    const auto tcphdr = (const tcp_header *) data.header;
+    auto pbuf = data.buffer;
+    const auto dstport = tcphdr->dest_port;
+    const auto srcport = tcphdr->source_port;
+
+    // Note: SYN requests can hold data, so we're required to hold onto that.
+
+    if (syn_queue_len == backlog)
+    {
+        // No space in the queue, ignore.
+        // Hopefully, we'll have more space when the SYN's retransmission arrives
+        return 0;
+    }
+
+    inet_sock_address from;
+    inet_sock_address to;
+    if (data.domain == AF_INET)
+    {
+        auto iphdr = (ip_header *) pbuf->net_header;
+        from = inet_sock_address{in_addr{iphdr->dest_ip}, dstport};
+        to = inet_sock_address{in_addr{iphdr->source_ip}, srcport};
+    }
+    else
+    {
+        auto iphdr = (ip6hdr *) pbuf->net_header;
+        from = inet_sock_address{iphdr->dst_addr, dstport, data.route.nif->if_id};
+        to = inet_sock_address{iphdr->src_addr, srcport, data.route.nif->if_id};
+    }
+
+    auto ex = get_proto_fam()->route(from, to, data.domain);
+    if (ex.has_error())
+        return ex.error(); // Weird.
+
+    unique_ptr<tcp_connection_req> req{new tcp_connection_req(ex.value(), data.domain)};
+    if (!req)
+    {
+        // Out of memory :/ Ignore it and hope everything goes well on the retransmit
+        return -ENOBUFS;
+    }
+
+    req->from = from;
+    req->to = to;
+
+    if (!req->parse_syn(tcphdr))
+        return 0;
+
+    // Get a random starting sequence number
+    req->seq_number = arc4random();
+
+    // Send a SYN-ACK
+    req->send_synack();
+
+    auto data_off = TCP_GET_DATA_OFF(ntohs(tcphdr->data_offset_and_flags));
+    uint16_t data_size = data.tcp_segment_size - tcp_header_data_off_to_length(data_off);
+
+    // Append this packet to our connection request if it has data
+    if (data_size != 0)
+    {
+        list_add_tail(&pbuf->list_node, &req->received_data);
+        pbuf->ref();
+    }
+
+    req->seq_number++;
+
+    list_add_tail(&req->list_node, &syn_queue);
+    syn_queue_len++;
+    req.release();
+
+    return 0;
+}
+
+/**
+ * @brief Makes an established connection from a connection request
+ *
+ * @param req Pointer to the tcp connection request
+ * @return 0 on success, negative error codes
+ */
+int tcp_socket::make_connection_from(const tcp_connection_req *req)
+{
+    src_addr = req->from;
+    dest_addr = req->to;
+
+    seq_number = req->seq_number;
+    ack_number = req->ack_number;
+    last_ack_number = ack_number - 1;
+    mss = req->mss;
+    window_size = req->window_size;
+    window_size_shift = req->window_size;
+    route_cache = req->route;
+    route_cache_valid = 1;
+
+    if (domain == AF_INET6 && req->domain == AF_INET)
+    {
+        // This is a v4-on-v6 socket
+        ipv4_on_inet6 = 1;
+    }
+
+    auto fam = get_proto_fam();
+
+    if (!fam->add_socket(this))
+    {
+        printk("TCP error: Failed to bind on newly accepted socket\n");
+        return -EINVAL;
+    }
+
+    // Any data we received from the SYN must be put in the rx packet list
+
+    list_for_every_safe (&req->received_data)
+    {
+        auto pbf = list_head_cpp<packetbuf>::self_from_list_head(l);
+        list_remove(&pbf->list_node);
+        list_add_tail(&pbf->list_node, &rx_packet_list);
+    }
+
+    state = tcp_state::TCP_STATE_ESTABLISHED;
+
+    connected = true;
+    bound = true;
+
+    return 0;
+}
+/**
+ * @brief Accept a connection
+ *
+ * @param req TCP connection request to accept and make into a socket
+ * @param data Packet handling data
+ * @return 0 on success, negative error codes
+ */
+int tcp_socket::accept_connection(tcp_connection_req *req, const packet_handling_data &data)
+{
+    const auto tcphdr = (const tcp_header *) data.header;
+
+    if (ntohl(tcphdr->sequence_number) != req->ack_number ||
+        ntohl(tcphdr->ack_number) != req->seq_number)
+    {
+        // Bad ack.
+        return 0;
+    }
+
+    if (accept_queue_len == backlog)
+    {
+        // No space in the accept queue, drop the packet and hope
+        // the SYN-ACK transmission kicks in
+        return 0;
+    }
+
+    ref_guard<tcp_socket> sock{(tcp_socket *) tcp_create_socket(0)};
+    if (!sock)
+        return -ENOBUFS;
+
+    sock->proto_domain = domain == AF_INET ? ip::v4::get_v4_proto() : ip::v6::get_v6_proto();
+    sock->domain = domain;
+    sock->proto = proto;
+    sock->type = type;
+
+    if (int st = sock->make_connection_from(req); st < 0)
+        return st;
+
+    list_remove(&req->list_node);
+    syn_queue_len--;
+    timer_cancel_event(&req->syn_ack_pending->timer);
+    delete req;
+
+    list_add_tail(&sock->accept_node, &accept_queue);
+    wait_queue_wake_all(&accept_wq);
+    accept_queue_len++;
+
+    return 0;
+}
+
+/**
+ * @brief Accept a connection following an ACK
+ *
+ * @param data Packet handling data
+ * @return 0 on success, negative error codes
+ */
+int tcp_socket::handle_synack_ack(const packet_handling_data &data)
+{
+    const auto pbuf = data.buffer;
+    const auto tcphdr = (const tcp_header *) data.header;
+
+    inet_sock_address from;
+    inet_sock_address to;
+    bool ipv4 = data.domain == AF_INET;
+    if (ipv4)
+    {
+        auto iphdr = (ip_header *) pbuf->net_header;
+        from = inet_sock_address{in_addr{iphdr->dest_ip}, tcphdr->dest_port};
+        to = inet_sock_address{in_addr{iphdr->source_ip}, tcphdr->source_port};
+    }
+    else
+    {
+        auto iphdr = (ip6hdr *) pbuf->net_header;
+        from = inet_sock_address{iphdr->dst_addr, tcphdr->dest_port, data.route.nif->if_id};
+        to = inet_sock_address{iphdr->src_addr, tcphdr->source_port, data.route.nif->if_id};
+    }
+
+    list_for_every_safe (&syn_queue)
+    {
+        tcp_connection_req *r = container_of(l, tcp_connection_req, list_node);
+        if (r->to.equals(to, ipv4) && r->from.equals(from, ipv4))
+        {
+            return accept_connection(r, data);
+        }
+    }
+
+    return 0;
+}
+
+/**
+ * @brief Handle packet recv on LISTEN
+ *
+ * @param data Packet handling data
+ * @return 0 on success, negative error codes
+ */
+int tcp_socket::do_listen_rcv(const packet_handling_data &data)
+{
+    const auto tcphdr = (const tcp_header *) data.header;
+    auto flags = htons(tcphdr->data_offset_and_flags) & 0xff;
+
+    if (flags == TCP_FLAG_SYN)
+    {
+        // Attempt to store this in our syn queue
+        return incoming_syn(data);
+    }
+
+    if (flags == TCP_FLAG_ACK)
+    {
+        return handle_synack_ack(data);
+    }
+
+    return 0;
+}
+
 /**
  * @brief Handle packet recv on ESTABLISHED
  *
@@ -476,27 +826,8 @@ int tcp_socket::handle_packet(const tcp_socket::packet_handling_data &data)
             break;
     }
 
-    if (flags & TCP_FLAG_SYN)
-    {
-        if (state == tcp_state::TCP_STATE_LISTEN)
-        {
-            // TODO
-#if 0
-            // Only syn should be set
-            if (flags & ~TCP_FLAG_SYN)
-                return -1;
-
-            tcp_socket *sock = new tcp_socket();
-
-            if (!sock)
-                return -1;
-
-            sock->state = tcp_state::TCP_STATE_SYN_RECEIVED;
-            sock->connect(struct sockaddr *addr, socklen_t addrlen)
-#endif
-            return 0;
-        }
-    }
+    if (state == tcp_state::TCP_STATE_LISTEN)
+        return do_listen_rcv(data);
 
     return 0;
 }
@@ -518,8 +849,8 @@ int tcp_send_rst_no_socket(const inet_route &route, in_port_t dstport, in_port_t
     auto hdr = (tcp_header *) buf->push_header(sizeof(tcp_header));
 
     memset(hdr, 0, sizeof(tcp_header));
-    hdr->dest_port = dstport;
-    hdr->source_port = srcport;
+    hdr->dest_port = srcport;
+    hdr->source_port = dstport;
     hdr->data_offset_and_flags =
         htons(TCP_MAKE_DATA_OFF(tcp_header_length_to_data_off(sizeof(tcp_header))) | TCP_FLAG_RST);
     hdr->checksum =
@@ -571,9 +902,9 @@ int tcp_handle_packet(const inet_route &route, packetbuf *buf)
     if (route.flags & (INET4_ROUTE_FLAG_BROADCAST | INET4_ROUTE_FLAG_MULTICAST))
         return 0;
 
-    auto socket = inet_resolve_socket<tcp_socket>(ip_header->source_ip, header->source_port,
-                                                  header->dest_port, IPPROTO_TCP, route.nif, false,
-                                                  &tcp_proto);
+    auto socket =
+        inet_resolve_socket_conn<tcp_socket>(ip_header->source_ip, header->source_port,
+                                             header->dest_port, IPPROTO_TCP, route.nif, &tcp_proto);
     uint16_t tcp_payload_len =
         static_cast<uint16_t>(ntohs(ip_header->total_len) - ip_header_length(ip_header));
 
@@ -591,8 +922,8 @@ int tcp_handle_packet(const inet_route &route, packetbuf *buf)
     sockaddr_in_both both;
     ipv4_to_sockaddr(ip_header->source_ip, header->source_port, both.in4);
 
-    const tcp_socket::packet_handling_data handle_data{buf, header, tcp_payload_len, &both,
-                                                       AF_INET};
+    const tcp_socket::packet_handling_data handle_data{buf,   header,  tcp_payload_len,
+                                                       &both, AF_INET, route};
 
     socket->socket_lock.lock_bh();
     st = socket->handle_packet(handle_data);
@@ -617,9 +948,9 @@ int tcp6_handle_packet(const inet_route &route, packetbuf *buf)
     if (route.flags & (INET4_ROUTE_FLAG_BROADCAST | INET4_ROUTE_FLAG_MULTICAST))
         return 0;
 
-    auto socket = inet6_resolve_socket<tcp_socket>(ip_header->src_addr, header->source_port,
-                                                   header->dest_port, IPPROTO_TCP, route.nif, false,
-                                                   &tcp_proto);
+    auto socket = inet6_resolve_socket_conn<tcp_socket>(ip_header->src_addr, header->source_port,
+                                                        header->dest_port, IPPROTO_TCP, route.nif,
+                                                        &tcp_proto);
     uint16_t tcp_payload_len = ntohs(ip_header->payload_length);
 
     if (!socket)
@@ -636,8 +967,8 @@ int tcp6_handle_packet(const inet_route &route, packetbuf *buf)
     sockaddr_in_both both;
     ipv6_to_sockaddr(ip_header->src_addr, header->source_port, both.in6);
 
-    const tcp_socket::packet_handling_data handle_data{buf, header, tcp_payload_len, &both,
-                                                       AF_INET6};
+    const tcp_socket::packet_handling_data handle_data{buf,   header,   tcp_payload_len,
+                                                       &both, AF_INET6, route};
 
     socket->socket_lock.lock_bh();
     st = socket->handle_packet(handle_data);
@@ -800,8 +1131,6 @@ int tcp_packet::wait_for_ack_timeout(hrtime_t _timeout)
     return wait_for_event_timeout_interruptible(&ack_wq, acked, _timeout);
 }
 
-static constexpr uint16_t min_header_size = sizeof(tcp_header);
-
 bool tcp_socket::parse_options(tcp_header *packet)
 {
     auto flags = ntohs(packet->data_offset_and_flags);
@@ -917,6 +1246,59 @@ void tcp_out_timeout(clockevent *ev)
 }
 
 /**
+ * @brief Handle a SYN-ACK timeout
+ *
+ * @param ev Clockevent passed by the timer subsystem
+ */
+void tcp_out_synack_timeout(clockevent *ev)
+{
+    tcp_pending_out *t = (tcp_pending_out *) ev->priv;
+
+    if (t->acked)
+    {
+        ev->flags &= ~CLOCKEVENT_FLAG_PULSE;
+        return;
+    }
+
+    if (t->transmission_try == tcp_retransmission_max)
+    {
+        wait_queue_wake_all(&t->wq);
+        ev->flags &= ~CLOCKEVENT_FLAG_PULSE;
+        if (t->fail)
+            t->fail(t);
+        return;
+    }
+
+    t->transmission_try++;
+    tcp_socket *sock = t->sock;
+
+    iflow flow{t->req->route, IPPROTO_TCP, t->req->domain == AF_INET6};
+
+    // Since the packet has already been pre-prepared by the network stack
+    // we can just send it straight through the network interface
+    int st = netif_send_packet(flow.nif, t->buf.get());
+
+    if (st < 0)
+    {
+        // If something failed, signal an error and stop retransmitting.
+        sock->sock_err = -st;
+        wait_queue_wake_all(&t->wq);
+        ev->flags &= ~CLOCKEVENT_FLAG_PULSE;
+        if (t->fail)
+            t->fail(t);
+        return;
+    }
+
+    hrtime_t next_timeout = 200;
+    for (unsigned int i = 0; i < t->transmission_try; i++)
+    {
+        next_timeout *= 2;
+    }
+
+    ev->deadline = clocksource_get_time() + next_timeout * NS_PER_MS;
+}
+
+/**
  * @brief Sends a packetbuf
  *
  * @param buf Packetbuf to send
@@ -964,6 +1346,49 @@ expected<ref_guard<tcp_pending_out>, int> tcp_socket::sendpbuf(ref_guard<packetb
         return ref_guard<tcp_pending_out>{};
 
     return pending;
+}
+
+/**
+ * @brief Sends a packetbuf
+ *
+ * @param buf Packetbuf to send
+ * @param noack True if no ack is needed
+ * @return 0 on success,negative error codes
+ */
+int tcp_connection_req::sendpbuf(ref_guard<packetbuf> buf, bool noack)
+{
+    const auto eff_domain = domain;
+    iflow flow{route, IPPROTO_TCP, eff_domain == AF_INET6};
+    ref_guard<tcp_pending_out> pending;
+    if (!noack)
+    {
+        pending = make_refc<tcp_pending_out>(this);
+        if (!pending)
+            return -ENOBUFS;
+
+        pending->buf = buf;
+        pending->timer.deadline = clocksource_get_time() + 200 * NS_PER_MS;
+        pending->timer.priv = pending.get();
+        pending->timer.flags = CLOCKEVENT_FLAG_PULSE;
+        pending->timer.callback = tcp_out_synack_timeout;
+        syn_ack_pending = pending;
+    }
+
+    int st = -EINVAL;
+    if (eff_domain == AF_INET)
+        st = ip::v4::send_packet(flow, buf.get());
+    else if (eff_domain == AF_INET6)
+        st = ip::v6::send_packet(flow, buf.get());
+
+    if (st < 0)
+        return st;
+
+    if (!noack)
+    {
+        timer_queue_clockevent(&pending->timer);
+    }
+
+    return 0;
 }
 
 /**
@@ -1615,6 +2040,23 @@ short tcp_socket::poll(void *poll_file, short events)
         return POLLHUP;
     }
 
+    if (state == tcp_state::TCP_STATE_LISTEN)
+    {
+        if (events & POLLIN)
+        {
+            if (accept_queue_len != 0)
+            {
+                avail_events |= POLLIN;
+            }
+            else
+            {
+                poll_wait_helper(poll_file, &accept_wq);
+            }
+        }
+
+        return avail_events & events;
+    }
+
     if (state == tcp_state::TCP_STATE_SYN_SENT)
     {
         avail_events &= ~POLLOUT;
@@ -1622,6 +2064,8 @@ short tcp_socket::poll(void *poll_file, short events)
         {
             if (connection_pending)
                 poll_wait_helper(poll_file, &conn_wq);
+            else
+                avail_events |= POLLOUT;
         }
 
         return avail_events & events;
@@ -1661,6 +2105,9 @@ int tcp_socket::getpeername(sockaddr *addr, socklen_t *len)
 
 int tcp_socket::listen()
 {
+    if (state != tcp_state::TCP_STATE_CLOSED)
+        return -EINVAL;
+
     if (!bound)
     {
         int st = get_proto_fam()->bind_any(this);
@@ -1668,9 +2115,6 @@ int tcp_socket::listen()
         if (st < 0)
             return -EADDRINUSE;
     }
-
-    if (connected)
-        return -EINVAL;
 
     state = tcp_state::TCP_STATE_LISTEN;
 
@@ -1692,4 +2136,34 @@ tcp_socket::~tcp_socket()
     // the inet cork should clear itself out in the destructor
 
     // unbinding should be done in inet_socket's destructor
+}
+
+socket *tcp_socket::accept(int flags)
+{
+    scoped_hybrid_lock g{socket_lock, this};
+    tcp_socket *sock = nullptr;
+
+    do
+    {
+        if (state != tcp_state::TCP_STATE_LISTEN)
+            return errno = EINVAL, nullptr;
+
+        if (accept_queue_len == 0 && flags & O_NONBLOCK)
+            return errno = EWOULDBLOCK, nullptr;
+
+        int st = wait_for_event_socklocked_interruptible(&accept_wq, accept_queue_len != 0);
+
+        if (st < 0)
+            return errno = -st, nullptr;
+
+        assert(!list_is_empty(&accept_queue));
+
+        sock = list_head_cpp<tcp_socket>::self_from_list_head(list_first_element(&accept_queue));
+
+        list_remove(&sock->accept_node);
+        accept_queue_len--;
+
+    } while (sock == nullptr);
+
+    return sock;
 }

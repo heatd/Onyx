@@ -31,12 +31,12 @@ socket *file_to_socket(auto_file &f)
 /* Most of these default values don't make much sense, but we have them as placeholders */
 int socket::listen()
 {
-    return 0;
+    return -EOPNOTSUPP;
 }
 
-socket *socket::accept(socket_conn_request *req)
+socket *socket::accept(int flags)
 {
-    (void) req;
+    (void) flags;
     return errno = EIO, nullptr;
 }
 
@@ -656,7 +656,7 @@ int sys_listen(int sockfd, int backlog)
 
     socket *sock = file_to_socket(f.get_file());
 
-    if (sock->type != SOCK_DGRAM || sock->type != SOCK_SEQPACKET)
+    if (sock->type != SOCK_STREAM && sock->type != SOCK_SEQPACKET)
     {
         st = -EOPNOTSUPP;
         goto out;
@@ -934,6 +934,36 @@ socket_conn_request *dequeue_conn_request(socket *sock)
     return req;
 }
 
+/**
+ * @brief Copies a sockaddr over to userspace using the regular BSD socket semantics.
+ *
+ * @param kaddr Pointer to kernel-space sockaddr
+ * @param kaddrlen Length of the sockaddr we want to copy
+ * @param uaddr Pointer to user-space sockaddr buffer
+ * @param uaddrlen Pointer to length of uspace buffer (In the end of the call, it has the actual
+ * size (kaddrlen))
+ * @return 0 on success, negative error codes
+ */
+int copy_sockaddr(const sockaddr *kaddr, socklen_t kaddrlen, sockaddr *uaddr, socklen_t *uaddrlen)
+{
+    socklen_t user_len;
+
+    if (copy_from_user(&user_len, uaddrlen, sizeof(socklen_t)) < 0)
+        return -EFAULT;
+
+    // See if we need to truncate the address
+
+    const auto final_size = min(user_len, kaddrlen);
+
+    if (copy_to_user(uaddr, kaddr, final_size) < 0)
+        return -EFAULT;
+
+    if (copy_to_user(uaddrlen, &user_len, sizeof(socklen_t)) < 0)
+        return -EFAULT;
+
+    return 0;
+}
+
 int sys_accept4(int sockfd, struct sockaddr *addr, socklen_t *slen, int flags)
 {
     int st = 0;
@@ -945,13 +975,10 @@ int sys_accept4(int sockfd, struct sockaddr *addr, socklen_t *slen, int flags)
         return -errno;
 
     socket *sock = file_to_socket(f.get_file());
-    socket_conn_request *req = nullptr;
     socket *new_socket = nullptr;
     inode *inode = nullptr;
     file *newf = nullptr;
     int dflags = 0, fd = -1;
-
-    sock->socket_lock.lock();
 
     if (!sock->listening())
     {
@@ -965,12 +992,7 @@ int sys_accept4(int sockfd, struct sockaddr *addr, socklen_t *slen, int flags)
         goto out;
     }
 
-    sem_wait(&sock->listener_sem);
-
-    req = dequeue_conn_request(sock);
-
-    new_socket = sock->accept(req);
-    free(req);
+    new_socket = sock->accept(f.get_file()->f_flags);
 
     if (!new_socket)
     {
@@ -978,13 +1000,33 @@ int sys_accept4(int sockfd, struct sockaddr *addr, socklen_t *slen, int flags)
         goto out;
     }
 
+    if (addr)
+    {
+        printk("Addr emu\n");
+        sockaddr_storage kaddr;
+        socklen_t kaddrlen;
+
+        if (st = sock->getpeername((sockaddr *) &kaddr, &kaddrlen); st < 0)
+        {
+            printk("peerst %d\n", st);
+            goto out;
+        }
+
+        if (st = copy_sockaddr((sockaddr *) &kaddr, kaddrlen, addr, slen); st < 0)
+        {
+            printk("st %d\n", st);
+            goto out;
+        }
+    }
+
     inode = socket_create_inode(new_socket);
     if (!inode)
     {
-        new_socket->unref();
         st = -errno;
         goto out;
     }
+
+    new_socket = nullptr;
 
     newf = socket_inode_to_file(inode);
     if (!newf)
@@ -998,13 +1040,18 @@ int sys_accept4(int sockfd, struct sockaddr *addr, socklen_t *slen, int flags)
         dflags |= O_CLOEXEC;
 
     /* Open a file descriptor with the socket vnode */
-    fd = open_with_vnode(newf, dflags);
+    fd = open_with_vnode(newf, dflags | O_RDWR);
 
     fd_put(newf);
 
     st = fd;
 out:
-    sock->socket_lock.unlock();
+    if (new_socket)
+    {
+        new_socket->close();
+        new_socket->unref();
+    }
+
     return st;
 }
 
@@ -1372,36 +1419,6 @@ void sock_do_post_work(socket *sock)
 bool sock_needs_work(socket *sock)
 {
     return !list_is_empty(&sock->socket_backlog);
-}
-
-/**
- * @brief Copies a sockaddr over to userspace using the regular BSD socket semantics.
- *
- * @param kaddr Pointer to kernel-space sockaddr
- * @param kaddrlen Length of the sockaddr we want to copy
- * @param uaddr Pointer to user-space sockaddr buffer
- * @param uaddrlen Pointer to length of uspace buffer (In the end of the call, it has the actual
- * size (kaddrlen))
- * @return 0 on success, negative error codes
- */
-int copy_sockaddr(const sockaddr *kaddr, socklen_t kaddrlen, sockaddr *uaddr, socklen_t *uaddrlen)
-{
-    socklen_t user_len;
-
-    if (copy_from_user(&user_len, uaddrlen, sizeof(socklen_t)) < 0)
-        return -EFAULT;
-
-    // See if we need to truncate the address
-
-    const auto final_size = min(user_len, kaddrlen);
-
-    if (copy_to_user(uaddr, kaddr, final_size) < 0)
-        return -EFAULT;
-
-    if (copy_to_user(uaddrlen, &user_len, sizeof(socklen_t)) < 0)
-        return -EFAULT;
-
-    return 0;
 }
 
 int sys_getsockname(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
