@@ -586,7 +586,7 @@ int do_sys_open(const char *filename, int flags, mode_t mode, struct file *__rel
         return -EINVAL;
     }
 
-    // printk("Open(%s)\n", filename);
+    // printk("Open(%s, %x)\n", filename, flags);
     /* This function does all the open() work, open(2) and openat(2) use this */
     struct file *rel = __rel;
     struct file *base = get_fs_base(filename, rel);

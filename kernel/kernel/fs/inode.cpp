@@ -270,6 +270,8 @@ void inode_destroy_page_caches(struct inode *inode)
 
 ssize_t inode_sync(struct inode *inode)
 {
+    if (!inode->i_pages)
+        return 0;
     struct rb_itor it;
     it.node = NULL;
     scoped_mutex g{inode->i_pages->page_lock};
