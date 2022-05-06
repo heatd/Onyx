@@ -1031,6 +1031,8 @@ struct link_handling : public last_name_handling
 
         inode_inc_nlink(dest_ino);
 
+        dentry_get(new_dentry);
+
         return new_dentry;
     }
 };
