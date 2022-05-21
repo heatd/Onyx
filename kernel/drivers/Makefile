@@ -8,6 +8,8 @@ $(eval $(call INCLUDE_IF_ENABLED,CONFIG_QXL,qxl))
 $(eval $(call INCLUDE_IF_ENABLED,CONFIG_SVGA,svga))
 $(eval $(call INCLUDE_IF_ENABLED,CONFIG_USB,usb))
 $(eval $(call INCLUDE_IF_ENABLED,CONFIG_VIRTIO,virtio))
+$(eval $(call INCLUDE_IF_ENABLED,CONFIG_NVME,nvme))
+
 
 include drivers/mmio_utils/Makefile
 include drivers/serial/Makefile

@@ -264,8 +264,8 @@ bool virtq_split::init()
     size_t total_pages =
         vm_size_to_pages(descriptor_table_length + avail_ring_length + used_ring_length);
 
-    desc_bitmap.SetSize(queue_size);
-    if (!desc_bitmap.AllocateBitmap())
+    desc_bitmap.set_size(queue_size);
+    if (!desc_bitmap.allocate_bitmap())
         return false;
 
     if (!completions.reserve(queue_size))
@@ -345,7 +345,7 @@ void virtq::allocate_descriptors(virtio_allocation_info &info, bool irq_context)
 unsigned int virtq::alloc_descriptor_internal()
 {
     unsigned long desc;
-    assert(desc_bitmap.FindFreeBit(&desc) == true);
+    assert(desc_bitmap.find_free_bit(&desc) == true);
     avail_descs--;
 
     return (unsigned int) desc;
@@ -449,7 +449,7 @@ void virtq_split::free_chain(uint32_t id)
         processed++;
         auto desc = get_desc(id);
 
-        desc_bitmap.FreeBit(id);
+        desc_bitmap.free_bit(id);
         avail_descs++;
 
         if (!(desc->flags & VIRTQ_DESC_F_NEXT))
@@ -564,22 +564,22 @@ int virtio_probe(struct device *_dev)
     switch (device_subsystem)
     {
 #ifdef CONFIG_VIRTIO_NET
-    case virtio::network_pci_subsys:
-        virtio_device = virtio::create_network_device(device);
-        break;
+        case virtio::network_pci_subsys:
+            virtio_device = virtio::create_network_device(device);
+            break;
 #endif
 #ifdef CONFIG_VIRTIO_GPU
-    case virtio::gpu_pci_subsys:
-        virtio_device = virtio::create_gpu_device(device);
-        break;
+        case virtio::gpu_pci_subsys:
+            virtio_device = virtio::create_gpu_device(device);
+            break;
 #endif
 #ifdef CONFIG_VIRTIO_BLK
-    case virtio::block_pci_subsys:
-        virtio_device = virtio::create_blk_device(device);
-        break;
+        case virtio::block_pci_subsys:
+            virtio_device = virtio::create_blk_device(device);
+            break;
 #endif
-    default:
-        return -1;
+        default:
+            return -1;
     }
 
     assert(install_irq(device->get_intn(), virtio_handle_irq, _dev, IRQ_FLAG_REGULAR,

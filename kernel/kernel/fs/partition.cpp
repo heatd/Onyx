@@ -104,7 +104,6 @@ static struct page *read_disk(struct blockdev *dev, sector_t sector, size_t coun
 {
     size_t nr_pages = vm_size_to_pages(count);
     struct page *p = nullptr;
-    size_t c = 0;
     int st = 0;
     struct page *pages = alloc_pages(nr_pages, PAGE_ALLOC_NO_ZERO | PAGE_ALLOC_CONTIGUOUS);
     if (!pages)
@@ -118,15 +117,13 @@ static struct page *read_disk(struct blockdev *dev, sector_t sector, size_t coun
     }
 
     p = pages;
-    c = count;
 
     for (unsigned int i = 0; i < nr_pages; i++)
     {
         vec[i].page = p;
-        vec[i].length = min(c, PAGE_SIZE);
+        vec[i].length = PAGE_SIZE;
         vec[i].page_off = 0;
         p = p->next_un.next_allocation;
-        c -= vec[i].length;
     }
 
     struct bio_req r;
@@ -160,9 +157,9 @@ out:
 int partition_add(blockdev *dev, int nr_partition, uint64_t first_lba, uint64_t last_lba)
 {
     // Arbitrary length but should be safe because of snprintf
-    char partition_num[6];
-    if (snprintf(partition_num, sizeof(partition_num), "%d", nr_partition) >=
-        (int) sizeof(partition_num))
+    char partition_num[20];
+    if (snprintf(partition_num, sizeof(partition_num), "%s%d", dev->partition_prefix.c_str(),
+                 nr_partition) >= (int) sizeof(partition_num))
         return -EINVAL;
 
     cul::string name = dev->name;

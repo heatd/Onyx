@@ -216,4 +216,114 @@ void __reclaim_page(struct page *new_page);
 void reclaim_pages(unsigned long start, unsigned long end);
 void page_allocate_pagemap(unsigned long __maxpfn);
 
+/**
+ * @brief Unique_ptr<> like wrapper for pages
+ *
+ */
+class unique_page
+{
+private:
+    /* Hmmm, reference or pointer? I'm preferring pointer here because it's more flexible;
+     * you can use operator= to re-assign stuff.
+     */
+    page *res;
+
+public:
+    constexpr unique_page() : res{nullptr}
+    {
+    }
+    constexpr unique_page(page *r) : res{r}
+    {
+    }
+
+    unique_page(const unique_page &ar) = delete;
+
+    unique_page &operator=(const unique_page &ar) = delete;
+
+    bool valid_resource() const
+    {
+        return res != nullptr;
+    }
+
+    unique_page(unique_page &&ar) : res{ar.res}
+    {
+        ar.res = nullptr;
+    }
+
+    unique_page &operator=(unique_page &&ar)
+    {
+        res = ar.res;
+        ar.res = nullptr;
+
+        return *this;
+    }
+
+    ~unique_page()
+    {
+        if (valid_resource())
+            free_pages(res);
+    }
+
+    page *release()
+    {
+        auto ret = res;
+        res = nullptr;
+
+        return ret;
+    }
+
+    page *get() const
+    {
+        return res;
+    }
+
+    operator bool() const
+    {
+        return valid_resource();
+    }
+
+    bool operator!() const
+    {
+        return !valid_resource();
+    }
+
+    page *operator->() const
+    {
+        return get();
+    }
+
+    operator page *() const
+    {
+        return get();
+    }
+
+    bool operator==(const unique_page &rhs) const
+    {
+        return get() == rhs.get();
+    }
+};
+
+/**
+ * @brief Allocate a unique_page
+ *
+ * @param flags Flags passed to alloc_page
+ * @return A unique_page (may or may not be null)
+ */
+static inline unique_page make_unique_page(unsigned long flags)
+{
+    return alloc_page(flags);
+}
+
+/**
+ * @brief Allocate a unique_page
+ *
+ * @param nr_pages Number of pages
+ * @param flags Flags passed to alloc_pages
+ * @return A unique_page (may or may not be null)
+ */
+static inline unique_page make_unique_page(unsigned long nr_pages, unsigned long flags)
+{
+    return alloc_pages(nr_pages, flags);
+}
+
 #endif

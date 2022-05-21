@@ -79,9 +79,12 @@ struct blockdev
 
     blkdev *dev;
 
+    // An optional partition prefix, like the 'p' in nvme0n1p1
+    cul::string partition_prefix;
+
     constexpr blockdev()
         : read{}, write{}, flush{}, power{}, name{}, sector_size{}, nr_sectors{}, device_info{},
-          actual_blockdev{}, offset{}, submit_request{}, vmo{}, sb{}, dev{}
+          actual_blockdev{}, offset{}, submit_request{}, vmo{}, sb{}, dev{}, partition_prefix{}
     {
     }
 };
