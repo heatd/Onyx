@@ -18,6 +18,15 @@
 #include <onyx/scoped_lock.h>
 #include <onyx/utils.h>
 
+/**
+ * @brief Create a UNIX socket
+ *
+ * @param type Type of the socket
+ * @param protocol Socket's protocol (PROTOCOL_UNIX)
+ * @return Pointer to socket object, or nullptr with errno set
+ */
+socket *unix_create_socket(int type, int protocol);
+
 socket *file_to_socket(struct file *f)
 {
     return static_cast<socket *>(f->f_ino->i_helper);
@@ -781,6 +790,8 @@ int net_autodetect_protocol(int type, int domain)
         case SOCK_STREAM: {
             if (domain == AF_INET || domain == AF_INET6)
                 return IPPROTO_TCP;
+            else if (domain == AF_UNIX)
+                return PROTOCOL_UNIX;
             else
                 return -1;
         }
@@ -788,8 +799,6 @@ int net_autodetect_protocol(int type, int domain)
 
     return -1;
 }
-
-socket *unix_create_socket(int type, int protocol);
 
 socket *socket_create(int domain, int type, int protocol)
 {
@@ -805,9 +814,7 @@ socket *socket_create(int domain, int type, int protocol)
             socket = ip::v6::create_socket(type, protocol);
             break;
         case AF_UNIX:
-            // socket = unix_create_socket(type, protocol);
-            /* TODO: Fix unix sockets */
-            socket = nullptr;
+            socket = unix_create_socket(type, protocol);
             break;
         case AF_NETKERNEL:
             socket = netkernel::create_socket(type);

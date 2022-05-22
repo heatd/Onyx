@@ -87,9 +87,10 @@ public:
     using value_type = _Ty;
     using size_type = size_t;
 
-    constexpr basic_string() : data_{nullptr}, length_{}, capacity_{}
+    constexpr basic_string() : data_{inline_data}, length_{}, capacity_{}
     {
     }
+
     ~basic_string()
     {
         clear();
@@ -100,12 +101,13 @@ public:
         internal_construct({s, strlen(s)});
     }
 
-    basic_string(const char* s, size_t strlength) : data_{nullptr}, length_{}, capacity_{}
+    explicit basic_string(const char* s, size_t strlength) : data_{nullptr}, length_{}, capacity_{}
     {
-        internal_construct({s, strlen(s)});
+        internal_construct({s, strlength});
     }
 
-    basic_string(const std::basic_string_view<_Ty>& sv) : data_{nullptr}, length_{}, capacity_{}
+    explicit basic_string(const std::basic_string_view<_Ty>& sv)
+        : data_{nullptr}, length_{}, capacity_{}
     {
         internal_construct(sv);
     }
@@ -331,9 +333,14 @@ public:
         return std::basic_string_view<_Ty>(*this).rfind(c, pos);
     }
 
-    bool operator==(std::basic_string_view<_Ty> sv) const
+    bool operator==(const char* s) const
     {
-        return sv.compare(*this) == 0;
+        return std::basic_string_view<_Ty>(s).compare(*this) == 0;
+    }
+
+    bool operator==(basic_string<_Ty> s) const
+    {
+        return std::basic_string_view<_Ty>(s).compare(*this) == 0;
     }
 };
 

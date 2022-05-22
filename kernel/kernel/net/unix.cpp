@@ -1,527 +1,603 @@
 /*
- * Copyright (c) 2018 Pedro Falcato
+ * Copyright (c) 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
-#include <assert.h>
-#include <errno.h>
-#include <netinet/in.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/types.h>
 #include <sys/un.h>
 
-#include <onyx/compiler.h>
-#include <onyx/condvar.h>
-#include <onyx/dev.h>
+#include <onyx/culstring.h>
 #include <onyx/file.h>
-#include <onyx/net/netif.h>
-#include <onyx/net/network.h>
-#include <onyx/panic.h>
-#include <onyx/random.h>
-#include <onyx/utils.h>
+#include <onyx/net/socket.h>
+#include <onyx/net/socket_table.h>
+#include <onyx/packetbuf.h>
+#include <onyx/process.h>
 
-struct unix_packet
+#include <onyx/utility.hpp>
+
+/**
+ * @brief Validates a (sockaddr_un, len) pair
+ *
+ * @param addr Pointer to sockaddr_un
+ * @param len Length of sockaddr_un
+ * @return True if valid, else false
+ */
+bool validate_unix_address(const sockaddr_un *addr, socklen_t len)
 {
-    const void *buffer;
-    size_t size;
-    size_t read;
-    struct un_name *source;
-    struct unix_packet *next;
-};
+    if (len < sizeof(sa_family_t))
+        return false;
 
-struct un_socket : public socket
-{
-    struct spinlock socket_lock;
-    struct unix_packet *packet_list;
-    struct mutex packet_list_lock;
-    struct cond packet_condvar;
-    struct un_name *abstr_name;
+    if (addr->sun_family != AF_UNIX)
+        return false;
 
-    struct un_socket *dest;
+    return true;
+}
 
-    bool conn_reset;
-};
-
+/**
+ * @brief Represents a UNIX domain socket's name
+ * Handles both anonymous sockets and filesystem sockets
+ *
+ */
 struct un_name
 {
-    struct object object;
-    char *address;
-    size_t namelen;
+    bool is_fs_sock_;
+    union {
+        inode *inode_;
+        cul::string anon_path_;
+    };
 
-    struct un_socket *bound_socket;
-    struct un_name *next;
-};
-
-struct un_name *un_namespace_list = NULL;
-struct spinlock un_namespace_list_lock;
-
-struct un_name *un_find_name(char *address, size_t namelen);
-
-static void __append_name(un_name *name)
-{
-    spin_lock(&un_namespace_list_lock);
-
-    struct un_name **pp = &un_namespace_list;
-
-    while (*pp)
-        pp = &(*pp)->next;
-
-    *pp = name;
-
-    spin_unlock(&un_namespace_list_lock);
-}
-
-struct un_name *add_to_namespace(char *address, size_t namelen, struct un_socket *bound_socket)
-{
-    if (un_find_name(address, namelen))
+    /**
+     * @brief Construct an empty un_name
+     *
+     */
+    constexpr un_name() : is_fs_sock_{true}, inode_{}
     {
-        spin_unlock(&un_namespace_list_lock);
-        return errno = EADDRINUSE, nullptr;
     }
 
-    char *newbuffer = nullptr;
-
-    struct un_name *name = static_cast<un_name *>(zalloc(sizeof(*name)));
-    if (!name)
-        goto cleanup_and_die;
-
-    newbuffer = static_cast<char *>(memdup(address, namelen));
-    if (!newbuffer)
-        goto cleanup_and_die;
-
-    name->address = newbuffer;
-    name->bound_socket = bound_socket;
-
-    bound_socket->abstr_name = name;
-
-    name->namelen = namelen;
-
-    __append_name(name);
-
-    return name;
-cleanup_and_die:
-    if (name)
+    /**
+     * @brief Construct an anonymous un_name
+     *
+     * @param anon_path Anonymous name
+     */
+    un_name(cul::string &&anon_path) : is_fs_sock_{false}, anon_path_{anon_path}
     {
-        if (newbuffer)
-            free(newbuffer);
-        free(name);
     }
 
-    return NULL;
-}
-
-/* Note: Leaves un_namespace_list_lock locked */
-struct un_name *un_find_name(char *address, size_t namelen)
-{
-    spin_lock(&un_namespace_list_lock);
-
-    for (struct un_name *name = un_namespace_list; name != NULL; name = name->next)
+    void release()
     {
-        if (namelen != name->namelen)
-            continue;
-        if (!memcmp(name->address, address, namelen))
+        if (is_fs_sock_)
         {
-            return name;
+            inode_unref(inode_);
+            inode_ = nullptr;
+        }
+        else
+        {
+            anon_path_.clear();
         }
     }
 
-    spin_unlock(&un_namespace_list_lock);
+    un_name &operator=(un_name &&rhs)
+    {
+        if (this == &rhs)
+            return *this;
+        release();
+        is_fs_sock_ = rhs.is_fs_sock_;
 
-    return NULL;
+        if (is_fs_sock_)
+        {
+            inode_ = rhs.inode_;
+            rhs.inode_ = nullptr;
+        }
+        else
+        {
+            anon_path_ = cul::move(rhs.anon_path_);
+        }
+
+        return *this;
+    }
+
+    un_name(un_name &&rhs)
+    {
+        if (this == &rhs)
+            return;
+
+        is_fs_sock_ = rhs.is_fs_sock_;
+
+        if (is_fs_sock_)
+        {
+            inode_ = rhs.inode_;
+            rhs.inode_ = nullptr;
+        }
+        else
+        {
+            anon_path_ = cul::move(rhs.anon_path_);
+        }
+    }
+
+    CLASS_DISALLOW_COPY(un_name);
+    /**
+     * @brief Destroy the un_name object, and call the constructors
+     *
+     */
+    ~un_name()
+    {
+        if (is_fs_sock_)
+        {
+            if (inode_)
+                close_vfs(inode_);
+        }
+        else
+            anon_path_.~basic_string();
+    }
+
+    fnv_hash_t hash() const
+    {
+        if (is_fs_sock_)
+        {
+            return fnv_hash(&inode_, sizeof(inode_));
+        }
+        else
+        {
+            return fnv_hash(anon_path_.c_str(), anon_path_.length());
+        }
+    }
+
+    bool operator==(const un_name &rhs) const
+    {
+        if (rhs.is_fs_sock_ != is_fs_sock_)
+            return false;
+        if (is_fs_sock_)
+            return rhs.inode_ == inode_;
+        else
+            return rhs.anon_path_ == anon_path_;
+    }
+};
+
+/**
+ * @brief Represents a UNIX domain socket
+ *
+ */
+class un_socket : public socket
+{
+private:
+    /**
+     * @brief Do autobind of the socket
+     *
+     * @return 0 on success, -errno on error
+     */
+    int do_autobind();
+
+    /**
+     * @brief Bind the socket to an anonymous address
+     *
+     * @param anon_address String of the address
+     * @return 0 on success, -errno on error
+     */
+    int do_anon_bind(cul::string anon_address);
+
+    /**
+     * @brief Bind on a filesystem socket
+     *
+     * @param path Path of the UNIX socket
+     * @return 0 on success, negative error codes
+     */
+    int do_fs_bind(cul::string path);
+
+    un_name src_addr_;
+
+    un_socket *dst_{nullptr};
+
+public:
+    list_head_cpp<un_socket> bind_table_node{this};
+    un_socket(int type, int protocol) : socket{}, src_addr_{}
+    {
+        this->type = type;
+        this->proto = protocol;
+    }
+
+    ~un_socket();
+
+    int getsockopt(int level, int optname, void *optval, socklen_t *optlen) override
+    {
+        return -ENOPROTOOPT;
+    }
+
+    int setsockopt(int level, int optname, const void *optval, socklen_t optlen) override
+    {
+        return -ENOPROTOOPT;
+    }
+
+    int bind(sockaddr *addr, socklen_t addrlen) override;
+
+    void unbind();
+
+    static inline fnv_hash_t make_hash(un_socket *&sock)
+    {
+        return sock->src_addr_.hash();
+    }
+
+    un_name &src_addr()
+    {
+        return src_addr_;
+    }
+
+    void close() override;
+
+    int connect(sockaddr *addr, socklen_t addrlen, int flags) override;
+};
+
+class unix_socket_table
+{
+private:
+    cul::hashtable2<un_socket *, CONFIG_SOCKET_HASHTABLE_SIZE, uint32_t, &un_socket::make_hash>
+        socket_hashtable;
+    struct spinlock lock_[CONFIG_SOCKET_HASHTABLE_SIZE];
+
+public:
+    unix_socket_table()
+    {
+        for (auto &l : lock_)
+            spinlock_init(&l);
+    }
+
+    ~unix_socket_table() = default;
+
+    CLASS_DISALLOW_MOVE(unix_socket_table);
+    CLASS_DISALLOW_COPY(unix_socket_table);
+
+    size_t index_from_hash(fnv_hash_t hash)
+    {
+        return socket_hashtable.get_hashtable_index(hash);
+    }
+
+    void lock(fnv_hash_t hash)
+    {
+        spin_lock(&lock_[index_from_hash(hash)]);
+    }
+
+    void unlock(fnv_hash_t hash)
+    {
+        spin_unlock(&lock_[index_from_hash(hash)]);
+    }
+
+    bool add_socket(un_socket *sock, unsigned int flags)
+    {
+        bool unlocked = flags & ADD_SOCKET_UNLOCKED;
+        auto hash = sock->src_addr().hash();
+
+        if (!unlocked)
+            lock(hash);
+
+        socket_hashtable.add_element(sock, sock->bind_table_node.to_list_head());
+
+        if (!unlocked)
+            unlock(hash);
+
+        return true;
+    }
+
+    bool remove_socket(un_socket *sock, unsigned int flags)
+    {
+        bool unlocked = flags & REMOVE_SOCKET_UNLOCKED;
+
+        auto hash = sock->src_addr().hash();
+
+        if (!unlocked)
+            lock(hash);
+
+        socket_hashtable.remove_element(sock, sock->bind_table_node.to_list_head());
+
+        if (!unlocked)
+            unlock(hash);
+
+        return true;
+    }
+
+    un_socket *get_socket(const un_name &name, unsigned int flags, unsigned int inst)
+    {
+        auto hash = name.hash();
+        bool unlocked = flags & GET_SOCKET_UNLOCKED;
+        auto index = socket_hashtable.get_hashtable_index(hash);
+
+        if (!unlocked)
+            lock(hash);
+
+        /* Alright, so this is the standard hashtable thing - hash the socket_id,
+         * get the iterators, and then iterate through the list and compare the
+         * socket_id with the socket's internal id. This should be pretty efficient.
+         * My biggest worry right now is that the hashtables may be too small for a lot of
+         * system load. We should do something like linux where its hash tables are allocated
+         * dynamically, based on the system memory's size.
+         */
+
+        auto list = socket_hashtable.get_hashtable(index);
+
+        un_socket *ret = nullptr;
+
+        list_for_every (list)
+        {
+            auto sock = list_head_cpp<un_socket>::self_from_list_head(l);
+
+            if (sock->src_addr() == name && inst-- == 0)
+            {
+                ret = sock;
+                break;
+            }
+        }
+
+        /* GET_SOCKET_CHECK_EXISTENCE is very useful for operations like bind,
+         * as to avoid two extra atomic operations.
+         */
+
+        if (ret && !(flags & GET_SOCKET_CHECK_EXISTENCE))
+            ret->ref();
+
+        if (!unlocked)
+            unlock(hash);
+
+        return ret;
+    }
+};
+
+static unix_socket_table un_sock_table;
+/**
+ * @brief Bind the socket to an anonymous address
+ *
+ * @param anon_address String of the address
+ * @return 0 on success, -errno on error
+ */
+int un_socket::do_anon_bind(cul::string anon_address)
+{
+    src_addr_.is_fs_sock_ = false;
+    src_addr_.anon_path_ = anon_address;
+    auto hash = src_addr_.hash();
+    un_sock_table.lock(hash);
+
+    if (un_sock_table.get_socket(src_addr_, GET_SOCKET_UNLOCKED | GET_SOCKET_CHECK_EXISTENCE, 0))
+    {
+        un_sock_table.unlock(hash);
+        return -EADDRINUSE;
+    }
+
+    if (!un_sock_table.add_socket(this, ADD_SOCKET_UNLOCKED))
+    {
+        un_sock_table.unlock(hash);
+        return -ENOMEM;
+    }
+
+    un_sock_table.unlock(hash);
+
+    bound = true;
+
+    return 0;
 }
 
-int un_get_address(const struct sockaddr_un *un, socklen_t addrlen, char **name, size_t *pnamelen,
-                   bool *is_abstract_address)
+/**
+ * @brief Bind on a filesystem socket
+ *
+ * @param path Path of the UNIX socket
+ * @return 0 on success, negative error codes
+ */
+int un_socket::do_fs_bind(cul::string path)
 {
-    char *address = (char *) un->sun_path;
-    bool _is_abstract_address = false;
+    const auto perms = 0777 & ~get_current_process()->ctx.umask;
+    auto_file curr_dir = get_current_directory();
+    auto base = get_fs_base(path.c_str(), curr_dir.get_file());
+
+    auto created = mknod_vfs(path.c_str(), perms | S_IFSOCK, 0, base->f_dentry);
+
+    if (!created)
+    {
+        int st = -errno;
+
+        if (st == -EEXIST)
+            st = -EADDRINUSE;
+        return st;
+    }
+
+    src_addr_.is_fs_sock_ = true;
+    src_addr_.inode_ = created->f_ino;
+
+    // Note: We don't need to check for existance of a socket with the same inode, as we have
+    // just created it. The filesystem serves as a kind of a socket table there.
+
+    // Failure seems very unlikely.
+    if (!un_sock_table.add_socket(this, 0))
+    {
+        fd_put(created);
+        unlink_vfs(path.c_str(), 0, base);
+        src_addr_.inode_ = nullptr;
+        return -ENOMEM;
+    }
+
+    // Release references to the created fd and the base directory, and reference the inode we
+    // have just stored.
+
+    inode_ref(created->f_ino);
+
+    fd_put(created);
+
+    bound = true;
+
+    return 0;
+}
+
+/**
+ * @brief Do autobind of the socket
+ *
+ * @return 0 on success, -errno on error
+ */
+int un_socket::do_autobind()
+{
+    // unix(7)
+    // If a bind(2) call specifies addrlen as sizeof(sa_family_t), or
+    // the SO_PASSCRED socket option was specified for a socket that was
+    // not explicitly bound to an address, then the socket is autobound
+    // to an abstract address.  The address consists of a null byte
+    // followed by 5 bytes in the character set [0-9a-f].
+    char anon_path[5];
+    uint32_t autobind_addr = 0;
+    uint32_t max_addr = 0xfffff;
+
+    // TODO: This is slow.
+
+    for (; autobind_addr <= max_addr; autobind_addr++)
+    {
+        snprintf(anon_path, 5, "%x", autobind_addr);
+        if (do_anon_bind(cul::string{anon_path}) == 0)
+            return 0;
+    }
+
+    return -EADDRINUSE;
+}
+
+int un_socket::bind(sockaddr *addr, socklen_t addrlen)
+{
+    const sockaddr_un *un_addr = (const sockaddr_un *) addr;
+
+    if (!validate_unix_address(un_addr, addrlen))
+        return -EINVAL;
 
     if (addrlen == sizeof(sa_family_t))
-        return -EINVAL;
-
-    size_t namelen = addrlen - sizeof(sa_family_t);
-
-    /* See if the address is abstract or a filesystem name */
-
-    /* Abstract UNIX addresses start with a NULL byte, and may not be
-     * valid C strings, since they can have NULL bytes in the middle of the
-     * address.
-     */
-    if (address[0] == '\0')
     {
-        address++;
-        namelen--;
-        _is_abstract_address = true;
+        // Autobind requested
+        return do_autobind();
     }
 
-    *is_abstract_address = _is_abstract_address;
-    *name = address;
-    *pnamelen = namelen;
+    size_t path_len = addrlen - sizeof(sa_family_t);
 
-    return 0;
-}
-
-int un_do_bind(const struct sockaddr_un *un, socklen_t addrlen, struct un_socket *socket)
-{
-    char *address;
-    size_t namelen;
-    bool is_abstract;
-
-    int status = 0;
-    if ((status = un_get_address(un, addrlen, &address, &namelen, &is_abstract)) < 0)
+    if (un_addr->sun_path[0] == '\0')
     {
-        return status;
-    }
+        // Anonymous bind
+        path_len--;
 
-    if (!is_abstract)
-    {
-        struct file *cwd = get_current_directory();
-
-        struct file *inode =
-            mknod_vfs(address, S_IFDIR | 0666, 0, get_fs_base(address, cwd)->f_dentry);
-        if (!inode)
-            return -errno;
-
-        panic("implement the rest");
-
-        return 0;
-    }
-    else
-    {
-        if (!add_to_namespace(address, namelen, socket))
-            return -errno;
-    }
-
-    return 0;
-}
-
-int un_bind(struct sockaddr *addr, socklen_t addrlen, struct socket *s)
-{
-    struct un_socket *socket = (struct un_socket *) s;
-    if (socket->bound)
-        return -EINVAL;
-
-    if (addrlen > sizeof(struct sockaddr_un))
-        return -EINVAL;
-
-    struct sockaddr_un *un = (struct sockaddr_un *) addr;
-
-    int st = un_do_bind(un, addrlen, socket);
-    if (st == 0)
-        socket->bound = true;
-    return st;
-}
-
-int un_bind_ephemeral(struct un_socket *socket)
-{
-    struct sockaddr_un bind_addr = {0};
-    socklen_t addrlen = sizeof(sa_family_t) + 20;
-    bool failed = false;
-
-    do
-    {
-        char buffer[20];
-        buffer[0] = '\0';
-        arc4random_buf(buffer + 1, 19);
-        bind_addr.sun_family = AF_UNIX;
-        memcpy(buffer, bind_addr.sun_path, 20);
-
-    } while ((failed = un_do_bind(&bind_addr, addrlen, socket) < 0) && errno == EADDRINUSE);
-
-    if (failed)
-        return -errno;
-    else
-    {
-        socket->bound = true;
-        return 0;
-    }
-}
-
-int un_connect(struct sockaddr *addr, socklen_t addrlen, struct socket *s)
-{
-    struct un_socket *socket = (struct un_socket *) s;
-
-    struct sockaddr_un *un = (struct sockaddr_un *) addr;
-    char *address;
-    size_t namelen;
-    bool is_abstract;
-
-    int status = 0;
-
-    if (!socket->bound)
-    {
-        int st = un_bind_ephemeral(socket);
-        if (st < 0)
-            return st;
-    }
-
-    if ((status = un_get_address(un, addrlen, &address, &namelen, &is_abstract)) < 0)
-    {
-        return status;
-    }
-
-    if (is_abstract)
-    {
-        struct un_name *name = un_find_name(address, namelen);
-        if (!name)
-        {
-            return -EADDRNOTAVAIL;
-        }
-
-        name->bound_socket->ref();
-        spin_unlock(&un_namespace_list_lock);
-
-        socket->dest = name->bound_socket;
-    }
-    else
-    {
-        assert(is_abstract != true);
-    }
-
-    return 0;
-}
-
-ssize_t un_do_sendto(const void *buf, size_t len, struct un_socket *dest, struct un_socket *socket)
-{
-    assert(dest != NULL);
-
-    struct unix_packet *packet = static_cast<unix_packet *>(malloc(sizeof(*packet)));
-    if (!packet)
-    {
-        return -ENOMEM;
-    }
-
-    packet->buffer = memdup((void *) buf, len);
-    if (!packet->buffer)
-    {
-        free(packet);
-        return -ENOMEM;
-    }
-
-    packet->read = 0;
-    packet->size = len;
-    packet->next = NULL;
-    packet->source = socket->abstr_name;
-
-    spin_lock(&dest->socket_lock);
-
-    mutex_lock(&dest->packet_list_lock);
-    struct unix_packet **pp = &dest->packet_list;
-
-    while (*pp)
-        pp = &(*pp)->next;
-
-    *pp = packet;
-
-    condvar_signal(&dest->packet_condvar);
-
-    mutex_unlock(&dest->packet_list_lock);
-    spin_unlock(&dest->socket_lock);
-
-    return len;
-}
-
-ssize_t un_sendto(const void *buf, size_t len, int flags, struct sockaddr *_addr, socklen_t addrlen,
-                  struct socket *s)
-{
-    struct sockaddr_un a = {};
-    if (_addr)
-    {
-        if (addrlen != sizeof(struct sockaddr_un))
+        // Empty path
+        if (path_len == 0)
             return -EINVAL;
-        if (copy_from_user(&a, _addr, addrlen) < 0)
-            return -EFAULT;
+        cul::string s{&un_addr->sun_path[1], path_len};
+
+        if (!s)
+            return -ENOMEM;
+
+        return do_anon_bind(s);
     }
 
-    struct sockaddr *addr = (struct sockaddr *) &a;
-    struct un_socket *socket = (struct un_socket *) s;
+    // Filesystem bind
 
-    spin_lock(&socket->socket_lock);
+    cul::string s{un_addr->sun_path, path_len};
+    if (!s)
+        return -ENOMEM;
 
-    bool not_conn = !socket->dest;
-    struct un_socket *dest = socket->dest;
-
-    char *address;
-    size_t namelen;
-    bool is_abstract;
-    bool has_to_unref = false;
-
-    if (not_conn && !addr)
-    {
-        spin_unlock(&socket->socket_lock);
-        return -ENOTCONN;
-    }
-    else if (not_conn)
-    {
-        int status = 0;
-        if ((status = un_get_address((struct sockaddr_un *) addr, addrlen, &address, &namelen,
-                                     &is_abstract)) < 0)
-        {
-            spin_unlock(&socket->socket_lock);
-            return status;
-        }
-
-        struct un_name *name = un_find_name(address, namelen);
-        if (!name)
-        {
-            spin_unlock(&socket->socket_lock);
-            return -EDESTADDRREQ;
-        }
-
-        dest = name->bound_socket;
-        dest->ref();
-        has_to_unref = true;
-        spin_unlock(&un_namespace_list_lock);
-    }
-
-    if (!dest)
-    {
-        spin_unlock(&socket->socket_lock);
-        return -EDESTADDRREQ;
-    }
-
-    if (dest->conn_reset)
-    {
-        socket->unref();
-        spin_unlock(&socket->socket_lock);
-        return -ECONNRESET;
-    }
-
-    ssize_t st = un_do_sendto(buf, len, dest, socket);
-    spin_unlock(&socket->socket_lock);
-
-    if (has_to_unref)
-        socket->unref();
-
-    return st;
+    return do_fs_bind(s);
 }
 
-void un_dispose_packet(struct unix_packet *packet)
+void un_socket::unbind()
 {
-    free((void *) packet->buffer);
-    free(packet);
+    un_sock_table.remove_socket(this, 0);
 }
 
-ssize_t un_do_recvfrom(struct un_socket *socket, void *buf, size_t len, int flags,
-                       struct sockaddr_un *addr, socklen_t *slen)
+expected<un_name, int> sockaddr_to_un(sockaddr *addr, socklen_t addrlen)
 {
-    mutex_lock(&socket->packet_list_lock);
+    const sockaddr_un *un_addr = (const sockaddr_un *) addr;
 
-    while (!socket->packet_list)
+    if (!validate_unix_address(un_addr, addrlen))
+        return unexpected{-EINVAL};
+
+    const char *path = un_addr->sun_path;
+    size_t path_len = addrlen - sizeof(sa_family_t);
+
+    if (un_addr->sun_path[0] == '\0')
     {
-        condvar_wait(&socket->packet_condvar, &socket->packet_list_lock);
+        path_len--;
+        path++;
     }
 
-    struct unix_packet *packet = socket->packet_list;
+    if (path_len == 0)
+        return unexpected{-EINVAL};
 
-    size_t to_read = min(len, packet->size);
-    auto packet_ptr = static_cast<const char *>(packet->buffer) + packet->read;
-    if (copy_to_user(buf, reinterpret_cast<const void *>(packet_ptr), to_read) < 0)
+    un_name name;
+
+    if (un_addr->sun_path[0] == '\0')
     {
-        mutex_unlock(&socket->packet_list_lock);
-        return errno = EFAULT, -1;
+        name.is_fs_sock_ = false;
+        name.anon_path_ = cul::string{path, path_len};
+        if (!name.anon_path_)
+            return unexpected{-ENOMEM};
     }
-
-    if (socket->type == SOCK_DGRAM)
-        packet->read = packet->size;
     else
-        packet->read += to_read;
-
-    if (packet->source)
     {
-        struct sockaddr_un un;
-        un.sun_family = AF_UNIX;
-        un.sun_path[0] = '\0';
-        memcpy(&un.sun_path[1], packet->source->address, packet->source->namelen);
-        *slen = sizeof(sa_family_t) + 1 + packet->source->namelen;
+        name.is_fs_sock_ = true;
+        cul::string p{path, path_len};
+        if (!p)
+            return unexpected{-ENOMEM};
 
-        memcpy(addr, &un, sizeof(struct sockaddr_un));
+        auto_file cwd = get_current_directory();
+        auto_file f = open_vfs(cwd.get_file(), p.c_str());
+        if (!f)
+            return unexpected{-errno};
+        if (!S_ISSOCK(f.get_file()->f_ino->i_mode))
+            return unexpected{-ECONNREFUSED};
+        name.inode_ = f.get_file()->f_ino;
+        inode_ref(name.inode_);
     }
 
-    if (packet->read == packet->size)
-    {
-        socket->packet_list = packet->next;
-        un_dispose_packet(packet);
-    }
-
-    mutex_unlock(&socket->packet_list_lock);
-
-    return (ssize_t) to_read;
+    return cul::move(name);
 }
 
-ssize_t un_recvfrom(void *buf, size_t len, int flags, struct sockaddr *addr, socklen_t *slen,
-                    struct socket *s)
+int un_socket::connect(sockaddr *addr, socklen_t addrlen, int flags)
 {
-    struct un_socket *socket = (struct un_socket *) s;
-    struct sockaddr_un kaddr = {0};
-    socklen_t addrlen = sizeof(struct sockaddr_un);
-    socklen_t kaddrlen;
+    if (listening())
+        return -EINVAL;
 
-    if (addr != NULL && slen == NULL)
-        return errno = EINVAL, -1;
+    if (connected)
+        return -EISCONN;
 
-    if (addr == NULL && slen != NULL)
-        return errno = EINVAL, -1;
+    auto ex = sockaddr_to_un(addr, addrlen);
 
-    if (slen)
+    if (ex.has_error())
+        return ex.error();
+
+    auto peer = un_sock_table.get_socket(ex.value(), 0, 0);
+    if (!peer)
+        return -ECONNREFUSED;
+
+    if (peer->type != type || (type == SOCK_STREAM && !peer->listening()))
     {
-        if (copy_from_user(&addrlen, slen, sizeof(socklen_t)) < 0)
-            return errno = EFAULT, -1;
+        // Incompatible sockets or the peer isn't listening (when SOCK_STREAM)
+        peer->unref();
+        return -ECONNREFUSED;
     }
 
-    ssize_t st = un_do_recvfrom(socket, buf, len, flags, &kaddr, &kaddrlen);
+    dst_ = peer;
 
-    if (st < 0)
-    {
-        return errno = -st, -1;
-    }
-
-    addrlen = min(addrlen, kaddrlen);
-
-    if (kaddr.sun_family != AF_UNIX)
-        return st;
-
-    if (addr)
-    {
-        if (copy_to_user(addr, &kaddr, addrlen) < 0)
-            return errno = EFAULT, -1;
-    }
-
-    if (slen)
-    {
-        if (copy_to_user(slen, &addrlen, sizeof(socklen_t)) < 0)
-            return errno = EFAULT, -1;
-    }
-
-    return st;
+    return 0;
 }
 
-static struct sock_ops un_ops = {
-    .bind = un_bind,
-    .connect = un_connect,
-    .sendto = un_sendto,
-    .recvfrom = un_recvfrom,
-};
-
-void unix_socket_dtor(struct socket *socket)
+void un_socket::close()
 {
-    struct un_socket *un = (struct un_socket *) socket;
-    if (un->abstr_name)
-        un->abstr_name->bound_socket = NULL;
+    unref();
 }
 
-struct socket *unix_create_socket(int type, int protocol)
+un_socket::~un_socket()
 {
-    struct un_socket *socket = new un_socket();
-    if (!socket)
-        return NULL;
+    if (bound)
+    {
+        unbind();
+    }
 
-    mutex_init(&socket->packet_list_lock);
-    socket->type = type;
-
-    return (struct socket *) socket;
+    if (dst_)
+        dst_->unref();
+}
+/**
+ * @brief Create a UNIX socket
+ *
+ * @param type Type of the socket
+ * @param protocol Socket's protocol (PROTOCOL_UNIX)
+ * @return Pointer to socket object, or nullptr with errno set
+ */
+socket *unix_create_socket(int type, int protocol)
+{
+    return new un_socket{type, protocol};
 }

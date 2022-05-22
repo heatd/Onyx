@@ -359,7 +359,7 @@ void enumerate()
     if (!dt_bus)
         panic("Failed to allocate bus type structure for dt");
 
-    root_node = new node{"", 0, 0};
+    root_node = new node{cul::string(""), 0, 0};
     if (!root_node)
         panic("Failed to allocate a device tree node");
 
