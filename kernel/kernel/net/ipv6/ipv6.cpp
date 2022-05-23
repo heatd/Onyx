@@ -30,10 +30,7 @@ struct ipv6_ext_header
     uint8_t header_ext_len;
 };
 
-namespace ip
-{
-
-namespace v6
+namespace ip::v6
 {
 
 static constexpr tx_type ipv6_addr_to_tx_type(const in6_addr &dst)
@@ -486,9 +483,7 @@ proto_family *get_v6_proto()
     return &v6_protocol;
 }
 
-} // namespace v6
-
-} // namespace ip
+} // namespace ip::v6
 
 int inet_socket::setsockopt_inet6(int level, int opt, const void *optval, socklen_t len)
 {

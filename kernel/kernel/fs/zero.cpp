@@ -44,7 +44,7 @@ const file_ops zero_fileops = {
     .mmap = zero_mmap,
 };
 
-void zero_init(void)
+void zero_init()
 {
     auto min = dev_register_chardevs(0, 1, 0, &zero_fileops, "zero");
     if (!min)

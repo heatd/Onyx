@@ -28,10 +28,7 @@
 #include <onyx/random.h>
 #include <onyx/utils.h>
 
-namespace ip
-{
-
-namespace v4
+namespace ip::v4
 {
 
 bool needs_fragmentation(size_t packet_size, struct netif *netif)
@@ -306,12 +303,12 @@ out:
 
 uint16_t identification_counter = 0;
 
-static uint16_t allocate_id(void)
+static uint16_t allocate_id()
 {
     return __atomic_fetch_add(&identification_counter, 1, __ATOMIC_CONSUME);
 }
 
-int send_packet(const iflow &flow, packetbuf *buf, cul::slice<ip_option> options)
+int send_packet(const iflow &flow, packetbuf *buf, const cul::slice<ip_option> &options)
 {
     size_t payload_size = buf->length();
     auto netif = flow.nif;
@@ -744,8 +741,7 @@ socket *create_socket(int type, int protocol)
     return sock;
 }
 
-} // namespace v4
-} // namespace ip
+} // namespace ip::v4
 
 bool inet_has_permission_for_port(in_port_t port)
 {

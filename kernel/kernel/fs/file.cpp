@@ -31,15 +31,15 @@
 
 bool is_absolute_filename(const char *file)
 {
-    return *file == '/' ? true : false;
+    return *file == '/';
 }
 
 struct file *get_fs_base(const char *file, struct file *rel_base)
 {
-    return is_absolute_filename(file) == true ? get_fs_root() : rel_base;
+    return is_absolute_filename(file) ? get_fs_root() : rel_base;
 }
 
-struct file *get_current_directory(void)
+struct file *get_current_directory()
 {
     struct ioctx *ctx = &get_current_process()->ctx;
     spin_lock(&ctx->cwd_lock);
@@ -518,7 +518,7 @@ void handle_open_flags(struct file *fd, int flags)
         fd->f_seek = fd->f_ino->i_size;
 }
 
-static inline mode_t get_current_umask(void)
+static inline mode_t get_current_umask()
 {
     return get_current_process()->ctx.umask;
 }

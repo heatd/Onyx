@@ -467,16 +467,12 @@ bool vmo_unref(vm_object *vmo)
 
 static inline bool is_included(size_t lower, size_t upper, size_t x)
 {
-    if (x >= lower && x < upper)
-        return true;
-    return false;
+    return x >= lower && x < upper;
 }
 
 static inline bool is_excluded(size_t lower, size_t upper, size_t x)
 {
-    if (x < lower || x > upper)
-        return true;
-    return false;
+    return x < lower || x > upper;
 }
 
 #define PURGE_SHOULD_FREE (1 << 0)

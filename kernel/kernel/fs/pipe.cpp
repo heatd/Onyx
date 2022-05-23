@@ -129,7 +129,7 @@ ssize_t pipe::write(int flags, size_t len, const void *buf)
     {
         if (broken)
         {
-            kernel_raise_signal(SIGPIPE, get_current_process(), 0, NULL);
+            kernel_raise_signal(SIGPIPE, get_current_process(), 0, nullptr);
             return -EPIPE;
         }
 

@@ -33,7 +33,7 @@ size_t null_read(size_t offset, size_t len, void *buf, file *f)
 
 const struct file_ops null_ops = {.read = null_read, .write = null_write};
 
-void null_init(void)
+void null_init()
 {
     auto dev = dev_register_chardevs(0, 1, 0, &null_ops, cul::string{"null"});
     if (!dev)

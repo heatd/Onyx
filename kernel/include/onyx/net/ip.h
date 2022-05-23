@@ -63,8 +63,8 @@ union sockaddr_in_both {
 #define IPV4_FRAG_INFO_MORE_FRAGMENTS 0x2000
 
 #define IPV4_FRAG_INFO_FLAGS(x) (x & 0x7)
-#define IPV4_MAKE_FRAGOFF(x)    (x << 3)
-#define IPV4_GET_FRAGOFF(x)     (x >> 2)
+#define IPV4_MAKE_FRAGOFF(x)    ((x) << 3)
+#define IPV4_GET_FRAGOFF(x)     ((x) >> 2)
 
 namespace ip
 {
@@ -85,7 +85,7 @@ public:
     void unbind(inet_socket *sock) override;
 };
 
-int send_packet(const iflow &flow, packetbuf *buf, cul::slice<ip_option> options = {});
+int send_packet(const iflow &flow, packetbuf *buf, const cul::slice<ip_option> &options = {});
 
 socket *create_socket(int type, int protocol);
 

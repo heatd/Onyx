@@ -63,10 +63,7 @@ struct ipv6_router_alert
 #define IPV6_ROUTER_ALERT_RSVP  1
 #define IPV6_ROUTER_ALERT_ACTVN 2
 
-namespace ip
-{
-
-namespace v6
+namespace ip::v6
 {
 
 /* IPv4-mapped IPv6 addresses are special addresses recognised by a
@@ -134,8 +131,6 @@ public:
 };
 
 proto_family *get_v6_proto();
-} // namespace v6
-
-} // namespace ip
+} // namespace ip::v6
 
 #endif

@@ -167,8 +167,8 @@ struct inet_socket : public socket
 private:
     friend class ip::v4::proto_family;
     friend class ip::v6::proto_family;
-    bool validate_sockaddr_len_pair_v4(sockaddr_in *addr, socklen_t len);
-    bool validate_sockaddr_len_pair_v6(sockaddr_in6 *addr, socklen_t len);
+    static bool validate_sockaddr_len_pair_v4(sockaddr_in *addr, socklen_t len);
+    static bool validate_sockaddr_len_pair_v6(sockaddr_in6 *addr, socklen_t len);
 
 protected:
     /* Modifies *addr too */

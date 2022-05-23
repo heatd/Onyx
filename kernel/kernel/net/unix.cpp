@@ -191,13 +191,13 @@ private:
 
 public:
     list_head_cpp<un_socket> bind_table_node{this};
-    un_socket(int type, int protocol) : socket{}, src_addr_{}
+    un_socket(int type, int protocol)
     {
         this->type = type;
         this->proto = protocol;
     }
 
-    ~un_socket();
+    ~un_socket() override;
 
     int getsockopt(int level, int optname, void *optval, socklen_t *optlen) override
     {
@@ -351,7 +351,7 @@ static unix_socket_table un_sock_table;
 int un_socket::do_anon_bind(cul::string anon_address)
 {
     src_addr_.is_fs_sock_ = false;
-    src_addr_.anon_path_ = anon_address;
+    src_addr_.anon_path_ = cul::move(anon_address);
     auto hash = src_addr_.hash();
     un_sock_table.lock(hash);
 

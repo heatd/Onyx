@@ -35,7 +35,7 @@ bool inode_is_cacheable(struct inode *file);
 
 struct filesystem_root boot_root = {};
 
-int vfs_init(void)
+int vfs_init()
 {
     object_init(&boot_root.object, nullptr);
     dentry_init();
@@ -43,7 +43,7 @@ int vfs_init(void)
     return 0;
 }
 
-struct filesystem_root *get_filesystem_root(void)
+struct filesystem_root *get_filesystem_root()
 {
     struct process *p = get_current_process();
     if (!p)
@@ -52,7 +52,7 @@ struct filesystem_root *get_filesystem_root(void)
     return &boot_root;
 }
 
-struct file *get_fs_root(void)
+struct file *get_fs_root()
 {
     struct filesystem_root *root = get_filesystem_root();
 

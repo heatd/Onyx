@@ -273,7 +273,7 @@ ssize_t inode_sync(struct inode *inode)
     if (!inode->i_pages)
         return 0;
     struct rb_itor it;
-    it.node = NULL;
+    it.node = nullptr;
     scoped_mutex g{inode->i_pages->page_lock};
 
     it.tree = inode->i_pages->pages;
@@ -305,7 +305,7 @@ void inode_release(struct inode *inode)
     // printk("Should die %u\n", should_die);
     if (inode->i_sb)
     {
-        assert(inode->i_sb != NULL);
+        assert(inode->i_sb != nullptr);
 
         /* Remove the inode from its superblock */
         superblock_remove_inode(inode->i_sb, inode);
@@ -332,7 +332,7 @@ void inode_release(struct inode *inode)
     /* Destroy the page cache *after* kill inode, since kill_inode might need to access the vmo */
     inode_destroy_page_caches(inode);
 
-    if (inode->i_fops->close != NULL)
+    if (inode->i_fops->close != nullptr)
         inode->i_fops->close(inode);
 
     free(inode);

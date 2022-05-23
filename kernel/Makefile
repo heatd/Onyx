@@ -128,17 +128,6 @@ else
 CFLAGS+=-fno-pie
 endif
 
-CLANG_TIDY_CHECKS:="performance*, modernize-pass-by-value, readability*, misc*, \
-		-readability-implicit-bool-conversion, -readability-braces-around-statements, \
-		-readability-else-after-return, -readability-isolate-declaration, \
-		-readability-magic-numbers, -misc-unused-parameters, \
-		-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling, \
-		-readability-inconsistent-declaration-parameter-name, -readability-qualified-auto, \
-		-misc-non-private-member-variables-in-classes, -clang-diagnostic-unknown-attributes, \
-		cppcoreguidelines-slicing, cppcoreguidelines-pro-type-const-cast, \
-		google-runtime-operator, bugprone*, -bugprone-narrowing-conversions, \
-		clang-analyzer-optin.performance.Padding, modernize-use-override, \
-		-bugprone-reserved-identifier, -misc-no-recursion"
 
 # TODO: Fix -Wno-mismatched-new-delete cases
 CXXFLAGS:=-fno-rtti -fno-exceptions -fcheck-new -Wno-mismatched-new-delete

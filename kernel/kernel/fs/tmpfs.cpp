@@ -240,7 +240,7 @@ static void tmpfs_append(tmpfs_superblock *fs)
     mutex_unlock(&tmpfs_list_lock);
 }
 
-tmpfs_superblock *tmpfs_create_sb(void)
+tmpfs_superblock *tmpfs_create_sb()
 {
     tmpfs_superblock *new_fs = new tmpfs_superblock{};
     if (!new_fs)

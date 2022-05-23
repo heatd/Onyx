@@ -81,10 +81,7 @@ bool check_kernel_limits(void *__page)
                l.start_virt, l.end_virt);
     }
 
-    if (page >= l.start_phys && page < l.end_phys)
-        return true;
-
-    return false;
+    return page >= l.start_phys && page < l.end_phys;
 }
 
 void reclaim_pages(unsigned long start, unsigned long end)

@@ -71,7 +71,7 @@ ssize_t pagecache_flush(struct flush_object *fo)
 
     __sync_or_and_fetch(&page->flags, PAGE_FLAG_FLUSHING);
 
-    assert(b->node->i_fops->writepage != NULL);
+    assert(b->node->i_fops->writepage != nullptr);
     return b->node->i_fops->writepage(b->page, b->offset, b->node);
 }
 
@@ -86,7 +86,7 @@ struct page_cache_block *pagecache_create_cache_block(struct page *page, size_t 
 {
     struct page_cache_block *c = (page_cache_block *) zalloc(sizeof(struct page_cache_block));
     if (!c)
-        return NULL;
+        return nullptr;
 
     c->buffer = PAGE_TO_VIRT(page);
     c->page = page;
@@ -116,7 +116,7 @@ void pagecache_dirty_block(struct page_cache_block *block)
     flush_add_buf(&block->fobj);
 }
 
-void pagecache_init(void)
+void pagecache_init()
 {
     flush_init();
 }
@@ -133,7 +133,7 @@ void page_cache_destroy(struct page_cache_block *block)
     free(block);
 }
 
-size_t pagecache_get_used_pages(void)
+size_t pagecache_get_used_pages()
 {
     return used_cache_pages;
 }

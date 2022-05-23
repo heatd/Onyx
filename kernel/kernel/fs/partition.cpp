@@ -107,7 +107,7 @@ static struct page *read_disk(struct blockdev *dev, sector_t sector, size_t coun
     int st = 0;
     struct page *pages = alloc_pages(nr_pages, PAGE_ALLOC_NO_ZERO | PAGE_ALLOC_CONTIGUOUS);
     if (!pages)
-        return NULL;
+        return nullptr;
 
     struct page_iov *vec = (page_iov *) calloc(nr_pages, sizeof(struct page_iov));
     if (!vec)
@@ -142,7 +142,7 @@ out:
     if (st < 0)
         errno = -st;
 
-    return st < 0 ? NULL : pages;
+    return st < 0 ? nullptr : pages;
 }
 
 /**
@@ -185,12 +185,12 @@ int partition_add(blockdev *dev, int nr_partition, uint64_t first_lba, uint64_t 
 int partition_setup_disk_gpt(struct blockdev *dev)
 {
     int st = 0;
-    gpt_partition_entry_t *part_table = NULL;
-    struct page_iov *vec = NULL;
+    gpt_partition_entry_t *part_table = nullptr;
+    struct page_iov *vec = nullptr;
     size_t count = 0;
     struct page *p = nullptr;
     unsigned int nr_parts = 1;
-    struct page *part_tab_pages = NULL;
+    struct page *part_tab_pages = nullptr;
     struct page *gpt_header_pages = read_disk(dev, 1, dev->sector_size);
     if (!gpt_header_pages)
         return -errno;

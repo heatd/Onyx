@@ -55,7 +55,6 @@ uintptr_t kstacks_addr = arch_kstacks_off;
 uintptr_t heap_addr = arch_heap_off;
 size_t heap_size = 0;
 
-int vm_region_setup_backing(struct vm_region *region, size_t pages, bool is_file_backed);
 int populate_shared_mapping(void *page, struct file *fd, struct vm_region *entry, size_t nr_pages);
 void vm_remove_region(struct mm_address_space *as, struct vm_region *region);
 int vm_add_region(struct mm_address_space *as, struct vm_region *region);
@@ -118,7 +117,7 @@ struct vm_region *vm_reserve_region(struct mm_address_space *as, unsigned long s
 
     dict_insert_result res = rb_tree_insert(as->area_tree, (void *) start);
 
-    if (res.inserted == false)
+    if (!res.inserted)
     {
         if (res.datum_ptr)
         {
@@ -430,12 +429,7 @@ void vm_make_anon(struct vm_region *reg)
 
 bool vm_mapping_requires_write_protect(struct vm_region *reg)
 {
-    if (vm_mapping_requires_wb(reg))
-    {
-        return true;
-    }
-
-    return false;
+    return vm_mapping_requires_wb(reg);
 }
 
 void vm_region_destroy(struct vm_region *region)
@@ -1358,7 +1352,7 @@ out_error:
 
 int sys_munmap(void *addr, size_t length)
 {
-    //printk("munmap [%p, %lx]\n", addr, (unsigned long) addr + length - 1);
+    // printk("munmap [%p, %lx]\n", addr, (unsigned long) addr + length - 1);
 
     if (is_higher_half(addr))
         return -EINVAL;
@@ -3050,10 +3044,7 @@ bool vm_can_expand(struct mm_address_space *as, struct vm_region *region, size_t
     /* Calculate the hole size, and if >= new_size, we're good */
     size_t hole_size = second_region->base - region->base;
 
-    if (hole_size >= new_size)
-        return true;
-
-    return false;
+    return hole_size >= new_size;
 }
 
 int __vm_expand_mapping(struct vm_region *region, size_t new_size)
@@ -3643,7 +3634,8 @@ int get_phys_pages(void *_addr, unsigned int flags, struct page **pages, size_t 
             had_shared_pages = true;
 
         /* Do a permission check. */
-        unsigned int rwx_mask = (flags & GPP_READ ? 0 : 0) | (flags & GPP_WRITE ? VM_WRITE : 0) |
+        unsigned int rwx_mask = (flags & GPP_READ ? VM_READ : 0) |
+                                (flags & GPP_WRITE ? VM_WRITE : 0) |
                                 (flags & GPP_USER ? VM_USER : 0);
 
         if ((reg->rwx & rwx_mask) != rwx_mask)

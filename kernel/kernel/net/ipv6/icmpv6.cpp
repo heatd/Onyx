@@ -25,7 +25,7 @@ socket_table icmp_table;
 const inet_proto icmp6_proto{"icmp6", &icmp_table};
 
 #define ICMPV6_PACKETBUF_HEADER_SPACE \
-    PACKET_MAX_HEAD_LENGTH + sizeof(ip6hdr) + sizeof(icmpv6_header)
+    (PACKET_MAX_HEAD_LENGTH + sizeof(ip6hdr) + sizeof(icmpv6_header))
 
 ref_guard<packetbuf> allocate_icmp_response_packet(unsigned int extra_size = 0)
 {
