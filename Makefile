@@ -142,7 +142,7 @@ qemu-riscv: fullbuild-plus-initrd
 
 qemu-arm64: kernel
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) -kernel kernel/vmonyx -m 512M -machine virt \
-	-monitor stdio -cpu cortex-a53 -d int,mmu,cpu -s
+	-monitor stdio -cpu cortex-a53 -d int -s
 
 qemu: iso
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) \

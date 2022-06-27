@@ -20,8 +20,8 @@
 
 #define RISCV_SATP_4LEVEL_MMU (9UL << 60)
 
-static const unsigned int riscv_paging_levels = 4;
-static const unsigned int riscv_max_paging_levels = 5;
+static const unsigned int arm64_paging_levels = 4;
+static const unsigned int arm64_max_paging_levels = 5;
 
 #define PML_EXTRACT_ADDRESS(n) ((n >> 10) << 12)
 #define RISCV_MMU_VALID        (1 << 0)
@@ -98,7 +98,7 @@ PML *get_current_page_tables(void)
 
 static void addr_to_indices(unsigned long virt, unsigned int *indices)
 {
-    for (unsigned int i = 0; i < riscv_paging_levels; i++)
+    for (unsigned int i = 0; i < arm64_paging_levels; i++)
     {
         indices[i] = (virt >> 12) >> (i * 9) & 0x1ff;
     }
@@ -112,13 +112,13 @@ static bool pt_entry_is_huge(unsigned long pt_entry)
 void *__virtual2phys(PML *__pml, void *ptr)
 {
     unsigned long virt = (unsigned long) ptr;
-    unsigned int indices[riscv_max_paging_levels];
+    unsigned int indices[arm64_max_paging_levels];
 
     addr_to_indices(virt, indices);
 
     PML *pml = (PML *) ((uint64_t) __pml + PHYS_BASE);
 
-    for (unsigned int i = riscv_paging_levels; i != 1; i--)
+    for (unsigned int i = arm64_paging_levels; i != 1; i--)
     {
         uint64_t entry = pml->entries[indices[i - 1]];
 
@@ -186,14 +186,14 @@ void paging_init(void)
     /* Bootstrap the first 1GB */
     uintptr_t virt = PHYS_BASE;
 
-    unsigned int indices[riscv_max_paging_levels];
+    unsigned int indices[arm64_max_paging_levels];
 
     addr_to_indices(virt, indices);
 
     // Create two mappings of 512GB(1TB)
     auto flags = RISCV_MMU_WRITE | RISCV_MMU_READ | RISCV_MMU_GLOBAL | RISCV_MMU_VALID;
-    boot_pt->entries[indices[riscv_paging_levels - 1]] = riscv_pt_page_mapping(0) | flags;
-    boot_pt->entries[indices[riscv_paging_levels - 1] + 1] =
+    boot_pt->entries[indices[arm64_paging_levels - 1]] = riscv_pt_page_mapping(0) | flags;
+    boot_pt->entries[indices[arm64_paging_levels - 1] + 1] =
         riscv_pt_page_mapping(VERYHUGE512GB_SIZE) | flags;
 }
 
@@ -258,9 +258,9 @@ bool riscv_get_pt_entry_with_ptables(void *addr, uint64_t **entry_ptr, struct mm
                                      struct pt_location location[4])
 {
     unsigned long virt = (unsigned long) addr;
-    unsigned int indices[riscv_max_paging_levels];
+    unsigned int indices[arm64_max_paging_levels];
 
-    for (unsigned int i = 0; i < riscv_paging_levels; i++)
+    for (unsigned int i = 0; i < arm64_paging_levels; i++)
     {
         indices[i] = (virt >> 12) >> (i * 9) & 0x1ff;
         location[4 - 1 - i].index = indices[i];
@@ -269,7 +269,7 @@ bool riscv_get_pt_entry_with_ptables(void *addr, uint64_t **entry_ptr, struct mm
     PML *pml = (PML *) ((unsigned long) mm->arch_mmu.top_pt + PHYS_BASE);
     unsigned int location_index = 0;
 
-    for (unsigned int i = riscv_paging_levels; i != 1; i--)
+    for (unsigned int i = arm64_paging_levels; i != 1; i--)
     {
         uint64_t entry = pml->entries[indices[i - 1]];
         location[location_index].table = pml;
@@ -400,13 +400,13 @@ bool riscv_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
                         struct mm_address_space *mm)
 {
     unsigned long virt = (unsigned long) addr;
-    unsigned int indices[riscv_max_paging_levels];
+    unsigned int indices[arm64_max_paging_levels];
 
     addr_to_indices(virt, indices);
 
     PML *pml = (PML *) ((unsigned long) mm->arch_mmu.top_pt + PHYS_BASE);
 
-    for (unsigned int i = riscv_paging_levels; i != 1; i--)
+    for (unsigned int i = arm64_paging_levels; i != 1; i--)
     {
         uint64_t entry = pml->entries[indices[i - 1]];
         if (entry & RISCV_MMU_VALID)
@@ -748,16 +748,11 @@ public:
 #endif
 
     page_table_iterator(unsigned long virt, size_t len, struct mm_address_space *as)
-        : curr_addr_{virt}, length_{len}, as_
-    {
-        as
-    }
+        : curr_addr_{virt}, length_{len}, as_{as}
 
 #ifdef CONFIG_PT_ITERATOR_HAVE_DEBUG
-    , debug
-    {
-        false
-    }
+          ,
+          debug{false}
 #endif
 
     {
@@ -970,7 +965,7 @@ static int riscv_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterato
     bool unmapped_whole_table = index == 0 && i == PAGE_TABLE_ENTRIES;
 
     /* Don't bother to free the PML or even check if it's empty if we're the top paging structure */
-    if (pt_level != riscv_paging_levels - 1 && (unmapped_whole_table || pml_is_empty(table)))
+    if (pt_level != arm64_paging_levels - 1 && (unmapped_whole_table || pml_is_empty(table)))
     {
         return MMU_UNMAP_CAN_FREE_PML;
     }
@@ -993,7 +988,7 @@ int vm_mmu_unmap(struct mm_address_space *as, void *addr, size_t pages)
 
     PML *first_level = (PML *) PHYS_TO_VIRT(as->arch_mmu.top_pt);
 
-    riscv_mmu_unmap(first_level, riscv_paging_levels - 1, it);
+    riscv_mmu_unmap(first_level, arm64_paging_levels - 1, it);
 
     assert(it.length() == 0);
 

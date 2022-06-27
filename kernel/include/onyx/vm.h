@@ -32,7 +32,7 @@
 #elif defined(__riscv)
 #define KERNEL_VIRTUAL_BASE 0xffffffff00000000
 #elif defined(__aarch64__)
-#define KERNEL_VIRTUAL_BASE 0xffffffff00000000
+#define KERNEL_VIRTUAL_BASE 0xffffffff80000000
 #endif
 
 #define VM_TYPE_REGULAR     (0)
@@ -390,7 +390,8 @@ void *vm_gen_brk_base(void);
  */
 void vm_sysfs_init(void);
 
-extern "C" {
+extern "C"
+{
 
 /**
  * @brief Copies data to user space.

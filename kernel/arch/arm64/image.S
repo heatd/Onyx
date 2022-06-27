@@ -8,8 +8,8 @@
 .section .text
 .global __cxa_atexit
 __cxa_atexit:
-	mov x0, 0
-	ret
+    mov x0, 0
+    ret
 
 .section .boot, "ax"
 
@@ -18,54 +18,58 @@ __cxa_atexit:
 .global entry_point
 .type entry_point,@function
 entry_point:
-	/* Header time! */
-	b entry
-	/* Code 1 - unused */
-	.quad 0
-	.quad 0
-	.quad __kernel_size
-	.quad (1 << 3) /* flags. bit 3 = anywhere in physical memory, 2MB aligned */
-	/* Reserved */
+    /* Header time! */
+    b entry
+    /* Code 1 - unused */
+    .quad 0
+    .quad 0
+    .quad __kernel_size
+    .quad (1 << 3) /* flags. bit 3 = anywhere in physical memory, 2MB aligned */
+    /* Reserved */
     .quad 0 
-	.quad 0
-	.quad 0
-	.ascii ARM64_IMAGE_MAGIC
-	.long 0
+    .quad 0
+    .quad 0
+    .ascii ARM64_IMAGE_MAGIC
+    .long 0
 
 entry:
-	mrs x9, sctlr_el1
-	orr x9, x9, #(1 << 23) /* SPAN */
-	orr x9, x9, #(1 << 12) /* Instruction cacheability */
-	orr x9, x9, #(1 << 4)
-	orr x9, x9, #(1 << 3) /* Alignment check for the stack at EL0 and 1 */
-	orr x9, x9, #(1 << 2) /* Data cacheability */
-	bic x9, x9, #(1 << 1) /* No alignment checking for data accesses at EL0 and 1 */
-	msr sctlr_el1, x9
-	adrp x1, stack_top
-	add x1, x1, :lo12:stack_top
-	mov sp, x1
-	sub sp, sp, #16
-	# Save the device tree
-	str x0, [sp, #-16]
-	adrp x0, boot_page_tables
-	add x0, x0, :lo12:boot_page_tables
-	# Get the load address (PC-relative adrp to the head of the kernel image)
-	adrp x1, entry_point
-	add x1, x1, :lo12:entry_point
+    mrs x9, sctlr_el1
+    orr x9, x9, #(1 << 23) /* SPAN */
+    orr x9, x9, #(1 << 12) /* Instruction cacheability */
+    orr x9, x9, #(1 << 4)
+    orr x9, x9, #(1 << 3) /* Alignment check for the stack at EL0 and 1 */
+    orr x9, x9, #(1 << 2) /* Data cacheability */
+    bic x9, x9, #(1 << 1) /* No alignment checking for data accesses at EL0 and 1 */
+    msr sctlr_el1, x9
+    adrp x1, stack_top
+    add x1, x1, :lo12:stack_top
+    mov sp, x1
+    sub sp, sp, #16
+    # Save the device tree
+    str x0, [sp, #-16]
+    adrp x0, boot_page_tables
+    add x0, x0, :lo12:boot_page_tables
+    # Get the load address (PC-relative adrp to the head of the kernel image)
+    adrp x1, entry_point
+    add x1, x1, :lo12:entry_point
 
-	# Invalidate the TLB before setting it up
-	tlbi    vmalle1is
+    # Invalidate the TLB before setting it up
+    tlbi    vmalle1is
     dsb     sy
     isb
 
-	bl arm64_setup_mmu
-	ldr x6, =.mmu_enabled
-	blr x6
+    bl arm64_setup_mmu
+    ldr x6, =.mmu_enabled
+    blr x6
 .mmu_enabled:
-	ldr x0, [sp, #-16]
-	# Use the virtual address of the stack
-	ldr x1, =stack_top
-	mov sp, x1
+    ldr x0, [sp, #-16]
+    # Use the virtual address of the stack
+    ldr x1, =stack_top
+    mov sp, x1
+
+    ldr x1, =percpu_base
+    msr tpidr_el1, x1
+    bl kernel_entry
 
 .wait:
     wfi
