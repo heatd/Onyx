@@ -27,4 +27,7 @@ static inline void mov_non_temporal(volatile Type *p, Type val)
         val;                                             \
     })
 
+#define REG_TTBR0 "ttbr0_el1"
+#define REG_TTBR1 "ttbr1_el1"
+
 #endif

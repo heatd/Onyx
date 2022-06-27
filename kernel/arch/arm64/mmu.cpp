@@ -162,7 +162,7 @@ void __native_tlb_invalidate_all(void)
 
 PML *arm64_get_kernel_page_table()
 {
-    return (PML *) mrs("ttbr1_el1");
+    return (PML *) mrs(REG_TTBR1);
 }
 
 unsigned long riscv_make_pt_entry_page_table(PML *next_pt)
