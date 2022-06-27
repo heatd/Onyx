@@ -16,7 +16,7 @@ export BUILDPKG_BIN_PY_WRAPPER?=$(PWD)/buildpkg/buildpkg_gn_wrapper
 
 ifneq ($(CLANG_PATH),)
 
-export CLANG_ARGUMENTS:=--target=$(ONYX_ARCH)-unknown-onyx
+export CLANG_ARGUMENTS:=--target=$(shell scripts/target-triplet-to-arch.sh $(HOST))-unknown-onyx
 export CLANG_BIN:=$(CLANG_PATH)/bin
 export AR:=$(CLANG_BIN)/llvm-ar
 export CC:=$(CLANG_BIN)/clang $(CLANG_ARGUMENTS)
@@ -142,7 +142,7 @@ qemu-riscv: fullbuild-plus-initrd
 
 qemu-arm64: kernel
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) -kernel kernel/vmonyx -m 512M -machine virt \
-	-monitor stdio -cpu cortex-a53 -d int,mmu,cpu
+	-monitor stdio -cpu cortex-a53 -d int,mmu,cpu -s
 
 qemu: iso
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) \

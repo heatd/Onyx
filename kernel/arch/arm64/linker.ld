@@ -9,11 +9,11 @@
 ENTRY(entry_point)
 
 VIRT_BASE = 0xffffffff80000000;
-PHYS_BASE = 0x80080000;
+PHYS_BASE = 0x80000;
 
 SECTIONS
 {
-	. = VIRT_BASE;
+	. = VIRT_BASE + PHYS_BASE;
 	kernel_start = .;
 	_text_start = .;
 	.text : AT(ADDR(.text) - VIRT_BASE)
@@ -108,7 +108,6 @@ SECTIONS
 	_data_start = .;
 	.sdata ALIGN(0x1000) : AT(ADDR(.sdata) - VIRT_BASE)
 	{
-		__global_pointer$ = . + 0x800;
 		*(.srodata.cst16) *(.srodata.cst8) *(.srodata.cst4) *(.srodata.cst2) *(.srodata .srodata.*)
 		*(.sdata .sdata.* .gnu.linkonce.s.*)
 	} : data
