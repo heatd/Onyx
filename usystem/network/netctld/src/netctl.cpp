@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <fcntl.h>
 #include <string.h>
@@ -15,7 +17,6 @@
 #include <onyx/public/netkernel.h>
 
 #include <dhcpcd.hpp>
-#include <json.hpp>
 #include <netctl.hpp>
 
 namespace netctl
@@ -110,6 +111,10 @@ void create_instance(const std::string &name)
 
 int main(int argc, char **argv, char **envp)
 {
+    // Weird argv.
+    if (argc == 0)
+        return 1;
+    (void) envp;
     int logfd = open("/dev/null", O_RDWR);
     if (logfd < 0)
     {

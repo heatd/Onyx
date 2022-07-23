@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2021 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -301,7 +301,7 @@ int do_ping(const char *dst)
     return 0;
 }
 
-int main(int argc, char **argv, char **envp)
+int main(int argc, char **argv)
 {
     int indexptr = 0;
     int flag = 0;
@@ -309,47 +309,47 @@ int main(int argc, char **argv, char **envp)
     {
         switch (flag)
         {
-        case '?':
-        case 'h':
-            show_help(flag);
-            break;
-        case 'v':
-            show_version();
-            break;
-        case 'c':
-            errno = 0;
-            count = std::strtoul(optarg, nullptr, 10);
+            case '?':
+            case 'h':
+                show_help(flag);
+                break;
+            case 'v':
+                show_version();
+                break;
+            case 'c':
+                errno = 0;
+                count = std::strtoul(optarg, nullptr, 10);
 
-            if (errno == ERANGE || count == 0)
-            {
-                printf("ping: Count number out of range [1, UINT_MAX]\n");
-                exit(1);
-            }
+                if (errno == ERANGE || count == 0)
+                {
+                    printf("ping: Count number out of range [1, UINT_MAX]\n");
+                    exit(1);
+                }
 
-            break;
+                break;
 
-        case 'f':
-            do_flood = true;
-            break;
+            case 'f':
+                do_flood = true;
+                break;
 
-        case 'i':
-            errno = 0;
-            interval = std::strtod(optarg, nullptr);
+            case 'i':
+                errno = 0;
+                interval = std::strtod(optarg, nullptr);
 
-            if (errno == ERANGE || count == 0)
-            {
-                printf("ping: Interval out of range\n");
-                exit(1);
-            }
-            break;
+                if (errno == ERANGE || count == 0)
+                {
+                    printf("ping: Interval out of range\n");
+                    exit(1);
+                }
+                break;
 
-        case '6':
-            force_family = AF_INET6;
-            break;
+            case '6':
+                force_family = AF_INET6;
+                break;
 
-        case '4':
-            force_family = AF_INET;
-            break;
+            case '4':
+                force_family = AF_INET;
+                break;
         }
     }
 

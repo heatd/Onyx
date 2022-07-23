@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2019 Pedro Falcato
+ * Copyright (c) 2019 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #define _GNU_SOURCE
 #include <limits.h>
@@ -11,7 +13,7 @@
 
 #include <onyx/public/memstat.h>
 
-int main(int argc, char **argv)
+int main()
 {
     struct memstat stat;
     int st = syscall(SYS_memstat, &stat);

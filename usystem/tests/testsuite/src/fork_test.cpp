@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <stdio.h>
 #include <sys/syscall.h>
@@ -13,20 +15,6 @@
 #include <onyx/public/memstat.h>
 
 #include <test/libtest.h>
-
-static void print_mem_usage()
-{
-    struct memstat stat;
-    int st = syscall(SYS_memstat, &stat);
-    if (st < 0)
-    {
-        perror("memstat");
-        return;
-    }
-
-    printf("Page cache usage: %lu\nTotal usage: %lu\nKernel heap usage: %lu\n",
-           stat.page_cache_pages, stat.allocated_pages, stat.kernel_heap_pages);
-}
 
 pid_t first_child = 0;
 
@@ -48,8 +36,6 @@ static void start_forking(unsigned int order)
 
 bool fork_test()
 {
-    printf("Printing starting memory usage...\n");
-
     pid_t pid = fork();
     if (pid == 0)
     {

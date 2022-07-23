@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <arpa/inet.h>
 #include <netinet/icmp6.h>
@@ -68,6 +70,7 @@ void configure_address_mac(netctl::instance &inst, in6_addr &addr)
 
 void configure_address_random(netctl::instance &instance, in6_addr &addr)
 {
+    (void) instance;
     std::random_device dev;
     std::mt19937 rng(dev());
     std::uniform_int_distribution<std::mt19937::result_type> dist(0, 255);
@@ -79,12 +82,11 @@ void configure_address_random(netctl::instance &instance, in6_addr &addr)
         addr.s6_addr[8 + i] = dist(rng);
 }
 
-const in6_addr local_network = {0xfe, 0x80};
-const in6_addr all_mldv2_capable_routers = {0xff, 0x02, 0, 0, 0, 0, 0, 0,
-                                            0,    0,    0, 0, 0, 0, 0, 0x16};
-const in6_addr solicited_node_prefix = {0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0xff, 0x00};
-const in6_addr all_nodes = {0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
-const in6_addr all_routers = {0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2};
+const in6_addr all_mldv2_capable_routers = {
+    {{0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x16}}};
+const in6_addr solicited_node_prefix = {{{0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0xff, 0x00}}};
+const in6_addr all_nodes = {{{0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}}};
+const in6_addr all_routers = {{{0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}}};
 
 in6_addr solicited_node_address(const in6_addr &our_address)
 {
@@ -246,19 +248,19 @@ void parse_rt_advertisement(const nd_router_advert *adv, size_t len,
 
         switch (hdr->type)
         {
-        case ND_OPT_PREFIX_INFORMATION: {
-            auto info = (const nd_opt_prefix_info *) hdr;
-            if (length != sizeof(nd_opt_prefix_info))
-            {
-                throw std::runtime_error("Invalid option length");
+            case ND_OPT_PREFIX_INFORMATION: {
+                auto info = (const nd_opt_prefix_info *) hdr;
+                if (length != sizeof(nd_opt_prefix_info))
+                {
+                    throw std::runtime_error("Invalid option length");
+                }
+
+                ipv6_prefix_info info_{info->nd_opt_pi_prefix, info->nd_opt_pi_prefix_len,
+                                       info->nd_opt_pi_flags_reserved,
+                                       info->nd_opt_pi_preferred_time, info->nd_opt_pi_valid_time};
+
+                prefixes.push_back(std::move(info_));
             }
-
-            ipv6_prefix_info info_{info->nd_opt_pi_prefix, info->nd_opt_pi_prefix_len,
-                                   info->nd_opt_pi_flags_reserved, info->nd_opt_pi_preferred_time,
-                                   info->nd_opt_pi_valid_time};
-
-            prefixes.push_back(std::move(info_));
-        }
         }
 
         optptr += length;

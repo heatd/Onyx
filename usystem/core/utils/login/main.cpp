@@ -20,7 +20,7 @@
 #include <filesystem>
 #include <string>
 
-char *program_name = NULL;
+char *program_name = nullptr;
 
 /* Set the uid and gid */
 void switch_users(gid_t gid, uid_t uid)
@@ -31,7 +31,7 @@ void switch_users(gid_t gid, uid_t uid)
 
 static struct termios old_termios;
 
-int hide_stdin(void)
+int hide_stdin()
 {
     struct termios attr;
     tcgetattr(STDIN_FILENO, &attr);
@@ -42,7 +42,7 @@ int hide_stdin(void)
     return 0;
 }
 
-int reset_terminal(void)
+int reset_terminal()
 {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &old_termios);
     return 0;
@@ -94,9 +94,7 @@ bool compare_passwords(struct spwd *spwd, std::string &password)
 
     const char *resulting_hash = crypt(password.c_str(), salt.c_str());
 
-    if (!strcmp(password_hash.c_str(), resulting_hash))
-        return true;
-    return false;
+    return strcmp(password_hash.c_str(), resulting_hash) == 0;
 }
 
 static void self_exec(const std::string &name)
@@ -134,7 +132,7 @@ void self_exec_for_every_tty()
     exit(0);
 }
 
-int main(int argc, char **argv, char **envp)
+int main(int argc, char **argv)
 {
     if (argc < 2)
         self_exec_for_every_tty();
@@ -249,7 +247,7 @@ int main(int argc, char **argv, char **envp)
         return 1;
     }
 
-    char *args[] = {NULL, NULL};
+    char *args[] = {nullptr, nullptr};
     /* The first character of argv[0] needs to be -, in order to be a login shell */
     args[0] = (char *) malloc(strlen(user->pw_shell) + 2);
     if (!args[0])

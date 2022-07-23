@@ -20,7 +20,7 @@ TEST(WaitStatus, NormalExit)
     ChildProcessHelper helper;
 
     auto wstatus = helper.execute_process([](const ChildProcessHelper &) {},
-                                          [](const ChildProcessHelper &h) -> int { return 14; });
+                                          [](const ChildProcessHelper &) -> int { return 14; });
 
     EXPECT_TRUE(WIFEXITED(wstatus));
     EXPECT_EQ(WEXITSTATUS(wstatus), 14);
@@ -31,7 +31,7 @@ TEST(WaitStatus, AbnormalExit)
     ChildProcessHelper helper;
 
     auto wstatus = helper.execute_process([](const ChildProcessHelper &) {},
-                                          [](const ChildProcessHelper &h) -> int { abort(); });
+                                          [](const ChildProcessHelper &) -> int { abort(); });
 
     EXPECT_TRUE(WIFSIGNALED(wstatus));
     EXPECT_EQ(WTERMSIG(wstatus), SIGABRT);
@@ -39,6 +39,9 @@ TEST(WaitStatus, AbnormalExit)
 
 void sigchld_handler(int signum, siginfo_t *si, void *mctx)
 {
+    (void) signum;
+    (void) si;
+    (void) mctx;
 }
 
 TEST(SigChld, SigChldInfoExit)

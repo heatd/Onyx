@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2021 Pedro Falcato
+ * Copyright (c) 2017 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -196,7 +196,7 @@ bool fail_on_mount_error = true;
 
 struct option long_opts[] = {{"root", required_argument, NULL, 0}};
 
-int main(int argc, char **argv, char **envp)
+int main(int argc, char **argv)
 {
     int c;
     int long_idx;
@@ -207,10 +207,10 @@ int main(int argc, char **argv, char **envp)
     {
         switch (c)
         {
-        case 'm': {
-            fail_on_mount_error = false;
-            break;
-        }
+            case 'm': {
+                fail_on_mount_error = false;
+                break;
+            }
         }
     }
 

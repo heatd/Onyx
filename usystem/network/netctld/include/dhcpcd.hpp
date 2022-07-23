@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #pragma once
 
@@ -89,8 +91,9 @@ private:
 
 public:
     instance(int fd, std::string& name)
-        : fd(fd), device_name(name), thread{}, sockfd{-1}, mac{}, buf{new dhcp_packet_t},
-          got_dhcp_offer{false}, xid((uint32_t) random())
+        : device_name(name),
+          fd(fd), thread{}, sockfd{-1}, mac{}, buf{new dhcp_packet_t}, got_dhcp_offer{false},
+          xid((uint32_t) random())
     {
         if (ioctl(fd, SIOGETMAC, mac.data()) < 0)
         {

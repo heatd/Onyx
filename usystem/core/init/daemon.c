@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2021 Pedro Falcato
+ * Copyright (c) 2017 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -349,10 +349,10 @@ int process_target(target_t *target)
 int exec_target(int fd)
 {
     FILE *fp = fdopen(fd, "r");
-    char *buffer;
-    char *pos;
+    char *buffer = NULL;
+    char *pos = NULL;
     int status = 0;
-    target_t *target;
+    target_t *target = NULL;
     if (!fp)
     {
         status = -1;

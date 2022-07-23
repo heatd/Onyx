@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2021 Pedro Falcato
+ * Copyright (c) 2021 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <fcntl.h>
 #include <sys/wait.h>
@@ -34,8 +36,9 @@ TEST(Sid, SetsidWorks)
 {
     ChildProcessHelper helper;
 
-    auto status = helper([](const ChildProcessHelper& h) {},
+    auto status = helper([](const ChildProcessHelper& h) { (void) h; },
                          [](const ChildProcessHelper& h) -> int {
+                             (void) h;
                              auto our_pid = getpid();
                              if (our_pid < 0)
                                  return 1;

@@ -47,6 +47,8 @@ static link_object link_obj_;
 
 int link_help(const char **argv, int argc)
 {
+    (void) argv;
+    (void) argc;
     std::printf("Usage: \tip link help\n\n"
                 " \tip link show [DEVICE] [up]\n");
     return 0;

@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2021 Pedro Falcato
+ * Copyright (c) 2021 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #include <getopt.h>
@@ -42,7 +44,7 @@ void show_version()
 
 uuid_type type = UUID_RANDOM;
 
-int main(int argc, char **argv, char **envp)
+int main(int argc, char **argv)
 {
     int indexptr = 0;
     int flag = 0;
@@ -50,19 +52,19 @@ int main(int argc, char **argv, char **envp)
     {
         switch (flag)
         {
-        case '?':
-        case 'h':
-            show_help(flag);
-            break;
-        case 'v':
-            show_version();
-            break;
-        case 't':
-            type = UUID_TIME;
-            break;
-        case 'r':
-            type = UUID_RANDOM;
-            break;
+            case '?':
+            case 'h':
+                show_help(flag);
+                break;
+            case 'v':
+                show_version();
+                break;
+            case 't':
+                type = UUID_TIME;
+                break;
+            case 'r':
+                type = UUID_RANDOM;
+                break;
         }
     }
 

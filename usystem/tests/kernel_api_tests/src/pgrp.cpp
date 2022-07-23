@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <fcntl.h>
 #include <sys/wait.h>
@@ -35,7 +37,7 @@ TEST(SetPgrpTest, WorksForChild)
             setpgid(context.pid, context.pid);
             EXPECT_EQ(getpgid(context.pid), context.pid);
         },
-        [](const ChildProcessHelper& context) -> int { return getpgid(0) == getpid(); });
+        [](const ChildProcessHelper&) -> int { return getpgid(0) == getpid(); });
 
     EXPECT_EQ(status, true);
 }
@@ -56,7 +58,7 @@ TEST(SetPgrpTest, HandlesChildExec)
     ChildProcessHelper h;
     Waiter child_out;
 
-    auto status = h([&](const ChildProcessHelper& context) {},
+    auto status = h([&](const ChildProcessHelper&) {},
                     [&](const ChildProcessHelper& context) -> int {
                         const auto& w = context.w;
                         w.RemapToStdin();
@@ -89,6 +91,7 @@ TEST(SetPgrpTest, HandlesChildExec)
 
                         w.Close();
                     });
+    EXPECT_EQ(status, 0);
 }
 
 TEST(SetPgrpTest, HandlesNegativeInput)

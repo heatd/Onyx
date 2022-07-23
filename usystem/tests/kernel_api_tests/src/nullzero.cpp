@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2021 Pedro Falcato
+ * Copyright (c) 2021 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <fcntl.h>
 #include <signal.h>
@@ -42,10 +44,10 @@ TEST(DevZero, ReadTest)
     int fd = open("/dev/zero", O_RDONLY);
     ASSERT_NE(fd, -1);
 
-    EXPECT_EQ(read(fd, (void *) &num, sizeof(unsigned int)), sizeof(unsigned int));
+    EXPECT_EQ(read(fd, (void *) &num, sizeof(unsigned int)), (ssize_t) sizeof(unsigned int));
     close(fd);
 
-    EXPECT_EQ(num, 0);
+    EXPECT_EQ(num, 0U);
 }
 
 TEST(DevZero, WriteTest)

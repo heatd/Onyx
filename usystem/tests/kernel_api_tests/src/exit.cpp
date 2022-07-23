@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <fcntl.h>
 #include <signal.h>
@@ -26,8 +28,9 @@ TEST(ExitTest, MultipleThreadsExit)
     bool should_exit = false;
     Waiter wa;
 
-    auto wstatus = h.execute_process([](const ChildProcessHelper &c) {},
+    auto wstatus = h.execute_process([](const ChildProcessHelper &c) { (void) c; },
                                      [&](const ChildProcessHelper &c) -> int {
+                                         (void) c;
                                          std::vector<std::thread> v;
 
                                          for (unsigned int i = 0; i < 100; i++)
@@ -68,8 +71,9 @@ TEST(ExitTest, MultipleThreadsKill)
     bool should_exit = false;
     Waiter wa;
 
-    auto wstatus = h.execute_process([](const ChildProcessHelper &c) {},
+    auto wstatus = h.execute_process([](const ChildProcessHelper &c) { (void) c; },
                                      [&](const ChildProcessHelper &c) -> int {
+                                         (void) c;
                                          std::vector<std::thread> v;
 
                                          for (unsigned int i = 0; i < 100; i++)

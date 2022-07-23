@@ -70,14 +70,14 @@ TEST(Udp, Inet4CorkWorks)
 
         consumed += v.iov_len;
 
-        int st = sendmsg(sock, &msg, flags);
+        ssize_t st = sendmsg(sock, &msg, flags);
         if (st < 0)
         {
             perror("sendmsg");
             ASSERT_NE(st, -1);
         }
 
-        ASSERT_EQ(st, v.iov_len);
+        ASSERT_EQ(st, (ssize_t) v.iov_len);
     }
 
     close(sock);
@@ -123,14 +123,14 @@ TEST(Udp, Inet4CorkEMsgSize)
     {
         int flags = MSG_MORE;
 
-        int st = sendmsg(sock, &msg, flags);
+        ssize_t st = sendmsg(sock, &msg, flags);
         if (st < 0)
         {
             perror("sendmsg");
             ASSERT_NE(st, -1);
         }
 
-        ASSERT_EQ(st, v.iov_len);
+        ASSERT_EQ(st, (ssize_t) v.iov_len);
     }
 
     ASSERT_EQ(sendmsg(sock, &msg, 0), -1);

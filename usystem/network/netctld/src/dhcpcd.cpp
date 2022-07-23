@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2017-2020 Pedro Falcato
+ * Copyright (c) 2017 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <arpa/inet.h>
 #include <assert.h>
@@ -64,9 +66,13 @@ void init_entropy(void)
     unsigned int seed = 0;
     if (syscall(SYS_getrandom, &seed, sizeof(seed), 0) < 0)
         errorx("Couldn't gather entropy: %s\n", strerror(errno));
-    struct timespec t = {0};
-    clock_gettime(CLOCK_REALTIME, &t);
-    srandom(seed ^ t.tv_nsec | t.tv_sec);
+    struct timespec t;
+    if (clock_gettime(CLOCK_REALTIME, &t) < 0)
+    {
+        errorx("Could not read the current time: %s\n", strerror(errno));
+    }
+
+    srandom(seed ^ (t.tv_nsec ^ t.tv_sec));
 }
 
 off_t dhcp_add_option(dhcp_packet_t *pkt, off_t off, unsigned char len, const void *buf,
@@ -248,83 +254,6 @@ std::unique_ptr<packet> instance::get_packets(std::function<bool(packet *)> pred
     return p;
 }
 
-void tcp_test()
-{
-    int icmp_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP);
-    if (icmp_fd < 0)
-    {
-        perror("icmpsocket");
-        exit(0);
-    }
-
-    icmphdr hdr = {};
-    hdr.code = 0;
-    hdr.type = ICMP_ECHO;
-    hdr.checksum = 0;
-
-    sockaddr_in icmp_in;
-    icmp_in.sin_family = AF_INET;
-    icmp_in.sin_port = 0;
-    icmp_in.sin_addr.s_addr = inet_addr("8.8.8.8");
-
-    icmp_filter filt;
-    filt.type = ICMP_ECHOREPLY;
-    filt.code = 0;
-
-    if (setsockopt(icmp_fd, SOL_ICMP, ICMP_ADD_FILTER, &filt, sizeof(filt)) < 0)
-    {
-        perror("icmp_setsockopt");
-        exit(0);
-    }
-
-    if (sendto(icmp_fd, &hdr, sizeof(hdr), 0, (sockaddr *) &icmp_in, sizeof(icmp_in)) < 0)
-    {
-        perror("icmp_sendto");
-        exit(0);
-    }
-
-    int sockfd, connfd;
-    struct sockaddr_in servaddr, cli;
-
-    // TCP test
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd == -1)
-    {
-        perror("TCP socket()");
-        exit(0);
-    }
-    else
-        printf("Socket successfully created..\n");
-    bzero(&servaddr, sizeof(servaddr));
-
-    struct hostent *ent = gethostbyname2("google.com", AF_INET);
-    if (!ent)
-    {
-        herror("gethostbyname2");
-        printf("Failed to resolve google.com\n");
-        exit(0);
-    }
-
-    struct in_addr **address_list = (struct in_addr **) ent->h_addr_list;
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = address_list[0]->s_addr;
-    servaddr.sin_port = htons(80);
-
-    connect(sockfd, (const struct sockaddr *) &servaddr, sizeof(struct sockaddr_in));
-    perror("connect");
-    send(sockfd, "GET / HTTP/1.0\r\n\r\n", strlen("GET / HTTP/1.0\r\n\r\n"), 0);
-    perror("send");
-#if 0
-	char buffer[4096];
-	ssize_t read = 0;
-	while((read = recvfrom(sockfd, buffer, sizeof(buffer) - 1, 0, nullptr, nullptr)) >= 0)
-	{
-		printf("buffer: %s", buffer);
-		memset(buffer, 0, sizeof(buffer));
-	}
-#endif
-}
-
 int instance::setup_netif()
 {
     /* DHCP essentially works like this:
@@ -357,7 +286,6 @@ int instance::setup_netif()
     }
 
     uint32_t router_ip = 0;
-    uint32_t assigned_ip = 0;
     uint32_t subnet_mask = 0;
     in_addr_t dns_server;
     uint32_t lease_time = 0;
@@ -449,8 +377,6 @@ int instance::setup_netif()
     if (send(rtfd, &msg, sizeof(msg), 0) < 0)
         perror("nksend");
 
-    tcp_test();
-
     return 0;
 }
 
@@ -469,9 +395,10 @@ void instance::run()
         throw std::runtime_error(std::string("setsockopt: ") + strerror(errno));
     }
 
-    struct sockaddr_in sockaddr = {0};
+    struct sockaddr_in sockaddr;
     sockaddr.sin_family = AF_INET;
     sockaddr.sin_port = htons(68);
+    sockaddr.sin_addr.s_addr = INADDR_ANY;
 
     if (bind(sockfd, (const struct sockaddr *) &sockaddr, sizeof(struct sockaddr)) < 0)
     {

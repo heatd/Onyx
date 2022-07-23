@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <array>
 #include <iostream>
@@ -23,9 +25,9 @@ static void mutex_func_entry(bool incs)
         lock.lock();
 
         if (incs)
-            counter++;
+            counter = counter + 1;
         else
-            counter--;
+            counter = counter - 1;
         lock.unlock();
     }
 }
