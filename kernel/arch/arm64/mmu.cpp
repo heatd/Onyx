@@ -16,46 +16,61 @@
 #include <onyx/paging.h>
 #include <onyx/panic.h>
 #include <onyx/process.h>
+#include <onyx/serial.h>
 #include <onyx/smp.h>
 #include <onyx/vm.h>
 
-#define RISCV_SATP_4LEVEL_MMU (9UL << 60)
+static char buffer[1000];
+
+#define budget_printk(...)                         \
+    snprintf(buffer, sizeof(buffer), __VA_ARGS__); \
+    platform_serial_write(buffer, strlen(buffer))
 
 static const unsigned int arm64_paging_levels = 4;
 static const unsigned int arm64_max_paging_levels = 5;
+#define ARM64_MMU_PERM_MASK 0xfff8000000000ffful
 
-#define PML_EXTRACT_ADDRESS(n) ((n >> 10) << 12)
-#define RISCV_MMU_VALID        (1 << 0)
-#define RISCV_MMU_READ         (1 << 1)
-#define RISCV_MMU_WRITE        (1 << 2)
-#define RISCV_MMU_EXECUTE      (1 << 3)
-#define RISCV_MMU_USER         (1 << 4)
-#define RISCV_MMU_GLOBAL       (1 << 5)
-#define RISCV_MMU_ACCESSED     (1 << 6)
-#define RISCV_MMU_DIRTY        (1 << 7)
-
-#define RISCV_PAGING_PROT_BITS ((1 << 8) - 1)
+// Page table entries have the top bits reserved (63 - 51) and the lower 12 bits
+// clang format note: it's misformatting the macro
+// clang-format off
+#define PML_EXTRACT_ADDRESS(n) ((n) & ~ARM64_MMU_PERM_MASK)
+#define PML_EXTRACT_PERMS(n) ((n) & ARM64_MMU_PERM_MASK)
+// clang-format on
 
 static unsigned long vm_prots_to_mmu(unsigned int prots)
 {
-    auto flags = (prots & VM_EXEC ? RISCV_MMU_EXECUTE : 0) |
-                 (prots & VM_WRITE ? RISCV_MMU_WRITE : 0) | (prots & VM_READ ? RISCV_MMU_READ : 0) |
-                 (prots & VM_USER ? RISCV_MMU_USER : RISCV_MMU_GLOBAL) | RISCV_MMU_VALID;
+    auto flags = (prots & VM_READ && !(prots & VM_WRITE) ? ARM64_MMU_READ_ONLY : 0) |
+                 (prots & VM_USER ? (ARM64_MMU_EL0 | ARM64_MMU_nG) : 0) | ARM64_MMU_VALID |
+                 ARM64_MMU_AF | ARM64_MMU_PAGE;
+    if (prots & VM_USER)
+    {
+        flags |= ARM64_MMU_PXN;
+        flags |= (prots & VM_EXEC ? 0 : ARM64_MMU_XN);
+    }
+    else
+    {
+        flags |= ARM64_MMU_XN;
+        flags |= (prots & VM_EXEC ? 0 : ARM64_MMU_PXN);
+    }
+
+    flags |= ARM64_MMU_INNER_SHAREABLE | MMU_PTR_ATTR_NORMAL_MEMORY;
 
     if (!(prots & (VM_READ | VM_WRITE | VM_EXEC)))
-        flags &= ~RISCV_MMU_VALID;
+        flags &= ~ARM64_MMU_VALID;
 
     return flags;
 }
 
-#define RISCV_MMU_FLAGS_TO_SAVE_ON_MPROTECT \
-    (RISCV_MMU_GLOBAL | RISCV_MMU_USER | RISCV_MMU_ACCESSED | RISCV_MMU_DIRTY)
+#define ARM64_MMU_FLAGS_TO_SAVE_ON_MPROTECT \
+    (ARM64_MMU_nG | ARM64_MMU_EL0 | ARM64_MMU_AF | ARM64_MMU_PAGE)
 
 void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64_t phys,
                               uint64_t prot);
 
 static inline void __native_tlb_invalidate_page(void *addr)
 {
+    // TODO: ASIDs
+    __asm__ __volatile__("tlbi vaae1is, %0" ::"r"(addr));
 }
 
 bool pte_empty(uint64_t pte)
@@ -63,7 +78,7 @@ bool pte_empty(uint64_t pte)
     return pte == 0;
 }
 
-bool riscv_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
+bool arm64_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
                         struct mm_address_space *mm);
 
 unsigned long allocated_page_tables = 0;
@@ -104,7 +119,7 @@ static void addr_to_indices(unsigned long virt, unsigned int *indices)
 
 static bool pt_entry_is_huge(unsigned long pt_entry)
 {
-    return pt_entry & (RISCV_MMU_READ | RISCV_MMU_WRITE | RISCV_MMU_EXECUTE);
+    return !(pt_entry & ARM64_MMU_TABLE);
 }
 
 void *__virtual2phys(PML *__pml, void *ptr)
@@ -120,7 +135,7 @@ void *__virtual2phys(PML *__pml, void *ptr)
     {
         uint64_t entry = pml->entries[indices[i - 1]];
 
-        if (!(entry & RISCV_MMU_VALID))
+        if (!(entry & ARM64_MMU_VALID))
             return (void *) -1;
 
         if (pt_entry_is_huge(entry))
@@ -154,27 +169,26 @@ unsigned long placement_mappings_start = 0xffffffffffc00000;
     volatile int __gdb_debug_counter = 0; \
     while (__gdb_debug_counter != 1)
 
-void __native_tlb_invalidate_all(void)
+void __native_tlb_invalidate_all()
 {
+    __asm__ __volatile__("tlbi vmalle1is");
 }
-
-#define RISCV_SATP_ROOT_PT_MASK ((1UL << 44) - 1)
 
 PML *arm64_get_kernel_page_table()
 {
     return (PML *) mrs(REG_TTBR1);
 }
 
-unsigned long riscv_make_pt_entry_page_table(PML *next_pt)
+unsigned long arm64_make_pt_entry_page_table(PML *next_pt)
 {
-    return ((unsigned long) next_pt >> PAGE_SHIFT) << 10 | RISCV_MMU_VALID;
+    auto next_pt_long = (unsigned long) next_pt;
+    return next_pt_long | ARM64_MMU_TABLE | ARM64_MMU_VALID | ARM64_MMU_INNER_SHAREABLE |
+           ARM64_MMU_AF | MMU_PTR_ATTR_NORMAL_MEMORY;
 }
 
 PML phys_map_pt __attribute__((aligned(PAGE_SIZE)));
 
-uint64_t kernel_phys_base;
-
-void paging_init(void)
+void paging_init()
 {
     /* Get the current PML and store it */
     boot_pt = (PML *) arm64_get_kernel_page_table();
@@ -189,7 +203,7 @@ void paging_init(void)
     auto page_table_flags = ARM64_MMU_INNER_SHAREABLE | ARM64_MMU_TABLE | ARM64_MMU_VALID |
                             ARM64_MMU_AF | MMU_PTR_ATTR_NORMAL_MEMORY;
     unsigned long page_table =
-        ((unsigned long) &phys_map_pt) - KERNEL_VIRTUAL_BASE + kernel_phys_base;
+        ((unsigned long) &phys_map_pt) - KERNEL_VIRTUAL_BASE + get_kernel_phys_offset();
     boot_pt->entries[indices[arm64_paging_levels - 1]] = page_table | page_table_flags;
 
     for (unsigned long i = 0; i < 512; i++)
@@ -203,7 +217,7 @@ void paging_init(void)
 void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64_t phys,
                               uint64_t prot)
 {
-    bool user = 0;
+    bool user = false;
     if (virt < 0x00007fffffffffff)
         user = true;
 
@@ -216,12 +230,15 @@ void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
 
     uint64_t *ptentry;
 
-    if (!riscv_get_pt_entry((void *) virt, &ptentry, true, as))
+    if (!arm64_get_pt_entry((void *) virt, &ptentry, true, as))
         return nullptr;
 
     uint64_t page_prots = vm_prots_to_mmu(prot);
-
-    if (prot & VM_DONT_MAP_OVER && *ptentry & RISCV_MMU_VALID)
+#if 0
+    budget_printk("vm prots %c%c%c page prots %016lx\n", prot & VM_READ ? 'r' : '-',
+                  prot & VM_WRITE ? 'w' : '-', prot & VM_EXEC ? 'x' : '-', page_prots);
+#endif
+    if (prot & VM_DONT_MAP_OVER && *ptentry & ARM64_MMU_VALID)
         return (void *) virt;
 
     uint64_t old = *ptentry;
@@ -236,6 +253,8 @@ void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
     {
         __native_tlb_invalidate_page((void *) PML_EXTRACT_ADDRESS(*ptentry));
     }
+
+    dsb();
 
     return (void *) virt;
 }
@@ -257,7 +276,7 @@ struct pt_location
     unsigned int index;
 };
 
-bool riscv_get_pt_entry_with_ptables(void *addr, uint64_t **entry_ptr, struct mm_address_space *mm,
+bool arm64_get_pt_entry_with_ptables(void *addr, uint64_t **entry_ptr, struct mm_address_space *mm,
                                      struct pt_location location[4])
 {
     unsigned long virt = (unsigned long) addr;
@@ -278,7 +297,7 @@ bool riscv_get_pt_entry_with_ptables(void *addr, uint64_t **entry_ptr, struct mm
         location[location_index].table = pml;
         location[location_index++].index = indices[i - 1];
 
-        if (entry & RISCV_MMU_VALID)
+        if (entry & ARM64_MMU_VALID)
         {
             void *page = (void *) PML_EXTRACT_ADDRESS(entry);
             pml = (PML *) PHYS_TO_VIRT(page);
@@ -305,14 +324,6 @@ int paging_clone_as(struct mm_address_space *addr_space)
 
     addr_space->page_tables_size = PAGE_SIZE;
 
-    PML *p = (PML *) PHYS_TO_VIRT(new_pml);
-    PML *curr = (PML *) ((uint64_t) get_current_page_tables() + PHYS_BASE);
-    /* Copy the upper 256 entries of the PML in order to map
-     * the kernel in the process's address space
-     */
-
-    memcpy(&p->entries[256], &curr->entries[256], 256 * sizeof(uint64_t));
-
     addr_space->arch_mmu.top_pt = new_pml;
     return 0;
 }
@@ -320,11 +331,11 @@ int paging_clone_as(struct mm_address_space *addr_space)
 PML *paging_fork_pml(PML *pml, int entry, struct mm_address_space *as)
 {
     uint64_t old_address = PML_EXTRACT_ADDRESS(pml->entries[entry]);
-    uint64_t perms = pml->entries[entry] & 0xF000000000000FFF;
+    uint64_t perms = PML_EXTRACT_PERMS(pml->entries[entry]);
 
     void *new_pt = alloc_pt();
     if (!new_pt)
-        return NULL;
+        return nullptr;
 
     increment_vm_stat(as, page_tables_size, PAGE_SIZE);
 
@@ -353,7 +364,7 @@ int paging_fork_tables(struct mm_address_space *addr_space)
     /* TODO: Destroy the page tables on failure */
     for (int i = 0; i < 256; i++)
     {
-        if (mod_pml->entries[i] & RISCV_MMU_VALID)
+        if (mod_pml->entries[i] & ARM64_MMU_VALID)
         {
             PML *pml3 = (PML *) paging_fork_pml(mod_pml, i, addr_space);
             if (!pml3)
@@ -363,7 +374,7 @@ int paging_fork_tables(struct mm_address_space *addr_space)
 
             for (int j = 0; j < PAGE_TABLE_ENTRIES; j++)
             {
-                if (pml3->entries[j] & RISCV_MMU_VALID)
+                if (pml3->entries[j] & ARM64_MMU_VALID)
                 {
                     PML *pml2 = (PML *) paging_fork_pml((PML *) pml3, j, addr_space);
                     if (!pml2)
@@ -373,7 +384,7 @@ int paging_fork_tables(struct mm_address_space *addr_space)
 
                     for (int k = 0; k < PAGE_TABLE_ENTRIES; k++)
                     {
-                        if (pml2->entries[k] & RISCV_MMU_VALID &&
+                        if (pml2->entries[k] & ARM64_MMU_VALID &&
                             !pt_entry_is_huge(pml2->entries[k]))
                         {
                             PML *pml1 = (PML *) paging_fork_pml((PML *) pml2, k, addr_space);
@@ -394,10 +405,13 @@ int paging_fork_tables(struct mm_address_space *addr_space)
 
 void paging_load_top_pt(PML *pml)
 {
-    // unsigned long new_satp = RISCV_SATP_4LEVEL_MMU | (unsigned long) pml >> PAGE_SHIFT;
+    msr("ttbr1_el1", pml);
+    isb();
+    dsb();
+    __native_tlb_invalidate_all();
 }
 
-bool riscv_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
+bool arm64_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
                         struct mm_address_space *mm)
 {
     unsigned long virt = (unsigned long) addr;
@@ -406,14 +420,23 @@ bool riscv_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
     addr_to_indices(virt, indices);
 
     PML *pml = (PML *) ((unsigned long) mm->arch_mmu.top_pt + PHYS_BASE);
+    unsigned int i;
 
-    for (unsigned int i = arm64_paging_levels; i != 1; i--)
+    for (i = arm64_paging_levels; i != 1; i--)
     {
         uint64_t entry = pml->entries[indices[i - 1]];
-        if (entry & RISCV_MMU_VALID)
+        if (entry & ARM64_MMU_VALID)
         {
-            void *page = (void *) PML_EXTRACT_ADDRESS(entry);
-            pml = (PML *) PHYS_TO_VIRT(page);
+            if (entry & ARM64_MMU_TABLE)
+            {
+                void *page = (void *) PML_EXTRACT_ADDRESS(entry);
+                pml = (PML *) PHYS_TO_VIRT(page);
+            }
+            else
+            {
+                // Block entry!
+                break;
+            }
         }
         else
         {
@@ -426,14 +449,14 @@ bool riscv_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
                 return false;
             increment_vm_stat(mm, page_tables_size, PAGE_SIZE);
 
-            pml->entries[indices[i - 1]] = riscv_make_pt_entry_page_table(pt);
+            pml->entries[indices[i - 1]] = arm64_make_pt_entry_page_table(pt);
             //__asm__ __volatile__("sfence.vma zero, zero");
 
             pml = (PML *) PHYS_TO_VIRT(pt);
         }
     }
 
-    *entry_ptr = &pml->entries[indices[0]];
+    *entry_ptr = &pml->entries[indices[i - 1]];
 
     return true;
 }
@@ -443,21 +466,17 @@ bool __paging_change_perms(struct mm_address_space *mm, void *addr, int prot)
     MUST_HOLD_MUTEX(&mm->vm_lock);
 
     uint64_t *entry;
-    if (!riscv_get_pt_entry(addr, &entry, false, mm))
+    if (!arm64_get_pt_entry(addr, &entry, false, mm))
     {
         return false;
     }
 
     uint64_t pt_entry = *entry;
-    uint64_t perms = pt_entry & RISCV_MMU_FLAGS_TO_SAVE_ON_MPROTECT;
+    uint64_t perms = pt_entry & ARM64_MMU_FLAGS_TO_SAVE_ON_MPROTECT;
     uint64_t page = PML_EXTRACT_ADDRESS(pt_entry);
 
-    if (prot & VM_EXEC)
-        perms |= RISCV_MMU_EXECUTE;
-    if (prot & VM_WRITE)
-        perms |= RISCV_MMU_WRITE;
-    if (prot & VM_READ)
-        perms |= RISCV_MMU_VALID | RISCV_MMU_READ;
+    perms |= vm_prots_to_mmu(prot);
+
     *entry = perms | page;
 
     return true;
@@ -475,10 +494,10 @@ bool paging_change_perms(void *addr, int prot)
 bool paging_write_protect(void *addr, struct mm_address_space *mm)
 {
     uint64_t *ptentry;
-    if (!riscv_get_pt_entry(addr, &ptentry, false, mm))
+    if (!arm64_get_pt_entry(addr, &ptentry, false, mm))
         return false;
 
-    *ptentry = *ptentry & ~RISCV_MMU_WRITE;
+    *ptentry = *ptentry | ARM64_MMU_READ_ONLY;
 
     return true;
 }
@@ -500,13 +519,41 @@ extern char _data_end;
 extern char _vdso_sect_start;
 extern char _vdso_sect_end;
 extern char VIRT_BASE;
-extern struct mm_address_space kernel_address_space;
 
-void paging_protect_kernel(void)
+void arm64_dump_pt(PML *pml, unsigned int level)
+{
+    for (unsigned int i = 0; i < 512; i++)
+    {
+        auto entry = pml->entries[i];
+        if (!(entry & ARM64_MMU_VALID))
+            continue;
+        bool is_block = !(entry & ARM64_MMU_TABLE);
+        PML *pml = (PML *) PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(entry));
+        if (!is_block)
+        {
+            budget_printk("Level %u [%03u]: entry %016lx %016p\n", level, i, entry, pml);
+        }
+        else
+        {
+            budget_printk("Level %u [%03u]: entry %016lx BLOCK %016lx\n", level, i, entry,
+                          PML_EXTRACT_ADDRESS(entry));
+        }
+
+        if (level != 0 && !is_block)
+            arm64_dump_pt(pml, level - 1);
+    }
+}
+
+void arm64_dump_mmu(PML *pml)
+{
+    arm64_dump_pt(pml, 3);
+}
+
+void paging_protect_kernel()
 {
     PML *original_pml = boot_pt;
     PML *pml = alloc_pt();
-    assert(pml != NULL);
+    assert(pml != nullptr);
     boot_pt = pml;
 
     uintptr_t text_start = (uintptr_t) &_text_start;
@@ -517,20 +564,22 @@ void paging_protect_kernel(void)
            sizeof(PML));
     PML *p = (PML *) ((uintptr_t) pml + PHYS_BASE);
     p->entries[511] = 0UL;
-    p->entries[0] = 0UL;
 
     kernel_address_space.arch_mmu.top_pt = pml;
 
     size_t size = (uintptr_t) &_text_end - text_start;
-    map_pages_to_vaddr((void *) text_start, (void *) (text_start - KERNEL_VIRTUAL_BASE), size,
-                       VM_READ | VM_WRITE | VM_EXEC);
+    map_pages_to_vaddr((void *) text_start,
+                       (void *) (text_start - KERNEL_VIRTUAL_BASE + get_kernel_phys_offset()), size,
+                       VM_EXEC);
 
     size = (uintptr_t) &_data_end - data_start;
-    map_pages_to_vaddr((void *) data_start, (void *) (data_start - KERNEL_VIRTUAL_BASE), size,
+    map_pages_to_vaddr((void *) data_start,
+                       (void *) (data_start - KERNEL_VIRTUAL_BASE + get_kernel_phys_offset()), size,
                        VM_READ | VM_WRITE);
 
     size = (uintptr_t) &_vdso_sect_end - vdso_start;
-    map_pages_to_vaddr((void *) vdso_start, (void *) (vdso_start - KERNEL_VIRTUAL_BASE), size,
+    map_pages_to_vaddr((void *) vdso_start,
+                       (void *) (vdso_start - KERNEL_VIRTUAL_BASE + get_kernel_phys_offset()), size,
                        VM_READ | VM_WRITE);
     percpu_map_master_copy();
 
@@ -569,7 +618,7 @@ void paging_free_pml2(PML *pml)
     for (int i = 0; i < 512; i++)
     {
         const auto entry = pml->entries[i];
-        if (entry & RISCV_MMU_VALID && !(pt_entry_is_huge(entry)))
+        if (entry & ARM64_MMU_VALID && !(pt_entry_is_huge(entry)))
         {
             /* We don't need to free pages since these functions
              * are supposed to only tear down paging tables */
@@ -584,7 +633,7 @@ void paging_free_pml3(PML *pml)
 {
     for (int i = 0; i < 512; i++)
     {
-        if (pml->entries[i] & RISCV_MMU_VALID)
+        if (pml->entries[i] & ARM64_MMU_VALID)
         {
             unsigned long phys_addr = PML_EXTRACT_ADDRESS(pml->entries[i]);
             PML *pml2 = (PML *) PHYS_TO_VIRT(phys_addr);
@@ -601,7 +650,7 @@ void paging_free_page_tables(struct mm_address_space *mm)
 
     for (int i = 0; i < 256; i++)
     {
-        if (pml->entries[i] & RISCV_MMU_VALID)
+        if (pml->entries[i] & ARM64_MMU_VALID)
         {
             unsigned long phys_addr = PML_EXTRACT_ADDRESS(pml->entries[i]);
             PML *pml3 = (PML *) PHYS_TO_VIRT(phys_addr);
@@ -627,31 +676,34 @@ unsigned long get_mapping_info(void *addr)
 unsigned long __get_mapping_info(void *addr, struct mm_address_space *as)
 {
     unsigned long *ppt_entry;
-    if (!riscv_get_pt_entry(addr, &ppt_entry, false, as))
+    if (!arm64_get_pt_entry(addr, &ppt_entry, false, as))
         return PAGE_NOT_PRESENT;
 
     unsigned long pt_entry = *ppt_entry;
 
     unsigned long ret = 0;
 
-    if (pt_entry & RISCV_MMU_VALID)
+    if (pt_entry & ARM64_MMU_VALID)
         ret |= PAGE_PRESENT;
     else
     {
         return PAGE_NOT_PRESENT;
     }
 
-    if (pt_entry & RISCV_MMU_USER)
+    if (pt_entry & ARM64_MMU_EL0)
         ret |= PAGE_USER;
-    if (pt_entry & RISCV_MMU_WRITE)
+
+    bool non_executable = ret & PAGE_USER ? pt_entry & ARM64_MMU_XN : pt_entry & ARM64_MMU_PXN;
+
+    if (!(pt_entry & ARM64_MMU_READ_ONLY))
         ret |= PAGE_WRITABLE;
-    if (pt_entry & RISCV_MMU_EXECUTE)
+    if (!non_executable)
         ret |= PAGE_EXECUTABLE;
-    if (pt_entry & RISCV_MMU_DIRTY)
+    if (!(pt_entry & ARM64_MMU_READ_ONLY))
         ret |= PAGE_DIRTY;
-    if (pt_entry & RISCV_MMU_ACCESSED)
+    if (pt_entry & ARM64_MMU_AF)
         ret |= PAGE_ACCESSED;
-    if (pt_entry & RISCV_MMU_GLOBAL)
+    if (!(pt_entry & ARM64_MMU_nG))
         ret |= PAGE_GLOBAL;
 
     ret |= PML_EXTRACT_ADDRESS(pt_entry);
@@ -704,7 +756,7 @@ void vm_save_current_mmu(struct mm_address_space *mm)
 void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots, int new_prots)
 {
     uint64_t *ptentry;
-    if (!riscv_get_pt_entry(addr, &ptentry, false, as))
+    if (!arm64_get_pt_entry(addr, &ptentry, false, as))
         return;
 
     if (!*ptentry)
@@ -719,7 +771,7 @@ void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots
     /* In this function, we use the old_prots parameter to know whether it was a write-protected
      * page.
      */
-    bool is_wp_page = !(*ptentry & RISCV_MMU_WRITE) && old_prots & VM_WRITE;
+    bool is_wp_page = *ptentry & ARM64_MMU_READ_ONLY && old_prots & VM_WRITE;
 
     if (is_wp_page)
     {
@@ -853,7 +905,7 @@ enum page_table_levels : unsigned int
 
 static bool is_huge_page_level(unsigned int pt_level)
 {
-    // Every level is a huge page level in RISCV
+    // Every level is a huge page level in ARM64
     return true;
 }
 
@@ -875,7 +927,7 @@ constexpr unsigned int addr_get_index(unsigned long virt, unsigned int pt_level)
 #define MMU_UNMAP_CAN_FREE_PML 1
 #define MMU_UNMAP_OK           0
 
-static int riscv_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterator &it)
+static int arm64_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterator &it)
 {
     unsigned int index = addr_get_index(it.curr_addr(), pt_level);
 
@@ -900,7 +952,7 @@ static int riscv_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterato
         if (is_pte_empty)
         {
 
-#ifdef CONFIG_RISCV_MMU_UNMAP_DEBUG
+#ifdef CONFIG_ARM64_MMU_UNMAP_DEBUG
             if (it.debug)
                 printk("not present @ level %u\nentry size %lu\nlength %lu\n", pt_level, entry_size,
                        it.length());
@@ -933,7 +985,7 @@ static int riscv_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterato
             unsigned long val = 0;
             __atomic_exchange(&pt_entry, &val, &val, __ATOMIC_RELEASE);
 
-            if (val & RISCV_MMU_ACCESSED)
+            if (val & ARM64_MMU_AF)
             {
                 invd_tracker.add_page(it.curr_addr(), entry_size);
             }
@@ -943,9 +995,9 @@ static int riscv_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterato
         }
         else
         {
-            assert((pt_entry & RISCV_MMU_VALID) != 0);
+            assert((pt_entry & ARM64_MMU_VALID) != 0);
             PML *next_table = (PML *) PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(pt_entry));
-            int st = riscv_mmu_unmap(next_table, pt_level - 1, it);
+            int st = arm64_mmu_unmap(next_table, pt_level - 1, it);
 
             if (st == MMU_UNMAP_CAN_FREE_PML)
             {
@@ -989,7 +1041,7 @@ int vm_mmu_unmap(struct mm_address_space *as, void *addr, size_t pages)
 
     PML *first_level = (PML *) PHYS_TO_VIRT(as->arch_mmu.top_pt);
 
-    riscv_mmu_unmap(first_level, arm64_paging_levels - 1, it);
+    arm64_mmu_unmap(first_level, arm64_paging_levels - 1, it);
 
     assert(it.length() == 0);
 
@@ -1011,7 +1063,7 @@ struct mm_shootdown_info
     mm_address_space *mm;
 };
 
-void riscv_invalidate_tlb(void *context)
+void arm64_invalidate_tlb(void *context)
 {
     auto info = (mm_shootdown_info *) context;
     auto addr = info->addr;
@@ -1053,7 +1105,7 @@ void mmu_invalidate_range(unsigned long addr, size_t pages, mm_address_space *mm
         mask.remove_cpu(our_cpu);
     }
 
-    smp::sync_call_with_local(riscv_invalidate_tlb, &info, mask, riscv_invalidate_tlb, &info);
+    smp::sync_call_with_local(arm64_invalidate_tlb, &info, mask, arm64_invalidate_tlb, &info);
 }
 
 struct mmu_acct
@@ -1079,7 +1131,7 @@ static void mmu_acct_page_table(PML *pt, page_table_levels level, mmu_acct &acct
         if (pte_empty(pte))
             continue;
 
-        if (!(pte & RISCV_MMU_USER))
+        if (!(pte & ARM64_MMU_EL0))
             continue;
 
         if (level != PT_LEVEL)

@@ -71,6 +71,13 @@ entry:
     msr tpidr_el1, x1
     bl kernel_entry
 
+    bl runtime_call_constructors
+	# x0 = cpu nr
+	mov x0, xzr
+	bl init_ssp_for_cpu
+
+	bl kernel_main
+
 .wait:
     wfi
     b .wait

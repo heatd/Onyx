@@ -136,7 +136,8 @@ void node::enumerate_resources()
     const void *reg;
     if (reg = fdt_getprop(fdt_, offset, "reg", &reg_len); !reg)
     {
-        panic("device_tree: error parsing memory node: %s\n", fdt_strerror(reg_len));
+        // No resources
+        return;
     }
 
     int nr_ranges = reg_len / ((addr_cells + size_cells) * sizeof(uint32_t));

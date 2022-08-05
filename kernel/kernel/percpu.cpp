@@ -1,8 +1,11 @@
 /*
- * Copyright (c) 2019 Pedro Falcato
- * This file is part of Carbon, and is released under the terms of the MIT License
+ * Copyright (c) 2919 - 2022 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
+
 #include <assert.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -19,7 +22,8 @@ extern unsigned char percpu_base;
 /* Define errno somewhere */
 PER_CPU_VAR(int __true_errno) = 0;
 
-extern "C" {
+extern "C"
+{
 PER_CPU_VAR(unsigned long __cpu_base) = 0;
 };
 extern "C" int *__errno_location()
@@ -79,7 +83,8 @@ int percpu_map_master_copy()
     size_t percpu_size = (unsigned long) &__percpu_end - (unsigned long) &__percpu_start;
     size_t nr_pages = vm_size_to_pages(percpu_size);
     unsigned long percpu_virtual_start = (unsigned long) &percpu_base;
-    auto phys_base = ((unsigned long) &percpu_base) - KERNEL_VIRTUAL_BASE;
+    auto phys_base =
+        ((unsigned long) &percpu_base) - KERNEL_VIRTUAL_BASE + get_kernel_phys_offset();
     auto ret = map_pages_to_vaddr((void *) percpu_virtual_start, (void *) phys_base, nr_pages,
                                   VM_READ | VM_WRITE);
     return ret ? 0 : -1;

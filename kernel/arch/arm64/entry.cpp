@@ -25,23 +25,24 @@ extern char percpu_base;
 void time_init();
 void riscv_cpu_init();
 void plic_init();
+void arm64_setup_trap_handling();
 
 extern "C" void kernel_entry(void *fdt)
 {
-    write_per_cpu(__cpu_base, &percpu_base);
+    write_per_cpu(__cpu_base, (unsigned long) &percpu_base);
     paging_init();
+    arm64_setup_trap_handling();
 
     platform_serial_init();
 
     device_tree::init(fdt);
 
     initialize_entropy();
-    platform_serial_write("Done", 4);
 
     vm_update_addresses(arch_high_half);
 
-#if 0
     paging_protect_kernel();
+    platform_serial_write("Done MMU protection\n", sizeof("Done MMU protection\n"));
 
     vm_late_init();
 
@@ -52,11 +53,4 @@ extern "C" void kernel_entry(void *fdt)
     console_init();
 
     device_tree::enumerate();
-
-    time_init();
-
-    riscv_cpu_init();
-
-    plic_init();
-#endif
 }

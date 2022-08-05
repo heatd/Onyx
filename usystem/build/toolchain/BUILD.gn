@@ -107,8 +107,13 @@ template("clang_toolchain") {
   base_toolchain(target_name) {
     forward_variables_from(invoker, "*", ["output_dir"])
     toolprefix = "${clang_path}/bin/"
-    cc = "${toolprefix}clang --target=${target_cpu}-unknown-${target_os}"
-    cxx = "${toolprefix}clang++ --target=${target_cpu}-unknown-${target_os}"
+    gcc_target = target_cpu
+    if (target_cpu == "arm64") {
+      gcc_target = "aarch64"
+    }
+
+    cc = "${toolprefix}clang --target=${gcc_target}-unknown-${target_os}"
+    cxx = "${toolprefix}clang++ --target=${gcc_target}-unknown-${target_os}"
 
     ar = "${toolprefix}llvm-ar"
     #strip = "${toolprefix}llvm-strip"

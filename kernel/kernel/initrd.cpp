@@ -81,7 +81,7 @@ void initrd_mount(void)
         if (iter[i]->typeflag == TAR_TYPE_FILE)
         {
             struct file *file = creat_vfs(node->f_dentry, filename, 0666);
-            assert(file != NULL);
+            assert(file != nullptr);
 
             char *buffer = (char *) iter[i] + 512;
             size_t size = tar_get_size(iter[i]->size);

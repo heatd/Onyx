@@ -126,7 +126,7 @@ build-cleanup: build-usystem
 	cp kernel/kernel.config sysroot/boot/
 
 	# TODO: Do this in kernel/Makefile
-	$(NM) kernel/vmonyx > Kernel.map
+	$(NM) kernel/vmonyx-unstripped > Kernel.map
 
 fullbuild: build-cleanup
 
@@ -140,9 +140,9 @@ qemu-riscv: fullbuild-plus-initrd
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) -kernel kernel/vmonyx -m 512M -machine virt \
 	-monitor stdio -s -initrd initrd.tar
 
-qemu-arm64: kernel
+qemu-arm64: fullbuild-plus-initrd
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) -kernel kernel/vmonyx -m 512M -machine virt \
-	-monitor stdio -cpu cortex-a53 -d int -s
+	-monitor stdio -cpu cortex-a53 -d int -s -no-shutdown -no-reboot -initrd initrd.tar
 
 qemu: iso
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) \

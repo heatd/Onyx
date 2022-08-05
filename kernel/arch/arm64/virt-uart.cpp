@@ -18,12 +18,12 @@ volatile uint32_t *uart_base = (volatile uint32_t *) PHYS_TO_VIRT(0x09000000);
 
 static inline uint32_t uart_read_32(size_t offset)
 {
-    return *(uint32_t *) ((char *) uart_base + offset);
+    return *(volatile uint32_t *) ((char *) uart_base + offset);
 }
 
 static inline void uart_write_32(size_t offset, uint32_t val)
 {
-    *(uint32_t *) ((char *) uart_base + offset) = val;
+    *(volatile uint32_t *) ((char *) uart_base + offset) = val;
 }
 
 void platform_serial_init(void)

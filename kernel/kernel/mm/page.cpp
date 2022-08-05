@@ -48,6 +48,17 @@ struct page *phys_to_page(uintptr_t phys)
 
 extern unsigned char kernel_start;
 extern unsigned char kernel_end;
+uint64_t kernel_phys_offset = 0;
+
+/**
+ * @brief Get the kernel's physical load offset
+ *
+ * @return Load offset
+ */
+uint64_t get_kernel_phys_offset()
+{
+    return kernel_phys_offset;
+}
 
 /**
  * @brief Retrieves the kernel's limits in physical memory and virtual memory.
@@ -62,8 +73,8 @@ void get_kernel_limits(struct kernel_limits *l)
     l->start_virt = start_virt;
     l->end_virt = end_virt;
 
-    l->start_phys = start_virt - KERNEL_VIRTUAL_BASE;
-    l->end_phys = end_virt - KERNEL_VIRTUAL_BASE;
+    l->start_phys = start_virt - KERNEL_VIRTUAL_BASE + kernel_phys_offset;
+    l->end_phys = end_virt - KERNEL_VIRTUAL_BASE + kernel_phys_offset;
 }
 
 bool klimits_present = false;

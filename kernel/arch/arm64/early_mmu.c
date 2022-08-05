@@ -21,13 +21,13 @@
         val;                                             \
     })
 
-extern uint64_t kernel_phys_base;
+extern uint64_t kernel_phys_offset;
 
 __attribute__((section(".boot"))) __attribute__((no_sanitize("undefined"))) void arm64_setup_mmu(
     uint64_t *boot_page_tables, uint64_t phys_base)
 {
     phys_base &= ~(0x200000 - 1);
-    kernel_phys_base = phys_base;
+    kernel_phys_offset = phys_base;
     uint64_t *top_page_table = &boot_page_tables[512];
     uint64_t *bottom_page_table = boot_page_tables;
     uint64_t *second_level[2] = {&boot_page_tables[512UL * 2], &boot_page_tables[512UL * 3]};

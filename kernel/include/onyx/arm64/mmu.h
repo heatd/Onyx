@@ -10,6 +10,7 @@
 
 #define ARM64_MMU_VALID           (1UL << 0)
 #define ARM64_MMU_TABLE           (1UL << 1)
+#define ARM64_MMU_PAGE            (1UL << 1)
 #define ARM64_MMU_BLOCK           (0 << 1)
 #define ARM64_MMU_XN              (1UL << 54)
 #define ARM64_MMU_PXN             (1UL << 53)
