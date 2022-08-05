@@ -528,10 +528,11 @@ void arm64_dump_pt(PML *pml, unsigned int level)
         if (!(entry & ARM64_MMU_VALID))
             continue;
         bool is_block = !(entry & ARM64_MMU_TABLE);
-        PML *pml = (PML *) PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(entry));
+        PML *next_pml = (PML *) PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(entry));
         if (!is_block)
         {
-            budget_printk("Level %u [%03u]: entry %016lx %016p\n", level, i, entry, pml);
+            budget_printk("Level %u [%03u]: entry %016lx %016lx\n", level, i, entry,
+                          (unsigned long) next_pml);
         }
         else
         {
@@ -540,7 +541,7 @@ void arm64_dump_pt(PML *pml, unsigned int level)
         }
 
         if (level != 0 && !is_block)
-            arm64_dump_pt(pml, level - 1);
+            arm64_dump_pt(next_pml, level - 1);
     }
 }
 
