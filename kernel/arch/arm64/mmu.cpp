@@ -83,7 +83,7 @@ bool arm64_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
 
 unsigned long allocated_page_tables = 0;
 
-PML *alloc_pt(void)
+PML *alloc_pt()
 {
     struct page *p = alloc_page(0);
     if (p)
@@ -96,7 +96,7 @@ PML *alloc_pt(void)
 
 PML *boot_pt;
 
-PML *get_current_page_tables(void)
+PML *get_current_page_tables()
 {
     struct process *p = get_current_process();
     if (!p)
@@ -261,9 +261,9 @@ void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
 
 bool pml_is_empty(const PML *pml)
 {
-    for (int i = 0; i < 512; i++)
+    for (unsigned long entry : pml->entries)
     {
-        if (pml->entries[i])
+        if (entry)
             return false;
     }
 
@@ -616,9 +616,8 @@ void *vm_map_page(struct mm_address_space *as, uint64_t virt, uint64_t phys, uin
 
 void paging_free_pml2(PML *pml)
 {
-    for (int i = 0; i < 512; i++)
+    for (unsigned long entry : pml->entries)
     {
-        const auto entry = pml->entries[i];
         if (entry & ARM64_MMU_VALID && !(pt_entry_is_huge(entry)))
         {
             /* We don't need to free pages since these functions
@@ -632,11 +631,11 @@ void paging_free_pml2(PML *pml)
 
 void paging_free_pml3(PML *pml)
 {
-    for (int i = 0; i < 512; i++)
+    for (auto entry : pml->entries)
     {
-        if (pml->entries[i] & ARM64_MMU_VALID)
+        if (entry & ARM64_MMU_VALID)
         {
-            unsigned long phys_addr = PML_EXTRACT_ADDRESS(pml->entries[i]);
+            unsigned long phys_addr = PML_EXTRACT_ADDRESS(entry);
             PML *pml2 = (PML *) PHYS_TO_VIRT(phys_addr);
             paging_free_pml2(pml2);
 
@@ -839,13 +838,11 @@ public:
 
 struct tlb_invalidation_tracker
 {
-    unsigned long virt_start;
-    unsigned long virt_end;
-    bool is_started, is_flushed;
+    unsigned long virt_start{};
+    unsigned long virt_end{};
+    bool is_started{}, is_flushed{};
 
-    explicit tlb_invalidation_tracker() : virt_start{}, virt_end{}, is_started{}, is_flushed{}
-    {
-    }
+    explicit tlb_invalidation_tracker() = default;
 
     void invalidate_tracker()
     {
