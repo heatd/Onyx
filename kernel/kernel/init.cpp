@@ -74,27 +74,20 @@
 
 #include <onyx/linker_section.hpp>
 
-extern uint64_t kernel_end;
-extern uintptr_t _start_smp;
-extern uintptr_t _end_smp;
-
-void *initrd_addr = NULL;
-void *tramp = NULL;
-void *phys_fb = NULL;
-uintptr_t address = 0;
+void *initrd_addr = nullptr;
 
 void set_initrd_address(void *initrd_address)
 {
     initrd_addr = initrd_address;
 }
 
-void dump_used_mem(void);
+void dump_used_mem();
 
 int sys_execve(const char *p, const char **argv, const char **envp);
 
 int find_and_exec_init(const char **argv, const char **envp)
 {
-    struct process *proc = process_create("kernel", NULL, NULL);
+    struct process *proc = process_create("kernel", nullptr, nullptr);
     if (!proc)
         return -ENOMEM;
 
@@ -131,9 +124,9 @@ int find_and_exec_init(const char **argv, const char **envp)
 
     const char *init_paths[] = {"/sbin/init", "/bin/init", "/bin/sh"};
 
-    for (unsigned int i = 0; i < sizeof(init_paths) / sizeof(init_paths[0]); i++)
+    for (auto init_path : init_paths)
     {
-        int st = sys_execve(init_paths[i], argv, envp);
+        int st = sys_execve(init_path, argv, envp);
 
         if (st < 0)
         {
@@ -146,7 +139,7 @@ int find_and_exec_init(const char **argv, const char **envp)
 }
 
 #if 1
-void dump_used_mem(void)
+void dump_used_mem()
 {
     struct memstat ps;
     page_get_stats(&ps);
@@ -162,9 +155,9 @@ void dump_used_mem(void)
 
 static thread_t *new_thread;
 
-void kernel_multitasking(void *);
-void reclaim_initrd(void);
-void do_ktests(void);
+void kernel_multitasking(void *arg);
+void reclaim_initrd();
+void do_ktests();
 
 struct init_level_info
 {
@@ -209,7 +202,7 @@ void do_init_level_percpu(unsigned int level, unsigned int cpu)
     }
 }
 
-void fs_init(void)
+void fs_init()
 {
     /* Initialize the VFS */
     vfs_init();
@@ -249,7 +242,7 @@ extern "C" void kernel_main(void)
         panic("sched: failed to initialize!");
 
     /* Initalize multitasking */
-    new_thread = sched_create_thread(kernel_multitasking, 1, NULL);
+    new_thread = sched_create_thread(kernel_multitasking, 1, nullptr);
 
     assert(new_thread);
 
@@ -283,8 +276,8 @@ void kernel_multitasking(void *arg)
     vm_sysfs_init();
 
     /* Pass the root partition to init */
-    const char *args[] = {(char *) "", "/dev/sda2", NULL};
-    const char *envp[] = {"PATH=/bin:/usr/bin:/sbin:", "TERM=linux", "LANG=C", "PWD=/", NULL};
+    const char *args[] = {(char *) "", "/dev/sda2", nullptr};
+    const char *envp[] = {"PATH=/bin:/usr/bin:/sbin:", "TERM=linux", "LANG=C", "PWD=/", nullptr};
 
     if (find_and_exec_init(args, envp) < 0)
     {
