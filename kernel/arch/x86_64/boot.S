@@ -251,10 +251,17 @@ setup_paging_and_longm:
 	CALC_EFF_ADDRESS(pml4, %esi)
 	mov %eax, (%esi, %ebx, 8)
 
+	/* Set up the lower page directories for the lower range of the address space */
 	CALC_EFF_ADDRESS(pdlower, %eax)
 	or $(X86_PAGING_PRESENT | X86_PAGING_WRITE), %eax
 	CALC_EFF_ADDRESS(pdpt, %esi)
 	movl %eax, (%esi)
+	add $0x1000, %eax
+	movl %eax, 8(%esi)
+	add $0x1000, %eax
+	movl %eax, 16(%esi)
+	add $0x1000, %eax
+	movl %eax, 24(%esi)
 
 	CALC_EFF_ADDRESS(pd, %eax)
 	or $(X86_PAGING_PRESENT | X86_PAGING_WRITE), %eax
@@ -276,7 +283,7 @@ setup_paging_and_longm:
 	or $0x83, %eax
 	mov %eax, (%esi, %ebx, 8)
 	inc %ebx
-	cmp $511, %ebx
+	cmp $2048, %ebx
 	jne 3b
 
 	pop %ebx

@@ -26,8 +26,12 @@ SECTIONS
 		. += 0x1000;
 		pd = .;
 		. += 0x1000;
+		/* Reserve 4 page tables for pdlowers
+		 * This will cover the bottom 4GB, which is our current restriction
+		 * for load addresses.
+		 */
 		pdlower = .;
-		. += 0x1000;
+		. += 0x4000;
 		pdptphysical_map = .;
 		. += 0x1000;
 		pml5 = .;
