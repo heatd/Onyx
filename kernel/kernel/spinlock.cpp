@@ -33,14 +33,14 @@ void spin_lock_preempt(struct spinlock *lock)
 
     while (true)
     {
+        if (__atomic_compare_exchange_n(&lock->lock, &expected_val, what_to_insert, false,
+                                        __ATOMIC_ACQUIRE, __ATOMIC_RELAXED))
+            break;
+
         while (__atomic_load_n(&lock->lock, __ATOMIC_RELAXED) != 0)
             cpu_relax();
 
         expected_val = 0;
-
-        if (__atomic_compare_exchange_n(&lock->lock, &expected_val, what_to_insert, false,
-                                        __ATOMIC_ACQUIRE, __ATOMIC_RELAXED))
-            break;
     }
 
     post_lock_actions(lock);
