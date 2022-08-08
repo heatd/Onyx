@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2019 Pedro Falcato
- * This file is part of Carbon, and is released under the terms of the MIT License
+ * Copyright (c) 2019 - 2022 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #ifndef _CARBON_SMP_H
 #define _CARBON_SMP_H
@@ -58,10 +60,12 @@ struct smp_header
     volatile unsigned long thread_stack;
     volatile unsigned long gs_base;
     volatile unsigned long boot_done;
+    volatile unsigned long kernel_load_bias;
 } __attribute__((packed));
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
 /* We define CPU_MAX as UINT_MAX - 1, because we use unsigned ints to represent CPU numbers

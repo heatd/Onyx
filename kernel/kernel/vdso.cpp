@@ -62,6 +62,7 @@ private:
         size_t vdso_pages = vm_size_to_pages(vdso_size);
 
         page -= KERNEL_VIRTUAL_BASE;
+        page += get_kernel_phys_offset();
 
         for (size_t i = 0; i < vdso_pages; i++, page += PAGE_SIZE)
         {

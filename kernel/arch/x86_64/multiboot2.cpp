@@ -72,7 +72,7 @@ bool grub2_rsdp_valid = false;
 uintptr_t get_rdsp_from_grub(void)
 {
     if (grub2_rsdp_valid)
-        return ((uintptr_t) &grub2_rsdp) - KERNEL_VIRTUAL_BASE;
+        return ((uintptr_t) &grub2_rsdp) - KERNEL_VIRTUAL_BASE + get_kernel_phys_offset();
     else
         return 0;
 }

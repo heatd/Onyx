@@ -22,6 +22,8 @@ smpboot_header:
 thread_stack:	.quad 0		# To be filled by the waking up code
 gs_base:	.quad 0
 ap_done:	.quad 0
+kernel_load_bias_lo: .long 0
+kernel_load_bias_hi: .long 0
 .skip_data:
 	xor %ax, %ax
 	mov %ax, %ds
@@ -48,7 +50,9 @@ __long_mode_enter:
 	mov %ax, %ss
 	.extern pml4
 	# Load the kernel's pml4
-	mov $pml4, %eax
+	mov $(kernel_load_bias_lo - _start_smp), %ebp
+	mov (%ebp), %ebp
+	lea pml4(%ebp), %eax
 	mov %eax, %cr3
 	# Enable PAE and PSE
 	mov %cr4, %eax
@@ -83,7 +87,8 @@ _long_mode:
 	jmp *%rbx
 .higher_half:
 	.extern gdtr3
-	lgdt (gdtr3)
+	lea gdtr3(%ebp), %rbx
+	lgdt (%rbx)
 	mov %rax, %cr3
 	mov $0x10, %rax
 	mov %ax, %ds

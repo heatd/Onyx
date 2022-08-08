@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -44,6 +44,18 @@ hdr_start:
 	.word 6
 	.word 0
 	.long 8
+#ifdef CONFIG_RELOCATABLE_PHYS
+	.align 8
+	.word 10
+	.word 0
+	.long 24
+	/* Use a minimum address of 1MB, a max of 4GB, alignment of 2MB (so we can easily map ourselves) */
+	.long 0x100000
+	.long 0xffffffff
+	.long 0x200000
+	/* 2 = put us as high as you can */
+	.long 2
+#endif
 	.align 8
 	# Finish tag
 	.word 0
@@ -92,20 +104,43 @@ protectedmode_stack:
 	.skip 128
 protectedmode_stack_top:
 
+#ifdef CONFIG_RELOCATABLE_PHYS
+#define CALC_EFF_ADDRESS(label, reg) lea label(%ebp), reg
+#else
+#define CALC_EFF_ADDRESS(label, reg) mov $label, reg
+#endif
+
 .code32
 .global entry_point
-entry_point: 
+entry_point:
 	cli
+#ifdef CONFIG_RELOCATABLE_PHYS
+	/* Calculate a possible load bias */
+	call 1f
+1:
+	pop %edi
+	movl $1b, %ebp
+	sub %ebp, %edi
+	mov %edi, %ebp
+#else
+	xor %ebp, %ebp
+#endif
+	/* From now on, ebp = load bias */
 	# Clear the direction flag since its state is unspecified by the multiboot spec
 	cld
-	mov $protectedmode_stack_top, %esp
+	CALC_EFF_ADDRESS(protectedmode_stack_top, %esp)
 	pushl %eax
 	pushl %ebx
-	movl $gdtr1, %eax
+	CALC_EFF_ADDRESS(gdtr1, %eax)
+	# Fix up the gdtr before loading it
+	CALC_EFF_ADDRESS(gdt, %ebx)
+	mov %ebx, 2(%eax)
 	lgdt (%eax)
 
 	pushl $0x08
-	push $.gdtrdy
+	CALC_EFF_ADDRESS(.gdtrdy, %eax)
+
+	push %eax
 	lret
 
 .gdtrdy: 
@@ -114,15 +149,19 @@ entry_point:
 	movw %ax, %ss
 	call setup_paging_and_longm
 
-	movl $gdtr2, %eax
-	lgdt (gdtr2)
+	CALC_EFF_ADDRESS(gdtr2, %eax)
+	/* Fixup the gdtr2's gdt address */
+	CALC_EFF_ADDRESS(gdt_begin, %edi)
+	mov %edi, 2(%eax)
+	lgdt (%eax)
 
 	pushl $0x08
-	push $.gdt2rdy
+	CALC_EFF_ADDRESS(.gdt2rdy, %eax)
+	push %eax
 	lret
 
 .code64
-.gdt2rdy: 
+.gdt2rdy:
 	movl $0x10, %eax
 	movw %ax, %ds
 	movw %ax, %es
@@ -133,7 +172,7 @@ entry_point:
 	mov %ax, %gs
 	mov %ax, %fs
 
-	movq $gdtr3, %rax
+	lea gdtr3(%rip), %rax
 	lgdt (%rax)
 	popq %rbx
 	xorq %rsi, %rsi
@@ -143,6 +182,9 @@ entry_point:
 	movq %rbx, %r8
 	xorq %rdi, %rdi
 	movl %r8d, %edi
+#ifdef CONFIG_RELOCATABLE_PHYS
+	mov %rbp, kernel_phys_offset
+#endif
 	movq $_start, %rax
 	jmp *%rax
 
@@ -198,54 +240,58 @@ setup_paging_and_longm:
 
 	jmp 2f
 1:
-	mov $pml4, %edi
+	CALC_EFF_ADDRESS(pml4, %edi)
 2:
-	movl $pdpt, %eax
+	CALC_EFF_ADDRESS(pdpt, %eax)
 	orl $(X86_PAGING_PRESENT | X86_PAGING_WRITE), %eax
-	movl %eax, pml4
+	movl %eax, (%edi)
 
 	PAGE_TABLE_INDEX %esp, 3
 
-	mov $pml4, %esi
+	CALC_EFF_ADDRESS(pml4, %esi)
 	mov %eax, (%esi, %ebx, 8)
 
-	movl $pdlower, %eax
+	CALC_EFF_ADDRESS(pdlower, %eax)
 	or $(X86_PAGING_PRESENT | X86_PAGING_WRITE), %eax
-	movl %eax, pdpt
+	CALC_EFF_ADDRESS(pdpt, %esi)
+	movl %eax, (%esi)
 
-	movl $pd, %eax
+	CALC_EFF_ADDRESS(pd, %eax)
 	or $(X86_PAGING_PRESENT | X86_PAGING_WRITE), %eax
 
 	PAGE_TABLE_INDEX %esp, 2
 
-	mov $pdpt, %esi
+	CALC_EFF_ADDRESS(pdpt, %esi)
 	mov %eax, (%esi, %ebx, 8)
 
 	PAGE_TABLE_INDEX %esp, 1
 
 	push %ebx
 
-	mov $pdlower, %esi
+	CALC_EFF_ADDRESS(pdlower, %esi)
+3:
 
-	movl $0x000083, %eax
+	mov %ebx, %eax
+	shl $21, %eax
+	or $0x83, %eax
 	mov %eax, (%esi, %ebx, 8)
 	inc %ebx
-	movl $0x200083, %eax
-	mov %eax, (%esi, %ebx, 8)
-	inc %ebx
-	movl $0x400083, %eax
-	mov %eax, (%esi, %ebx, 8)
+	cmp $511, %ebx
+	jne 3b
 
 	pop %ebx
 
-	mov $pd, %esi
-	movl $0x000083, %eax
+	CALC_EFF_ADDRESS(pd, %esi)
+	movl %ebp, %eax
+	or $0x83, %eax
 	mov %eax, (%esi, %ebx, 8)
 	inc %ebx
-	movl $0x200083, %eax
+	lea 0x200000(%ebp), %eax
+	or $0x83, %eax
 	mov %eax, (%esi, %ebx, 8)
 	inc %ebx
-	movl $0x400083, %eax
+	lea 0x400000(%ebp), %eax
+	or $0x83, %eax
 	mov %eax, (%esi, %ebx, 8)
 
 	# Load CR3 with the top page level

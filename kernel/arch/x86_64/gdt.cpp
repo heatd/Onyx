@@ -24,7 +24,7 @@ uint16_t gdt_get_size()
 extern gdtr_t gdtr3;
 extern "C" void gdt_flush(gdtr_t *gdtr);
 
-void gdt_init_percpu(void)
+void gdt_init_percpu()
 {
     uint16_t size = gdt_get_size();
     /* Create another copy of the gdt */
@@ -36,7 +36,7 @@ void gdt_init_percpu(void)
 
     gdtr_t gdtr;
 
-    gdtr_t *g = (gdtr_t *) PHYS_TO_VIRT(&gdtr3);
+    const gdtr_t *g = (gdtr_t *) ((unsigned long) &gdtr3 + KERNEL_VIRTUAL_BASE);
     /* Copy the gdt */
     memcpy(gdt, (const void *) g->ptr, size);
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2021 Pedro Falcato
+ * Copyright (c) 2019 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -19,7 +19,8 @@ namespace smp
 
 static cul::vector<uint32_t> lapic_ids;
 
-extern "C" {
+extern "C"
+{
 extern unsigned int cpu_nr;
 };
 
@@ -38,6 +39,7 @@ void boot(unsigned int cpu)
 
     s->gs_base = percpu_init_for_cpu(cpu);
     s->boot_done = false;
+    s->kernel_load_bias = get_kernel_phys_offset();
 
     other_cpu_write(cpu_nr, cpu, cpu);
 

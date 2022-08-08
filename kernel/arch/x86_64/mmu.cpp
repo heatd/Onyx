@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -166,7 +166,7 @@ void *virtual2phys(void *ptr)
 }
 
 extern PML pdptphysical_map;
-static PML pdphysical_map __attribute__((aligned(PAGE_SIZE)));
+static PML pdphysical_map[4] __attribute__((aligned(PAGE_SIZE)));
 
 static PML placement_mappings_page_dir __attribute__((aligned(4096)));
 static PML placement_mappings_page_table __attribute__((aligned(4096)));
@@ -226,11 +226,13 @@ void x86_setup_placement_mappings(void)
             unsigned long page = 0;
             if (i == 3)
             {
-                page = ((unsigned long) &placement_mappings_page_dir - KERNEL_VIRTUAL_BASE);
+                page = ((unsigned long) &placement_mappings_page_dir - KERNEL_VIRTUAL_BASE +
+                        get_kernel_phys_offset());
             }
             else if (i == 2)
             {
-                page = ((unsigned long) &placement_mappings_page_table - KERNEL_VIRTUAL_BASE);
+                page = ((unsigned long) &placement_mappings_page_table - KERNEL_VIRTUAL_BASE +
+                        get_kernel_phys_offset());
             }
             else
             {
@@ -250,23 +252,28 @@ void paging_init(void)
     /* Get the current PML and store it */
     __asm__ __volatile__("movq %%cr3, %%rax\t\nmovq %%rax, %0" : "=r"(boot_pml4)::"rax", "memory");
 
-    /* Bootstrap the first 1GB */
+    /* Bootstrap the first 4GB */
     uintptr_t virt = PHYS_BASE;
-    decomposed_addr_t decAddr;
-    memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
-    uint64_t *entry = &boot_pml4->entries[decAddr.pml4];
-    PML *pml3 = (PML *) &pdptphysical_map;
+    PML *pml3 = (PML *) ((unsigned long) &pdptphysical_map + get_kernel_phys_offset());
+    unsigned int indices[x86_max_paging_levels];
+    x86_addr_to_indices(virt, indices);
 
-    *entry = make_pml4e((uint64_t) pml3, 0, 0, 0, 0, 1, 1);
-    entry = &pml3->entries[decAddr.pdpt];
-    *entry = make_pml3e(((uint64_t) &pdphysical_map - KERNEL_VIRTUAL_BASE), 0, 0, 1, 0, 0, 0, 1, 1);
+    boot_pml4->entries[indices[x86_paging_levels - 1]] =
+        make_pml4e((uint64_t) pml3, 0, 0, 0, 0, 1, 1);
+    auto pdphysmap_phys =
+        (uint64_t) &pdphysical_map - KERNEL_VIRTUAL_BASE + get_kernel_phys_offset();
 
-    for (size_t j = 0; j < 512; j++)
+    for (int i = 0; i < 4; i++)
     {
-        uintptr_t p = j * 0x200000;
+        pml3->entries[i] = make_pml3e(pdphysmap_phys + 0x1000 * i, 0, 0, 1, 0, 0, 0, 1, 1);
 
-        pdphysical_map.entries[j] = p | X86_PAGING_WRITE | X86_PAGING_PRESENT | X86_PAGING_GLOBAL |
-                                    X86_PAGING_NX | X86_PAGING_HUGE;
+        for (size_t j = 0; j < 512; j++)
+        {
+            uintptr_t p = (i << HUGE1GB_SHIFT) + (j << LARGE2MB_SHIFT);
+
+            pdphysical_map[i].entries[j] = p | X86_PAGING_WRITE | X86_PAGING_PRESENT |
+                                           X86_PAGING_GLOBAL | X86_PAGING_NX | X86_PAGING_HUGE;
+        }
     }
 
     x86_setup_placement_mappings();
@@ -281,7 +288,7 @@ void paging_map_all_phys(void)
     decomposed_addr_t decAddr;
     memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
     uint64_t *entry = &get_current_pml4()->entries[decAddr.pml4];
-    PML *pml3 = (PML *) &pdptphysical_map;
+    PML *pml3 = (PML *) ((unsigned long) &pdptphysical_map + get_kernel_phys_offset());
 
     *entry = make_pml4e((uint64_t) pml3, 0, 0, 0, 0, 1, 1);
 
@@ -715,15 +722,18 @@ void paging_protect_kernel(void)
     kernel_address_space.arch_mmu.cr3 = pml;
 
     size_t size = (uintptr_t) &_text_end - text_start;
-    map_pages_to_vaddr((void *) text_start, (void *) (text_start - KERNEL_VIRTUAL_BASE), size,
+    map_pages_to_vaddr((void *) text_start,
+                       (void *) (text_start - KERNEL_VIRTUAL_BASE + get_kernel_phys_offset()), size,
                        VM_READ | VM_EXEC);
 
     size = (uintptr_t) &_data_end - data_start;
-    map_pages_to_vaddr((void *) data_start, (void *) (data_start - KERNEL_VIRTUAL_BASE), size,
+    map_pages_to_vaddr((void *) data_start,
+                       (void *) (data_start - KERNEL_VIRTUAL_BASE + get_kernel_phys_offset()), size,
                        VM_WRITE | VM_READ);
 
     size = (uintptr_t) &_vdso_sect_end - vdso_start;
-    map_pages_to_vaddr((void *) vdso_start, (void *) (vdso_start - KERNEL_VIRTUAL_BASE), size,
+    map_pages_to_vaddr((void *) vdso_start,
+                       (void *) (vdso_start - KERNEL_VIRTUAL_BASE + get_kernel_phys_offset()), size,
                        VM_READ | VM_WRITE);
 
     percpu_map_master_copy();
@@ -968,16 +978,11 @@ public:
 #endif
 
     page_table_iterator(unsigned long virt, size_t len, struct mm_address_space *as)
-        : curr_addr_{virt}, length_{len}, as_
-    {
-        as
-    }
+        : curr_addr_{virt}, length_{len}, as_{as}
 
 #ifdef CONFIG_PT_ITERATOR_HAVE_DEBUG
-    , debug
-    {
-        false
-    }
+          ,
+          debug{false}
 #endif
 
     {

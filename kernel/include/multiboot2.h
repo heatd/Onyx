@@ -1,5 +1,5 @@
-/*  multiboot2.h - Multiboot 2 header file.  */
-/*  Copyright (C) 1999,2003,2007,2008,2009,2010  Free Software Foundation, Inc.
+/*   multiboot2.h - Multiboot 2 header file. */
+/*   Copyright (C) 1999,2003,2007,2008,2009,2010  Free Software Foundation, Inc.
  *
  *  Permission is hereby granted, free of charge, to any person obtaining a copy
  *  of this software and associated documentation files (the "Software"), to
@@ -22,23 +22,23 @@
 #ifndef MULTIBOOT_HEADER
 #define MULTIBOOT_HEADER 1
 
-/* How many bytes from the start of the file we search for the header.  */
+/*  How many bytes from the start of the file we search for the header. */
 #define MULTIBOOT_SEARCH       32768
 #define MULTIBOOT_HEADER_ALIGN 8
 
-/* The magic field should contain this.  */
+/*  The magic field should contain this. */
 #define MULTIBOOT2_HEADER_MAGIC 0xe85250d6
 
-/* This should be in %eax.  */
+/*  This should be in %eax. */
 #define MULTIBOOT2_BOOTLOADER_MAGIC 0x36d76289
 
-/* Alignment of multiboot modules.  */
+/*  Alignment of multiboot modules. */
 #define MULTIBOOT_MOD_ALIGN 0x00001000
 
-/* Alignment of the multiboot info structure.  */
+/*  Alignment of the multiboot info structure. */
 #define MULTIBOOT_INFO_ALIGN 0x00000008
 
-/* Flags set in the 'flags' member of the multiboot header.  */
+/*  Flags set in the ’flags’ member of the multiboot header. */
 
 #define MULTIBOOT_TAG_ALIGN                 8
 #define MULTIBOOT_TAG_TYPE_END              0
@@ -60,6 +60,9 @@
 #define MULTIBOOT_TAG_TYPE_NETWORK          16
 #define MULTIBOOT_TAG_TYPE_EFI_MMAP         17
 #define MULTIBOOT_TAG_TYPE_EFI_BS           18
+#define MULTIBOOT_TAG_TYPE_EFI32_IH         19
+#define MULTIBOOT_TAG_TYPE_EFI64_IH         20
+#define MULTIBOOT_TAG_TYPE_LOAD_BASE_ADDR   21
 
 #define MULTIBOOT_HEADER_TAG_END                 0
 #define MULTIBOOT_HEADER_TAG_INFORMATION_REQUEST 1
@@ -69,10 +72,17 @@
 #define MULTIBOOT_HEADER_TAG_FRAMEBUFFER         5
 #define MULTIBOOT_HEADER_TAG_MODULE_ALIGN        6
 #define MULTIBOOT_HEADER_TAG_EFI_BS              7
+#define MULTIBOOT_HEADER_TAG_ENTRY_ADDRESS_EFI32 8
+#define MULTIBOOT_HEADER_TAG_ENTRY_ADDRESS_EFI64 9
+#define MULTIBOOT_HEADER_TAG_RELOCATABLE         10
 
 #define MULTIBOOT_ARCHITECTURE_I386   0
 #define MULTIBOOT_ARCHITECTURE_MIPS32 4
 #define MULTIBOOT_HEADER_TAG_OPTIONAL 1
+
+#define MULTIBOOT_LOAD_PREFERENCE_NONE 0
+#define MULTIBOOT_LOAD_PREFERENCE_LOW  1
+#define MULTIBOOT_LOAD_PREFERENCE_HIGH 2
 
 #define MULTIBOOT_CONSOLE_FLAGS_CONSOLE_REQUIRED   1
 #define MULTIBOOT_CONSOLE_FLAGS_EGA_TEXT_SUPPORTED 2
@@ -86,16 +96,16 @@ typedef unsigned long long multiboot_uint64_t;
 
 struct multiboot_header
 {
-    /* Must be MULTIBOOT_MAGIC - see above.  */
+    /*  Must be MULTIBOOT_MAGIC - see above. */
     multiboot_uint32_t magic;
 
-    /* ISA */
+    /*  ISA */
     multiboot_uint32_t architecture;
 
-    /* Total header length.  */
+    /*  Total header length. */
     multiboot_uint32_t header_length;
 
-    /* The above fields plus this one must equal 0 mod 2^32. */
+    /*  The above fields plus this one must equal 0 mod 2^32. */
     multiboot_uint32_t checksum;
 };
 
@@ -156,6 +166,17 @@ struct multiboot_header_tag_module_align
     multiboot_uint16_t type;
     multiboot_uint16_t flags;
     multiboot_uint32_t size;
+};
+
+struct multiboot_header_tag_relocatable
+{
+    multiboot_uint16_t type;
+    multiboot_uint16_t flags;
+    multiboot_uint32_t size;
+    multiboot_uint32_t min_addr;
+    multiboot_uint32_t max_addr;
+    multiboot_uint32_t align;
+    multiboot_uint32_t preference;
 };
 
 struct multiboot_color
@@ -369,6 +390,27 @@ struct multiboot_tag_efi_mmap
     multiboot_uint8_t efi_mmap[0];
 };
 
-#endif /* ! ASM_FILE */
+struct multiboot_tag_efi32_ih
+{
+    multiboot_uint32_t type;
+    multiboot_uint32_t size;
+    multiboot_uint32_t pointer;
+};
 
-#endif /* ! MULTIBOOT_HEADER */
+struct multiboot_tag_efi64_ih
+{
+    multiboot_uint32_t type;
+    multiboot_uint32_t size;
+    multiboot_uint64_t pointer;
+};
+
+struct multiboot_tag_load_base_addr
+{
+    multiboot_uint32_t type;
+    multiboot_uint32_t size;
+    multiboot_uint32_t load_base_addr;
+};
+
+#endif /*  ! ASM_FILE */
+
+#endif /*  ! MULTIBOOT_HEADER */
