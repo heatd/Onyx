@@ -197,6 +197,7 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
         new_thread->addr_limit = VM_USER_ADDR_LIMIT;
 
         new_thread->owner = get_current_process();
+        new_thread->set_aspace(&get_current_process()->address_space);
     }
     else
     {
@@ -204,6 +205,7 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
 
         // Set trampoline as the starting RIP
         regs->rip = (unsigned long) x86::internal::kernel_thread_start;
+        new_thread->set_aspace(&kernel_address_space);
     }
 
     cputime_info_init(new_thread);
@@ -302,12 +304,21 @@ void arch_load_thread(struct thread *thread, unsigned int cpu)
         wrmsr(FS_BASE_MSR, (uint64_t) thread->fs);
         wrmsr(KERNEL_GS_BASE, (uint64_t) thread->gs);
     }
+    else
+    {
+        // If we're a kernel thread, load the address space if its not &kernel_address_space
+        // since it may be a special one like efi_aspace
+        // This is not done for user threads since those get loaded later on
+        auto kspace = thread->get_aspace();
+        if (kspace != &kernel_address_space)
+            vm_load_aspace(kspace, cpu);
+    }
 }
 
 void arch_load_process(struct process *process, struct thread *thread, unsigned int cpu)
 {
-    vm_load_arch_mmu(&process->address_space.arch_mmu);
-    process->address_space.active_mask.set_cpu_atomic(cpu);
+    auto as = thread->get_aspace();
+    vm_load_aspace(as, cpu);
 }
 
 void arch_context_switch(thread *prev, thread *next)

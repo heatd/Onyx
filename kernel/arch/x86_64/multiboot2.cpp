@@ -62,6 +62,7 @@
 
 #include <acpica/acpi.h>
 #include <drivers/rtc.h>
+#include <efi/efi.h>
 
 static struct multiboot_tag_module *initrd_tag = NULL;
 struct multiboot_tag_elf_sections *secs;
@@ -177,12 +178,15 @@ unsigned long mb2_get_maxpfn(void)
     return maxpfn >> PAGE_SHIFT;
 }
 
-void vterm_do_init(void);
-void vm_print_map(void);
+void vterm_do_init();
 
 struct used_pages multiboot_struct_used;
 struct multiboot_tag_efi64 efi64_mb2;
 bool efi64_present = false;
+
+static struct multiboot_tag_efi_mmap efi_mmap_tag;
+static void *efi_mmap_ptr;
+static bool efi_mmap_present = false;
 
 extern "C" void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
 {
@@ -246,6 +250,12 @@ extern "C" void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
                 memcpy(&efi64_mb2, vtag, sizeof(struct multiboot_tag_efi64));
                 break;
             }
+            case MULTIBOOT_TAG_TYPE_EFI_MMAP: {
+                efi_mmap_present = true;
+                efi_mmap_ptr = ((multiboot_tag_efi_mmap *) tag)->efi_mmap;
+                memcpy(&efi_mmap_tag, vtag, sizeof(struct multiboot_tag_efi_mmap));
+                break;
+            }
         }
     }
 
@@ -294,6 +304,16 @@ extern "C" void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
 
     init_elf_symbols(secs);
 
+#ifdef CONFIG_EFI
+    if (efi64_present)
+    {
+        auto map_size = efi_mmap_tag.size - 20;
+        efi_init((EFI_SYSTEM_TABLE *) PHYS_TO_VIRT(efi64_mb2.pointer),
+                 (EFI_MEMORY_DESCRIPTOR *) PHYS_TO_VIRT(efi_mmap_ptr), map_size,
+                 efi_mmap_tag.descr_size, efi_mmap_tag.descr_vers);
+    }
+#endif
+
 #ifdef CONFIG_KASAN
     kasan_init();
 #endif
@@ -301,7 +321,7 @@ extern "C" void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
     kvm_init();
 }
 
-void reclaim_initrd(void)
+void reclaim_initrd()
 {
     reclaim_pages(initrd.base, initrd.base + initrd.size);
 }

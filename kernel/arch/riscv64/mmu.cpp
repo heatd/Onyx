@@ -200,16 +200,13 @@ void paging_init(void)
 void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64_t phys,
                               uint64_t prot)
 {
-    bool user = 0;
-    if (virt < 0x00007fffffffffff)
-        user = true;
+    bool user = prot & VM_USER;
 
-    if (!as && user)
+    if (!as)
     {
-        as = get_current_address_space();
+        as = user ? get_current_address_space() : &kernel_address_space;
+        assert(as != nullptr);
     }
-    else if (!user)
-        as = &kernel_address_space;
 
     uint64_t *ptentry;
 
@@ -294,16 +291,24 @@ bool riscv_get_pt_entry_with_ptables(void *addr, uint64_t **entry_ptr, struct mm
     return true;
 }
 
-int paging_clone_as(struct mm_address_space *addr_space)
+/**
+ * @brief Clone the architecture specific part of an address space
+ *
+ * @param addr_space The new address space
+ * @param original The original address space
+ * @return 0 on success, negative error codes
+ */
+int paging_clone_as(mm_address_space *addr_space, mm_address_space *original)
 {
+    scoped_mutex g{original->vm_lock};
     PML *new_pml = alloc_pt();
     if (!new_pml)
-        return -1;
+        return -ENOMEM;
 
     addr_space->page_tables_size = PAGE_SIZE;
 
     PML *p = (PML *) PHYS_TO_VIRT(new_pml);
-    PML *curr = (PML *) ((uint64_t) get_current_page_tables() + PHYS_BASE);
+    PML *curr = (PML *) PHYS_TO_VIRT(original->arch_mmu.top_pt);
     /* Copy the upper 256 entries of the PML in order to map
      * the kernel in the process's address space
      */

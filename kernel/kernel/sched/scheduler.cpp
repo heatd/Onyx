@@ -1072,6 +1072,7 @@ int sched_transition_to_user_thread(thread *thread)
         return st;
 
     thread->flags &= ~THREAD_KERNEL;
+    thread->set_aspace(&thread->owner->address_space);
     return st;
 }
 

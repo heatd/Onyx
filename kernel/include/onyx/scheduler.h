@@ -27,13 +27,14 @@
 #define SCHED_PRIO_HIGH      30
 #define SCHED_PRIO_VERY_HIGH 39
 
-typedef void (*thread_callback_t)(void *);
+using thread_callback_t = void (*)(void *);
 struct process;
+struct mm_address_space;
 
 #define THREAD_STRUCT_CANARY 0xcacacacafdfddead
 #define THREAD_DEAD_CANARY   0xdeadbeefbeefdead
 
-typedef struct thread
+using thread_t = struct thread
 {
     unsigned long refcount;
     unsigned long canary;
@@ -65,6 +66,7 @@ typedef struct thread
     void *ctid;
 
     struct thread_cputime_info cputime_info;
+    mm_address_space *aspace{};
     /* And arch dependent stuff in this ifdef */
 #ifdef __x86_64__
     void *fs;
@@ -77,20 +79,34 @@ typedef struct thread
     thread()
         : refcount{}, canary{}, kernel_stack{}, kernel_stack_top{}, owner{}, entry{}, flags{}, id{},
           status{}, priority{}, cpu{}, next{}, prev_prio{}, next_prio{}, prev_wait{}, next_wait{},
-          fpu_area{}, sem_prev{}, sem_next{}, lock{}, errno_val{}, sinfo{}, thread_list_head{},
-          addr_limit{}, wait_list_head{}, ctid{}, cputime_info
-    {
-    }
+          fpu_area{}, sem_prev{}, sem_next{}, lock{}, errno_val{}, thread_list_head{}, addr_limit{},
+          wait_list_head{}, ctid{}, cputime_info{}
 #ifdef __x86_64__
-    , fs{}, gs
-    {
-    }
+          ,
+          fs{}, gs{}
 #endif
     {
     }
 #endif
 
-} thread_t;
+    /**
+     * @brief Sets the address space for the thread
+     *
+     */
+    void set_aspace(mm_address_space *as)
+    {
+        aspace = as;
+    }
+
+    /**
+     * @brief Gets the thread's address space
+     *
+     */
+    mm_address_space *get_aspace() const
+    {
+        return aspace;
+    }
+};
 
 #define THREAD_KERNEL        (1 << 0)
 #define THREAD_NEEDS_RESCHED (1 << 1)

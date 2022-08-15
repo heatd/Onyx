@@ -116,7 +116,7 @@ PML *get_current_pml4(void)
 #define LARGE2MB_SHIFT 21
 #define LARGE2MB_SIZE  0x200000
 
-static void x86_addr_to_indices(unsigned long virt, unsigned int *indices)
+void x86_addr_to_indices(unsigned long virt, unsigned int *indices)
 {
     for (unsigned int i = 0; i < x86_paging_levels; i++)
     {
@@ -337,16 +337,13 @@ void paging_map_all_phys(void)
 void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64_t phys,
                               uint64_t prot)
 {
-    bool user = 0;
-    if (virt < 0x00007fffffffffff)
-        user = true;
+    bool user = prot & VM_USER;
 
-    if (!as && user)
+    if (!as)
     {
-        as = get_current_address_space();
+        as = user ? get_current_address_space() : &kernel_address_space;
+        assert(as != nullptr);
     }
-    else if (!user)
-        as = &kernel_address_space;
 
     unsigned int indices[x86_max_paging_levels];
 
@@ -466,16 +463,24 @@ bool x86_get_pt_entry_with_ptables(void *addr, uint64_t **entry_ptr, struct mm_a
     return true;
 }
 
-int paging_clone_as(struct mm_address_space *addr_space)
+/**
+ * @brief Clone the architecture specific part of an address space
+ *
+ * @param addr_space The new address space
+ * @param original The original address space
+ * @return 0 on success, negative error codes
+ */
+int paging_clone_as(mm_address_space *addr_space, mm_address_space *original)
 {
+    scoped_mutex g{original->vm_lock};
     PML *new_pml = alloc_pt();
     if (!new_pml)
-        return -1;
+        return -ENOMEM;
 
     addr_space->page_tables_size = PAGE_SIZE;
 
     PML *p = (PML *) PHYS_TO_VIRT(new_pml);
-    PML *curr = (PML *) ((uint64_t) get_current_pml4() + PHYS_BASE);
+    PML *curr = (PML *) PHYS_TO_VIRT(original->arch_mmu.cr3);
     /* Copy the upper 256 entries of the PML in order to map
      * the kernel in the process's address space
      */
@@ -1050,7 +1055,8 @@ struct tlb_invalidation_tracker
 
     void add_page(unsigned long vaddr, size_t size)
     {
-        /* If we've already started on a run of pages and this one is contiguous, just set the tail
+        /* If we've already started on a run of pages and this one is contiguous, just set the
+         * tail
          */
         if (is_started && virt_end == vaddr)
         {
@@ -1200,7 +1206,8 @@ static int x86_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterator 
     /* We can know that the table is 100% empty if we ran through the table */
     bool unmapped_whole_table = index == 0 && i == PAGE_TABLE_ENTRIES;
 
-    /* Don't bother to free the PML or even check if it's empty if we're the top paging structure */
+    /* Don't bother to free the PML or even check if it's empty if we're the top paging
+     * structure */
     if (pt_level != x86_paging_levels - 1 && (unmapped_whole_table || pml_is_empty(table)))
     {
         return MMU_UNMAP_CAN_FREE_PML;
@@ -1343,4 +1350,16 @@ void mmu_verify_address_space_accounting(mm_address_space *as)
 
     assert(acct.page_table_size == as->page_tables_size);
     assert(acct.resident_set_size == as->resident_set_size);
+}
+
+void x86_remap_top_pgd_to_top_pgd(unsigned long source, unsigned long dest)
+{
+    unsigned int indices0[x86_max_paging_levels];
+    unsigned int indices1[x86_max_paging_levels];
+    x86_addr_to_indices(source, indices0);
+    x86_addr_to_indices(dest, indices1);
+    auto top = (PML *) PHYS_TO_VIRT(get_current_pml4());
+    top->entries[indices1[x86_paging_levels - 1]] = top->entries[indices0[x86_paging_levels - 1]];
+    top->entries[indices0[x86_paging_levels - 1]] = 0;
+    __native_tlb_invalidate_all();
 }

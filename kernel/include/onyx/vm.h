@@ -1,10 +1,12 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
-#ifndef _VM_H
-#define _VM_H
+#ifndef _ONYX_VM_H
+#define _ONYX_VM_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -23,6 +25,7 @@
 #include <platform/vm.h>
 #include <platform/vm_layout.h>
 
+#include <onyx/memory.hpp>
 #include <onyx/utility.hpp>
 
 #if defined(__i386__)
@@ -191,6 +194,13 @@ struct mm_address_space
         active_mask = cul::move(as.active_mask);
         return *this;
     }
+
+    /**
+     * @brief Creates a new standalone address space
+     *
+     * @return Unique ptr to a mm_address_space, or a negative status code
+     */
+    static expected<unique_ptr<mm_address_space>, int> create();
 };
 
 #define increment_vm_stat(as, name, amount) __sync_add_and_fetch(&as->name, amount)
@@ -200,13 +210,13 @@ struct mm_address_space
  * @brief Initialises the early architecture dependent parts of the VM subsystem.
  *
  */
-void vm_init(void);
+void vm_init();
 
 /**
  * @brief Initialises the architecture independent parts of the VM subsystem.
  *
  */
-void vm_late_init(void);
+void vm_late_init();
 
 /**
  * @brief Allocates a new virtual region in the current address space.
@@ -269,12 +279,13 @@ vm_region *vm_create_region_at(void *addr, size_t pages, uint32_t type, uint64_t
 vm_region *vm_find_region(void *addr);
 
 /**
- * @brief Creats a new address space.
+ * @brief Creates a new address space.
  *
  * @param addr_space A pointer to the new address space.
+ * @param original Original address space - defaults to the current one
  * @return 0 on success, negative on error.
  */
-int vm_clone_as(struct mm_address_space *addr_space);
+int vm_clone_as(mm_address_space *addr_space, mm_address_space *original = nullptr);
 
 /**
  * @brief Fork the current address space into a new address space.
@@ -283,6 +294,22 @@ int vm_clone_as(struct mm_address_space *addr_space);
  * @return 0 on success, negative on error.
  */
 int vm_fork_address_space(struct mm_address_space *addr_space);
+
+/**
+ * @brief Loads an address space
+ *
+ * @param aspace Address space to load
+ * @param cpu CPU we're on
+ */
+void vm_load_aspace(mm_address_space *aspace, unsigned int cpu = -1U);
+
+/**
+ * @brief Sets the current address space, and returns the old one
+ *
+ * @param aspace Address space to set and load
+ * @return The old address space
+ */
+mm_address_space *vm_set_aspace(mm_address_space *aspace);
 
 /**
  * @brief Changes permissions of a memory area.
@@ -300,7 +327,7 @@ int vm_fork_address_space(struct mm_address_space *addr_space);
  *
  * @return void* The fallback pgd.
  */
-void *vm_get_fallback_pgd(void);
+void *vm_get_fallback_pgd();
 
 /**
  * @brief Allocates a range of virtual memory for kernel purposes.
@@ -374,7 +401,7 @@ int vm_sanitize_address(void *address, size_t pages);
  * @return The new mmap base. Note: This is not a valid pointer, but the starting point
  *         for mmap allocations.
  */
-void *vm_gen_mmap_base(void);
+void *vm_gen_mmap_base();
 
 /**
  * @brief Generates a new brk base, taking into account arch-dependent addresses and possibly KASLR.
@@ -382,13 +409,13 @@ void *vm_gen_mmap_base(void);
  * @return The new brk base. Note: This is not a valid pointer, but the starting point
  *         for brk allocations.
  */
-void *vm_gen_brk_base(void);
+void *vm_gen_brk_base();
 
 /**
  * @brief Initialises sysfs nodes for the vm subsystem.
  *
  */
-void vm_sysfs_init(void);
+void vm_sysfs_init();
 
 extern "C"
 {
@@ -521,7 +548,7 @@ int vm_flush(struct vm_region *entry, unsigned int flags, unsigned int rwx);
  * @brief Traverses the kernel's memory map and prints information.
  *
  */
-void vm_print_map(void);
+void vm_print_map();
 
 /**
  * @brief Traverses the current process's memory map and prints information.
@@ -818,14 +845,14 @@ void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots
  * @brief Loads the fallback paging tables.
  *
  */
-void vm_switch_to_fallback_pgd(void);
+void vm_switch_to_fallback_pgd();
 
 /**
  * @brief Retrieves a pointer to the zero page.
  *
  * @return Pointer to the zero page's struct page.
  */
-struct page *vm_get_zero_page(void);
+struct page *vm_get_zero_page();
 
 /**
  * @brief Transforms a file-backed region into an anonymously backed one.

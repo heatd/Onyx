@@ -113,6 +113,7 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *tp)
         new_thread->addr_limit = VM_USER_ADDR_LIMIT;
 
         new_thread->owner = get_current_process();
+        new_thread->set_aspace(&get_current_process()->address_space);
     }
     else
     {
@@ -120,6 +121,7 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *tp)
 
         // Set trampoline as the starting RIP
         regs->epc = (unsigned long) riscv::internal::kernel_thread_start;
+        new_thread->set_aspace(&kernel_address_space);
     }
 
     cputime_info_init(new_thread);
@@ -219,6 +221,13 @@ void arch_load_thread(thread *thread, unsigned int cpu)
     {
         restore_fpu(thread->fpu_area);
     }
+    else
+    {
+        // If we're a kernel thread, load the address space if its not &kernel_address_space
+        // since it may be a special one like efi_aspace
+        // This is not done for user threads since those get loaded later on
+        vm_load_arch_mmu(&thread->get_aspace()->arch_mmu);
+    }
 
     // Note: We know that abi data is guaranteed to be the first member of tp, so we can use it as
     // an address
@@ -230,7 +239,7 @@ void arch_load_thread(thread *thread, unsigned int cpu)
 
 void arch_load_process(process *process, thread *thread, unsigned int cpu)
 {
-    vm_load_arch_mmu(&process->address_space.arch_mmu);
+    vm_load_arch_mmu(&thread->get_aspace()->arch_mmu);
     process->address_space.active_mask.set_cpu_atomic(cpu);
 }
 

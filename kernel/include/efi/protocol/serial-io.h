@@ -1,0 +1,104 @@
+// Copyright 2020 The Fuchsia Authors
+//
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file or at
+// https://opensource.org/licenses/MIT
+
+#ifndef ZIRCON_KERNEL_LIB_EFI_INCLUDE_EFI_PROTOCOL_SERIAL_IO_H_
+#define ZIRCON_KERNEL_LIB_EFI_INCLUDE_EFI_PROTOCOL_SERIAL_IO_H_
+
+#include <onyx/compiler.h>
+
+#include <efi/types.h>
+
+__BEGIN_CDECLS
+
+#define EFI_SERIAL_IO_PROTOCOL_GUID                        \
+    {                                                      \
+        0xBB25CF6F, 0xF1D4, 0x11D2,                        \
+        {                                                  \
+            0x9a, 0x0c, 0x00, 0x90, 0x27, 0x3f, 0xc1, 0xfd \
+        }                                                  \
+    }
+extern const EFI_GUID SerialIoProtocol;
+
+#define EFI_SERIAL_TERMINAL_DEVICE_TYPE_GUID               \
+    {                                                      \
+        0x6ad9a60f, 0x5815, 0x4c7c,                        \
+        {                                                  \
+            0x8a, 0x10, 0x50, 0x53, 0xd2, 0xbf, 0x7a, 0x1b \
+        }                                                  \
+    }
+
+#define EFI_SERIAL_IO_PROTOCOL_REVISION    0x00010000
+#define EFI_SERIAL_IO_PROTOCOL_REVISION1p1 0x00010001
+
+//
+// Control bits.
+//
+#define EFI_SERIAL_CLEAR_TO_SEND                0x0010
+#define EFI_SERIAL_DATA_SET_READY               0x0020
+#define EFI_SERIAL_RING_INDICATE                0x0040
+#define EFI_SERIAL_CARRIER_DETECT               0x0080
+#define EFI_SERIAL_REQUEST_TO_SEND              0x0002
+#define EFI_SERIAL_DATA_TERMINAL_READY          0x0001
+#define EFI_SERIAL_INPUT_BUFFER_EMPTY           0x0100
+#define EFI_SERIAL_OUTPUT_BUFFER_EMPTY          0x0200
+#define EFI_SERIAL_HARDWARE_LOOPBACK_ENABLE     0x1000
+#define EFI_SERIAL_SOFTWARE_LOOPBACK_ENABLE     0x2000
+#define EFI_SERIAL_HARDWARE_FLOW_CONTROL_ENABLE 0x4000
+
+typedef enum EFI_PARITY_TYPE
+{
+    DefaultParity,
+    NoParity,
+    EvenParity,
+    OddParity,
+    MarkParity,
+    SpaceParity
+} EFI_PARITY_TYPE;
+
+typedef enum EFI_STOP_BITS_TYPE
+{
+    DefaultStopBits,
+    OneStopBit,      // 1 stop bit
+    OneFiveStopBits, // 1.5 stop bits
+    TwoStopBits      // 2 stop bits
+} EFI_STOP_BITS_TYPE;
+
+typedef struct serial_io_mode
+{
+    uint32_t ControlMask;
+
+    // current Attributes
+    uint32_t Timeout;
+    uint64_t BaudRate;
+    uint32_t ReceiveFifoDepth;
+    uint32_t DataBits;
+    EFI_PARITY_TYPE Parity;
+    EFI_STOP_BITS_TYPE StopBits;
+} serial_io_mode;
+
+typedef struct EFI_SERIAL_IO_PROTOCOL
+{
+    uint32_t Revision;
+
+    EFI_STATUS (*Reset)(struct EFI_SERIAL_IO_PROTOCOL* self) EFIAPI;
+    EFI_STATUS(*SetAttributes)
+    (struct EFI_SERIAL_IO_PROTOCOL* self, uint64_t BaudRate, uint32_t ReceiveFifoDepth,
+     uint32_t Timeout, EFI_PARITY_TYPE Parity, uint8_t DataBits,
+     EFI_STOP_BITS_TYPE StopBits) EFIAPI;
+    EFI_STATUS (*SetControl)(struct EFI_SERIAL_IO_PROTOCOL* self, uint32_t Control) EFIAPI;
+    EFI_STATUS (*GetControl)(struct EFI_SERIAL_IO_PROTOCOL* self, uint32_t* Control) EFIAPI;
+    EFI_STATUS(*Write)
+    (struct EFI_SERIAL_IO_PROTOCOL* self, uint64_t* BufferSize, void* Buffer) EFIAPI;
+    EFI_STATUS(*Read)
+    (struct EFI_SERIAL_IO_PROTOCOL* self, uint64_t* BufferSize, void* Buffer) EFIAPI;
+
+    serial_io_mode* Mode;
+    const struct elf_guid* DeviceTypeGuid; // Revision 1.1
+} EFI_SERIAL_IO_PROTOCOL;
+
+__END_CDECLS
+
+#endif // ZIRCON_KERNEL_LIB_EFI_INCLUDE_EFI_PROTOCOL_SERIAL_IO_H_

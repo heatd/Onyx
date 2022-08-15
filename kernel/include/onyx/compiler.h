@@ -137,4 +137,18 @@ inline void write_once(const Type& t, Type val)
 
 #define UNREACHABLE() __builtin_unreachable()
 
+#ifdef __cplusplus
+#define __BEGIN_CDECLS \
+    extern "C"         \
+    {
+#else
+#define __BEGIN_CDECLS
+#endif
+
+#ifdef __cplusplus
+#define __END_CDECLS }
+#else
+#define __END_CDECLS
+#endif
+
 #endif /* COMPILER_H */

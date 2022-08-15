@@ -316,11 +316,18 @@ bool arm64_get_pt_entry_with_ptables(void *addr, uint64_t **entry_ptr, struct mm
     return true;
 }
 
-int paging_clone_as(struct mm_address_space *addr_space)
+/**
+ * @brief Clone the architecture specific part of an address space
+ *
+ * @param addr_space The new address space
+ * @param original The original address space
+ * @return 0 on success, negative error codes
+ */
+int paging_clone_as(mm_address_space *addr_space, mm_address_space *original)
 {
     PML *new_pml = alloc_pt();
     if (!new_pml)
-        return -1;
+        return -ENOMEM;
 
     addr_space->page_tables_size = PAGE_SIZE;
 

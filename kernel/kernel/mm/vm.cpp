@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2016-2021 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #include <assert.h>
@@ -285,7 +287,7 @@ void heap_set_start(uintptr_t start);
  * @brief Initialises the architecture independent parts of the VM subsystem.
  *
  */
-void vm_late_init(void)
+void vm_late_init()
 {
     /* TODO: This should be arch specific stuff, move this to arch/ */
     uintptr_t heap_addr_no_aslr = heap_addr;
@@ -734,18 +736,13 @@ struct vm_region *vm_find_region(void *addr)
  * @param addr_space A pointer to the new address space.
  * @return 0 on success, negative on error.
  */
-int vm_clone_as(struct mm_address_space *addr_space)
+int vm_clone_as(mm_address_space *addr_space, mm_address_space *original)
 {
-    __vm_lock(false);
-    /* Create a new address space */
-    if (paging_clone_as(addr_space) < 0)
-    {
-        __vm_unlock(false);
-        return -1;
-    }
-
-    __vm_unlock(false);
-    return 0;
+    if (!original)
+        original = get_current_address_space();
+    if (!original)
+        original = &kernel_address_space;
+    return paging_clone_as(addr_space, original);
 }
 
 /**
@@ -2244,7 +2241,7 @@ void vm_destroy_addr_space(struct mm_address_space *mm)
  * @brief Loads the fallback paging tables.
  *
  */
-void vm_switch_to_fallback_pgd(void)
+void vm_switch_to_fallback_pgd()
 {
     assert(sched_is_preemption_disabled() == true);
 
@@ -2277,7 +2274,7 @@ int vm_sanitize_address(void *address, size_t pages)
  * @return The new mmap base. Note: This is not a valid pointer, but the starting point
  *         for mmap allocations.
  */
-void *vm_gen_mmap_base(void)
+void *vm_gen_mmap_base()
 {
     uintptr_t mmap_base = arch_mmap_base;
 #ifdef CONFIG_ASLR
@@ -2297,7 +2294,7 @@ void *vm_gen_mmap_base(void)
  * @return The new brk base. Note: This is not a valid pointer, but the starting point
  *         for brk allocations.
  */
-void *vm_gen_brk_base(void)
+void *vm_gen_brk_base()
 {
     uintptr_t brk_base = arch_brk_base;
 #ifdef CONFIG_ASLR
@@ -2829,7 +2826,7 @@ void validate_free(void *p)
  *
  * @return void* The fallback pgd.
  */
-void *vm_get_fallback_pgd(void)
+void *vm_get_fallback_pgd()
 {
     return vm_get_pgd(&kernel_address_space.arch_mmu);
 }
@@ -3678,7 +3675,7 @@ out:
  *
  * @return Pointer to the zero page's struct page.
  */
-struct page *vm_get_zero_page(void)
+struct page *vm_get_zero_page()
 {
     return vm_zero_page;
 }
@@ -3689,4 +3686,50 @@ int sys_msync(void *ptr, size_t length, int flags)
         return 0; // NOOP
 
     return -ENOSYS;
+}
+
+expected<unique_ptr<mm_address_space>, int> mm_address_space::create()
+{
+    unique_ptr<mm_address_space> as = make_unique<mm_address_space>();
+    if (!as)
+        return unexpected<int>{-ENOENT};
+    int st = vm_clone_as(as.get());
+    if (st < 0)
+        return unexpected<int>{st};
+    return as;
+}
+
+/**
+ * @brief Loads an address space
+ *
+ * @param aspace Address space to load
+ * @param cpu CPU we're on
+ */
+void vm_load_aspace(mm_address_space *aspace, unsigned int cpu)
+{
+    vm_load_arch_mmu(&aspace->arch_mmu);
+    if (cpu == -1U) [[unlikely]]
+        cpu = get_cpu_nr();
+    aspace->active_mask.set_cpu_atomic(cpu);
+}
+
+/**
+ * @brief Sets the current address space, and returns the old one
+ *
+ * @param aspace Address space to set and load
+ * @return The old address space
+ */
+mm_address_space *vm_set_aspace(mm_address_space *aspace)
+{
+    mm_address_space *ret = &kernel_address_space;
+    auto thread = get_current_thread();
+    if (thread)
+    {
+        ret = thread->get_aspace();
+        thread->set_aspace(aspace);
+    }
+
+    vm_load_aspace(aspace);
+
+    return ret;
 }

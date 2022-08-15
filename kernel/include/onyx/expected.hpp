@@ -73,6 +73,13 @@ public:
         return !_has_value;
     }
 
+    constexpr _Type&& unwrap()
+    {
+        if (!_has_value)
+            panic("Expected %p does not have a value\n", this);
+        return cul::move(t);
+    }
+
     constexpr _Type&& value()
     {
         assert(has_value() == true);

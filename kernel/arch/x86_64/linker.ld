@@ -131,12 +131,15 @@ SECTIONS
 		*(.gnu.linkonce.d*)
 	} : data
 
+	_bss_start = .;
 	.bss : AT(ADDR(.bss) - VIRT_BASE)
 	{
 		*(COMMON*)
 		*(.bss*)
 		*(.gnu.linkonce.b*)
 	} : data
+	_bss_end = .;
+	_bss_size = _bss_end - _bss_start;
 
 	. = ALIGN(0x1000);
 

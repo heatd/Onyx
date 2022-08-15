@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2019 Pedro Falcato
- * This file is part of Carbon, and is released under the terms of the MIT License
+ * Copyright (c) 2019 - 2022 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 /* utf8.h - Contains conversions routines from utf8 to utf32 and vice-versa */
@@ -15,6 +17,7 @@
 #include <onyx/compiler.h>
 
 typedef uint32_t utf32_t;
+typedef uint16_t utf16_t;
 typedef uint8_t utf8_t;
 
 #define UTF8_ONE_BYTE                     0x00
@@ -36,6 +39,8 @@ typedef uint8_t utf8_t;
 #define UTF_ERROR_SURROGATE     (size_t) - 1
 #define UTF_ERROR_OVERLONG      (size_t) - 2
 #define UTF_ERROR_BAD_CODEPOINT (size_t) - 3
+
+#define UTF_IS_ERROR(ret) ((ssize_t) ret < 0)
 
 #define UTF_CONV_ERROR_RET            \
     {                                 \
@@ -186,6 +191,34 @@ static size_t utf32to8(struct utf8_output *out, utf32_t codepoint)
         out->bytes[1] = UTF8_CONTINUATION | ((codepoint >> 12) & UTF8_CONTINUATION_BYTE_VALID_MASK);
         out->bytes[0] = UTF8_FOUR_BYTES | ((codepoint >> 18) & UTF8_FOUR_BYTES_FIRST_VALID_MASK);
         return 4;
+    }
+
+    __builtin_unreachable();
+}
+
+static size_t ucs2to8(struct utf8_output *out, utf16_t codepoint)
+{
+    size_t nr_bytes;
+    if (utf8_is_surrogate(codepoint))
+        return UTF_ERROR_SURROGATE;
+
+    if (codepoint < 0x80)
+        nr_bytes = 1;
+    else if (codepoint < 0x800)
+        nr_bytes = 2;
+    else
+        return UTF_ERROR_BAD_CODEPOINT;
+
+    if (nr_bytes == 1)
+    {
+        out->bytes[0] = (utf8_t) codepoint;
+        return 1;
+    }
+    else if (nr_bytes == 2)
+    {
+        out->bytes[1] = UTF8_CONTINUATION | (codepoint & UTF8_CONTINUATION_BYTE_VALID_MASK);
+        out->bytes[0] = UTF8_TWO_BYTES | ((codepoint >> 6) & UTF8_TWO_BYTES_FIRST_VALID_MASK);
+        return 2;
     }
 
     __builtin_unreachable();
