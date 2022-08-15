@@ -98,20 +98,27 @@ static int print_escape_str(const char *f, int *param, int *array, char *s)
 	int total;
 
 	setstackmark(&smark);
-	done = conv_escape_str(s, &p);
-	q = stackblock();
-	len = p - q;
+	done = conv_escape_str(s, &q);
+	p = stackblock();
+	len = q - p;
+	total = len - 1;
 
-	p = makestrspace(len, p);
-	memset(p, 'X', len - 1);
-	p[len - 1] = 0;
+	q[-1] = (!!((f[1] - 's') | done) - 1) & f[2];
+	total += !!q[-1];
+	if (f[1] == 's')
+		goto easy;
+
+	p = makestrspace(len, q);
+	memset(p, 'X', total);
+	p[total] = 0;
 
 	q = stackblock();
 	total = ASPF(&p, f, p);
 
 	len = strchrnul(p, 'X') - p;
-	memcpy(p + len, q, strchrnul(p + len, ' ') - (p + len));
+	memcpy(p + len, q, strspn(p + len, "X"));
 
+easy:
 	out1mem(p, total);
 
 	popstackmark(&smark);
@@ -209,6 +216,7 @@ pc:
 				if (print_escape_str(start, param, array,
 						     getstr()))
 					goto out;
+				*fmt = 'b';
 				break;
 			case 'c': {
 				int p = getchr();
@@ -449,21 +457,22 @@ check_conversion(const char *s, const char *ep)
 int
 echocmd(int argc, char **argv)
 {
+	const char *lastfmt = snlfmt;
 	int nonl;
 
-	nonl = *++argv ? equal(*argv, "-n") : 0;
-	argv += nonl;
+	if (*++argv && equal(*argv, "-n")) {
+		argv++;
+		lastfmt = "%s";
+	}
 
 	do {
-		int c;
+		const char *fmt = "%s ";
+		char *s = *argv;
 
-		if (likely(*argv))
-			nonl += print_escape_str("%s", NULL, NULL, *argv++);
-		if (likely((nonl + !*argv) > 1))
-			break;
+		if (!s || !*++argv)
+			fmt = lastfmt;
 
-		c = *argv ? ' ' : '\n';
-		out1c(c);
-	} while (*argv);
+		nonl = print_escape_str(fmt, NULL, NULL, s ?: nullstr);
+	} while (!nonl && *argv);
 	return 0;
 }

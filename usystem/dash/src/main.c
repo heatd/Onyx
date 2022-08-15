@@ -71,6 +71,7 @@ int *dash_errno;
 short profile_buf[16384];
 extern int etext();
 #endif
+MKINIT struct jmploc main_handler;
 
 STATIC void read_profile(const char *);
 STATIC char *find_dot_file(char *);
@@ -90,7 +91,6 @@ main(int argc, char **argv)
 {
 	char *shinit;
 	volatile int state;
-	struct jmploc jmploc;
 	struct stackmark smark;
 	int login;
 
@@ -102,17 +102,19 @@ main(int argc, char **argv)
 	monitor(4, etext, profile_buf, sizeof profile_buf, 50);
 #endif
 	state = 0;
-	if (unlikely(setjmp(jmploc.loc))) {
+	if (unlikely(setjmp(main_handler.loc))) {
 		int e;
 		int s;
 
-		reset();
+		exitreset();
 
 		e = exception;
 
 		s = state;
-		if (e == EXEXIT || s == 0 || iflag == 0 || shlvl)
+		if (e == EXEND || e == EXEXIT || s == 0 || iflag == 0 || shlvl)
 			exitshell();
+
+		reset();
 
 		if (e == EXINT
 #if ATTY
@@ -135,7 +137,7 @@ main(int argc, char **argv)
 		else
 			goto state4;
 	}
-	handler = &jmploc;
+	handler = &main_handler;
 #ifdef DEBUG
 	opentrace();
 	trputs("Shell args:  ");  trargs(argv);
@@ -219,8 +221,15 @@ cmdloop(int top)
 			if (!top || numeof >= 50)
 				break;
 			if (!stoppedjobs()) {
-				if (!Iflag)
+				if (!Iflag) {
+					if (iflag) {
+						out2c('\n');
+#ifdef FLUSHERR
+						flushout(out2);
+#endif
+					}
 					break;
+				}
 				out2str("\nUse \"exit\" to leave shell.\n");
 			}
 			numeof++;
@@ -289,21 +298,20 @@ find_dot_file(char *basename)
 {
 	char *fullname;
 	const char *path = pathval();
-	struct stat statb;
+	struct stat64 statb;
+	int len;
 
 	/* don't try this for absolute or relative paths */
 	if (strchr(basename, '/'))
 		return basename;
 
-	while ((fullname = padvance(&path, basename)) != NULL) {
-		if ((stat(fullname, &statb) == 0) && S_ISREG(statb.st_mode)) {
-			/*
-			 * Don't bother freeing here, since it will
-			 * be freed by the caller.
-			 */
-			return fullname;
+	while ((len = padvance(&path, basename)) >= 0) {
+		fullname = stackblock();
+		if ((!pathopt || *pathopt == 'f') &&
+		    !stat64(fullname, &statb) && S_ISREG(statb.st_mode)) {
+			/* This will be freed by the caller. */
+			return stalloc(len);
 		}
-		stunalloc(fullname);
 	}
 
 	/* not found in the PATH */
@@ -339,14 +347,17 @@ exitcmd(int argc, char **argv)
 	if (stoppedjobs())
 		return 0;
 
-	if (argc > 1) {
-		int status = number(argv[1]);
-
-		exitstatus = status;
-		if (savestatus >= 0)
-			savestatus = status;
-	}
+	if (argc > 1)
+		savestatus = number(argv[1]);
 
 	exraise(EXEXIT);
 	/* NOTREACHED */
 }
+
+#ifdef mkinit
+INCLUDE "error.h"
+
+FORKRESET {
+	handler = &main_handler;
+}
+#endif

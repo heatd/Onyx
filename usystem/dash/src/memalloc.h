@@ -35,6 +35,7 @@
  */
 
 #include <stddef.h>
+#include <stdlib.h>
 
 struct stackmark {
 	struct stack_block *stackp;
@@ -55,8 +56,8 @@ void stunalloc(pointer);
 void pushstackmark(struct stackmark *mark, size_t len);
 void setstackmark(struct stackmark *);
 void popstackmark(struct stackmark *);
-void growstackblock(void);
 void *growstackstr(void);
+char *growstackto(size_t len);
 char *makestrspace(size_t, char *);
 char *stnputs(const char *, size_t, char *);
 char *stputs(const char *, char *);

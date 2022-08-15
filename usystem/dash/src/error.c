@@ -43,6 +43,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "jobs.h"
 #include "shell.h"
 #include "main.h"
 #include "options.h"
@@ -81,6 +82,10 @@ exraise(int e)
 	if (handler == NULL)
 		abort();
 #endif
+
+	if (vforked)
+		_exit(exitstatus);
+
 	INTOFF;
 
 	exception = e;

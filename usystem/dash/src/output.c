@@ -71,27 +71,27 @@
 
 #ifdef USE_GLIBC_STDIO
 struct output output = {
-	stream: 0, nextc: 0, end: 0, buf: 0, bufsize: 0, fd: 1, flags: 0
+	.stream = 0, .nextc = 0, .end = 0, .buf = 0, .bufsize = 0, .fd = 1, .flags = 0
 };
 struct output errout = {
-	stream: 0, nextc: 0, end: 0, buf: 0, bufsize: 0, fd: 2, flags: 0
+	.stream = 0, .nextc = 0, .end = 0, .buf = 0, .bufsize = 0, .fd = 2, .flags = 0
 }
 #ifdef notyet
 struct output memout = {
-	stream: 0, nextc: 0, end: 0, buf: 0, bufsize: 0, fd: MEM_OUT, flags: 0
+	.stream = 0, .nextc = 0, .end = 0, .buf = 0, .bufsize = 0, .fd = MEM_OUT, .flags = 0
 };
 #endif
 #else
 struct output output = {
-	nextc: 0, end: 0, buf: 0, bufsize: OUTBUFSIZ, fd: 1, flags: 0
+	.nextc = 0, .end = 0, .buf = 0, .bufsize = OUTBUFSIZ, .fd = 1, .flags = 0
 };
 struct output errout = {
-	nextc: 0, end: 0, buf: 0, bufsize: 0, fd: 2, flags: 0
+	.nextc = 0, .end = 0, .buf = 0, .bufsize = 0, .fd = 2, .flags = 0
 };
 struct output preverrout;
 #ifdef notyet
 struct output memout = {
-	nextc: 0, end: 0, buf: 0, bufsize: 0, fd: MEM_OUT, flags: 0
+	.nextc = 0, .end = 0, .buf = 0, .bufsize = 0, .fd = MEM_OUT, .flags = 0
 };
 #endif
 #endif
@@ -286,7 +286,7 @@ fmtstr(char *outbuf, size_t length, const char *fmt, ...)
 	va_start(ap, fmt);
 	ret = xvsnprintf(outbuf, length, fmt, ap);
 	va_end(ap);
-	return ret;
+	return ret > (int)length ? length : ret;
 }
 
 

@@ -83,6 +83,8 @@ struct job {
 	struct job *prev_job;	/* previous job */
 };
 
+union node;
+
 extern pid_t backgndpid;	/* pid of last background process */
 extern int job_warning;		/* user was warned about stopped jobs */
 #if JOBS
@@ -90,6 +92,7 @@ extern int jobctl;		/* true if doing job control */
 #else
 #define jobctl 0
 #endif
+extern int vforked;		/* Set if we are in the vforked child */
 
 void setjobctl(int);
 int killcmd(int, char **);
@@ -101,6 +104,7 @@ void showjobs(struct output *, int);
 int waitcmd(int, char **);
 struct job *makejob(union node *, int);
 int forkshell(struct job *, union node *, int);
+struct job *vforkexec(union node *n, char **argv, const char *path, int idx);
 int waitforjob(struct job *);
 int stoppedjobs(void);
 

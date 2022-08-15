@@ -56,13 +56,15 @@ struct cmdentry {
 #define DO_ABS		0x02	/* checks absolute paths */
 #define DO_NOFUNC	0x04	/* don't return shell functions, for command */
 #define DO_ALTPATH	0x08	/* using alternate path */
-#define DO_ALTBLTIN	0x20	/* %builtin in alt. path */
+#define DO_REGBLTIN	0x10	/* regular built-ins and functions only */
+
+union node;
 
 extern const char *pathopt;	/* set by padvance */
 
 void shellexec(char **, const char *, int)
     __attribute__((__noreturn__));
-char *padvance(const char **, const char *);
+int padvance_magic(const char **path, const char *name, int magic);
 int hashcmd(int, char **);
 void find_command(char *, struct cmdentry *, int, const char *);
 struct builtincmd *find_builtin(const char *);
@@ -75,3 +77,8 @@ void defun(union node *);
 void unsetfunc(const char *);
 int typecmd(int, char **);
 int commandcmd(int, char **);
+
+static inline int padvance(const char **path, const char *name)
+{
+	return padvance_magic(path, name, 1);
+}

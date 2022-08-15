@@ -36,8 +36,17 @@
 
 static inline void sigclearmask(void)
 {
-#ifdef HAVE_SIGSETMASK
+#if defined(HAVE_SIGSETMASK) && \
+    (!defined(__GLIBC__) || \
+     (defined(__GNUC__) && (__GNUC__ * 1000 + __GNUC_MINOR__) >= 4006))
+#ifdef __GLIBC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
 	sigsetmask(0);
+#ifdef __GLIBC__
+#pragma GCC diagnostic pop
+#endif
 #else
 	sigset_t set;
 	sigemptyset(&set);

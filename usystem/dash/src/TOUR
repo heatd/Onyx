@@ -100,7 +100,7 @@ string was going to be:
         p = stackptr;
         *p++ = c;       /* repeated as many times as needed */
         stackptr = p;
-The folloing three macros (defined in memalloc.h) perform these
+The following three macros (defined in memalloc.h) perform these
 operations, but grow the stack if you run off the end:
         STARTSTACKSTR(p);
         STPUTC(c, p);   /* repeated as many times as needed */
@@ -198,7 +198,7 @@ EXECUTION:  Command execution is handled by the following files:
         eval.c     The top level routines.
         redir.c    Code to handle redirection of input and output.
         jobs.c     Code to handle forking, waiting, and job control.
-        exec.c     Code to to path searches and the actual exec sys call.
+        exec.c     Code to path searches and the actual exec sys call.
         expand.c   Code to evaluate arguments.
         var.c      Maintains the variable symbol table.  Called from expand.c.
 

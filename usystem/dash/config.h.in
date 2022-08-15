@@ -82,6 +82,9 @@
 /* Define to 1 if you have the `strtoumax' function. */
 #undef HAVE_STRTOUMAX
 
+/* Define if your `struct stat' has `st_mtim' */
+#undef HAVE_ST_MTIM
+
 /* Define to 1 if you have the `sysconf' function. */
 #undef HAVE_SYSCONF
 
@@ -242,6 +245,9 @@
 #undef _PATH_TTY
 
 /* 64-bit operations are the same as 32-bit */
+#undef dirent64
+
+/* 64-bit operations are the same as 32-bit */
 #undef fstat64
 
 /* 64-bit operations are the same as 32-bit */
@@ -249,6 +255,9 @@
 
 /* 64-bit operations are the same as 32-bit */
 #undef open64
+
+/* 64-bit operations are the same as 32-bit */
+#undef readdir64
 
 /* klibc has bsd_signal instead of signal */
 #undef signal

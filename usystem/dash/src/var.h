@@ -100,12 +100,8 @@ extern struct var varinit[];
 #define vhistsize (&vterm)[1]
 #endif
 
-#ifdef IFS_BROKEN
-extern const char defifsvar[];
+extern char defifsvar[];
 #define defifs (defifsvar + 4)
-#else
-extern const char defifs[];
-#endif
 extern const char defpathvar[];
 #define defpath (defpathvar + 36)
 
@@ -143,7 +139,6 @@ struct var *setvar(const char *name, const char *val, int flags);
 intmax_t setvarint(const char *, intmax_t, int);
 struct var *setvareq(char *s, int flags);
 struct strlist;
-void listsetvar(struct strlist *, int);
 char *lookupvar(const char *);
 intmax_t lookupvarint(const char *);
 char **listvars(int, int, char ***);
@@ -151,9 +146,8 @@ char **listvars(int, int, char ***);
 int showvars(const char *, int, int);
 int exportcmd(int, char **);
 int localcmd(int, char **);
-void mklocal(char *);
-struct localvar_list *pushlocalvars(void);
-void poplocalvars(int);
+void mklocal(char *name, int flags);
+struct localvar_list *pushlocalvars(int push);
 void unwindlocalvars(struct localvar_list *stop);
 int unsetcmd(int, char **);
 void unsetvar(const char *);

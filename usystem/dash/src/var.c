@@ -75,11 +75,7 @@ MKINIT struct localvar_list *localvar_stack;
 
 const char defpathvar[] =
 	"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
-#ifdef IFS_BROKEN
-const char defifsvar[] = "IFS= \t\n";
-#else
-const char defifs[] = " \t\n";
-#endif
+char defifsvar[] = "IFS= \t\n";
 MKINIT char defoptindvar[] = "OPTIND=1";
 
 int lineno;
@@ -90,11 +86,7 @@ struct var varinit[] = {
 #if ATTY
 	{ 0,	VSTRFIXED|VTEXTFIXED|VUNSET,	"ATTY\0",	0 },
 #endif
-#ifdef IFS_BROKEN
 	{ 0,	VSTRFIXED|VTEXTFIXED,		defifsvar,	0 },
-#else
-	{ 0,	VSTRFIXED|VTEXTFIXED|VUNSET,	"IFS\0",	0 },
-#endif
 	{ 0,	VSTRFIXED|VTEXTFIXED|VUNSET,	"MAIL\0",	changemail },
 	{ 0,	VSTRFIXED|VTEXTFIXED|VUNSET,	"MAILPATH\0",	changemail },
 	{ 0,	VSTRFIXED|VTEXTFIXED,		defpathvar,	changepath },
@@ -133,7 +125,7 @@ INIT {
 	char **envp;
 	static char ppid[32] = "PPID=";
 	const char *p;
-	struct stat st1, st2;
+	struct stat64 st1, st2;
 
 	initvar();
 	for (envp = environ ; *envp ; envp++) {
@@ -143,6 +135,7 @@ INIT {
 		}
 	}
 
+	setvareq(defifsvar, VTEXTFIXED);
 	setvareq(defoptindvar, VTEXTFIXED);
 
 	fmtstr(ppid + 5, sizeof(ppid) - 5, "%ld", (long) getppid());
@@ -150,7 +143,7 @@ INIT {
 
 	p = lookupvar("PWD");
 	if (p)
-		if (*p != '/' || stat(p, &st1) || stat(".", &st2) ||
+		if (*p != '/' || stat64(p, &st1) || stat64(".", &st2) ||
 		    st1.st_dev != st2.st_dev || st1.st_ino != st2.st_ino)
 			p = 0;
 	setpwd(p, 0);
@@ -309,28 +302,6 @@ out:
 	return vp;
 }
 
-
-
-/*
- * Process a linked list of variable assignments.
- */
-
-void
-listsetvar(struct strlist *list, int flags)
-{
-	struct strlist *lp;
-
-	lp = list;
-	if (!lp)
-		return;
-	INTOFF;
-	do {
-		setvareq(lp->text, flags);
-	} while ((lp = lp->next));
-	INTON;
-}
-
-
 /*
  * Find the value of a variable.  Returns NULL if not set.
  */
@@ -475,7 +446,7 @@ localcmd(int argc, char **argv)
 
 	argv = argptr;
 	while ((name = *argv++) != NULL) {
-		mklocal(name);
+		mklocal(name, 0);
 	}
 	return 0;
 }
@@ -488,7 +459,7 @@ localcmd(int argc, char **argv)
  * "-" as a special case.
  */
 
-void mklocal(char *name)
+void mklocal(char *name, int flags)
 {
 	struct localvar *lvp;
 	struct var **vpp;
@@ -509,16 +480,16 @@ void mklocal(char *name)
 		eq = strchr(name, '=');
 		if (vp == NULL) {
 			if (eq)
-				vp = setvareq(name, VSTRFIXED);
+				vp = setvareq(name, VSTRFIXED | flags);
 			else
-				vp = setvar(name, NULL, VSTRFIXED);
+				vp = setvar(name, NULL, VSTRFIXED | flags);
 			lvp->flags = VUNSET;
 		} else {
 			lvp->text = vp->text;
 			lvp->flags = vp->flags;
 			vp->flags |= VSTRFIXED|VTEXTFIXED;
 			if (eq)
-				setvareq(name, 0);
+				setvareq(name, flags);
 		}
 	}
 	lvp->vp = vp;
@@ -533,8 +504,8 @@ void mklocal(char *name)
  * Interrupts must be off.
  */
 
-void
-poplocalvars(int keep)
+static void
+poplocalvars(void)
 {
 	struct localvar_list *ll;
 	struct localvar *lvp, *next;
@@ -551,23 +522,7 @@ poplocalvars(int keep)
 		next = lvp->next;
 		vp = lvp->vp;
 		TRACE(("poplocalvar %s\n", vp ? vp->text : "-"));
-		if (keep) {
-			int bits = VSTRFIXED;
-
-			if (lvp->flags != VUNSET) {
-				if (vp->text == lvp->text)
-					bits |= VTEXTFIXED;
-				else if (!(lvp->flags & (VTEXTFIXED|VSTACK)))
-					ckfree(lvp->text);
-			}
-
-			vp->flags &= ~bits;
-			vp->flags |= (lvp->flags & bits);
-
-			if ((vp->flags &
-			     (VEXPORT|VREADONLY|VSTRFIXED|VUNSET)) == VUNSET)
-				unsetvar(vp->text);
-		} else if (vp == NULL) {	/* $- saved */
+		if (vp == NULL) {	/* $- saved */
 			memcpy(optlist, lvp->text, sizeof(optlist));
 			ckfree(lvp->text);
 			optschanged();
@@ -591,25 +546,31 @@ poplocalvars(int keep)
 /*
  * Create a new localvar environment.
  */
-struct localvar_list *pushlocalvars(void)
+struct localvar_list *pushlocalvars(int push)
 {
 	struct localvar_list *ll;
+	struct localvar_list *top;
+
+	top = localvar_stack;
+	if (!push)
+		goto out;
 
 	INTOFF;
 	ll = ckmalloc(sizeof(*ll));
 	ll->lv = NULL;
-	ll->next = localvar_stack;
+	ll->next = top;
 	localvar_stack = ll;
 	INTON;
 
-	return ll->next;
+out:
+	return top;
 }
 
 
 void unwindlocalvars(struct localvar_list *stop)
 {
 	while (localvar_stack != stop)
-		poplocalvars(0);
+		poplocalvars();
 }
 
 

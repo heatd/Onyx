@@ -57,7 +57,6 @@
 #include "error.h"
 
 
-#define REALLY_CLOSED -3	/* fd that was closed and still is */
 #define EMPTY -2		/* marks an unused slot in redirtab */
 #define CLOSED -1		/* fd opened for redir needs to be closed */
 
@@ -77,6 +76,9 @@ struct redirtab {
 
 MKINIT struct redirtab *redirlist;
 
+/* Bit map of currently closed file descriptors. */
+static unsigned closed_redirs;
+
 STATIC int openredirect(union node *);
 #ifdef notyet
 STATIC void dupredirect(union node *, int, char[10]);
@@ -84,6 +86,20 @@ STATIC void dupredirect(union node *, int, char[10]);
 STATIC void dupredirect(union node *, int);
 #endif
 STATIC int openhere(union node *);
+
+
+static unsigned update_closed_redirs(int fd, int nfd)
+{
+	unsigned val = closed_redirs;
+	unsigned bit = 1 << fd;
+
+	if (nfd >= 0)
+		closed_redirs &= ~bit;
+	else
+		closed_redirs |= bit;
+
+	return val & bit;
+}
 
 
 /*
@@ -125,20 +141,20 @@ redirect(union node *redir, int flags)
 		fd = n->nfile.fd;
 
 		if (sv) {
+			int closed;
+
 			p = &sv->renamed[fd];
 			i = *p;
 
+			closed = update_closed_redirs(fd, newfd);
+
 			if (likely(i == EMPTY)) {
 				i = CLOSED;
-				if (fd != newfd) {
+				if (fd != newfd && !closed) {
 					i = savefd(fd, fd);
 					fd = -1;
 				}
 			}
-
-			if (i == newfd)
-				/* Can only happen if i == newfd == CLOSED */
-				i = REALLY_CLOSED;
 
 			*p = i;
 		}
@@ -192,7 +208,7 @@ openredirect(union node *redir)
 			} else if (!S_ISREG(sb.st_mode)) {
 				if ((f = open64(fname, O_WRONLY, 0666)) < 0)
 					goto ecreate;
-				if (fstat64(f, &sb) < 0 && S_ISREG(sb.st_mode)) {
+				if (!fstat64(f, &sb) && S_ISREG(sb.st_mode)) {
 					close(f);
 					errno = EEXIST;
 					goto ecreate;
@@ -346,13 +362,17 @@ popredir(int drop)
 	INTOFF;
 	rp = redirlist;
 	for (i = 0 ; i < 10 ; i++) {
+		int closed;
+
+		if (rp->renamed[i] == EMPTY)
+			continue;
+
+		closed = drop ? 1 : update_closed_redirs(i, rp->renamed[i]);
+
 		switch (rp->renamed[i]) {
 		case CLOSED:
-			if (!drop)
+			if (!closed)
 				close(i);
-			break;
-		case EMPTY:
-		case REALLY_CLOSED:
 			break;
 		default:
 			if (!drop)
@@ -374,11 +394,15 @@ popredir(int drop)
 
 INCLUDE "redir.h"
 
-RESET {
+EXITRESET {
 	/*
 	 * Discard all saved file descriptors.
 	 */
 	unwindredir(0);
+}
+
+FORKRESET {
+	redirlist = NULL;
 }
 
 #endif

@@ -2,12 +2,10 @@ AM_YFLAGS = -d
 
 COMMON_CFLAGS = -Wall
 COMMON_CPPFLAGS = \
-	-include $(top_builddir)/config.h \
-	-DBSD=1 -DSHELL \
-	-DIFS_BROKEN
+	-DBSD=1 -DSHELL
 
 AM_CFLAGS = $(COMMON_CFLAGS)
-AM_CPPFLAGS = $(COMMON_CPPFLAGS)
+AM_CPPFLAGS = -include $(top_builddir)/config.h $(COMMON_CPPFLAGS)
 AM_CFLAGS_FOR_BUILD = -g -O2 $(COMMON_CFLAGS) 
 AM_CPPFLAGS_FOR_BUILD = $(COMMON_CPPFLAGS)
 
@@ -46,27 +44,27 @@ EXTRA_DIST = \
 	mknodes.c nodetypes nodes.c.pat mksyntax.c mksignames.c
 
 token.h token_vars.h: mktokens
-	$(SHELL) $^
+	$(AM_V_GEN)$(SHELL) $^
 
 builtins.def: builtins.def.in $(top_builddir)/config.h
-	$(COMPILE) -E -x c -o $@ $<
+	$(AM_V_CC)$(COMPILE) -E -x c -o $@ $<
 
 builtins.c builtins.h: mkbuiltins builtins.def
-	$(SHELL) $^
+	$(AM_V_GEN)$(SHELL) $^
 
 init.c: mkinit $(dash_CFILES)
-	./$^
+	$(AM_V_GEN)./$^
 
 nodes.c nodes.h: mknodes nodetypes nodes.c.pat
-	./$^
+	$(AM_V_GEN)./$^
 
 syntax.c syntax.h: mksyntax
-	./$^
+	$(AM_V_GEN)./$^
 
 signames.c: mksignames
-	./$^
+	$(AM_V_GEN)./$^
 
 mksyntax: token.h
 
 $(HELPERS): %: %.c
-	$(COMPILE_FOR_BUILD) -o $@ $<
+	$(AM_V_CC)$(COMPILE_FOR_BUILD) -o $@ $<

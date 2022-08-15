@@ -15,16 +15,28 @@
 int timescmd() {
 	struct tms buf;
 	long int clk_tck = sysconf(_SC_CLK_TCK);
+	int mutime, mstime, mcutime, mcstime;
+	double utime, stime, cutime, cstime;
 
 	times(&buf);
-	printf("%dm%fs %dm%fs\n%dm%fs %dm%fs\n",
-	       (int) (buf.tms_utime / clk_tck / 60),
-	       ((double) buf.tms_utime) / clk_tck,
-	       (int) (buf.tms_stime / clk_tck / 60),
-	       ((double) buf.tms_stime) / clk_tck,
-	       (int) (buf.tms_cutime / clk_tck / 60),
-	       ((double) buf.tms_cutime) / clk_tck,
-	       (int) (buf.tms_cstime / clk_tck / 60),
-	       ((double) buf.tms_cstime) / clk_tck);
+
+	utime = (double)buf.tms_utime / clk_tck;
+	mutime = utime / 60;
+	utime -= mutime * 60.0;
+
+	stime = (double)buf.tms_stime / clk_tck;
+	mstime = stime / 60;
+	stime -= mstime * 60.0;
+
+	cutime = (double)buf.tms_cutime / clk_tck;
+	mcutime = cutime / 60;
+	cutime -= mcutime * 60.0;
+
+	cstime = (double)buf.tms_cstime / clk_tck;
+	mcstime = cstime / 60;
+	cstime -= mcstime * 60.0;
+
+	printf("%dm%fs %dm%fs\n%dm%fs %dm%fs\n", mutime, utime, mstime, stime,
+	       mcutime, cutime, mcstime, cstime);
 	return 0;
 }

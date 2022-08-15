@@ -80,6 +80,18 @@ struct heredoc {
 	int striptabs;		/* if set, strip leading tabs */
 };
 
+struct synstack {
+	const char *syntax;
+	struct synstack *prev;
+	struct synstack *next;
+	int innerdq;
+	int varpushed;
+	int dblquote;
+	int varnest;		/* levels of variables expansion */
+	int parenlevel;		/* levels of parens in arithmetic */
+	int dqvarnest;		/* levels of variables expansion within double quotes */
+};
+
 
 
 struct heredoc *heredoclist;	/* list of here documents to read */
@@ -103,17 +115,16 @@ STATIC union node *simplecmd(void);
 STATIC union node *makename(void);
 STATIC void parsefname(void);
 STATIC void parseheredoc(void);
-STATIC int peektoken(void);
 STATIC int readtoken(void);
 STATIC int xxreadtoken(void);
+STATIC int pgetc_eatbnl();
 STATIC int readtoken1(int, char const *, char *, int);
 STATIC void synexpect(int) __attribute__((__noreturn__));
 STATIC void synerror(const char *) __attribute__((__noreturn__));
 STATIC void setprompt(int);
 
 
-static inline int
-isassignment(const char *p)
+int isassignment(const char *p)
 {
 	const char *q = endofname(p);
 	if (p == q)
@@ -149,27 +160,31 @@ parsecmd(int interact)
 STATIC union node *
 list(int nlflag)
 {
+	int chknl = nlflag & 1 ? 0 : CHKNL;
 	union node *n1, *n2, *n3;
 	int tok;
 
 	n1 = NULL;
 	for (;;) {
-		switch (peektoken()) {
+		checkkwd = chknl | CHKKWD | CHKALIAS;
+		tok = readtoken();
+		switch (tok) {
 		case TNL:
-			if (!(nlflag & 1))
-				break;
 			parseheredoc();
 			return n1;
 
 		case TEOF:
-			if (!n1 && (nlflag & 1))
+			if (!n1 && !chknl)
 				n1 = NEOF;
+out_eof:
 			parseheredoc();
+			tokpushback++;
+			lasttoken = TEOF;
 			return n1;
 		}
 
-		checkkwd = CHKNL | CHKKWD | CHKALIAS;
-		if (nlflag == 2 && tokendlist[peektoken()])
+		tokpushback++;
+		if (nlflag == 2 && tokendlist[tok])
 			return n1;
 		nlflag |= 2;
 
@@ -199,15 +214,16 @@ list(int nlflag)
 			n1 = n3;
 		}
 		switch (tok) {
-		case TNL:
 		case TEOF:
+			goto out_eof;
+		case TNL:
 			tokpushback++;
 			/* fall through */
 		case TBACKGND:
 		case TSEMI:
 			break;
 		default:
-			if ((nlflag & 1))
+			if (!chknl)
 				synexpect(-1);
 			tokpushback++;
 			return n1;
@@ -656,8 +672,10 @@ parseheredoc(void)
 		if (needprompt) {
 			setprompt(2);
 		}
-		readtoken1(pgetc(), here->here->type == NHERE? SQSYNTAX : DQSYNTAX,
-				here->eofmark, here->striptabs);
+		if (here->here->type == NHERE)
+			readtoken1(pgetc(), SQSYNTAX, here->eofmark, here->striptabs);
+		else
+			readtoken1(pgetc_eatbnl(), DQSYNTAX, here->eofmark, here->striptabs);
 		n = (union node *)stalloc(sizeof (struct narg));
 		n->narg.type = NARG;
 		n->narg.next = NULL;
@@ -666,16 +684,6 @@ parseheredoc(void)
 		here->here->nhere.doc = n;
 		here = here->next;
 	}
-}
-
-STATIC int
-peektoken(void)
-{
-	int t;
-
-	t = readtoken();
-	tokpushback++;
-	return (t);
 }
 
 STATIC int
@@ -696,9 +704,13 @@ top:
 	if (kwd & CHKNL) {
 		while (t == TNL) {
 			parseheredoc();
+			checkkwd = 0;
 			t = xxreadtoken();
 		}
 	}
+
+	kwd |= checkkwd;
+	checkkwd = 0;
 
 	if (t != TWORD || quoteflag) {
 		goto out;
@@ -717,7 +729,7 @@ top:
 		}
 	}
 
-	if (checkkwd & CHKALIAS) {
+	if (kwd & CHKALIAS) {
 		struct alias *ap;
 		if ((ap = lookupalias(wordtext, 1)) != NULL) {
 			if (*ap->val) {
@@ -727,7 +739,6 @@ top:
 		}
 	}
 out:
-	checkkwd = 0;
 #ifdef DEBUG
 	if (!alreadyseen)
 	    TRACE(("token %s %s\n", tokname[t], t == TWORD ? wordtext : ""));
@@ -782,7 +793,7 @@ xxreadtoken(void)
 		setprompt(2);
 	}
 	for (;;) {	/* until token or start of word found */
-		c = pgetc();
+		c = pgetc_eatbnl();
 		switch (c) {
 		case ' ': case '\t':
 		case PEOA:
@@ -791,30 +802,23 @@ xxreadtoken(void)
 			while ((c = pgetc()) != '\n' && c != PEOF);
 			pungetc();
 			continue;
-		case '\\':
-			if (pgetc() == '\n') {
-				nlprompt();
-				continue;
-			}
-			pungetc();
-			goto breakloop;
 		case '\n':
 			nlnoprompt();
 			RETURN(TNL);
 		case PEOF:
 			RETURN(TEOF);
 		case '&':
-			if (pgetc() == '&')
+			if (pgetc_eatbnl() == '&')
 				RETURN(TAND);
 			pungetc();
 			RETURN(TBACKGND);
 		case '|':
-			if (pgetc() == '|')
+			if (pgetc_eatbnl() == '|')
 				RETURN(TOR);
 			pungetc();
 			RETURN(TPIPE);
 		case ';':
-			if (pgetc() == ';')
+			if (pgetc_eatbnl() == ';')
 				RETURN(TENDCASE);
 			pungetc();
 			RETURN(TSEMI);
@@ -822,11 +826,9 @@ xxreadtoken(void)
 			RETURN(TLP);
 		case ')':
 			RETURN(TRP);
-		default:
-			goto breakloop;
 		}
+		break;
 	}
-breakloop:
 	return readtoken1(c, BASESYNTAX, (char *)NULL, 0);
 #undef RETURN
 }
@@ -836,7 +838,7 @@ static int pgetc_eatbnl(void)
 	int c;
 
 	while ((c = pgetc()) == '\\') {
-		if (pgetc() != '\n') {
+		if (pgetc2() != '\n') {
 			pungetc();
 			break;
 		}
@@ -845,6 +847,26 @@ static int pgetc_eatbnl(void)
 	}
 
 	return c;
+}
+
+static int pgetc_top(struct synstack *stack)
+{
+	return stack->syntax == SQSYNTAX ? pgetc() : pgetc_eatbnl();
+}
+
+static void synstack_push(struct synstack **stack, struct synstack *next,
+			  const char *syntax)
+{
+	memset(next, 0, sizeof(*next));
+	next->syntax = syntax;
+	next->next = *stack;
+	(*stack)->prev = next;
+	*stack = next;
+}
+
+static void synstack_pop(struct synstack **stack)
+{
+	*stack = (*stack)->next;
 }
 
 
@@ -876,24 +898,15 @@ readtoken1(int firstc, char const *syntax, char *eofmark, int striptabs)
 	size_t len;
 	struct nodelist *bqlist;
 	int quotef;
-	int dblquote;
-	int varnest;	/* levels of variables expansion */
-	int arinest;	/* levels of arithmetic expansion */
-	int parenlevel;	/* levels of parens in arithmetic */
-	int dqvarnest;	/* levels of variables expansion within double quotes */
 	int oldstyle;
-	/* syntax before arithmetic */
-	char const *uninitialized_var(prevsyntax);
+	/* syntax stack */
+	struct synstack synbase = { .syntax = syntax };
+	struct synstack *synstack = &synbase;
 
-	dblquote = 0;
 	if (syntax == DQSYNTAX)
-		dblquote = 1;
+		synstack->dblquote = 1;
 	quotef = 0;
 	bqlist = NULL;
-	varnest = 0;
-	arinest = 0;
-	parenlevel = 0;
-	dqvarnest = 0;
 
 	STARTSTACKSTR(out);
 	loop: {	/* for each line, until end of word */
@@ -901,28 +914,30 @@ readtoken1(int firstc, char const *syntax, char *eofmark, int striptabs)
 		if (c == '\034' && doprompt
 		 && attyset() && ! equal(termval(), "emacs")) {
 			attyline();
-			if (syntax == BASESYNTAX)
+			if (synstack->syntax == BASESYNTAX)
 				return readtoken();
-			c = pgetc();
+			c = pgetc_top(synstack);
 			goto loop;
 		}
 #endif
 		CHECKEND();	/* set c to PEOF if at end of here document */
 		for (;;) {	/* until end of line or end of word */
 			CHECKSTRSPACE(4, out);	/* permit 4 calls to USTPUTC */
-			switch(syntax[c]) {
+			switch(synstack->syntax[c]) {
 			case CNL:	/* '\n' */
-				if (syntax == BASESYNTAX)
+				if (synstack->syntax == BASESYNTAX &&
+				    !synstack->varnest)
 					goto endword;	/* exit outer loop */
 				USTPUTC(c, out);
 				nlprompt();
-				c = pgetc();
+				c = pgetc_top(synstack);
 				goto loop;		/* continue outer loop */
 			case CWORD:
 				USTPUTC(c, out);
 				break;
 			case CCTL:
-				if (eofmark == NULL || dblquote)
+				if ((!eofmark) | synstack->dblquote |
+				    synstack->varnest)
 					USTPUTC(CTLESC, out);
 				USTPUTC(c, out);
 				break;
@@ -933,17 +948,20 @@ readtoken1(int firstc, char const *syntax, char *eofmark, int striptabs)
 					USTPUTC(CTLESC, out);
 					USTPUTC('\\', out);
 					pungetc();
-				} else if (c == '\n') {
-					nlprompt();
 				} else {
 					if (
-						dblquote &&
+						synstack->dblquote &&
 						c != '\\' && c != '`' &&
 						c != '$' && (
 							c != '"' ||
-							eofmark != NULL
+							(eofmark != NULL &&
+							 !synstack->varnest)
+						) && (
+							c != '}' ||
+							!synstack->varnest
 						)
 					) {
+						USTPUTC(CTLESC, out);
 						USTPUTC('\\', out);
 					}
 					USTPUTC(CTLESC, out);
@@ -952,55 +970,64 @@ readtoken1(int firstc, char const *syntax, char *eofmark, int striptabs)
 				}
 				break;
 			case CSQUOTE:
-				syntax = SQSYNTAX;
+				synstack->syntax = SQSYNTAX;
 quotemark:
 				if (eofmark == NULL) {
 					USTPUTC(CTLQUOTEMARK, out);
 				}
 				break;
 			case CDQUOTE:
-				syntax = DQSYNTAX;
-				dblquote = 1;
+				synstack->syntax = DQSYNTAX;
+				synstack->dblquote = 1;
+toggledq:
+				if (synstack->varnest)
+					synstack->innerdq ^= 1;
 				goto quotemark;
 			case CENDQUOTE:
-				if (eofmark && !varnest)
+				if (eofmark && !synstack->varnest) {
 					USTPUTC(c, out);
-				else {
-					if (dqvarnest == 0) {
-						syntax = BASESYNTAX;
-						dblquote = 0;
-					}
-					quotef++;
-					goto quotemark;
+					break;
 				}
-				break;
+
+				if (synstack->dqvarnest == 0) {
+					synstack->syntax = BASESYNTAX;
+					synstack->dblquote = 0;
+				}
+
+				quotef++;
+
+				if (c == '"')
+					goto toggledq;
+
+				goto quotemark;
 			case CVAR:	/* '$' */
 				PARSESUB();		/* parse substitution */
 				break;
 			case CENDVAR:	/* '}' */
-				if (varnest > 0) {
-					varnest--;
-					if (dqvarnest > 0) {
-						dqvarnest--;
-					}
+				if (!synstack->innerdq &&
+				    synstack->varnest > 0) {
+					if (!--synstack->varnest &&
+					    synstack->varpushed)
+						synstack_pop(&synstack);
+					else if (synstack->dqvarnest > 0)
+						synstack->dqvarnest--;
 					USTPUTC(CTLENDVAR, out);
 				} else {
 					USTPUTC(c, out);
 				}
 				break;
 			case CLP:	/* '(' in arithmetic */
-				parenlevel++;
+				synstack->parenlevel++;
 				USTPUTC(c, out);
 				break;
 			case CRP:	/* ')' in arithmetic */
-				if (parenlevel > 0) {
+				if (synstack->parenlevel > 0) {
 					USTPUTC(c, out);
-					--parenlevel;
+					--synstack->parenlevel;
 				} else {
-					if (pgetc() == ')') {
+					if (pgetc_eatbnl() == ')') {
 						USTPUTC(CTLENDARI, out);
-						if (!--arinest)
-							syntax = prevsyntax;
+						synstack_pop(&synstack);
 					} else {
 						/*
 						 * unbalanced parens
@@ -1012,6 +1039,11 @@ quotemark:
 				}
 				break;
 			case CBQUOTE:	/* '`' */
+				if (checkkwd & CHKEOFMARK) {
+					USTPUTC('`', out);
+					break;
+				}
+
 				PARSEBACKQOLD();
 				break;
 			case CEOF:
@@ -1019,21 +1051,21 @@ quotemark:
 			case CIGN:
 				break;
 			default:
-				if (varnest == 0)
+				if (synstack->varnest == 0)
 					goto endword;	/* exit outer loop */
 				if (c != PEOA) {
 					USTPUTC(c, out);
 				}
 			}
-			c = pgetc();
+			c = pgetc_top(synstack);
 		}
 	}
 endword:
-	if (syntax == ARISYNTAX)
+	if (synstack->syntax == ARISYNTAX)
 		synerror("Missing '))'");
-	if (syntax != BASESYNTAX && eofmark == NULL)
+	if (synstack->syntax != BASESYNTAX && eofmark == NULL)
 		synerror("Unterminated quoted string");
-	if (varnest != 0) {
+	if (synstack->varnest != 0) {
 		/* { */
 		synerror("Missing '}'");
 	}
@@ -1132,7 +1164,7 @@ parseredir: {
 	np = (union node *)stalloc(sizeof (struct nfile));
 	if (c == '>') {
 		np->nfile.fd = 1;
-		c = pgetc();
+		c = pgetc_eatbnl();
 		if (c == '>')
 			np->type = NAPPEND;
 		else if (c == '|')
@@ -1145,7 +1177,7 @@ parseredir: {
 		}
 	} else {	/* c == '<' */
 		np->nfile.fd = 0;
-		switch (c = pgetc()) {
+		switch (c = pgetc_eatbnl()) {
 		case '<':
 			if (sizeof (struct nfile) != sizeof (struct nhere)) {
 				np = (union node *)stalloc(sizeof (struct nhere));
@@ -1154,7 +1186,7 @@ parseredir: {
 			np->type = NHERE;
 			heredoc = (struct heredoc *)stalloc(sizeof (struct heredoc));
 			heredoc->here = np;
-			if ((c = pgetc()) == '-') {
+			if ((c = pgetc_eatbnl()) == '-') {
 				heredoc->striptabs = 1;
 			} else {
 				heredoc->striptabs = 0;
@@ -1210,6 +1242,8 @@ parsesub: {
 			PARSEBACKQNEW();
 		}
 	} else {
+		const char *newsyn = synstack->syntax;
+
 		USTPUTC(CTLVAR, out);
 		typeloc = out - (char *)stackblock();
 		STADJUST(1, out);
@@ -1228,8 +1262,9 @@ varname:
 			do {
 				STPUTC(c, out);
 				c = pgetc_eatbnl();
-			} while (is_digit(c));
-		} else {
+			} while ((subtype <= 0 || subtype >= VSLENGTH) &&
+				 is_digit(c));
+		} else if (c != '}') {
 			int cc = c;
 
 			c = pgetc_eatbnl();
@@ -1257,9 +1292,12 @@ varname:
 			}
 
 			USTPUTC(cc, out);
-		}
+		} else
+			goto badsub;
 
 		if (subtype == 0) {
+			int cc = c;
+
 			switch (c) {
 			case ':':
 				subtype = VSNUL;
@@ -1273,27 +1311,43 @@ varname:
 				break;
 			case '%':
 			case '#':
-				{
-					int cc = c;
-					subtype = c == '#' ? VSTRIMLEFT :
-							     VSTRIMRIGHT;
-					c = pgetc_eatbnl();
-					if (c == cc)
-						subtype++;
-					else
-						pungetc();
-					break;
-				}
+				subtype = c == '#' ? VSTRIMLEFT :
+						     VSTRIMRIGHT;
+				c = pgetc_eatbnl();
+				if (c == cc)
+					subtype++;
+				else
+					pungetc();
+
+				newsyn = BASESYNTAX;
+				break;
 			}
 		} else {
+			if (subtype == VSLENGTH && c != '}')
+				subtype = 0;
 badsub:
 			pungetc();
 		}
+
+		if (newsyn == ARISYNTAX)
+			newsyn = DQSYNTAX;
+
+		if ((newsyn != synstack->syntax || synstack->innerdq) &&
+		    subtype != VSNORMAL) {
+			synstack_push(&synstack,
+				      synstack->prev ?:
+				      alloca(sizeof(*synstack)),
+				      newsyn);
+
+			synstack->varpushed++;
+			synstack->dblquote = newsyn != BASESYNTAX;
+		}
+
 		*((char *)stackblock() + typeloc) = subtype;
 		if (subtype != VSNORMAL) {
-			varnest++;
-			if (dblquote)
-				dqvarnest++;
+			synstack->varnest++;
+			if (synstack->dblquote)
+				synstack->dqvarnest++;
 		}
 		STPUTC('=', out);
 	}
@@ -1313,6 +1367,7 @@ parsebackq: {
 	union node *n;
 	char *str;
 	size_t savelen;
+	struct heredoc *saveheredoclist;
 	int uninitialized_var(saveprompt);
 
 	str = NULL;
@@ -1336,23 +1391,14 @@ parsebackq: {
 			if (needprompt) {
 				setprompt(2);
 			}
-			switch (pc = pgetc()) {
+			switch (pc = pgetc_eatbnl()) {
 			case '`':
 				goto done;
 
 			case '\\':
-                                if ((pc = pgetc()) == '\n') {
-					nlprompt();
-					/*
-					 * If eating a newline, avoid putting
-					 * the newline into the new character
-					 * stream (via the STPUTC after the
-					 * switch).
-					 */
-					continue;
-				}
+                                pc = pgetc();
                                 if (pc != '\\' && pc != '`' && pc != '$'
-                                    && (!dblquote || pc != '"'))
+                                    && (!synstack->dblquote || pc != '"'))
                                         STPUTC('\\', pout);
 				if (pc > PEOA) {
 					break;
@@ -1386,6 +1432,9 @@ done:
 	*nlpp = (struct nodelist *)stalloc(sizeof (struct nodelist));
 	(*nlpp)->next = NULL;
 
+	saveheredoclist = heredoclist;
+	heredoclist = NULL;
+
 	if (oldstyle) {
 		saveprompt = doprompt;
 		doprompt = 0;
@@ -1398,20 +1447,19 @@ done:
 	else {
 		if (readtoken() != TRP)
 			synexpect(TRP);
+		setinputstring(nullstr);
 	}
 
+	parseheredoc();
+	heredoclist = saveheredoclist;
+
 	(*nlpp)->n = n;
-        if (oldstyle) {
-		/*
-		 * Start reading from old file again, ignoring any pushed back
-		 * tokens left from the backquote parsing
-		 */
-                popfile();
+	/* Start reading from old file again. */
+	popfile();
+	/* Ignore any pushed back tokens left from the backquote parsing. */
+	if (oldstyle)
 		tokpushback = 0;
-	}
-	while (stackblocksize() <= savelen)
-		growstackblock();
-	STARTSTACKSTR(out);
+	out = growstackto(savelen + 1);
 	if (str) {
 		memcpy(out, str, savelen);
 		STADJUST(savelen, out);
@@ -1428,10 +1476,10 @@ done:
  */
 parsearith: {
 
-	if (++arinest == 1) {
-		prevsyntax = syntax;
-		syntax = ARISYNTAX;
-	}
+	synstack_push(&synstack,
+		      synstack->prev ?: alloca(sizeof(*synstack)),
+		      ARISYNTAX);
+	synstack->dblquote = 1;
 	USTPUTC(CTLARI, out);
 	goto parsearith_return;
 }
@@ -1520,20 +1568,31 @@ setprompt(int which)
 const char *
 expandstr(const char *ps)
 {
-	union node n;
+	struct parsefile *file_stop;
+	struct jmploc *volatile savehandler;
+	struct heredoc *saveheredoclist;
+	const char *result;
 	int saveprompt;
+	struct jmploc jmploc;
+	union node n;
+	int err;
+
+	file_stop = parsefile;
 
 	/* XXX Fix (char *) cast. */
 	setinputstring((char *)ps);
 
+	saveheredoclist = heredoclist;
+	heredoclist = NULL;
 	saveprompt = doprompt;
 	doprompt = 0;
+	result = ps;
+	savehandler = handler;
+	if (unlikely(err = setjmp(jmploc.loc)))
+		goto out;
+	handler = &jmploc;
 
-	readtoken1(pgetc(), DQSYNTAX, FAKEEOFMARK, 0);
-
-	doprompt = saveprompt;
-
-	popfile();
+	readtoken1(pgetc_eatbnl(), DQSYNTAX, FAKEEOFMARK, 0);
 
 	n.narg.type = NARG;
 	n.narg.next = NULL;
@@ -1541,7 +1600,18 @@ expandstr(const char *ps)
 	n.narg.backquote = backquotelist;
 
 	expandarg(&n, NULL, EXP_QUOTED);
-	return stackblock();
+	result = stackblock();
+
+out:
+	handler = savehandler;
+	if (err && exception != EXERROR)
+		longjmp(handler->loc, 1);
+
+	doprompt = saveprompt;
+	unwindfiles(file_stop);
+	heredoclist = saveheredoclist;
+
+	return result;
 }
 
 /*

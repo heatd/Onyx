@@ -106,6 +106,18 @@ char init[] = "\
  * Initialization code.\n\
  */\n";
 
+char exitreset[] = "\
+/*\n\
+ * This routine is called when an error or an interrupt occurs in an\n\
+ * interactive shell and control is returned to the main command loop\n\
+ * but prior to exitshell. \n\
+ */\n";
+
+char forkreset[] = "\
+/*\n\
+ * This routine is called when we enter a subshell.\n\
+ */\n";
+
 char reset[] = "\
 /*\n\
  * This routine is called when an error or an interrupt occurs in an\n\
@@ -115,6 +127,8 @@ char reset[] = "\
 
 struct event event[] = {
 	{"INIT", "init", init},
+	{"EXITRESET", "exitreset", exitreset},
+	{"FORKRESET", "forkreset", forkreset},
 	{"RESET", "reset", reset},
 	{NULL, NULL}
 };

@@ -69,11 +69,11 @@ exitcmd		-s exit
 exportcmd	-as export -as readonly
 falsecmd	-u false
 getoptscmd	-u getopts
-hashcmd		hash
+hashcmd		-u hash
 jobscmd		-u jobs
 localcmd	-as local
 printfcmd	printf
-pwdcmd		pwd
+pwdcmd		-u pwd
 readcmd		-u read
 returncmd	-s return
 setcmd		-s set
@@ -81,14 +81,14 @@ shiftcmd	-s shift
 timescmd	-s times
 trapcmd		-s trap
 truecmd		-s : -u true
-typecmd		type
+typecmd		-u type
 umaskcmd	-u umask
 unaliascmd	-u unalias
 unsetcmd	-s unset
 waitcmd		-u wait
 aliascmd	-au alias
 #ifdef HAVE_GETRLIMIT
-ulimitcmd	ulimit
+ulimitcmd	-u ulimit
 #endif
 testcmd		test [
 killcmd		-u kill

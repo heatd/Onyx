@@ -606,11 +606,11 @@ and
 .Dq ||
 are AND-OR list operators.
 .Dq &&
-executes the first command, and then executes the second command iff the
-exit status of the first command is zero.
+executes the first command, and then executes the second command if and only
+if the exit status of the first command is zero.
 .Dq ||
-is similar, but executes the second command iff the exit status of the first
-command is nonzero.
+is similar, but executes the second command if and only if the exit status
+of the first command is nonzero.
 .Dq &&
 and
 .Dq ||
@@ -1814,7 +1814,7 @@ If n is greater than the number of positional parameters,
 .Ic shift
 will issue an error message, and exit with return status 2.
 .It test Ar expression
-.It \&[ Ar expression Cm ]
+.It \&[ Ar expression Cm \&]
 The
 .Ic test
 utility evaluates the expression and, if it evaluates
@@ -2226,13 +2226,12 @@ This mode uses commands, described below,
 similar to a subset of those described in the vi man page.
 The command
 .Ql set -o vi
-enables vi-mode editing and place sh into vi insert mode.
+enables vi-mode editing and places sh into vi insert mode.
 With vi-mode
 enabled, sh can be switched between insert mode and command mode.
-The editor is not described in full here, but will be in a later document.
-It's similar to vi: typing
+It is similar to vi: typing
 .Aq ESC
-will throw you into command VI command mode.
+enters vi command mode.
 Hitting
 .Aq return
 while in command mode will pass the line to the shell.
