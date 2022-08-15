@@ -141,7 +141,6 @@ void efi_init(EFI_SYSTEM_TABLE *system_table, EFI_MEMORY_DESCRIPTOR *descriptors
 {
     efi::internal::system_table = system_table;
     efi_aspace = mm_address_space::create().unwrap();
-    printk("EFI refs: %lu\n", efi_aspace->__get_refcount());
     // EFI firmware out in the wild frequently "accidentally" touch NULL,
     // such that we need to map NULL
     efi_quirk_map_zero_region();
