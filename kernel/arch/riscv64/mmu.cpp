@@ -86,7 +86,7 @@ PML *get_current_page_tables(void)
     struct process *p = get_current_process();
     if (!p)
         return boot_pt;
-    return (PML *) p->address_space.arch_mmu.top_pt;
+    return (PML *) p->address_space->arch_mmu.top_pt;
 }
 
 #define VERYHUGE512GB_SHIFT 39
@@ -1025,7 +1025,7 @@ void riscv_invalidate_tlb(void *context)
     auto curr_thread = get_current_thread();
 
     if (is_higher_half(addr) ||
-        (curr_thread->owner && &curr_thread->owner->address_space == addr_space))
+        (curr_thread->owner && curr_thread->owner->get_aspace() == addr_space))
     {
         paging_invalidate((void *) addr, pages);
         add_per_cpu(tlb_nr_invals, 1);

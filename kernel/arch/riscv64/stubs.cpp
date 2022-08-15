@@ -74,7 +74,7 @@ void cpu_send_resched(unsigned int cpu)
     UNIMPLEMENTED;
 }
 
-void cpu_send_message(unsigned int cpu, unsigned long message, void *arg, bool should_wait)
+bool cpu_send_message(unsigned int cpu, unsigned long message, void *arg, bool should_wait)
 {
     UNIMPLEMENTED;
 }

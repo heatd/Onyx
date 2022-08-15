@@ -113,7 +113,7 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *tp)
         new_thread->addr_limit = VM_USER_ADDR_LIMIT;
 
         new_thread->owner = get_current_process();
-        new_thread->set_aspace(&get_current_process()->address_space);
+        new_thread->set_aspace(get_current_process()->get_aspace());
     }
     else
     {
@@ -239,8 +239,7 @@ void arch_load_thread(thread *thread, unsigned int cpu)
 
 void arch_load_process(process *process, thread *thread, unsigned int cpu)
 {
-    vm_load_arch_mmu(&thread->get_aspace()->arch_mmu);
-    process->address_space.active_mask.set_cpu_atomic(cpu);
+    vm_load_aspace(thread->get_aspace(), cpu);
 }
 
 extern "C" [[noreturn]] void riscv_context_switch(thread *prev, unsigned char *stack,
