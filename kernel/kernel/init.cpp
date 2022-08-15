@@ -91,13 +91,13 @@ int find_and_exec_init(const char **argv, const char **envp)
     if (!proc)
         return -ENOMEM;
 
-    vm_save_current_mmu(&proc->address_space);
-    if (vm_create_address_space(&proc->address_space, proc) < 0)
+    vm_save_current_mmu(proc->address_space.get());
+    if (vm_create_address_space(proc->address_space.get()) < 0)
     {
         return -ENOMEM;
     }
 
-    proc->address_space.page_tables_size = PAGE_SIZE;
+    proc->address_space->page_tables_size = PAGE_SIZE;
 
     struct thread *current_thread = get_current_thread();
     current_thread->owner = proc;

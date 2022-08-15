@@ -147,6 +147,7 @@
 #define __NR_statfs				147
 #define __NR_fstatfs			148
 #define __NR_sysinfo			149
+#define __NR_vfork              150
 #define __NR_capget				255
 #define __NR_capset				255
 #define __NR_utime				255
@@ -163,7 +164,7 @@
 #define __NR_sched_get_priority_min	255
 #define __NR_sched_rr_get_interval	255
 #define __NR_mlock					255
-#define __NR_munlock				150
+#define __NR_munlock				255
 #define __NR_mlockall				151
 #define __NR_munlockall				152
 #define __NR_vhangup				153

@@ -66,7 +66,7 @@ struct thread *process_fork_thread(thread_t *src, struct process *dest, struct s
     save_fpu(thread->fpu_area);
 
     thread->owner = dest;
-    thread->set_aspace(&dest->address_space);
+    thread->set_aspace(dest->get_aspace());
 
     list_add_tail(&thread->thread_list_head, &dest->thread_list);
 

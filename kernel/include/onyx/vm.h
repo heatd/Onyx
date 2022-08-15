@@ -18,6 +18,7 @@
 #include <onyx/mm/vm_object.h>
 #include <onyx/mutex.h>
 #include <onyx/paging.h>
+#include <onyx/refcount.h>
 #include <onyx/scheduler.h>
 #include <onyx/spinlock.h>
 
@@ -106,9 +107,9 @@ struct vm_region
     off_t offset;
     int flags;
     struct vm_object *vmo;
-    struct mm_address_space *mm;
+    mm_address_space *mm;
 
-    struct list_head vmo_head;
+    list_head vmo_head;
     uintptr_t caller;
 };
 
@@ -139,16 +140,13 @@ struct vm_object;
  * various statistics, etc.
  *
  */
-struct mm_address_space
+struct mm_address_space : public refcountable
 {
-    struct process *process{};
     /* Virtual address space Red-black tree */
-    struct rb_tree *area_tree{};
+    rb_tree *area_tree{};
     unsigned long start{};
     unsigned long end{};
-    struct mutex vm_lock
-    {
-    };
+    mutex vm_lock{};
 
     /* mmap(2) base */
     void *mmap_base{};
@@ -162,13 +160,9 @@ struct mm_address_space
     size_t page_faults{};
     size_t page_tables_size{};
 
-    struct mutex private_vmo_lock
-    {
-    };
-    struct vm_object *vmo_head{}, *vmo_tail{};
-    struct arch_mm_address_space arch_mmu
-    {
-    };
+    mutex private_vmo_lock{};
+    vm_object *vmo_head{}, *vmo_tail{};
+    arch_mm_address_space arch_mmu{};
 
     // The active mask keeps track of where the address space is running.
     // This serves as an optimisation when doing a TLB shootdown, as it lets us
@@ -177,7 +171,6 @@ struct mm_address_space
 
     mm_address_space &operator=(mm_address_space &&as)
     {
-        process = as.process;
         area_tree = as.area_tree;
         start = as.start;
         end = as.end;
@@ -198,9 +191,22 @@ struct mm_address_space
     /**
      * @brief Creates a new standalone address space
      *
-     * @return Unique ptr to a mm_address_space, or a negative status code
+     * @return Ref guard to a mm_address_space, or a negative status code
      */
-    static expected<unique_ptr<mm_address_space>, int> create();
+    static expected<ref_guard<mm_address_space>, int> create();
+
+    /**
+     * @brief Creates a new standalone address space by forking
+     *
+     * @return Ref guard to a mm_address_space, or a negative status code
+     */
+    static expected<ref_guard<mm_address_space>, int> fork();
+
+    /**
+     * @brief Destroys the mm_address_space object
+     *
+     */
+    ~mm_address_space() override;
 };
 
 #define increment_vm_stat(as, name, amount) __sync_add_and_fetch(&as->name, amount)
@@ -626,10 +632,9 @@ void *map_page_list(struct page *pl, size_t size, uint64_t prot);
  * @brief Sets up a new address space on \p mm
  *
  * @param mm A pointer to the new address space.
- * @param process A pointer to the process that owns the address space.
  * @return 0 on success, negative error codes.
  */
-int vm_create_address_space(struct mm_address_space *mm, struct process *process);
+int vm_create_address_space(struct mm_address_space *mm);
 
 /**
  * @brief Free the architecture dependent parts of the address space.

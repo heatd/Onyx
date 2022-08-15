@@ -190,7 +190,7 @@ int posix_spawn(pid_t *restrict res, const char *restrict path,
 		goto fail;
 	}
 
-	pid = fork();
+	pid = vfork();
 	
 	// Close this end of the pipe when we're not the child
 	if (pid != 0) {

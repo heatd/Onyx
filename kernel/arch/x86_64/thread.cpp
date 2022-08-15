@@ -197,7 +197,7 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
         new_thread->addr_limit = VM_USER_ADDR_LIMIT;
 
         new_thread->owner = get_current_process();
-        new_thread->set_aspace(&get_current_process()->address_space);
+        new_thread->set_aspace(get_current_address_space());
     }
     else
     {

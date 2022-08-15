@@ -77,7 +77,8 @@ bool vm_test_vs_rlimit(const mm_address_space *as, ssize_t diff)
     /* Decreasing the resource usage doesn't respect limits */
     if (diff < 0)
         return true;
-    return as->process->get_rlimit(RLIMIT_AS).rlim_cur >= as->virtual_memory_size + (size_t) diff;
+    return get_current_process()->get_rlimit(RLIMIT_AS).rlim_cur >=
+           as->virtual_memory_size + (size_t) diff;
 }
 
 int imax(int x, int y)
@@ -238,6 +239,9 @@ void vm_addr_init(void)
     kernel_address_space.start = KADDR_START;
     kernel_address_space.end = UINTPTR_MAX;
 
+    // Permanent reference
+    kernel_address_space.ref();
+
     mutex_init(&kernel_address_space.vm_lock);
     vm_save_current_mmu(&kernel_address_space);
 
@@ -249,7 +253,7 @@ static inline void __vm_lock(bool kernel)
     if (kernel)
         mutex_lock(&kernel_address_space.vm_lock);
     else
-        mutex_lock(&get_current_process()->address_space.vm_lock);
+        mutex_lock(&get_current_process()->get_aspace()->vm_lock);
 }
 
 static inline void __vm_unlock(bool kernel)
@@ -257,7 +261,7 @@ static inline void __vm_unlock(bool kernel)
     if (kernel)
         mutex_unlock(&kernel_address_space.vm_lock);
     else
-        mutex_unlock(&get_current_process()->address_space.vm_lock);
+        mutex_unlock(&get_current_process()->get_aspace()->vm_lock);
 }
 
 static inline bool is_higher_half(void *address)
@@ -371,8 +375,9 @@ out_of_mem:
 void do_vm_unmap(void *range, size_t pages)
 {
     struct vm_region *entry = vm_find_region(range);
-    MUST_HOLD_MUTEX(&entry->mm->vm_lock);
     assert(entry != nullptr);
+
+    MUST_HOLD_MUTEX(&entry->mm->vm_lock);
 
     vm_mmu_unmap(entry->mm, range, pages);
 }
@@ -471,7 +476,7 @@ void vm_region_destroy(struct vm_region *region)
 void vm_destroy_mappings(void *range, size_t pages)
 {
     struct mm_address_space *mm =
-        is_higher_half(range) ? &kernel_address_space : &get_current_process()->address_space;
+        is_higher_half(range) ? &kernel_address_space : get_current_process()->get_aspace();
 
     scoped_mutex g{mm->vm_lock};
 
@@ -492,15 +497,11 @@ void vm_destroy_mappings(void *range, size_t pages)
 unsigned long vm_get_base_address(uint64_t flags, uint32_t type)
 {
     bool is_kernel_map = flags & VM_KERNEL;
-    struct process *current;
     struct mm_address_space *mm = nullptr;
 
     if (!is_kernel_map)
     {
-        current = get_current_process();
-        assert(current != nullptr);
-        assert(current->address_space.mmap_base != nullptr);
-        mm = &current->address_space;
+        mm = get_current_address_space();
     }
 
     switch (type)
@@ -537,7 +538,7 @@ struct vm_region *__vm_allocate_virt_region(uint64_t flags, size_t pages, uint32
         allocating_kernel = false;
 
     struct mm_address_space *as =
-        allocating_kernel ? &kernel_address_space : &get_current_process()->address_space;
+        allocating_kernel ? &kernel_address_space : get_current_process()->get_aspace();
 
     MUST_HOLD_MUTEX(&as->vm_lock);
 
@@ -632,7 +633,7 @@ struct vm_region *__vm_create_region_at(void *addr, size_t pages, uint32_t type,
     }
 
     struct mm_address_space *mm =
-        reserving_kernel ? &kernel_address_space : &get_current_process()->address_space;
+        reserving_kernel ? &kernel_address_space : get_current_process()->get_aspace();
 
     if (!vm_test_vs_rlimit(mm, pages << PAGE_SHIFT))
     {
@@ -722,7 +723,7 @@ struct vm_region *vm_find_region(void *addr)
     struct vm_region *reg = nullptr;
     if (current)
     {
-        reg = vm_find_region_in_tree(addr, current->address_space.area_tree);
+        reg = vm_find_region_in_tree(addr, current->address_space->area_tree);
         if (reg)
             return reg;
     }
@@ -1066,7 +1067,7 @@ void vm_change_perms(void *range, size_t pages, int perms)
     if (kernel)
         as = &kernel_address_space;
     else
-        as = &get_current_process()->address_space;
+        as = get_current_process()->get_aspace();
 
     if (mutex_owner(&as->vm_lock) != get_current_thread())
     {
@@ -1359,7 +1360,7 @@ int sys_munmap(void *addr, size_t length)
     if ((unsigned long) addr & (PAGE_SIZE - 1))
         return -EINVAL;
 
-    struct mm_address_space *mm = &get_current_process()->address_space;
+    struct mm_address_space *mm = get_current_process()->get_aspace();
 
     int ret = vm_munmap(mm, addr, pages << PAGE_SHIFT);
 
@@ -1623,7 +1624,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 
     struct process *p = get_current_process();
     // vm_print_umap();
-    int st = vm_mprotect(&p->address_space, addr, len, vm_prot);
+    int st = vm_mprotect(p->address_space.get(), addr, len, vm_prot);
     // vm_print_umap();
     // while(true) {}
     return st;
@@ -2181,7 +2182,7 @@ static void vm_destroy_area(void *key, void *datum)
 {
     struct vm_region *region = (vm_region *) datum;
 
-    do_vm_unmap(key, region->pages);
+    vm_mmu_unmap(region->mm, (void *) region->base, region->pages);
 
     decrement_vm_stat(region->mm, virtual_memory_size, region->pages << PAGE_SHIFT);
 
@@ -2200,7 +2201,6 @@ static void vm_destroy_area(void *key, void *datum)
  */
 void vm_destroy_addr_space(struct mm_address_space *mm)
 {
-    struct process *current = mm->process;
     bool free_pgd = true;
 
     /* First, iterate through the rb tree and free/unmap stuff */
@@ -2228,10 +2228,6 @@ void vm_destroy_addr_space(struct mm_address_space *mm)
 
     struct arch_mm_address_space old_arch_mmu;
     vm_set_pgd(&old_arch_mmu, own_addrspace);
-
-    vm_set_pgd(&mm->arch_mmu, vm_get_fallback_pgd());
-
-    vm_load_arch_mmu(&current->address_space.arch_mmu);
 
     if (free_pgd)
         vm_free_arch_mmu(&old_arch_mmu);
@@ -2523,7 +2519,7 @@ void *vm_map_vmo(size_t flags, uint32_t type, size_t pages, size_t prot, vm_obje
 {
     bool kernel = !(flags & VM_ADDRESS_USER);
     struct mm_address_space *mm =
-        kernel ? &kernel_address_space : &get_current_process()->address_space;
+        kernel ? &kernel_address_space : get_current_process()->get_aspace();
 
     scoped_mutex g{mm->vm_lock};
 
@@ -2691,7 +2687,7 @@ int vm_region_setup_backing(struct vm_region *region, size_t pages, bool is_file
 
     if (!is_shared && !is_kernel)
     {
-        struct mm_address_space *mm = &get_current_process()->address_space;
+        struct mm_address_space *mm = get_current_process()->get_aspace();
 
         add_vmo_to_private_list(mm, vmo);
     }
@@ -2765,15 +2761,13 @@ void *map_page_list(struct page *pl, size_t size, uint64_t prot)
  * @brief Sets up a new address space on \p mm
  *
  * @param mm A pointer to the new address space.
- * @param process A pointer to the process that owns the address space.
  * @return 0 on success, negative error codes.
  */
-int vm_create_address_space(struct mm_address_space *mm, struct process *process)
+int vm_create_address_space(struct mm_address_space *mm)
 {
     mm->mmap_base = vm_gen_mmap_base();
     mm->start = arch_low_half_min;
     mm->end = arch_low_half_max;
-    mm->process = process;
     mm->resident_set_size = 0;
     mm->shared_set_size = 0;
     mm->virtual_memory_size = 0;
@@ -3075,11 +3069,11 @@ int vm_expand_mapping(struct mm_address_space *as, struct vm_region *region, siz
 int vm_expand_brk(size_t nr_pages)
 {
     struct process *p = get_current_process();
-    struct vm_region *brk_region = vm_find_region(p->address_space.brk);
+    struct vm_region *brk_region = vm_find_region(p->address_space->brk);
     assert(brk_region != nullptr);
     size_t new_size = (brk_region->pages + nr_pages) << PAGE_SHIFT;
 
-    return vm_expand_mapping(&p->address_space, brk_region, new_size);
+    return vm_expand_mapping(get_current_address_space(), brk_region, new_size);
 }
 
 int mremap_check_for_overlap(void *__old_address, size_t old_size, void *__new_address,
@@ -3139,7 +3133,7 @@ void *vm_remap_create_new_mapping_of_shared_pages(void *new_address, size_t new_
     else
     {
         new_mapping = vm_allocate_region(
-            &current->address_space, (unsigned long) current->address_space.mmap_base, new_size);
+            current->get_aspace(), (unsigned long) current->address_space->mmap_base, new_size);
         if (new_mapping)
         {
             new_mapping->type = VM_TYPE_REGULAR;
@@ -3163,14 +3157,14 @@ void *vm_try_move(struct vm_region *old_region, unsigned long new_base, size_t n
 {
     struct process *current = get_current_process();
 
-    vm_remove_region(&current->address_space, old_region);
+    vm_remove_region(current->get_aspace(), old_region);
 
     old_region->base = new_base;
     if (int st = __vm_expand_mapping(old_region, new_size); st < 0)
         return (void *) (unsigned long) st;
 
     /* TODO: What to do in case of a failure? */
-    vm_add_region(&current->address_space, old_region);
+    vm_add_region(current->get_aspace(), old_region);
 
     /* TODO: Maybe unmapping isn't the best option on a move and we should copy mappings */
     __vm_unmap_range((void *) old_region->base, old_region->pages);
@@ -3189,17 +3183,16 @@ void *vm_remap_try(void *old_address, size_t old_size, void *new_address, size_t
         return (void *) -EFAULT;
 
     struct vm_region *old_reg =
-        vm_split_region(&current->address_space, reg, (unsigned long) old_address, old_size, &n);
+        vm_split_region(current->get_aspace(), reg, (unsigned long) old_address, old_size, &n);
     if (!old_reg)
         return (void *) -ENOMEM;
 
-    if (vm_expand_mapping(&current->address_space, old_reg, new_size) < 0)
+    if (vm_expand_mapping(current->get_aspace(), old_reg, new_size) < 0)
     {
         if (flags & MREMAP_MAYMOVE)
         {
-            unsigned long new_base =
-                vm_allocate_base(&current->address_space,
-                                 (unsigned long) current->address_space.mmap_base, new_size);
+            unsigned long new_base = vm_allocate_base(
+                current->get_aspace(), (unsigned long) current->address_space->mmap_base, new_size);
             return vm_try_move(old_reg, new_base, new_size);
         }
 
@@ -3299,7 +3292,7 @@ void *sys_mremap(void *old_address, size_t old_size, size_t new_size, int flags,
     bool fixed = flags & MREMAP_FIXED;
     bool wants_create_new_mapping_of_pages = old_size == 0 && may_move;
     void *ret = MAP_FAILED;
-    scoped_mutex g{current->address_space.vm_lock};
+    scoped_mutex g{current->address_space->vm_lock};
 
     /* TODO: Unsure on what to do if new_size > old_size */
 
@@ -3353,15 +3346,15 @@ void *sys_mremap(void *old_address, size_t old_size, size_t new_size, int flags,
         }
         size_t n;
 
-        struct vm_region *old_reg = vm_split_region(&current->address_space, reg,
-                                                    (unsigned long) old_address, old_size, &n);
+        struct vm_region *old_reg =
+            vm_split_region(current->get_aspace(), reg, (unsigned long) old_address, old_size, &n);
         if (!old_reg)
         {
             ret = (void *) -ENOMEM;
             goto out;
         }
 
-        vm_unmap_every_region_in_range(&current->address_space, (unsigned long) new_address,
+        vm_unmap_every_region_in_range(current->get_aspace(), (unsigned long) new_address,
                                        new_size);
 
         ret = vm_try_move(old_reg, (unsigned long) new_address, new_size);
@@ -3445,7 +3438,7 @@ int vm_change_region_locks(void *__start, unsigned long length, unsigned long fl
     if (is_higher_half(__start))
         return 0;
 
-    struct mm_address_space *as = &get_current_process()->address_space;
+    struct mm_address_space *as = get_current_process()->get_aspace();
 
     unsigned long limit = (unsigned long) __start + length;
     unsigned long addr = (unsigned long) __start;
@@ -3688,12 +3681,35 @@ int sys_msync(void *ptr, size_t length, int flags)
     return -ENOSYS;
 }
 
-expected<unique_ptr<mm_address_space>, int> mm_address_space::create()
+/**
+ * @brief Creates a new standalone address space
+ *
+ * @return Ref guard to a mm_address_space, or a negative status code
+ */
+expected<ref_guard<mm_address_space>, int> mm_address_space::create()
 {
-    unique_ptr<mm_address_space> as = make_unique<mm_address_space>();
+    ref_guard<mm_address_space> as = make_refc<mm_address_space>();
     if (!as)
         return unexpected<int>{-ENOENT};
+
     int st = vm_clone_as(as.get());
+    if (st < 0)
+        return unexpected<int>{st};
+    return as;
+}
+
+/**
+ * @brief Creates a new standalone address space by forking
+ *
+ * @return Ref guard to a mm_address_space, or a negative status code
+ */
+expected<ref_guard<mm_address_space>, int> mm_address_space::fork()
+{
+    ref_guard<mm_address_space> as = make_refc<mm_address_space>();
+    if (!as)
+        return unexpected<int>{-ENOENT};
+
+    int st = vm_fork_address_space(as.get());
     if (st < 0)
         return unexpected<int>{st};
     return as;
@@ -3732,4 +3748,13 @@ mm_address_space *vm_set_aspace(mm_address_space *aspace)
     vm_load_aspace(aspace);
 
     return ret;
+}
+
+/**
+ * @brief Destroys the mm_address_space object
+ *
+ */
+mm_address_space::~mm_address_space()
+{
+    vm_destroy_addr_space(this);
 }

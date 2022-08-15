@@ -324,7 +324,7 @@ extern "C" void *sched_schedule(void *last_stack)
     {
         if (source_thread->owner)
         {
-            source_thread->owner->address_space.active_mask.remove_cpu_atomic(get_cpu_nr());
+            source_thread->get_aspace()->active_mask.remove_cpu_atomic(get_cpu_nr());
         }
     }
 
@@ -1072,7 +1072,7 @@ int sched_transition_to_user_thread(thread *thread)
         return st;
 
     thread->flags &= ~THREAD_KERNEL;
-    thread->set_aspace(&thread->owner->address_space);
+    thread->set_aspace(thread->owner->get_aspace());
     return st;
 }
 

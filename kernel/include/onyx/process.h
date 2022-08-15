@@ -13,6 +13,7 @@
 #include <sys/types.h>
 
 #include <onyx/condvar.h>
+#include <onyx/cpu.h>
 #include <onyx/cred.h>
 #include <onyx/culstring.h>
 #include <onyx/elf.h>
@@ -46,6 +47,39 @@ static void process_put(struct process *process);
 
 #define PROCESS_FORKED (1 << 0)
 
+class vfork_completion
+{
+    wait_queue wq;
+    atomic<bool> done;
+    atomic<bool> may_exit;
+
+public:
+    vfork_completion()
+    {
+        init_wait_queue_head(&wq);
+        done = false;
+        may_exit = false;
+    }
+
+    int wait()
+    {
+        return wait_for_event(&wq, done);
+    }
+
+    void wake()
+    {
+        done = true;
+        wait_queue_wake_all(&wq);
+        may_exit = true;
+    }
+
+    void wait_to_exit()
+    {
+        while (!may_exit)
+            cpu_relax();
+    }
+};
+
 struct process : public onx::handle::handleable
 {
     unsigned long refcount{};
@@ -59,48 +93,32 @@ struct process : public onx::handle::handleable
     unsigned long flags{};
 
     /* The next process in the linked list */
-    struct process *next{};
+    process *next{};
 
     unsigned long nr_threads{};
 
-    struct list_head thread_list
-    {
-    };
-    struct spinlock thread_list_lock
-    {
-    };
+    list_head thread_list{};
+    spinlock thread_list_lock{};
 
-    struct mm_address_space address_space
-    {
-    };
+    ref_guard<mm_address_space> address_space{};
 
     /* IO Context of the process */
-    struct ioctx ctx
-    {
-    };
+    ioctx ctx{};
 
     /* Process ID */
     pid_t pid_{};
 
     /* Process' UID and GID */
-    struct creds cred
-    {
-    };
+    creds cred{};
 
     /* Pointer to the VDSO */
     void *vdso{};
 
     /* Signal information */
-    struct spinlock signal_lock
-    {
-    };
-    struct k_sigaction sigtable[_NSIG]
-    {
-    };
+    spinlock signal_lock{};
+    k_sigaction sigtable[_NSIG]{};
     unsigned int signal_group_flags{};
-    struct wait_queue wait_child_event
-    {
-    };
+    wait_queue wait_child_event{};
     unsigned int exit_code{};
 
     /* Process personality */
@@ -110,9 +128,7 @@ struct process : public onx::handle::handleable
     struct process *parent{};
 
     /* Linked list to the processes being traced */
-    struct extrusive_list_head tracees
-    {
-    };
+    extrusive_list_head tracees{};
 
     /* User time and system time consumed by the process */
     hrtime_t user_time{};
@@ -121,9 +137,7 @@ struct process : public onx::handle::handleable
     hrtime_t children_stime{};
 
     /* proc_event queue */
-    struct spinlock sub_queue_lock
-    {
-    };
+    spinlock sub_queue_lock{};
     struct proc_event_sub *sub_queue{};
     unsigned long nr_subs{};
     unsigned long nr_acks{};
@@ -131,42 +145,30 @@ struct process : public onx::handle::handleable
     void *interp_base{};
     void *image_base{};
 
-    struct elf_info info
-    {
-    };
+    elf_info info{};
 
-    struct cond syscall_cond
-    {
-    };
-    struct mutex condvar_mutex
-    {
-    };
+    cond syscall_cond{};
+    mutex condvar_mutex{};
 
-    struct spinlock children_lock
-    {
-    };
-    struct process *children{}, *prev_sibbling{}, *next_sibbling{};
+    spinlock children_lock{};
+    process *children{}, *prev_sibbling{}, *next_sibbling{};
 
-    struct itimer timers[ITIMER_COUNT]
-    {
-    };
+    itimer timers[ITIMER_COUNT]{};
 
     pid::auto_pid pid_struct{};
 
-    struct spinlock pgrp_lock
-    {
-    };
+    spinlock pgrp_lock{};
     list_head_cpp<process> pgrp_node;
     pid::auto_pid process_group{};
     list_head_cpp<process> session_node;
     pid::auto_pid session{};
 
-    struct rlimit rlimits[RLIM_NLIMITS + 1]{};
-    struct rwlock rlimit_lock
-    {
-    };
+    rlimit rlimits[RLIM_NLIMITS + 1]{};
+    rwlock rlimit_lock{};
 
-    struct tty *ctty{};
+    tty *ctty{};
+
+    vfork_completion *vfork_compl{};
 
     process();
     virtual ~process();
@@ -226,6 +228,11 @@ struct process : public onx::handle::handleable
     bool is_pgrp_leader_unlocked() const
     {
         return process_group == pid_struct;
+    }
+
+    mm_address_space *get_aspace() const
+    {
+        return address_space.get();
     }
 
 private:
@@ -301,15 +308,15 @@ static inline struct process *get_current_process()
     return (thread == NULL) ? NULL : (struct process *) thread->owner;
 }
 
-static inline struct mm_address_space *get_current_address_space()
+static inline mm_address_space *get_current_address_space()
 {
-    struct process *proc = get_current_process();
-    return proc ? &proc->address_space : NULL;
+    thread *t = get_current_thread();
+    return t ? t->get_aspace() : &kernel_address_space;
 }
 
 /**
  * @brief Get the number of active processes
- * 
+ *
  * @return The number of active processes
  */
 pid_t process_get_active_processes();

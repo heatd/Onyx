@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2016-2021 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #include <assert.h>
@@ -195,7 +197,7 @@ process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *p
         proc->personality = parent->personality;
         proc->vdso = parent->vdso;
         process_inherit_creds(proc, parent);
-        proc->address_space.brk = parent->address_space.brk;
+
         proc->image_base = parent->image_base;
         proc->interp_base = parent->interp_base;
         /* Inherit the signal handlers of the process and the
@@ -231,9 +233,11 @@ process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *p
         proc->pid_struct->add_process(proc, PIDTYPE_SID);
 
         proc->init_default_limits();
+        auto ex = mm_address_space::create();
+        if (ex.has_error())
+            return errno = -ex.error(), nullptr;
+        proc->address_space = ex.value();
     }
-
-    proc->address_space.process = proc;
 
     process_append_to_global_list(proc);
 
@@ -600,7 +604,10 @@ void process_copy_current_sigmask(thread *dest)
     memcpy(&dest->sinfo.sigmask, &get_current_thread()->sinfo.sigmask, sizeof(sigset_t));
 }
 
-pid_t sys_fork(syscall_frame *ctx)
+#define FORK_SHARE_MM (1 << 0)
+#define FORK_VFORK    (1 << 1)
+
+pid_t sys_fork_internal(syscall_frame *ctx, unsigned int flags)
 {
     process *proc;
     process *child;
@@ -622,11 +629,18 @@ pid_t sys_fork(syscall_frame *ctx)
 
     child->flags |= PROCESS_FORKED;
 
-    child->address_space.process = child;
-
     /* Fork the vmm data and the address space */
-    if (vm_fork_address_space(&child->address_space) < 0)
-        return -ENOMEM;
+    if (flags & FORK_SHARE_MM)
+    {
+        child->address_space = proc->address_space;
+    }
+    else
+    {
+        auto ex = mm_address_space::fork();
+        if (ex.has_error())
+            return ex.error();
+        child->address_space = ex.value();
+    }
 
     /* Fork and create the new thread */
     thread *new_thread = process_fork_thread(to_be_forked, child, ctx);
@@ -638,10 +652,35 @@ pid_t sys_fork(syscall_frame *ctx)
 
     process_copy_current_sigmask(new_thread);
 
+    vfork_completion vfork_cmpl;
+    if (flags & FORK_VFORK)
+    {
+        child->vfork_compl = &vfork_cmpl;
+    }
+
     sched_start_thread(new_thread);
+
+    if (flags & FORK_VFORK)
+    {
+        // We wait for the vforked child to do its thing, and then we wait until its safe to exit
+        // i.e the child has finished waking up waiters.
+        vfork_cmpl.wait();
+
+        vfork_cmpl.wait_to_exit();
+    }
 
     // Return the pid to the caller
     return child->get_pid();
+}
+
+pid_t sys_fork(syscall_frame *ctx)
+{
+    return sys_fork_internal(ctx, 0);
+}
+
+pid_t sys_vfork(syscall_frame *ctx)
+{
+    return sys_fork_internal(ctx, FORK_SHARE_MM | FORK_VFORK);
 }
 
 #define W_STOPPING         0x7f
@@ -697,7 +736,7 @@ void sys_exit(int status)
     process_exit(make_wait4_wstatus(0, false, status));
 }
 
-pid_t sys_getpid(void)
+pid_t sys_getpid()
 {
     return get_current_process()->get_pid();
 }
@@ -709,11 +748,12 @@ int sys_personality(unsigned long val)
     return 0;
 }
 
-void process_destroy_aspace(void)
+void process_destroy_aspace()
 {
     process *current = get_current_process();
-
-    vm_destroy_addr_space(&current->address_space);
+    vm_set_aspace(&kernel_address_space);
+    kernel_address_space.ref();
+    current->address_space = ref_guard<mm_address_space>{&kernel_address_space};
 }
 
 void process_remove_from_list(process *proc)
@@ -850,6 +890,12 @@ void process_kill_other_threads(void)
             sched_sleep_ms(10000);
     }
 
+    if (current->vfork_compl)
+    {
+        current->vfork_compl->wake();
+        current->vfork_compl = nullptr;
+    }
+
     process_kill_other_threads();
 
     process_destroy_file_descriptors(current);
@@ -872,7 +918,6 @@ void process_kill_other_threads(void)
     current_thread->status = THREAD_DEAD;
 
     {
-
         scoped_lock g{current->signal_lock};
         current->exit_code = exit_code;
 
@@ -1204,10 +1249,10 @@ ssize_t process::query(void *ubuf, ssize_t len, unsigned long what, size_t *howm
 ssize_t process::query_vm_regions(void *ubuf, ssize_t len, unsigned long what, size_t *howmany,
                                   void *arg)
 {
-    scoped_mutex g{address_space.vm_lock};
+    scoped_mutex g{address_space->vm_lock};
     size_t needed_len = 0;
 
-    vm_for_every_region(address_space, [&](vm_region *region) -> bool {
+    vm_for_every_region(*address_space, [&](vm_region *region) -> bool {
         needed_len += sizeof(onx_process_vm_region);
 
         if (is_file_backed(region))
@@ -1245,7 +1290,7 @@ ssize_t process::query_vm_regions(void *ubuf, ssize_t len, unsigned long what, s
     // and so, we have no risk of overflowing the buffer with more data.
     char *ptr = &buf[0];
 
-    vm_for_every_region(address_space, [&](vm_region *region) -> bool {
+    vm_for_every_region(*address_space, [&](vm_region *region) -> bool {
         onx_process_vm_region *reg = (onx_process_vm_region *) ptr;
         reg->size = sizeof(onx_process_vm_region);
         reg->mapping_type = region->mapping_type;
@@ -1300,7 +1345,7 @@ ssize_t process::query_vm_regions(void *ubuf, ssize_t len, unsigned long what, s
  * @brief Not-implemented syscall handler
  *
  */
-int sys_nosys(void)
+int sys_nosys()
 {
     return -ENOSYS;
 }

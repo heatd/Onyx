@@ -2678,5 +2678,17 @@
             ]
         ],
         "return_type": "int"
+    },
+    {
+        "name": "vfork",
+        "nr": 150,
+        "nr_args": 1,
+        "args": [
+            [
+                "syscall_frame *",
+                "ctx"
+            ]
+        ],
+        "return_type": "pid_t"
     }
 ]

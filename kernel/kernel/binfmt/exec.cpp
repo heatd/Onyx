@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2021 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -309,17 +309,15 @@ int flush_old_exec(struct exec_state *state)
 
     process_kill_other_threads();
 
-    vm_destroy_addr_space(&curr->address_space);
-
     curr->address_space = cul::move(state->new_address_space);
-    mutex_init(&curr->address_space.vm_lock);
+    mutex_init(&curr->address_space->vm_lock);
 
-    vm_load_arch_mmu(&curr->address_space.arch_mmu);
+    vm_set_aspace(curr->address_space.get());
 
     /* Close O_CLOEXEC files */
     file_do_cloexec(&curr->ctx);
 
-    st = vm_create_brk(&curr->address_space);
+    st = vm_create_brk(curr->address_space.get());
 
     if (st == 0)
     {
@@ -486,6 +484,13 @@ int sys_execve(const char *p, const char **argv, const char **envp)
 
     current->flags &= ~PROCESS_FORKED;
 
+    // Wake up waiters stuck on vfork
+    if (current->vfork_compl)
+    {
+        current->vfork_compl->wake();
+        current->vfork_compl = nullptr;
+    }
+
     struct stack_info si;
     si.length = DEFAULT_USER_STACK_LEN;
 
@@ -528,16 +533,15 @@ error:;
 int exec_state_create(struct exec_state *state)
 {
     int st = 0;
-    struct process *current = get_current_process();
 
-    if (vm_clone_as(&state->new_address_space) < 0)
-    {
-        st = -ENOMEM;
-        goto error0;
-    }
+    auto ex = mm_address_space::create();
+    if (ex.has_error())
+        return ex.error();
+
+    state->new_address_space = ex.value();
 
     /* Swap address spaces. Good thing we saved argv and envp before */
-    if (vm_create_address_space(&state->new_address_space, current) < 0)
+    if (vm_create_address_space(state->new_address_space.get()) < 0)
     {
         st = -ENOMEM;
         goto error;
@@ -546,8 +550,7 @@ int exec_state_create(struct exec_state *state)
     return st;
 
 error:
-    vm_free_arch_mmu(&state->new_address_space.arch_mmu);
-error0:
+    vm_free_arch_mmu(&state->new_address_space->arch_mmu);
     return st;
 }
 
@@ -556,5 +559,4 @@ void exec_state_destroy(struct exec_state *state)
     /* Protect against destructions for flushed exec states */
     if (state->flushed)
         return;
-    vm_destroy_addr_space(&state->new_address_space);
 }

@@ -10,9 +10,7 @@
 
 struct exec_state
 {
-    struct mm_address_space new_address_space
-    {
-    };
+    ref_guard<mm_address_space> new_address_space{};
     bool flushed{false};
 };
 

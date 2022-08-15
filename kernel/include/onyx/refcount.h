@@ -115,9 +115,8 @@ public:
         p = nullptr;
     }
 
-    explicit ref_guard(T* p) : p(p)
+    explicit ref_guard(T* p) : p(p), refed_counter{1}
     {
-        ref();
     }
 
     ref_guard() : p{nullptr}
@@ -153,33 +152,33 @@ public:
 
     ref_guard(ref_guard&& r) : p(r.p), refed_counter(r.refed_counter)
     {
-        if (!p)
-            return;
-        p->refer_multiple(refed_counter);
         r.p = nullptr;
         r.refed_counter = 0;
     }
 
     ref_guard& operator=(const ref_guard& r)
     {
-        /* If we have something we're pointing to,
-         * this idiom is dangerous and I don't like it, so just ban it outright.
-         */
-        assert(p == nullptr);
-
+        const auto p0 = p;
+        const auto og_refed = refed_counter;
         p = r.p;
         refed_counter = r.refed_counter;
         p->refer_multiple(refed_counter);
+        if (p0)
+            p0->unref_multiple(og_refed);
 
         return *this;
     }
 
     ref_guard& operator=(ref_guard&& r)
     {
+        const auto p0 = p;
+        const auto og_refed = refed_counter;
         p = r.p;
         refed_counter = r.refed_counter;
         r.p = nullptr;
         r.refed_counter = 0;
+        if (p0)
+            p0->unref_multiple(og_refed);
 
         return *this;
     }
