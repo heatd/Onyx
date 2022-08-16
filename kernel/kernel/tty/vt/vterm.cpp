@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2018 Pedro Falcato
- * This file is part of Carbon, and is released under the terms of the MIT License
+ * Copyright (c) 2018 - 2022 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <assert.h>
 #include <ctype.h>
@@ -1602,7 +1604,6 @@ int vterm_handle_key(struct vterm *vt, struct input_device *dev, struct input_ev
         struct dpc_work w;
         w.context = (void *) action_string;
         w.funcptr = __vterm_receive_input;
-        w.next = NULL;
         dpc_schedule_work(&w, DPC_PRIORITY_MEDIUM);
     }
 

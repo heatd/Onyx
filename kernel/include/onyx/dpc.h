@@ -1,19 +1,23 @@
 /*
- * Copyright (c) 2017 Pedro Falcato
+ * Copyright (c) 2017 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
-#ifndef _KERNEL_DPC_H
-#define _KERNEL_DPC_H
+#ifndef _ONYX_DPC_H
+#define _ONYX_DPC_H
 
 #include <stddef.h>
+
+#include <onyx/list.h>
 
 struct dpc_work
 {
     void (*funcptr)(void *context);
     void *context;
-    struct dpc_work *next;
+    struct list_head list_node;
 };
 
 typedef enum

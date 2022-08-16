@@ -677,7 +677,6 @@ void thread_destroy(struct thread *thread)
     dpc_work w;
     w.context = thread;
     w.funcptr = thread_finish_destruction;
-    w.next = NULL;
     dpc_schedule_work(&w, DPC_PRIORITY_MEDIUM);
 }
 

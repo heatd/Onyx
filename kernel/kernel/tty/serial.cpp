@@ -84,7 +84,6 @@ void serial_port::receive_byte(uint8_t data)
     work.context = (void *) this;
 
     work.funcptr = do_dispatch;
-    work.next = NULL;
 
     dpc_schedule_work(&work, DPC_PRIORITY_HIGH);
 }

@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2016-2021 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 /* File: acpi_osl.cpp, It's here as the OS layer for ACPICA */
 
@@ -25,7 +27,8 @@
 
 uint64_t __pci_read(pci::pci_device *dev, uint16_t off, size_t size);
 
-extern "C" {
+extern "C"
+{
 
 ACPI_STATUS AcpiOsInitialize()
 {
@@ -119,7 +122,6 @@ ACPI_STATUS AcpiOsExecute(ACPI_EXECUTE_TYPE Type, ACPI_OSD_EXEC_CALLBACK Functio
     struct dpc_work w;
     w.context = Context;
     w.funcptr = Function;
-    w.next = nullptr;
 
     /* TODO: Something tells me these callbacks may sleep, and henceforth they're not
      * okay to use in dpc contexts, where latency is key.
