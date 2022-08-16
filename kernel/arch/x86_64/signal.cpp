@@ -55,6 +55,7 @@ int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigactio
     /* Redzone is already handled */
     unsigned long sframe_location = sp - sizeof(struct sigframe) - fpu_size;
     sframe_location &= -16;
+    sframe_location -= 8;
 
     struct sigframe *sframe = (struct sigframe *) sframe_location;
 
@@ -123,8 +124,11 @@ int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigactio
     if (copy_to_user(&sframe->uc.uc_mcontext.fpregs, &fpregs, sizeof(void *)) < 0)
         return -EFAULT;
 
+    // It should be 8 bytes misaligned
+    assert((sframe_location & 0xf) == 0x8);
+
     /* Align the stack to 16 bytes, specified by the ABI */
-    regs->rsp = (unsigned long) sframe;
+    regs->rsp = sframe_location;
     regs->rip = (unsigned long) k_sigaction->sa_handler;
     regs->rdi = sig;
 

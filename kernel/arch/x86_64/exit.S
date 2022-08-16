@@ -102,7 +102,5 @@ x86_context_switch:
 2:
 	/* note that prev is already in %rdi, no need to move it in */
 	/* We also don't need to preserve any registers */
-	INTERRUPT_STACK_ALIGN
 	call x86_thread_put
-	INTERRUPT_STACK_RESTORE
 	jmp 1b
