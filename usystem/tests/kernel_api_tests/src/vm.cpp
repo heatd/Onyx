@@ -21,6 +21,8 @@
 #include <libonyx/process.h>
 #include <libonyx/unique_fd.h>
 
+static unsigned long page_size = sysconf(_SC_PAGESIZE);
+
 class mapping_type
 {
     std::optional<unsigned long> perms_;
@@ -123,21 +125,21 @@ TEST(Vm, MmapMunmapWorks)
     ASSERT_TRUE(handle.valid());
     auto regions = onx::get_mm_regions(handle.get());
     void* ptr =
-        mmap(nullptr, 4096UL * 4, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+        mmap(nullptr, page_size * 4, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
 
     ASSERT_NE(ptr, MAP_FAILED);
 
     auto regions2 = onx::get_mm_regions(handle.get());
 
-    ASSERT_FALSE(address_is_mapped(regions, (unsigned long) ptr, 4096UL * 4));
-    ASSERT_TRUE(address_is_mapped(regions2, (unsigned long) ptr, 4096UL * 4,
+    ASSERT_FALSE(address_is_mapped(regions, (unsigned long) ptr, page_size * 4));
+    ASSERT_TRUE(address_is_mapped(regions2, (unsigned long) ptr, page_size * 4,
                                   {VM_REGION_PROT_READ | VM_REGION_PROT_WRITE, MAP_PRIVATE}));
     ASSERT_TRUE(memory_map_is_valid(regions2));
-    auto st = munmap(ptr, 4096 * 4UL);
+    auto st = munmap(ptr, page_size * 4UL);
     ASSERT_NE(st, -1);
     auto regions3 = onx::get_mm_regions(handle.get());
 
-    ASSERT_FALSE(address_is_mapped(regions3, (unsigned long) ptr, 4096UL * 4));
+    ASSERT_FALSE(address_is_mapped(regions3, (unsigned long) ptr, page_size * 4));
     ASSERT_TRUE(memory_map_is_valid(regions3));
 }
 
@@ -147,7 +149,7 @@ TEST(Vm, MmapFixedWorks)
     ASSERT_TRUE(handle.valid());
     auto regions = onx::get_mm_regions(handle.get());
 
-    const auto [addr, length] = regions_find_gap(regions, 4096);
+    const auto [addr, length] = regions_find_gap(regions, page_size);
 
     void* ptr = mmap((void*) addr, length, PROT_READ | PROT_WRITE,
                      MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
@@ -173,24 +175,24 @@ TEST(Vm, MmapFixedOverwrites)
     onx::unique_fd handle = onx_process_open(getpid(), ONX_HANDLE_CLOEXEC);
     ASSERT_TRUE(handle.valid());
 
-    size_t length = 4096UL * 4;
+    size_t length = page_size * 4;
 
     void* ptr = mmap(nullptr, length, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
 
     ASSERT_NE(ptr, MAP_FAILED);
 
-    auto ptr2 = mmap((void*) ((unsigned long) ptr + 4096), 4096, PROT_WRITE,
+    auto ptr2 = mmap((void*) ((unsigned long) ptr + page_size), page_size, PROT_WRITE,
                      MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
 
-    ASSERT_EQ((unsigned long) ptr2, (unsigned long) ptr + 4096);
+    ASSERT_EQ((unsigned long) ptr2, (unsigned long) ptr + page_size);
 
     auto regions2 = onx::get_mm_regions(handle.get());
 
-    ASSERT_TRUE(address_is_mapped(regions2, (unsigned long) ptr, 4096, {0, MAP_PRIVATE}));
-    ASSERT_TRUE(address_is_mapped(regions2, (unsigned long) ptr2, 4096,
+    ASSERT_TRUE(address_is_mapped(regions2, (unsigned long) ptr, page_size, {0, MAP_PRIVATE}));
+    ASSERT_TRUE(address_is_mapped(regions2, (unsigned long) ptr2, page_size,
                                   {VM_REGION_PROT_WRITE, MAP_PRIVATE}));
-    ASSERT_TRUE(address_is_mapped(regions2, (unsigned long) ptr2 + 4096, length - 4096 * 2,
-                                  {0, MAP_PRIVATE}));
+    ASSERT_TRUE(address_is_mapped(regions2, (unsigned long) ptr2 + page_size,
+                                  length - page_size * 2, {0, MAP_PRIVATE}));
     ASSERT_TRUE(memory_map_is_valid(regions2));
 
     auto st = munmap(ptr, length);
@@ -209,26 +211,26 @@ TEST(Vm, MunmapSplitsProperly)
     onx::unique_fd fd = open("/bin/kernel_api_tests", O_RDONLY);
     ASSERT_TRUE(fd.valid());
 
-    void* ptr = mmap((void*) nullptr, 4096UL * 3, PROT_READ, MAP_SHARED, fd.get(), 0);
+    void* ptr = mmap((void*) nullptr, page_size * 3, PROT_READ, MAP_SHARED, fd.get(), 0);
     ASSERT_NE(ptr, MAP_FAILED);
 
-    auto st = munmap((void*) ((unsigned long) ptr + 4096), 4096);
+    auto st = munmap((void*) ((unsigned long) ptr + page_size), page_size);
     ASSERT_NE(st, -1);
 
     auto regions = onx::get_mm_regions(handle.get());
 
-    ASSERT_TRUE(address_is_mapped(regions, (unsigned long) ptr, 4096));
-    auto first_mapping = get_mapping(regions, (unsigned long) ptr, 4096);
+    ASSERT_TRUE(address_is_mapped(regions, (unsigned long) ptr, page_size));
+    auto first_mapping = get_mapping(regions, (unsigned long) ptr, page_size);
     ASSERT_NE(first_mapping, nullptr);
-    auto second_mapping = get_mapping(regions, (unsigned long) ptr + (4096 * 2), 4096);
+    auto second_mapping = get_mapping(regions, (unsigned long) ptr + (page_size * 2), page_size);
     ASSERT_NE(second_mapping, nullptr);
-    EXPECT_EQ((void*) second_mapping->start, (void*) ((unsigned long) ptr + 4096 * 2));
-    EXPECT_EQ(second_mapping->offset, 4096UL * 2);
+    EXPECT_EQ((void*) second_mapping->start, (void*) ((unsigned long) ptr + page_size * 2));
+    EXPECT_EQ(second_mapping->offset, page_size * 2);
     EXPECT_EQ(second_mapping->protection, first_mapping->protection);
-    ASSERT_NE(munmap((void*) ptr, 4096UL * 3), -1);
+    ASSERT_NE(munmap((void*) ptr, page_size * 3), -1);
 
     auto regions2 = onx::get_mm_regions(handle.get());
 
-    ASSERT_FALSE(address_is_mapped(regions2, (unsigned long) ptr, 4096UL * 3));
+    ASSERT_FALSE(address_is_mapped(regions2, (unsigned long) ptr, page_size * 3));
     ASSERT_TRUE(memory_map_is_valid(regions2));
 }
