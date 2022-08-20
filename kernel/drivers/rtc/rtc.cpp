@@ -1,12 +1,15 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
 
+#include <onyx/acpi.h>
 #include <onyx/clock.h>
 #include <onyx/cpu.h>
 #include <onyx/driver.h>
@@ -31,7 +34,7 @@ void nmi_disable()
     outb(0x70, inb(0x70) | 0x80);
 }
 
-static bool update_is_pending(void)
+static bool update_is_pending()
 {
     outb(0x70, RTC_STATUS_REG_A);
     uint8_t b = inb(0x71);
@@ -88,19 +91,19 @@ uint64_t get_unix_time(const date_t *const udate)
     {
         if (i % 100 == 0)
         {
-            utime += 365 * 24 * 60 * 60;
+            utime += 365ULL * 24 * 60 * 60;
         }
         else if (i % 400 == 0)
         {
-            utime += 366 * 24 * 60 * 60;
+            utime += 366ULL * 24 * 60 * 60;
         }
         else if (i % 4 == 0)
         {
-            utime += 366 * 24 * 60 * 60;
+            utime += 366ULL * 24 * 60 * 60;
         }
         else
         {
-            utime += 365 * 24 * 60 * 60;
+            utime += 365ULL * 24 * 60 * 60;
         }
     }
 
@@ -122,16 +125,16 @@ uint64_t get_unix_time(const date_t *const udate)
         total_day++;
     }
 
-    utime += total_day * 86400;
-    utime += udate->hours * 60 * 60;
-    utime += udate->minutes * 60;
+    utime += total_day * 86400ULL;
+    utime += udate->hours * 60ULL * 60;
+    utime += udate->minutes * 60ULL;
     utime += udate->seconds;
 
     return utime;
 }
 
 static date_t date;
-void early_boot_rtc(void)
+void early_boot_rtc()
 {
 retry:
     date.seconds = rtc_get_date_reg_early(RTC_REG_SECONDS);
@@ -148,13 +151,11 @@ retry:
     date.unixtime = get_unix_time(&date);
 }
 
-time_t get_posix_time(void);
-
 struct wallclock_source rtc_clock = {.clock_source = "x86 rtc", .get_posix_time = get_posix_time};
 
 #define RTC_IRQ 8
 
-void rtc_eoi(void)
+void rtc_eoi()
 {
     outb(0x70, RTC_STATUS_REG_C);
     inb(0x71);
@@ -181,7 +182,7 @@ irqstatus_t rtc_irq(struct irq_context *ctx, void *cookie)
 
 #define RTC_PNP_STRING "PNP0B00"
 
-struct acpi_dev_id rtc_dev_table[] = {{RTC_PNP_STRING}, {NULL}};
+struct acpi_dev_id rtc_dev_table[] = {{RTC_PNP_STRING}, {nullptr}};
 
 int rtc_probe(struct device *device)
 {
@@ -198,7 +199,7 @@ int rtc_probe(struct device *device)
     outb(0x70, RTC_STATUS_REG_B);
     outb(0x71, b);
 
-    assert(install_irq(RTC_IRQ, rtc_irq, device, IRQ_FLAG_REGULAR, NULL) == 0);
+    assert(install_irq(RTC_IRQ, rtc_irq, device, IRQ_FLAG_REGULAR, nullptr) == 0);
     /* Setup a frequency of 2hz by setting the divisor to 15 */
     outb(0x70, RTC_STATUS_REG_A);
     uint8_t st = inb(0x71);
@@ -234,7 +235,7 @@ int rtc_probe(struct device *device)
 struct driver rtc_driver = {
     .name = "rtc", .devids = &rtc_dev_table, .probe = rtc_probe, .bus_type_node = {&rtc_driver}};
 
-int init_rtc(void)
+int init_rtc()
 {
     acpi_bus_register_driver(&rtc_driver);
     return 0;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2021 Pedro Falcato
+ * Copyright (c) 2019 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -9,6 +9,7 @@
 #include <stdio.h>
 
 #include <onyx/cpu.h>
+#include <onyx/page.h>
 #include <onyx/panic.h>
 #include <onyx/x86/kvm.h>
 #include <onyx/x86/msr.h>
@@ -18,8 +19,8 @@ static bool clocksource_supported = false;
 static unsigned long wall_clock_msr;
 static unsigned long system_time_msr;
 
-void pvclock_init(void);
-void kvm_init(void)
+void pvclock_init();
+void kvm_init()
 {
     uint32_t eax, ebx, ecx, edx;
 
@@ -63,7 +64,7 @@ static inline bool pvclock_system_time_updating(uint32_t version)
     return version % 2;
 }
 
-unsigned long pvclock_get_tsc_frequency(void)
+unsigned long pvclock_get_tsc_frequency()
 {
     uint32_t start_version = 0, end_version = 0;
     uint32_t tsc_mul = 0;
@@ -94,7 +95,7 @@ unsigned long pvclock_get_tsc_frequency(void)
     return tsc_freq;
 }
 
-void pvclock_init(void)
+void pvclock_init()
 {
     /* Nothing to do. */
     if (!clocksource2_supported && !clocksource_supported)

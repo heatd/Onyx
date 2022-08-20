@@ -1,15 +1,17 @@
 /*
- * Copyright (c) 2016-2021 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
-#ifndef _KERNEL_CPU_H
-#define _KERNEL_CPU_H
+
+#ifndef _ONYX_CPU_H
+#define _ONYX_CPU_H
 
 #include <stdbool.h>
 #include <stdint.h>
 
-#include <onyx/acpi.h>
 #include <onyx/compiler.h>
 #include <onyx/list.h>
 #include <onyx/scheduler.h>
@@ -202,7 +204,7 @@
 #define X86_CPU_MANUFACTURER_AMD     1
 #define X86_CPU_MANUFACTURER_UNKNOWN 3
 
-typedef struct cpu
+using cpu_t = struct cpu
 {
     char manuid[13];
     char brandstr[48];
@@ -215,7 +217,7 @@ typedef struct cpu
     unsigned long manufacturer;
     /* Add more as needed */
     uint64_t caps[8];
-} cpu_t;
+};
 
 __attribute__((hot)) bool x86_has_cap(int cap);
 bool x86_has_usable_tsc(void);
@@ -272,16 +274,16 @@ struct cpu_message
     struct list_head node;
 };
 
-void cpu_identify(void);
-void cpu_init_late(void);
-unsigned int get_nr_cpus(void);
+void cpu_identify();
+void cpu_init_late();
+unsigned int get_nr_cpus();
 bool is_kernel_ip(uintptr_t ip);
-void cpu_kill_other_cpus(void);
+void cpu_kill_other_cpus();
 void cpu_kill(int cpu_num);
 bool cpu_send_message(unsigned int cpu, unsigned long message, void *arg, bool should_wait);
 void cpu_send_resched(unsigned int cpu);
 void cpu_send_sync_notif(unsigned int cpu);
-void __cpu_resched(void);
+void __cpu_resched();
 void cpu_messages_init(unsigned int cpu);
 void *cpu_handle_messages(void *stack);
 void *cpu_resched(void *stack);
@@ -298,28 +300,28 @@ void *cpu_resched(void *stack);
 #define DISABLE_INTERRUPTS() __asm__ __volatile__("cli")
 #define ENABLE_INTERRUPTS()  __asm__ __volatile__("sti")
 
-static inline uintptr_t cpu_get_cr0(void)
+static inline uintptr_t cpu_get_cr0()
 {
     uintptr_t cr0;
     __asm__ __volatile__("mov %%cr0, %0" : "=r"(cr0));
     return cr0;
 }
 
-static inline uintptr_t cpu_get_cr2(void)
+static inline uintptr_t cpu_get_cr2()
 {
     uintptr_t cr2;
     __asm__ __volatile__("mov %%cr2, %0" : "=r"(cr2));
     return cr2;
 }
 
-static inline uintptr_t cpu_get_cr3(void)
+static inline uintptr_t cpu_get_cr3()
 {
     uintptr_t cr3;
     __asm__ __volatile__("movq %%cr3, %%rax\t\nmovq %%rax, %0" : "=r"(cr3));
     return cr3;
 }
 
-static inline uintptr_t cpu_get_cr4(void)
+static inline uintptr_t cpu_get_cr4()
 {
     uintptr_t cr4;
     __asm__ __volatile__("mov %%cr4, %0" : "=r"(cr4));
