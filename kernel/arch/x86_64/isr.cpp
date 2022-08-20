@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -277,6 +277,10 @@ bool vm_is_smap_fault(struct registers *regs, const fault_info &info)
 void page_fault_handler(struct registers *ctx)
 {
     uintptr_t fault_address = cpu_get_cr2();
+
+    // IRQ restores need to be deferred after we collect all the state associated with the fault
+    // namely, CR2.
+    irq_restore(ctx->rflags);
     uint16_t error_code = ctx->int_err_code;
 
     struct fault_info info;
@@ -517,13 +521,21 @@ void dump_stack(uintptr_t *__rsp)
     printk("\n");
 }
 
+static bool defer_irq_restore(int int_no)
+{
+    // Page faults need to read cr2 before getting interrupted again.
+    return int_no == 14;
+}
+
 unsigned long isr_handler(struct registers *ctx)
 {
     int int_no = ctx->int_no;
 
     context_tracking_enter_kernel();
 
-    irq_restore(ctx->rflags);
+    if (!defer_irq_restore(int_no))
+        irq_restore(ctx->rflags);
+
     int_handlers[int_no](ctx);
 
     context_tracking_exit_kernel();
