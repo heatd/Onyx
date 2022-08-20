@@ -2996,7 +2996,17 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 {
     scoped_mutex g{as->vm_lock};
-    return __vm_munmap(as, __addr, size);
+
+    auto addr = (unsigned long) __addr;
+    if (addr < as->start || addr > as->end)
+        return -EINVAL;
+    if (size == 0)
+        return -EINVAL;
+    if (addr & (PAGE_SIZE - 1))
+        return -EINVAL;
+
+    vm_unmap_every_region_in_range(as, (unsigned long) __addr, size);
+    return 0;
 }
 
 #if CONFIG_TRACK_TLB_DELTA
