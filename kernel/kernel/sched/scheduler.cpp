@@ -260,7 +260,7 @@ void sched_decrease_quantum(clockevent *ev)
     ev->deadline = clocksource_get_time() + NS_PER_MS;
 }
 
-void sched_load_thread(thread *thread, unsigned int cpu, unsigned long og_cpuflags)
+void sched_load_thread(thread *thread, unsigned int cpu)
 {
     write_per_cpu(current_thread, thread);
 
@@ -275,7 +275,7 @@ void sched_load_thread(thread *thread, unsigned int cpu, unsigned long og_cpufla
 
     cputime_restart_accounting(thread);
 
-    spin_unlock_irqrestore(get_per_cpu_ptr_any(scheduler_lock, cpu), og_cpuflags);
+    spin_unlock_irqrestore(get_per_cpu_ptr_any(scheduler_lock, cpu), x86_save_flags());
 }
 
 void sched_load_finish(thread *prev_thread, thread *next_thread)
@@ -315,7 +315,7 @@ extern "C" void *sched_schedule(void *last_stack)
     }
 
     thread *source_thread = curr_thread;
-    unsigned long original_cpuflags = irq_save_and_disable();
+    irq_save_and_disable();
 
     curr_thread = sched_find_runnable();
     st_invoked++;
@@ -328,7 +328,7 @@ extern "C" void *sched_schedule(void *last_stack)
         }
     }
 
-    sched_load_thread(curr_thread, get_cpu_nr(), original_cpuflags);
+    sched_load_thread(curr_thread, get_cpu_nr());
 
     if (source_thread && source_thread->status == THREAD_DEAD &&
         source_thread->flags & THREAD_IS_DYING)
