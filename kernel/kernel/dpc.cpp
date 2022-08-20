@@ -50,7 +50,7 @@ public:
             dpc_work *work = nullptr;
 
             {
-                scoped_lock g{wq_lock};
+                scoped_lock<spinlock, true> g{wq_lock};
                 if (!has_work_locked())
                     return;
                 auto l = list_first_element(&queue);
@@ -65,7 +65,7 @@ public:
 
     void add(dpc_work *w)
     {
-        scoped_lock g{wq_lock};
+        scoped_lock<spinlock, true> g{wq_lock};
         list_add_tail(&w->list_node, &queue);
     }
 };
