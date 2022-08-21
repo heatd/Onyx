@@ -7,6 +7,7 @@ app_executable("system_benchmark") {
     sources = [ "src/fd_bench.cpp",
                 "src/threads.cpp",
                 "src/terminal.cpp",
-                "src/fork.cpp" ]
+                "src/fork.cpp",
+                "src/string_benchmark_bionic.cpp" ]
     deps = [ "//benchmark" ]
 }
