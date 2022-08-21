@@ -61,6 +61,9 @@ void process::init_default_limits()
         l.rlim_cur = RLIM_INFINITY;
         l.rlim_max = RLIM_INFINITY;
     }
+
+    rlimits[RLIMIT_NOFILE].rlim_cur = 1024;
+    rlimits[RLIMIT_NOFILE].rlim_max = 4096;
 }
 
 constexpr int nlimits = 16;
