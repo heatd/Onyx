@@ -1,4 +1,4 @@
-kern-y+= acpi.o acpi_osl.o arc4random.o binfmt.o copy.o cppnew.o cpprt.o crc32.o dev.o dma.o dpc.o \
+kern-y+= arc4random.o binfmt.o copy.o cppnew.o cpprt.o crc32.o dev.o dma.o dpc.o \
 	driver.o exceptions.o font.o framebuffer.o futex.o i2c.o id_manager.o init.o initrd.o \
 	irq.o kernelinfo.o kernlog.o ktest.o modules.o object.o panic.o percpu.o \
 	power_management.o proc_event.o process.o pid.o ptrace.o random.o ref.o signal.o \
@@ -12,6 +12,8 @@ kern-y+= fonts/font.o photon/photon.o binfmt/elf.o binfmt/elf64.o binfmt/exec.o 
 	libdict/rb_tree.o libdict/tree_common.o libdict/wb_tree.o time/tickless.o binfmt/shebang.o
 
 kern-$(CONFIG_KTRACE)+= ktrace.o
+
+kern-$(CONFIG_ACPI)+= acpi.o acpi_osl.o
 
 obj-y+= $(patsubst %, kernel/%, $(kern-y)) 
 

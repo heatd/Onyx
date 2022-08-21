@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -79,6 +79,13 @@ using find_root_pci_bus_t = int (*)(uint16_t seg, uint8_t nbus, ACPI_HANDLE bus)
 int find_root_pci_buses(find_root_pci_bus_t callback);
 int route_irqs(bus *bus);
 bool is_enabled();
+
+#ifndef CONFIG_ACPI
+inline bool is_enabled()
+{
+    return false;
+}
+#endif
 
 } // namespace acpi
 

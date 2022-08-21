@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2021 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -40,36 +40,47 @@ extern "C" int do_machine_reboot(unsigned int flags)
     {
         switch (strategy)
         {
-        case REBOOT_STRATEGY_ACPI: {
-            AcpiReset();
+            case REBOOT_STRATEGY_ACPI: {
+#ifdef CONFIG_ACPI
+                AcpiReset();
+#endif
+                strategy++;
+                break;
+            }
 
-            strategy++;
-            break;
-        }
+            case REBOOT_STRATEGY_PS2: {
+                outb(0x64, 0xFE);
+                strategy++;
+                break;
+            }
 
-        case REBOOT_STRATEGY_PS2: {
-            outb(0x64, 0xFE);
-            strategy++;
-            break;
-        }
+            case REBOOT_STRATEGY_TRIPLE_FAULT: {
+                /* No way this won't fail. NULL is guaranteed to be unmapped and ud2 will cause a
+                 * crash.
+                 */
+                idt_ptr_t p;
+                p.base = 0;
+                p.limit = 0;
 
-        case REBOOT_STRATEGY_TRIPLE_FAULT: {
-            /* No way this won't fail. NULL is guaranteed to be unmapped and ud2 will cause a crash.
-             */
-            idt_ptr_t p;
-            p.base = 0;
-            p.limit = 0;
+                idt_flush((uint64_t) &p);
 
-            idt_flush((uint64_t) &p);
+                __asm__ __volatile__("ud2");
 
-            __asm__ __volatile__("ud2");
-
-            __builtin_unreachable();
-            break;
-        }
+                __builtin_unreachable();
+                break;
+            }
         }
     }
 }
+
+#ifndef CONFIG_ACPI
+
+ACPI_STATUS acpi_shutdown()
+{
+    return AE_NOT_IMPLEMENTED;
+}
+
+#endif
 
 extern "C" int do_machine_shutdown(unsigned int flags)
 {

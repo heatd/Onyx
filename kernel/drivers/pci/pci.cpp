@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2016-2021 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <assert.h>
 #include <errno.h>
@@ -191,6 +193,8 @@ uint16_t pci_device::get_intn() const
 // TODO: We may need a lock here when hot-plugging?
 cul::vector<unique_ptr<pci_root>> pci_roots;
 
+#ifdef CONFIG_ACPI
+
 int init_root_bus(uint16_t segment, uint8_t bus_nr, ACPI_HANDLE bus_object)
 {
     if (pci_roots.size() != 0 && !pcie_is_enabled())
@@ -274,6 +278,8 @@ void pci_root::route_irqs(ACPI_HANDLE bus_object)
     }
 }
 
+#endif
+
 pcie_allocation *pci_bus::get_alloc() const
 {
     return find_alloc_for_root(parent_root->get_segment(), nbus);
@@ -281,8 +287,10 @@ pcie_allocation *pci_bus::get_alloc() const
 
 void enumerate_buses()
 {
+#ifdef CONFIG_ACPI
     // Traverse the ACPI tables and look at them for guidance
     acpi::find_root_pci_buses(init_root_bus);
+#endif
 }
 
 void add_bus(pci_bus *b)

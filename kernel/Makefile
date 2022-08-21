@@ -52,7 +52,7 @@ endif
 
 CPPFLAGS:=$(CPPFLAGS) --sysroot=lib/libk -D__is_onyx_kernel -D_POSIX_C_SOURCE \
 -D_BSD_SOURCE -D_GNU_SOURCE -Iinclude \
--Iinclude/acpica -DKERNEL_VERSION='"$(KERNEL_VERSION)"' \
+-DKERNEL_VERSION='"$(KERNEL_VERSION)"' \
 -DKERNEL_BRANCH='"$(KERNEL_BRANCH)"' -DKERNEL_ARCH='"$(KERNEL_ARCH)"' -imacros \
 include/onyx/config.h
 
@@ -163,7 +163,11 @@ include kernel/Makefile
 include $(ARCHDIR)/Makefile
 include crypt/Makefile
 include drivers/Makefile
+
+ifeq ($(CONFIG_ACPI), y)
+CPPFLAGS+=-Iinclude/acpica
 include acpica/Makefile
+endif
 
 OBJS:=$(obj-y)
 

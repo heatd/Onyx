@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -50,6 +50,11 @@ extern volatile uint64_t boot_ticks;
 const int bits_per_long = sizeof(unsigned long) * 8;
 
 struct x86_platform_info x86_platform = {};
+
+bool platform_has_msi()
+{
+    return x86_platform.has_msi;
+}
 
 __attribute__((hot)) bool x86_has_cap(int cap)
 {

@@ -212,6 +212,9 @@ syscall_signal_path:
 .extern AcpiEnterSleepState
 .global __enter_sleep_state
 __enter_sleep_state:
+#ifndef CONFIG_ACPI
+	jne .failure
+#else
 	# I'm sure this doesn't work, TODO
 	# Okay, to do this we'll need to save every register
 	# rax doesn't matter since we're using it to return a value anyway
@@ -221,6 +224,7 @@ __enter_sleep_state:
 	call AcpiEnterSleepState
 	# In C this would be if(ACPI_FAILURE(st)) goto failure;
 	cmp $0, %rax
+#endif
 	jne .failure
 	# Woah, we're back from sleep
 	# Restore registers and flush caches

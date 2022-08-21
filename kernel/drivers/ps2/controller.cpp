@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -446,23 +446,18 @@ int ps2_probe_keyboard(device *device)
 
 int ps2_probe_mouse(struct device *device)
 {
-    struct acpi_device *dev = (struct acpi_device *) device;
+    acpi_device *dev = (acpi_device *) device;
 
-    ACPI_RESOURCE *data_port, *command_port, *irq_res, *eirq_res;
-
-    data_port = acpi_get_resource(dev, ACPI_RESOURCE_TYPE_IO, 0);
-    command_port = acpi_get_resource(dev, ACPI_RESOURCE_TYPE_IO, 1);
-    irq_res = acpi_get_resource(dev, ACPI_RESOURCE_TYPE_IRQ, 0);
-    eirq_res = acpi_get_resource(dev, ACPI_RESOURCE_TYPE_EXTENDED_IRQ, 0);
+    auto data_port = dev->get_resource(DEV_RESOURCE_FLAG_IO_PORT);
+    auto command_port = dev->get_resource(DEV_RESOURCE_FLAG_IO_PORT, 1);
+    auto irq = dev->get_resource(DEV_RESOURCE_FLAG_IRQ);
 
     if (data_port)
-        i8042_data_port = data_port->Data.Io.Minimum;
+        i8042_data_port = data_port->start();
     if (command_port)
-        i8042_command_port = command_port->Data.Io.Minimum;
-    if (irq_res)
-        i8042_mouse_irq = irq_res->Data.Irq.Interrupts[0];
-    else if (eirq_res)
-        i8042_mouse_irq = eirq_res->Data.ExtendedIrq.Interrupts[0];
+        i8042_command_port = command_port->start();
+    if (irq)
+        i8042_keyboard_irq = irq->start();
 
     i8042_found_pnp = true;
     return 0;
@@ -490,8 +485,10 @@ int ps2_init(void)
 
     ps2_platform_device.driver_ = &ps2_platform_driver;
 
+#ifdef CONFIG_ACPI
     acpi_bus_register_driver(&ps2_keyboard_driver);
     acpi_bus_register_driver(&ps2_mouse_driver);
+#endif
 
     if (ps2_try_pnp() < 0)
     {

@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2021 Pedro Falcato
+ * Copyright (c) 2021 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include "include/pci_bus.h"
 
@@ -103,6 +105,8 @@ void pci_bus::discover()
         }
     }
 }
+
+#ifdef CONFIG_ACPI
 
 ACPI_STATUS pci_bus::route_bus_irqs(ACPI_HANDLE bus_object)
 {
@@ -213,5 +217,6 @@ ACPI_STATUS pci_bus::route_bus_irqs(ACPI_HANDLE bus_object)
 
     return AE_OK;
 }
+#endif
 
 } // namespace pci

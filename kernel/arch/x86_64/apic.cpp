@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -217,6 +217,15 @@ void ioapic_mask_pin(uint32_t pin)
     write_redirection_entry(pin, entry);
 }
 
+#ifndef CONFIG_ACPI
+
+ACPI_STATUS AcpiGetTable(ACPI_STRING name, UINT32 instance, ACPI_TABLE_HEADER **out)
+{
+    return AE_NOT_IMPLEMENTED;
+}
+
+#endif
+
 void set_pin_handlers(void)
 {
     /* Allocate a pool of vectors and reserve them */
@@ -310,8 +319,10 @@ void ioapic_early_init(void)
 
 void ioapic_init()
 {
+#ifdef CONFIG_ACPI
     /* Execute _PIC */
     acpi_execute_pic(ACPI_PIC_IOAPIC);
+#endif
     /* Set each APIC pin's polarity, flags, and vectors to their defaults */
     set_pin_handlers();
 }
@@ -642,7 +653,9 @@ void apic_timer_init(void)
 
     tsc_init();
 
+#ifdef CONFIG_ACPI
     acpi_init_timer();
+#endif
 
     ENABLE_INTERRUPTS();
 

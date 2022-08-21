@@ -237,7 +237,9 @@ struct driver rtc_driver = {
 
 int init_rtc()
 {
+#ifdef CONFIG_ACPI
     acpi_bus_register_driver(&rtc_driver);
+#endif
     return 0;
 }
 
