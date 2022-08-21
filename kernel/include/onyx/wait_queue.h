@@ -145,6 +145,10 @@ bool signal_is_pending();
     __wait_for_event(wq, cond, THREAD_INTERRUPTIBLE, spin_unlock(lock); sched_yield(); \
                      spin_lock(lock))
 
+#define wait_for_event_mutex_interruptible(wq, cond, lock)                              \
+    __wait_for_event(wq, cond, THREAD_INTERRUPTIBLE, mutex_unlock(lock); sched_yield(); \
+                     mutex_lock(lock))
+
 #define wait_for_event_socklocked_interruptible(wq, cond)                                          \
     __wait_for_event(wq, cond, THREAD_INTERRUPTIBLE, socket_lock.unlock_sock(this); sched_yield(); \
                      socket_lock.lock())

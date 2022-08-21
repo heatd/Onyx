@@ -1555,7 +1555,6 @@ int vterm_handle_key(struct vterm *vt, struct input_device *dev, struct input_ev
     /* We have no interest in release events */
     if (!(ev->flags & INPUT_EVENT_FLAG_PRESSED))
         return 0;
-
 #ifdef CONFIG_SCHED_DUMP_THREADS_MAGIC
     /* Don't have this enabled by default */
     if (ev->code == KEYMAP_KEY_KEYPAD_NUMLCK)

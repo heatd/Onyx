@@ -247,9 +247,9 @@ struct inode *ext2_open(struct dentry *dir, const char *name)
 struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
                                      ext2_superblock *sb)
 {
+    bool has_vmo = S_ISDIR(inode->i_mode) || S_ISREG(inode->i_mode) || S_ISLNK(inode->i_mode);
     /* Create a file */
-    struct inode *ino =
-        inode_create(S_ISDIR(inode->i_mode) || S_ISREG(inode->i_mode) || S_ISLNK(inode->i_mode));
+    struct inode *ino = inode_create(has_vmo);
 
     if (!ino)
     {
@@ -272,7 +272,7 @@ struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
     ino->i_rdev = inode->i_data[0];
 
     ino->i_size = EXT2_CALCULATE_SIZE64(inode);
-    if (ino->i_type == VFS_TYPE_FILE)
+    if (has_vmo)
         ino->i_pages->size = ino->i_size;
 
     ino->i_uid = inode->i_uid;

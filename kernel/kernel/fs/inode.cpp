@@ -46,16 +46,17 @@ struct page_cache_block *inode_get_cache_block(struct inode *ino, size_t off, lo
     assert(ino->i_pages != nullptr);
 
 #if 0
-	if(flags & FILE_CACHING_WRITE)
-	{
-		printk("ino %lu off: %lu size %lu\n", ino->i_inode, off, ino->i_pages->size);
-	}
+    if (flags & FILE_CACHING_WRITE)
+    {
+        printk("ino %lu off: %lu size %lu\n", ino->i_inode, off, ino->i_pages->size);
+    }
 #endif
 
     if (flags & FILE_CACHING_WRITE && off >= ino->i_pages->size)
     {
         assert((off & (PAGE_SIZE - 1)) == 0);
-        vmo_truncate(ino->i_pages, off, 0);
+        vmo_truncate(ino->i_pages, cul::align_up2(off + 1, PAGE_SIZE), 0);
+        assert(ino->i_pages->size > off);
 
         struct page *p = alloc_page(0);
         if (!p)
@@ -129,8 +130,10 @@ ssize_t file_write_cache(void *buffer, size_t len, struct inode *ino, size_t off
 
         if (cache == nullptr)
         {
-            printk("Inode get page error\n");
-            return wrote ?: -errno;
+            int err = -errno;
+            printk("Inode get page error offset %lu, size of inode %lu, vmo size %lu, err %d\n",
+                   offset, ino->i_size, ino->i_pages->size, err);
+            return wrote ?: err;
         }
 
         struct page *page = cache->page;

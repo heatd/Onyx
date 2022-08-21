@@ -281,12 +281,10 @@ int enlarge_file_descriptor_table(struct process *process, unsigned int new_size
 
     new_size = ALIGN_TO(new_size, FILE_DESCRIPTOR_GROW_NR);
 
-    process->ctx.file_desc_entries = new_size;
-
     if (new_size > INT_MAX || new_size >= process->get_rlimit(RLIMIT_NOFILE).rlim_cur)
-        return -EMFILE;
+        return -EBADF;
 
-    unsigned int new_nr_fds = process->ctx.file_desc_entries;
+    unsigned int new_nr_fds = new_size;
 
     struct file **table = (file **) malloc(process->ctx.file_desc_entries * sizeof(void *));
     unsigned long *cloexec_fds = (unsigned long *) malloc(FD_ENTRIES_TO_FDSET_SIZE(new_nr_fds));
@@ -309,6 +307,7 @@ int enlarge_file_descriptor_table(struct process *process, unsigned int new_size
     process->ctx.file_desc = table;
     process->ctx.cloexec_fds = cloexec_fds;
     process->ctx.open_fds = open_fds;
+    process->ctx.file_desc_entries = new_nr_fds;
 
     return 0;
 
@@ -348,6 +347,11 @@ void process_destroy_file_descriptors(process *process)
 int alloc_fd(int fdbase)
 {
     auto current = get_current_process();
+
+    if (fdbase < 0 || fdbase == INT_MAX ||
+        (unsigned int) fdbase >= current->get_rlimit(RLIMIT_NOFILE).rlim_cur)
+        return -EBADF;
+
     struct ioctx *ioctx = &current->ctx;
     mutex_lock(&ioctx->fdlock);
 
@@ -575,7 +579,7 @@ static struct file *try_to_open(struct file *base, const char *filename, int fla
 /* TODO: Add O_SYNC */
 #define VALID_OPEN_FLAGS                                                                       \
     (O_RDONLY | O_WRONLY | O_RDWR | O_CREAT | O_DIRECTORY | O_EXCL | O_NOFOLLOW | O_NONBLOCK | \
-     O_APPEND | O_CLOEXEC | O_LARGEFILE | O_TRUNC | O_NOCTTY | O_PATH)
+     O_APPEND | O_CLOEXEC | O_LARGEFILE | O_TRUNC | O_NOCTTY | O_PATH | O_LARGEFILE | O_NOATIME)
 
 int do_sys_open(const char *filename, int flags, mode_t mode, struct file *__rel)
 {
@@ -673,9 +677,9 @@ int sys_dup2(int oldfd, int newfd)
     struct ioctx *ioctx = &current->ctx;
 
     if (newfd < 0 || oldfd < 0)
-        return -EINVAL;
+        return -EBADF;
 
-    mutex_lock(&ioctx->fdlock);
+    scoped_mutex m{ioctx->fdlock};
 
     struct file *f = __get_file_description_unlocked(oldfd, current);
     if (!f)
@@ -686,7 +690,7 @@ int sys_dup2(int oldfd, int newfd)
 
     if ((unsigned int) newfd > ioctx->file_desc_entries)
     {
-        int st = enlarge_file_descriptor_table(current, newfd + 1);
+        int st = enlarge_file_descriptor_table(current, (unsigned int) newfd + 1);
         if (st < 0)
         {
             fd_put(f);
@@ -712,8 +716,6 @@ int sys_dup2(int oldfd, int newfd)
      */
 
 out:
-    mutex_unlock(&ioctx->fdlock);
-
     return newfd;
 }
 
@@ -1293,6 +1295,8 @@ error:
 
 int do_dupfd(struct file *f, int fdbase, bool cloexec)
 {
+    if (fdbase < 0)
+        return -EBADF;
     int new_fd = alloc_fd(fdbase);
     if (new_fd < 0)
         return new_fd;
@@ -1979,18 +1983,53 @@ mode_t sys_umask(mode_t mask)
     return old;
 }
 
-int sys_chmod(const char *pathname, mode_t mode)
+int chmod_vfs(struct inode *ino, mode_t mode)
 {
-    return -ENOSYS;
+    ino->i_mode = (ino->i_mode & S_IFMT) | (mode & 07777);
+    inode_mark_dirty(ino);
+    return 0;
 }
-int sys_fchmod(int fd, mode_t mode)
-{
-    return -ENOSYS;
-}
+
+#define VALID_FCHMODAT_FLAGS (AT_SYMLINK_NOFOLLOW)
+
 int sys_fchmodat(int dirfd, const char *pathname, mode_t mode, int flags)
 {
-    return -ENOSYS;
+    if (flags & ~VALID_FCHMODAT_FLAGS)
+        return -EINVAL;
+
+    user_string path;
+    if (auto ex = path.from_user(pathname); ex.has_error())
+        return ex.error();
+
+    auto_file dir;
+    if (int st = dir.from_dirfd(dirfd); st < 0)
+        return st;
+
+    int open_flags = (flags & AT_SYMLINK_NOFOLLOW ? OPEN_FLAG_NOFOLLOW : 0);
+    auto_file f = open_vfs_with_flags(dir.get_file(), path.data(), open_flags);
+
+    if (!f)
+        return -errno;
+
+    int st = chmod_vfs(f.get_file()->f_ino, mode);
+
+    return st;
 }
+
+int sys_fchmod(int fd, mode_t mode)
+{
+    auto_file f;
+    if (int st = f.from_fd(fd); st < 0)
+        return st;
+
+    return chmod_vfs(f.get_file()->f_ino, mode);
+}
+
+int sys_chmod(const char *pathname, mode_t mode)
+{
+    return sys_fchmodat(AT_FDCWD, pathname, mode, 0);
+}
+
 int sys_chown(const char *pathname, uid_t owner, gid_t group)
 {
     return -ENOSYS;

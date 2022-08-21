@@ -153,8 +153,10 @@ vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page
 
     struct page *p = nullptr;
 
+#if 0
     if (vmo->ino && !(vmo->flags & VMO_FLAG_DEVICE_MAPPING))
         vmo->size = vmo->ino->i_size;
+#endif
 
     if (off >= vmo->size)
     {

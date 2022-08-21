@@ -90,7 +90,8 @@ int tmpfs_unlink(const char *name, int flags, struct dentry *dir)
 
 ssize_t tmpfs_readpage(struct page *page, size_t offset, struct inode *ino)
 {
-    return -EIO;
+    memset(PAGE_TO_VIRT(page), 0, PAGE_SIZE);
+    return PAGE_SIZE;
 }
 
 ssize_t tmpfs_writepage(struct page *page, size_t offset, struct inode *ino)
@@ -156,6 +157,16 @@ void tmpfs_close(inode *file)
         free((void *) ino->link);
 }
 
+int tmpfs_ftruncate(size_t len, file *f)
+{
+    int st = vmo_truncate(f->f_ino->i_pages, len, 0);
+
+    if (st < 0)
+        return st;
+    f->f_ino->i_size = len;
+    return 0;
+}
+
 struct file_ops tmpfs_fops = {.read = nullptr,
                               .write = nullptr,
                               .open = tmpfs_open,
@@ -167,7 +178,7 @@ struct file_ops tmpfs_fops = {.read = nullptr,
                               .link = tmpfs_link,
                               .symlink = tmpfs_symlink,
                               .mmap = nullptr,
-                              .ftruncate = nullptr,
+                              .ftruncate = tmpfs_ftruncate,
                               .mkdir = tmpfs_mkdir,
                               .mknod = tmpfs_mknod,
                               .on_open = nullptr,

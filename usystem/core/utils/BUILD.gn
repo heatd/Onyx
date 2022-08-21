@@ -7,5 +7,6 @@ group("utils") {
         "printenv",
         "uuidgen",
         "pmap",
+        "tr"
     ]
 }

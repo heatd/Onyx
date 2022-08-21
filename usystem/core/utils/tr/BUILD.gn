@@ -1,0 +1,13 @@
+import("//build/app.gni")
+
+config("tr_config") {
+    cflags = ["-Wno-missing-field-initializers"]
+}
+
+app_executable("tr") {
+    package_name = "tr"
+    output_name = "$package_name"
+    configs += [":tr_config"]
+
+    sources = [ "tr.c", "str.c" ]
+}

@@ -24,7 +24,7 @@ private:
     void *buffer;
     size_t buf_size;
     size_t pos;
-    struct spinlock pipe_lock;
+    mutex pipe_lock;
 
     wait_queue write_queue;
     wait_queue read_queue;

@@ -34,9 +34,8 @@ static atomic<ino_t> current_inode_number = 0;
 
 constexpr pipe::pipe()
     : refcountable(2), buffer(nullptr), buf_size(0),
-      pos(0), pipe_lock{}, eof{}, broken{}, reader_count{1}, writer_count{1}
+      pos(0), eof{}, broken{}, reader_count{1}, writer_count{1}
 {
-    spinlock_init(&pipe_lock);
     init_wait_queue_head(&write_queue);
     init_wait_queue_head(&read_queue);
 }
@@ -72,7 +71,7 @@ ssize_t pipe::read(int flags, size_t len, void *buf)
 {
     ssize_t been_read = 0;
 
-    scoped_lock g{pipe_lock};
+    scoped_mutex g{pipe_lock};
 
     while (been_read != (ssize_t) len)
     {
@@ -109,7 +108,7 @@ ssize_t pipe::read(int flags, size_t len, void *buf)
                 return -EAGAIN;
             }
 
-            if (wait_for_event_locked_interruptible(&read_queue, can_read_or_eof(), &pipe_lock) ==
+            if (wait_for_event_mutex_interruptible(&read_queue, can_read_or_eof(), &pipe_lock) ==
                 -EINTR)
                 return -EINTR;
         }
@@ -123,7 +122,7 @@ ssize_t pipe::write(int flags, size_t len, const void *buf)
     bool is_atomic_write = len <= PIPE_BUF;
     ssize_t written = 0;
 
-    scoped_lock g{pipe_lock};
+    scoped_mutex g{pipe_lock};
 
     while (written != (ssize_t) len)
     {
@@ -146,8 +145,8 @@ ssize_t pipe::write(int flags, size_t len, const void *buf)
                 return -EAGAIN;
             }
 
-            if (wait_for_event_locked_interruptible(
-                    &write_queue, available_space() >= len || broken, &pipe_lock) == -EINTR)
+            if (wait_for_event_mutex_interruptible(&write_queue, available_space() >= len || broken,
+                                                   &pipe_lock) == -EINTR)
                 return -EINTR;
         }
         else
@@ -201,7 +200,7 @@ size_t pipe_write(size_t offset, size_t sizeofwrite, void *buffer, struct file *
 void pipe::close_write_end()
 {
     /* wake up any possibly-blocked writers */
-    scoped_lock g{pipe_lock};
+    scoped_mutex g{pipe_lock};
 
     if (--writer_count == 0)
     {
@@ -212,7 +211,7 @@ void pipe::close_write_end()
 
 void pipe::close_read_end()
 {
-    scoped_lock g{pipe_lock};
+    scoped_mutex g{pipe_lock};
 
     if (--reader_count == 0)
     {
@@ -242,7 +241,7 @@ short pipe::poll(void *poll_file, short events)
 {
     // printk("pipe poll\n");
     short revents = 0;
-    scoped_lock g{pipe_lock};
+    scoped_mutex g{pipe_lock};
 
     if (events & POLLIN)
     {

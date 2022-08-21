@@ -79,23 +79,38 @@ static const char *thread_strings[] = {
     "THREAD_RUNNABLE", "THREAD_INTERRUPTIBLE",   "THREAD_SLEEPING", "THREAD_IDLE",
     "THREAD_DEAD",     "THREAD_UNINTERRUPTIBLE", "THREAD_STOPPED"};
 
+#ifdef CONFIG_SCHED_DUMP_THREADS_MAGIC_SERIAL
+#include <onyx/serial.h>
+static char buffer[1000];
+
+#define budget_printk(...)                         \
+    snprintf(buffer, sizeof(buffer), __VA_ARGS__); \
+    platform_serial_write(buffer, strlen(buffer))
+
+#define dump_printk budget_printk
+
+#else
+
+#define dump_printk printk
+#endif
+
 bool _dump_thread(const void *key, void *_thread, void *of)
 {
     auto thread = (struct thread *) _thread;
 
-    printk("Thread id %d\n", thread->id);
+    dump_printk("Thread id %d\n", thread->id);
 
     // FIXME: Fix all instances of cmd_line.c_str() with a race-condition safe way
     if (thread->owner)
-        printk("User space thread - owner %s\n", thread->owner->cmd_line.c_str());
+        dump_printk("User space thread - owner %s\n", thread->owner->cmd_line.c_str());
 
-    printk("Thread status: %s\n", thread_strings[thread->status]);
+    dump_printk("Thread status: %s\n", thread_strings[thread->status]);
     if (thread->status == THREAD_INTERRUPTIBLE || thread->status == THREAD_UNINTERRUPTIBLE)
     {
         registers *regs = (registers *) thread->kernel_stack;
         (void) regs;
 #if __x86_64__
-        printk("Dumping context. IP = %016lx, RBP = %016lx\n", regs->rip, regs->rbp);
+        dump_printk("Dumping context. IP = %016lx, RBP = %016lx\n", regs->rip, regs->rbp);
         stack_trace_ex((uint64_t *) regs->rbp);
 #endif
     }
@@ -277,7 +292,7 @@ void sched_load_thread(thread *thread, unsigned int cpu)
 
     cputime_restart_accounting(thread);
 
-    spin_unlock_irqrestore(get_per_cpu_ptr_any(scheduler_lock, cpu), x86_save_flags());
+    spin_unlock_irqrestore(get_per_cpu_ptr_any(scheduler_lock, cpu), irq_save_and_disable());
 }
 
 void sched_load_finish(thread *prev_thread, thread *next_thread)
