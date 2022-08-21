@@ -543,6 +543,15 @@ static struct file *try_to_open(struct file *base, const char *filename, int fla
             return errno = EACCES, nullptr;
         }
 
+        // O_NOATIME can only be used when the euid of the process = owner of file, or
+        // when we're privileged (root).
+        if (flags & O_NOATIME)
+        {
+            creds_guard g;
+            if (g.get()->euid != 0 && ret->f_ino->i_uid != g.get()->euid)
+                return errno = EPERM, nullptr;
+        }
+
         if (ret->f_ino->i_type == VFS_TYPE_DIR)
         {
             if (flags & O_RDWR || flags & O_WRONLY || (flags & O_CREAT && !(flags & O_DIRECTORY)))
@@ -579,7 +588,7 @@ static struct file *try_to_open(struct file *base, const char *filename, int fla
 /* TODO: Add O_SYNC */
 #define VALID_OPEN_FLAGS                                                                       \
     (O_RDONLY | O_WRONLY | O_RDWR | O_CREAT | O_DIRECTORY | O_EXCL | O_NOFOLLOW | O_NONBLOCK | \
-     O_APPEND | O_CLOEXEC | O_LARGEFILE | O_TRUNC | O_NOCTTY | O_PATH | O_LARGEFILE | O_NOATIME)
+     O_APPEND | O_CLOEXEC | O_LARGEFILE | O_TRUNC | O_NOCTTY | O_PATH | O_NOATIME)
 
 int do_sys_open(const char *filename, int flags, mode_t mode, struct file *__rel)
 {

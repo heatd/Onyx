@@ -202,7 +202,8 @@ ssize_t read_vfs(size_t offset, size_t len, void *buffer, struct file *file)
 
     if (res >= 0)
     {
-        inode_update_atime(ino);
+        if (!(file->f_flags & O_NOATIME))
+            inode_update_atime(ino);
     }
 
     return res;
