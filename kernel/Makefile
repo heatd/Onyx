@@ -1,6 +1,13 @@
 HOSTARCH:=$(ONYX_ARCH)
 
+include kernel.config
+
+ifeq ($(CONFIG_CC_OPTIMIZE_SIZE), y)
 CFLAGS?=-Os -g
+else
+CFLAGS?=-O2 -g
+endif
+
 CPPFLAGS?=
 LDFLAGS?=
 LIBS?=
@@ -61,7 +68,6 @@ GENERATED_HEADERS:=include/onyx/config.h include/onyx/gen/syscall.h
 include/onyx/config.h: ../scripts/config_to_header.py kernel.config
 	../scripts/config_to_header.py include/onyx/config.h
 
-include kernel.config
 include $(ARCHDIR)/make.config
 
 

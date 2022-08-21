@@ -337,6 +337,8 @@ short socket_poll(void *poll_file, short events, struct file *node)
 
 void socket_close(struct inode *ino);
 
+#ifdef CONFIG_NET
+
 int do_siocgifname(struct ifreq *req)
 {
     struct ifreq r;
@@ -473,6 +475,8 @@ unsigned int do_siocsifaddr(struct ifreq *ureq)
     return copy_to_user(ureq, &req, sizeof(req));
 }
 
+#endif
+
 unsigned int socket_ioctl(int request, void *argp, struct file *file)
 {
     switch (request)
@@ -491,6 +495,7 @@ unsigned int socket_ioctl(int request, void *argp, struct file *file)
             return 0;
         }
 
+#ifdef CONFIG_NET
         case SIOCGIFNAME: {
             return do_siocgifname((struct ifreq *) argp);
         }
@@ -506,6 +511,7 @@ unsigned int socket_ioctl(int request, void *argp, struct file *file)
         case SIOCSIFADDR: {
             return do_siocsifaddr((struct ifreq *) argp);
         }
+#endif
     }
 
     return -ENOTTY;
