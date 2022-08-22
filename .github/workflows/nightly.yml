@@ -42,7 +42,7 @@ jobs:
       # Runs a set of commands using the runners shell
       - name: Build Onyx
         run: |
-          cp kernel/kernel.config.example kernel/kernel.config
+          cp kernel/configs/kernel.config.x86_64 kernel/kernel.config
           export SYSROOT=$PWD/sysroot
           export ONYX_ARCH=x86_64
           ./scripts/setup_build.sh
@@ -103,7 +103,7 @@ jobs:
       # Runs a set of commands using the runners shell
       - name: Build Onyx
         run: |
-          cp kernel/kernel.config.example kernel/kernel.config
+          cp kernel/configs/kernel.config.x86_64 kernel/kernel.config
           export CLANG_PATH=$PWD/onyx-llvm
           export SYSROOT=$PWD/sysroot
           export ONYX_ARCH=x86_64
@@ -280,7 +280,7 @@ jobs:
       - name: Build sysroot
         run: |
           export ONYX_ARCH=${{ matrix.target_arch }}
-          cp kernel/kernel.config.example kernel/kernel.config
+          cp kernel/configs/kernel.config.x86_64 kernel/kernel.config
           ./scripts/setup_build.sh
           make install-headers -j $(nproc)
           ./scripts/build_libc_for_toolchain.sh
@@ -378,7 +378,7 @@ jobs:
             (steps.toolchain-cache-llvm.outputs.cache-hit != 'true' && matrix.toolchain == 'llvm')
         run: |
           scripts/ci/install_github_ci_deps.sh
-          cp kernel/kernel.config.example kernel/kernel.config
+          cp kernel/configs/kernel.config.x86_64 kernel/kernel.config
           export PATH="$PATH:$PWD/gn_bin"
           echo "$PWD/gn_bin" >> $GITHUB_PATH
 
