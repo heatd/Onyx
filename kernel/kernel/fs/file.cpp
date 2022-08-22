@@ -527,6 +527,12 @@ static inline mode_t get_current_umask()
     return get_current_process()->ctx.umask;
 }
 
+bool may_noatime(file *f)
+{
+    creds_guard g;
+    return g.get()->euid == 0 || f->f_ino->i_uid == g.get()->euid;
+}
+
 static struct file *try_to_open(struct file *base, const char *filename, int flags, mode_t mode)
 {
     unsigned int open_flags = (flags & O_EXCL ? OPEN_FLAG_FAIL_IF_LINK : 0) |
@@ -547,8 +553,7 @@ static struct file *try_to_open(struct file *base, const char *filename, int fla
         // when we're privileged (root).
         if (flags & O_NOATIME)
         {
-            creds_guard g;
-            if (g.get()->euid != 0 && ret->f_ino->i_uid != g.get()->euid)
+            if (!may_noatime(ret))
                 return errno = EPERM, nullptr;
         }
 
@@ -1387,46 +1392,39 @@ int fcntl_f_getfl(int fd, struct ioctx *ctx)
 
 int fcntl_f_setfl(int fd, struct ioctx *ctx, unsigned long arg)
 {
-    struct file *f = get_file_description(fd);
-    if (!f)
-        return -errno;
+    auto_file f;
+    if (int st = f.from_fd(fd); st < 0)
+        return st;
 
     /* TODO: Some flags, like O_ASYNC are not that simple to handle... */
     arg &= (O_APPEND | O_ASYNC | O_DIRECT | O_NOATIME | O_NONBLOCK);
 
-    f->f_flags = arg | (f->f_flags & ~SETFL_MASK);
+    if (arg & O_NOATIME)
+    {
+        if (!may_noatime(f.get_file()))
+            return -EPERM;
+    }
 
-    fd_put(f);
+    f.get_file()->f_flags = arg | (f.get_file()->f_flags & ~SETFL_MASK);
 
     return 0;
 }
 
 int sys_fcntl(int fd, int cmd, unsigned long arg)
 {
-    /* TODO: Get new flags for file descriptors. The use of O_* is confusing since
-     * those only apply on open calls. For example, fcntl uses FD_*. */
-    struct file *f = nullptr;
     struct ioctx *ctx = &get_current_process()->ctx;
 
     int ret = 0;
     switch (cmd)
     {
-        case F_DUPFD: {
-            f = get_file_description(fd);
-            if (!f)
-                return -errno;
-
-            ret = do_dupfd(f, (int) arg, false);
-            break;
-        }
-
+        case F_DUPFD:
         case F_DUPFD_CLOEXEC: {
-            f = get_file_description(fd);
-            if (!f)
-                return -errno;
+            auto_file f;
 
-            ret = do_dupfd(f, (int) arg, true);
-            break;
+            if (int st = f.from_fd(fd); st < 0)
+                return st;
+
+            return do_dupfd(f.get_file(), (int) arg, cmd == F_DUPFD_CLOEXEC);
         }
 
         case F_GETFD: {
@@ -1447,8 +1445,6 @@ int sys_fcntl(int fd, int cmd, unsigned long arg)
             break;
     }
 
-    if (f)
-        fd_put(f);
     return ret;
 }
 
