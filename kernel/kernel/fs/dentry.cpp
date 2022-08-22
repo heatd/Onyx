@@ -843,6 +843,8 @@ struct symlink_handling : public last_name_handling
         }
 
         new_dentry->d_inode = new_ino;
+        dentry_get(new_dentry);
+
         return new_dentry;
     }
 };
