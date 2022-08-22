@@ -47,7 +47,7 @@ protected:
     void receive_byte(uint8_t byte);
 
 public:
-    serial_port() : tty_{}
+    serial_port() : byte_buf_size{}, tty_{}
     {
         nr = allocate_serial_index();
         spinlock_init(&bytebuf_lock);
