@@ -12,12 +12,14 @@
 #include <gtest/gtest.h>
 #include <libonyx/unique_fd.h>
 
+#include "../include/drop_priv.h"
+
 TEST(Fcntl, ONoAtimeWorks)
 {
     onx::unique_fd fd =
-        open("test_file", O_CREAT | O_TRUNC | O_RDONLY | O_NOCTTY | O_NOATIME | O_CLOEXEC);
+        open("test_file", O_CREAT | O_TRUNC | O_RDONLY | O_NOCTTY | O_NOATIME | O_CLOEXEC, 0777);
 
-    ASSERT_NE(fd, -1);
+    ASSERT_TRUE(fd.valid());
 
     // Unlink it straight away, as it is a temporary file
     ASSERT_NE(unlink("test_file"), -1);
@@ -37,4 +39,32 @@ TEST(Fcntl, ONoAtimeWorks)
     ASSERT_NE(fstat(fd.get(), &buf), -1);
 
     EXPECT_EQ(buf.st_atim.tv_sec, 0);
+}
+
+TEST(Fcntl, ONoAtimePrivCheck)
+{
+    onx::unique_fd fd =
+        open("test_file", O_CREAT | O_TRUNC | O_RDONLY | O_NOCTTY | O_CLOEXEC, 0777);
+
+    ASSERT_TRUE(fd.valid());
+
+    ASSERT_EQ(fchown(fd, 1, 0), 0);
+
+    // Should work because we're root
+    onx::unique_fd fd2 = open("test_file", O_RDONLY | O_CLOEXEC | O_NOATIME);
+
+    ASSERT_TRUE(fd2.valid());
+    fd2.release();
+
+    {
+        unprivileged_guard g;
+        fd2 = open("test_file", O_RDONLY | O_CLOEXEC | O_NOATIME);
+        ASSERT_FALSE(fd2.valid());
+        ASSERT_EQ(errno, EPERM);
+
+        ASSERT_EQ(fcntl(fd, F_SETFL, O_NOATIME), -1);
+        ASSERT_EQ(errno, EPERM);
+    }
+
+    ASSERT_NE(unlink("test_file"), -1);
 }

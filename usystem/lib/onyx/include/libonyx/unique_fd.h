@@ -71,6 +71,11 @@ public:
         return valid();
     }
 
+    constexpr operator int() const
+    {
+        return fd;
+    }
+
     int get() const
     {
         return fd;

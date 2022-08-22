@@ -1991,7 +1991,7 @@ mode_t sys_umask(mode_t mask)
 int chmod_vfs(struct inode *ino, mode_t mode)
 {
     ino->i_mode = (ino->i_mode & S_IFMT) | (mode & 07777);
-    inode_mark_dirty(ino);
+    inode_update_ctime(ino);
     return 0;
 }
 
@@ -2097,7 +2097,7 @@ int sys_utimensat(int dirfd, const char *pathname, const struct timespec *times,
             return st;
 
         int open_flags = (flags & AT_SYMLINK_NOFOLLOW ? OPEN_FLAG_NOFOLLOW : 0);
-        auto_file f = open_vfs_with_flags(dir.get_file(), path.data(), open_flags);
+        f = open_vfs_with_flags(dir.get_file(), path.data(), open_flags);
 
         if (!f)
             return -errno;
@@ -2117,21 +2117,115 @@ int sys_utimensat(int dirfd, const char *pathname, const struct timespec *times,
     return 0;
 }
 
-int sys_chown(const char *pathname, uid_t owner, gid_t group)
+static bool may_change_owner(inode *ino)
 {
-    return -ENOSYS;
+    return is_root_user();
 }
-int sys_fchown(int fd, uid_t owner, gid_t group)
+
+static bool may_change_group(inode *ino, gid_t group)
 {
-    return -ENOSYS;
+    creds_guard g;
+    auto creds = g.get();
+
+    if (creds->euid == 0)
+        return true; // Root can always change it, arbitrarily
+
+    return ino->i_uid == creds->euid && (creds->egid == group || cred_is_in_group(creds, group));
 }
-int sys_lchown(const char *pathname, uid_t owner, gid_t group)
+
+int chown_vfs(inode *ino, uid_t owner, gid_t group)
 {
-    return -ENOSYS;
+    bool changed_inode = false;
+    if (owner != (uid_t) -1 && ino->i_uid != owner)
+    {
+        if (!may_change_owner(ino))
+            return -EPERM;
+
+        ino->i_uid = owner;
+        changed_inode = true;
+    }
+
+    if (group != (gid_t) -1 && ino->i_gid != group)
+    {
+        if (!may_change_group(ino, group))
+            return -EPERM;
+
+        ino->i_gid = group;
+        changed_inode = true;
+    }
+
+    if (changed_inode)
+    {
+        // Clear SUID and SGID
+        ino->i_mode &= ~S_ISUID;
+
+        // If group-exec was not set, sgid would mean mandatory locking,
+        // so we would not clear sgid.
+        if (ino->i_mode & S_IXGRP)
+        {
+            ino->i_mode &= ~S_ISGID;
+        }
+
+        inode_update_ctime(ino);
+    }
+
+    return 0;
 }
+
+#define VALID_FCHOWNAT_FLAGS (AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW)
+
+int sys_fchownat_core(int dirfd, const char *pathname, uid_t owner, gid_t group, int flags)
+{
+    if (flags & ~VALID_FCHOWNAT_FLAGS)
+        return -EINVAL;
+
+    auto_file f;
+
+    if (strlen(pathname) == 0)
+    {
+        if (!(flags & AT_EMPTY_PATH))
+            return -ENOENT;
+        // Empty path, interpret as dirfd = ino
+        if (int st = f.from_dirfd(dirfd); st < 0)
+            return st;
+    }
+    else
+    {
+        auto_file dir;
+        if (int st = dir.from_dirfd(dirfd); st < 0)
+            return st;
+
+        int open_flags = (flags & AT_SYMLINK_NOFOLLOW ? OPEN_FLAG_NOFOLLOW : 0);
+        f = open_vfs_with_flags(dir.get_file(), pathname, open_flags);
+
+        if (!f)
+            return -errno;
+    }
+
+    return chown_vfs(f.get_file()->f_ino, owner, group);
+}
+
 int sys_fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flags)
 {
-    return -ENOSYS;
+    user_string s;
+    if (auto ex = s.from_user(pathname); ex.has_error())
+        return ex.error();
+    return sys_fchownat_core(dirfd, s.data(), owner, group, flags);
+}
+
+int sys_chown(const char *pathname, uid_t owner, gid_t group)
+{
+    return sys_fchownat(AT_FDCWD, pathname, owner, group, 0);
+}
+
+int sys_fchown(int fd, uid_t owner, gid_t group)
+{
+    return sys_fchownat_core(fd, "", owner, group, AT_EMPTY_PATH);
+}
+
+int sys_lchown(const char *pathname, uid_t owner, gid_t group)
+{
+    return sys_fchownat(AT_FDCWD, pathname, owner, group, AT_SYMLINK_NOFOLLOW);
 }
 
 /**
