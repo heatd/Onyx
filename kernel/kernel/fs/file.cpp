@@ -2039,6 +2039,88 @@ int sys_chmod(const char *pathname, mode_t mode)
     return sys_fchmodat(AT_FDCWD, pathname, mode, 0);
 }
 
+void utimensat_vfs(inode *ino, timespec ktimes[2])
+{
+    bool set_time = false;
+    for (unsigned int i = 0; i < 2; i++)
+    {
+        if (ktimes[i].tv_nsec == UTIME_NOW)
+        {
+            hrtime_to_timespec(clocksource_get_time(), &ktimes[i]);
+        }
+        else if (ktimes[i].tv_nsec == UTIME_OMIT)
+            continue;
+
+        set_time = true;
+        // TODO: Nanosecond resolution in inode timestamps
+        switch (i)
+        {
+            case 0:
+                // atime
+                ino->i_atime = ktimes[i].tv_sec;
+                break;
+            case 1:
+                ino->i_mtime = ktimes[i].tv_sec;
+                break;
+        }
+    }
+
+    if (set_time)
+    {
+        // Note: dirties the inode
+        inode_update_ctime(ino);
+    }
+}
+
+#define VALID_UTIMENSAT_FLAGS (AT_SYMLINK_NOFOLLOW)
+
+int sys_utimensat(int dirfd, const char *pathname, const struct timespec *times, int flags)
+{
+    if (flags & ~VALID_FCHMODAT_FLAGS)
+        return -EINVAL;
+
+    user_string path;
+
+    if (pathname)
+    {
+        if (auto ex = path.from_user(pathname); ex.has_error())
+            return ex.error();
+    }
+
+    struct timespec ktimes[2];
+
+    if (copy_from_user(ktimes, times, sizeof(ktimes)) < 0)
+        return -EFAULT;
+
+    auto_file dir;
+
+    auto_file f;
+    if (pathname)
+    {
+        if (int st = dir.from_dirfd(dirfd); st < 0)
+            return st;
+
+        int open_flags = (flags & AT_SYMLINK_NOFOLLOW ? OPEN_FLAG_NOFOLLOW : 0);
+        auto_file f = open_vfs_with_flags(dir.get_file(), path.data(), open_flags);
+
+        if (!f)
+            return -errno;
+    }
+    else
+    {
+        // Ok, let's use dirfd as the file to use
+        // dirfd cannot be AT_FDCWD
+        if (dirfd == AT_FDCWD)
+            return -EFAULT;
+        if (int st = f.from_fd(dirfd); st < 0)
+            return st;
+    }
+
+    utimensat_vfs(f.get_file()->f_ino, ktimes);
+
+    return 0;
+}
+
 int sys_chown(const char *pathname, uid_t owner, gid_t group)
 {
     return -ENOSYS;
@@ -2052,11 +2134,6 @@ int sys_lchown(const char *pathname, uid_t owner, gid_t group)
     return -ENOSYS;
 }
 int sys_fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flags)
-{
-    return -ENOSYS;
-}
-
-int sys_utimensat(int dirfd, const char *pathname, const struct timespec *times, int flags)
 {
     return -ENOSYS;
 }

@@ -11,7 +11,9 @@ app_executable("kernel_api_tests") {
                 "src/rlimit.cpp",
                 "src/sid.cpp",
                 "src/vm.cpp",
-                "src/process_handle.cpp"
+                "src/process_handle.cpp",
+                "src/file.cpp",
+                "src/fcntl.cpp"
                 ]
     deps = [ "//googletest:gtest_main",
              "//lib/onyx" ]
