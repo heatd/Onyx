@@ -457,7 +457,7 @@ int ps2_probe_mouse(struct device *device)
     if (command_port)
         i8042_command_port = command_port->start();
     if (irq)
-        i8042_keyboard_irq = irq->start();
+        i8042_mouse_irq = irq->start();
 
     i8042_found_pnp = true;
     return 0;
