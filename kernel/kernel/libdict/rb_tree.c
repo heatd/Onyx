@@ -529,6 +529,10 @@ static rb_node* node_next(rb_node* node)
         node = temp;
     }
 
+    // GCC 11.2.0 LTO is frequently screwing up this function
+    // Keep this here to satisfy it.
+    // TODO: Switch to another tree implementation
+    __asm__ __volatile__("" ::: "memory");
     return node;
 }
 
