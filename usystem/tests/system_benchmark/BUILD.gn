@@ -8,6 +8,7 @@ app_executable("system_benchmark") {
                 "src/threads.cpp",
                 "src/terminal.cpp",
                 "src/fork.cpp",
-                "src/string_benchmark_bionic.cpp" ]
+                "src/string_benchmark_bionic.cpp",
+                "src/vm.cpp" ]
     deps = [ "//benchmark" ]
 }
