@@ -934,6 +934,9 @@ char *dentry_to_file_name(struct dentry *dentry)
     char *s = nullptr;
     auto fs_root = get_filesystem_root()->file->f_dentry;
 
+    if (fs_root == dentry)
+        return strdup("/");
+
     dentry_get(fs_root);
 
     auto d = dentry;
