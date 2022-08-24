@@ -2947,7 +2947,7 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
                         add_vmo_to_private_list(as, second);
 
                     new_region->vmo = second;
-                    vmo_assign_mapping(region->vmo, new_region);
+                    vmo_assign_mapping(second, new_region);
                     /* We should need to do this */
                     new_region->offset = 0;
                 }
@@ -2957,12 +2957,6 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 
                     vmo_ref(region->vmo);
                     new_region->vmo = region->vmo;
-                    /*
-                                        if(new_region->mapping_type == MAP_SHARED && new_region->fd
-                       && inode_requires_wb(new_region->fd->f_ino))
-                                        {
-                                            writeback_add_region(new_region);
-                                        }*/
                 }
                 /* The original region's size is offset */
                 region->pages = offset >> PAGE_SHIFT;

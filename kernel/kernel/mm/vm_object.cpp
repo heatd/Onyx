@@ -546,12 +546,19 @@ int vmo_resize(size_t new_size, vm_object *vmo)
 
 vm_object *vmo_create_copy(vm_object *vmo)
 {
-    vm_object *copy = (vm_object *) memdup(vmo, sizeof(*vmo));
+    vm_object *copy = vmo_create(vmo->size, vmo->priv);
 
     if (!copy)
         return nullptr;
 
-    mutex_init(&copy->page_lock);
+    copy->flags = vmo->flags;
+    copy->cow_clone = vmo->cow_clone;
+    copy->ino = vmo->ino;
+    if (copy->ino)
+        inode_ref(copy->ino);
+    copy->ops = vmo->ops;
+    copy->type = vmo->type;
+
     copy->flags &= ~(VMO_FLAG_LOCK_FUTURE_PAGES);
     if (copy->cow_clone)
         vmo_ref(copy->cow_clone);
@@ -575,26 +582,14 @@ vm_object *vmo_split(size_t split_point, size_t hole_size, vm_object *vmo)
         return nullptr;
 
     second_vmo->size -= split_point + hole_size;
-    second_vmo->pages = rb_tree_new(page_cmp);
     INIT_LIST_HEAD(&second_vmo->mappings);
-    if (second_vmo->ino)
-        inode_ref(second_vmo->ino);
-
-    if (!second_vmo->pages)
-    {
-        free(second_vmo);
-        return nullptr;
-    }
 
     unsigned long max = hole_size + split_point;
 
     if (vmo_purge_pages(split_point, max, PURGE_SHOULD_FREE, nullptr, vmo) < 0 ||
         vmo_purge_pages(max, vmo->size, 0, second_vmo, vmo) < 0)
     {
-        if (second_vmo->ino)
-            inode_unref(second_vmo->ino);
-        rb_tree_free(second_vmo->pages, vmo_rb_delete_func);
-        free(second_vmo);
+        vmo_destroy(second_vmo);
         return nullptr;
     }
 
