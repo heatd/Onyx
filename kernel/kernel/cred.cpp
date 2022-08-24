@@ -288,7 +288,7 @@ int sys_set_gids(unsigned int flags, gid_t rgid, gid_t egid, gid_t sgid)
 
 int supp_groups::set_groups(const gid_t *u_gid_list, size_t size)
 {
-    if (!groups.reserve(size))
+    if (!groups.resize(size))
         return -ENOMEM;
 
     if (copy_from_user(&groups.front(), u_gid_list, size * sizeof(gid_t)) < 0)
@@ -349,7 +349,8 @@ int sys_setgroups(size_t size, const gid_t *ugids)
 
     /* ew */
     cul::swap(groups, *reinterpret_cast<supp_groups **>(&c->groups));
-    groups->unref();
+    if (groups)
+        groups->unref();
 
     return 0;
 }

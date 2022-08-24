@@ -48,9 +48,8 @@ static inline size_t tar_get_size(const char *in)
         size += ((in[j - 1] - '0') * count);
     return size;
 }
-size_t tar_parse(uintptr_t adress);
+size_t tar_parse(uintptr_t address);
 
-void init_initrd(void *addr);
-int initrd_load_into_ramfs(size_t files);
+void init_initrd(void *addr, size_t length);
 
 #endif

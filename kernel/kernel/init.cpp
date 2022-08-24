@@ -75,10 +75,12 @@
 #include <onyx/linker_section.hpp>
 
 void *initrd_addr = nullptr;
+size_t initrd_length = 0;
 
-void set_initrd_address(void *initrd_address)
+void set_initrd_address(void *initrd_address, size_t length)
 {
     initrd_addr = initrd_address;
+    initrd_length = length;
 }
 
 void dump_used_mem();
@@ -213,7 +215,7 @@ void fs_init()
     initrd_addr = (void *) ((char *) initrd_addr + PHYS_BASE);
 
     /* Initialize the initrd */
-    init_initrd(initrd_addr);
+    init_initrd(initrd_addr, initrd_length);
 
     reclaim_initrd();
 }

@@ -14,7 +14,7 @@
 #include <onyx/panic.h>
 #include <onyx/serial.h>
 
-void set_initrd_address(void *initrd_address);
+void set_initrd_address(void *initrd_address, size_t length);
 
 namespace device_tree
 {
@@ -239,7 +239,7 @@ void figure_out_initrd_from_chosen(int offset)
 
     bootmem_reserve(start, end - start);
 
-    set_initrd_address((void *) start);
+    set_initrd_address((void *) start, end - start);
 }
 /**
  * @brief Walk the device tree and look for interesting things

@@ -133,6 +133,9 @@ fullbuild: build-cleanup
 iso: fullbuild
 	scripts/iso.sh
 
+liveiso: fullbuild
+	scripts/iso.sh scripts/livecd-initrd.sh
+
 fullbuild-plus-initrd: fullbuild
 	SYSTEM_ROOT=$(SYSROOT) scripts/geninitrd --compression-method none scripts/default-initrd.sh
 
@@ -151,6 +154,13 @@ qemu: iso
 	-object filter-dump,id=f1,netdev=u1,file=net.pcap \
 	-enable-kvm -cpu host,migratable=on,+invtsc -smp 4 -vga qxl \
 	-device usb-ehci -device usb-mouse \
+	-display gtk,gl=on -machine q35
+
+ci-test-qemu: liveiso
+	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) \
+	-s -cdrom Onyx.iso -m 2G -serial stdio -boot d -netdev user,id=u1 \
+	-device virtio-net,netdev=u1 -object filter-dump,id=f1,netdev=u1,file=net.pcap \
+	-cpu Haswell --enable-kvm -smp 4 -vga qxl -device usb-ehci -device usb-mouse \
 	-display gtk,gl=on -machine q35
 
 # -device pci-bridge,id=pci_b0,bus=pcie.0,chassis_nr=2,addr=10

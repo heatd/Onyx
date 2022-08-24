@@ -1,4 +1,4 @@
-kern-y+= arc4random.o binfmt.o copy.o cppnew.o cpprt.o crc32.o dev.o dma.o dpc.o \
+kern-y+= arc4random.o binfmt.o compression.o copy.o cppnew.o cpprt.o crc32.o dev.o dma.o dpc.o \
 	driver.o exceptions.o font.o framebuffer.o futex.o i2c.o id_manager.o init.o initrd.o \
 	irq.o kernelinfo.o kernlog.o ktest.o modules.o object.o panic.o percpu.o \
 	power_management.o proc_event.o process.o pid.o ptrace.o random.o ref.o signal.o \

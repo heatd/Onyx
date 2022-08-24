@@ -89,6 +89,10 @@ endif
 
 include lib/libk/Makefile
 
+ifeq ($(CONFIG_ZSTD), y)
+include lib/zstd/Makefile
+endif
+
 LIBK_LINK:=lib/libk/libk.a
 
 CFLAGS:=$(CFLAGS) $(KERNEL_ARCH_CFLAGS)
@@ -169,7 +173,7 @@ CPPFLAGS+=-Iinclude/acpica
 include acpica/Makefile
 endif
 
-OBJS:=$(obj-y)
+OBJS:=$(obj-y) $(obj-y_NOKASAN)
 
 DEPS:=$(OBJS:%.o=%.d)
 
@@ -247,6 +251,9 @@ endif
 acpica/%.o: acpica/%.c $(GENERATED_HEADERS)
 	@echo [CC] $<
 	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) $(CPPFLAGS)
+
+$(obj-y_NOKASAN): 
+$(obj-y_NOKASAN): CFLAGS+=-fno-sanitize=address
 
 kernel/mm/kasan.o: kernel/mm/kasan.cpp $(GENERATED_HEADERS)
 	@echo [CC] NOKASAN $<

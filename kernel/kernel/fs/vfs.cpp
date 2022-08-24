@@ -284,7 +284,12 @@ bool inode_can_access(struct inode *file, unsigned int perms)
     if (unlikely(c->euid == 0))
     {
         /* We're root: the access is good */
-        goto out;
+        // We can always do anything with dirs (exec doesn't mean exec here)
+        if (S_ISDIR(file->i_mode))
+            goto out;
+        // If we're executing, we need a single execute bit set
+        if (perms != FILE_ACCESS_EXECUTE || file->i_mode & 0111)
+            goto out;
     }
 
     /* We're not root, let's do permission checking */
@@ -320,11 +325,10 @@ bool inode_can_access(struct inode *file, unsigned int perms)
     access_good = (file->i_mode & ino_perms) == ino_perms;
 
 #if 0
-	if(!access_good)
-	{
-		printk("Halting for debug: ino perms %u, perms %u\n", ino_perms, file->i_mode);
-		while(true) {}
-	}
+    if (!access_good)
+    {
+        panic("Halting for debug: ino perms %o, perms %o\n", ino_perms, file->i_mode);
+    }
 #endif
 out:
     creds_put(c);

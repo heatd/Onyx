@@ -7,7 +7,7 @@ show_help()
 
 no_symlinks="false"
 SHELL_SCRIPTS=""
-COMPRESSION_METHOD=xz
+COMPRESSION_METHOD=zstd
 
 while [ "$1" != "" ]; do
         case "$1" in
@@ -66,6 +66,9 @@ if [ "$COMPRESSION_METHOD" = "xz" ]
 then
 xz -5 -e -f initrd.tar
 ARCHIVE_NAME="initrd.tar.xz"
+elif [ "$COMPRESSION_METHOD" = "zstd" ]; then
+zstd -10 -f initrd.tar
+ARCHIVE_NAME="initrd.tar.zst"
 elif [ "$COMPRESSION_METHOD" = "gz" ]
 then
 gzip -5 initrd.tar

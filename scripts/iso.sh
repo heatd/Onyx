@@ -5,30 +5,37 @@ mkdir -p isodir
 mkdir -p isodir/boot
 mkdir -p isodir/boot/grub
 
-SYSTEM_ROOT=$DESTDIR scripts/geninitrd scripts/default-initrd.sh
+INITRD_GEN_SCRIPT=$1
+
+if [ "$INITRD_GEN_SCRIPT" = "" ]; then
+    INITRD_GEN_SCRIPT="scripts/default-initrd.sh"
+fi
+
+SYSTEM_ROOT=$DESTDIR scripts/geninitrd "$INITRD_GEN_SCRIPT"
 
 cp sysroot/boot/vmonyx isodir/boot/vmonyx
-INITRD_NAME=initrd.tar.xz
+INITRD_NAME=initrd.tar.zst
 cp $INITRD_NAME isodir/boot
 
 echo "Compressing kernel"
 xz -9 -e -f isodir/boot/vmonyx
+#zstd -15 isodir/boot/vmonyx
 
 cat > isodir/boot/grub/grub.cfg << EOF
 menuentry "Onyx" {
-	loadfont unicode
-	insmod all_video
-  	insmod xzio
-  	insmod gfxterm
-	terminal_output gfxterm
-	set gfxpayload=1024x768x32
+    loadfont unicode
+    insmod all_video
+    insmod xzio
+    insmod gfxterm
+    terminal_output gfxterm
+    set gfxpayload=1024x768x32
 
-	echo "Loading the vmonyx kernel"
-	multiboot2 /boot/vmonyx.xz --root=/dev/sda1
-	echo "Loading the initrd"
-	module2 /boot/${INITRD_NAME}
+    echo "Loading the vmonyx kernel"
+    multiboot2 /boot/vmonyx.xz --root=/dev/sda1
+    echo "Loading the initrd"
+    module2 /boot/${INITRD_NAME}
 
-	boot
+    boot
 }
 EOF
 grub-mkrescue -o Onyx.iso isodir # Change this acording to your distro/OS.

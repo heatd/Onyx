@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Pedro Falcato
+ * Copyright (c) 2021 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -8,6 +8,8 @@
 
 #ifndef _ONYX_STRING_PARSING_H
 #define _ONYX_STRING_PARSING_H
+
+#include <ctype.h>
 
 #include <type_traits>
 
@@ -29,7 +31,7 @@ expected<bool, bool> parse_bool_from_string(std::string_view str);
 
 /**
  * @brief Determines if c is a valid character for the base.
- *        Valid bases: 10, 16, 2.
+ *        Valid bases: 10, 16, 2, 8.
  *
  * @param c The character to check.
  * @param base The base, or radix.
@@ -40,6 +42,10 @@ constexpr bool is_valid_base_x_char(char c, unsigned int base)
     if (base == 10)
     {
         return isdigit(c);
+    }
+    else if (base == 8)
+    {
+        return c >= '0' && c < '8';
     }
     else if (base == 16)
     {
@@ -127,6 +133,12 @@ expected<Type, bool> parse_number_from_string(std::string_view str)
         }
         else [[likely]]
         {
+            if (i == first_number_idx + 1 && str[first_number_idx] == '0')
+            {
+                // Octal baby!
+                base = 8;
+            }
+
             // Might be a good idea to check for multiplication and addition overflows
             int char_value = 0;
 

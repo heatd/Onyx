@@ -78,7 +78,7 @@ uintptr_t get_rdsp_from_grub(void)
         return 0;
 }
 
-void set_initrd_address(void *initrd_address);
+void set_initrd_address(void *initrd_address, size_t length);
 
 static struct framebuffer fb = {.name = "multiboot2-fb"};
 
@@ -280,7 +280,7 @@ extern "C" void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
 
     physical_mem_inited = true;
 
-    set_initrd_address((void *) (uintptr_t) initrd.base);
+    set_initrd_address((void *) (uintptr_t) initrd.base, initrd.size);
 
     page_init(total_mem, max_pfn);
 

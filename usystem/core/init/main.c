@@ -271,8 +271,10 @@ int main(int argc, char **argv)
     /* Load the needed kernel modules */
     load_modules();
 
+    bool is_livecd = access("/etc/livecd", R_OK) == 0;
+
     /* Mount filesystems */
-    if (mount_filesystems() == 1)
+    if (!is_livecd && mount_filesystems() == 1)
     {
         if (fail_on_mount_error)
         {

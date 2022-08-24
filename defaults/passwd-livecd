@@ -1,2 +1,2 @@
-root:x:0:0:root:/root:/bin/dash
+root::0:0:root:/:/bin/dash
 guest:x:1000:1000:guest:/home/guest:/bin/dash

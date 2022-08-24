@@ -163,6 +163,7 @@ void sysfs_init(void)
     root->i_sb = sb;
     root->i_inode = (ino_t) &sysfs_root;
     root->i_nlink = 1;
+    root->i_mode = 0755;
 
     root->i_type = sysfs_type_to_vfs_type(sysfs_root.perms);
 

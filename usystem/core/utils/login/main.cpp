@@ -18,6 +18,8 @@
 #include <unistd.h>
 
 #include <filesystem>
+#include <fstream>
+#include <sstream>
 #include <string>
 
 char *program_name = nullptr;
@@ -132,6 +134,41 @@ void self_exec_for_every_tty()
     exit(0);
 }
 
+void show_motd()
+{
+    try
+    {
+        std::fstream file{"/etc/motd"};
+        if (!file.is_open())
+            return;
+
+        std::stringstream ss;
+        ss << file.rdbuf();
+        std::printf("\n%s\n", ss.str().c_str());
+    }
+    catch (std::exception &e)
+    {
+    }
+}
+
+bool has_autologin()
+{
+    return access("/etc/autologin", R_OK) == 0;
+}
+
+std::string get_autologin()
+{
+    std::fstream file{"/etc/autologin"};
+    if (!file.is_open())
+        throw std::runtime_error("autologin access()'d but failed to be opened");
+
+    std::stringstream ss;
+    ss << file.rdbuf();
+    auto user = ss.str();
+    user.erase(std::remove(user.begin(), user.end(), '\n'), user.cend());
+    return user;
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2)
@@ -175,23 +212,24 @@ int main(int argc, char **argv)
         printf("username:");
         fflush(stdout);
 
-        if (get_input(username) < 0)
+        if (has_autologin())
         {
-            perror("get_input");
-            return 1;
+            username = get_autologin();
+            printf("%s (autologin)\n", username.c_str());
+        }
+        else
+        {
+            if (get_input(username) < 0)
+            {
+                perror("get_input");
+                return 1;
+            }
         }
 
         printf("password:");
         fflush(stdout);
 
         hide_stdin();
-
-        if (get_input(password) < 0)
-        {
-            reset_terminal();
-            perror("get_input");
-            return 1;
-        }
 
         user = getpwnam(username.c_str());
         if (!user)
@@ -201,8 +239,15 @@ int main(int argc, char **argv)
             continue;
         }
 
-        if (!user->pw_name[0])
+        if (!user->pw_passwd[0])
             break;
+
+        if (get_input(password) < 0)
+        {
+            reset_terminal();
+            perror("get_input");
+            return 1;
+        }
 
         if (user->pw_name[0] == '!' || user->pw_name[0] == '*')
         {
@@ -246,6 +291,8 @@ int main(int argc, char **argv)
         reset_terminal();
         return 1;
     }
+
+    show_motd();
 
     char *args[] = {nullptr, nullptr};
     /* The first character of argv[0] needs to be -, in order to be a login shell */

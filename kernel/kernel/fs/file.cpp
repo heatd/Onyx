@@ -286,7 +286,7 @@ int enlarge_file_descriptor_table(struct process *process, unsigned int new_size
 
     unsigned int new_nr_fds = new_size;
 
-    struct file **table = (file **) malloc(process->ctx.file_desc_entries * sizeof(void *));
+    struct file **table = (file **) malloc(new_nr_fds * sizeof(void *));
     unsigned long *cloexec_fds = (unsigned long *) malloc(FD_ENTRIES_TO_FDSET_SIZE(new_nr_fds));
     /* We use zalloc here to implicitly zero free fds */
     unsigned long *open_fds = (unsigned long *) zalloc(FD_ENTRIES_TO_FDSET_SIZE(new_nr_fds));
