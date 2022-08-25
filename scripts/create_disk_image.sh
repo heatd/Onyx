@@ -68,12 +68,6 @@ rm -f "$part_name"
 
 ./scripts/create_standard_fs.sh new_fs
 
-if [ "$size" = "adaptive" ]; then
-    ./scripts/create_adaptive_disk_image.py "$(du -s new_fs/ | cut -f1)" "$part_name"
-else
-    fallocate -l "$size" "$part_name"
-fi
-
 mkdir -p new_fs/boot/grub
 cp initrd.tar.zst new_fs/boot/
 cat >> new_fs/boot/grub/grub.cfg << EOF
@@ -95,6 +89,12 @@ EOF
 
 if [ "$bootable" = "efi" ]; then
     sed -i -e 's/sda1/sda2/g' new_fs/etc/fstab
+fi
+
+if [ "$size" = "adaptive" ]; then
+    ./scripts/create_adaptive_disk_image.py "$(du -s new_fs/ | cut -f1)" "$part_name"
+else
+    fallocate -l "$size" "$part_name"
 fi
 
 # mkfs has a confirmation prompt, so we need the yes
