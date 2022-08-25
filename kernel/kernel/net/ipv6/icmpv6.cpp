@@ -327,7 +327,7 @@ int icmp6_socket::add_filter(icmp_filter &&f)
 
     bool is_root = is_root_user();
 
-    if ((f.type == ICMP_FILTER_TYPE_UNSPEC || f.type != ICMPV6_ECHO_REQUEST) && !is_root)
+    if ((f.type == ICMP_FILTER_TYPE_UNSPEC || f.type != ICMPV6_ECHO_REPLY) && !is_root)
     {
         return -EPERM;
     }
