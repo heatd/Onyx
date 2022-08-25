@@ -46,6 +46,7 @@ static void process_get(struct process *process);
 static void process_put(struct process *process);
 
 #define PROCESS_FORKED (1 << 0)
+#define PROCESS_SECURE (1 << 1)
 
 class vfork_completion
 {
@@ -233,6 +234,11 @@ struct process : public onx::handle::handleable
     mm_address_space *get_aspace() const
     {
         return address_space.get();
+    }
+
+    void set_secure()
+    {
+        flags |= PROCESS_SECURE;
     }
 
 private:

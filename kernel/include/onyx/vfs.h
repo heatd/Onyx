@@ -321,4 +321,12 @@ void inode_update_mtime(struct inode *ino);
  */
 void put_dentry_to_dirent(struct dirent *buf, dentry *dentry, const char *special_name = nullptr);
 
+/**
+ * @brief Applies setuid and setgid permissions
+ *
+ * @param f File
+ * @return True if applied, else false
+ */
+bool apply_sugid_permissions(file *f);
+
 #endif

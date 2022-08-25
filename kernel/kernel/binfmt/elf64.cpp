@@ -271,6 +271,8 @@ static void *elf_load(struct binfmt_args *args, Elf64_Ehdr *header)
         current->info.dyn = dyn;
         current->info.program_entry = (void *) header->e_entry;
         // printk("phdrs: %p\n", current->info.phdr);
+        if (apply_sugid_permissions(fd))
+            current->set_secure();
     }
     else
     {

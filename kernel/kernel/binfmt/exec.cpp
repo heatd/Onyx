@@ -184,15 +184,24 @@ void *process_setup_auxv(void *buffer, char *strings_space, struct process *proc
 
         switch (i)
         {
+            case AT_SECURE:
+                val = (bool) (process->flags & PROCESS_SECURE);
+                break;
             case AT_PAGESZ:
                 val = PAGE_SIZE;
                 break;
             /* We're able to not grab cred because we're inside execve,
              * there's no race condition */
             case AT_UID:
-                val = process->cred.euid;
+                val = process->cred.ruid;
                 break;
             case AT_GID:
+                val = process->cred.rgid;
+                break;
+            case AT_EUID:
+                val = process->cred.euid;
+                break;
+            case AT_EGID:
                 val = process->cred.egid;
                 break;
             case AT_RANDOM:;

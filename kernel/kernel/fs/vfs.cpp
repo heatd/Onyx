@@ -721,3 +721,31 @@ void put_dentry_to_dirent(struct dirent *buf, dentry *dentry, const char *specia
     else
         buf->d_type = DT_UNKNOWN;
 }
+
+/**
+ * @brief Applies setuid and setgid permissions
+ *
+ * @param f File
+ * @return True if applied, else false
+ */
+bool apply_sugid_permissions(file *f)
+{
+    auto ino = f->f_ino;
+    if (!(ino->i_mode & (S_ISGID | S_ISUID)))
+        return false;
+
+    creds_guard<CGType::Write> g;
+
+    if (ino->i_mode & S_ISUID)
+    {
+        printk("suid %u\n", ino->i_uid);
+        g.get()->euid = ino->i_uid;
+    }
+
+    if (ino->i_mode & S_ISGID)
+    {
+        g.get()->egid = ino->i_gid;
+    }
+
+    return true;
+}
