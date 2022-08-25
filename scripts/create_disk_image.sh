@@ -75,7 +75,7 @@ else
 fi
 
 mkdir -p new_fs/boot/grub
-cp initrd.tar.xz new_fs/boot/
+cp initrd.tar.zst new_fs/boot/
 cat >> new_fs/boot/grub/grub.cfg << EOF
     menuentry "Onyx" {
 	loadfont unicode
@@ -87,7 +87,7 @@ cat >> new_fs/boot/grub/grub.cfg << EOF
 
 	echo "Loading the vmonyx kernel"
 	multiboot2 /boot/vmonyx --root=/dev/sda2
-    module2 /boot/initrd.tar.xz
+    module2 /boot/initrd.tar.zst
 
 	boot
     }

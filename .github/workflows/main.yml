@@ -50,7 +50,7 @@ jobs:
           export SYSROOT=$PWD/sysroot
           export ONYX_ARCH=x86_64
           ./scripts/setup_build.sh
-          RUN_CLANG_TIDY=0 make -j $(nproc) iso
+          RUN_CLANG_TIDY=0 make -j $(nproc) liveiso
           ./scripts/create_disk_image.sh disk-image.img --bootable efi
 
       - name: Upload a Build Artifact(Onyx.iso)
@@ -111,7 +111,7 @@ jobs:
           export SYSROOT=$PWD/sysroot
           export ONYX_ARCH=x86_64
           ./scripts/setup_build.sh
-          RUN_CLANG_TIDY=0 make -j $(nproc) iso
+          RUN_CLANG_TIDY=0 make -j $(nproc) liveiso
           ./scripts/create_disk_image.sh disk-image-llvm.img --bootable efi
 
       - name: Upload a Build Artifact(Onyx.iso)
