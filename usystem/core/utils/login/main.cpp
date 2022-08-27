@@ -106,14 +106,14 @@ static void self_exec(const std::string &name)
     if (pid < 0)
     {
         perror("fork");
-        abort();
+        exit(126);
     }
 
     if (pid == 0)
     {
         execl("/bin/login", "/bin/login", name.c_str(), nullptr);
         perror("execl");
-        abort();
+        exit(126);
     }
 }
 
