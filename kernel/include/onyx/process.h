@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -281,7 +281,7 @@ struct thread *process_create_main_thread(struct process *proc, thread_callback_
 
 struct process *get_process_from_pid(pid_t pid);
 struct thread *process_fork_thread(thread_t *src, struct process *dest, struct syscall_frame *ctx);
-void process_destroy_aspace(void);
+void process_destroy_aspace();
 int process_attach(struct process *tracer, struct process *tracee);
 struct process *process_find_tracee(struct process *tracer, pid_t pid);
 
@@ -296,7 +296,7 @@ static inline void process_get(struct process *process)
 
 static inline void process_put(struct process *process)
 {
-    if (__atomic_sub_fetch(&process->refcount, 1, __ATOMIC_ACQUIRE) == 0)
+    if (__atomic_sub_fetch(&process->refcount, 1, __ATOMIC_RELEASE) == 0)
         process_end(process);
 }
 

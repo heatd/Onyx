@@ -29,12 +29,12 @@ dentry *root_dentry = nullptr;
 void dentry_get(dentry *d)
 {
     /* Must hold parent's d_lock */
-    __atomic_add_fetch(&d->d_ref, 1, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&d->d_ref, 1, __ATOMIC_ACQUIRE);
 }
 
 void dentry_put(dentry *d)
 {
-    if (__atomic_sub_fetch(&d->d_ref, 1, __ATOMIC_RELAXED) == 0)
+    if (__atomic_sub_fetch(&d->d_ref, 1, __ATOMIC_RELEASE) == 0)
         dentry_destroy(d);
 }
 

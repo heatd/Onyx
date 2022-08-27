@@ -35,18 +35,18 @@ public:
 
     unsigned long ref()
     {
-        return ++__refcount;
+        return __refcount.add_fetch(1, mem_order::acquire);
     }
 
     unsigned long refer_multiple(unsigned long n)
     {
-        return __refcount.add_fetch(n);
+        return __refcount.add_fetch(n, mem_order::acquire);
     }
 
     bool unref()
     {
         bool was_deleted = false;
-        if (--__refcount == 0)
+        if (__refcount.sub_fetch(1, mem_order::release) == 0)
         {
             was_deleted = true;
             delete this;
@@ -58,7 +58,7 @@ public:
     bool unref_multiple(unsigned long n)
     {
         bool was_deleted = false;
-        if (__refcount.sub_fetch(n) == 0)
+        if (__refcount.sub_fetch(n, mem_order::release) == 0)
         {
             was_deleted = true;
             delete this;

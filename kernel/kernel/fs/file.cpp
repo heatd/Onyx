@@ -60,12 +60,12 @@ struct file *get_current_directory()
 
 void fd_get(struct file *fd)
 {
-    __sync_add_and_fetch(&fd->f_refcount, 1);
+    __atomic_add_fetch(&fd->f_refcount, 1, __ATOMIC_ACQUIRE);
 }
 
 void fd_put(struct file *fd)
 {
-    if (__sync_sub_and_fetch(&fd->f_refcount, 1) == 0)
+    if (__atomic_sub_fetch(&fd->f_refcount, 1, __ATOMIC_RELEASE) == 0)
     {
         close_vfs(fd->f_ino);
         // printk("file %s dentry refs %lu\n", fd->f_dentry->d_name, fd->f_dentry->d_ref);
