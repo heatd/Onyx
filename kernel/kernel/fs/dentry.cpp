@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <assert.h>
 #include <errno.h>
@@ -101,9 +103,6 @@ struct nameidata
 
 void dentry_destroy(dentry *d)
 {
-    if (d->d_inode)
-        close_vfs(d->d_inode);
-
     if (d->d_parent)
     {
         {
@@ -162,7 +161,7 @@ dentry *dentry_create(const char *name, inode *inode, dentry *parent)
     }
     else
     {
-        char *dname = (char *) memdup((void *) name, name_length);
+        char *dname = (char *) memdup((void *) name, name_length + 1);
         if (!dname)
         {
             dentry_pool.free(new_dentry);
@@ -1328,7 +1327,7 @@ void dentry_rename(dentry *dent, const char *name)
     }
     else
     {
-        char *dname = (char *) memdup(name, name_length);
+        char *dname = (char *) memdup(name, name_length + 1);
         /* TODO: Ugh, how do I handle this? */
         assert(dname != nullptr);
 
@@ -1552,4 +1551,10 @@ int sys_renameat(int olddirfd, const char *uoldpath, int newdirfd, const char *u
 int sys_rename(const char *oldpath, const char *newpath)
 {
     return sys_renameat(AT_FDCWD, oldpath, AT_FDCWD, newpath);
+}
+
+bool dentry_is_empty(dentry *dir)
+{
+    scoped_rwlock<rw_lock::write> g{dir->d_lock};
+    return list_is_empty(&dir->d_children_head);
 }

@@ -51,8 +51,28 @@ public:
     constexpr expected(_Type&& t) : t{cul::move(t)}, _has_value{true}
     {
     }
+
+    constexpr expected(expected<_Type, _ErrorType>&& rhs)
+    {
+        _has_value = rhs._has_value;
+        if (_has_value)
+            t = cul::move(rhs.t);
+        else
+            e = cul::move(rhs.e);
+    }
+
     constexpr expected(unexpected<_ErrorType>&& e) : e{cul::move(e.value())}, _has_value{false}
     {
+    }
+
+    constexpr expected<_Type, _ErrorType>& operator=(expected<_Type, _ErrorType>&& rhs)
+    {
+        _has_value = rhs._has_value;
+        if (_has_value)
+            t = cul::move(rhs.t);
+        else
+            e = cul::move(rhs.e);
+        return *this;
     }
 
     ~expected()
@@ -104,6 +124,33 @@ public:
             return value();
         else
             return cul::forward<T>(alt);
+    }
+
+    template <typename Callable>
+    expected<_Type, _ErrorType> then(const Callable& c)
+    {
+        if (_has_value)
+            return c(*this);
+        else
+            return cul::move(*this);
+    }
+
+    template <typename OtherType, typename OtherError>
+    expected<OtherType, OtherError> cast()
+    {
+        if (_has_value)
+            return expected<OtherType, OtherError>(*this);
+        else
+            return unexpected<OtherError>(e);
+    }
+
+    template <typename OtherType, typename OtherError, typename TypeFilter>
+    expected<OtherType, OtherError> cast(TypeFilter f)
+    {
+        if (_has_value)
+            return expected<OtherType, OtherError>(f(value()));
+        else
+            return unexpected<OtherError>(e);
     }
 };
 

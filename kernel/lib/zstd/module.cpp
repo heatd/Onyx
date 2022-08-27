@@ -16,8 +16,51 @@
 #include "zstd/lib/zstd.h"
 #include "zstd/lib/zstd_errors.h"
 
+#include <onyx/memory.hpp>
+
 namespace compression::zstd
 {
+
+class zstd_decompression_stream : public decompression_stream
+{
+    ZSTD_DStream* dstr{nullptr};
+
+public:
+    zstd_decompression_stream(cul::slice<unsigned char> src_hint)
+    {
+    }
+
+    ~zstd_decompression_stream() override
+    {
+        ZSTD_freeDStream(dstr);
+    }
+
+    bool init()
+    {
+        dstr = ZSTD_createDStream();
+        return dstr != nullptr;
+    }
+
+    expected<size_t, int> decompress_stream(cul::slice<unsigned char>& src,
+                                            cul::slice<unsigned char> dst) final
+    {
+        if (src.size_bytes() == 0)
+            return 0;
+
+        ZSTD_outBuffer output_buf{dst.data(), dst.size_bytes(), 0};
+        ZSTD_inBuffer input_buf{src.data(), src.size_bytes(), 0};
+        auto st = ZSTD_decompressStream(dstr, &output_buf, &input_buf);
+        if (ZSTD_isError(st))
+        {
+            panic("ZSTD compression error: %s\n", ZSTD_getErrorName(st));
+        }
+
+        // printk("Consumed %zu from %p, read %zu\n", input_buf.pos, src.data(), output_buf.pos);
+        src.adjust(input_buf.pos);
+
+        return output_buf.pos;
+    }
+};
 
 class zstd_module : public compression::module
 {
@@ -33,7 +76,7 @@ public:
      * @param src Slice for the source data
      * @return Number of bytes decompressed, or unexpected
      */
-    expected<size_t, int> decompress(void *dst, size_t dst_capacity,
+    expected<size_t, int> decompress(void* dst, size_t dst_capacity,
                                      cul::slice<unsigned char> src) final
     {
         auto size = ZSTD_decompress(dst, dst_capacity, src.data(), src.size_bytes());
@@ -61,43 +104,16 @@ public:
         return src[0] == 0x28 && src[1] == 0xb5 && src[2] == 0x2f && src[3] == 0xfd;
     }
 
-#if 0
-    /**
-     * @brief Decompress a buffer onto dst
-     *
-     * @param dst Pointer to destination
-     * @param dst_capacity Capacity of the destination buffer
-     * @param src Slice for the source data
-     * @return Number of bytes decompressed, or unexpected
-     */
-    expected<size_t, int> decompress_stream(
-        void *dst, size_t dst_capacity, cul::slice<unsigned char> src,
-        expected<cul::slice<void *>, int> (*increase_dst_size)(cul::slice<unsigned char> dst))
+    expected<unique_ptr<compression::decompression_stream>, int> create_decompression_stream(
+        cul::slice<unsigned char> src_hint) override
     {
-        ZSTD_DStream *dstr = ZSTD_createDStream();
-        ZSTD_outBuffer output_buf{dst, dst_capacity, 0};
-        ZSTD_inBuffer input_buf{src.data(), src.size_bytes(), 0};
-
-        while (true)
-        {
-            auto st = ZSTD_decompressStream(dstr, &output_buf, &input_buf);
-
-            if (st > 0)
-            {
-                auto slice =
-                    increase_dst_size(cul::slice<unsigned char>{dst, dst_capacity}).unwrap();
-                dst = slice.data();
-                dst_capacity = slice.size_bytes();
-                output_buf.dst = dst;
-                output_buf.size = dst_capacity;
-            }
-        }
-
-        printk("Done decompression: Final buffer size %u bytes\n", dst_capacity);
-
-        ZSTD_freeDStream(dstr);
+        auto str = make_unique<zstd_decompression_stream>(src_hint);
+        if (!str)
+            return unexpected<int>{-ENOMEM};
+        if (!str->init())
+            return unexpected<int>{-ENOMEM};
+        return str.cast<compression::decompression_stream>();
     }
-#endif
 };
 
 zstd_module zstd{};

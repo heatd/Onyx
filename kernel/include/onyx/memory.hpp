@@ -1,12 +1,15 @@
 /*
- * Copyright (c) 2017 Pedro Falcato
- * This file is part of Carbon, and is released under the terms of the MIT License
+ * Copyright (c) 2017 - 2022 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #ifndef _ONYX_MEMORY_HPP
 #define _ONYX_MEMORY_HPP
 
 #include <assert.h>
+#include <errno.h>
 #include <stddef.h>
 #include <stdlib.h>
 
@@ -14,6 +17,7 @@
 #include <onyx/new.h>
 #include <onyx/remove_extent.h>
 
+#include <onyx/expected.hpp>
 #include <onyx/utility.hpp>
 
 static constexpr unsigned char _R__refc_was_make_shared = (1 << 0);
@@ -402,6 +406,27 @@ public:
     {
         return get_data() != nullptr;
     }
+
+    expected<unique_ptr<T>, int> to_expected()
+    {
+        if (!p)
+            return unexpected<int>{-ENOMEM};
+        return cul::move(*this);
+    }
+
+    template <typename Type>
+    expected<unique_ptr<Type>, int> to_expected()
+    {
+        if (!p)
+            return unexpected<int>{-ENOMEM};
+        return unique_ptr<Type>{this->release()};
+    }
+
+    template <typename OtherType>
+    unique_ptr<OtherType> cast()
+    {
+        return unique_ptr<OtherType>{release()};
+    }
 };
 
 template <typename T, class... Args>
@@ -413,7 +438,7 @@ shared_ptr<T> make_shared(Args&&... args)
         return nullptr;
 
     refcount<T>* refc = new (buf) refcount<T>(_R__refc_was_make_shared);
-    T* data = new (buf + refc_part_size) T(args...);
+    T* data = new (buf + refc_part_size) T(cul::forward<Args>(args)...);
     refc->__set_data(data);
 
     shared_ptr<T> p(nullptr);
@@ -433,7 +458,7 @@ shared_ptr<T> cast(const shared_ptr<U>& s)
 template <typename T, class... Args>
 unique_ptr<T> make_unique(Args&&... args)
 {
-    T* data = new T(args...);
+    T* data = new T(cul::forward<Args>(args)...);
     if (!data)
         return nullptr;
 

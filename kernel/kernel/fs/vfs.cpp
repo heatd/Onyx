@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <assert.h>
 #include <errno.h>
@@ -738,7 +740,6 @@ bool apply_sugid_permissions(file *f)
 
     if (ino->i_mode & S_ISUID)
     {
-        printk("suid %u\n", ino->i_uid);
         g.get()->euid = ino->i_uid;
     }
 

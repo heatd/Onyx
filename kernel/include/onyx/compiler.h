@@ -45,6 +45,8 @@
 #define _strong_alias_c_name(name, aliasname) \
     extern "C" __typeof(name) aliasname __attribute__((alias(#name)));
 
+#define NO_ASAN __attribute__((no_sanitize_address))
+
 #define USED_FUNC __attribute__((used))
 #ifdef __x86_64__
 

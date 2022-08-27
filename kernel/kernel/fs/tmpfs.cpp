@@ -8,6 +8,7 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -85,6 +86,19 @@ char *tmpfs_readlink(struct file *f)
 
 int tmpfs_unlink(const char *name, int flags, struct dentry *dir)
 {
+    auto child = dentry_lookup_internal(name, dir, DENTRY_LOOKUP_UNLOCKED);
+    assert(child != nullptr);
+
+    if (S_ISDIR(child->d_inode->i_mode))
+    {
+        if (!(flags & AT_REMOVEDIR))
+            return -EISDIR;
+        if (!(flags & UNLINK_VFS_DONT_TEST_EMPTY) && !dentry_is_empty(dir))
+            return -ENOTEMPTY;
+    }
+
+    dentry_put(child);
+
     return 0;
 }
 

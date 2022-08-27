@@ -15,7 +15,9 @@
 
 #include <onyx/compression.h>
 #include <onyx/dev.h>
+#include <onyx/file.h>
 #include <onyx/initrd.h>
+#include <onyx/memstream.h>
 #include <onyx/panic.h>
 #include <onyx/string_parsing.h>
 #include <onyx/tmpfs.h>
@@ -24,28 +26,10 @@
 
 #include <onyx/pair.hpp>
 
-cul::vector<tar_header_t *> headers;
-size_t n_files = 0;
-size_t tar_parse(uintptr_t address)
+bool is_tar(void *initrd)
 {
-    size_t i = 0;
-
-    for (i = 0;; i++)
-    {
-        tar_header_t *header = (tar_header_t *) address;
-        if (header->filename[0] == '\0')
-            break;
-        /* Remove the trailing slash */
-        auto len = strnlen(header->filename, 100);
-        if (header->filename[len - 1] == '/')
-            header->filename[len - 1] = 0;
-        size_t size = tar_get_size(header->size);
-        headers.push_back(header);
-        address += ((size / 512) + 1) * 512;
-        if (size % 512)
-            address += 512;
-    }
-    return i;
+    tar_header_t *header = (tar_header_t *) initrd;
+    return !memcmp(header->magic, "ustar ", 6);
 }
 
 unsigned int parse_perms_from_tar(tar_header_t *entry)
@@ -54,12 +38,12 @@ unsigned int parse_perms_from_tar(tar_header_t *entry)
         .unwrap();
 }
 
-void initrd_mount()
+void tar_handle_entry(tar_header_t *entry, onx::stream &str)
 {
-    for (auto entry : headers)
-    {
-        char *saveptr;
-        auto len = strnlen(entry->filename, 100);
+    char *saveptr;
+    if (memcmp(entry->magic, "ustar ", 6))
+        panic("Tar entry with invalid magic value");
+    auto len = strnlen(entry->filename, 100);
 
 #if 0
         cul::string name;
@@ -73,157 +57,117 @@ void initrd_mount()
         if (!name.append({entry->filename, len}))
             panic("oom initrd");
 #endif
-        char *filename = (char *) memdup(entry->filename, len + 1);
-        filename[len] = '\0';
-        char *old = filename;
+    char *filename = (char *) memdup(entry->filename, len + 1);
+    filename[len] = '\0';
+    char *old = filename;
 
-        assert(filename != nullptr);
+    assert(filename != nullptr);
 
-        filename = dirname(filename);
+    filename = dirname(filename);
 
-        filename = strtok_r(filename, "/", &saveptr);
+    filename = strtok_r(filename, "/", &saveptr);
 
-        struct file *node = get_fs_root();
-        if (*filename != '.' && strlen(filename) != 1)
+    struct file *node = get_fs_root();
+    if (*filename != '.' && strlen(filename) != 1)
+    {
+        while (filename)
         {
-            while (filename)
+            struct file *last = node;
+            if (!(node = open_vfs(node, filename)))
             {
-                struct file *last = node;
-                if (!(node = open_vfs(node, filename)))
+                node = last;
+                if (!(node = mkdir_vfs(filename, 0755, node->f_dentry)))
                 {
-                    node = last;
-                    if (!(node = mkdir_vfs(filename, 0755, node->f_dentry)))
-                    {
-                        perror("mkdir");
-                        panic("Error loading initrd");
-                    }
+                    perror("mkdir");
+                    panic("Error loading initrd");
                 }
-                filename = strtok_r(nullptr, "/", &saveptr);
             }
+            filename = strtok_r(nullptr, "/", &saveptr);
         }
-        /* After creat/opening the directories, create it and populate it */
-        strlcpy(old, entry->filename, len + 1);
-        filename = old;
-        filename = basename(filename);
-        unsigned int perms = parse_perms_from_tar(entry);
+    }
+    /* After creat/opening the directories, create it and populate it */
+    strlcpy(old, entry->filename, len + 1);
+    filename = old;
+    filename = basename(filename);
+    unsigned int perms = parse_perms_from_tar(entry);
 
-        if (entry->typeflag == TAR_TYPE_FILE)
+    if (entry->typeflag == TAR_TYPE_FILE)
+    {
+        auto_file file = creat_vfs(node->f_dentry, filename, perms);
+        if (!file)
         {
-            struct file *file = creat_vfs(node->f_dentry, filename, perms);
-            if (!file)
-            {
-                panic("Could not create file from initrd - errno %d", errno);
-            }
+            panic("Could not create file from initrd - errno %d", errno);
+        }
 
-            char *buffer = (char *) entry + 512;
-            size_t size = tar_get_size(entry->size);
-            ssize_t st = write_vfs(0, size, buffer, file);
-
-            if (st < 0)
-            {
-                perror("write_vfs");
-                assert(st > 0);
-            }
-        }
-        else if (entry->typeflag == TAR_TYPE_DIR)
-        {
-            struct file *file = mkdir_vfs(filename, perms, node->f_dentry);
-            if (!file)
-                perror("mkdir_vfs");
-            assert(file != nullptr);
-        }
-        else if (entry->typeflag == TAR_TYPE_SYMLNK)
-        {
-            char *buffer = (char *) entry->linkname;
-            struct file *file = symlink_vfs(filename, buffer, node->f_dentry);
-            assert(file != nullptr);
-        }
+        size_t size = tar_get_size(entry->size);
+        str.splice(size, file.get_file()).unwrap();
+    }
+    else if (entry->typeflag == TAR_TYPE_DIR)
+    {
+        auto_file file = mkdir_vfs(filename, perms, node->f_dentry);
+        if (!file)
+            perror("mkdir_vfs");
+        assert(file.get_file());
+    }
+    else if (entry->typeflag == TAR_TYPE_SYMLNK)
+    {
+        char *buffer = (char *) entry->linkname;
+        auto_file file = symlink_vfs(filename, buffer, node->f_dentry);
+        assert(file.get_file());
     }
 }
 
-bool is_tar(void *initrd)
+expected<unique_ptr<compression::decompress_bytestream>, int> try_decompress(
+    cul::slice<unsigned char> src)
 {
-    tar_header_t *header = (tar_header_t *) initrd;
-    return !memcmp(header->magic, "ustar ", 6);
+    auto compstream = compression::create_decompression_stream(src).unwrap();
+    auto bstr = make_unique<compression::decompress_bytestream>(cul::move(compstream), src);
+
+    // Default to the compressed initrd's size
+    // Use 1MB as the minimum, 128MB as the maximum
+    auto buf_len = src.size_bytes();
+    buf_len = cul::max(buf_len, 0x100000UL);
+    buf_len = cul::min(buf_len, 0x8000000UL);
+    assert(bstr->init(buf_len) == true);
+
+    return cul::move(bstr);
 }
 
-struct decompression_data
+void tar_unpack(onx::stream &str)
 {
-    void *out;
-    size_t len;
-    size_t capacity;
-};
-
-// Note: This is horrible and not ideal... We should stream it.
-
-expected<decompression_data, int> try_decompress(cul::slice<unsigned char> src)
-{
-    // Let's attempt to start decompression with 6x the memory
-    auto buflen = src.size_bytes() * 10;
-
-    auto t0 = clocksource_get_time();
-
     while (true)
     {
-        void *ptr = vmalloc(vm_size_to_pages(buflen), VM_TYPE_REGULAR, VM_WRITE | VM_READ);
-        if (!ptr)
-            return unexpected<int>{-ENOMEM};
-
-        auto ex = compression::decompress(ptr, buflen, src);
-        if (ex.has_error())
-        {
-            if (ex.error() == -ENOSPC)
-            {
-                vfree(ptr, vm_size_to_pages(buflen));
-                buflen += 0x100000;
-                continue;
-            }
-
-            printk("initrd: Error decompressing: %d\n", ex.error());
-            return unexpected<int>{ex.error()};
-        }
-
-        auto t1 = clocksource_get_time();
-
-        printf("initrd: Decompressed %zu bytes in %lu ms\n", ex.value(), (t1 - t0) / NS_PER_MS);
-
-        return decompression_data{ptr, ex.value(), buflen};
+        tar_header_t hdr;
+        auto ex = str.read(cul::slice<unsigned char>{(unsigned char *) &hdr, sizeof(hdr)}).unwrap();
+        if (ex == 0)
+            break;
+        if (hdr.filename[0] == '\0')
+            break;
+        str.skip(12);
+        const auto raw_size = tar_get_size(hdr.size);
+        const size_t size = cul::align_up2(raw_size, 512UL);
+        tar_handle_entry(&hdr, str);
+        // printk("Skipping %zu (%s)\n", size, hdr.size);
+        ex = str.skip(size - raw_size).unwrap();
     }
 }
 
 void init_initrd(void *initrd, size_t length)
 {
-    bool reclaim_decompress = false;
-    size_t reclaim_size = 0;
     printf("Found an Initrd at %p\n", initrd);
+
+    /* Mount a new instance of a tmpfs at / */
+    tmpfs_kern_mount("/");
+    const cul::slice<unsigned char> initrd_src{(unsigned char *) initrd, length};
+
+    auto str = make_unique<onx::memstream>(initrd_src).cast<onx::stream>();
+    assert(str.get() != nullptr);
 
     if (!is_tar(initrd))
     {
         printf("initrd: Given initrd is not a TAR - trying to decompress\n");
-        auto dec_data =
-            try_decompress(cul::slice<unsigned char>{(unsigned char *) initrd, length}).unwrap();
-
-        initrd = dec_data.out;
-        length = dec_data.len;
-        reclaim_size = dec_data.capacity;
-        reclaim_decompress = true;
-
-        if (!is_tar(initrd))
-        {
-            panic("initrd: Given initrd is not a TAR, even after decompression");
-        }
+        str = try_decompress(initrd_src).unwrap();
     }
 
-    n_files = tar_parse((uintptr_t) initrd);
-    printf("Found %lu files in the Initrd\n", n_files);
-
-    /* Mount a new instance of a tmpfs at / */
-    tmpfs_kern_mount("/");
-
-    initrd_mount();
-
-    if (reclaim_decompress)
-    {
-        vfree(initrd, vm_size_to_pages(reclaim_size));
-    }
+    tar_unpack(*str);
 }

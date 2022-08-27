@@ -10,8 +10,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <onyx/compiler.h>
 #include <onyx/conditional.h>
 #include <onyx/enable_if.h>
+#include <onyx/mm/kasan.h>
 #include <onyx/new.h>
 #include <onyx/page.h>
 #include <onyx/scoped_lock.h>
@@ -215,6 +217,7 @@ public:
         return (memory_pool_size() - size_of_inline_segment()) / size_of_chunk();
     }
 
+    NO_ASAN
     cul::pair<memory_chunk<T> *, memory_chunk<T> *> setup_chunks()
     {
         memory_chunk<T> *prev = nullptr;
@@ -238,6 +241,10 @@ public:
                                                        size_of_chunk());
         }
 
+#ifdef CONFIG_KASAN
+        kasan_alloc_shadow((unsigned long) this, size - size_of_inline_segment(), false);
+        kasan_set_state((unsigned long *) this, size_of_inline_segment(), 0);
+#endif
         return cul::pair<memory_chunk<T> *, memory_chunk<T> *>(first, prev);
     }
 
@@ -266,6 +273,7 @@ public:
     static_assert(!(usable_onirq && using_vm),
                   "You may not use virtual memory mappings under IRQ context.");
 
+    NO_ASAN
     void append_segment(memory_pool_segment<T, using_vm> *seg)
     {
         if (!segment_head)
@@ -282,7 +290,7 @@ public:
         seg->next = seg->prev = nullptr;
     }
 
-    void remove_segment(memory_pool_segment<T, using_vm> *seg)
+    NO_ASAN void remove_segment(memory_pool_segment<T, using_vm> *seg)
     {
         if (seg->prev)
         {
@@ -299,7 +307,7 @@ public:
         seg->~memory_pool_segment<T, using_vm>();
     }
 
-    bool expand_pool()
+    NO_ASAN bool expand_pool()
     {
         // std::cout << "Expanding pool.\n";
         auto allocation_size = memory_pool_segment<T, using_vm>::memory_pool_size();
@@ -342,6 +350,7 @@ public:
         return true;
     }
 
+    NO_ASAN
     inline memory_chunk<T> *ptr_to_chunk(T *ptr)
     {
         /* Memory is layed out like this:
@@ -357,6 +366,7 @@ public:
         return c;
     }
 
+    NO_ASAN
     void free_list_purge_segment_chunks(memory_pool_segment<T, using_vm> *seg)
     {
         // std::cout << "Removing chunks\n";
@@ -383,6 +393,7 @@ public:
         }
     }
 
+    NO_ASAN
     void append_chunk_tail(memory_chunk<T> *chunk)
     {
         if (!free_chunk_tail)
@@ -397,6 +408,7 @@ public:
         }
     }
 
+    NO_ASAN
     void append_chunk_head(memory_chunk<T> *chunk)
     {
         if (!free_chunk_head)
@@ -412,6 +424,7 @@ public:
         }
     }
 
+    NO_ASAN
     void purge_segment(memory_pool_segment<T, using_vm> *segment)
     {
         if (segment->empty())
@@ -440,6 +453,7 @@ public:
         assert(used_objects == 0);
     }
 
+    NO_ASAN
     T *allocate()
     {
         scoped_lock<spinlock, usable_onirq> guard{lock};
@@ -466,13 +480,18 @@ public:
 #ifdef OBJECT_CANARY
         assert(return_chunk->object_canary == OBJECT_CANARY);
 #endif
-
+#ifdef CONFIG_KASAN
+        kasan_set_state((unsigned long *) (return_chunk + 1), sizeof(T), 0);
+#endif
         return reinterpret_cast<T *>(return_chunk + 1);
     }
 
     void free(T *ptr)
     {
         auto chunk = ptr_to_chunk(ptr);
+#ifdef CONFIG_KASAN
+        kasan_set_state((unsigned long *) ptr, sizeof(T), 1);
+#endif
         // std::cout << "Removing chunk " << chunk << "\n";
         scoped_lock<spinlock, usable_onirq> guard{lock};
 
@@ -496,6 +515,7 @@ public:
 #endif
     }
 
+    NO_ASAN
     void purge()
     {
         scoped_lock<spinlock, usable_onirq> g{lock};

@@ -10,9 +10,13 @@
 
 #include <stddef.h>
 
+#include <onyx/stream.h>
+
 #include <onyx/expected.hpp>
+#include <onyx/memory.hpp>
 #include <onyx/slice.hpp>
 
+struct file;
 namespace compression
 {
 
@@ -23,6 +27,18 @@ class module;
  * @param mod Module to register
  */
 void register_module(module *mod);
+
+/**
+ * @brief Decompression stream
+ *
+ */
+class decompression_stream
+{
+public:
+    virtual expected<size_t, int> decompress_stream(cul::slice<unsigned char> &src,
+                                                    cul::slice<unsigned char> dst) = 0;
+    virtual ~decompression_stream() = default;
+};
 
 class module
 {
@@ -55,6 +71,8 @@ public:
      */
     virtual expected<size_t, int> decompress(void *dst, size_t dst_capacity,
                                              cul::slice<unsigned char> src) = 0;
+    virtual expected<unique_ptr<decompression_stream>, int> create_decompression_stream(
+        cul::slice<unsigned char> src_hint) = 0;
 };
 
 /**
@@ -66,6 +84,71 @@ public:
  * @return Number of bytes decompressed, or unexpected
  */
 expected<size_t, int> decompress(void *dst, size_t dst_capacity, cul::slice<unsigned char> src);
+
+expected<unique_ptr<decompression_stream>, int> create_decompression_stream(
+    cul::slice<unsigned char> src_hint);
+
+/**
+ * @brief Decompression bytestream
+ *
+ */
+class decompress_bytestream : public onx::stream
+{
+private:
+    unique_ptr<decompression_stream> str;
+    cul::slice<unsigned char> src;
+    void *buf{nullptr};
+    size_t len{0};
+    size_t pos{0};
+    size_t in_buf{0};
+    uint8_t eof : 1 {0};
+    bool empty() const
+    {
+        return pos == in_buf;
+    }
+
+public:
+    decompress_bytestream(unique_ptr<decompression_stream> &&s, cul::slice<unsigned char> src)
+        : str{cul::move(s)}, src{cul::move(src)}
+    {
+    }
+
+    ~decompress_bytestream() override;
+
+    /**
+     * @brief Initialize the decompression bytestream
+     *
+     * @param len Desired length of the buffer
+     * @return True if success, else false (out of memory most likely)
+     */
+    bool init(size_t len);
+
+    /**
+     * @brief Read bytes from the stream
+     *
+     * @param dst Destionation
+     * @return Length read, or negative error number
+     */
+    expected<size_t, int> read(cul::slice<unsigned char> dst) override;
+
+    /**
+     * @brief Skip bytes from the stream
+     *
+     * @param len Length to skip
+     * @return Length skipped, or negative error number
+     */
+    expected<size_t, int> skip(size_t len) override;
+
+    /**
+     * @brief Splice the stream onto a file
+     *
+     * @param len Length of the splicing
+     * @param f File to splice to
+     * @param src Compressed source
+     * @return Length, or negative error code
+     */
+    expected<size_t, int> splice(size_t len, file *f) override;
+};
 
 } // namespace compression
 

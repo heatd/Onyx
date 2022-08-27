@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2018 Pedro Falcato
+ * Copyright (c) 2018 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #ifndef _ONYX_DENTRY_H
@@ -63,6 +65,7 @@ struct nameidata;
 dentry *dentry_resolve(nameidata &data);
 void dentry_destroy(dentry *d);
 dentry *dentry_parent(dentry *dir);
+bool dentry_is_empty(dentry *dir);
 
 class auto_dentry
 {

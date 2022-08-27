@@ -40,6 +40,13 @@ public:
     {
         return len;
     }
+
+    slice_dynamic &adjust(size_t inc)
+    {
+        ptr += inc;
+        len -= inc;
+        return *this;
+    }
 };
 
 template <typename Type, size_t length>

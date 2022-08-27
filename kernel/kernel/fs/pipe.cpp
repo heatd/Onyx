@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2021 Pedro Falcato
+ * Copyright (c) 2017 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -132,7 +132,7 @@ ssize_t pipe::write(int flags, size_t len, const void *buf)
             return -EPIPE;
         }
 
-        if ((available_space() < len && is_atomic_write) || is_full())
+        if (((available_space() < (len - written)) && is_atomic_write) || is_full())
         {
             if (written != 0)
             {
@@ -145,8 +145,11 @@ ssize_t pipe::write(int flags, size_t len, const void *buf)
                 return -EAGAIN;
             }
 
-            if (wait_for_event_mutex_interruptible(&write_queue, available_space() >= len || broken,
-                                                   &pipe_lock) == -EINTR)
+            if (wait_for_event_mutex_interruptible(
+                    &write_queue,
+                    (is_atomic_write && available_space() >= (len - written)) || !is_full() ||
+                        broken,
+                    &pipe_lock) == -EINTR)
                 return -EINTR;
         }
         else
