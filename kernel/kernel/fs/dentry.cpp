@@ -113,6 +113,9 @@ void dentry_destroy(dentry *d)
         dentry_put(d->d_parent);
     }
 
+    if (d->d_inode)
+        inode_unref(d->d_inode);
+
     // printk("Dentry %s dead\n", d->d_name);
 
     if (d->d_name_length > INLINE_NAME_MAX)

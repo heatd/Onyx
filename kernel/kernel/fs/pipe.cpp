@@ -355,7 +355,7 @@ err0:
     return -1;
 }
 
-void pipe_register_device(void)
+void pipe_register_device()
 {
     auto ex = dev_register_chardevs(0, 1, 0, nullptr, cul::string{"pipe"});
     if (!ex)
