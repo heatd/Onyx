@@ -25,6 +25,12 @@
 #define REDZONE_OFFSET 128
 #include <onyx/fpu.h>
 
+#define get_segment_reg(reg)                                                            \
+    ({                                                                                  \
+        unsigned long seg;                                                              \
+        __asm__ __volatile__("mov %%" reg ", %%rax; mov %%rax, %0" : "=r"(seg)::"rax"); \
+        seg;                                                                            \
+    })
 int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigaction,
                          struct registers *regs)
 {
@@ -101,7 +107,10 @@ int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigactio
         return -EFAULT;
     if (copy_to_user(&sframe->uc.uc_mcontext.gregs[REG_R15], &regs->r15, sizeof(unsigned long)) < 0)
         return -EFAULT;
-    if (copy_to_user(&sframe->uc.uc_mcontext.gregs[REG_CSGSFS], &regs->cs, sizeof(unsigned long)) <
+
+    const unsigned long csgsfsss =
+        (regs->ss << 48 | get_segment_reg("fs") << 32 | get_segment_reg("gs") << 16 | regs->cs);
+    if (copy_to_user(&sframe->uc.uc_mcontext.gregs[REG_CSGSFS], &csgsfsss, sizeof(unsigned long)) <
         0)
         return -EFAULT;
     if (copy_to_user(&sframe->uc.uc_mcontext.gregs[REG_EFL], &regs->rflags, sizeof(unsigned long)) <
