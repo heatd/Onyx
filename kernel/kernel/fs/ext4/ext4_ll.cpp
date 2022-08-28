@@ -79,7 +79,7 @@ ext4_inode *ext4_superblock::get_inode(ext4_inode_no inode) const
     if (!buf)
     {
         error("Error reading inode table.");
-        printk("Tried to read block %u\n", bg.get_bgd()->block_usage_addr);
+        printk("Tried to read block %u\n", bg.get_bgd()->bg_inode_table_lo);
         return nullptr;
     }
 
@@ -118,7 +118,7 @@ void ext4_superblock::update_inode(const ext4_inode *ino, ext4_inode_no inode_no
     if (!buf)
     {
         error("Error reading inode table.");
-        printk("Tried to read block %u\n", bg.get_bgd()->block_usage_addr);
+        printk("Tried to read block %u\n", bg.get_bgd()->bg_inode_table_lo);
         return;
     }
 

@@ -17,8 +17,8 @@
 bool ext4_block_group::init(ext4_superblock *sb)
 {
     auto bgdt_block_start = sb->block_size == 1024 ? 2 : 1;
-    auto bgdt_block = bgdt_block_start + ((sizeof(block_group_desc_t) * nr) / sb->block_size);
-    auto bgdt_offset = (sizeof(block_group_desc_t) * nr) % sb->block_size;
+    auto bgdt_block = bgdt_block_start + ((sb->desc_size * nr) / sb->block_size);
+    auto bgdt_offset = (sb->desc_size * nr) % sb->block_size;
 
     buf = sb_read_block(sb, bgdt_block);
     if (!buf)
@@ -37,7 +37,8 @@ expected<ext4_inode_no, int> ext4_block_group::allocate_inode(ext4_superblock *s
     scoped_mutex g{inode_bitmap_lock};
 
     /* The inode and block bitmaps are guaranteed to a single block in size */
-    auto_block_buf buf = sb_read_block(sb, bgd->inode_usage_addr);
+    auto_block_buf buf = sb_read_block(
+        sb, EXT4_BLOCK_NR_FROM_HALFS(sb, bgd->bg_inode_bitmap_lo, bgd->bg_inode_bitmap_hi));
 
     if (!buf)
     {
@@ -74,12 +75,13 @@ expected<ext4_inode_no, int> ext4_block_group::allocate_inode(ext4_superblock *s
     return nr * sb->inodes_per_block_group + bit + 1;
 }
 
-expected<ext4_inode_no, int> ext4_block_group::allocate_block(ext4_superblock *sb)
+expected<ext4_block_no, int> ext4_block_group::allocate_block(ext4_superblock *sb)
 {
     scoped_mutex g{block_bitmap_lock};
 
     /* The inode and block bitmaps are guaranteed to a single block in size */
-    auto_block_buf buf = sb_read_block(sb, bgd->block_usage_addr);
+    auto_block_buf buf = sb_read_block(
+        sb, EXT4_BLOCK_NR_FROM_HALFS(sb, bgd->bg_block_bitmap_lo, bgd->bg_block_bitmap_hi));
 
     if (!buf)
     {
@@ -131,7 +133,8 @@ void ext4_block_group::free_block(ext4_block_no block, ext4_superblock *sb)
     // printk("freeing block %u\n", block);
 
     /* The inode and block bitmaps are guaranteed to a single block in size */
-    auto_block_buf buf = sb_read_block(sb, bgd->block_usage_addr);
+    auto_block_buf buf = sb_read_block(
+        sb, EXT4_BLOCK_NR_FROM_HALFS(sb, bgd->bg_block_bitmap_lo, bgd->bg_block_bitmap_hi));
 
     if (!buf)
     {
@@ -168,7 +171,8 @@ void ext4_block_group::free_inode(ext4_inode_no inode, ext4_superblock *sb)
     scoped_mutex g{inode_bitmap_lock};
 
     /* The inode and block bitmaps are guaranteed to a single block in size */
-    auto_block_buf buf = sb_read_block(sb, bgd->inode_usage_addr);
+    auto_block_buf buf = sb_read_block(
+        sb, EXT4_BLOCK_NR_FROM_HALFS(sb, bgd->bg_inode_bitmap_lo, bgd->bg_inode_bitmap_hi));
 
     if (!buf)
     {
@@ -202,5 +206,10 @@ void ext4_block_group::free_inode(ext4_inode_no inode, ext4_superblock *sb)
 
 auto_block_buf ext4_block_group::get_inode_table(const ext4_superblock *sb, uint32_t off) const
 {
-    return sb_read_block(sb, bgd->inode_table_addr + off);
+    return sb_read_block(sb, get_itable_block(sb) + off);
+}
+
+ext4_block_no ext4_block_group::get_itable_block(const ext4_superblock *sb) const
+{
+    return EXT4_BLOCK_NR_FROM_HALFS(sb, bgd->bg_inode_table_lo, bgd->bg_inode_table_hi);
 }

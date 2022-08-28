@@ -33,7 +33,7 @@ expected<cul::pair<ext4_inode_no, ext4_inode *>, int> ext4_superblock::allocate_
 
     for (auto &bg : block_groups)
     {
-        if (bg.get_bgd()->unallocated_inodes_in_group > 0)
+        if (bg.get_bgd()->bg_free_inodes_count_lo > 0)
         {
             auto res = bg.allocate_inode(this);
             if (res.has_error())
@@ -82,7 +82,7 @@ ext4_block_no ext4_superblock::try_allocate_block_from_bg(ext4_block_group_no nr
 
     auto &bg = block_groups[nr];
 
-    if (bg.get_bgd()->unallocated_blocks_in_group == 0)
+    if (bg.get_bgd()->bg_free_blocks_count_lo == 0)
         return EXT4_ERR_INV_BLOCK;
 
     auto res = bg.allocate_block(this);
