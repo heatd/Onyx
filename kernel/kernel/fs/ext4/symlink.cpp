@@ -14,41 +14,41 @@
 #include <onyx/pagecache.h>
 #include <onyx/vfs.h>
 
-#include "ext2.h"
+#include "ext4.h"
 
 /**
  * @brief Detects if a symlink is a fast symlink
  *
- * @param inode Pointer to ext2_inode struct
- * @param fs Pointer to ext2_superblock struct
+ * @param inode Pointer to ext4_inode struct
+ * @param fs Pointer to ext4_superblock struct
  * @return True if a fast symlink, else false.
  */
-bool ext2_is_fast_symlink(struct ext2_inode *inode, struct ext2_superblock *fs)
+bool ext4_is_fast_symlink(struct ext4_inode *inode, struct ext4_superblock *fs)
 {
     /* Essentially, we're comparing the extended attribute blocks
      * with the inode's i_blocks, and if it's zero we know the inode isn't storing
-     * the link in filesystem blocks, so we look to the ext2_inode->i_data.
+     * the link in filesystem blocks, so we look to the ext4_inode->i_data.
      */
 
     int ea_blocks = inode->i_file_acl ? (fs->block_size >> 9) : 0;
-    return (inode->i_blocks - ea_blocks == 0 && EXT2_CALCULATE_SIZE64(inode) <= 60);
+    return (inode->i_blocks - ea_blocks == 0 && EXT4_CALCULATE_SIZE64(inode) <= 60);
 }
 
-#define EXT2_FAST_SYMLINK_SIZE 60
+#define EXT4_FAST_SYMLINK_SIZE 60
 
-char *ext2_do_fast_symlink(struct ext2_inode *inode)
+char *ext4_do_fast_symlink(struct ext4_inode *inode)
 {
     /* Fast symlinks have 60 bytes and we allocate one more for the null byte */
-    char *buf = (char *) malloc(EXT2_FAST_SYMLINK_SIZE + 1);
+    char *buf = (char *) malloc(EXT4_FAST_SYMLINK_SIZE + 1);
     if (!buf)
         return NULL;
-    memcpy(buf, &inode->i_data, EXT2_FAST_SYMLINK_SIZE);
-    buf[EXT2_FAST_SYMLINK_SIZE] = '\0';
+    memcpy(buf, &inode->i_data, EXT4_FAST_SYMLINK_SIZE);
+    buf[EXT4_FAST_SYMLINK_SIZE] = '\0';
     /* TODO: Is it possible to trim this string? And should we? */
     return buf;
 }
 
-char *ext2_do_slow_symlink(struct inode *inode)
+char *ext4_do_slow_symlink(struct inode *inode)
 {
     size_t len = inode->i_size;
     char *buf = (char *) malloc(len + 1);
@@ -72,31 +72,31 @@ char *ext2_do_slow_symlink(struct inode *inode)
     return buf;
 }
 
-char *ext2_read_symlink(struct inode *ino, struct ext2_superblock *fs)
+char *ext4_read_symlink(struct inode *ino, struct ext4_superblock *fs)
 {
-    auto raw = ext2_get_inode_from_node(ino);
+    auto raw = ext4_get_inode_from_node(ino);
 
-    if (ext2_is_fast_symlink(raw, fs))
+    if (ext4_is_fast_symlink(raw, fs))
     {
-        return ext2_do_fast_symlink(raw);
+        return ext4_do_fast_symlink(raw);
     }
     else
     {
-        return ext2_do_slow_symlink(ino);
+        return ext4_do_slow_symlink(ino);
     }
 }
 
-char *ext2_readlink(struct file *f)
+char *ext4_readlink(struct file *f)
 {
-    struct ext2_superblock *fs = ext2_superblock_from_inode(f->f_ino);
+    struct ext4_superblock *fs = ext4_superblock_from_inode(f->f_ino);
 
-    return ext2_read_symlink(f->f_ino, fs);
+    return ext4_read_symlink(f->f_ino, fs);
 }
 
-int ext2_set_symlink(inode *ino, const char *dest)
+int ext4_set_symlink(inode *ino, const char *dest)
 {
     auto length = strlen(dest);
-    auto raw_ino = ext2_get_inode_from_node(ino);
+    auto raw_ino = ext4_get_inode_from_node(ino);
 
     if (length <= 60)
     {
@@ -117,22 +117,22 @@ int ext2_set_symlink(inode *ino, const char *dest)
         }
     }
 
-    ext2_set_inode_size(raw_ino, length);
+    ext4_set_inode_size(raw_ino, length);
 
     inode_mark_dirty(ino);
 
     return 0;
 }
 
-inode *ext2_symlink(const char *name, const char *dest, dentry *dir)
+inode *ext4_symlink(const char *name, const char *dest, dentry *dir)
 {
-    auto inode = ext2_create_file(name, S_IFLNK | S_IRWXG | S_IRWXO | S_IRWXU, 0, dir);
+    auto inode = ext4_create_file(name, S_IFLNK | S_IRWXG | S_IRWXO | S_IRWXU, 0, dir);
     if (!inode)
         return nullptr;
 
-    if (auto st = ext2_set_symlink(inode, dest); st < 0)
+    if (auto st = ext4_set_symlink(inode, dest); st < 0)
     {
-        ext2_unlink(name, 0, dir);
+        ext4_unlink(name, 0, dir);
         delete inode;
         errno = -st;
         return nullptr;

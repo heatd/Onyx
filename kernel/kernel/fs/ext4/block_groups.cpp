@@ -12,9 +12,9 @@
 #include <onyx/compiler.h>
 #include <onyx/limits.h>
 
-#include "ext2.h"
+#include "ext4.h"
 
-bool ext2_block_group::init(ext2_superblock *sb)
+bool ext4_block_group::init(ext4_superblock *sb)
 {
     auto bgdt_block_start = sb->block_size == 1024 ? 2 : 1;
     auto bgdt_block = bgdt_block_start + ((sizeof(block_group_desc_t) * nr) / sb->block_size);
@@ -30,9 +30,9 @@ bool ext2_block_group::init(ext2_superblock *sb)
 }
 
 /* This is the max reserved inode number, everything below it is reserved */
-#define EXT2_UNDEL_DIR_INO 6
+#define EXT4_UNDEL_DIR_INO 6
 
-expected<ext2_inode_no, int> ext2_block_group::allocate_inode(ext2_superblock *sb)
+expected<ext4_inode_no, int> ext4_block_group::allocate_inode(ext4_superblock *sb)
 {
     scoped_mutex g{inode_bitmap_lock};
 
@@ -47,7 +47,7 @@ expected<ext2_inode_no, int> ext2_block_group::allocate_inode(ext2_superblock *s
 
     auto bitmap = static_cast<unsigned long *>(block_buf_data(buf));
 
-    auto bit = ext2_scan_zero(bitmap, sb->s_block_size);
+    auto bit = ext4_scan_zero(bitmap, sb->s_block_size);
 
     if (bit == SCAN_ZERO_NOT_FOUND)
         return unexpected{-ENOSPC};
@@ -61,7 +61,7 @@ expected<ext2_inode_no, int> ext2_block_group::allocate_inode(ext2_superblock *s
 
     dec_unallocated_inodes();
 
-    EXT2_ATOMIC_SUB(sb->sb->s_free_inodes_count, 1);
+    EXT4_ATOMIC_SUB(sb->sb->s_free_inodes_count, 1);
     /* Actually register the changes on disk */
     /* We give the bitmap priority here,
      * since there can be a disk failure or a
@@ -69,12 +69,12 @@ expected<ext2_inode_no, int> ext2_block_group::allocate_inode(ext2_superblock *s
      * and this is the most important part */
 
     block_buf_dirty(buf);
-    ext2_dirty_sb(sb);
+    ext4_dirty_sb(sb);
 
     return nr * sb->inodes_per_block_group + bit + 1;
 }
 
-expected<ext2_inode_no, int> ext2_block_group::allocate_block(ext2_superblock *sb)
+expected<ext4_inode_no, int> ext4_block_group::allocate_block(ext4_superblock *sb)
 {
     scoped_mutex g{block_bitmap_lock};
 
@@ -89,7 +89,7 @@ expected<ext2_inode_no, int> ext2_block_group::allocate_block(ext2_superblock *s
 
     auto bitmap = static_cast<unsigned long *>(block_buf_data(buf));
 
-    auto bit = ext2_scan_zero(bitmap, sb->s_block_size);
+    auto bit = ext4_scan_zero(bitmap, sb->s_block_size);
 
     if (bit == SCAN_ZERO_NOT_FOUND)
         return unexpected{-ENOSPC};
@@ -104,14 +104,14 @@ expected<ext2_inode_no, int> ext2_block_group::allocate_block(ext2_superblock *s
 
     bitmap[bit / bits_per_long] |= (1UL << (bit % bits_per_long));
 
-    assert(ext2_scan_zero(bitmap, sb->s_block_size) != bit);
+    assert(ext4_scan_zero(bitmap, sb->s_block_size) != bit);
 
     /* Change the block group and superblock
        structures in order to reflect it */
 
     dec_unallocated_blocks();
 
-    EXT2_ATOMIC_SUB(sb->sb->s_free_blocks_count, 1);
+    EXT4_ATOMIC_SUB(sb->sb->s_free_blocks_count, 1);
     /* Actually register the changes on disk */
     /* We give the bitmap priority here,
      * since there can be a disk failure or a
@@ -119,12 +119,12 @@ expected<ext2_inode_no, int> ext2_block_group::allocate_block(ext2_superblock *s
      * and this is the most important part */
 
     block_buf_dirty(buf);
-    ext2_dirty_sb(sb);
+    ext4_dirty_sb(sb);
 
     return nr * sb->blocks_per_block_group + bit + sb->first_data_block();
 }
 
-void ext2_block_group::free_block(ext2_block_no block, ext2_superblock *sb)
+void ext4_block_group::free_block(ext4_block_no block, ext4_superblock *sb)
 {
     scoped_mutex g{block_bitmap_lock};
 
@@ -158,12 +158,12 @@ void ext2_block_group::free_block(ext2_block_no block, ext2_superblock *sb)
 
     inc_unallocated_blocks();
 
-    EXT2_ATOMIC_ADD(sb->sb->s_free_blocks_count, 1);
+    EXT4_ATOMIC_ADD(sb->sb->s_free_blocks_count, 1);
 
-    ext2_dirty_sb(sb);
+    ext4_dirty_sb(sb);
 }
 
-void ext2_block_group::free_inode(ext2_inode_no inode, ext2_superblock *sb)
+void ext4_block_group::free_inode(ext4_inode_no inode, ext4_superblock *sb)
 {
     scoped_mutex g{inode_bitmap_lock};
 
@@ -195,12 +195,12 @@ void ext2_block_group::free_inode(ext2_inode_no inode, ext2_superblock *sb)
 
     inc_unallocated_inodes();
 
-    EXT2_ATOMIC_ADD(sb->sb->s_free_inodes_count, 1);
+    EXT4_ATOMIC_ADD(sb->sb->s_free_inodes_count, 1);
 
-    ext2_dirty_sb(sb);
+    ext4_dirty_sb(sb);
 }
 
-auto_block_buf ext2_block_group::get_inode_table(const ext2_superblock *sb, uint32_t off) const
+auto_block_buf ext4_block_group::get_inode_table(const ext4_superblock *sb, uint32_t off) const
 {
     return sb_read_block(sb, bgd->inode_table_addr + off);
 }
