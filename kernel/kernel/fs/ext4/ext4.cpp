@@ -6,8 +6,6 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "ext2.h"
-
 #include <dirent.h>
 #include <errno.h>
 #include <stdio.h>
@@ -28,45 +26,47 @@
 #include <onyx/vfs.h>
 #include <onyx/vm.h>
 
-struct inode *ext2_open(struct dentry *dir, const char *name);
-off_t ext2_getdirent(struct dirent *buf, off_t off, struct file *f);
-struct inode *ext2_creat(const char *path, int mode, struct dentry *dir);
-char *ext2_readlink(struct file *ino);
-void ext2_close(struct inode *ino);
-struct inode *ext2_mknod(const char *name, mode_t mode, dev_t dev, struct dentry *dir);
-struct inode *ext2_mkdir(const char *name, mode_t mode, struct dentry *dir);
-int ext2_link_fops(struct file *target, const char *name, struct dentry *dir);
-int ext2_unlink(const char *name, int flags, struct dentry *dir);
-int ext2_fallocate(int mode, off_t off, off_t len, struct file *f);
-int ext2_ftruncate(size_t len, struct file *f);
-ssize_t ext2_readpage(struct page *page, size_t off, struct inode *ino);
-ssize_t ext2_writepage(struct page *page, size_t off, struct inode *ino);
-int ext2_prepare_write(inode *ino, struct page *page, size_t page_off, size_t offset, size_t len);
-int ext2_link(struct inode *target, const char *name, struct inode *dir);
-inode *ext2_symlink(const char *name, const char *dest, dentry *dir);
+#include "ext4.h"
 
-struct file_ops ext2_ops = {.open = ext2_open,
-                            .close = ext2_close,
-                            .getdirent = ext2_getdirent,
-                            .creat = ext2_creat,
-                            .link = ext2_link_fops,
-                            .symlink = ext2_symlink,
-                            .ftruncate = ext2_ftruncate,
-                            .mkdir = ext2_mkdir,
-                            .mknod = ext2_mknod,
-                            .readlink = ext2_readlink,
-                            .unlink = ext2_unlink,
-                            .fallocate = ext2_fallocate,
-                            .readpage = ext2_readpage,
-                            .writepage = ext2_writepage,
-                            .prepare_write = ext2_prepare_write};
+struct inode *ext4_open(struct dentry *dir, const char *name);
+off_t ext4_getdirent(struct dirent *buf, off_t off, struct file *f);
+struct inode *ext4_creat(const char *path, int mode, struct dentry *dir);
+char *ext4_readlink(struct file *ino);
+void ext4_close(struct inode *ino);
+struct inode *ext4_mknod(const char *name, mode_t mode, dev_t dev, struct dentry *dir);
+struct inode *ext4_mkdir(const char *name, mode_t mode, struct dentry *dir);
+int ext4_link_fops(struct file *target, const char *name, struct dentry *dir);
+int ext4_unlink(const char *name, int flags, struct dentry *dir);
+int ext4_fallocate(int mode, off_t off, off_t len, struct file *f);
+int ext4_ftruncate(size_t len, struct file *f);
+ssize_t ext4_readpage(struct page *page, size_t off, struct inode *ino);
+ssize_t ext4_writepage(struct page *page, size_t off, struct inode *ino);
+int ext4_prepare_write(inode *ino, struct page *page, size_t page_off, size_t offset, size_t len);
+int ext4_link(struct inode *target, const char *name, struct inode *dir);
+inode *ext4_symlink(const char *name, const char *dest, dentry *dir);
 
-void ext2_delete_inode(struct inode *inode_, uint32_t inum, struct ext2_superblock *fs)
+struct file_ops ext4_ops = {.open = ext4_open,
+                            .close = ext4_close,
+                            .getdirent = ext4_getdirent,
+                            .creat = ext4_creat,
+                            .link = ext4_link_fops,
+                            .symlink = ext4_symlink,
+                            .ftruncate = ext4_ftruncate,
+                            .mkdir = ext4_mkdir,
+                            .mknod = ext4_mknod,
+                            .readlink = ext4_readlink,
+                            .unlink = ext4_unlink,
+                            .fallocate = ext4_fallocate,
+                            .readpage = ext4_readpage,
+                            .writepage = ext4_writepage,
+                            .prepare_write = ext4_prepare_write};
+
+void ext4_delete_inode(struct inode *inode_, uint32_t inum, struct ext4_superblock *fs)
 {
-    struct ext2_inode *inode = ext2_get_inode_from_node(inode_);
+    struct ext4_inode *inode = ext4_get_inode_from_node(inode_);
 
     inode->i_dtime = clock_get_posix_time();
-    ext2_free_inode_space(inode_, fs);
+    ext4_free_inode_space(inode_, fs);
 
     inode->i_links = 0;
     fs->update_inode(inode, inum);
@@ -79,23 +79,23 @@ void ext2_delete_inode(struct inode *inode_, uint32_t inum, struct ext2_superblo
     fs->free_inode(inum);
 }
 
-void ext2_close(struct inode *vfs_ino)
+void ext4_close(struct inode *vfs_ino)
 {
-    struct ext2_inode *inode = ext2_get_inode_from_node(vfs_ino);
+    struct ext4_inode *inode = ext4_get_inode_from_node(vfs_ino);
 
     /* TODO: It would be better, cache-wise and memory allocator-wise if we
-     * had ext2_inode incorporate a struct inode inside it, and have everything in the same
+     * had ext4_inode incorporate a struct inode inside it, and have everything in the same
      * location.
-     * TODO: We're also storing a lot of redudant info in ext2_inode(we already have most stuff in
+     * TODO: We're also storing a lot of redudant info in ext4_inode(we already have most stuff in
      * the regular struct inode).
      */
     free(inode);
 }
 
-ssize_t ext2_writepage(page *page, size_t off, inode *ino)
+ssize_t ext4_writepage(page *page, size_t off, inode *ino)
 {
     auto buf = block_buf_from_page(page);
-    auto sb = ext2_superblock_from_inode(ino);
+    auto sb = ext4_superblock_from_inode(ino);
 
     assert(buf != nullptr);
 
@@ -122,14 +122,14 @@ ssize_t ext2_writepage(page *page, size_t off, inode *ino)
     return PAGE_SIZE;
 }
 
-ssize_t ext2_readpage(struct page *page, size_t off, struct inode *ino)
+ssize_t ext4_readpage(struct page *page, size_t off, struct inode *ino)
 {
     bool is_buffer = page->flags & PAGE_FLAG_BUFFER;
 
     assert(is_buffer == true);
 
-    auto raw_inode = ext2_get_inode_from_node(ino);
-    auto sb = ext2_superblock_from_inode(ino);
+    auto raw_inode = ext4_get_inode_from_node(ino);
+    auto sb = ext4_superblock_from_inode(ino);
     auto nr_blocks = PAGE_SIZE / sb->block_size;
     auto base_block_index = off / sb->block_size;
 
@@ -144,7 +144,7 @@ ssize_t ext2_readpage(struct page *page, size_t off, struct inode *ino)
             return -ENOMEM;
         }
 
-        auto res = ext2_get_block_from_inode(raw_inode, base_block_index + i, sb);
+        auto res = ext4_get_block_from_inode(raw_inode, base_block_index + i, sb);
         if (res.has_error())
         {
             page_destroy_block_bufs(page);
@@ -176,9 +176,9 @@ ssize_t ext2_readpage(struct page *page, size_t off, struct inode *ino)
     return min(PAGE_SIZE, ino->i_size - off);
 }
 
-struct ext2_inode_info *ext2_cache_inode_info(struct inode *ino, struct ext2_inode *fs_ino)
+struct ext4_inode_info *ext4_cache_inode_info(struct inode *ino, struct ext4_inode *fs_ino)
 {
-    struct ext2_inode_info *inf = new ext2_inode_info;
+    struct ext4_inode_info *inf = new ext4_inode_info;
     if (!inf)
         return nullptr;
 
@@ -187,7 +187,7 @@ struct ext2_inode_info *ext2_cache_inode_info(struct inode *ino, struct ext2_ino
     return inf;
 }
 
-inode *ext2_get_inode(ext2_superblock *sb, uint32_t inode_num)
+inode *ext4_get_inode(ext4_superblock *sb, uint32_t inode_num)
 {
     /* First we try to find the inode in the cache, if it's not there,
      * we unlock the lock and try and read it in. Then we retry to read
@@ -202,7 +202,7 @@ inode *ext2_get_inode(ext2_superblock *sb, uint32_t inode_num)
 
     inode_unlock_hashtable(sb, inode_num);
 
-    ino = ext2_load_inode_from_disk(inode_num, sb);
+    ino = ext4_load_inode_from_disk(inode_num, sb);
 
     if (!ino)
         return nullptr;
@@ -221,31 +221,31 @@ inode *ext2_get_inode(ext2_superblock *sb, uint32_t inode_num)
     return ino;
 }
 
-struct inode *ext2_open(struct dentry *dir, const char *name)
+struct inode *ext4_open(struct dentry *dir, const char *name)
 {
     struct inode *ino = dir->d_inode;
-    struct ext2_superblock *fs = ext2_superblock_from_inode(ino);
+    struct ext4_superblock *fs = ext4_superblock_from_inode(ino);
     uint32_t inode_num;
 
-    struct ext2_dirent_result res;
-    int st = ext2_retrieve_dirent(ino, name, fs, &res);
+    struct ext4_dirent_result res;
+    int st = ext4_retrieve_dirent(ino, name, fs, &res);
 
     if (st < 0)
     {
         return errno = -st, nullptr;
     }
 
-    ext2_dir_entry_t *dentry = (ext2_dir_entry_t *) (res.buf + res.block_off);
+    ext4_dir_entry_t *dentry = (ext4_dir_entry_t *) (res.buf + res.block_off);
 
     inode_num = dentry->inode;
 
     free(res.buf);
 
-    return ext2_get_inode(fs, inode_num);
+    return ext4_get_inode(fs, inode_num);
 }
 
-struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
-                                     ext2_superblock *sb)
+struct inode *ext4_fs_ino_to_vfs_ino(struct ext4_inode *inode, uint32_t inumber,
+                                     ext4_superblock *sb)
 {
     bool has_vmo = S_ISDIR(inode->i_mode) || S_ISREG(inode->i_mode) || S_ISLNK(inode->i_mode);
     /* Create a file */
@@ -265,13 +265,13 @@ struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
 
     ino->i_inode = inumber;
     /* Detect the file type */
-    ino->i_type = ext2_ino_type_to_vfs_type(inode->i_mode);
+    ino->i_type = ext4_ino_type_to_vfs_type(inode->i_mode);
     ino->i_mode = inode->i_mode;
 
     /* We're storing dev in dbp[0] in the same format as dev_t */
     ino->i_rdev = inode->i_data[0];
 
-    ino->i_size = EXT2_CALCULATE_SIZE64(inode);
+    ino->i_size = EXT4_CALCULATE_SIZE64(inode);
     if (has_vmo)
         ino->i_pages->size = ino->i_size;
 
@@ -283,7 +283,7 @@ struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
     ino->i_nlink = inode->i_links;
     ino->i_blocks = inode->i_blocks;
 
-    ino->i_helper = ext2_cache_inode_info(ino, inode);
+    ino->i_helper = ext4_cache_inode_info(ino, inode);
 
     if (!ino->i_helper)
     {
@@ -291,54 +291,54 @@ struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
         return nullptr;
     }
 
-    ino->i_fops = &ext2_ops;
+    ino->i_fops = &ext4_ops;
 
     return ino;
 }
 
-uint16_t ext2_mode_to_ino_type(mode_t mode)
+uint16_t ext4_mode_to_ino_type(mode_t mode)
 {
     if (S_ISFIFO(mode))
-        return EXT2_INO_TYPE_FIFO;
+        return EXT4_INO_TYPE_FIFO;
     if (S_ISCHR(mode))
-        return EXT2_INO_TYPE_CHARDEV;
+        return EXT4_INO_TYPE_CHARDEV;
     if (S_ISBLK(mode))
-        return EXT2_INO_TYPE_BLOCKDEV;
+        return EXT4_INO_TYPE_BLOCKDEV;
     if (S_ISDIR(mode))
-        return EXT2_INO_TYPE_DIR;
+        return EXT4_INO_TYPE_DIR;
     if (S_ISLNK(mode))
-        return EXT2_INO_TYPE_SYMLINK;
+        return EXT4_INO_TYPE_SYMLINK;
     if (S_ISSOCK(mode))
-        return EXT2_INO_TYPE_UNIX_SOCK;
+        return EXT4_INO_TYPE_UNIX_SOCK;
     if (S_ISREG(mode))
-        return EXT2_INO_TYPE_REGFILE;
+        return EXT4_INO_TYPE_REGFILE;
     return -1;
 }
 
-int ext2_ino_type_to_vfs_type(uint16_t mode)
+int ext4_ino_type_to_vfs_type(uint16_t mode)
 {
-    if (EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_DIR)
+    if (EXT4_GET_FILE_TYPE(mode) == EXT4_INO_TYPE_DIR)
         return VFS_TYPE_DIR;
-    else if (EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_REGFILE)
+    else if (EXT4_GET_FILE_TYPE(mode) == EXT4_INO_TYPE_REGFILE)
         return VFS_TYPE_FILE;
-    else if (EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_BLOCKDEV)
+    else if (EXT4_GET_FILE_TYPE(mode) == EXT4_INO_TYPE_BLOCKDEV)
         return VFS_TYPE_BLOCK_DEVICE;
-    else if (EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_CHARDEV)
+    else if (EXT4_GET_FILE_TYPE(mode) == EXT4_INO_TYPE_CHARDEV)
         return VFS_TYPE_CHAR_DEVICE;
-    else if (EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_SYMLINK)
+    else if (EXT4_GET_FILE_TYPE(mode) == EXT4_INO_TYPE_SYMLINK)
         return VFS_TYPE_SYMLINK;
-    else if (EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_FIFO)
+    else if (EXT4_GET_FILE_TYPE(mode) == EXT4_INO_TYPE_FIFO)
         return VFS_TYPE_FIFO;
-    else if (EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_UNIX_SOCK)
+    else if (EXT4_GET_FILE_TYPE(mode) == EXT4_INO_TYPE_UNIX_SOCK)
         return VFS_TYPE_UNIX_SOCK;
 
     return VFS_TYPE_UNK;
 }
 
-struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct dentry *dir)
+struct inode *ext4_create_file(const char *name, mode_t mode, dev_t dev, struct dentry *dir)
 {
     struct inode *vfs_ino = dir->d_inode;
-    struct ext2_superblock *fs = ext2_superblock_from_inode(vfs_ino);
+    struct ext4_superblock *fs = ext4_superblock_from_inode(vfs_ino);
     uint32_t inumber = 0;
     struct inode *ino = nullptr;
 
@@ -352,13 +352,13 @@ struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct 
     auto p = res.value();
     inumber = p.first;
 
-    struct ext2_inode *inode = p.second;
-    struct ext2_inode *dir_inode = ext2_get_inode_from_node(vfs_ino);
+    struct ext4_inode *inode = p.second;
+    struct ext4_inode *dir_inode = ext4_get_inode_from_node(vfs_ino);
 
     if (!inode)
         return nullptr;
 
-    memset(inode, 0, sizeof(struct ext2_inode));
+    memset(inode, 0, sizeof(struct ext4_inode));
     inode->i_ctime = inode->i_atime = inode->i_mtime = (uint32_t) clock_get_posix_time();
 
     struct creds *c = creds_get();
@@ -370,14 +370,14 @@ struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct 
     creds_put(c);
 
     inode->i_links = 1;
-    uint16_t ext2_file_type = ext2_mode_to_ino_type(mode);
-    if (ext2_file_type == (uint16_t) -1)
+    uint16_t ext4_file_type = ext4_mode_to_ino_type(mode);
+    if (ext4_file_type == (uint16_t) -1)
     {
         errno = EINVAL;
         goto free_ino_error;
     }
 
-    inode->i_mode = ext2_file_type | (mode & ~S_IFMT);
+    inode->i_mode = ext4_file_type | (mode & ~S_IFMT);
 
     if (S_ISBLK(mode) || S_ISCHR(mode))
     {
@@ -390,10 +390,10 @@ struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct 
 
     old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 
-    if (int st = ext2_add_direntry(name, inumber, inode, vfs_ino, fs); st < 0)
+    if (int st = ext4_add_direntry(name, inumber, inode, vfs_ino, fs); st < 0)
     {
         thread_change_addr_limit(old);
-        printk("ext2 error %d\n", st);
+        printk("ext4 error %d\n", st);
         errno = EINVAL;
         goto free_ino_error;
     }
@@ -403,7 +403,7 @@ struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct 
 
     thread_change_addr_limit(old);
 
-    ino = ext2_fs_ino_to_vfs_ino(inode, inumber, fs);
+    ino = ext4_fs_ino_to_vfs_ino(inode, inumber, fs);
     if (!ino)
     {
         errno = ENOMEM;
@@ -415,7 +415,7 @@ struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct 
     return ino;
 
 unlink_ino:
-    ext2_unlink(name, 0, dir);
+    ext4_unlink(name, 0, dir);
     free(ino);
 free_ino_error:
     free(inode);
@@ -424,21 +424,21 @@ free_ino_error:
     return nullptr;
 }
 
-struct inode *ext2_creat(const char *name, int mode, struct dentry *dir)
+struct inode *ext4_creat(const char *name, int mode, struct dentry *dir)
 {
     unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 
-    struct inode *i = ext2_create_file(name, (mode & ~S_IFMT) | S_IFREG, 0, dir);
+    struct inode *i = ext4_create_file(name, (mode & ~S_IFMT) | S_IFREG, 0, dir);
 
     thread_change_addr_limit(old);
 
     return i;
 }
 
-int ext2_flush_inode(struct inode *inode)
+int ext4_flush_inode(struct inode *inode)
 {
-    struct ext2_inode *ino = ext2_get_inode_from_node(inode);
-    struct ext2_superblock *fs = ext2_superblock_from_inode(inode);
+    struct ext4_inode *ino = ext4_get_inode_from_node(inode);
+    struct ext4_superblock *fs = ext4_superblock_from_inode(inode);
 
     /* Refresh the on-disk struct with the vfs inode data */
     ino->i_atime = inode->i_atime;
@@ -453,28 +453,28 @@ int ext2_flush_inode(struct inode *inode)
     ino->i_mode = inode->i_mode;
     ino->i_uid = inode->i_uid;
 
-    fs->update_inode(ino, (ext2_inode_no) inode->i_inode);
+    fs->update_inode(ino, (ext4_inode_no) inode->i_inode);
 
     return 0;
 }
 
-int ext2_kill_inode(struct inode *inode)
+int ext4_kill_inode(struct inode *inode)
 {
-    struct ext2_superblock *fs = ext2_superblock_from_inode(inode);
+    struct ext4_superblock *fs = ext4_superblock_from_inode(inode);
 
-    ext2_delete_inode(inode, (uint32_t) inode->i_inode, fs);
+    ext4_delete_inode(inode, (uint32_t) inode->i_inode, fs);
     return 0;
 }
 
-int ext2_statfs(struct statfs *buf, superblock *sb)
+int ext4_statfs(struct statfs *buf, superblock *sb)
 {
-    return ((ext2_superblock *) sb)->stat_fs(buf);
+    return ((ext4_superblock *) sb)->stat_fs(buf);
 }
 
-struct inode *ext2_mount_partition(struct blockdev *dev)
+struct inode *ext4_mount_partition(struct blockdev *dev)
 {
-    LOG("ext2", "mounting ext2 partition on block device %s\n", dev->name.c_str());
-    ext2_superblock *sb = new ext2_superblock;
+    LOG("ext4", "mounting ext4 partition on block device %s\n", dev->name.c_str());
+    ext4_superblock *sb = new ext4_superblock;
     if (!sb)
         return nullptr;
 
@@ -487,28 +487,28 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 
     dev->sb = sb;
 
-    sb->s_block_size = EXT2_SUPERBLOCK_OFFSET;
+    sb->s_block_size = EXT4_SUPERBLOCK_OFFSET;
     sb->s_bdev = dev;
 
     struct block_buf *b = sb_read_block(sb, 1);
 
-    superblock_t *ext2_sb = (superblock_t *) block_buf_data(b);
+    superblock_t *ext4_sb = (superblock_t *) block_buf_data(b);
 
-    if (ext2_sb->s_magic == EXT2_SIGNATURE)
-        LOG("ext2", "valid ext2 signature detected!\n");
+    if (ext4_sb->s_magic == EXT4_SIGNATURE)
+        LOG("ext4", "valid ext4 signature detected!\n");
     else
     {
-        ERROR("ext2", "invalid ext2 signature %x\n", ext2_sb->s_magic);
+        ERROR("ext4", "invalid ext4 signature %x\n", ext4_sb->s_magic);
         errno = EINVAL;
         block_buf_put(b);
         goto error;
     }
 
-    block_size = 1024 << ext2_sb->s_log_block_size;
+    block_size = 1024 << ext4_sb->s_log_block_size;
 
     if (block_size > MAX_BLOCK_SIZE)
     {
-        ERROR("ext2", "bad block size %u\n", block_size);
+        ERROR("ext4", "bad block size %u\n", block_size);
         block_buf_put(b);
         goto error;
     }
@@ -524,7 +524,7 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 
     sb->s_block_size = block_size;
     superblock_block = block_size == 1024 ? 1 : 0;
-    sb_off = EXT2_SUPERBLOCK_OFFSET & (block_size - 1);
+    sb_off = EXT4_SUPERBLOCK_OFFSET & (block_size - 1);
 
     b = sb_read_block(sb, superblock_block);
 
@@ -534,41 +534,41 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
         goto error;
     }
 
-    ext2_sb = (superblock_t *) ((char *) block_buf_data(b) + sb_off);
+    ext4_sb = (superblock_t *) ((char *) block_buf_data(b) + sb_off);
 
-    if (ext2_sb->s_rev_level == EXT2_DYNAMIC_REV)
+    if (ext4_sb->s_rev_level == EXT4_DYNAMIC_REV)
     {
-        sb->features_compat = ext2_sb->s_feature_compat;
-        sb->features_incompat = ext2_sb->s_feature_incompat;
-        sb->features_ro_compat = ext2_sb->s_feature_ro_compat;
-        sb->inode_size = ext2_sb->s_inode_size;
+        sb->features_compat = ext4_sb->s_feature_compat;
+        sb->features_incompat = ext4_sb->s_feature_incompat;
+        sb->features_ro_compat = ext4_sb->s_feature_ro_compat;
+        sb->inode_size = ext4_sb->s_inode_size;
     }
-    else if (ext2_sb->s_rev_level == EXT2_GOOD_OLD_REV)
+    else if (ext4_sb->s_rev_level == EXT4_GOOD_OLD_REV)
     {
         sb->features_compat = 0;
         sb->features_incompat = 0;
         sb->features_ro_compat = 0;
-        sb->inode_size = EXT2_GOOD_OLD_INODE_SIZE;
+        sb->inode_size = EXT4_GOOD_OLD_INODE_SIZE;
     }
     else
     {
-        ERROR("ext2", "couldn't mount: Unknown revision level");
+        ERROR("ext4", "couldn't mount: Unknown revision level");
         goto error;
     }
 
     sb->s_devnr = sb->s_bdev->dev->dev();
     sb->sb_bb = b;
-    sb->sb = ext2_sb;
-    sb->major = ext2_sb->s_rev_level;
-    sb->minor = ext2_sb->s_minor_rev_level;
-    sb->total_inodes = ext2_sb->s_inodes_count;
-    sb->total_blocks = ext2_sb->s_blocks_count;
+    sb->sb = ext4_sb;
+    sb->major = ext4_sb->s_rev_level;
+    sb->minor = ext4_sb->s_minor_rev_level;
+    sb->total_inodes = ext4_sb->s_inodes_count;
+    sb->total_blocks = ext4_sb->s_blocks_count;
     sb->block_size = block_size;
     sb->block_size_shift = ilog2(block_size);
-    sb->frag_size = 1024 << ext2_sb->s_log_frag_size;
-    sb->inode_size = ext2_sb->s_inode_size;
-    sb->blocks_per_block_group = ext2_sb->s_blocks_per_group;
-    sb->inodes_per_block_group = ext2_sb->s_inodes_per_group;
+    sb->frag_size = 1024 << ext4_sb->s_log_frag_size;
+    sb->inode_size = ext4_sb->s_inode_size;
+    sb->blocks_per_block_group = ext4_sb->s_blocks_per_group;
+    sb->inodes_per_block_group = ext4_sb->s_inodes_per_group;
     sb->number_of_block_groups = sb->total_blocks / sb->blocks_per_block_group;
     entries = sb->block_size / sizeof(uint32_t);
     sb->entry_shift = ilog2(entries);
@@ -578,7 +578,7 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 
     for (unsigned int i = 0; i < sb->number_of_block_groups; i++)
     {
-        ext2_block_group bg{i};
+        ext4_block_group bg{i};
         if (!bg.init(sb))
             goto error;
 
@@ -586,21 +586,21 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
             goto error;
     }
 
-    root_inode = ext2_load_inode_from_disk(2, sb);
+    root_inode = ext4_load_inode_from_disk(2, sb);
     if (!root_inode)
         goto error;
 
     superblock_add_inode(sb, root_inode);
-    sb->flush_inode = ext2_flush_inode;
-    sb->kill_inode = ext2_kill_inode;
-    sb->statfs = ext2_statfs;
+    sb->flush_inode = ext4_flush_inode;
+    sb->kill_inode = ext4_kill_inode;
+    sb->statfs = ext4_statfs;
 
     sb->sb->s_mtime = clock_get_posix_time();
     sb->sb->s_mnt_count++;
 
     block_buf_dirty(sb->sb_bb);
 
-    root_inode->i_fops = &ext2_ops;
+    root_inode->i_fops = &ext4_ops;
 
     return root_inode;
 error:
@@ -611,22 +611,22 @@ error:
     return nullptr;
 }
 
-__init void init_ext2drv()
+__init void init_ext4drv()
 {
-    if (fs_mount_add(ext2_mount_partition, 0, "ext2") < 0)
-        FATAL("ext2", "error initializing the fs mount data\n");
+    if (fs_mount_add(ext4_mount_partition, 0, "ext4") < 0)
+        FATAL("ext4", "error initializing the fs mount data\n");
 }
 
-off_t ext2_getdirent(struct dirent *buf, off_t off, struct file *f)
+off_t ext4_getdirent(struct dirent *buf, off_t off, struct file *f)
 {
     off_t new_off;
-    ext2_dir_entry_t entry;
+    ext4_dir_entry_t entry;
     ssize_t read;
 
     unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 
     /* Read a dir entry from the offset */
-    read = file_read_cache(&entry, sizeof(ext2_dir_entry_t), f->f_ino, off);
+    read = file_read_cache(&entry, sizeof(ext4_dir_entry_t), f->f_ino, off);
     if (read < 0)
         return read;
 
@@ -652,14 +652,14 @@ off_t ext2_getdirent(struct dirent *buf, off_t off, struct file *f)
     return new_off;
 }
 
-struct inode *ext2_mknod(const char *name, mode_t mode, dev_t dev, struct dentry *dir)
+struct inode *ext4_mknod(const char *name, mode_t mode, dev_t dev, struct dentry *dir)
 {
-    return ext2_create_file(name, mode, dev, dir);
+    return ext4_create_file(name, mode, dev, dir);
 }
 
-struct inode *ext2_mkdir(const char *name, mode_t mode, struct dentry *dir)
+struct inode *ext4_mkdir(const char *name, mode_t mode, struct dentry *dir)
 {
-    struct inode *new_dir = ext2_create_file(name, (mode & 0777) | S_IFDIR, 0, dir);
+    struct inode *new_dir = ext4_create_file(name, (mode & 0777) | S_IFDIR, 0, dir);
     if (!new_dir)
     {
         return nullptr;
@@ -669,14 +669,14 @@ struct inode *ext2_mkdir(const char *name, mode_t mode, struct dentry *dir)
 
     /* Create the two basic links - link to self and link to parent */
     /* FIXME: Handle failure here? */
-    ext2_link(new_dir, ".", new_dir);
-    ext2_link(dir->d_inode, "..", new_dir);
+    ext4_link(new_dir, ".", new_dir);
+    ext4_link(dir->d_inode, "..", new_dir);
 
-    struct ext2_superblock *fs = ext2_superblock_from_inode(dir->d_inode);
+    struct ext4_superblock *fs = ext4_superblock_from_inode(dir->d_inode);
 
     uint32_t inum = (uint32_t) new_dir->i_inode;
 
-    fs->block_groups[ext2_inode_number_to_bg(inum, fs)].inc_used_dirs();
+    fs->block_groups[ext4_inode_number_to_bg(inum, fs)].inc_used_dirs();
 
     inode_mark_dirty(new_dir);
 
@@ -688,18 +688,18 @@ struct inode *ext2_mkdir(const char *name, mode_t mode, struct dentry *dir)
  *
  * @param str Error Message
  */
-void ext2_superblock::error(const char *str) const
+void ext4_superblock::error(const char *str) const
 {
-    printk("ext2_error: %s\n", str);
+    printk("ext4_error: %s\n", str);
 
-    sb->s_state = EXT2_ERROR_FS;
+    sb->s_state = EXT4_ERROR_FS;
     block_buf_dirty(sb_bb);
     block_buf_writeback(sb_bb);
 
-    if (sb->s_errors == EXT2_ERRORS_CONTINUE)
+    if (sb->s_errors == EXT4_ERRORS_CONTINUE)
         return;
-    else if (sb->s_errors == EXT2_ERRORS_PANIC)
-        panic("ext2: Panic from previous filesystem error");
+    else if (sb->s_errors == EXT4_ERRORS_PANIC)
+        panic("ext4: Panic from previous filesystem error");
 
     /* TODO: Add (re)mouting read-only */
 }
@@ -710,9 +710,9 @@ void ext2_superblock::error(const char *str) const
  * @param buf statfs struct to fill
  * @return 0 on success, negative error codes (in our case, always succesful)
  */
-int ext2_superblock::stat_fs(struct statfs *buf)
+int ext4_superblock::stat_fs(struct statfs *buf)
 {
-    buf->f_type = EXT2_SIGNATURE;
+    buf->f_type = EXT4_SIGNATURE;
     buf->f_bsize = block_size;
     buf->f_blocks = sb->s_blocks_count;
     buf->f_bfree = sb->s_free_blocks_count;

@@ -15,15 +15,15 @@
 #include <onyx/cred.h>
 #include <onyx/panic.h>
 
-#include "ext2.h"
+#include "ext4.h"
 
 /**
  * @brief Alocates an inode
  *
- * @return Expected consisting of a pair of the inode number and a ext2_inode *, or an
+ * @return Expected consisting of a pair of the inode number and a ext4_inode *, or an
  * unexpected negative error code
  */
-expected<cul::pair<ext2_inode_no, ext2_inode *>, int> ext2_superblock::allocate_inode()
+expected<cul::pair<ext4_inode_no, ext4_inode *>, int> ext4_superblock::allocate_inode()
 {
     /* TODO: Add a good algorithm that can locally pick an inode */
 
@@ -40,7 +40,7 @@ expected<cul::pair<ext2_inode_no, ext2_inode *>, int> ext2_superblock::allocate_
                 continue;
             else
             {
-                ext2_inode *ino = get_inode(res.value());
+                ext4_inode *ino = get_inode(res.value());
                 if (!ino)
                 {
                     bg.free_inode(res.value(), this);
@@ -64,16 +64,16 @@ expected<cul::pair<ext2_inode_no, ext2_inode *>, int> ext2_superblock::allocate_
  *
  * @param ino Inode number
  */
-void ext2_superblock::free_inode(ext2_inode_no inode)
+void ext4_superblock::free_inode(ext4_inode_no inode)
 {
-    uint32_t bg_no = ext2_inode_number_to_bg(inode, this);
+    uint32_t bg_no = ext4_inode_number_to_bg(inode, this);
 
     assert(bg_no <= number_of_block_groups);
 
     block_groups[bg_no].free_inode(inode, this);
 }
 
-ext2_block_no ext2_superblock::try_allocate_block_from_bg(ext2_block_group_no nr)
+ext4_block_no ext4_superblock::try_allocate_block_from_bg(ext4_block_group_no nr)
 {
     if (nr >= number_of_block_groups)
     {
@@ -83,26 +83,26 @@ ext2_block_no ext2_superblock::try_allocate_block_from_bg(ext2_block_group_no nr
     auto &bg = block_groups[nr];
 
     if (bg.get_bgd()->unallocated_blocks_in_group == 0)
-        return EXT2_ERR_INV_BLOCK;
+        return EXT4_ERR_INV_BLOCK;
 
     auto res = bg.allocate_block(this);
 
 #if 0
-	printk("Allocated block %u from bg %u\n", res.value_or(EXT2_ERR_INV_BLOCK), nr);
+	printk("Allocated block %u from bg %u\n", res.value_or(EXT4_ERR_INV_BLOCK), nr);
 #endif
-    return res.value_or(EXT2_ERR_INV_BLOCK);
+    return res.value_or(EXT4_ERR_INV_BLOCK);
 }
 
 /**
  * @brief Allocates a block, taking into account the preferred block group
  *
  * @param preferred The preferred block group. If -1, no preferrence
- * @return Block number, or EXT2_ERR_INV_BLOCK if we couldn't allocate one.
+ * @return Block number, or EXT4_ERR_INV_BLOCK if we couldn't allocate one.
  */
-ext2_block_no ext2_superblock::allocate_block(ext2_block_group_no preferred)
+ext4_block_no ext4_superblock::allocate_block(ext4_block_group_no preferred)
 {
     if (sb->s_free_blocks_count == 0) [[unlikely]]
-        return EXT2_ERR_INV_BLOCK;
+        return EXT4_ERR_INV_BLOCK;
 
     if (sb->s_free_blocks_count <= sb->s_r_blocks_count) [[unlikely]]
     {
@@ -113,10 +113,10 @@ ext2_block_no ext2_superblock::allocate_block(ext2_block_group_no preferred)
         creds_put(c);
 
         if (!may_use_blocks)
-            return EXT2_ERR_INV_BLOCK;
+            return EXT4_ERR_INV_BLOCK;
     }
 
-    if (preferred == (ext2_block_group_no) -1)
+    if (preferred == (ext4_block_group_no) -1)
         preferred = 0;
 
     /* Our algorithm works like this: We take the preferred block group, and then we'll
@@ -128,7 +128,7 @@ ext2_block_no ext2_superblock::allocate_block(ext2_block_group_no preferred)
     int dist_end = max_block_group - preferred;
 
     auto max_distance = cul::max(dist_start, dist_end);
-    ext2_block_no block = EXT2_ERR_INV_BLOCK;
+    ext4_block_no block = EXT4_ERR_INV_BLOCK;
 
     for (int dist = 0; dist <= max_distance; dist++, dist_start--, dist_end--)
     {
@@ -138,17 +138,17 @@ ext2_block_no ext2_superblock::allocate_block(ext2_block_group_no preferred)
         if (dist && dist_start >= 0)
             block = try_allocate_block_from_bg(preferred - dist);
 
-        if (block != EXT2_ERR_INV_BLOCK)
+        if (block != EXT4_ERR_INV_BLOCK)
             return block;
 
         if (dist_end >= 0)
             block = try_allocate_block_from_bg(preferred + dist);
 
-        if (block != EXT2_ERR_INV_BLOCK)
+        if (block != EXT4_ERR_INV_BLOCK)
             return block;
     }
 
-    return EXT2_ERR_INV_BLOCK;
+    return EXT4_ERR_INV_BLOCK;
 }
 
 /**
@@ -156,9 +156,9 @@ ext2_block_no ext2_superblock::allocate_block(ext2_block_group_no preferred)
  *
  * @param block Block number to free
  */
-void ext2_superblock::free_block(ext2_block_no block)
+void ext4_superblock::free_block(ext4_block_no block)
 {
-    assert(block != EXT2_ERR_INV_BLOCK);
+    assert(block != EXT4_ERR_INV_BLOCK);
 
     auto block_group = (block - first_data_block()) / blocks_per_block_group;
 

@@ -5,8 +5,8 @@
  *
  * SPDX-License-Identifier: MIT
  */
-#ifndef _EXT2_H
-#define _EXT2_H
+#ifndef _EXT4_H
+#define _EXT4_H
 
 #include <errno.h>
 #include <stdint.h>
@@ -24,78 +24,78 @@
 #include <onyx/expected.hpp>
 #include <onyx/pair.hpp>
 
-#define EXT2_SUPERBLOCK_OFFSET 1024
+#define EXT4_SUPERBLOCK_OFFSET 1024
 
-#define EXT2_SIGNATURE 0xef53
+#define EXT4_SIGNATURE 0xef53
 
-#define EXT2_VALID_FS 1
-#define EXT2_ERROR_FS 2
+#define EXT4_VALID_FS 1
+#define EXT4_ERROR_FS 2
 
-#define EXT2_ERRORS_CONTINUE 1
-#define EXT2_ERRORS_RO       2
-#define EXT2_ERRORS_PANIC    3
+#define EXT4_ERRORS_CONTINUE 1
+#define EXT4_ERRORS_RO       2
+#define EXT4_ERRORS_PANIC    3
 
-#define EXT2_LINUX_ID    0
-#define EXT2_GNU_HURD_ID 1
-#define EXT2_MASIX_ID    2
-#define EXT2_FREEBSD_ID  3
-#define EXT2_LITES_ID    4
+#define EXT4_LINUX_ID    0
+#define EXT4_GNU_HURD_ID 1
+#define EXT4_MASIX_ID    2
+#define EXT4_FREEBSD_ID  3
+#define EXT4_LITES_ID    4
 
-#define EXT2_GOOD_OLD_REV 0
-#define EXT2_DYNAMIC_REV  1
+#define EXT4_GOOD_OLD_REV 0
+#define EXT4_DYNAMIC_REV  1
 
-#define EXT2_FEATURE_COMPAT_DIR_PREALLOC  1
-#define EXT2_FEATURE_COMPAT_IMAGIC_INODES 2
+#define EXT4_FEATURE_COMPAT_DIR_PREALLOC  1
+#define EXT4_FEATURE_COMPAT_IMAGIC_INODES 2
 #define EXT3_FEATURE_COMPAT_HAS_JOURNAL   4
-#define EXT2_FEATURE_COMPAT_EXT_ATTR      8
-#define EXT2_FEATURE_COMPAT_RESIZE_INO    0x10
-#define EXT2_FEATURE_COMPAT_DIR_INDEX     0x20
+#define EXT4_FEATURE_COMPAT_EXT_ATTR      8
+#define EXT4_FEATURE_COMPAT_RESIZE_INO    0x10
+#define EXT4_FEATURE_COMPAT_DIR_INDEX     0x20
 
-#define EXT2_FEATURE_INCOMPAT_COMPRESSION 0x1
-#define EXT2_FEATURE_INCOMPAT_FILETYPE    0x2
-#define EXT2_FEATURE_INCOMPAT_RECOVER     0x4
-#define EXT2_FEATURE_INCOMPAT_JOURNAL_DEV 0x8
-#define EXT2_FEATURE_INCOMPAT_META_BG     0x10
+#define EXT4_FEATURE_INCOMPAT_COMPRESSION 0x1
+#define EXT4_FEATURE_INCOMPAT_FILETYPE    0x2
+#define EXT4_FEATURE_INCOMPAT_RECOVER     0x4
+#define EXT4_FEATURE_INCOMPAT_JOURNAL_DEV 0x8
+#define EXT4_FEATURE_INCOMPAT_META_BG     0x10
 
-#define EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER 1
-#define EXT2_FEATURE_RO_COMPAT_LARGE_FILE   2
-#define EXT2_FEATURE_RO_COMPAT_BTREE_DIR    4
+#define EXT4_FEATURE_RO_COMPAT_SPARSE_SUPER 1
+#define EXT4_FEATURE_RO_COMPAT_LARGE_FILE   2
+#define EXT4_FEATURE_RO_COMPAT_BTREE_DIR    4
 
-#define EXT2_INO_TYPE_FIFO      0x1000
-#define EXT2_INO_TYPE_CHARDEV   0x2000
-#define EXT2_INO_TYPE_DIR       0x4000
-#define EXT2_INO_TYPE_BLOCKDEV  0x6000
-#define EXT2_INO_TYPE_REGFILE   0x8000
-#define EXT2_INO_TYPE_SYMLINK   0xA000
-#define EXT2_INO_TYPE_UNIX_SOCK 0xC000
+#define EXT4_INO_TYPE_FIFO      0x1000
+#define EXT4_INO_TYPE_CHARDEV   0x2000
+#define EXT4_INO_TYPE_DIR       0x4000
+#define EXT4_INO_TYPE_BLOCKDEV  0x6000
+#define EXT4_INO_TYPE_REGFILE   0x8000
+#define EXT4_INO_TYPE_SYMLINK   0xA000
+#define EXT4_INO_TYPE_UNIX_SOCK 0xC000
 
 /* Inode flags */
-#define EXT2_SECRM_FL        0x1
-#define EXT2_UNRM_FL         0x2
-#define EXT2_COMPR_FL        0x4
-#define EXT2_SYNC_FL         0x8
-#define EXT2_IMMUTABLE_FL    0x10
-#define EXT2_APPEND_FL       0x20
-#define EXT2_NODUMP_FL       0x40
-#define EXT2_NOATIME_FL      0x80
-#define EXT2_DIRTY_FL        0x100
-#define EXT2_COMPRBLK_FL     0x200
-#define EXT2_NOCOMPR_FL      0x400
-#define EXT2_ECOMPR_FL       0x800
-#define EXT2_BTREE_FL        0x1000
-#define EXT2_INDEX_FL        0x2000
+#define EXT4_SECRM_FL        0x1
+#define EXT4_UNRM_FL         0x2
+#define EXT4_COMPR_FL        0x4
+#define EXT4_SYNC_FL         0x8
+#define EXT4_IMMUTABLE_FL    0x10
+#define EXT4_APPEND_FL       0x20
+#define EXT4_NODUMP_FL       0x40
+#define EXT4_NOATIME_FL      0x80
+#define EXT4_DIRTY_FL        0x100
+#define EXT4_COMPRBLK_FL     0x200
+#define EXT4_NOCOMPR_FL      0x400
+#define EXT4_ECOMPR_FL       0x800
+#define EXT4_BTREE_FL        0x1000
+#define EXT4_INDEX_FL        0x2000
 #define EXT3_JOURNAL_DATA_FL 0x4000
-#define EXT2_RESERVED_FL     0x80000000
+#define EXT4_RESERVED_FL     0x80000000
 
 /* File type flags that are stored in the directory entries */
-#define EXT2_FT_UNKNOWN  0
-#define EXT2_FT_REG_FILE 1
-#define EXT2_FT_DIR      2
-#define EXT2_FT_CHRDEV   3
-#define EXT2_FT_BLKDEV   4
-#define EXT2_FT_FIFO     5
-#define EXT2_FT_SOCK     6
-#define EXT2_FT_SYMLINK  7
+#define EXT4_FT_UNKNOWN  0
+#define EXT4_FT_REG_FILE 1
+#define EXT4_FT_DIR      2
+#define EXT4_FT_CHRDEV   3
+#define EXT4_FT_BLKDEV   4
+#define EXT4_FT_FIFO     5
+#define EXT4_FT_SOCK     6
+#define EXT4_FT_SYMLINK  7
 
 typedef struct
 {
@@ -160,15 +160,15 @@ typedef struct
     uint16_t used_dirs_count;
 } __attribute__((aligned(32))) block_group_desc_t;
 
-#define EXT2_DBLOCKS    12
-#define EXT2_IND_BLOCK  12
-#define EXT2_DIND_BLOCK 13
-#define EXT2_TIND_BLOCK 14
-#define EXT2_NR_BLOCKS  15
+#define EXT4_DBLOCKS    12
+#define EXT4_IND_BLOCK  12
+#define EXT4_DIND_BLOCK 13
+#define EXT4_TIND_BLOCK 14
+#define EXT4_NR_BLOCKS  15
 
-#define EXT2_GOOD_OLD_INODE_SIZE 128
+#define EXT4_GOOD_OLD_INODE_SIZE 128
 
-struct ext2_osd2_linux
+struct ext4_osd2_linux
 {
     uint16_t l_i_blocks_high;
     uint16_t l_i_file_acl_high;
@@ -178,7 +178,7 @@ struct ext2_osd2_linux
     uint16_t l_i_reserved;
 };
 
-struct ext2_osd2_hurd
+struct ext4_osd2_hurd
 {
     uint16_t h_i_reserved1;
     uint16_t h_i_mode_high;
@@ -187,14 +187,14 @@ struct ext2_osd2_hurd
     uint16_t h_i_author;
 };
 
-union ext2_osd2 {
+union ext4_osd2 {
     // Note: Toolchain-specific defines (such as "linux") stops us from using simpler names down
     // here.
-    ext2_osd2_linux data_linux;
-    ext2_osd2_hurd data_hurd;
+    ext4_osd2_linux data_linux;
+    ext4_osd2_hurd data_hurd;
 };
 
-struct ext2_inode
+struct ext4_inode
 {
     uint16_t i_mode;
     uint16_t i_uid;
@@ -208,15 +208,15 @@ struct ext2_inode
     uint32_t i_blocks;
     uint32_t i_flags;
     uint32_t i_os_spec;
-    uint32_t i_data[EXT2_NR_BLOCKS];
+    uint32_t i_data[EXT4_NR_BLOCKS];
     uint32_t i_generation;
     uint32_t i_file_acl;
     uint32_t i_size_hi;
     uint32_t i_faddr;
-    union ext2_osd2 i_osd2;
+    union ext4_osd2 i_osd2;
 };
 
-#define EXT2_NAME_LEN 255
+#define EXT4_NAME_LEN 255
 
 typedef struct
 {
@@ -224,23 +224,23 @@ typedef struct
     uint16_t rec_len;
     uint8_t name_len;
     uint8_t file_type;
-    char name[EXT2_NAME_LEN];
-} ext2_dir_entry_t;
+    char name[EXT4_NAME_LEN];
+} ext4_dir_entry_t;
 
-#define EXT2_MIN_DIR_ENTRY_LEN 8
+#define EXT4_MIN_DIR_ENTRY_LEN 8
 
-struct ext2_superblock;
+struct ext4_superblock;
 
-using ext2_block_group_no = uint32_t;
-using ext2_inode_no = uint32_t;
-using ext2_block_no = uint32_t;
+using ext4_block_group_no = uint32_t;
+using ext4_inode_no = uint32_t;
+using ext4_block_no = uint32_t;
 
-class ext2_block_group
+class ext4_block_group
 {
 private:
     block_group_desc_t *bgd{};
     auto_block_buf buf{};
-    ext2_block_group_no nr;
+    ext4_block_group_no nr;
     mutex inode_bitmap_lock{};
     mutex block_bitmap_lock{};
 
@@ -248,21 +248,21 @@ private:
     spinlock lock_{};
 
 public:
-    ext2_block_group() : buf{}, nr{(ext2_block_group_no) -1}
+    ext4_block_group() : buf{}, nr{(ext4_block_group_no) -1}
     {
         mutex_init(&inode_bitmap_lock);
         mutex_init(&block_bitmap_lock);
         spinlock_init(&lock_);
     }
 
-    ext2_block_group(ext2_block_group_no nr_) : nr{nr_}
+    ext4_block_group(ext4_block_group_no nr_) : nr{nr_}
     {
         spinlock_init(&lock_);
         mutex_init(&inode_bitmap_lock);
         mutex_init(&block_bitmap_lock);
     }
 
-    ext2_block_group &operator=(ext2_block_group &&rhs)
+    ext4_block_group &operator=(ext4_block_group &&rhs)
     {
         if (this == &rhs)
             return *this;
@@ -279,7 +279,7 @@ public:
         return *this;
     }
 
-    ext2_block_group(ext2_block_group &&rhs) : nr{rhs.nr}
+    ext4_block_group(ext4_block_group &&rhs) : nr{rhs.nr}
     {
         if (this == &rhs)
             return;
@@ -294,10 +294,10 @@ public:
         rhs.buf = nullptr;
     }
 
-    ext2_block_group &operator=(const ext2_block_group &rhs) = delete;
-    ext2_block_group(const ext2_block_group &rhs) = delete;
+    ext4_block_group &operator=(const ext4_block_group &rhs) = delete;
+    ext4_block_group(const ext4_block_group &rhs) = delete;
 
-    bool init(ext2_superblock *sb);
+    bool init(ext4_superblock *sb);
 
     void lock()
     {
@@ -379,16 +379,16 @@ public:
         return bgd;
     }
 
-    expected<ext2_inode_no, int> allocate_inode(ext2_superblock *sb);
-    void free_inode(ext2_inode_no inode, ext2_superblock *sb);
-    expected<ext2_block_no, int> allocate_block(ext2_superblock *sb);
-    void free_block(ext2_block_no block, ext2_superblock *sb);
+    expected<ext4_inode_no, int> allocate_inode(ext4_superblock *sb);
+    void free_inode(ext4_inode_no inode, ext4_superblock *sb);
+    expected<ext4_block_no, int> allocate_block(ext4_superblock *sb);
+    void free_block(ext4_block_no block, ext4_superblock *sb);
 
-    auto_block_buf get_inode_table(const ext2_superblock *sb, uint32_t off) const;
+    auto_block_buf get_inode_table(const ext4_superblock *sb, uint32_t off) const;
 };
 
 struct block_buf;
-struct ext2_superblock : public superblock
+struct ext4_superblock : public superblock
 {
     mutable superblock_t *sb;
     mutable struct block_buf *sb_bb;
@@ -407,12 +407,12 @@ struct ext2_superblock : public superblock
     uint32_t number_of_block_groups;
     uint16_t inode_size;
     unsigned int entry_shift;
-    cul::vector<ext2_block_group> block_groups;
+    cul::vector<ext4_block_group> block_groups;
 
-    ext2_block_no try_allocate_block_from_bg(ext2_block_group_no nr);
+    ext4_block_no try_allocate_block_from_bg(ext4_block_group_no nr);
 
 public:
-    ext2_superblock()
+    ext4_superblock()
     {
         superblock_init(this);
     }
@@ -420,17 +420,17 @@ public:
     /**
      * @brief Alocates an inode
      *
-     * @return Expected consisting of a pair of the inode number and a ext2_inode *, or an
+     * @return Expected consisting of a pair of the inode number and a ext4_inode *, or an
      * unexpected negative error code
      */
-    expected<cul::pair<ext2_inode_no, ext2_inode *>, int> allocate_inode();
+    expected<cul::pair<ext4_inode_no, ext4_inode *>, int> allocate_inode();
 
     /**
      * @brief Frees the inode
      *
      * @param ino Inode number
      */
-    void free_inode(ext2_inode_no ino);
+    void free_inode(ext4_inode_no ino);
 
     /**
      * @brief Reports a filesystem error
@@ -443,32 +443,32 @@ public:
      * @brief Allocates a block, taking into account the preferred block group
      *
      * @param preferred The preferred block group. If -1, no preferrence
-     * @return Block number, or EXT2_ERR_INV_BLOCK if we couldn't allocate one.
+     * @return Block number, or EXT4_ERR_INV_BLOCK if we couldn't allocate one.
      */
-    ext2_block_no allocate_block(ext2_block_group_no preferred = -1);
+    ext4_block_no allocate_block(ext4_block_group_no preferred = -1);
 
     /**
      * @brief Frees a block
      *
      * @param block Block number to free
      */
-    void free_block(ext2_block_no block);
+    void free_block(ext4_block_no block);
 
     /**
-     * @brief Read an ext2_inode from disk
+     * @brief Read an ext4_inode from disk
      *
      * @param nr The inode number
      * @return A pointer to the inode number
      */
-    ext2_inode *get_inode(ext2_inode_no nr) const;
+    ext4_inode *get_inode(ext4_inode_no nr) const;
 
     /**
      * @brief Updates an inode on disk
      *
-     * @param ino Pointer to ext2_inode
+     * @param ino Pointer to ext4_inode
      * @param inode_no Inode number
      */
-    void update_inode(const ext2_inode *ino, ext2_inode_no inode_no);
+    void update_inode(const ext4_inode *ino, ext4_inode_no inode_no);
 
     /**
      * @brief Reads metadata blocks from the filesystem using sb_read_block
@@ -478,14 +478,14 @@ public:
      * @param bufs Pointer to an array of N auto_block_buf's
      * @return 0 on success, negative error codes
      */
-    int read_blocks(ext2_block_no block, ext2_block_no number_of_blocks, auto_block_buf *bufs);
+    int read_blocks(ext4_block_no block, ext4_block_no number_of_blocks, auto_block_buf *bufs);
 
     /**
      * @brief Get the first data block of the fs
      *
      * @return The first data block
      */
-    ext2_block_no first_data_block() const
+    ext4_block_no first_data_block() const
     {
         return sb->s_first_data_block;
     }
@@ -505,68 +505,68 @@ public:
      * @param offset Offset of the directory entry, inside the block
      * @return True if valid, else false.
      */
-    bool valid_dirent(const ext2_dir_entry_t *dentry, size_t offset);
+    bool valid_dirent(const ext4_dir_entry_t *dentry, size_t offset);
 };
 
-struct ext2_inode_info
+struct ext4_inode_info
 {
     /* Cached copy of the on-disk inode */
-    struct ext2_inode *inode;
+    struct ext4_inode *inode;
 };
 
-static inline struct ext2_inode *ext2_get_inode_from_node(struct inode *ino)
+static inline struct ext4_inode *ext4_get_inode_from_node(struct inode *ino)
 {
     assert(ino->i_helper != NULL);
-    return ((struct ext2_inode_info *) ino->i_helper)->inode;
+    return ((struct ext4_inode_info *) ino->i_helper)->inode;
 }
 
-#define EXT2_TYPE_DIRECT_BLOCK 0
-#define EXT2_TYPE_SINGLY_BLOCK 1
-#define EXT2_TYPE_DOUBLY_BLOCK 2
-#define EXT2_TYPE_TREBLY_BLOCK 3
+#define EXT4_TYPE_DIRECT_BLOCK 0
+#define EXT4_TYPE_SINGLY_BLOCK 1
+#define EXT4_TYPE_DOUBLY_BLOCK 2
+#define EXT4_TYPE_TREBLY_BLOCK 3
 
-#define EXT2_DIRECT_BLOCK_COUNT 12
+#define EXT4_DIRECT_BLOCK_COUNT 12
 
-#define EXT2_ERR_INV_BLOCK   0
-#define EXT2_FILE_HOLE_BLOCK 0
+#define EXT4_ERR_INV_BLOCK   0
+#define EXT4_FILE_HOLE_BLOCK 0
 
-#define EXT2_GET_FILE_TYPE(mode)   (mode & S_IFMT)
-#define EXT2_CALCULATE_SIZE64(ino) (((uint64_t) ino->i_size_hi << 32) | ino->i_size_lo)
+#define EXT4_GET_FILE_TYPE(mode)   (mode & S_IFMT)
+#define EXT4_CALCULATE_SIZE64(ino) (((uint64_t) ino->i_size_hi << 32) | ino->i_size_lo)
 
 extern const unsigned int direct_block_count;
 
-void ext2_dirty_sb(ext2_superblock *fs);
-unsigned int ext2_detect_block_type(uint32_t block, struct ext2_superblock *fs);
-int ext2_add_block_to_inode(struct ext2_inode *inode, uint32_t block, uint32_t block_index,
-                            struct ext2_superblock *fs);
-void ext2_set_inode_size(struct ext2_inode *inode, size_t size);
-int ext2_add_direntry(const char *name, uint32_t inum, ext2_inode *raw_ino, inode *dir,
-                      ext2_superblock *fs);
-int ext2_remove_direntry(uint32_t inum, inode *dir, ext2_superblock *fs);
+void ext4_dirty_sb(ext4_superblock *fs);
+unsigned int ext4_detect_block_type(uint32_t block, struct ext4_superblock *fs);
+int ext4_add_block_to_inode(struct ext4_inode *inode, uint32_t block, uint32_t block_index,
+                            struct ext4_superblock *fs);
+void ext4_set_inode_size(struct ext4_inode *inode, size_t size);
+int ext4_add_direntry(const char *name, uint32_t inum, ext4_inode *raw_ino, inode *dir,
+                      ext4_superblock *fs);
+int ext4_remove_direntry(uint32_t inum, inode *dir, ext4_superblock *fs);
 
-int ext2_ino_type_to_vfs_type(uint16_t mode);
-uint16_t ext2_mode_to_ino_type(mode_t mode);
-struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
-                                     ext2_superblock *fs);
-void ext2_free_inode_space(struct inode *inode, struct ext2_superblock *fs);
-expected<ext2_block_no, int> ext2_get_block_from_inode(ext2_inode *ino, ext2_block_no block,
-                                                       ext2_superblock *sb);
+int ext4_ino_type_to_vfs_type(uint16_t mode);
+uint16_t ext4_mode_to_ino_type(mode_t mode);
+struct inode *ext4_fs_ino_to_vfs_ino(struct ext4_inode *inode, uint32_t inumber,
+                                     ext4_superblock *fs);
+void ext4_free_inode_space(struct inode *inode, struct ext4_superblock *fs);
+expected<ext4_block_no, int> ext4_get_block_from_inode(ext4_inode *ino, ext4_block_no block,
+                                                       ext4_superblock *sb);
 
-struct ext2_dirent_result
+struct ext4_dirent_result
 {
     off_t file_off;
     off_t block_off;
     char *buf;
 };
 
-int ext2_retrieve_dirent(inode *inode, const char *name, ext2_superblock *sb,
-                         ext2_dirent_result *res);
+int ext4_retrieve_dirent(inode *inode, const char *name, ext4_superblock *sb,
+                         ext4_dirent_result *res);
 
-struct inode *ext2_load_inode_from_disk(uint32_t inum, ext2_superblock *fs);
+struct inode *ext4_load_inode_from_disk(uint32_t inum, ext4_superblock *fs);
 
-static inline ext2_superblock *ext2_superblock_from_inode(inode *ino)
+static inline ext4_superblock *ext4_superblock_from_inode(inode *ino)
 {
-    return (ext2_superblock *) ino->i_sb;
+    return (ext4_superblock *) ino->i_sb;
 }
 
 #define WORD_SIZE sizeof(unsigned long)
@@ -574,7 +574,7 @@ typedef uint8_t __attribute__((__may_alias__)) __bitmap_byte;
 
 #define SCAN_ZERO_NOT_FOUND ~0UL
 
-inline unsigned long ext2_scan_zero(unsigned long *bitmap, unsigned long size)
+inline unsigned long ext4_scan_zero(unsigned long *bitmap, unsigned long size)
 {
     size_t nr_words = size / WORD_SIZE;
     static constexpr auto bits_per_long = WORD_SIZE * CHAR_BIT;
@@ -639,33 +639,33 @@ inline unsigned long ext2_scan_zero(unsigned long *bitmap, unsigned long size)
     return SCAN_ZERO_NOT_FOUND;
 }
 
-inline uint32_t ext2_inode_number_to_bg(ext2_inode_no no, const ext2_superblock *sb)
+inline uint32_t ext4_inode_number_to_bg(ext4_inode_no no, const ext4_superblock *sb)
 {
     return (no - 1) / sb->inodes_per_block_group;
 }
 
-inline uint32_t ext2_block_number_to_bg(ext2_block_no block_no, const ext2_superblock *sb)
+inline uint32_t ext4_block_number_to_bg(ext4_block_no block_no, const ext4_superblock *sb)
 {
     return block_no / sb->blocks_per_block_group;
 }
 
-#define EXT2_ATOMIC_ADD(var, num) __atomic_add_fetch(&var, num, __ATOMIC_RELAXED)
+#define EXT4_ATOMIC_ADD(var, num) __atomic_add_fetch(&var, num, __ATOMIC_RELAXED)
 
-#define EXT2_ATOMIC_SUB(var, num) __atomic_sub_fetch(&var, num, __ATOMIC_RELAXED)
+#define EXT4_ATOMIC_SUB(var, num) __atomic_sub_fetch(&var, num, __ATOMIC_RELAXED)
 
-#define EXT2_SUPPORTED_INCOMPAT EXT2_FEATURE_INCOMPAT_FILETYPE
+#define EXT4_SUPPORTED_INCOMPAT EXT4_FEATURE_INCOMPAT_FILETYPE
 
-inode *ext2_get_inode(ext2_superblock *sb, uint32_t inode_num);
-inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, dentry *dir);
-int ext2_unlink(const char *name, int flags, dentry *dir);
+inode *ext4_get_inode(ext4_superblock *sb, uint32_t inode_num);
+inode *ext4_create_file(const char *name, mode_t mode, dev_t dev, dentry *dir);
+int ext4_unlink(const char *name, int flags, dentry *dir);
 
 /**
  * @brief Detects if a symlink is a fast symlink
  *
- * @param inode Pointer to ext2_inode struct
- * @param fs Pointer to ext2_superblock struct
+ * @param inode Pointer to ext4_inode struct
+ * @param fs Pointer to ext4_superblock struct
  * @return True if a fast symlink, else false.
  */
-bool ext2_is_fast_symlink(struct ext2_inode *inode, struct ext2_superblock *fs);
+bool ext4_is_fast_symlink(struct ext4_inode *inode, struct ext4_superblock *fs);
 
 #endif
