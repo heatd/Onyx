@@ -22,6 +22,9 @@ cp defaults/resolv.conf $DESTDIR/etc/resolv.conf
 cp $SYSTEM_ROOT/usr/bin/dash  $DESTDIR/usr/bin
 cp $SYSTEM_ROOT/sbin/init     $DESTDIR/sbin
 cp $SYSTEM_ROOT/usr/lib/libc.so   $DESTDIR/usr/lib
+cp $SYSTEM_ROOT/usr/bin/dmesg $DESTDIR/usr/bin
+cp $SYSTEM_ROOT/usr/bin/toybox $DESTDIR/usr/bin
+
 $STRIP -g --strip-unneeded $DESTDIR/usr/lib/libc.so
 $STRIP -g --strip-all $DESTDIR/usr/bin/dash
 $STRIP -g --strip-all $DESTDIR/sbin/init

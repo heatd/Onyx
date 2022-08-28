@@ -6,6 +6,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include "ext4.h"
+
 #include <dirent.h>
 #include <errno.h>
 #include <stdio.h>
@@ -26,8 +28,6 @@
 #include <onyx/vfs.h>
 #include <onyx/vm.h>
 
-#include "ext4.h"
-
 struct inode *ext4_open(struct dentry *dir, const char *name);
 off_t ext4_getdirent(struct dirent *buf, off_t off, struct file *f);
 struct inode *ext4_creat(const char *path, int mode, struct dentry *dir);
@@ -36,7 +36,6 @@ void ext4_close(struct inode *ino);
 struct inode *ext4_mknod(const char *name, mode_t mode, dev_t dev, struct dentry *dir);
 struct inode *ext4_mkdir(const char *name, mode_t mode, struct dentry *dir);
 int ext4_link_fops(struct file *target, const char *name, struct dentry *dir);
-int ext4_unlink(const char *name, int flags, struct dentry *dir);
 int ext4_fallocate(int mode, off_t off, off_t len, struct file *f);
 int ext4_ftruncate(size_t len, struct file *f);
 ssize_t ext4_readpage(struct page *page, size_t off, struct inode *ino);
@@ -148,7 +147,7 @@ ssize_t ext4_readpage(struct page *page, size_t off, struct inode *ino)
         if (res.has_error())
         {
             page_destroy_block_bufs(page);
-            return -ENOMEM;
+            return res.error();
         }
 
         /* TODO: Coalesce reads */
@@ -471,6 +470,18 @@ int ext4_statfs(struct statfs *buf, superblock *sb)
     return ((ext4_superblock *) sb)->stat_fs(buf);
 }
 
+const uint32_t ext4_supported_features_compat = EXT4_FEATURE_COMPAT_EXT_ATTR;
+
+const uint32_t ext4_supported_featured_rocompat =
+    EXT4_FEATURE_RO_COMPAT_DIR_NLINK | EXT4_FEATURE_RO_COMPAT_EXTRA_ISIZE |
+    EXT4_FEATURE_RO_COMPAT_HUGE_FILE | EXT4_FEATURE_RO_COMPAT_LARGE_FILE |
+    EXT4_FEATURE_RO_COMPAT_GDT_CSUM | EXT4_FEATURE_RO_COMPAT_METADATA_CSUM |
+    EXT4_FEATURE_RO_COMPAT_SPARSE_SUPER;
+
+const uint32_t ext4_supported_features_incompat =
+    EXT4_FEATURE_INCOMPAT_64BIT | EXT4_FEATURE_INCOMPAT_DIRDATA | EXT4_FEATURE_INCOMPAT_FLEX_BG |
+    EXT4_FEATURE_INCOMPAT_FILETYPE | EXT4_FEATURE_INCOMPAT_EXTENTS;
+
 struct inode *ext4_mount_partition(struct blockdev *dev)
 {
     LOG("ext4", "mounting ext4 partition on block device %s\n", dev->name.c_str());
@@ -554,6 +565,40 @@ struct inode *ext4_mount_partition(struct blockdev *dev)
     {
         ERROR("ext4", "couldn't mount: Unknown revision level");
         goto error;
+    }
+
+    (void) ext4_supported_features_compat;
+
+    if (sb->features_incompat & ~ext4_supported_features_incompat)
+    {
+        ERROR("ext4", "couldn't mount: Unsupported features %08x\n",
+              sb->features_incompat & ~ext4_supported_features_incompat);
+        goto error;
+    }
+
+    printk("Extents? %s\n", sb->features_incompat & EXT4_FEATURE_INCOMPAT_EXTENTS ? "yes" : "no");
+
+    if (sb->features_ro_compat & ~ext4_supported_featured_rocompat)
+    {
+        INFO("ext4", "mounting read-only due to not understood rocompat %08x\n",
+             sb->features_ro_compat & ~ext4_supported_featured_rocompat);
+    }
+
+    if (EXT4_IS_64_BIT(sb))
+    {
+        // s_desc_size should be 4 byte aligned and
+        // 64 bit filesystems need DescSize to be 64 bytes
+        if (((ext4_sb->s_desc_size % 4) != 0) ||
+            (ext4_sb->s_desc_size < EXT4_64BIT_BLOCK_DESC_SIZE))
+        {
+            return nullptr;
+        }
+
+        sb->desc_size = ext4_sb->s_desc_size;
+    }
+    else
+    {
+        sb->desc_size = EXT4_OLD_BLOCK_DESC_SIZE;
     }
 
     sb->s_devnr = sb->s_bdev->dev->dev();

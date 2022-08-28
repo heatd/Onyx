@@ -52,8 +52,8 @@ void *bin_do_interp(struct binfmt_args *_args)
     if (!file)
     {
 #if 0
-		printk("Could not open %s\n", args.interp_path);
-		perror("open_vfs");
+        printk("Could not open %s\n", args.interp_path);
+        perror("open_vfs");
 #endif
         return NULL;
     }

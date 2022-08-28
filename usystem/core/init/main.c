@@ -82,7 +82,7 @@ const char *root = NULL;
 
 int mount_autodetect(const char *dev, const char *mpoint)
 {
-    const char *fs_type[] = {"ext2"};
+    const char *fs_type[] = {"ext4"};
 
     for (int i = 0; i < 1; i++)
     {
