@@ -672,8 +672,6 @@ static inline struct ext4_inode *ext4_get_inode_from_node(struct inode *ino)
 #define EXT4_GET_FILE_TYPE(mode)   ((mode) &S_IFMT)
 #define EXT4_CALCULATE_SIZE64(ino) (((uint64_t) (ino)->i_size_hi << 32) | (ino)->i_size_lo)
 
-extern const unsigned int direct_block_count;
-
 void ext4_dirty_sb(ext4_superblock *fs);
 unsigned int ext4_detect_block_type(uint32_t block, struct ext4_superblock *fs);
 int ext4_add_block_to_inode(struct ext4_inode *inode, uint32_t block, uint32_t block_index,
@@ -957,10 +955,10 @@ int ext4_bmap_truncate_inode_blocks(size_t new_len, inode *ino);
 
 /**
    Calculates the checksum of the given buffer.
-   @param[in]      Partition     Pointer to the opened EXT4 partition.
-   @param[in]      Buffer        Pointer to the buffer.
-   @param[in]      Length        Length of the buffer, in bytes.
-   @param[in]      InitialValue  Initial value of the CRC.
+   @param[in]      sb             Pointer to the ext4 superblock.
+   @param[in]      buffer         Pointer to the buffer.
+   @param[in]      length         Length of the buffer, in bytes.
+   @param[in]      initial_value  Initial value of the checksum.
    @return The checksum.
 **/
 uint32_t ext4_calculate_csum(const ext4_superblock *sb, const void *buffer, size_t length,
@@ -996,5 +994,28 @@ bool ext4_check_inode_csum(const ext4_superblock *sb, const ext4_inode *inode, e
    @param[in]      inum          Inode number.
 **/
 void ext4_update_inode_csum(const ext4_superblock *sb, ext4_inode *inode, ext4_inode_no inum);
+
+/**
+   Verifies that the superblock's checksum is valid.
+   @param[in] sb           Pointer to the superblock.
+   @return true if valid, else false
+**/
+bool ext4_verify_sb_csum(const ext4_superblock *sb);
+
+/**
+ * @brief Flushes an inode
+ *
+ * @param inode Pointer to a vfs inode
+ * @return 0 on success, negative error codes
+ */
+int ext4_flush_inode(struct inode *inode);
+
+/**
+ * @brief Kill an inode
+ *
+ * @param inode Pointer to vfs inode
+ * @return 0 on success, negative error codes
+ */
+int ext4_kill_inode(struct inode *inode);
 
 #endif

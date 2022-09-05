@@ -62,66 +62,17 @@ struct file_ops ext4_ops = {.open = ext4_open,
                             .writepage = ext4_writepage,
                             .prepare_write = ext4_prepare_write};
 
-/**
-   Calculates the superblock's checksum.
-   @param[in] Partition    Pointer to the opened partition.
-   @param[in] Sb           Pointer to the superblock.
-   @return The superblock's checksum.
-**/
-static uint32_t ext4_calculate_sb_csum(const ext4_superblock *sb)
+int ext4_fallocate(int mode, off_t off, off_t len, struct file *ino)
 {
-    return ext4_calculate_csum(sb, sb->sb, offsetof(superblock_t, s_checksum), ~0U);
-}
-
-void ext4_dirty_sb(ext4_superblock *fs)
-{
-    if (EXT4_HAS_METADATA_CSUM(fs))
-        fs->sb->s_checksum = ext4_calculate_sb_csum(fs);
-    block_buf_dirty(fs->sb_bb);
-}
-
-/**
-   Verifies that the superblock's checksum is valid.
-   @param[in] Partition    Pointer to the opened partition.
-   @param[in] Sb           Pointer to the superblock.
-   @return The superblock's checksum.
-**/
-static bool ext4_verify_sb_csum(const ext4_superblock *sb)
-{
-    if (!EXT4_HAS_METADATA_CSUM(sb))
-    {
-        return true;
-    }
-
-    return sb->sb->s_checksum == ext4_calculate_sb_csum(sb);
-}
-
-void ext4_delete_inode(struct inode *inode_, uint32_t inum, struct ext4_superblock *fs)
-{
-    struct ext4_inode *inode = ext4_get_inode_from_node(inode_);
-
-    inode->i_dtime = clock_get_posix_time();
-    ext4_free_inode_space(inode_, fs);
-
-    inode->i_links = 0;
-    fs->update_inode(inode, inum);
-
-    uint32_t block_group = (inum - 1) / fs->inodes_per_block_group;
-
-    if (S_ISDIR(inode->i_mode))
-        fs->block_groups[block_group].dec_used_dirs();
-
-    fs->free_inode(inum);
+    return -ENOSYS;
 }
 
 void ext4_close(struct inode *vfs_ino)
 {
     struct ext4_inode *inode = ext4_get_inode_from_node(vfs_ino);
 
-    /* TODO: It would be better, cache-wise and memory allocator-wise if we
-     * had ext4_inode incorporate a struct inode inside it, and have everything in the same
-     * location.
-     * TODO: We're also storing a lot of redudant info in ext4_inode(we already have most stuff in
+    /*
+     * TODO: We're storing a lot of redudant info in ext4_inode(we already have most stuff in
      * the regular struct inode).
      */
     free(inode);
@@ -468,37 +419,6 @@ struct inode *ext4_creat(const char *name, int mode, struct dentry *dir)
     return i;
 }
 
-int ext4_flush_inode(struct inode *inode)
-{
-    struct ext4_inode *ino = ext4_get_inode_from_node(inode);
-    struct ext4_superblock *fs = ext4_superblock_from_inode(inode);
-
-    /* Refresh the on-disk struct with the vfs inode data */
-    ino->i_atime = inode->i_atime;
-    ino->i_ctime = inode->i_ctime;
-    ino->i_mtime = inode->i_mtime;
-    ino->i_size_lo = (uint32_t) inode->i_size;
-    ino->i_size_hi = (uint32_t) (inode->i_size >> 32);
-    ino->i_gid = inode->i_gid;
-    ino->i_uid = inode->i_uid;
-    ino->i_links = (uint16_t) inode->i_nlink;
-    ino->i_blocks = (uint32_t) inode->i_blocks;
-    ino->i_mode = inode->i_mode;
-    ino->i_uid = inode->i_uid;
-
-    fs->update_inode(ino, (ext4_inode_no) inode->i_inode);
-
-    return 0;
-}
-
-int ext4_kill_inode(struct inode *inode)
-{
-    struct ext4_superblock *fs = ext4_superblock_from_inode(inode);
-
-    ext4_delete_inode(inode, (uint32_t) inode->i_inode, fs);
-    return 0;
-}
-
 int ext4_statfs(struct statfs *buf, superblock *sb)
 {
     return ((ext4_superblock *) sb)->stat_fs(buf);
@@ -777,93 +697,4 @@ struct inode *ext4_mkdir(const char *name, mode_t mode, struct dentry *dir)
     inode_mark_dirty(new_dir);
 
     return new_dir;
-}
-
-/**
- * @brief Reports a filesystem error
- *
- * @param str Error Message
- */
-void ext4_superblock::error(const char *str, ...) const
-{
-    char *buf = (char *) malloc(512);
-    bool stack = false;
-    if (!buf)
-    {
-        // Cheers, I hate this. But lets prioritize error reporting
-        stack = true;
-        buf = (char *) alloca(200);
-    }
-
-    va_list va;
-    va_start(va, str);
-    int st = vsnprintf(buf, stack ? 200 : 512, str, va);
-
-    if (st < 0)
-        strcpy(buf, "<bad error format string>");
-
-    va_end(va);
-    printk("ext4 error: %s\n", buf);
-
-    if (!stack)
-        free(buf);
-
-    sb->s_state = EXT4_ERROR_FS;
-    block_buf_dirty(sb_bb);
-    block_buf_writeback(sb_bb);
-
-    if (sb->s_errors == EXT4_ERRORS_CONTINUE)
-        return;
-    else if (sb->s_errors == EXT4_ERRORS_PANIC)
-        panic("ext4: Panic from previous filesystem error");
-
-    /* TODO: Add (re)mouting read-only */
-}
-
-/**
- * @brief Does statfs
- *
- * @param buf statfs struct to fill
- * @return 0 on success, negative error codes (in our case, always succesful)
- */
-int ext4_superblock::stat_fs(struct statfs *buf)
-{
-    buf->f_type = EXT4_SIGNATURE;
-    buf->f_bsize = block_size;
-    buf->f_blocks = sb->s_blocks_count;
-    buf->f_bfree = sb->s_free_blocks_count;
-    buf->f_bavail = sb->s_free_blocks_count - sb->s_r_blocks_count;
-    buf->f_files = sb->s_inodes_count;
-    buf->f_ffree = sb->s_free_inodes_count;
-
-    return 0;
-}
-
-/**
-   Calculates the checksum of the given buffer.
-   @param[in]      Partition     Pointer to the opened EXT4 partition.
-   @param[in]      Buffer        Pointer to the buffer.
-   @param[in]      Length        Length of the buffer, in bytes.
-   @param[in]      InitialValue  Initial value of the CRC.
-   @return The checksum.
-**/
-uint32_t ext4_calculate_csum(const ext4_superblock *sb, const void *buffer, size_t length,
-                             uint32_t initial_value)
-{
-    if (!EXT4_HAS_METADATA_CSUM(sb))
-    {
-        return 0;
-    }
-
-    switch (sb->sb->s_checksum_type)
-    {
-        case EXT4_CHECKSUM_CRC32C:
-            // For some reason, EXT4 really likes non-inverted CRC32C checksums, so we stick to that
-            // here.
-            return ~crc32c_calculate(buffer, length, ~initial_value);
-        default:
-            panic("ext4: Bad checksum type %u - this should be unreachable\n",
-                  sb->sb->s_checksum_type);
-            return 0;
-    }
 }

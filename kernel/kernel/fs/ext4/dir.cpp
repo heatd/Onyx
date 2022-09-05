@@ -23,118 +23,6 @@
 
 #include "ext4.h"
 
-const unsigned int direct_block_count = 12;
-
-/**
- * @brief Reads metadata blocks from the filesystem using sb_read_block
- *
- * @param block Starting block
- * @param number_of_blocks Number of blocks
- * @param bufs Pointer to an array of N auto_block_buf's
- * @return 0 on success, negative error codes
- */
-int ext4_superblock::read_blocks(ext4_block_no block, ext4_block_no number_of_blocks,
-                                 auto_block_buf *bufs)
-{
-    for (ext4_block_no i = 0; i < number_of_blocks; i++)
-    {
-        bufs[i] = sb_read_block(this, block + i);
-        if (!bufs[i])
-        {
-            for (ext4_block_no j = 0; j < i; j++)
-            {
-                bufs[j].reset(nullptr);
-                return -errno;
-            }
-        }
-    }
-
-    return 0;
-}
-
-/**
- * @brief Read an ext4_inode from disk
- *
- * @param nr The inode number
- * @param check_csum If the function should check the checksum
- * @return A pointer to the inode number
- */
-ext4_inode *ext4_superblock::get_inode(ext4_inode_no inode, bool check_csum) const
-{
-    uint32_t bg_no = ext4_inode_number_to_bg(inode, this);
-    uint32_t index = (inode - 1) % inodes_per_block_group;
-    uint32_t inodes_per_block = block_size / inode_size;
-    uint32_t block = index / inodes_per_block;
-    uint32_t off = (index % inodes_per_block) * inode_size;
-
-    assert(bg_no < number_of_block_groups);
-
-    const auto &bg = block_groups[bg_no];
-
-    auto buf = bg.get_inode_table(this, block);
-    if (!buf)
-    {
-        error("Error reading inode table.");
-        printk("Tried to read block %u\n", bg.get_bgd()->bg_inode_table_lo);
-        return nullptr;
-    }
-
-    ext4_inode *ino = (ext4_inode *) malloc(inode_size);
-
-    if (!ino)
-        return nullptr;
-
-    ext4_inode *on_disk = (ext4_inode *) ((char *) block_buf_data(buf) + off);
-
-    if (check_csum && !ext4_check_inode_csum(this, on_disk, inode))
-    {
-        free(ino);
-        error("Inode %u has a bad checksum", inode);
-        errno = EIO;
-        return nullptr;
-    }
-
-    memcpy(ino, on_disk, inode_size);
-
-    return ino;
-}
-
-/**
- * @brief Updates an inode on disk
- *
- * @param ino Pointer to ext4_inode
- * @param inode_no Inode number
- */
-void ext4_superblock::update_inode(const ext4_inode *ino, ext4_inode_no inode_no)
-{
-    assert(inode_no != 0);
-    uint32_t bg_no = ext4_inode_number_to_bg(inode_no, this);
-    uint32_t index = (inode_no - 1) % inodes_per_block_group;
-    uint32_t inodes_per_block = block_size / inode_size;
-    uint32_t block = index / inodes_per_block;
-    uint32_t off = (index % inodes_per_block) * inode_size;
-
-    assert(bg_no < number_of_block_groups);
-
-    const auto &bg = block_groups[bg_no];
-
-    auto buf = bg.get_inode_table(this, block);
-    if (!buf)
-    {
-        error("Error reading inode table.");
-        printk("Tried to read block %u\n", bg.get_bgd()->bg_inode_table_lo);
-        return;
-    }
-
-    ext4_inode *on_disk = (ext4_inode *) ((char *) block_buf_data(buf) + off);
-
-    memcpy(on_disk, ino, inode_size);
-
-    ext4_update_inode_csum(this, on_disk, inode_no);
-
-    block_buf_dirty(buf);
-}
-
 size_t ext4_calculate_dirent_size(size_t len_name)
 {
     size_t dirent_size = sizeof(ext4_dir_entry_t) - (255 - len_name);
@@ -536,22 +424,6 @@ int ext4_link_fops(struct file *_target, const char *name, struct dentry *_dir)
     return ext4_link(_target->f_ino, name, _dir->d_inode);
 }
 
-struct inode *ext4_load_inode_from_disk(uint32_t inum, struct ext4_superblock *fs)
-{
-    struct ext4_inode *inode = fs->get_inode(inum);
-    if (!inode)
-        return nullptr;
-
-    struct inode *node = ext4_fs_ino_to_vfs_ino(inode, inum, fs);
-    if (!node)
-    {
-        free(inode);
-        return errno = ENOMEM, nullptr;
-    }
-
-    return node;
-}
-
 bool ext4_is_standard_dir_link(ext4_dir_entry_t *entry)
 {
     if (!memcmp(entry->name, ".", entry->name_len))
@@ -683,9 +555,4 @@ int ext4_unlink(const char *name, int flags, struct dentry *dir)
     close_vfs(target);
 
     return 0;
-}
-
-int ext4_fallocate(int mode, off_t off, off_t len, struct file *ino)
-{
-    return -ENOSYS;
 }
