@@ -40,7 +40,7 @@ expected<cul::pair<ext4_inode_no, ext4_inode *>, int> ext4_superblock::allocate_
                 continue;
             else
             {
-                ext4_inode *ino = get_inode(res.value());
+                ext4_inode *ino = get_inode(res.value(), false);
                 if (!ino)
                 {
                     bg.free_inode(res.value(), this);

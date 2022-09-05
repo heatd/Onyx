@@ -8,6 +8,7 @@
 
 #include "ext4.h"
 
+#include <alloca.h>
 #include <dirent.h>
 #include <errno.h>
 #include <stdio.h>
@@ -17,6 +18,7 @@
 
 #include <onyx/buffer.h>
 #include <onyx/compiler.h>
+#include <onyx/crc32.h>
 #include <onyx/cred.h>
 #include <onyx/dentry.h>
 #include <onyx/dev.h>
@@ -59,6 +61,40 @@ struct file_ops ext4_ops = {.open = ext4_open,
                             .readpage = ext4_readpage,
                             .writepage = ext4_writepage,
                             .prepare_write = ext4_prepare_write};
+
+/**
+   Calculates the superblock's checksum.
+   @param[in] Partition    Pointer to the opened partition.
+   @param[in] Sb           Pointer to the superblock.
+   @return The superblock's checksum.
+**/
+static uint32_t ext4_calculate_sb_csum(const ext4_superblock *sb)
+{
+    return ext4_calculate_csum(sb, sb->sb, offsetof(superblock_t, s_checksum), ~0U);
+}
+
+void ext4_dirty_sb(ext4_superblock *fs)
+{
+    if (EXT4_HAS_METADATA_CSUM(fs))
+        fs->sb->s_checksum = ext4_calculate_sb_csum(fs);
+    block_buf_dirty(fs->sb_bb);
+}
+
+/**
+   Verifies that the superblock's checksum is valid.
+   @param[in] Partition    Pointer to the opened partition.
+   @param[in] Sb           Pointer to the superblock.
+   @return The superblock's checksum.
+**/
+static bool ext4_verify_sb_csum(const ext4_superblock *sb)
+{
+    if (!EXT4_HAS_METADATA_CSUM(sb))
+    {
+        return true;
+    }
+
+    return sb->sb->s_checksum == ext4_calculate_sb_csum(sb);
+}
 
 void ext4_delete_inode(struct inode *inode_, uint32_t inum, struct ext4_superblock *fs)
 {
@@ -127,7 +163,7 @@ ssize_t ext4_readpage(struct page *page, size_t off, struct inode *ino)
 
     assert(is_buffer == true);
 
-    auto raw_inode = ext4_get_inode_from_node(ino);
+    auto e4ino = (ext4_inode_info *) ino;
     auto sb = ext4_superblock_from_inode(ino);
     auto nr_blocks = PAGE_SIZE / sb->block_size;
     auto base_block_index = off / sb->block_size;
@@ -143,7 +179,7 @@ ssize_t ext4_readpage(struct page *page, size_t off, struct inode *ino)
             return -ENOMEM;
         }
 
-        auto res = ext4_get_block_from_inode(raw_inode, base_block_index + i, sb);
+        auto res = ext4_get_block_from_inode(e4ino, base_block_index + i, sb);
         if (res.has_error())
         {
             page_destroy_block_bufs(page);
@@ -173,17 +209,6 @@ ssize_t ext4_readpage(struct page *page, size_t off, struct inode *ino)
     }
 
     return min(PAGE_SIZE, ino->i_size - off);
-}
-
-struct ext4_inode_info *ext4_cache_inode_info(struct inode *ino, struct ext4_inode *fs_ino)
-{
-    struct ext4_inode_info *inf = new ext4_inode_info;
-    if (!inf)
-        return nullptr;
-
-    inf->inode = fs_ino;
-
-    return inf;
 }
 
 inode *ext4_get_inode(ext4_superblock *sb, uint32_t inode_num)
@@ -248,10 +273,16 @@ struct inode *ext4_fs_ino_to_vfs_ino(struct ext4_inode *inode, uint32_t inumber,
 {
     bool has_vmo = S_ISDIR(inode->i_mode) || S_ISREG(inode->i_mode) || S_ISLNK(inode->i_mode);
     /* Create a file */
-    struct inode *ino = inode_create(has_vmo);
+    struct ext4_inode_info *ino = new ext4_inode_info;
 
     if (!ino)
     {
+        return nullptr;
+    }
+
+    if (inode_init(ino, has_vmo) < 0)
+    {
+        delete ino;
         return nullptr;
     }
 
@@ -282,13 +313,7 @@ struct inode *ext4_fs_ino_to_vfs_ino(struct ext4_inode *inode, uint32_t inumber,
     ino->i_nlink = inode->i_links;
     ino->i_blocks = inode->i_blocks;
 
-    ino->i_helper = ext4_cache_inode_info(ino, inode);
-
-    if (!ino->i_helper)
-    {
-        free(ino);
-        return nullptr;
-    }
+    ino->raw_inode = inode;
 
     ino->i_fops = &ext4_ops;
 
@@ -618,14 +643,32 @@ struct inode *ext4_mount_partition(struct blockdev *dev)
     entries = sb->block_size / sizeof(uint32_t);
     sb->entry_shift = ilog2(entries);
 
+    if (!ext4_verify_sb_csum(sb))
+    {
+        printf("ext4: Filesystem on %s with bad superblock checksum\n", dev->name.c_str());
+        return errno = EIO, nullptr;
+    }
+
     if (sb->total_blocks % sb->blocks_per_block_group)
         sb->number_of_block_groups++;
 
+    if (sb->features_incompat & EXT4_FEATURE_INCOMPAT_CSUM_SEED)
+    {
+        sb->initial_seed = ext4_sb->s_checksum_seed;
+    }
+    else
+    {
+        sb->initial_seed = ext4_calculate_csum(sb, (void *) ext4_sb->s_uuid, 16, ~0U);
+    }
+
     for (unsigned int i = 0; i < sb->number_of_block_groups; i++)
     {
-        ext4_block_group bg{i};
-        if (!bg.init(sb))
+        ext4_block_group bg{i, sb};
+        if (int st = bg.init(); st < 0)
+        {
+            errno = -st;
             goto error;
+        }
 
         if (!sb->block_groups.push_back(cul::move(bg)))
             goto error;
@@ -672,10 +715,9 @@ off_t ext4_getdirent(struct dirent *buf, off_t off, struct file *f)
 
     /* Read a dir entry from the offset */
     read = file_read_cache(&entry, sizeof(ext4_dir_entry_t), f->f_ino, off);
+    thread_change_addr_limit(old);
     if (read < 0)
         return read;
-
-    thread_change_addr_limit(old);
 
     /* If we reached the end of the directory buffer, return 0 */
     if (read == 0)
@@ -733,9 +775,29 @@ struct inode *ext4_mkdir(const char *name, mode_t mode, struct dentry *dir)
  *
  * @param str Error Message
  */
-void ext4_superblock::error(const char *str) const
+void ext4_superblock::error(const char *str, ...) const
 {
-    printk("ext4_error: %s\n", str);
+    char *buf = (char *) malloc(512);
+    bool stack = false;
+    if (!buf)
+    {
+        // Cheers, I hate this. But lets prioritize error reporting
+        stack = true;
+        buf = (char *) alloca(200);
+    }
+
+    va_list va;
+    va_start(va, str);
+    int st = vsnprintf(buf, stack ? 200 : 512, str, va);
+
+    if (st < 0)
+        strcpy(buf, "<bad error format string>");
+
+    va_end(va);
+    printk("ext4 error: %s\n", buf);
+
+    if (!stack)
+        free(buf);
 
     sb->s_state = EXT4_ERROR_FS;
     block_buf_dirty(sb_bb);
@@ -766,4 +828,33 @@ int ext4_superblock::stat_fs(struct statfs *buf)
     buf->f_ffree = sb->s_free_inodes_count;
 
     return 0;
+}
+
+/**
+   Calculates the checksum of the given buffer.
+   @param[in]      Partition     Pointer to the opened EXT4 partition.
+   @param[in]      Buffer        Pointer to the buffer.
+   @param[in]      Length        Length of the buffer, in bytes.
+   @param[in]      InitialValue  Initial value of the CRC.
+   @return The checksum.
+**/
+uint32_t ext4_calculate_csum(const ext4_superblock *sb, const void *buffer, size_t length,
+                             uint32_t initial_value)
+{
+    if (!EXT4_HAS_METADATA_CSUM(sb))
+    {
+        return 0;
+    }
+
+    switch (sb->sb->s_checksum_type)
+    {
+        case EXT4_CHECKSUM_CRC32C:
+            // For some reason, EXT4 really likes non-inverted CRC32C checksums, so we stick to that
+            // here.
+            return ~crc32c_calculate(buffer, length, ~initial_value);
+        default:
+            panic("ext4: Bad checksum type %u - this should be unreachable\n",
+                  sb->sb->s_checksum_type);
+            return 0;
+    }
 }

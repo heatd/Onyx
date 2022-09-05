@@ -83,40 +83,46 @@ int inode_init(struct inode *ino, bool is_reg);
 
 struct inode
 {
-    unsigned long i_refc;
+    unsigned long i_refc{1};
     /* TODO: We could use a lock here to protect i_flags to have
      * thread-safe dirties, etc...
      */
-    unsigned int i_flags;
-    ino_t i_inode;
-    gid_t i_gid;
-    uid_t i_uid;
-    mode_t i_mode;
-    int i_type;
-    size_t i_size;
-    dev_t i_dev;
-    dev_t i_rdev;
-    time_t i_atime;
-    time_t i_ctime;
-    time_t i_mtime;
-    nlink_t i_nlink;
-    blkcnt_t i_blocks;
-    struct superblock *i_sb;
+    unsigned int i_flags{0};
+    ino_t i_inode{0};
+    gid_t i_gid{0};
+    uid_t i_uid{0};
+    mode_t i_mode{0};
+    int i_type{0};
+    size_t i_size{0};
+    dev_t i_dev{0};
+    dev_t i_rdev{0};
+    time_t i_atime{0};
+    time_t i_ctime{0};
+    time_t i_mtime{0};
+    nlink_t i_nlink{0};
+    blkcnt_t i_blocks{0};
+    struct superblock *i_sb{nullptr};
 
-    struct file_ops *i_fops;
+    struct file_ops *i_fops{nullptr};
 
-    struct vm_object *i_pages;
+    struct vm_object *i_pages{nullptr};
     struct list_head i_dirty_inode_node;
-    void *i_flush_dev;
+    void *i_flush_dev{nullptr};
 
-    struct inode *i_next;
-    void *i_helper;
-    struct dentry *i_dentry; /* Only valid for directories */
+    struct inode *i_next{nullptr};
+    void *i_helper{nullptr};
+    struct dentry *i_dentry{nullptr}; /* Only valid for directories */
     struct rwlock i_rwlock;
     struct list_head i_sb_list_node;
     struct list_head i_hash_list_node;
 
 #ifdef __cplusplus
+
+    inode()
+    {
+        rwlock_init(&i_rwlock);
+    }
+
     int init(mode_t mode)
     {
         return inode_init(this, S_ISREG(mode));

@@ -25,11 +25,6 @@
 
 const unsigned int direct_block_count = 12;
 
-static inline void __ext4_update_ctime(struct ext4_inode *ino)
-{
-    ino->i_ctime = (uint32_t) clock_get_posix_time();
-}
-
 /**
  * @brief Reads metadata blocks from the filesystem using sb_read_block
  *
@@ -61,9 +56,10 @@ int ext4_superblock::read_blocks(ext4_block_no block, ext4_block_no number_of_bl
  * @brief Read an ext4_inode from disk
  *
  * @param nr The inode number
+ * @param check_csum If the function should check the checksum
  * @return A pointer to the inode number
  */
-ext4_inode *ext4_superblock::get_inode(ext4_inode_no inode) const
+ext4_inode *ext4_superblock::get_inode(ext4_inode_no inode, bool check_csum) const
 {
     uint32_t bg_no = ext4_inode_number_to_bg(inode, this);
     uint32_t index = (inode - 1) % inodes_per_block_group;
@@ -89,6 +85,14 @@ ext4_inode *ext4_superblock::get_inode(ext4_inode_no inode) const
         return nullptr;
 
     ext4_inode *on_disk = (ext4_inode *) ((char *) block_buf_data(buf) + off);
+
+    if (check_csum && !ext4_check_inode_csum(this, on_disk, inode))
+    {
+        free(ino);
+        error("Inode %u has a bad checksum", inode);
+        errno = EIO;
+        return nullptr;
+    }
 
     memcpy(ino, on_disk, inode_size);
 
@@ -126,12 +130,9 @@ void ext4_superblock::update_inode(const ext4_inode *ino, ext4_inode_no inode_no
 
     memcpy(on_disk, ino, inode_size);
 
-    block_buf_dirty(buf);
-}
+    ext4_update_inode_csum(this, on_disk, inode_no);
 
-void ext4_dirty_sb(ext4_superblock *fs)
-{
-    block_buf_dirty(fs->sb_bb);
+    block_buf_dirty(buf);
 }
 
 size_t ext4_calculate_dirent_size(size_t len_name)

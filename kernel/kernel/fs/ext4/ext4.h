@@ -41,6 +41,8 @@
 #define EXT4_FREEBSD_ID  3
 #define EXT4_LITES_ID    4
 
+#define EXT4_CHECKSUM_CRC32C 0x1
+
 #define EXT4_GOOD_OLD_REV 0
 #define EXT4_DYNAMIC_REV  1
 
@@ -326,6 +328,16 @@ struct ext4_inode
     uint32_t i_size_hi;
     uint32_t i_faddr;
     union ext4_osd2 i_osd2;
+
+    uint16_t i_extra_isize;
+    uint16_t i_checksum_hi;
+    uint32_t i_ctime_extra;
+    uint32_t i_mtime_extra;
+    uint32_t i_atime_extra;
+    uint32_t i_crtime;
+    uint32_t i_crtime_extra;
+    uint32_t i_version_hi;
+    uint32_t i_projid;
 };
 
 #define EXT4_NAME_LEN 255
@@ -356,6 +368,7 @@ private:
     ext4_block_group_no nr;
     mutex inode_bitmap_lock{};
     mutex block_bitmap_lock{};
+    ext4_superblock *sb_{nullptr};
 
     /* Protects used_dirs, unallocated inodes and blocks */
     spinlock lock_{};
@@ -368,7 +381,7 @@ public:
         spinlock_init(&lock_);
     }
 
-    ext4_block_group(ext4_block_group_no nr_) : nr{nr_}
+    ext4_block_group(ext4_block_group_no nr_, ext4_superblock *sb) : nr{nr_}, sb_{sb}
     {
         spinlock_init(&lock_);
         mutex_init(&inode_bitmap_lock);
@@ -383,6 +396,7 @@ public:
         bgd = rhs.bgd;
         buf = cul::move(rhs.buf);
         nr = cul::move(rhs.nr);
+        sb_ = cul::move(rhs.sb_);
         mutex_init(&inode_bitmap_lock);
         mutex_init(&block_bitmap_lock);
 
@@ -400,6 +414,7 @@ public:
         bgd = rhs.bgd;
         buf = cul::move(rhs.buf);
         nr = cul::move(rhs.nr);
+        sb_ = cul::move(rhs.sb_);
         mutex_init(&inode_bitmap_lock);
         mutex_init(&block_bitmap_lock);
 
@@ -410,7 +425,12 @@ public:
     ext4_block_group &operator=(const ext4_block_group &rhs) = delete;
     ext4_block_group(const ext4_block_group &rhs) = delete;
 
-    bool init(ext4_superblock *sb);
+    /**
+     * @brief Initialize the ext4_block_group object
+     *
+     * @return 0 on success, negative error number
+     */
+    int init();
 
     void lock()
     {
@@ -422,10 +442,7 @@ public:
         spin_unlock(&lock_);
     }
 
-    void dirty()
-    {
-        block_buf_dirty(buf);
-    }
+    void dirty();
 
     void dec_used_dirs()
     {
@@ -522,6 +539,7 @@ struct ext4_superblock : public superblock
     uint32_t number_of_block_groups;
     uint16_t inode_size;
     uint16_t desc_size{};
+    uint32_t initial_seed{};
     unsigned int entry_shift;
     cul::vector<ext4_block_group> block_groups;
 
@@ -549,11 +567,11 @@ public:
     void free_inode(ext4_inode_no ino);
 
     /**
-     * @brief Reports a filesystem error
+     * @brief Reports a filesystem error (printf-like)
      *
      * @param str Error Message
      */
-    void error(const char *str) const;
+    __attribute__((format(printf, 2, 3))) void error(const char *str, ...) const;
 
     /**
      * @brief Allocates a block, taking into account the preferred block group
@@ -574,9 +592,10 @@ public:
      * @brief Read an ext4_inode from disk
      *
      * @param nr The inode number
+     * @param check_csum If the function should check the checksum
      * @return A pointer to the inode number
      */
-    ext4_inode *get_inode(ext4_inode_no nr) const;
+    ext4_inode *get_inode(ext4_inode_no nr, bool check_csum = true) const;
 
     /**
      * @brief Updates an inode on disk
@@ -624,16 +643,20 @@ public:
     bool valid_dirent(const ext4_dir_entry_t *dentry, size_t offset);
 };
 
-struct ext4_inode_info
+struct ext4_inode_info : public inode
 {
     /* Cached copy of the on-disk inode */
-    struct ext4_inode *inode;
+    struct ext4_inode *raw_inode;
+
+    ext4_superblock *ext4sb() const
+    {
+        return (ext4_superblock *) i_sb;
+    }
 };
 
 static inline struct ext4_inode *ext4_get_inode_from_node(struct inode *ino)
 {
-    assert(ino->i_helper != nullptr);
-    return ((struct ext4_inode_info *) ino->i_helper)->inode;
+    return ((struct ext4_inode_info *) ino)->raw_inode;
 }
 
 #define EXT4_TYPE_DIRECT_BLOCK 0
@@ -665,7 +688,7 @@ uint16_t ext4_mode_to_ino_type(mode_t mode);
 struct inode *ext4_fs_ino_to_vfs_ino(struct ext4_inode *inode, uint32_t inumber,
                                      ext4_superblock *fs);
 void ext4_free_inode_space(struct inode *inode, struct ext4_superblock *fs);
-expected<ext4_block_no, int> ext4_get_block_from_inode(ext4_inode *ino, ext4_block_no block,
+expected<ext4_block_no, int> ext4_get_block_from_inode(ext4_inode_info *ino, ext4_block_no block,
                                                        ext4_superblock *sb);
 
 struct ext4_dirent_result
@@ -865,7 +888,7 @@ expected<ext4_block_no, int> ext4_bmap_get_block(ext4_superblock *sb, ext4_inode
  * @param block Logical block
  * @return ext4 block, or a negative error number
  */
-expected<ext4_block_no, int> ext4_emap_get_block(ext4_superblock *sb, ext4_inode *ino,
+expected<ext4_block_no, int> ext4_emap_get_block(ext4_superblock *sb, ext4_inode_info *ino,
                                                  ext4_block_no block);
 
 /**
@@ -887,5 +910,91 @@ expected<ext4_block_no, int> ext4_bmap_create_path(inode *ino, ext4_block_no blo
  * @return 0 on success, negative error codes
  */
 int ext4_bmap_truncate_inode_blocks(size_t new_len, inode *ino);
+
+/**
+   Verifies the existance of a particular RO compat feature set.
+   @param[in]      sb           Pointer to ext4 superblock.
+   @param[in]      RoCompatFeatureSet  Feature set to test.
+   @return TRUE if all features are supported, else FALSE.
+**/
+#define EXT4_HAS_RO_COMPAT(sb, RoCompatFeatureSet) \
+    (((sb)->features_ro_compat & (RoCompatFeatureSet)) == (RoCompatFeatureSet))
+
+/**
+   Verifies the existance of a particular compat feature set.
+   @param[in]      sb           Pointer to ext4 superblock.
+   @param[in]      CompatFeatureSet  Feature set to test.
+   @return TRUE if all features are supported, else FALSE.
+**/
+#define EXT4_HAS_COMPAT(sb, CompatFeatureSet) \
+    (((sb)->features_compat & (CompatFeatureSet)) == (CompatFeatureSet))
+
+/**
+   Verifies the existance of a particular compat feature set.
+   @param[in]      sb           Pointer to ext4 superblock.
+   @param[in]      IncompatFeatureSet  Feature set to test.
+   @return TRUE if all features are supported, else FALSE.
+**/
+#define EXT4_HAS_INCOMPAT(sb, IncompatFeatureSet) \
+    (((sb)->features_incompat & (IncompatFeatureSet)) == (IncompatFeatureSet))
+
+// Note: Might be a good idea to provide generic Ext4Has$feature() through
+// macros.
+
+/**
+   Checks if metadata_csum is enabled on the partition.
+   @param[in]      sb           Pointer to ext4 superblock.
+   @return TRUE if the metadata_csum is supported, else FALSE.
+**/
+#define EXT4_HAS_METADATA_CSUM(sb) EXT4_HAS_RO_COMPAT(sb, EXT4_FEATURE_RO_COMPAT_METADATA_CSUM)
+
+/**
+   Checks if gdt_csum is enabled on the partition.
+   @param[in]      sb           Pointer to ext4 superblock.
+   @return TRUE if the gdt_csum is supported, else FALSE.
+**/
+#define EXT4_HAS_GDT_CSUM(sb) EXT4_HAS_RO_COMPAT(sb, EXT4_FEATURE_RO_COMPAT_GDT_CSUM)
+
+/**
+   Calculates the checksum of the given buffer.
+   @param[in]      Partition     Pointer to the opened EXT4 partition.
+   @param[in]      Buffer        Pointer to the buffer.
+   @param[in]      Length        Length of the buffer, in bytes.
+   @param[in]      InitialValue  Initial value of the CRC.
+   @return The checksum.
+**/
+uint32_t ext4_calculate_csum(const ext4_superblock *sb, const void *buffer, size_t length,
+                             uint32_t initial_value);
+
+#define EXT4_INODE_HAS_FIELD(inode, field)                \
+    ((inode)->i_extra_isize + EXT4_GOOD_OLD_INODE_SIZE >= \
+     offsetof(ext4_inode, field) + sizeof(((ext4_inode *) nullptr)->field))
+
+/**
+   Calculates the checksum of the given inode.
+   @param[in]      sb            Pointer to the ext4 superblock.
+   @param[in]      inode         Pointer to the inode.
+   @param[in]      inum          Inode number.
+   @return The checksum.
+**/
+uint32_t ext4_calculate_inode_csum(const ext4_superblock *sb, const ext4_inode *inode,
+                                   ext4_inode_no inum);
+
+/**
+   Checks if the checksum of the inode is correct.
+   @param[in]      sb            Pointer to the ext4 superblock.
+   @param[in]      inode         Pointer to the inode.
+   @param[in]      inum          Inode number.
+   @return true if checksum is correct, false if there is corruption.
+**/
+bool ext4_check_inode_csum(const ext4_superblock *sb, const ext4_inode *inode, ext4_inode_no inum);
+
+/**
+   Checks if the checksum of the inode is correct.
+   @param[in]      sb            Pointer to the ext4 superblock.
+   @param[in out]  inode         Pointer to the inode.
+   @param[in]      inum          Inode number.
+**/
+void ext4_update_inode_csum(const ext4_superblock *sb, ext4_inode *inode, ext4_inode_no inum);
 
 #endif

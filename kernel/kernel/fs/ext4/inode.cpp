@@ -44,12 +44,12 @@ unsigned int ext4_detect_block_type(uint32_t block, struct ext4_superblock *fs)
 int Ext4GetExtent(ext4_superblock *Partition, ext4_inode *Inode, ext4_block_no LogicalBlock,
                   ext4_extent *Extent);
 
-expected<ext4_block_no, int> ext4_get_block_from_inode(ext4_inode *ino, ext4_block_no block,
+expected<ext4_block_no, int> ext4_get_block_from_inode(ext4_inode_info *ino, ext4_block_no block,
                                                        ext4_superblock *sb)
 {
-    if (ino->i_flags & EXT4_EXTENTS_FL)
+    if (ino->raw_inode->i_flags & EXT4_EXTENTS_FL)
         return ext4_emap_get_block(sb, ino, block);
-    return ext4_bmap_get_block(sb, ino, block);
+    return ext4_bmap_get_block(sb, ino->raw_inode, block);
 }
 
 int ext4_prepare_write(inode *ino, struct page *page, size_t page_off, size_t offset, size_t len)
@@ -190,4 +190,104 @@ int ext4_truncate(size_t len, inode *ino)
 int ext4_ftruncate(size_t len, file *f)
 {
     return ext4_truncate(len, f->f_ino);
+}
+
+/**
+   Calculates the checksum of the given inode.
+   @param[in]      sb            Pointer to the ext4 superblock.
+   @param[in]      inode         Pointer to the inode.
+   @param[in]      inum          Inode number.
+   @return The checksum.
+**/
+uint32_t ext4_calculate_inode_csum(const ext4_superblock *sb, const ext4_inode *inode,
+                                   ext4_inode_no inum)
+{
+    uint32_t csum;
+    uint16_t dummy = 0;
+    bool has_second_csum_field;
+    const void *rest_of_ino;
+    size_t rest_of_ino_len;
+    size_t len;
+
+    has_second_csum_field = EXT4_INODE_HAS_FIELD(inode, i_checksum_hi);
+
+    csum = ext4_calculate_csum(sb, &inum, sizeof(inum), sb->initial_seed);
+    csum = ext4_calculate_csum(sb, &inode->i_generation, sizeof(inode->i_generation), csum);
+
+    csum = ext4_calculate_csum(sb, inode, offsetof(ext4_inode, i_osd2.data_linux.l_i_checksum_lo),
+                               csum);
+
+    csum = ext4_calculate_csum(sb, &dummy, sizeof(dummy), csum);
+
+    rest_of_ino = &inode->i_osd2.data_linux.l_i_reserved;
+    rest_of_ino_len = sb->inode_size - offsetof(ext4_inode, i_osd2.data_linux.l_i_reserved);
+
+    if (has_second_csum_field)
+    {
+        len = offsetof(ext4_inode, i_checksum_hi) -
+              offsetof(ext4_inode, i_osd2.data_linux.l_i_reserved);
+
+        csum = ext4_calculate_csum(sb, &inode->i_osd2.data_linux.l_i_reserved, len, csum);
+        csum = ext4_calculate_csum(sb, &dummy, sizeof(dummy), csum);
+
+        // 4 is the size of the i_extra_size field + the size of i_checksum_hi
+        rest_of_ino_len = sb->inode_size - EXT4_GOOD_OLD_INODE_SIZE - 4;
+        rest_of_ino = &inode->i_ctime_extra;
+    }
+
+    csum = ext4_calculate_csum(sb, rest_of_ino, rest_of_ino_len, csum);
+
+    return csum;
+}
+
+/**
+   Checks if the checksum of the inode is correct.
+   @param[in]      sb            Pointer to the ext4 superblock.
+   @param[in]      inode         Pointer to the inode.
+   @param[in]      inum          Inode number.
+   @return TRUE if checksum is correct, FALSE if there is corruption.
+**/
+bool ext4_check_inode_csum(const ext4_superblock *sb, const ext4_inode *inode, ext4_inode_no inum)
+{
+    uint32_t csum;
+    uint32_t disk_csum;
+
+    if (!EXT4_HAS_METADATA_CSUM(sb))
+    {
+        return true;
+    }
+
+    csum = ext4_calculate_inode_csum(sb, inode, inum);
+
+    disk_csum = inode->i_osd2.data_linux.l_i_checksum_lo;
+
+    if (EXT4_INODE_HAS_FIELD(inode, i_checksum_hi))
+    {
+        disk_csum |= ((uint32_t) inode->i_checksum_hi) << 16;
+    }
+    else
+    {
+        // Only keep the lower bits for the comparison if the checksum is 16 bits.
+        csum &= 0xffff;
+    }
+
+    return csum == disk_csum;
+}
+
+/**
+   Checks if the checksum of the inode is correct.
+   @param[in]      sb            Pointer to the ext4 superblock.
+   @param[in out]  inode         Pointer to the inode.
+   @param[in]      inum          Inode number.
+**/
+void ext4_update_inode_csum(const ext4_superblock *sb, ext4_inode *inode, ext4_inode_no inum)
+{
+    auto csum = ext4_calculate_inode_csum(sb, inode, inum);
+
+    if (EXT4_INODE_HAS_FIELD(inode, i_checksum_hi))
+    {
+        inode->i_checksum_hi = csum >> 16;
+    }
+
+    inode->i_osd2.data_linux.l_i_checksum_lo = (uint16_t) csum;
 }
