@@ -4,7 +4,12 @@ set -e
 rm -rf onyx-package-tree
 git clone https://github.com/heatd/onyx-package-tree
 
-rm -f *.zst
+for tarball in *.tar.zst; do
+    if [ "$tarball" = "initrd.tar.zst" ]; then
+        continue
+    fi
+    rm -f "$tarball"
+done
 
 PACKAGES=""
 
@@ -30,5 +35,8 @@ if ! ./buildpkg/build_sys.py onyx-package-tree . $PACKAGES; then
 fi
 
 for f in *.tar.zst; do
+    if [ "$f" = "initrd.tar.zst" ]; then
+        continue
+    fi
     tar xvf "$f" -C sysroot/
 done
