@@ -1,7 +1,7 @@
 /** @file
   Extent related routines
   Copyright (c) 2021 - 2022 Pedro Falcato All rights reserved.
-  SPDX-License-Identifier: BSD-2-Clause-Patent
+  SPDX-License-Identifier: MIT/BSD-2-Clause-Patent
 **/
 
 #include <onyx/log.h>
@@ -11,14 +11,14 @@
 #define IN
 #define CONST const
 #define OUT
-#if 0
 /**
    Checks if the checksum of the extent data block is correct.
    @param[in]      ExtHeader     Pointer to the ext4_extent_header.
    @param[in]      File          Pointer to the file.
    @return TRUE if the checksum is correct, FALSE if there is corruption.
 **/
-bool Ext4CheckExtentChecksum(IN CONST ext4_extent_header *ExtHeader, IN CONST EXT4_FILE *File);
+bool Ext4CheckExtentChecksum(IN CONST ext4_extent_header *ExtHeader,
+                             IN CONST ext4_inode_info *info);
 
 /**
    Calculates the checksum of the extent data block.
@@ -26,8 +26,10 @@ bool Ext4CheckExtentChecksum(IN CONST ext4_extent_header *ExtHeader, IN CONST EX
    @param[in]      File          Pointer to the file.
    @return The checksum.
 **/
-UINT32
-Ext4CalculateExtentChecksum(IN CONST ext4_extent_header *ExtHeader, IN CONST EXT4_FILE *File);
+uint32_t Ext4CalculateExtentChecksum(IN CONST ext4_extent_header *ExtHeader,
+                                     IN CONST ext4_inode_info *Inode, IN CONST ext4_superblock *sb);
+
+#if 0
 
 /**
    Caches a range of extents, by allocating pool memory for each extent and adding it to the tree.
@@ -201,7 +203,7 @@ static ext4_block_no Ext4ExtentIdxLeafBlock(IN ext4_extent_index *Index)
    @param[out]     Extent        Pointer to the output buffer, where the extent will be copied to.
    @retval 0 on success, negative error number
 **/
-int Ext4GetExtent(IN ext4_superblock *Partition, IN ext4_inode *Inode,
+int Ext4GetExtent(IN ext4_superblock *Partition, IN ext4_inode_info *Inode,
                   IN ext4_block_no LogicalBlock, OUT ext4_extent *Extent)
 {
     ext4_extent *Ext = nullptr;
@@ -219,7 +221,7 @@ int Ext4GetExtent(IN ext4_superblock *Partition, IN ext4_inode *Inode,
 
     // Slow path, we'll need to read from disk and (try to) cache those extents.
 
-    ExtHeader = Ext4GetInoExtentHeader(Inode);
+    ExtHeader = Ext4GetInoExtentHeader(Inode->raw_inode);
 
     if (!Ext4ExtentHeaderValid(ExtHeader))
     {
@@ -260,14 +262,12 @@ int Ext4GetExtent(IN ext4_superblock *Partition, IN ext4_inode *Inode,
             return -EIO;
         }
 
-#if 0
-        if (!Ext4CheckExtentChecksum(ExtHeader, File))
+        if (!Ext4CheckExtentChecksum(ExtHeader, Inode))
         {
-            DEBUG((DEBUG_ERROR, "[ext4] Invalid extent checksum\n"));
-            FreePool(Buffer);
-            return EFI_VOLUME_CORRUPTED;
+            Partition->error("Invalid extent tree checksum");
+            return -EIO;
         }
-#endif
+
         if (ExtHeader->eh_depth != CurrentDepth)
         {
             Partition->error("Invalid extent header depth");
@@ -459,58 +459,48 @@ ext4_extent *Ext4GetExtentFromMap(IN EXT4_FILE *File, IN UINT32 Block)
     return OrderedCollectionUserStruct(Entry);
 }
 
+#endif
+
 /**
    Calculates the checksum of the extent data block.
    @param[in]      ExtHeader     Pointer to the ext4_extent_header.
    @param[in]      File          Pointer to the file.
    @return The checksum.
 **/
-UINT32
-Ext4CalculateExtentChecksum(IN CONST ext4_extent_header *ExtHeader, IN CONST EXT4_FILE *File)
+uint32_t Ext4CalculateExtentChecksum(IN CONST ext4_extent_header *exthdr,
+                                     IN CONST ext4_inode_info *inode, IN CONST ext4_superblock *sb)
 {
-    UINT32 Csum;
-    EXT4_PARTITION *Partition;
-    EXT4_INODE *Inode;
+    uint32_t csum;
+    ext4_inode *raw_inode = inode->raw_inode;
+    const ext4_inode_no inum = inode->i_inode;
 
-    Partition = File->Partition;
-    Inode = File->Inode;
+    csum = ext4_calculate_csum(sb, (const void *) &inum, sizeof(inum), sb->initial_seed);
+    csum = ext4_calculate_csum(sb, &raw_inode->i_generation, sizeof(raw_inode->i_generation), csum);
+    csum =
+        ext4_calculate_csum(sb, (void *) exthdr, sb->block_size - sizeof(ext4_extent_tail), csum);
 
-    Csum = Ext4CalculateChecksum(Partition, &File->InodeNum, sizeof(EXT4_INO_NR),
-                                 Partition->InitialSeed);
-    Csum =
-        Ext4CalculateChecksum(Partition, &Inode->i_generation, sizeof(Inode->i_generation), Csum);
-    Csum = Ext4CalculateChecksum(Partition, ExtHeader,
-                                 Partition->BlockSize - sizeof(ext4_extent_TAIL), Csum);
-
-    return Csum;
+    return csum;
 }
 
-#endif
-
-#if 0
 /**
    Checks if the checksum of the extent data block is correct.
    @param[in]      ExtHeader     Pointer to the ext4_extent_header.
-   @param[in]      File          Pointer to the file.
+   @param[in]      info          Pointer to the inode info.
    @return TRUE if the checksum is correct, FALSE if there is corruption.
 **/
-bool Ext4CheckExtentChecksum(IN CONST ext4_extent_header *ExtHeader, IN CONST EXT4_FILE *File)
+bool Ext4CheckExtentChecksum(IN CONST ext4_extent_header *ExtHeader, IN CONST ext4_inode_info *info)
 {
-    EXT4_PARTITION *Partition;
-    ext4_extent_TAIL *Tail;
+    ext4_extent_tail *Tail;
 
-    Partition = File->Partition;
-
-    if (!EXT4_HAS_METADATA_CSUM(Partition))
+    if (!EXT4_HAS_METADATA_CSUM(info->ext4sb()))
     {
-        return TRUE;
+        return true;
     }
 
-    Tail = (ext4_extent_TAIL *) ((CONST CHAR8 *) ExtHeader + (Partition->BlockSize - 4));
+    Tail = (ext4_extent_tail *) ((const char *) ExtHeader + (info->ext4sb()->block_size - 4));
 
-    return Tail->eb_checksum == Ext4CalculateExtentChecksum(ExtHeader, File);
+    return Tail->eb_checksum == Ext4CalculateExtentChecksum(ExtHeader, info, info->ext4sb());
 }
-#endif
 
 /**
    Retrieves the extent's length, dealing with uninitialized extents in the process.
@@ -536,7 +526,7 @@ ext4_block_no Ext4GetExtentLength(IN CONST ext4_extent *Extent)
  * @param block Logical block
  * @return ext4 block, or a negative error number
  */
-expected<ext4_block_no, int> ext4_emap_get_block(ext4_superblock *sb, ext4_inode *ino,
+expected<ext4_block_no, int> ext4_emap_get_block(ext4_superblock *sb, ext4_inode_info *ino,
                                                  ext4_block_no block)
 {
     ext4_extent e;

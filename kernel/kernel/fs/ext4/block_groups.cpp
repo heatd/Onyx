@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2021 Pedro Falcato
+ * Copyright (c) 2017 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -10,23 +10,40 @@
 #include <stdlib.h>
 
 #include <onyx/compiler.h>
+#include <onyx/crc32.h>
 #include <onyx/limits.h>
 
 #include "ext4.h"
 
-bool ext4_block_group::init(ext4_superblock *sb)
-{
-    auto bgdt_block_start = sb->block_size == 1024 ? 2 : 1;
-    auto bgdt_block = bgdt_block_start + ((sb->desc_size * nr) / sb->block_size);
-    auto bgdt_offset = (sb->desc_size * nr) % sb->block_size;
+/**
+   Checks if the checksum of the block group descriptor is correct.
+   @param[in]      Partition       Pointer to the opened EXT4 partition.
+   @param[in]      BlockGroupDesc  Pointer to the block group descriptor.
+   @param[in]      BlockGroupNum   Number of the block group.
+   @return TRUE if checksum is correct, FALSE if there is corruption.
+**/
+bool ext4_verify_block_group_desc_csum(const ext4_superblock *Partition,
+                                       const block_group_desc_t *BlockGroupDesc,
+                                       ext4_block_group_no BlockGroupNum);
 
-    buf = sb_read_block(sb, bgdt_block);
+int ext4_block_group::init()
+{
+    auto bgdt_block_start = sb_->block_size == 1024 ? 2 : 1;
+    auto bgdt_block = bgdt_block_start + ((sb_->desc_size * nr) / sb_->block_size);
+    auto bgdt_offset = (sb_->desc_size * nr) % sb_->block_size;
+
+    buf = sb_read_block(sb_, bgdt_block);
     if (!buf)
-        return false;
+        return -ENOMEM;
 
     bgd = (block_group_desc_t *) ((char *) block_buf_data(buf) + bgdt_offset);
 
-    return true;
+    if (!ext4_verify_block_group_desc_csum(sb_, bgd, nr))
+    {
+        sb_->error("Bad block group %u checksum\n", nr);
+        return -EIO;
+    }
+    return 0;
 }
 
 /* This is the max reserved inode number, everything below it is reserved */
@@ -212,4 +229,105 @@ auto_block_buf ext4_block_group::get_inode_table(const ext4_superblock *sb, uint
 ext4_block_no ext4_block_group::get_itable_block(const ext4_superblock *sb) const
 {
     return EXT4_BLOCK_NR_FROM_HALFS(sb, bgd->bg_inode_table_lo, bgd->bg_inode_table_hi);
+}
+
+/**
+   Calculates the checksum of the block group descriptor for METADATA_CSUM enabled filesystems.
+   @param[in]      Partition       Pointer to the opened EXT4 partition.
+   @param[in]      BlockGroupDesc  Pointer to the block group descriptor.
+   @param[in]      BlockGroupNum   Number of the block group.
+   @return The checksum.
+**/
+static uint16_t ext4_calculate_block_group_desc_csum_metadata_csum(
+    const ext4_superblock *Partition, const block_group_desc_t *BlockGroupDesc,
+    ext4_block_group_no BlockGroupNum)
+{
+    uint32_t Csum;
+    uint16_t Dummy = 0;
+
+    Csum = ext4_calculate_csum(Partition, &BlockGroupNum, sizeof(BlockGroupNum),
+                               Partition->initial_seed);
+    Csum = ext4_calculate_csum(Partition, BlockGroupDesc, offsetof(block_group_desc_t, bg_checksum),
+                               Csum);
+    Csum = ext4_calculate_csum(Partition, &Dummy, sizeof(Dummy), Csum);
+    Csum = ext4_calculate_csum(
+        Partition, &BlockGroupDesc->bg_block_bitmap_hi,
+        Partition->desc_size - offsetof(block_group_desc_t, bg_block_bitmap_hi), Csum);
+    return (uint16_t) Csum;
+}
+
+/**
+   Calculates the checksum of the block group descriptor for GDT_CSUM enabled filesystems.
+   @param[in]      Partition       Pointer to the opened EXT4 partition.
+   @param[in]      BlockGroupDesc  Pointer to the block group descriptor.
+   @param[in]      BlockGroupNum   Number of the block group.
+   @return The checksum.
+**/
+static uint16_t ext4_calculate_block_group_desc_csum_gdt_csum(
+    const ext4_superblock *Partition, const block_group_desc_t *BlockGroupDesc,
+    ext4_block_group_no BlockGroupNum)
+{
+    uint16_t Csum;
+    uint16_t Dummy = 0;
+
+    Csum = crc16_calculate(Partition->sb->s_uuid, 16, 0);
+    Csum = crc16_calculate(&BlockGroupNum, sizeof(BlockGroupNum), Csum);
+    Csum = crc16_calculate(BlockGroupDesc, offsetof(block_group_desc_t, bg_checksum), Csum);
+    Csum = crc16_calculate(&Dummy, sizeof(Dummy), Csum);
+    Csum = crc16_calculate(&BlockGroupDesc->bg_block_bitmap_hi,
+                           Partition->desc_size - offsetof(block_group_desc_t, bg_block_bitmap_hi),
+                           Csum);
+    return Csum;
+}
+
+/**
+   Calculates the checksum of the block group descriptor.
+   @param[in]      Partition       Pointer to the opened EXT4 partition.
+   @param[in]      BlockGroupDesc  Pointer to the block group descriptor.
+   @param[in]      BlockGroupNum   Number of the block group.
+   @return The checksum.
+**/
+uint16_t ext4_calculate_block_group_desc_csum(const ext4_superblock *Partition,
+                                              const block_group_desc_t *BlockGroupDesc,
+                                              ext4_block_group_no BlockGroupNum)
+{
+    if (EXT4_HAS_METADATA_CSUM(Partition))
+    {
+        return ext4_calculate_block_group_desc_csum_metadata_csum(Partition, BlockGroupDesc,
+                                                                  BlockGroupNum);
+    }
+    else if (EXT4_HAS_GDT_CSUM(Partition))
+    {
+        return ext4_calculate_block_group_desc_csum_gdt_csum(Partition, BlockGroupDesc,
+                                                             BlockGroupNum);
+    }
+
+    return 0;
+}
+
+/**
+   Checks if the checksum of the block group descriptor is correct.
+   @param[in]      Partition       Pointer to the opened EXT4 partition.
+   @param[in]      BlockGroupDesc  Pointer to the block group descriptor.
+   @param[in]      BlockGroupNum   Number of the block group.
+   @return TRUE if checksum is correct, FALSE if there is corruption.
+**/
+bool ext4_verify_block_group_desc_csum(const ext4_superblock *Partition,
+                                       const block_group_desc_t *BlockGroupDesc,
+                                       ext4_block_group_no BlockGroupNum)
+{
+    if (!EXT4_HAS_METADATA_CSUM(Partition) && !EXT4_HAS_GDT_CSUM(Partition))
+    {
+        return true;
+    }
+
+    return ext4_calculate_block_group_desc_csum(Partition, BlockGroupDesc, BlockGroupNum) ==
+           BlockGroupDesc->bg_checksum;
+}
+
+void ext4_block_group::dirty()
+{
+    if (EXT4_HAS_METADATA_CSUM(sb_))
+        bgd->bg_checksum = ext4_calculate_block_group_desc_csum(sb_, bgd, nr);
+    block_buf_dirty(buf);
 }
