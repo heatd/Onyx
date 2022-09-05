@@ -24,9 +24,9 @@ unsigned int ext4_bmap_get_block_path(ext4_superblock *sb, ext4_block_no offsets
 {
     unsigned int type = ext4_detect_block_type(block_nr, sb);
     const unsigned int entries = (sb->block_size / sizeof(uint32_t));
-    unsigned int min_singly_block = direct_block_count;
-    unsigned int min_doubly_block = entries + direct_block_count;
-    unsigned int min_trebly_block = entries * entries + entries + direct_block_count;
+    unsigned int min_singly_block = EXT4_DIRECT_BLOCK_COUNT;
+    unsigned int min_doubly_block = entries + EXT4_DIRECT_BLOCK_COUNT;
+    unsigned int min_trebly_block = entries * entries + entries + EXT4_DIRECT_BLOCK_COUNT;
     unsigned int idx = 0;
 
     if (type == EXT4_TYPE_DIRECT_BLOCK)
@@ -225,9 +225,9 @@ struct ext4_block_coords
             return coords[0] << sb->block_size_shift;
 
         const unsigned int entries = (sb->block_size / sizeof(uint32_t));
-        unsigned int min_singly_block = direct_block_count;
-        unsigned int min_doubly_block = entries + direct_block_count;
-        unsigned int min_trebly_block = entries * entries + entries + direct_block_count;
+        unsigned int min_singly_block = EXT4_DIRECT_BLOCK_COUNT;
+        unsigned int min_doubly_block = entries + EXT4_DIRECT_BLOCK_COUNT;
+        unsigned int min_trebly_block = entries * entries + entries + EXT4_DIRECT_BLOCK_COUNT;
 
         if (size == 2)
         {

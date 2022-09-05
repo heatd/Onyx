@@ -28,9 +28,9 @@ void ext4_set_inode_size(struct ext4_inode *inode, size_t size)
 unsigned int ext4_detect_block_type(uint32_t block, struct ext4_superblock *fs)
 {
     const unsigned int entries = (fs->block_size / sizeof(uint32_t));
-    unsigned int min_singly_block = direct_block_count;
-    unsigned int min_doubly_block = entries + direct_block_count;
-    unsigned int min_trebly_block = entries * entries + entries + direct_block_count;
+    unsigned int min_singly_block = EXT4_DIRECT_BLOCK_COUNT;
+    unsigned int min_doubly_block = entries + EXT4_DIRECT_BLOCK_COUNT;
+    unsigned int min_trebly_block = entries * entries + entries + EXT4_DIRECT_BLOCK_COUNT;
 
     if (block < min_singly_block)
         return EXT4_TYPE_DIRECT_BLOCK;
@@ -290,4 +290,72 @@ void ext4_update_inode_csum(const ext4_superblock *sb, ext4_inode *inode, ext4_i
     }
 
     inode->i_osd2.data_linux.l_i_checksum_lo = (uint16_t) csum;
+}
+
+/**
+ * @brief Flushes an inode
+ *
+ * @param inode Pointer to a vfs inode
+ * @return 0 on success, negative error codes
+ */
+int ext4_flush_inode(struct inode *inode)
+{
+    struct ext4_inode *ino = ext4_get_inode_from_node(inode);
+    struct ext4_superblock *fs = ext4_superblock_from_inode(inode);
+
+    /* Refresh the on-disk struct with the vfs inode data */
+    ino->i_atime = inode->i_atime;
+    ino->i_ctime = inode->i_ctime;
+    ino->i_mtime = inode->i_mtime;
+    ino->i_size_lo = (uint32_t) inode->i_size;
+    ino->i_size_hi = (uint32_t) (inode->i_size >> 32);
+    ino->i_gid = inode->i_gid;
+    ino->i_uid = inode->i_uid;
+    ino->i_links = (uint16_t) inode->i_nlink;
+    ino->i_blocks = (uint32_t) inode->i_blocks;
+    ino->i_mode = inode->i_mode;
+    ino->i_uid = inode->i_uid;
+
+    fs->update_inode(ino, (ext4_inode_no) inode->i_inode);
+
+    return 0;
+}
+
+/**
+ * @brief Deletes an inode
+ *
+ * @param inode_ Pointer to a vfs inode
+ * @param inum Inode number
+ * @param fs Pointer to superblock
+ */
+static void ext4_delete_inode(struct inode *inode_, uint32_t inum, struct ext4_superblock *fs)
+{
+    struct ext4_inode *inode = ext4_get_inode_from_node(inode_);
+
+    inode->i_dtime = clock_get_posix_time();
+    ext4_free_inode_space(inode_, fs);
+
+    inode->i_links = 0;
+    fs->update_inode(inode, inum);
+
+    uint32_t block_group = (inum - 1) / fs->inodes_per_block_group;
+
+    if (S_ISDIR(inode->i_mode))
+        fs->block_groups[block_group].dec_used_dirs();
+
+    fs->free_inode(inum);
+}
+
+/**
+ * @brief Kill an inode
+ *
+ * @param inode Pointer to vfs inode
+ * @return 0 on success, negative error codes
+ */
+int ext4_kill_inode(struct inode *inode)
+{
+    struct ext4_superblock *fs = ext4_superblock_from_inode(inode);
+
+    ext4_delete_inode(inode, (uint32_t) inode->i_inode, fs);
+    return 0;
 }
