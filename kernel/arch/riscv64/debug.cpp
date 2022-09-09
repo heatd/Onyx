@@ -55,7 +55,6 @@ void stack_trace_user(uintptr_t *stack)
 char *resolve_sym(void *address);
 __attribute__((no_sanitize_undefined)) void stack_trace_ex(unsigned long *stack)
 {
-    size_t return_addresses = 0;
     // Get all the unwinds possible using threading structures
     thread_t *thread = get_current_thread();
     size_t unwinds_possible = 0;
@@ -91,8 +90,6 @@ __attribute__((no_sanitize_undefined)) void stack_trace_ex(unsigned long *stack)
         fp = (unsigned long *) *fp;
         if (!fp)
             break;
-
-        return_addresses++;
     }
 }
 

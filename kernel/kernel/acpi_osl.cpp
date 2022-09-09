@@ -76,6 +76,7 @@ void AcpiOsUnmapMemory(void *where, ACPI_SIZE Length)
     if (Length % 4096)
         pages++;
     (void) where;
+    (void) pages;
 }
 
 ACPI_STATUS AcpiOsGetPhysicalAddress(void *LogicalAddress, ACPI_PHYSICAL_ADDRESS *PhysicalAddress)

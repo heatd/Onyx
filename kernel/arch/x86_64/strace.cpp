@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -74,7 +74,6 @@ void stack_trace_user(uintptr_t *stack)
 char *resolve_sym(void *address);
 __attribute__((no_sanitize_undefined)) void stack_trace_ex(uint64_t *stack)
 {
-    size_t return_addresses = 0;
     // Get all the unwinds possible using threading structures
     thread_t *thread = get_current_thread();
     size_t unwinds_possible = 0;
@@ -106,8 +105,6 @@ __attribute__((no_sanitize_undefined)) void stack_trace_ex(uint64_t *stack)
         rbp = (uint64_t *) *rbp;
         if (!rbp)
             break;
-
-        return_addresses++;
     }
 }
 

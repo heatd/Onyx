@@ -145,15 +145,15 @@ void do_lseek(struct syscall_args *args, struct proc_event *event)
 
     switch (whence)
     {
-    case SEEK_SET:
-        whence_str = "SEEK_SET";
-        break;
-    case SEEK_CUR:
-        whence_str = "SEEK_CUR";
-        break;
-    case SEEK_END:
-        whence_str = "SEEK_END";
-        break;
+        case SEEK_SET:
+            whence_str = "SEEK_SET";
+            break;
+        case SEEK_CUR:
+            whence_str = "SEEK_CUR";
+            break;
+        case SEEK_END:
+            whence_str = "SEEK_END";
+            break;
     }
 
     if (whence_str)
@@ -548,18 +548,18 @@ void do_fcntl(struct syscall_args *args, struct proc_event *event)
 
     switch (cmd)
     {
-    case F_DUPFD:
-        printf("F_DUPFD, %lu", arg);
-        break;
-    case F_DUPFD_CLOEXEC:
-        printf("F_DUPFD_CLOEXEC, %lu", arg);
-        break;
-    case F_GETFD:
-        printf("F_GETFD");
-        break;
-    case F_SETFD:
-        printf("F_SETFD, %lu", arg);
-        break;
+        case F_DUPFD:
+            printf("F_DUPFD, %lu", arg);
+            break;
+        case F_DUPFD_CLOEXEC:
+            printf("F_DUPFD_CLOEXEC, %lu", arg);
+            break;
+        case F_GETFD:
+            printf("F_GETFD");
+            break;
+        case F_SETFD:
+            printf("F_SETFD, %lu", arg);
+            break;
     }
 }
 
@@ -751,7 +751,7 @@ void do_recvfrom(struct syscall_args *args, struct proc_event *event)
     size_t len = (size_t) args->args[2];
     int flags = (int) args->args[3];
     struct sockaddr *addr = (struct sockaddr *) args->args[4];
-    socklen_t *addrlen = (socklen_t) args->args[5];
+    socklen_t *addrlen = (socklen_t *) args->args[5];
 
     printf("%i, %p, %lu, %x, %p, %p", sockfd, buf, len, flags, addr, addrlen);
 }
