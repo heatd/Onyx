@@ -17,6 +17,7 @@
 #include <termios.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <sstream>

@@ -32,7 +32,7 @@
 static chardev *pipedev = nullptr;
 static atomic<ino_t> current_inode_number = 0;
 
-constexpr pipe::pipe()
+pipe::pipe()
     : refcountable(2), buffer(nullptr), buf_size(0),
       pos(0), eof{}, broken{}, reader_count{1}, writer_count{1}
 {

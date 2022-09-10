@@ -145,7 +145,7 @@ int nvme_device::probe()
 
     const auto caps = regs_.read64(NVME_REG_CAP);
 
-    if (1 << (12 + NVME_CAP_MPSMIN(caps)) > PAGE_SIZE)
+    if (1U << (12 + NVME_CAP_MPSMIN(caps)) > PAGE_SIZE)
     {
         printf("nvme: error: NVMe controller doesn't support the host page size\n");
         return -EINVAL;
@@ -625,7 +625,7 @@ int nvme_device::create_io_queue(uint16_t queue_index)
 int nvme_device::init_io_queues()
 {
     // Note: We clamp the number of queues to the max NVME queues (UINT16_MAX)
-    const uint16_t desired_nr_queues = cul::clamp(get_nr_cpus(), NVME_MAX_QUEUES);
+    const uint16_t desired_nr_queues = cul::clamp(get_nr_cpus(), (unsigned int) NVME_MAX_QUEUES);
 
     // Do set features to see if we can get the desired number of IO queues
     nvmecmd cmd;

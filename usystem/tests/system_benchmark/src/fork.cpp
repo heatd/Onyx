@@ -8,6 +8,9 @@
 
 #include <unistd.h>
 
+#include <exception>
+#include <stdexcept>
+
 #include <benchmark/benchmark.h>
 
 static void fork_bench(benchmark::State& state)

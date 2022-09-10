@@ -11,7 +11,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: build-toolchains
 
     steps:
@@ -70,7 +70,7 @@ jobs:
   
   build-llvm:
     # The type of runner that the job will run on
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: build-toolchains
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -131,7 +131,7 @@ jobs:
           path: disk-image-llvm.img
   
   build-riscv:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: build-toolchains
 
     steps:
@@ -181,7 +181,7 @@ jobs:
   
   build-llvm-riscv64:
     # The type of runner that the job will run on
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: build-toolchains
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -235,7 +235,7 @@ jobs:
   # In this case, we limit ourselves to building a stage 1 GNU toolchain since LLVM is far slower to build,
   # and I'm not sure if it even supports building without a sysroot.
   build-minimal-sysroots:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     strategy:
       fail-fast: false
@@ -301,11 +301,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-18.04, macos-latest]
+        os: [ubuntu-22.04, ubuntu-20.04, macos-latest]
         target_arch: [x86_64, riscv64, arm64]
         toolchain: [gnu]
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             toolchain: llvm
             target_arch: all
     steps:
@@ -410,7 +410,7 @@ jobs:
           name: ${{ env.toolchain_id }}
           path: ${{ env.toolchain_id }}.tar.zst
   build-arm64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: build-toolchains
 
     steps:
@@ -460,7 +460,7 @@ jobs:
   
   build-llvm-arm64:
     # The type of runner that the job will run on
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: build-toolchains
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:

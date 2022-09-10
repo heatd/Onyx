@@ -38,6 +38,17 @@ private:
 
     bool try_realloc_data(size_t new_length)
     {
+        // If we were using inline storage, allocate dynamic storage
+        if (data_ == (_Ty*) &inline_data)
+        {
+            auto new_data = malloc((new_length + 1) * sizeof(_Ty));
+            if (!new_data)
+                return false;
+            memcpy(new_data, inline_data, inline_length);
+            data_ = (_Ty*) new_data;
+            return true;
+        }
+
         auto new_data = realloc(data_, (new_length + 1) * sizeof(_Ty));
         if (!new_data)
             return false;

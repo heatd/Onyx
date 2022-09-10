@@ -54,7 +54,7 @@ private:
 public:
     atomic<size_t> reader_count;
     atomic<size_t> writer_count;
-    constexpr pipe();
+    pipe();
     ~pipe();
     bool allocate_pipe_buffer(unsigned long buffer_size = default_pipe_size);
     ssize_t read(int flags, size_t len, void *buffer);
