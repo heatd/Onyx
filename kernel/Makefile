@@ -129,7 +129,13 @@ ifeq ($(CONFIG_KTRACE), y)
 endif
 
 ifeq ($(CONFIG_UBSAN), y)
-CFLAGS+=-fsanitize=undefined -fno-sanitize=alignment -fno-sanitize=pointer-overflow
+# function and vptr require RTTI
+# vptr is supported in GCC 12, function is not, so we if based on LLVM
+CFLAGS+=-fsanitize=undefined -fno-sanitize=alignment -fno-sanitize=pointer-overflow -fno-sanitize=vptr
+
+ifeq ($(ONYX_USING_CLANG), y)
+CFLAGS+=-fno-sanitize=function
+endif
 endif
 
 ifeq ($(CONFIG_RELOCATABLE), y)
