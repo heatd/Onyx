@@ -1,8 +1,13 @@
 import("//build/app.gni")
 
+config("fsx_config") {
+    cflags = ["-Wno-sign-compare"]
+}
 app_executable("fsx") {
     package_name = "fsx"
     output_name = "$package_name"
 
     sources = [ "fsx.c" ]
+
+    configs += [ ":fsx_config" ]
 }

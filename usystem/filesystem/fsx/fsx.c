@@ -208,7 +208,7 @@ void docloseopen(void);
 
 int parsetime(char *t)
 {
-	int i = 0;
+	size_t i = 0;
 	int secs = 0;
 	char b[128]; bzero(b, 128);
 
@@ -1374,8 +1374,7 @@ test(void)
 
 
 void
-cleanup(sig)
-	int	sig;
+cleanup(int sig)
 {
 	if (sig)
 	{
@@ -1386,7 +1385,7 @@ cleanup(sig)
 	XILogEndTestCase(xilogref, kXILogTestPassOnErrorLevel);
 	XILogCloseLog(xilogref);
 #endif
-	exit(0);
+	_exit(0);
 }
 
 
@@ -1481,6 +1480,10 @@ main(int argc, char **argv)
 	char* logpath = NULL;
 	eaname = argv[0];
 	int xml = 0;
+
+	// Used by XILOG code
+	(void) logpath;
+	(void) xml;
 
 	goodfile[0] = 0;
 	logfile[0] = 0;
