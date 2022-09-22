@@ -15,13 +15,13 @@
 #include <sys/types.h>
 
 #include <onyx/list.h>
-#include <onyx/mm/vm_object.h>
 #include <onyx/mutex.h>
 #include <onyx/paging.h>
 #include <onyx/refcount.h>
 #include <onyx/scheduler.h>
 #include <onyx/spinlock.h>
 
+#include <libdict/rb_tree.h>
 #include <platform/page.h>
 #include <platform/vm.h>
 #include <platform/vm_layout.h>
@@ -88,6 +88,8 @@ static inline unsigned long vm_prot_to_cache_type(uint64_t prot)
 
 #define VM_PFNMAP               (1 << 1)
 #define VM_USING_MAP_SHARED_OPT (1 << 2)
+
+struct vm_object;
 
 /**
  * @brief A VM region is a segment of an address space which is mapped and has some

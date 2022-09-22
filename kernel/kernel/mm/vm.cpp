@@ -3493,24 +3493,20 @@ void vm_wp_page(struct mm_address_space *mm, void *vaddr)
  */
 void vm_wp_page_for_every_region(page *page, size_t page_off, vm_object *vmo)
 {
-    spin_lock(&vmo->mapping_lock);
-
-    list_for_every (&vmo->mappings)
-    {
-        struct vm_region *region = container_of(l, struct vm_region, vmo_head);
+    vmo->for_every_mapping([page_off](vm_region *region) -> bool {
         scoped_mutex g{region->mm->vm_lock};
-        size_t mapping_off = (size_t) region->offset;
-        size_t mapping_size = region->pages << PAGE_SHIFT;
+        const size_t mapping_off = (size_t) region->offset;
+        const size_t mapping_size = region->pages << PAGE_SHIFT;
 
         if (page_off >= mapping_off && mapping_off + mapping_size > page_off)
         {
             /* The page is included in this mapping, so WP it */
-            unsigned long vaddr = region->base + (page_off - mapping_off);
+            const unsigned long vaddr = region->base + (page_off - mapping_off);
             vm_wp_page(region->mm, (void *) vaddr);
         }
-    }
 
-    spin_unlock(&vmo->mapping_lock);
+        return true;
+    });
 }
 
 int get_phys_pages_direct(unsigned long addr, unsigned int flags, struct page **pages,

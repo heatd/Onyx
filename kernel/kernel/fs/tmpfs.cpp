@@ -273,8 +273,6 @@ tmpfs_superblock *tmpfs_create_sb()
     if (!new_fs)
         return nullptr;
 
-    superblock_init(new_fs);
-
     tmpfs_append(new_fs);
     return new_fs;
 }

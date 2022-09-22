@@ -14,6 +14,7 @@
 #ifdef __is_onyx_kernel
 #include <onyx/heap.h>
 #include <onyx/mm/kasan.h>
+#include <onyx/page.h>
 #include <onyx/spinlock.h>
 #include <onyx/vm.h>
 

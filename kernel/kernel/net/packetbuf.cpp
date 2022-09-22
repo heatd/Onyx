@@ -11,6 +11,7 @@
 #include <stdlib.h>
 
 #include <onyx/compiler.h>
+#include <onyx/mm/vm_object.h>
 #include <onyx/packetbuf.h>
 
 #include <onyx/memory.hpp>

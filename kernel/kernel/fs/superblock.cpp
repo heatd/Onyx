@@ -12,6 +12,7 @@ void superblock_init(struct superblock *sb)
     INIT_LIST_HEAD(&sb->s_inodes);
     sb->s_ref = 1;
     spinlock_init(&sb->s_ilock);
+    sb->s_flags = 0;
 }
 
 int sb_read_bio(struct superblock *sb, struct page_iov *vec, size_t nr_vecs, size_t block_number)

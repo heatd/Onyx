@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2018 Pedro Falcato
+ * Copyright (c) 2018 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #ifndef _ONYX_MM_VM_OBJECT_H
@@ -35,14 +37,14 @@ static inline int vmo_status_to_errno(vmo_status_t st)
 {
     switch (st)
     {
-    case VMO_STATUS_OK:
-        return 0;
-    case VMO_STATUS_BUS_ERROR:
-        return EIO;
-    case VMO_STATUS_OUT_OF_MEM:
-        return ENOMEM;
-    default:
-        return EIO;
+        case VMO_STATUS_OK:
+            return 0;
+        case VMO_STATUS_BUS_ERROR:
+            return EIO;
+        case VMO_STATUS_OUT_OF_MEM:
+            return ENOMEM;
+        default:
+            return EIO;
     }
 }
 
@@ -85,12 +87,34 @@ struct vm_object
     struct inode *ino;
     struct mutex page_lock;
 
-    struct spinlock mapping_lock;
+    struct mutex mapping_lock;
 
     unsigned long refcount;
     struct vm_object *forked_from;
 
     struct vm_object *prev_private, *next_private;
+
+    /**
+     * @brief Unmaps a single page from every mapping
+     *
+     * @param offset Offset of the page
+     */
+    void unmap_page(size_t offset);
+
+    template <typename Callable>
+    bool for_every_mapping(Callable c)
+    {
+        scoped_mutex g{mapping_lock};
+
+        list_for_every (&mappings)
+        {
+            auto reg = container_of(l, vm_region, vmo_head);
+            if (!c(reg))
+                return false;
+        }
+
+        return true;
+    }
 };
 
 /**

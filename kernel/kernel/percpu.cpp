@@ -12,6 +12,7 @@
 #include <stdlib.h>
 
 #include <onyx/init.h>
+#include <onyx/page.h>
 #include <onyx/percpu.h>
 #include <onyx/vm.h>
 

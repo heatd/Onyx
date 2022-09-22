@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2018 Pedro Falcato
+ * Copyright (c) 2018 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <assert.h>
 #include <stdio.h>
@@ -49,6 +51,7 @@ vm_object *vmo_create(size_t size, void *priv)
     INIT_LIST_HEAD(&vmo->mappings);
     vmo->pages = rb_tree_new(page_cmp);
     mutex_init(&vmo->page_lock);
+    mutex_init(&vmo->mapping_lock);
 
     if (!vmo->pages)
     {
@@ -516,6 +519,7 @@ int vmo_purge_pages(size_t lower_bound, size_t upper_bound, unsigned int flags, 
 
             if (should_free)
             {
+                vmo->unmap_page(off);
                 if (!vmo->ops->free_page)
                     free_page(old_p);
                 else
@@ -532,6 +536,26 @@ int vmo_purge_pages(size_t lower_bound, size_t upper_bound, unsigned int flags, 
     }
 
     return 0;
+}
+
+/**
+ * @brief Unmaps a single page from every mapping
+ *
+ * @param offset Offset of the page
+ */
+void vm_object::unmap_page(size_t offset)
+{
+    for_every_mapping([offset](vm_region *reg) -> bool {
+        auto off = (off_t) offset;
+        const off_t vmregion_end = reg->offset + (reg->pages << PAGE_SHIFT);
+        if (reg->offset <= off && vmregion_end > off)
+        {
+            // Unmap it
+            vm_mmu_unmap(reg->mm, (void *) (reg->base + offset - reg->offset), 1);
+        }
+
+        return true;
+    });
 }
 
 int vmo_resize(size_t new_size, vm_object *vmo)
@@ -651,7 +675,7 @@ void vmo_ref(vm_object *vmo)
  */
 void vmo_assign_mapping(vm_object *vmo, vm_region *region)
 {
-    scoped_lock g{vmo->mapping_lock};
+    scoped_mutex g{vmo->mapping_lock};
 
     list_add_tail(&region->vmo_head, &vmo->mappings);
 }
@@ -664,7 +688,7 @@ void vmo_assign_mapping(vm_object *vmo, vm_region *region)
  */
 void vmo_remove_mapping(vm_object *vmo, vm_region *region)
 {
-    scoped_lock g{vmo->mapping_lock};
+    scoped_mutex g{vmo->mapping_lock};
 
     list_remove(&region->vmo_head);
 }
@@ -814,6 +838,7 @@ static int vmo_punch_range(vm_object *vmo, unsigned long start, unsigned long le
 int vmo_truncate(vm_object *vmo, unsigned long size, unsigned long flags)
 {
     scoped_mutex g{vmo->page_lock};
+    const auto original_size = size;
 
     size = cul::align_up2(size, PAGE_SIZE);
     // printk("New size: %lx\n", size);
@@ -829,6 +854,23 @@ int vmo_truncate(vm_object *vmo, unsigned long size, unsigned long flags)
             /* We've already locked up there */
             vmo_punch_range(vmo, hole_start, hole_length, PURGE_DO_NOT_LOCK);
         }
+    }
+
+    struct page *last_page = nullptr;
+    auto last_page_off = cul::align_down2(original_size, PAGE_SIZE);
+    void **pp = rb_tree_search(vmo->pages, (const void *) last_page_off);
+
+    if (pp)
+    {
+        last_page = (page *) *pp;
+    }
+
+    if (last_page)
+    {
+        // Truncate the last page by zeroing the trailing bytes
+        auto to_zero = size - original_size;
+        const auto page_off = original_size & (PAGE_SIZE - 1);
+        memset((unsigned char *) PAGE_TO_VIRT(last_page) + page_off, 0, to_zero);
     }
 
     vmo->size = size;

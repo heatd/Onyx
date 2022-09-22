@@ -15,6 +15,7 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#include <onyx/mm/vm_object.h>
 #include <onyx/object.h>
 #include <onyx/public/socket.h>
 #include <onyx/rwlock.h>

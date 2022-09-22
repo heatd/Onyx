@@ -18,6 +18,9 @@
 struct file;
 
 struct blockdev;
+
+#define SB_FLAG_NODIRTY (1 << 0)
+
 struct superblock
 {
     struct list_head s_inodes;
@@ -30,6 +33,7 @@ struct superblock
     unsigned int s_block_size;
     struct blockdev *s_bdev;
     dev_t s_devnr;
+    unsigned long s_flags;
 };
 
 void superblock_init(struct superblock *sb);

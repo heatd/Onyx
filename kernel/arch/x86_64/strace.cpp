@@ -14,6 +14,7 @@
 
 #include <onyx/elf.h>
 #include <onyx/modules.h>
+#include <onyx/page.h>
 #include <onyx/panic.h>
 #include <onyx/symbol.h>
 #include <onyx/task_switching.h>

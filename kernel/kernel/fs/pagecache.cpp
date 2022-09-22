@@ -106,6 +106,9 @@ struct page_cache_block *pagecache_create_cache_block(struct page *page, size_t 
 
 void pagecache_dirty_block(struct page_cache_block *block)
 {
+    if (block->node->i_sb && block->node->i_sb->s_flags & SB_FLAG_NODIRTY)
+        return;
+
     struct page *page = block->page;
 
     unsigned long old_flags = __sync_fetch_and_or(&page->flags, PAGE_FLAG_DIRTY);

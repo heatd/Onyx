@@ -1,5 +1,6 @@
 group("filesystem") {
     deps = [
-        "//filesystem/fs_tests"    
+        "fs_tests",
+        "fsx" 
     ]
 }

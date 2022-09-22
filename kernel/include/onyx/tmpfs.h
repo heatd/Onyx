@@ -43,7 +43,9 @@ public:
         : superblock{}, curr_inode{}, fs_minor{++curr_minor_number}, fs_list_node{this},
           tmpfs_ops_{&tmpfs_fops}
     {
+        superblock_init(this);
         s_block_size = PAGE_SIZE;
+        s_flags = SB_FLAG_NODIRTY;
     }
 
     tmpfs_inode *create_inode(mode_t mode, dev_t rdev = 0);

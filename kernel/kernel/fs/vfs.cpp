@@ -99,11 +99,11 @@ vmo_status_t vmo_inode_commit(struct vm_object *vmo, size_t off, struct page **p
 
     thread_change_addr_limit(old);
 
-    if (read != (ssize_t) to_read)
+    if (read < (ssize_t) to_read)
     {
 #if 0
-		printk("Error file read %lx bytes out of %lx, off %lx\n", read, to_read, off);
-		perror("file");
+        printk("Error file read %lx bytes out of %lx, off %lx\n", read, to_read, off);
+        perror("file");
 #endif
         free_page(page);
         return VMO_STATUS_BUS_ERROR;
@@ -645,6 +645,9 @@ void inode_wait_flush(struct inode *ino)
 
 void inode_mark_dirty(struct inode *ino)
 {
+    if (ino->i_sb && ino->i_sb->s_flags & SB_FLAG_NODIRTY)
+        return;
+
     inode_wait_flush(ino);
 
     unsigned long old_flags = __sync_fetch_and_or(&ino->i_flags, INODE_FLAG_DIRTY);
