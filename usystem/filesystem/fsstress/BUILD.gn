@@ -1,0 +1,14 @@
+import("//build/app.gni")
+
+config("fsstress_config") {
+    cflags = [ "-Wno-sign-compare" ]
+    defines = [ "_LARGEFILE64_SOURCE", "_GNU_SOURCE", "NO_XFS" ]
+}
+app_executable("fsstress") {
+    package_name = "fsstress"
+    output_name = "$package_name"
+
+    sources = [ "fsstress.c" ]
+
+    configs += [ ":fsstress_config" ]
+}

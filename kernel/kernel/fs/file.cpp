@@ -1448,86 +1448,74 @@ int sys_fcntl(int fd, int cmd, unsigned long arg)
     return ret;
 }
 
-#define STAT_FLAG_LSTAT (1 << 0)
+#define FSTATAT_VALID_FLAGS (AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH)
 
-int do_sys_stat(const char *pathname, struct stat *buf, int flags, struct file *rel)
+int sys_fstatat(int dirfd, const char *upathname, struct stat *ubuf, int flags)
 {
-    unsigned int open_flags = (flags & STAT_FLAG_LSTAT ? OPEN_FLAG_NOFOLLOW : 0);
-    struct file *base = get_fs_base(pathname, rel);
-    struct file *stat_node = open_vfs_with_flags(base, pathname, open_flags);
-    if (!stat_node)
-        return -errno; /* Don't set errno, as we don't know if it was actually a ENOENT */
+    if (flags & ~FSTATAT_VALID_FLAGS)
+        return -EINVAL;
 
-    int st = stat_vfs(buf, stat_node);
-    fd_put(stat_node);
-    return st < 0 ? -errno : st;
+    user_string s;
+    if (auto ex = s.from_user(upathname); ex.has_error())
+        return ex.error();
+
+    struct stat buf = {};
+    auto_file f;
+    if (const int st = f.from_dirfd(dirfd); st < 0)
+        return st;
+
+    int st = 0;
+
+    if (flags & AT_EMPTY_PATH && strlen(s.data()) == 0)
+    {
+        st = stat_vfs(&buf, f.get_file());
+    }
+    else
+    {
+        unsigned int open_flags = 0;
+        if (flags & AT_SYMLINK_NOFOLLOW)
+            open_flags |= OPEN_FLAG_NOFOLLOW;
+
+        auto_file f2 = open_vfs_with_flags(f.get_file(), s.data(), open_flags);
+
+        if (!f2)
+        {
+            return -errno;
+        }
+
+        st = stat_vfs(&buf, f2.get_file());
+    }
+
+    if (st == 0)
+    {
+        if (copy_to_user(ubuf, &buf, sizeof(buf)) < 0)
+        {
+            st = -EFAULT;
+        }
+    }
+
+    return st;
 }
 
 int sys_stat(const char *upathname, struct stat *ubuf)
 {
-    const char *pathname = strcpy_from_user(upathname);
-    if (!pathname)
-        return -errno;
-
-    struct stat buf = {};
-    struct file *curr = get_current_directory();
-
-    int st = do_sys_stat(pathname, &buf, 0, curr);
-
-    fd_put(curr);
-
-    if (copy_to_user(ubuf, &buf, sizeof(buf)) < 0)
-    {
-        st = -errno;
-    }
-
-    free((void *) pathname);
-    return st;
+    return sys_fstatat(AT_FDCWD, upathname, ubuf, 0);
 }
 
 int sys_lstat(const char *upathname, struct stat *ubuf)
 {
-    const char *pathname = strcpy_from_user(upathname);
-    if (!pathname)
-        return -errno;
-
-    struct stat buf = {};
-    struct file *curr = get_current_directory();
-
-    int st = do_sys_stat(pathname, &buf, STAT_FLAG_LSTAT, curr);
-
-    fd_put(curr);
-
-    if (copy_to_user(ubuf, &buf, sizeof(buf)) < 0)
-    {
-        st = -errno;
-    }
-
-    free((void *) pathname);
-    return st;
+    return sys_fstatat(AT_FDCWD, upathname, ubuf, AT_SYMLINK_NOFOLLOW);
 }
 
 int sys_fstat(int fd, struct stat *ubuf)
 {
-    auto_file f = get_file_description(fd);
-    if (!f)
-    {
-        return -errno;
-    }
-
     struct stat buf = {};
-
-    if (stat_vfs(&buf, f.get_file()) < 0)
-    {
-        return -errno;
-    }
-
-    if (copy_to_user(ubuf, &buf, sizeof(buf)) < 0)
-    {
-        return -EFAULT;
-    }
-
-    return 0;
+    auto_file f;
+    if (int st = f.from_fd(fd); st < 0)
+        return st;
+    if (int st = stat_vfs(&buf, f.get_file()); st < 0)
+        return st;
+    return copy_to_user(ubuf, &buf, sizeof(buf));
 }
 
 int sys_chdir(const char *upath)
@@ -1681,37 +1669,6 @@ int sys_openat(int dirfd, const char *upath, int flags, mode_t mode)
         fd_put(dirfd_desc);
 
     return fd;
-}
-
-int sys_fstatat(int dirfd, const char *upathname, struct stat *ubuf, int flags)
-{
-    const char *pathname = strcpy_from_user(upathname);
-    if (!pathname)
-        return -errno;
-    struct stat buf = {};
-    struct file *dir;
-    int st = 0;
-    struct file *dirfd_desc = get_dirfd_file(dirfd);
-    if (!dirfd_desc)
-    {
-        st = -errno;
-        goto out;
-    }
-
-    dir = dirfd_desc;
-
-    st = do_sys_stat(pathname, &buf, flags, dir);
-
-    if (copy_to_user(ubuf, &buf, sizeof(buf)) < 0)
-    {
-        st = -errno;
-        goto out;
-    }
-out:
-    if (dirfd_desc)
-        fd_put(dirfd_desc);
-    free((void *) pathname);
-    return st;
 }
 
 int sys_fmount(int fd, const char *upath)

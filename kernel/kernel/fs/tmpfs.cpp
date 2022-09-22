@@ -93,7 +93,7 @@ int tmpfs_unlink(const char *name, int flags, struct dentry *dir)
     {
         if (!(flags & AT_REMOVEDIR))
             return -EISDIR;
-        if (!(flags & UNLINK_VFS_DONT_TEST_EMPTY) && !dentry_is_empty(dir))
+        if (!(flags & UNLINK_VFS_DONT_TEST_EMPTY) && !dentry_is_empty(child))
             return -ENOTEMPTY;
     }
 

@@ -851,7 +851,8 @@ struct symlink_handling : public last_name_handling
     }
 };
 
-dentry *generic_last_name_helper(dentry *base, const char *path, last_name_handling &h)
+dentry *generic_last_name_helper(dentry *base, const char *path, last_name_handling &h,
+                                 unsigned int lookup_flags = 0)
 {
     auto fs_root = get_filesystem_root();
 
@@ -859,6 +860,7 @@ dentry *generic_last_name_helper(dentry *base, const char *path, last_name_handl
     dentry_get(base);
 
     nameidata namedata{std::string_view{path, strlen(path)}, fs_root->file->f_dentry, base, &h};
+    namedata.lookup_flags = lookup_flags;
 
     return dentry_resolve(namedata);
 }
@@ -1205,7 +1207,7 @@ struct unlink_handling : public last_name_handling
 int unlink_vfs(const char *path, int flags, struct file *node)
 {
     unlink_handling h{flags};
-    auto dent = generic_last_name_helper(node->f_dentry, path, h);
+    auto dent = generic_last_name_helper(node->f_dentry, path, h, OPEN_FLAG_NOFOLLOW);
     if (!dent)
         return -errno;
     dentry_put(dent);
