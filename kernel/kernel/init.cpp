@@ -128,6 +128,7 @@ int find_and_exec_init(const char **argv, const char **envp)
 
     for (auto init_path : init_paths)
     {
+        argv[0] = init_path;
         int st = sys_execve(init_path, argv, envp);
 
         if (st < 0)
@@ -278,7 +279,10 @@ void kernel_multitasking(void *arg)
     vm_sysfs_init();
 
     /* Pass the root partition to init */
-    const char *args[] = {(char *) "", "/dev/sda2", nullptr};
+    auto root = cul::string(cmdline::get_root());
+    if (!root)
+        panic("out of memory in early boot");
+    const char *args[] = {(char *) "", root.c_str(), nullptr};
     const char *envp[] = {"PATH=/bin:/usr/bin:/sbin:", "TERM=linux", "LANG=C", "PWD=/", nullptr};
 
     if (find_and_exec_init(args, envp) < 0)

@@ -172,6 +172,20 @@ public:
     {
         return compare(other) == 0;
     }
+
+    constexpr bool starts_with(const char *s) const
+    {
+        for (size_type i = 0; i < length_; i++, s++)
+        {
+            if (*s == '\0')
+                return true;
+
+            if (data_[i] != *s)
+                return false;
+        }
+
+        return false;
+    }
 };
 
 using string_view = basic_string_view<char>;

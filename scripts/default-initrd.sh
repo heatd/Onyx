@@ -20,7 +20,7 @@ cp defaults/profile $DESTDIR/etc/profile
 cp defaults/resolv.conf $DESTDIR/etc/resolv.conf
 
 cp $SYSTEM_ROOT/usr/bin/dash  $DESTDIR/usr/bin
-cp $SYSTEM_ROOT/sbin/init     $DESTDIR/sbin
+cp $SYSTEM_ROOT/sbin/bootstrap-init     $DESTDIR/sbin/init
 cp $SYSTEM_ROOT/usr/lib/libc.so   $DESTDIR/usr/lib
 $STRIP -g --strip-unneeded $DESTDIR/usr/lib/libc.so
 $STRIP -g --strip-all $DESTDIR/usr/bin/dash

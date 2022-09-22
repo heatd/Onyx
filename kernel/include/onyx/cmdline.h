@@ -210,6 +210,8 @@ namespace cmdline
  */
 void init();
 
+std::string_view get_root();
+
 } // namespace cmdline
 
 #define KERNEL_PARAM(name, var_name, type)    \

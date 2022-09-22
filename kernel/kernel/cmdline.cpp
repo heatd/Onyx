@@ -38,12 +38,20 @@ void set_kernel_cmdline(const char *cmdl)
 namespace cmdline
 {
 
+std::string_view root_argument;
+
+std::string_view get_root()
+{
+    return root_argument;
+}
+
 cul::hashtable2<kparam::kernel_param, 12, fnv_hash_t, kparam::kernel_param::hash_kparam> param_list;
 
 void handle_arg(std::string_view arg)
 {
     // TODO: Actually handle arguments
-    // I haven't finished this because honestly, I've gotten bored.
+    if (arg.starts_with("--root="))
+        root_argument = arg;
 }
 
 /**

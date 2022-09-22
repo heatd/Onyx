@@ -78,8 +78,6 @@ int fmount(int fd, char *path)
     return 0;
 }
 
-const char *root = NULL;
-
 int mount_autodetect(const char *dev, const char *mpoint)
 {
     const char *fs_type[] = {"ext2"};
@@ -95,16 +93,6 @@ int mount_autodetect(const char *dev, const char *mpoint)
 
 int mount_filesystems(void)
 {
-    // We try to directly mount root
-    // This is basically glued together with tape
-    // FIXME: Pass the kernel argument instead of hardcoding it *in the exec call*
-
-    int fd = open("/dev", O_RDONLY);
-    int sysfs_fd = open("/sys", O_RDONLY);
-
-    int root_mounted = 0;
-    if (root)
-        root_mounted = mount_autodetect(root, "/");
     FILE *fp = fopen("/etc/fstab", "r");
     if (!fp)
     {
@@ -163,7 +151,7 @@ int mount_filesystems(void)
             str = strtok(NULL, " \t");
         }
 
-        if (root_mounted && !strcmp(target, "/"))
+        if (!strcmp(target, "/"))
             continue;
 
         if (mount(source, target, filesystem_type, 0, NULL) < 0)
@@ -172,36 +160,28 @@ int mount_filesystems(void)
             perror("mount");
             free(read_buffer);
             fclose(fp);
-            close(sysfs_fd);
-            close(fd);
             return 1;
         }
     }
-    /* Now, mount /dev on root again */
-    fmount(fd, "/dev");
-    /* Remount /sys too */
-    fmount(sysfs_fd, "/sys");
 
     /* Create /dev/shm */
     mkdir("/dev/shm", 0666);
 func_exit:
     free(read_buffer);
-    close(fd);
-    close(sysfs_fd);
     fclose(fp);
     return 0;
 }
 
 bool fail_on_mount_error = true;
 
-struct option long_opts[] = {{"root", required_argument, NULL, 0}};
+struct option long_opts[] = {{NULL, 0, 0, 0}};
 
 int main(int argc, char **argv)
 {
     int c;
     int long_idx;
 
-    // FIXME: Don't pass rootdev as a regular argument
+    opterr = 0;
 
     while ((c = getopt_long_only(argc, argv, "m", long_opts, &long_idx)) != -1)
     {
@@ -213,9 +193,6 @@ int main(int argc, char **argv)
             }
         }
     }
-
-    if (argc > 1)
-        root = argv[1];
 
     /* Check if we're actually the first process */
     pid_t p = getpid();

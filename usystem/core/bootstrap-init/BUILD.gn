@@ -1,0 +1,24 @@
+import("//build/package.gni")
+
+config("init_config") {
+    cflags = ["-static", "-fno-sanitize=address", "-fno-sanitize=undefined"]
+    ldflags = cflags
+}
+
+executable("initd_bin") {
+    include_dirs = [ "include" ]
+
+    output_name = "bootstrap-init"
+    configs += [ ":init_config" ]
+
+    sources = [ "main.c" ]
+}
+
+package("bootstrap-init") {
+    deps = [
+        ":initd_bin",
+    ]
+
+    is_system_binary = true
+    executables = [ "bootstrap-init" ]
+}
