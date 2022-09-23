@@ -802,25 +802,15 @@ int sys_sigaction(int signum, const struct k_sigaction *act, struct k_sigaction 
 
     struct process *proc = get_current_process();
 
-    /* Lock the signal table */
-    scoped_lock g{proc->signal_lock};
+    struct k_sigaction old;
+    struct k_sigaction news;
 
-    /* If old_act, save the old action */
-    if (oldact)
-    {
-        if (copy_to_user(oldact, &proc->sigtable[signum], sizeof(struct k_sigaction)) < 0)
-            return -EFAULT;
-    }
-
-    /* If act, set the new action */
     if (act)
     {
-        struct k_sigaction sa;
-
-        if (copy_from_user(&sa, act, sizeof(struct k_sigaction)) < 0)
+        if (copy_from_user(&news, act, sizeof(struct k_sigaction)) < 0)
             return -EFAULT;
 
-        if (sa.sa_handler == SIG_ERR)
+        if (news.sa_handler == SIG_ERR)
             return -EINVAL;
 
         /* Check if it's actually possible to set a handler to this signal */
@@ -831,9 +821,27 @@ int sys_sigaction(int signum, const struct k_sigaction *act, struct k_sigaction 
             case SIGSTOP:
                 return -EINVAL;
         }
-
-        memcpy(&proc->sigtable[signum], &sa, sizeof(sa));
     }
+
+    {
+        /* Lock the signal table */
+        scoped_lock g{proc->signal_lock};
+
+        /* If old_act, save the old action */
+        if (oldact)
+        {
+            memcpy(&old, &proc->sigtable[signum], sizeof(struct k_sigaction));
+        }
+
+        if (act)
+        {
+            /* If act, set the new action */
+            memcpy(&proc->sigtable[signum], &news, sizeof(news));
+        }
+    }
+
+    if (oldact && copy_to_user(oldact, &old, sizeof(struct k_sigaction)) < 0)
+        return -EFAULT;
 
     return st;
 }
