@@ -201,8 +201,6 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    option_verbose = 1;
-
     if (option_verbose)
         fprintf(stderr, "bootstrap-init: Loading modules...\n");
 
