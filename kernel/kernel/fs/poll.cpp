@@ -63,6 +63,12 @@ sleep_result poll_table::sleep_poll(hrtime_t timeout, bool timeout_valid) const
         return sleep_result::woken_up;
     }
 
+    if (signal_is_pending())
+    {
+        set_current_state(THREAD_RUNNABLE);
+        return sleep_result::signal;
+    }
+
     if (inifinite_timeout)
         sched_yield();
     else

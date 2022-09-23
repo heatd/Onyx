@@ -470,6 +470,16 @@ int sys_execve(const char *p, const char **argv, const char **envp)
     karg = args.argv;
     kenv = args.envp;
 
+    if (state.flushed)
+    {
+        // Wake up waiters stuck on vfork
+        if (current->vfork_compl)
+        {
+            current->vfork_compl->wake();
+            current->vfork_compl = nullptr;
+        }
+    }
+
     if (!entry)
     {
         st = -errno;
@@ -492,13 +502,6 @@ int sys_execve(const char *p, const char **argv, const char **envp)
         goto error_die_signal;
 
     current->flags &= ~PROCESS_FORKED;
-
-    // Wake up waiters stuck on vfork
-    if (current->vfork_compl)
-    {
-        current->vfork_compl->wake();
-        current->vfork_compl = nullptr;
-    }
 
     struct stack_info si;
     si.length = DEFAULT_USER_STACK_LEN;

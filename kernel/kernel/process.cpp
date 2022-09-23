@@ -642,6 +642,8 @@ pid_t sys_fork_internal(syscall_frame *ctx, unsigned int flags)
         child->address_space = ex.value();
     }
 
+    process_get(child);
+
     /* Fork and create the new thread */
     thread *new_thread = process_fork_thread(to_be_forked, child, ctx);
 
@@ -670,7 +672,9 @@ pid_t sys_fork_internal(syscall_frame *ctx, unsigned int flags)
     }
 
     // Return the pid to the caller
-    return child->get_pid();
+    auto pid = child->get_pid();
+    process_put(child);
+    return pid;
 }
 
 pid_t sys_fork(syscall_frame *ctx)
@@ -890,12 +894,6 @@ void process_kill_other_threads(void)
             sched_sleep_ms(10000);
     }
 
-    if (current->vfork_compl)
-    {
-        current->vfork_compl->wake();
-        current->vfork_compl = nullptr;
-    }
-
     process_kill_other_threads();
 
     process_destroy_file_descriptors(current);
@@ -905,6 +903,12 @@ void process_kill_other_threads(void)
     /* We destroy the address space after fds because some close() routines may require address
      * space access */
     process_destroy_aspace();
+
+    if (current->vfork_compl)
+    {
+        current->vfork_compl->wake();
+        current->vfork_compl = nullptr;
+    }
 
     process_reparent_children(current);
 
