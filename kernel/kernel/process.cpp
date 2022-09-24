@@ -894,6 +894,9 @@ void process_kill_other_threads(void)
             sched_sleep_ms(10000);
     }
 
+    for (auto &timer : current->timers)
+        timer.disarm();
+
     process_kill_other_threads();
 
     process_destroy_file_descriptors(current);
