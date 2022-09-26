@@ -156,7 +156,7 @@ int signal_find(struct thread *thread)
     sigset_t *set = &thread->sinfo.pending_set;
     sigset_t *blocked_set = &thread->sinfo.sigmask;
 
-    for (int i = 0; i < NSIG; i++)
+    for (int i = 1; i < NSIG; i++)
     {
         if (sigismember(set, i) && !sigismember(blocked_set, i))
         {
@@ -172,7 +172,7 @@ bool signal_is_empty(struct thread *thread)
 {
     sigset_t *set = &thread->sinfo.pending_set;
     sigset_t *blocked_set = &thread->sinfo.sigmask;
-    for (int i = 0; i < NSIG; i++)
+    for (int i = 1; i < NSIG; i++)
     {
         if (sigismember(set, i) && !sigismember(blocked_set, i))
             return false;
