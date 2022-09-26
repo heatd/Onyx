@@ -1,0 +1,39 @@
+import("//build/package.gni")
+
+config("libsymbolize_config") {
+    include_dirs = ["include"]
+}
+
+config("libsymbolize_private") {
+    defines = ["_POSIX_SOURCE"]
+    cflags = ["-fPIC"]
+}
+
+source_set("libsymbolize_sources") {
+    sources = [ "symbolize.c", "demangle.cpp" ]
+    public_configs = [":libsymbolize_config"]
+    configs += [":libsymbolize_private"]
+}
+
+static_library("libsymbolize_static") {
+    deps = [ ":libsymbolize_sources" ]
+    public_configs = [":libsymbolize_config"]
+    output_name = "libsymbolize"
+}
+
+shared_library("libsymbolize_shared") {
+    deps = [ ":libsymbolize_sources" ]
+    output_name = "libsymbolize"
+}
+
+resource("libsymbolize_headers") {
+    sources = [ "include/symbolize/symbolize.h" ]
+    outputs = [ "usr/include/symbolize/{{source_file_part}}" ]
+}
+
+package("libsymbolize") {
+    public_deps = [ ":libsymbolize_shared", ":libsymbolize_headers" ]
+    public_configs = [ ":libsymbolize_config" ]
+    libraries = [ "libsymbolize.so" ]
+}
+
