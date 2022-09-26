@@ -82,19 +82,12 @@ private:
     {
         const sigset_t &set = pending_set;
         const sigset_t &blocked_set = sigmask;
+        sigset_t temp = blocked_set;
+        signotset(&temp);
+        sigset_t s;
+        sigandset(&s, &set, &temp);
 
-        bool is_pending = false;
-
-        for (int i = 0; i < NSIG; i++)
-        {
-            if (sigismember(&set, i) && !sigismember(&blocked_set, i))
-            {
-                is_pending = true;
-                break;
-            }
-        }
-
-        return is_pending;
+        return !sigisemptyset(&s);
     }
 
 public:

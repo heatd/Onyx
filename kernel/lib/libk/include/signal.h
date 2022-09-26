@@ -209,11 +209,35 @@ int __libc_current_sigrtmax(void);
 
 int kill(pid_t, int);
 
-int sigemptyset(sigset_t *);
+static inline int sigemptyset(sigset_t *set)
+{
+    for (size_t i = 0; i < _SIGSET_SIZE; i++)
+        set->__bits[i] = 0;
+    return 0;
+}
+
 int sigfillset(sigset_t *);
-int sigaddset(sigset_t *, int);
-int sigdelset(sigset_t *, int);
-int sigismember(const sigset_t *, int);
+
+static inline int sigaddset(sigset_t *set, int sig)
+{
+    unsigned s = sig - 1;
+    set->__bits[s / _NSIG_PER_WORD] |= (1UL << (s % _NSIG_PER_WORD));
+    return 0;
+}
+
+static inline int sigdelset(sigset_t *set, int sig)
+{
+    unsigned s = sig - 1;
+    set->__bits[s / _NSIG_PER_WORD] &= ~(1UL << (s % _NSIG_PER_WORD));
+    return 0;
+}
+
+static inline int sigismember(const sigset_t *set, int sig)
+{
+    unsigned s = sig - 1;
+    return set->__bits[s / _NSIG_PER_WORD] & (1UL << (s % _NSIG_PER_WORD));
+}
+
 
 int sigprocmask(int, const sigset_t *__restrict, sigset_t *__restrict);
 int sigsuspend(const sigset_t *);
@@ -263,9 +287,34 @@ typedef void (*sig_t)(int);
 #ifdef _GNU_SOURCE
 typedef void (*sighandler_t)(int);
 void (*bsd_signal(int, void (*)(int)))(int);
-int sigisemptyset(const sigset_t *);
-int sigorset (sigset_t *, const sigset_t *, const sigset_t *);
-int sigandset(sigset_t *, const sigset_t *, const sigset_t *);
+
+static inline int sigisemptyset(const sigset_t *set)
+{
+    for (size_t i = 0; i < _SIGSET_SIZE; i++)
+	{
+		if (set->__bits[i])
+			return 0;
+	}
+
+	return 1;
+}
+
+
+static inline int sigorset(sigset_t *dest, const sigset_t *left, const sigset_t *right)
+{
+    unsigned long i = 0, *d = (unsigned long *) dest, *l = (unsigned long *) left, *r = (unsigned long *) right;
+    for (; i < _SIGSET_SIZE; i++)
+        d[i] = l[i] | r[i];
+    return 0;
+}
+
+static inline int sigandset(sigset_t *dest, const sigset_t *left, const sigset_t *right)
+{
+    unsigned long i = 0, *d = (unsigned long *) dest, *l = (unsigned long *) left, *r = (unsigned long *) right;
+    for (; i < _SIGSET_SIZE; i++)
+        d[i] = l[i] & r[i];
+    return 0;
+}
 
 #define SA_NOMASK SA_NODEFER
 #define SA_ONESHOT SA_RESETHAND
