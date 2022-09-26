@@ -67,6 +67,8 @@ static void perf_unlock_shared()
  */
 static void perf_lock_exclusive()
 {
+    irq_disable();
+
     while (true)
     {
         auto old = perf_lock.load(mem_order::relaxed);
@@ -92,6 +94,7 @@ static void perf_lock_exclusive()
 static void perf_unlock_exclusive()
 {
     perf_lock.store(0, mem_order::release);
+    irq_enable();
 }
 
 bool perf_probe_enabled = false;
