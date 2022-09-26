@@ -233,7 +233,7 @@ static void *elf_load(struct binfmt_args *args, Elf64_Ehdr *header)
 
                 if (to_zero)
                 {
-                    if (user_memset(bss_base, 0, bss_size) < 0)
+                    if (user_memset(bss_base, 0, to_zero) < 0)
                     {
                         errno = EFAULT;
                         goto error2;
