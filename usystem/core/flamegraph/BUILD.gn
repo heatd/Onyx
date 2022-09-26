@@ -1,0 +1,20 @@
+import("//build/package.gni")
+
+executable("flamegraph_bin") {
+    include_dirs = [ "include" ]
+
+    deps = [ "//lib/symbolize:libsymbolize" ]
+
+    output_name = "flamegraph"
+
+    sources = [ "main.c" ]
+}
+
+package("flamegraph") {
+    deps = [
+        ":flamegraph_bin",
+    ]
+
+    is_system_binary = true
+    executables = [ "flamegraph" ]
+}
