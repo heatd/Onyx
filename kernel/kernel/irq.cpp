@@ -14,6 +14,7 @@
 #include <onyx/init.h>
 #include <onyx/irq.h>
 #include <onyx/percpu.h>
+#include <onyx/perf_probe.h>
 #include <onyx/platform.h>
 
 struct irq_line irq_lines[NR_IRQ] = {};
@@ -123,6 +124,9 @@ void dispatch_irq(unsigned int irq, struct irq_context *context)
     struct irq_line *line = &irq_lines[irq];
 
     write_per_cpu(in_irq, true);
+
+    // if (perf_probe_is_enabled() && in_kernel_space_regs(context->registers))
+    //    perf_probe_do(context->registers);
 
     for (struct interrupt_handler *h = line->irq_handlers; h; h = h->next)
     {

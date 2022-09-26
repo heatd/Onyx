@@ -28,7 +28,7 @@
 #include <onyx/x86/pit.h>
 #include <onyx/x86/tsc.h>
 
-//#define CONFIG_APIC_PERIODIC
+// #define CONFIG_APIC_PERIODIC
 
 volatile uint32_t *bsp_lapic = NULL;
 volatile uint64_t core_stack = 0;
@@ -710,6 +710,31 @@ void apic_send_ipi(uint8_t id, uint32_t type, uint32_t page)
 
     lapic_write(this_lapic, LAPIC_IPIID, (uint32_t) id << 24);
     uint64_t icr = type << 8 | (page & 0xff);
+    icr |= (1 << 14);
+    lapic_write(this_lapic, LAPIC_ICR, (uint32_t) icr);
+
+    spin_unlock_irqrestore(lock, cpu_flags);
+}
+
+void apic_send_ipi_all(uint32_t type, uint32_t page)
+{
+    struct spinlock *lock = get_per_cpu_ptr(ipi_lock);
+    unsigned long cpu_flags = spin_lock_irqsave(lock);
+
+    volatile uint32_t *this_lapic = get_per_cpu(lapic);
+
+    if (unlikely(!this_lapic))
+    {
+        /* If we don't have a lapic yet, just return because we're in early boot
+         * and we don't need that right now.
+         */
+        return;
+    }
+
+    while (lapic_read(this_lapic, LAPIC_ICR) & (1 << 12))
+        cpu_relax();
+
+    uint64_t icr = 2 << 18 | type << 8 | (page & 0xff);
     icr |= (1 << 14);
     lapic_write(this_lapic, LAPIC_ICR, (uint32_t) icr);
 

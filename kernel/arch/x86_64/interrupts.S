@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -120,6 +120,7 @@
 
 .macro ISR_NOERRCODE num
 .global isr\num
+.type isr\num,@function
 isr\num:
 	cli
 	sub $8, %rsp
@@ -134,6 +135,7 @@ isr\num:
 
 .macro IRQ irq_num
 .global irq\irq_num
+.type irq\irq_num,@ function
 irq\irq_num:
 	cli
 	sub $8, %rsp
@@ -169,6 +171,7 @@ x86_interrupt_ret:
 2:
 	INTERRUPT_STACK_RESTORE
 .global x86_scheduler_exit
+.type x86_scheduler_exit,@function
 x86_scheduler_exit:
 	/* We'll use this bit of code as a trampoline to the new thread too */
 	mov REGISTER_OFF_CS(%rsp), %rax
@@ -191,6 +194,7 @@ x86_scheduler_exit:
 	call handle_signal
 	jmp 2b
 
+.type x86_interrupt_common,@function
 x86_interrupt_common:
 	.cfi_startproc
 	pushaq
@@ -208,15 +212,15 @@ x86_interrupt_common:
 	mov REGISTER_OFF_CS(%rsp), %rax
 	test $3, %rax
 
-	jz .L3
+	jz 1f
 	swapgs
-.L3:
+1:
 	mov %rsp, %rdi
 	mov %rdi, %rbp
 
 	.cfi_def_cfa_register rbp
 	# End the stack frame list so we stop here
-	#xor %rbp, %rbp
+	# xor %rbp, %rbp
 
 	INTERRUPT_STACK_ALIGN
 
@@ -501,6 +505,7 @@ x86_isr_table_end:
 .popsection
 
 .global platform_yield
+.type platform_yield,@function
 platform_yield:
 	.cfi_startproc
 	/* Basically we need to set up an IRQ frame on the stack.
@@ -517,7 +522,7 @@ platform_yield:
 	pushf /* %rflags */
 	cli
 	push $KERNEL_CS /* %cs */
-	push $.return_label /* %rip */
+	push $1f /* %rip */
 	sub $REGISTERS_UNUSED_OFF, %rsp
 	pushaq /* General purpose registers (%rax - %r15) */
 	push $KERNEL_DS /* %ds */
@@ -525,7 +530,7 @@ platform_yield:
 	call sched_schedule
 	mov %rax, %rsp
 	jmp x86_scheduler_exit
-.return_label:
+1:
 	pop %rax
 	pop %rbp
 
@@ -534,6 +539,7 @@ platform_yield:
 	
 
 .global __sigret_return
+.type __sigret_return,@function
 __sigret_return:
 	cli
 

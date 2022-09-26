@@ -77,6 +77,7 @@
 #define KERNEL_DS		0x10
 
 .global syscall_ENTRY64
+.type syscall_ENTRY64,@function
 syscall_ENTRY64:
 
 	.cfi_startproc
