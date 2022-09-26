@@ -25,6 +25,7 @@
 #include <onyx/irq.h>
 #include <onyx/panic.h>
 #include <onyx/percpu.h>
+#include <onyx/perf_probe.h>
 #include <onyx/process.h>
 #include <onyx/rwlock.h>
 #include <onyx/semaphore.h>
@@ -310,6 +311,9 @@ extern "C" void *sched_schedule(void *last_stack)
         return last_stack;
     }
 
+    if (perf_probe_is_enabled_wait())
+        perf_probe_try_wait_trace((struct registers *) last_stack);
+
     thread_t *curr_thread = get_per_cpu(current_thread);
 
     if (likely(curr_thread))
@@ -529,7 +533,19 @@ void sched_yield(void)
               (long) sched_get_preempt_counter());
     }
 
+    struct flame_graph_entry *fge = nullptr;
+    const bool waiting = get_current_thread()->status == THREAD_INTERRUPTIBLE ||
+                         get_current_thread()->status == THREAD_UNINTERRUPTIBLE;
+    if (perf_probe_is_enabled_wait() && waiting)
+    {
+        fge = (struct flame_graph_entry *) alloca(sizeof(*fge));
+        perf_probe_setup_wait(fge);
+    }
+
     platform_yield();
+
+    if (fge)
+        perf_probe_commit_wait(fge);
 }
 
 void sched_sleep_unblock(clockevent *v)

@@ -107,7 +107,7 @@ void idt_init(void)
     x86_reserve_vector(31, isr31);
 
     const unsigned int to_reserve[] = {X86_MESSAGE_VECTOR, X86_RESCHED_VECTOR, X86_SYNC_CALL_VECTOR,
-                                       255};
+                                       X86_PERFPROBE, 255};
     unsigned int len = sizeof(to_reserve) / sizeof(unsigned int);
 
     for (unsigned int i = 0; i < len; i++)

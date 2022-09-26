@@ -41,6 +41,7 @@ void apic_timer_smp_init(volatile uint32_t *lapic);
 void apic_set_irql(int irql);
 int apic_get_irql(void);
 void apic_send_ipi(uint8_t id, uint32_t type, uint32_t page);
+void apic_send_ipi_all(uint32_t type, uint32_t page);
 void lapic_send_eoi(void);
 uint32_t apic_get_lapic_id(unsigned int cpu);
 void apic_set_lapic_id(unsigned int cpu, uint32_t lapic_id);

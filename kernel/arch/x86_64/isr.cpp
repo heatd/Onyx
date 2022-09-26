@@ -17,6 +17,7 @@
 #include <onyx/exceptions.h>
 #include <onyx/panic.h>
 #include <onyx/percpu.h>
+#include <onyx/perf_probe.h>
 #include <onyx/process.h>
 #include <onyx/signal.h>
 #include <onyx/task_switching.h>
@@ -563,6 +564,12 @@ extern "C" unsigned long x86_dispatch_interrupt(struct registers *regs)
     {
         smp::cpu_handle_sync_calls();
         result = INTERRUPT_STACK_ALIGN(regs);
+    }
+    else if (vec_no == X86_PERFPROBE)
+    {
+        result = INTERRUPT_STACK_ALIGN(regs);
+        if (perf_probe_is_enabled() && in_kernel_space_regs(regs))
+            perf_probe_do(regs);
     }
     else
         result = INTERRUPT_STACK_ALIGN(irq_handler(regs));

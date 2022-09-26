@@ -156,6 +156,15 @@ qemu: iso
 	-device usb-ehci -device usb-mouse \
 	-display gtk,gl=on -machine q35
 
+qemu-serial-stdio: iso
+	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) \
+	-s -cdrom Onyx.iso -drive file=hdd.img,format=raw,media=disk -m 512M \
+	-serial stdio -boot d -netdev user,id=u1 -device virtio-net,netdev=u1 \
+	-object filter-dump,id=f1,netdev=u1,file=net.pcap \
+	-enable-kvm -cpu host,migratable=on,+invtsc -smp 4 -vga qxl \
+	-device usb-ehci -device usb-mouse \
+	-display gtk,gl=on -machine q35
+
 ci-test-qemu: liveiso
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) \
 	-s -cdrom Onyx.iso -m 2G -serial stdio -boot d -netdev user,id=u1 \
@@ -179,6 +188,3 @@ intel-passthrough-qemu: iso
 
 virtualbox: iso
 	virtualbox --startvm Onyx --dbg
-
-
-

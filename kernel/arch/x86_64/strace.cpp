@@ -109,6 +109,55 @@ __attribute__((no_sanitize_undefined)) void stack_trace_ex(uint64_t *stack)
     }
 }
 
+size_t stack_trace_get(unsigned long *stack, unsigned long *pcs, size_t nr_pcs)
+{
+    thread_t *thread = get_current_thread();
+    size_t unwinds_possible = 0;
+    if (!thread) // We're still in single tasking mode, just use a safe default
+        unwinds_possible = DEFAULT_UNWIND_NUMBER; // Early kernel functions don't nest a lot
+    else
+        unwinds_possible = 1024; /* It's safe to say the stack won't grow larger than this */
+
+    unwinds_possible = min(unwinds_possible, nr_pcs);
+    uint64_t *rbp = stack;
+    size_t i;
+    for (i = 0; i < unwinds_possible; i++)
+    {
+        if (thread)
+        {
+            if ((uintptr_t) rbp & 0x7)
+                break;
+
+            unsigned long stack_base = ((unsigned long) thread->kernel_stack_top) - 0x4000;
+
+            if (rbp >= thread->kernel_stack_top)
+                break;
+            if (rbp + 1 >= thread->kernel_stack_top)
+                break;
+            if (rbp < (unsigned long *) stack_base)
+                break;
+        }
+
+        if (!(void *) *(rbp + 1))
+            break;
+
+        auto ip = (unsigned long) *(rbp + 1);
+        if (ip < VM_HIGHER_HALF)
+            break;
+
+        pcs[i] = ip;
+
+        rbp = (uint64_t *) *rbp;
+        if (!rbp)
+            break;
+    }
+
+    if (i != unwinds_possible)
+        pcs[i] = 0;
+
+    return i;
+}
+
 void stack_trace(void)
 {
     uint64_t *stack = NULL;

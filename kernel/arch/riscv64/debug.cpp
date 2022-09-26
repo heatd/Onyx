@@ -98,3 +98,8 @@ void stack_trace(void)
     return;
     stack_trace_ex((unsigned long *) __builtin_frame_address(1));
 }
+
+size_t stack_trace_get(unsigned long *stack, unsigned long *pcs, size_t nr_pcs)
+{
+    return 0;
+}

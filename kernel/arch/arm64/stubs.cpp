@@ -201,6 +201,11 @@ void stack_trace()
     return;
 }
 
+size_t stack_trace_get(unsigned long *stack, unsigned long *pcs, size_t nr_pcs)
+{
+    return 0;
+}
+
 uint64_t get_posix_time_early()
 {
     return 0;
