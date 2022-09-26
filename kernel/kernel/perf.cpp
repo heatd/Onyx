@@ -242,7 +242,10 @@ static void perf_disable_probing()
     perf_lock_exclusive();
 
     if (!perf_probe_enabled && !perf_probe_wait_enabled)
+    {
+        perf_unlock_exclusive();
         return;
+    }
 
     if (ce)
     {
@@ -351,7 +354,10 @@ void perf_probe_commit_wait(const struct flame_graph_entry *fge)
     perf_lock_shared();
 
     if (!perf_probe_wait_enabled)
+    {
+        perf_unlock_shared();
         return;
+    }
 
     auto _ = irq_save_and_disable();
     struct flame_graph_pcpu *pcpu = &fg[get_cpu_nr()];
@@ -406,7 +412,10 @@ void perf_probe_do(struct registers *regs)
     perf_lock_shared();
 
     if (!perf_probe_enabled)
+    {
+        perf_unlock_shared();
         return;
+    }
 
     auto _ = irq_save_and_disable();
     struct flame_graph_pcpu *pcpu = &fg[get_cpu_nr()];
