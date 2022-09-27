@@ -347,15 +347,8 @@ void inode_unref(struct inode *ino)
 {
     unsigned long refs = __atomic_sub_fetch(&ino->i_refc, 1, __ATOMIC_RELEASE);
     // printk("unref %p(ino nr %lu) - refs %lu\n", ino, ino->i_inode, refs);
-#if 0
-	if(inode_should_die(ino))
-	{
-		printk("inode should die and refs = %lu\n", refs);
-		while(true) {}
-	}
-#endif
 
-    if (!refs)
+    if (refs == 0 && inode_should_die(ino))
     {
         inode_release(ino);
     }
@@ -412,7 +405,6 @@ void superblock_add_inode_unlocked(struct superblock *sb, struct inode *inode)
     scoped_lock g{sb->s_ilock};
     list_add_tail(&inode->i_sb_list_node, &sb->s_inodes);
     __atomic_add_fetch(&sb->s_ref, 1, __ATOMIC_ACQUIRE);
-    inode_ref(inode);
 
     spin_unlock(&inode_hashtable_locks[index]);
 }
@@ -561,7 +553,7 @@ void inode_trim_cache()
         {
             auto ino = container_of(l, inode, i_hash_list_node);
 
-            if (ino->i_refc == 1)
+            if (ino->i_refc == 0)
             {
                 scoped_lock g2{ino->i_lock};
 
