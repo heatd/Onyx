@@ -28,6 +28,21 @@ struct rwlock
 #endif
 };
 
+struct rwslock
+{
+private:
+    unsigned long lock{0};
+
+public:
+    constexpr rwslock() = default;
+
+    void lock_read();
+    void lock_write();
+
+    void unlock_read();
+    void unlock_write();
+};
+
 bool rw_lock_tryread(struct rwlock *lock);
 void rw_lock_read(struct rwlock *lock);
 void rw_lock_write(struct rwlock *lock);
@@ -99,6 +114,60 @@ public:
     }
 
     ~scoped_rwlock()
+    {
+        if (IsLocked)
+            unlock();
+    }
+};
+
+template <rw_lock lock_type>
+class scoped_rwslock
+{
+private:
+    bool IsLocked;
+    rwslock &internal_lock;
+
+public:
+    constexpr bool read() const
+    {
+        return lock_type == rw_lock::read;
+    }
+
+    constexpr bool write() const
+    {
+        return lock_type == rw_lock::write;
+    }
+
+    void lock()
+    {
+        if (read())
+            internal_lock.lock_read();
+        else
+            internal_lock.lock_write();
+        IsLocked = true;
+    }
+
+    void unlock()
+    {
+        if (read())
+            internal_lock.unlock_read();
+        else
+            internal_lock.unlock_write();
+        IsLocked = false;
+    }
+
+    scoped_rwslock(rwslock &lock) : internal_lock(lock)
+    {
+        this->lock();
+    }
+
+    scoped_rwslock(rwslock &lock, bool autolock) : internal_lock(lock)
+    {
+        if (autolock)
+            this->lock();
+    }
+
+    ~scoped_rwslock()
     {
         if (IsLocked)
             unlock();

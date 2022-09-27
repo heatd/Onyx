@@ -6,6 +6,7 @@
 
 #include <errno.h>
 
+#include <onyx/cpu.h>
 #include <onyx/rwlock.h>
 #include <onyx/scheduler.h>
 #include <onyx/scoped_lock.h>
@@ -42,15 +43,8 @@ bool rw_lock_trywrite(rwlock *lock)
                                        __ATOMIC_RELAXED);
 }
 
-static void commit_sleep()
-{
-    sched_yield();
-}
-
 static void rwlock_prepare_sleep(rwlock *rwl, int state)
 {
-    scoped_lock g{rwl->llock};
-
     auto t = get_current_thread();
 
     set_current_state(state);
@@ -60,8 +54,6 @@ static void rwlock_prepare_sleep(rwlock *rwl, int state)
 
 static void dequeue_thread_rwlock(rwlock *lock, thread *thread)
 {
-    scoped_lock g{lock->llock};
-
     list_remove(&thread->wait_list_head);
 }
 
@@ -72,30 +64,41 @@ int __rw_lock_write(rwlock *lock, int state)
         return 0;
 
     int ret = 0;
-    thread *current = get_current_thread();
+
+    auto current = get_current_thread();
 
     bool signals_allowed = state == THREAD_INTERRUPTIBLE;
 
+    spin_lock(&lock->llock);
+
     rwlock_prepare_sleep(lock, state);
 
-    while (!rw_lock_trywrite(lock))
+    while (true)
     {
+        if (rw_lock_trywrite(lock))
+        {
+            break;
+        }
+
         if (signals_allowed && signal_is_pending())
         {
             ret = -EINTR;
             break;
         }
 
-        commit_sleep();
+        spin_unlock(&lock->llock);
 
-        dequeue_thread_rwlock(lock, current);
+        sched_yield();
 
-        rwlock_prepare_sleep(lock, state);
+        spin_lock(&lock->llock);
+
+        set_current_state(state);
     }
 
     dequeue_thread_rwlock(lock, current);
-
     set_current_state(THREAD_RUNNABLE);
+
+    spin_unlock(&lock->llock);
 
     return ret;
 }
@@ -111,26 +114,37 @@ int __rw_lock_read(rwlock *lock, int state)
 
     bool signals_allowed = state == THREAD_INTERRUPTIBLE;
 
+    spin_lock(&lock->llock);
     rwlock_prepare_sleep(lock, state);
 
-    while (!rw_lock_tryread(lock))
+    while (true)
     {
+
+        if (rw_lock_tryread(lock))
+        {
+            break;
+        }
+
         if (signals_allowed && signal_is_pending())
         {
             ret = -EINTR;
             break;
         }
 
-        commit_sleep();
+        spin_unlock(&lock->llock);
 
-        dequeue_thread_rwlock(lock, current);
+        sched_yield();
 
-        rwlock_prepare_sleep(lock, state);
+        spin_lock(&lock->llock);
+
+        set_current_state(state);
     }
 
     dequeue_thread_rwlock(lock, current);
 
     set_current_state(THREAD_RUNNABLE);
+
+    spin_unlock(&lock->llock);
 
     return ret;
 }
@@ -197,6 +211,55 @@ void rw_unlock_write(rwlock *lock)
      * because we can have both readers and writers waiting to get woken up.
      */
     rw_lock_wake_up_threads(lock);
+}
+
+void rwslock::lock_read()
+{
+    sched_disable_preempt();
+    unsigned long l;
+    unsigned long to_insert;
+
+    do
+    {
+        l = __atomic_load_n(&lock, __ATOMIC_RELAXED);
+        while (l == RDWR_LOCK_WRITE || l == RDWR_LOCK_WRITE - 1)
+        {
+            cpu_relax();
+            l = __atomic_load_n(&lock, __ATOMIC_RELAXED);
+        }
+
+        to_insert = l + 1;
+    } while (!__atomic_compare_exchange_n(&lock, &l, to_insert, false, __ATOMIC_ACQUIRE,
+                                          __ATOMIC_RELAXED));
+}
+
+void rwslock::lock_write()
+{
+    sched_disable_preempt();
+    unsigned long expected = 0;
+    const unsigned long write_value = RDWR_LOCK_WRITE;
+    while (!__atomic_compare_exchange_n(&lock, &expected, write_value, false, __ATOMIC_ACQUIRE,
+                                        __ATOMIC_RELAXED))
+    {
+        do
+        {
+            cpu_relax();
+        } while ((expected = __atomic_load_n(&lock, __ATOMIC_RELAXED)) != 0);
+
+        expected = 0;
+    }
+}
+
+void rwslock::unlock_read()
+{
+    __atomic_sub_fetch(&lock, 1, __ATOMIC_RELEASE);
+    sched_enable_preempt();
+}
+
+void rwslock::unlock_write()
+{
+    __atomic_store_n(&lock, 0, __ATOMIC_RELEASE);
+    sched_enable_preempt();
 }
 
 #ifdef CONFIG_KTEST_RWLOCK
