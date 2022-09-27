@@ -82,6 +82,11 @@ struct getdents_ret
 
 int inode_init(struct inode *ino, bool is_reg);
 
+#define INODE_FLAG_DONT_CACHE (1 << 0)
+#define INODE_FLAG_DIRTY      (1 << 1)
+#define INODE_FLAG_NO_SEEK    (1 << 2)
+#define INODE_FLAG_DIRTYING   (1 << 3)
+#define INODE_FLAG_FREEING    (1 << 4)
 struct inode
 {
     unsigned long i_refc;
@@ -116,12 +121,15 @@ struct inode
     struct rwlock i_rwlock;
     struct list_head i_sb_list_node;
     struct list_head i_hash_list_node;
+    struct spinlock i_lock;
 
 #ifdef __cplusplus
     int init(mode_t mode)
     {
         return inode_init(this, S_ISREG(mode));
     }
+
+    void set_evicting();
 #endif
 };
 
@@ -138,11 +146,6 @@ struct file
     unsigned int f_flags;
     struct dentry *f_dentry;
 };
-
-#define INODE_FLAG_DONT_CACHE (1 << 0)
-#define INODE_FLAG_DIRTY      (1 << 1)
-#define INODE_FLAG_NO_SEEK    (1 << 2)
-#define INODE_FLAG_DIRTYING   (1 << 3)
 
 int inode_create_vmo(struct inode *ino);
 
@@ -329,5 +332,11 @@ void put_dentry_to_dirent(struct dirent *buf, dentry *dentry, const char *specia
  * @return True if applied, else false
  */
 bool apply_sugid_permissions(file *f);
+
+/**
+ * @brief Trim the inode cache
+ *
+ */
+void inode_trim_cache();
 
 #endif

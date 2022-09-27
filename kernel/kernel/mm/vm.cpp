@@ -2371,9 +2371,28 @@ ssize_t kmaps_read(void *buffer, size_t size, off_t off)
 #endif
 }
 
+ssize_t evict_write(void *buf, size_t size, off_t off)
+{
+    if (size == 0)
+        return 0;
+    char c;
+
+    if (copy_from_user(&c, buf, 1) < 0)
+        return -EFAULT;
+
+    if (c == '2' || c == '3')
+        dentry_trim_caches();
+
+    if (c == '1' || c == '3')
+        inode_trim_cache();
+
+    return size;
+}
+
 static struct sysfs_object vm_obj;
 static struct sysfs_object aslr_control;
 static struct sysfs_object kmaps;
+static struct sysfs_object evict_obj;
 
 /**
  * @brief Initialises sysfs nodes for the vm subsystem.
@@ -2384,7 +2403,7 @@ void vm_sysfs_init(void)
     INFO("vmm", "Setting up /sys/vm\n");
 
     assert(sysfs_object_init("vm", &vm_obj) == 0);
-    vm_obj.perms = 0644 | S_IFDIR;
+    vm_obj.perms = 0755 | S_IFDIR;
 
     assert(sysfs_init_and_add("aslr_ctl", &aslr_control, &vm_obj) == 0);
     aslr_control.read = aslr_read;
@@ -2394,6 +2413,10 @@ void vm_sysfs_init(void)
     assert(sysfs_init_and_add("kmaps", &kmaps, &vm_obj) == 0);
     kmaps.read = kmaps_read;
     kmaps.perms = 0444 | S_IFREG;
+
+    assert(sysfs_init_and_add("evict", &evict_obj, &vm_obj) == 0);
+    evict_obj.write = evict_write;
+    evict_obj.perms = 0644 | S_IFREG;
 
     sysfs_add(&vm_obj, nullptr);
 }

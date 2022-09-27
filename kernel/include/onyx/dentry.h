@@ -165,6 +165,12 @@ public:
     }
 };
 
+/**
+ * @brief Trim the dentry caches
+ *
+ */
+void dentry_trim_caches();
+
 #endif
 
 #endif

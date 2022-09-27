@@ -117,6 +117,18 @@ public:
         return tail;
     }
 
+    T pop_head()
+    {
+        auto node = get_head();
+        auto val = node->data;
+        head = head->next;
+
+        if (head)
+            head->prev = nullptr;
+        delete node;
+        return val;
+    }
+
     bool add(const T& data)
     {
         auto p = new linked_list_node<T>(data);

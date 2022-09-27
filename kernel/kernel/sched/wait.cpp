@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2021 Pedro Falcato
+ * Copyright (c) 2021 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #include <onyx/fnv.h>
@@ -19,37 +21,9 @@ fnv_hash_t hash_wait(wait_token &wt)
 static cul::hashtable2<wait_token, 512, fnv_hash_t, hash_wait> ht;
 static spinlock locks[512];
 
-bool valid_size(uint8_t len)
-{
-    return len == 1 || len == 2 || len == 4 || len == 8;
-}
-
 bool wait_token::complete() const
 {
-    uint64_t val;
-
-    switch (len)
-    {
-    case 1:
-        val = *(uint8_t *) addr;
-        break;
-    case 2:
-        val = *(uint16_t *) addr;
-        break;
-    case 4:
-        val = *(uint32_t *) addr;
-        break;
-    case 8:
-        val = *(uint64_t *) addr;
-        break;
-    default:
-        __builtin_unreachable();
-    }
-
-    if (flags & WAIT_FOR_MATCHES_EVERYTHING)
-        return (val & mask) == mask;
-    else
-        return val & mask;
+    return complete_(addr);
 }
 
 int wait_token::wait()
@@ -91,6 +65,7 @@ unsigned long wake_address(void *ptr)
     return woken;
 }
 
+#if 0
 int wait_for_mask(void *val, uint64_t mask, unsigned int flags, hrtime_t timeout)
 {
     uint8_t len = flags & WAIT_FOR_SIZE_MASK;
@@ -100,6 +75,31 @@ int wait_for_mask(void *val, uint64_t mask, unsigned int flags, hrtime_t timeout
     assert(valid_size(len));
 
     wait_token token{val, mask, flags, len};
+
+    auto hash = hash_wait(token);
+
+    auto index = ht.get_hashtable_index(hash);
+
+    scoped_lock g{locks[index]};
+
+    ht.add_element(token);
+
+    g.unlock();
+
+    int st;
+
+    if (flags & WAIT_FOR_FOREVER)
+        st = token.wait();
+    else
+        st = token.wait(timeout);
+
+    return st;
+}
+#endif
+
+int wait_for(void *ptr, bool (*complete)(void *), unsigned int flags, hrtime_t timeout)
+{
+    wait_token token{ptr, complete, flags};
 
     auto hash = hash_wait(token);
 

@@ -20,6 +20,7 @@
 #include <onyx/vfs.h>
 
 #include <onyx/expected.hpp>
+#include <onyx/list.hpp>
 #include <onyx/mm/pool.hpp>
 #include <onyx/string_view.hpp>
 
@@ -143,7 +144,7 @@ void dentry_kill_unlocked(dentry *entry)
 
 dentry *dentry_create(const char *name, inode *inode, dentry *parent)
 {
-    if (parent && parent->d_inode->i_type != VFS_TYPE_DIR)
+    if (parent && !S_ISDIR(parent->d_inode->i_mode))
         return errno = ENOTDIR, nullptr;
 
     /* TODO: Move a bunch of this code to a constructor and placement-new it */
@@ -198,9 +199,9 @@ dentry *dentry_create(const char *name, inode *inode, dentry *parent)
     return new_dentry;
 }
 
-bool dentry_is_dir(dentry *d)
+bool dentry_is_dir(const dentry *d)
 {
-    return d->d_inode->i_type == VFS_TYPE_DIR;
+    return S_ISDIR(d->d_inode->i_mode);
 }
 
 dentry *__dentry_try_to_open(std::string_view name, dentry *dir)
@@ -1562,4 +1563,65 @@ bool dentry_is_empty(dentry *dir)
 {
     scoped_rwlock<rw_lock::write> g{dir->d_lock};
     return list_is_empty(&dir->d_children_head);
+}
+
+cul::atomic_size_t killed_dentries = 0;
+
+/**
+ * @brief Trim the dentry caches
+ *
+ */
+void dentry_trim_caches()
+{
+    auto currdent = root_dentry;
+    dentry_get(currdent);
+    linked_list<dentry *> dentry_queue;
+
+    // For every dentry, try to evict unused children
+    while (currdent)
+    {
+
+        // If ref > 1, we *may* have children
+        if (currdent->d_ref > 1)
+        {
+            scoped_rwlock<rw_lock::write> g{currdent->d_lock};
+
+            list_for_every_safe (&currdent->d_children_head)
+            {
+                dentry *d = container_of(l, dentry, d_parent_dir_node);
+
+                if (d->d_ref == 1)
+                {
+                    // If we're destroying this dentry, take a peek at the parent and
+                    // check if they have a ref of 2 (refe'd by themselves for existing, and us)
+                    // If so, add their parent to the queue so we can revisit this later.
+                    if (d->d_parent && d->d_parent->d_ref == 2)
+                    {
+                        auto parent = dentry_parent(d->d_parent);
+                        dentry_queue.add(parent);
+                    }
+
+                    killed_dentries++;
+                    // Ready for destruction, remove and destroy
+                    dentry_kill_unlocked(d);
+                }
+                else
+                {
+                    // Still has refs. If directory, try and clean it up next
+                    if (dentry_is_dir(d))
+                    {
+                        // We need to ref dentries, so we don't lose them magically
+                        dentry_get(d);
+                        dentry_queue.add(d);
+                    }
+                }
+            }
+        }
+
+        dentry_put(currdent);
+
+        currdent = dentry_queue.is_empty() ? nullptr : dentry_queue.pop_head();
+    }
+
+    dentry_pool.purge();
 }

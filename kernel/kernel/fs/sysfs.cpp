@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2021 Pedro Falcato
+ * Copyright (c) 2017 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -18,6 +18,7 @@
 #include <onyx/panic.h>
 #include <onyx/sysfs.h>
 #include <onyx/vfs.h>
+#include <onyx/vm.h>
 
 struct sysfs_object sysfs_root = {
     .name = (char *) "",
@@ -101,7 +102,7 @@ struct inode *sysfs_open(struct dentry *dir, const char *name)
     struct sysfs_object *file = (struct sysfs_object *) node->i_inode;
     assert(file != nullptr);
 
-    if (!(node->i_type & VFS_TYPE_DIR))
+    if (!S_ISDIR(node->i_mode))
         return errno = ENOTDIR, nullptr;
 
     struct sysfs_object *o = sysfs_get_obj(file, name);
@@ -147,7 +148,7 @@ size_t sysfs_write(size_t offset, size_t sizeofwrite, void *buffer, struct file 
         return errno = ENOSYS, (size_t) -1;
 }
 
-void sysfs_init(void)
+void sysfs_init()
 {
     INIT_LIST_HEAD(&sysfs_root.dentries);
     /* If this_ function fails, just panic. sysfs is crucial */
@@ -163,7 +164,7 @@ void sysfs_init(void)
     root->i_sb = sb;
     root->i_inode = (ino_t) &sysfs_root;
     root->i_nlink = 1;
-    root->i_mode = 0755;
+    root->i_mode = 0755 | S_IFDIR;
 
     root->i_type = sysfs_type_to_vfs_type(sysfs_root.perms);
 
@@ -184,7 +185,7 @@ void sysfs_init(void)
 
 INIT_LEVEL_VERY_EARLY_CORE_ENTRY(sysfs_init);
 
-void sysfs_mount(void)
+void sysfs_mount()
 {
     if (sysfs_root_ino)
     {

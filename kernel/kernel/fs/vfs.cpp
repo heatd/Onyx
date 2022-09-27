@@ -192,7 +192,7 @@ size_t clamp_length(size_t len)
 ssize_t read_vfs(size_t offset, size_t len, void *buffer, struct file *file)
 {
     struct inode *ino = file->f_ino;
-    if (ino->i_type & VFS_TYPE_DIR)
+    if (S_ISDIR(ino->i_mode))
         return errno = EISDIR, -1;
 
     if (!ino->i_fops->readpage && !ino->i_fops->read)
@@ -236,7 +236,7 @@ ssize_t do_actual_write(size_t offset, size_t len, void *buffer, struct file *f)
 ssize_t write_vfs(size_t offset, size_t len, void *buffer, struct file *f)
 {
     struct inode *ino = f->f_ino;
-    if (ino->i_type & VFS_TYPE_DIR)
+    if (S_ISDIR(ino->i_mode))
         return errno = EISDIR, -1;
 
     if (!ino->i_fops->writepage && !ino->i_fops->write)
@@ -369,7 +369,7 @@ unsigned int putdir(struct dirent *buf, struct dirent *ubuf, unsigned int count)
 int getdents_vfs(unsigned int count, putdir_t putdir, struct dirent *dirp, off_t off,
                  struct getdents_ret *ret, struct file *f)
 {
-    if (!(f->f_ino->i_type & VFS_TYPE_DIR))
+    if (!S_ISDIR(f->f_ino->i_mode))
         return errno = ENOTDIR, -1;
 
     if (!file_can_access(f, FILE_ACCESS_READ))
@@ -537,7 +537,7 @@ int ftruncate_vfs(off_t length, struct file *vnode)
     if (length < 0)
         return -EINVAL;
 
-    if (vnode->f_ino->i_type == VFS_TYPE_DIR)
+    if (S_ISDIR(vnode->f_ino->i_mode))
         return -EISDIR;
 
     if ((size_t) length == vnode->f_ino->i_size)
@@ -616,6 +616,7 @@ int inode_init(struct inode *inode, bool is_cached)
         }
     }
 
+    spinlock_init(&inode->i_lock);
     rwlock_init(&inode->i_rwlock);
 
     return 0;

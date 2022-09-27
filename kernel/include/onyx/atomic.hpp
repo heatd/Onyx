@@ -7,6 +7,8 @@
 #ifndef _CARBON_ATOMIC_H
 #define _CARBON_ATOMIC_H
 
+#include <stddef.h>
+
 #include <onyx/conditional.h>
 #include <onyx/enable_if.h>
 #include <onyx/is_integral.h>
@@ -222,8 +224,9 @@ namespace cul
 {
 
 using atomic_uint = ::atomic<unsigned int>;
+using atomic_size_t = ::atomic<size_t>;
 
-}
+} // namespace cul
 
 static inline void atomic_thread_fence(mem_order order)
 {

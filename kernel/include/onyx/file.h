@@ -162,7 +162,7 @@ public:
 
     bool is_dir() const
     {
-        return f->f_ino->i_type == VFS_TYPE_DIR;
+        return S_ISDIR(f->f_ino->i_mode);
     }
 };
 

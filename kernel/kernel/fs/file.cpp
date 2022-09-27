@@ -557,7 +557,7 @@ static struct file *try_to_open(struct file *base, const char *filename, int fla
                 return errno = EPERM, nullptr;
         }
 
-        if (ret->f_ino->i_type == VFS_TYPE_DIR)
+        if (S_ISDIR(ret->f_ino->i_mode))
         {
             if (flags & O_RDWR || flags & O_WRONLY || (flags & O_CREAT && !(flags & O_DIRECTORY)))
             {
@@ -1540,7 +1540,7 @@ int sys_chdir(const char *upath)
         goto out;
     }
 
-    if (!(dir->f_ino->i_type & VFS_TYPE_DIR))
+    if (!S_ISDIR(dir->f_ino->i_mode))
     {
         st = -ENOTDIR;
         goto close_file;
@@ -1578,7 +1578,7 @@ int sys_fchdir(int fildes)
         return -errno;
 
     struct file *node = f;
-    if (!(node->f_ino->i_type & VFS_TYPE_DIR))
+    if (!S_ISDIR(node->f_ino->i_mode))
     {
         fd_put(f);
         return -ENOTDIR;
@@ -1795,7 +1795,7 @@ int sys_mkdirat(int dirfd, const char *upath, mode_t mode)
 
     dir = dirfd_desc;
 
-    if (!(dir->f_ino->i_type & VFS_TYPE_DIR))
+    if (!S_ISDIR(dir->f_ino->i_mode))
     {
         if (dirfd_desc)
             fd_put(dirfd_desc);
@@ -1849,7 +1849,7 @@ int sys_mknodat(int dirfd, const char *upath, mode_t mode, dev_t dev)
 
     dir = dirfd_desc;
 
-    if (!(dir->f_ino->i_type & VFS_TYPE_DIR))
+    if (!S_ISDIR(dir->f_ino->i_mode))
     {
         if (dirfd_desc)
             fd_put(dirfd_desc);

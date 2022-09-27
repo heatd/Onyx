@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2021 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -20,8 +20,10 @@
 #include <onyx/scoped_lock.h>
 #include <onyx/vfs.h>
 #include <onyx/vm.h>
+#include <onyx/wait.h>
 
 #include <onyx/hashtable.hpp>
+#include <onyx/list.hpp>
 
 fnv_hash_t inode_hash(inode &ino)
 {
@@ -365,6 +367,8 @@ struct inode *superblock_find_inode(struct superblock *sb, ino_t ino_nr)
 
     auto index = inode_hashtable.get_hashtable_index(hash);
 
+restart:
+
     scoped_lock g{inode_hashtable_locks[index]};
 
     auto _l = inode_hashtable.get_hashtable(index);
@@ -375,6 +379,15 @@ struct inode *superblock_find_inode(struct superblock *sb, ino_t ino_nr)
 
         if (ino->i_dev == sb->s_devnr && ino->i_inode == ino_nr)
         {
+            if (ino->i_flags & INODE_FLAG_FREEING)
+            {
+                g.unlock();
+                wait_for(
+                    &ino->i_flags, [](void *addr) -> bool { return true; }, WAIT_FOR_FOREVER, 0);
+                // Wait for the freeing to happen, then restart the lookup
+                goto restart;
+            }
+
             inode_ref(ino);
             return ino;
         }
@@ -399,6 +412,7 @@ void superblock_add_inode_unlocked(struct superblock *sb, struct inode *inode)
     scoped_lock g{sb->s_ilock};
     list_add_tail(&inode->i_sb_list_node, &sb->s_inodes);
     __atomic_add_fetch(&sb->s_ref, 1, __ATOMIC_ACQUIRE);
+    inode_ref(inode);
 
     spin_unlock(&inode_hashtable_locks[index]);
 }
@@ -521,4 +535,61 @@ int inode_truncate_range(struct inode *inode, size_t start, size_t end)
     }
 
     return 0;
+}
+
+static void inode_evict(inode *ino)
+{
+    inode_unref(ino);
+    wake_address(&ino->i_flags);
+}
+
+cul::atomic_size_t evicted_inodes = 0;
+
+/**
+ * @brief Trim the inode cache
+ *
+ */
+void inode_trim_cache()
+{
+    struct list_head to_evict = LIST_HEAD_INIT(to_evict);
+    for (size_t i = 0; i < inode_hashtable_size; i++)
+    {
+        scoped_lock g{inode_hashtable_locks[i]};
+        auto ht = inode_hashtable.get_hashtable(i);
+
+        list_for_every_safe (ht)
+        {
+            auto ino = container_of(l, inode, i_hash_list_node);
+
+            if (ino->i_refc == 1)
+            {
+                scoped_lock g2{ino->i_lock};
+
+                if (ino->i_flags & INODE_FLAG_FREEING)
+                    continue; // Already being freed
+
+                // Evictable, so evict
+                {
+                    scoped_lock g3{ino->i_sb->s_ilock};
+                    list_remove(&ino->i_sb_list_node);
+                }
+
+                evicted_inodes++;
+                ino->set_evicting();
+                list_add_tail(&ino->i_sb_list_node, &to_evict);
+            }
+        }
+    }
+
+    list_for_every_safe (&to_evict)
+    {
+        auto ino = container_of(l, inode, i_sb_list_node);
+
+        inode_evict(ino);
+    }
+}
+
+void inode::set_evicting()
+{
+    i_flags |= INODE_FLAG_FREEING;
 }

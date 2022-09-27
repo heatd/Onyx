@@ -894,4 +894,13 @@ inline void vm_for_every_region(mm_address_space &as, Callable func)
  */
 void mmu_verify_address_space_accounting(mm_address_space *as);
 
+struct sysfs_object;
+
+/**
+ * @brief Create vm/mm sysfs files and dirs
+ *
+ * @param obj Object
+ */
+void vm_create_sysfs(struct sysfs_object *mmobj);
+
 #endif
