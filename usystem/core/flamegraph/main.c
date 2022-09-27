@@ -76,7 +76,7 @@ void add_to_freqmap(struct flame_graph_entry_freqmap *freqmap, struct flame_grap
 
     struct flame_graph_entry_freq *f = &freqmap->freqmap[freqmap->wpos++];
     memcpy(&f->e, e, sizeof(*e));
-    f->freq = tracing_wait ? 1 : e->rips[31];
+    f->freq = tracing_wait ? e->rips[31] : 1;
 }
 
 struct symbolize_ctx ctx;
