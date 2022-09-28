@@ -45,5 +45,6 @@ void page_cache_destroy(struct page_cache_block *block);
 size_t pagecache_get_used_pages(void);
 ssize_t file_write_cache(void *buffer, size_t len, struct inode *file, size_t offset);
 ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t off);
+ssize_t file_write_cache_unlocked(void *buffer, size_t len, struct inode *ino, size_t offset);
 
 #endif

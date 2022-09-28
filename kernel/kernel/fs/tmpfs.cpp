@@ -86,6 +86,7 @@ char *tmpfs_readlink(struct file *f)
 
 int tmpfs_unlink(const char *name, int flags, struct dentry *dir)
 {
+    scoped_rwslock<rw_lock::write> g{dir->d_lock};
     auto child = dentry_lookup_internal(name, dir, DENTRY_LOOKUP_UNLOCKED);
     assert(child != nullptr);
 
@@ -141,7 +142,7 @@ off_t tmpfs_getdirent(struct dirent *buf, off_t off, struct file *file)
     }
     else
     {
-        scoped_rwlock<rw_lock::read> g(dent->d_lock);
+        scoped_rwslock<rw_lock::read> g(dent->d_lock);
 
         off_t c = 0;
         list_for_every (&dent->d_children_head)

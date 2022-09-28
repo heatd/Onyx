@@ -118,11 +118,9 @@ struct page_cache_block *inode_get_page(struct inode *inode, size_t offset, long
     return b;
 }
 
-ssize_t file_write_cache(void *buffer, size_t len, struct inode *ino, size_t offset)
+ssize_t file_write_cache_unlocked(void *buffer, size_t len, struct inode *ino, size_t offset)
 {
     // printk("File cache write %lu off %lu\n", len, offset);
-    scoped_rwlock<rw_lock::write> g{ino->i_rwlock};
-
     size_t wrote = 0;
     size_t pos = offset;
 
@@ -183,6 +181,13 @@ ssize_t file_write_cache(void *buffer, size_t len, struct inode *ino, size_t off
     }
 
     return (ssize_t) wrote;
+}
+
+ssize_t file_write_cache(void *buffer, size_t len, struct inode *ino, size_t offset)
+{
+    scoped_rwlock<rw_lock::write> g{ino->i_rwlock};
+
+    return file_write_cache_unlocked(buffer, len, ino, offset);
 }
 
 ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t offset)

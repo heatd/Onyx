@@ -168,9 +168,6 @@ void sched_block(struct thread *thread);
 
 void __sched_block(struct thread *thread, unsigned long cpuflags);
 
-FUNC_NO_DISCARD
-unsigned long sched_lock(struct thread *thread);
-
 void thread_exit();
 
 struct thread *get_thread_for_cpu(unsigned int cpu);
