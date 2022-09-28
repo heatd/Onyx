@@ -15,7 +15,7 @@
 
 fnv_hash_t hash_wait(wait_token &wt)
 {
-    return fnv_hash(wt.addr, sizeof(void *));
+    return fnv_hash(&wt.addr, sizeof(void *));
 }
 
 static cul::hashtable2<wait_token, 512, fnv_hash_t, hash_wait> ht;
@@ -39,7 +39,7 @@ int wait_token::wait(hrtime_t timeout)
 unsigned long wake_address(void *ptr)
 {
     unsigned long woken = 0;
-    auto hash = fnv_hash(ptr, sizeof(void *));
+    auto hash = fnv_hash(&ptr, sizeof(void *));
 
     auto index = ht.get_hashtable_index(hash);
 
@@ -56,7 +56,6 @@ unsigned long wake_address(void *ptr)
 
         if (w->complete())
         {
-            list_remove(&w->list_node);
             wait_queue_wake_all(&w->wq);
             woken++;
         }
@@ -117,6 +116,10 @@ int wait_for(void *ptr, bool (*complete)(void *), unsigned int flags, hrtime_t t
         st = token.wait();
     else
         st = token.wait(timeout);
+
+    g.lock();
+    list_remove(&token.list_node);
+    g.unlock();
 
     return st;
 }

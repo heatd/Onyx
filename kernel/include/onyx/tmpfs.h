@@ -45,7 +45,7 @@ public:
     {
         superblock_init(this);
         s_block_size = PAGE_SIZE;
-        s_flags = SB_FLAG_NODIRTY;
+        s_flags = SB_FLAG_NODIRTY | SB_FLAG_IN_MEMORY;
     }
 
     tmpfs_inode *create_inode(mode_t mode, dev_t rdev = 0);

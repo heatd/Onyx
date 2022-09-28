@@ -815,6 +815,25 @@ void __thread_wake_up(thread *thread, unsigned int cpu)
 
     thread->status = THREAD_RUNNABLE;
     __sched_append_to_queue(thread->priority, cpu, thread);
+
+    if (cpu == get_cpu_nr())
+    {
+        auto curr = get_current_thread();
+        if (thread->priority > curr->priority)
+        {
+            sched_should_resched();
+        }
+    }
+    else
+    {
+        auto other_thread = get_thread_for_cpu(thread->cpu);
+        int other_prio = other_thread->priority;
+        if (other_prio < thread->priority)
+        {
+            /* Send a CPU message asking for a resched */
+            cpu_send_resched(thread->cpu);
+        }
+    }
 }
 
 void thread_wake_up(thread_t *thread)
@@ -824,9 +843,6 @@ void thread_wake_up(thread_t *thread)
     __thread_wake_up(thread, thread->cpu);
 
     sched_unlock(thread, f);
-
-    /* After waking it up, try and resched it */
-    sched_try_to_resched(thread);
 }
 
 void sched_block_self(thread *thread, unsigned long fl)

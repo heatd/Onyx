@@ -22,11 +22,13 @@
 
 #define DENTRY_FLAG_MOUNTPOINT (1 << 0)
 #define DENTRY_FLAG_MOUNT_ROOT (1 << 1)
+#define DENTRY_FLAG_PENDING    (1 << 2)
+#define DENTRY_FLAG_FAILED     (1 << 3)
 
 struct dentry
 {
     unsigned long d_ref;
-    struct rwlock d_lock;
+    rwslock d_lock;
 
     char *d_name;
     char d_inline_name[INLINE_NAME_MAX];

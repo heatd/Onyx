@@ -19,7 +19,8 @@ struct file;
 
 struct blockdev;
 
-#define SB_FLAG_NODIRTY (1 << 0)
+#define SB_FLAG_NODIRTY   (1 << 0)
+#define SB_FLAG_IN_MEMORY (1 << 1)
 
 struct superblock
 {
