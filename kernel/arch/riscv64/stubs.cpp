@@ -36,7 +36,7 @@ void arch_vm_init()
 int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigaction,
                          struct registers *regs)
 {
-    UNIMPLEMENTED;
+    return 0;
 }
 
 namespace smp
@@ -90,16 +90,6 @@ uint64_t get_posix_time_early()
 
 void setup_kernel_symbols(struct module *m)
 {
-}
-
-int platform_install_irq(unsigned int irqn, struct interrupt_handler *h)
-{
-    UNIMPLEMENTED;
-}
-
-void platform_mask_irq(unsigned int irq)
-{
-    UNIMPLEMENTED;
 }
 
 namespace entropy

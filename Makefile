@@ -144,7 +144,7 @@ fullbuild-plus-full-initrd: fullbuild
 
 qemu-riscv: fullbuild-plus-full-initrd
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) -kernel kernel/vmonyx -m 512M -machine virt \
-	-serial stdio -s -initrd initrd.tar -trace "*irq*"
+	-serial stdio -s -initrd initrd.tar
 
 qemu-arm64: fullbuild-plus-initrd
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) -kernel kernel/vmonyx -m 512M -machine virt \

@@ -12,12 +12,10 @@
 
 int uart8250_dt_probe(device *fake_dev)
 {
-    printk("dt probe\n");
     auto dev = (device_tree::node *) fake_dev;
 
     // Find IRQ, IO resources
     auto irq_rc = dev->get_resource(DEV_RESOURCE_FLAG_IRQ);
-    printk("Irq %p\n", irq_rc);
     if (!irq_rc)
         return -1;
 
@@ -25,7 +23,6 @@ int uart8250_dt_probe(device *fake_dev)
     if (!mmio_resource)
         return -1;
 
-    printk("Irq: %lu\n", irq_rc->start());
     volatile void *r = mmiomap((void *) mmio_resource->start(), mmio_resource->size(),
                                VM_WRITE | VM_READ | VM_NOCACHE);
 
@@ -37,11 +34,6 @@ int uart8250_dt_probe(device *fake_dev)
 
     if (!port->init())
         return -1;
-
-    while (true)
-    {
-        __asm__("" ::: "memory");
-    }
 
     dev->priv = port.release();
 

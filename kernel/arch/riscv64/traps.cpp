@@ -7,6 +7,7 @@
  */
 
 #include <onyx/exceptions.h>
+#include <onyx/irq.h>
 #include <onyx/panic.h>
 #include <onyx/registers.h>
 #include <onyx/riscv/intrinsics.h>
@@ -260,6 +261,10 @@ static void check_for_resched(registers_t **context)
 
 void riscv_timer_irq();
 
+unsigned int plic_claim();
+
+void plic_complete(unsigned int intid);
+
 void riscv_handle_interrupt(registers_t *regs, unsigned long cause)
 {
     // IRQs run with interrupts disabled
@@ -270,9 +275,17 @@ void riscv_handle_interrupt(registers_t *regs, unsigned long cause)
         // Supervisor timer interrupt
         riscv_timer_irq();
     }
-    else
+    else if (cause == 9)
     {
-        panic("external");
+        // Supervisor external interrupt
+        const auto irqn = plic_claim();
+        struct irq_context context;
+        context.registers = regs;
+        context.irq_nr = irqn;
+
+        dispatch_irq(irqn, &context);
+
+        plic_complete(irqn);
     }
 
     // Run softirqs if we can

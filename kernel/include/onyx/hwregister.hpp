@@ -247,6 +247,7 @@ public:
             io = r.io;
         else
             mmio = r.mmio;
+        is_io = r.is_io;
         return *this;
     }
 
@@ -263,6 +264,7 @@ public:
             io = r.io;
         else
             mmio = r.mmio;
+        is_io = r.is_io;
         return *this;
     }
 
