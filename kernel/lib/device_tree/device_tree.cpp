@@ -134,40 +134,52 @@ void node::enumerate_resources()
     int size_cells = parent->size_cells;
     int reg_len;
     const void *reg;
-    if (reg = fdt_getprop(fdt_, offset, "reg", &reg_len); !reg)
+    if (reg = fdt_getprop(fdt_, offset, "reg", &reg_len); reg)
     {
-        // No resources
-        return;
+        int nr_ranges = reg_len / ((addr_cells + size_cells) * sizeof(uint32_t));
+        unsigned int reg_offset = 0;
+        for (int i = 0; i < nr_ranges; i++)
+        {
+            uint64_t start, size;
+            start = read_reg(reg, reg_offset, addr_cells);
+            size = read_reg(reg, reg_offset + addr_cells, size_cells);
+
+            // TODO: How to autodetect if the region in reg is MMIO, IO ports (since you *can* have
+            // device trees in x86)? Is it even possible?
+
+            dev_resource *res = new dev_resource{start, start + size - 1, DEV_RESOURCE_FLAG_MEM};
+
+            if (!res)
+                panic("Could not allocate a device resource descriptor");
+
+            // TODO: Map resources onto parent ranges
+            // It turns out that device trees aren't really simple and nodes can map child address
+            // spaces into other areas of the address space, and then it keeps going all the way up
+            // to the root node, where you're guaranteed to deal with CPU physical addresses (since
+            // there's no one above you that can map you somewhere) See 2.3.8 of the device tree
+            // spec 0.4rc1 for more info
+            add_resource(res);
+
+            reg_offset += addr_cells + size_cells;
+        }
     }
 
-    int nr_ranges = reg_len / ((addr_cells + size_cells) * sizeof(uint32_t));
-    unsigned int reg_offset = 0;
-    for (int i = 0; i < nr_ranges; i++)
+    int irqs_len;
+    // TODO: interrupt-cells from interrupt-parent, interrupts-extended
+    const fdt32_t *irqs = (const fdt32_t *) get_property("interrupts", &irqs_len);
+
+    if (irqs)
     {
-        uint64_t start, size;
-        start = read_reg(reg, reg_offset, addr_cells);
-        size = read_reg(reg, reg_offset + addr_cells, size_cells);
+        for (int i = 0; i < irqs_len / 4; i++)
+        {
+            const auto irq = fdt32_to_cpu(irqs[i]);
+            dev_resource *res = new dev_resource{irq, 1, DEV_RESOURCE_FLAG_IRQ};
+            if (!res)
+                panic("Could not allocate a device resource descriptor");
 
-        // TODO: How to autodetect if the region in reg is MMIO, IO ports (since you *can* have
-        // device trees in x86)? Is it even possible?
-
-        dev_resource *res = new dev_resource{start, size, DEV_RESOURCE_FLAG_MEM};
-
-        if (!res)
-            panic("Could not allocate a device resource descriptor");
-
-        // TODO: Map resources onto parent ranges
-        // It turns out that device trees aren't really simple and nodes can map child address
-        // spaces into other areas of the address space, and then it keeps going all the way up to
-        // the root node, where you're guaranteed to deal with CPU physical addresses(since there's
-        // no one above you that can map you somewhere)
-        // See 2.3.8 of the device tree spec 0.4rc1 for more info
-        add_resource(res);
-
-        reg_offset += addr_cells + size_cells;
+            add_resource(res);
+        }
     }
-
-    // TODO: IRQs
 }
 
 /**

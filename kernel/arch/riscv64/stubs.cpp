@@ -39,16 +39,6 @@ int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigactio
     UNIMPLEMENTED;
 }
 
-int platform_install_irq(unsigned int irqn, struct interrupt_handler *h)
-{
-    UNIMPLEMENTED;
-}
-
-void platform_mask_irq(unsigned int irq)
-{
-    UNIMPLEMENTED;
-}
-
 namespace smp
 {
 

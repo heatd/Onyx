@@ -76,6 +76,8 @@ ifeq ($(CONFIG_RISCV), y)
 include lib/libfdt/Makefile
 include lib/device_tree/Makefile
 
+KERNEL_REQUIRES_FLATTENING:=no
+
 endif
 
 ifeq ($(CONFIG_ARM64), y)

@@ -9,6 +9,7 @@
 #include <libfdt.h>
 #include <stdio.h>
 
+#include <onyx/cmdline.h>
 #include <onyx/device_tree.h>
 #include <onyx/init.h>
 #include <onyx/mm/kasan.h>
@@ -30,6 +31,7 @@ void plic_init();
 
 extern "C" void kernel_entry(void *fdt)
 {
+    set_kernel_cmdline("--root=/dev/sda1");
     write_per_cpu(__cpu_base, &percpu_base);
     paging_init();
 

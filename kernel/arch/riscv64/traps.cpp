@@ -270,6 +270,10 @@ void riscv_handle_interrupt(registers_t *regs, unsigned long cause)
         // Supervisor timer interrupt
         riscv_timer_irq();
     }
+    else
+    {
+        panic("external");
+    }
 
     // Run softirqs if we can
     if (!sched_is_preemption_disabled() && softirq_pending())

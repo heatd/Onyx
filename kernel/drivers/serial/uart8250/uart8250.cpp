@@ -104,9 +104,6 @@ void uart8250_port::write(const char *s, size_t size, bool is_debug_console)
     }
 }
 
-alignas(uart8250_port) static char com1_buf[sizeof(uart8250_port)];
-uart8250_port *com1;
-
 bool uart8250_port::present()
 {
     static constexpr uint8_t test_val = 0xcd;
@@ -187,6 +184,11 @@ bool uart8250_port::init()
     return init_tty();
 }
 
+#ifdef __x86_64__
+
+alignas(uart8250_port) static char com1_buf[sizeof(uart8250_port)];
+uart8250_port *com1;
+
 void platform_serial_init(void)
 {
     com1 = new (com1_buf) uart8250_port{0x3f8, 4, &uart8250_platform_device};
@@ -198,3 +200,5 @@ void platform_serial_write(const char *s, size_t size)
 {
     com1->write(s, size, true);
 }
+
+#endif

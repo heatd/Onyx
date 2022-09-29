@@ -6,6 +6,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <ctype.h>
+
 #include <onyx/device_tree.h>
 #include <onyx/fpu.h>
 #include <onyx/riscv/features.h>
@@ -39,6 +41,8 @@ void riscv_cpu_init()
     isa += 4;
     while (*isa)
     {
+        if (!isalpha(*isa))
+            break;
         int bit = *isa - 'a';
         isa_features |= (1 << bit);
         isa++;

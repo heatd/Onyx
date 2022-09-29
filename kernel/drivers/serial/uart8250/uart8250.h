@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2021 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -15,9 +15,10 @@
 #include <onyx/dpc.h>
 #include <onyx/driver.h>
 #include <onyx/irq.h>
-#include <onyx/port_io.h>
 #include <onyx/serial.h>
 #include <onyx/tty.h>
+
+#include <onyx/hwregister.hpp>
 
 enum class uart8250_register
 {
@@ -77,7 +78,7 @@ enum class uart8250_register
 
 class uart8250_port : public serial_port
 {
-    uint16_t io_port;
+    hw_range range;
     unsigned int irq_;
     spinlock lock_;
     device *dev_;
@@ -88,31 +89,13 @@ class uart8250_port : public serial_port
     template <typename T>
     T read(uart8250_register reg)
     {
-        auto port = io_port + static_cast<uint16_t>(reg);
-
-        static_assert(sizeof(T) <= 4, "Can't do reads larger than 4-bytes long");
-
-        if constexpr (sizeof(T) == 1)
-            return inb(port);
-        else if constexpr (sizeof(T) == 2)
-            return inw(port);
-        else if constexpr (sizeof(T) == 4)
-            return inl(port);
+        return range.read<T>((hw_range::register_offset) reg);
     }
 
     template <typename T>
     void write(uart8250_register reg, T val)
     {
-        auto port = io_port + static_cast<uint16_t>(reg);
-
-        static_assert(sizeof(T) <= 4, "Can't do writes larger than 4-bytes long");
-
-        if constexpr (sizeof(T) == 1)
-            outb(port, val);
-        else if constexpr (sizeof(T) == 2)
-            outw(port, val);
-        else if constexpr (sizeof(T) == 4)
-            outl(port, val);
+        range.write((hw_range::register_offset) reg, val);
     }
 
     static constexpr uint16_t calculate_divisor(uint16_t rate)
@@ -133,13 +116,16 @@ class uart8250_port : public serial_port
 
 public:
     uart8250_port(uint16_t io_port, unsigned int irq, device *dev)
-        : io_port{io_port}, irq_{irq}, lock_{}, dev_{dev}
+        : range{io_port}, irq_{irq}, lock_{}, dev_{dev}
     {
     }
 
-    virtual ~uart8250_port()
+    uart8250_port(volatile void *mmio, unsigned int irq, device *dev)
+        : range{mmio}, irq_{irq}, lock_{}, dev_{dev}
     {
     }
+
+    virtual ~uart8250_port() = default;
 
     /**
      * @brief Initialises the serial port as a debug console

@@ -18,7 +18,8 @@ struct thread *process_fork_thread(thread_t *src, struct process *dest, struct s
 
     /* Setup the registers on the stack */
     memcpy(&regs, &ctx->regs, sizeof(regs));
-    regs.a0 = 0; // fork returns 0
+    regs.a0 = 0;   // fork returns 0
+    regs.epc += 4; // Skip the "ecall"
 
     thread_t *thread = sched_spawn_thread(&regs, 0, src->tp);
     if (!thread)
@@ -27,6 +28,7 @@ struct thread *process_fork_thread(thread_t *src, struct process *dest, struct s
     save_fpu(thread->fpu_area);
 
     thread->owner = dest;
+    thread->set_aspace(dest->get_aspace());
 
     list_add_tail(&thread->thread_list_head, &dest->thread_list);
 

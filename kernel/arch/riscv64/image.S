@@ -19,9 +19,6 @@ stack_top:
 
 .section .boot,"ax"
 
-booted: .word 0
-
-virtual_entry: .dword riscv_virtual_entry
 #include <onyx/image.h>
 
 .global entry_point
@@ -43,6 +40,10 @@ entry_point:
 	.ascii RISCV_IMAGE_MAGIC2
 	# Reserved
 	.word 0
+
+booted: .dword 0
+
+virtual_entry: .dword riscv_virtual_entry
 
 entry:
 .option push

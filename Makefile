@@ -137,11 +137,11 @@ liveiso: fullbuild
 	scripts/iso.sh scripts/livecd-initrd.sh
 
 fullbuild-plus-initrd: fullbuild
-	SYSTEM_ROOT=$(SYSROOT) scripts/geninitrd --compression-method none scripts/default-initrd.sh
+	SYSTEM_ROOT=$(SYSROOT) scripts/geninitrd --compression-method none scripts/livecd-initrd.sh
 
 qemu-riscv: fullbuild-plus-initrd
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) -kernel kernel/vmonyx -m 512M -machine virt \
-	-monitor stdio -s -initrd initrd.tar
+	-serial stdio -s -initrd initrd.tar -trace "*irq*"
 
 qemu-arm64: fullbuild-plus-initrd
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) -kernel kernel/vmonyx -m 512M -machine virt \
