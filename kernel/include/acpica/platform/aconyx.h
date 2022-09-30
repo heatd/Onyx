@@ -37,7 +37,10 @@ struct spinlock;
 
 #include <ctype.h>
 #include <string.h>
-//#undef ACPI_USE_LOCAL_CACHE
+
+struct slab_cache;
+#undef ACPI_USE_LOCAL_CACHE
+#define ACPI_CACHE_T struct slab_cache
 //#undef ACPI_USE_NATIVE_DIVIDE
 
 #include "acgcc.h"

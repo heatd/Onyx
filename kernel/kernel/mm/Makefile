@@ -1,4 +1,4 @@
-mm-y:= bootmem.o page.o pagealloc.o vm_object.o vm.o flush.o
+mm-y:= bootmem.o page.o pagealloc.o vm_object.o vm.o flush.o slab.o
 
 malloc-y:=  malloc/aligned_alloc.o malloc/calloc.o \
 			malloc/expand_heap.o malloc/malloc_usable_size.o malloc/malloc.o malloc/memalign.o \

@@ -631,6 +631,7 @@ unsigned long get_mapping_info(void *addr)
 unsigned long __get_mapping_info(void *addr, struct mm_address_space *as)
 {
     unsigned long *ppt_entry;
+    // TODO: Recognize hugepages here
     if (!riscv_get_pt_entry(addr, &ppt_entry, false, as))
         return PAGE_NOT_PRESENT;
 
