@@ -91,6 +91,7 @@ void *x86_placement_map(unsigned long _phys);
 #define PAGE_DIRTY      (1 << 4)
 #define PAGE_ACCESSED   (1 << 5)
 #define PAGE_USER       (1 << 6)
+#define PAGE_HUGE       (1 << 7)
 
 #define MAPPING_INFO_PADDR(x) (x & -PAGE_SIZE)
 

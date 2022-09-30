@@ -823,66 +823,6 @@ void paging_free_page_tables(struct mm_address_space *mm)
     free_page(phys_to_page((unsigned long) mm->arch_mmu.cr3));
 }
 
-unsigned long get_mapping_info(void *addr)
-{
-    struct mm_address_space *as = &kernel_address_space;
-    if ((unsigned long) addr < VM_HIGHER_HALF)
-        as = get_current_address_space();
-
-    return __get_mapping_info(addr, as);
-}
-
-unsigned long __get_mapping_info(void *addr, struct mm_address_space *as)
-{
-    const unsigned long virt = (unsigned long) addr;
-    unsigned int indices[x86_max_paging_levels];
-
-    x86_addr_to_indices(virt, indices);
-
-    PML *pml = (PML *) ((unsigned long) as->arch_mmu.cr3 + PHYS_BASE);
-    for (unsigned int i = x86_paging_levels; i != 1; i--)
-    {
-        unsigned long entry = pml->entries[indices[i - 1]];
-        if (entry & X86_PAGING_PRESENT)
-        {
-            void *page = (void *) PML_EXTRACT_ADDRESS(entry);
-            pml = (PML *) PHYS_TO_VIRT(page);
-        }
-        else
-        {
-            return PAGE_NOT_PRESENT;
-        }
-    }
-
-    unsigned long pt_entry = pml->entries[indices[0]];
-
-    unsigned long ret = 0;
-
-    if (pt_entry & X86_PAGING_PRESENT)
-        ret |= PAGE_PRESENT;
-    else
-    {
-        return PAGE_NOT_PRESENT;
-    }
-
-    if (pt_entry & X86_PAGING_USER)
-        ret |= PAGE_USER;
-    if (pt_entry & X86_PAGING_WRITE)
-        ret |= PAGE_WRITABLE;
-    if (!(pt_entry & X86_PAGING_NX))
-        ret |= PAGE_EXECUTABLE;
-    if (pt_entry & X86_PAGING_DIRTY)
-        ret |= PAGE_DIRTY;
-    if (pt_entry & X86_PAGING_ACCESSED)
-        ret |= PAGE_ACCESSED;
-    if (pt_entry & X86_PAGING_GLOBAL)
-        ret |= PAGE_GLOBAL;
-
-    ret |= PML_EXTRACT_ADDRESS(pt_entry);
-
-    return ret;
-}
-
 /**
  * @brief Free the architecture dependent parts of the address space.
  * Called on address space destruction.
@@ -1361,4 +1301,81 @@ void x86_remap_top_pgd_to_top_pgd(unsigned long source, unsigned long dest)
     top->entries[indices1[x86_paging_levels - 1]] = top->entries[indices0[x86_paging_levels - 1]];
     top->entries[indices0[x86_paging_levels - 1]] = 0;
     __native_tlb_invalidate_all();
+}
+
+unsigned long get_mapping_info(void *addr)
+{
+    struct mm_address_space *as = &kernel_address_space;
+    if ((unsigned long) addr < VM_HIGHER_HALF)
+        as = get_current_address_space();
+
+    return __get_mapping_info(addr, as);
+}
+
+static inline unsigned long pte_to_mapping_info(unsigned long pt_entry, bool hugepage,
+                                                unsigned long offset)
+{
+    unsigned long ret = 0;
+    if (pt_entry & X86_PAGING_PRESENT)
+        ret |= PAGE_PRESENT;
+    else
+    {
+        return PAGE_NOT_PRESENT;
+    }
+
+    if (pt_entry & X86_PAGING_USER)
+        ret |= PAGE_USER;
+    if (pt_entry & X86_PAGING_WRITE)
+        ret |= PAGE_WRITABLE;
+    if (!(pt_entry & X86_PAGING_NX))
+        ret |= PAGE_EXECUTABLE;
+    if (pt_entry & X86_PAGING_DIRTY)
+        ret |= PAGE_DIRTY;
+    if (pt_entry & X86_PAGING_ACCESSED)
+        ret |= PAGE_ACCESSED;
+    if (pt_entry & X86_PAGING_GLOBAL)
+        ret |= PAGE_GLOBAL;
+    if (hugepage)
+        ret |= PAGE_HUGE;
+
+    ret |= PML_EXTRACT_ADDRESS(pt_entry);
+    ret |= offset;
+
+    return ret;
+}
+
+unsigned long __get_mapping_info(void *addr, struct mm_address_space *as)
+{
+    const unsigned long virt = (unsigned long) addr;
+    unsigned int indices[x86_max_paging_levels];
+
+    x86_addr_to_indices(virt, indices);
+
+    PML *pml = (PML *) PHYS_TO_VIRT(as->arch_mmu.cr3);
+    for (unsigned i = x86_paging_levels; i != 1; i--)
+    {
+        unsigned long entry = pml->entries[indices[i - 1]];
+        void *page = (void *) PML_EXTRACT_ADDRESS(entry);
+        if (entry & X86_PAGING_PRESENT)
+        {
+            if (entry & X86_PAGING_HUGE &&
+                (i == x86_paging_levels - 1 || i == x86_paging_levels - 2))
+            {
+                // Calculate the offset inside the huge page by getting the size of each entry at
+                // this level and then masking the virtual address with it. We then chop off the
+                // PAGE_SIZE bits.
+                auto entry_size = level_to_entry_size(i - 1);
+                const auto offset = virt & (entry_size - 1) & -PAGE_SIZE;
+                return pte_to_mapping_info(entry, true, offset);
+            }
+
+            pml = (PML *) PHYS_TO_VIRT(page);
+        }
+        else
+        {
+            return PAGE_NOT_PRESENT;
+        }
+    }
+
+    return pte_to_mapping_info(pml->entries[indices[0]], false, 0);
 }

@@ -15,6 +15,7 @@
 #include <onyx/dpc.h>
 #include <onyx/irq.h>
 #include <onyx/limits.h>
+#include <onyx/mm/slab.h>
 #include <onyx/panic.h>
 #include <onyx/port_io.h>
 #include <onyx/scheduler.h>
@@ -397,49 +398,44 @@ ACPI_STATUS AcpiOsEnterSleep(UINT8 SleepState, UINT32 RegaValue, UINT32 RegbValu
     return AE_OK;
 }
 
-#if 0
 ACPI_STATUS
-AcpiOsCreateCache (
-    char                    *CacheName,
-    UINT16                  ObjectSize,
-    UINT16                  MaxDepth,
-    ACPI_CACHE_T        **ReturnCache)
+AcpiOsCreateCache(char *CacheName, UINT16 ObjectSize, UINT16 MaxDepth, ACPI_CACHE_T **ReturnCache)
 {
-	*ReturnCache = slab_create(CacheName, ObjectSize, 0, 0, nullptr, nullptr);
-	return AE_OK;
+    *ReturnCache = kmem_cache_create(CacheName, ObjectSize, 0, nullptr);
+    if (*ReturnCache == nullptr)
+        return AE_NO_MEMORY;
+    return AE_OK;
 }
 
 ACPI_STATUS
-AcpiOsPurgeCache (
-    ACPI_CACHE_T        *Cache)
+AcpiOsPurgeCache(ACPI_CACHE_T *Cache)
 {
-	slab_purge(Cache);
-	return AE_OK;
+    kmem_cache_purge(Cache);
+    return AE_OK;
 }
 
 ACPI_STATUS
-AcpiOsDeleteCache (
-    ACPI_CACHE_T        *Cache)
+AcpiOsDeleteCache(ACPI_CACHE_T *Cache)
 {
-	slab_destroy(Cache);
-	return AE_OK;
-
+    kmem_cache_destroy(Cache);
+    return AE_OK;
 }
 
 ACPI_STATUS
-AcpiOsReleaseObject (
-    ACPI_CACHE_T        *Cache,
-    void                    *Object)
+AcpiOsReleaseObject(ACPI_CACHE_T *Cache, void *Object)
+{
+    kmem_cache_free(Cache, Object);
+    return AE_OK;
+}
+
+void *AcpiOsAcquireObject(ACPI_CACHE_T *Cache)
+{
+    auto ptr = kmem_cache_alloc(Cache, 0);
+    if (ptr)
     {
-	slab_free(Cache, Object);
-    	return AE_OK;
+        memset(ptr, 0, Cache->objsize);
     }
 
-void *
-AcpiOsAcquireObject (
-    ACPI_CACHE_T        *Cache)
-{
-	return slab_allocate(Cache);
+    return ptr;
 }
-#endif
 }
