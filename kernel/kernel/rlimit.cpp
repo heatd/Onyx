@@ -11,7 +11,7 @@
 
 int process::rlimit(int rsrc, struct rlimit *old, const struct rlimit *new_lim, unsigned int flags)
 {
-    scoped_rwlock<rw_lock::write> g{rlimit_lock};
+    scoped_rwslock<rw_lock::write> g{rlimit_lock};
 
     auto &lim = rlimits[rsrc];
 
@@ -49,7 +49,7 @@ int process::rlimit(int rsrc, struct rlimit *old, const struct rlimit *new_lim, 
 
 struct rlimit process::get_rlimit(int rsrc)
 {
-    scoped_rwlock<rw_lock::read> g{rlimit_lock};
+    scoped_rwslock<rw_lock::read> g{rlimit_lock};
 
     return rlimits[rsrc];
 }

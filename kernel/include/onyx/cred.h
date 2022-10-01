@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #ifndef _ONYX_CRED_H
 #define _ONYX_CRED_H
@@ -11,9 +13,10 @@
 
 #include <onyx/groups.h>
 #include <onyx/rwlock.h>
+
 struct creds
 {
-    struct rwlock lock;
+    struct rwslock lock;
     uid_t ruid;
     uid_t euid;
     gid_t rgid;
@@ -50,7 +53,6 @@ static inline void creds_init(struct creds *c)
 {
     /* Hacky, but works for both C and C++ */
     memset(&c->ruid, 0, sizeof(*c) - offsetof(struct creds, ruid));
-    rwlock_init(&c->lock);
 }
 
 bool cred_is_in_group(struct creds *c, gid_t gid);

@@ -165,7 +165,7 @@ struct process : public onx::handle::handleable
     pid::auto_pid session{};
 
     struct rlimit rlimits[RLIM_NLIMITS + 1]{};
-    rwlock rlimit_lock{};
+    rwslock rlimit_lock{};
 
     tty *ctty{};
 
