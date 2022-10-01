@@ -100,7 +100,6 @@ process::process() : pgrp_node{this}, session_node{this}
     init_wait_queue_head(&this->wait_child_event);
     mutex_init(&condvar_mutex);
     mutex_init(&ctx.fdlock);
-    rwlock_init(&rlimit_lock);
     active_processes++;
 }
 

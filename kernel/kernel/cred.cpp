@@ -11,7 +11,7 @@
 #include <onyx/public/cred.h>
 
 static struct creds kernel_creds = {
-    .lock = rwlock{}, .ruid = 0, .euid = 0, .rgid = 0, .egid = 0, .suid = 0, .sgid = 0};
+    .lock = rwslock{}, .ruid = 0, .euid = 0, .rgid = 0, .egid = 0, .suid = 0, .sgid = 0};
 
 static struct creds *get_default_creds(void)
 {
@@ -29,7 +29,7 @@ struct creds *creds_get(void)
 {
     struct creds *c = get_default_creds();
 
-    rw_lock_read(&c->lock);
+    c->lock.lock_read();
     return c;
 }
 
@@ -37,25 +37,25 @@ struct creds *creds_get_write(void)
 {
     struct creds *c = get_default_creds();
 
-    rw_lock_write(&c->lock);
+    c->lock.lock_write();
     return c;
 }
 
 void creds_put(struct creds *c)
 {
-    rw_unlock_read(&c->lock);
+    c->lock.unlock_read();
 }
 
 void creds_put_write(struct creds *c)
 {
-    rw_unlock_write(&c->lock);
+    c->lock.unlock_write();
 }
 
 struct creds *__creds_get(struct process *p)
 {
     struct creds *c = &p->cred;
 
-    rw_lock_read(&c->lock);
+    c->lock.lock_read();
     return c;
 }
 
@@ -63,7 +63,7 @@ struct creds *__creds_get_write(struct process *p)
 {
     struct creds *c = &p->cred;
 
-    rw_lock_write(&c->lock);
+    c->lock.lock_write();
     return c;
 }
 
