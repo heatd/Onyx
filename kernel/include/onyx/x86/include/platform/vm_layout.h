@@ -26,6 +26,8 @@ typedef enum
     arch_kasan_off = 0x400000000000,
 } vas_areas;
 
+#define VM_VMALLOC_SIZE 0x100000000000
+
 #define VMALLOC_ASLR_BITS 40
 #define KSTACKS_ASLR_BITS 40
 #define HEAP_ASLR_BITS    40

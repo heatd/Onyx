@@ -21,6 +21,12 @@ memory_pool<slab_cache> slab_cache_pool;
 
 struct bufctl;
 
+/**
+ * Commentary on the allocator's design:
+ * It resembles a very traditional slab allocator as described by [Bonwick, 94].
+ * Slab caches are collections of slabs. They have free slabs, partial slabs, full slabs.
+ */
+
 struct slab
 {
     union {
@@ -53,7 +59,7 @@ struct bufctl
  * @param ctor Unused
  * @return Pointer to the new slab_cache, or nullptr in case of an error
  */
-struct slab_cache *kmem_cache_create(char *name, size_t size, unsigned int flags,
+struct slab_cache *kmem_cache_create(const char *name, size_t size, unsigned int flags,
                                      void (*ctor)(void *))
 {
     auto c = slab_cache_pool.allocate();

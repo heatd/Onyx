@@ -171,6 +171,8 @@ struct mm_address_space : public refcountable
     // limit the shootdowns to CPUs where the address space is active instead of every CPU.
     cpumask active_mask{};
 
+    spinlock page_table_lock{};
+
     mm_address_space &operator=(mm_address_space &&as)
     {
         area_tree = as.area_tree;
@@ -902,5 +904,13 @@ struct sysfs_object;
  * @param obj Object
  */
 void vm_create_sysfs(struct sysfs_object *mmobj);
+
+/**
+ * @brief Initialize the vmalloc allocator
+ *
+ * @param start Start of the vmalloc region
+ * @param length Length of the vmalloc region
+ */
+void vmalloc_init(unsigned long start, unsigned long length);
 
 #endif

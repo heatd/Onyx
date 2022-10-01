@@ -139,9 +139,9 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *tp)
     if (adding_guard_page)
     {
         unsigned char *p = (unsigned char *) new_thread->kernel_stack;
-
-        vm_mprotect(&kernel_address_space, new_thread->kernel_stack, PAGE_SIZE, 0);
-        vm_mprotect(&kernel_address_space, p + PAGE_SIZE + kernel_stack_size, PAGE_SIZE, 0);
+        // TODO: vmalloc memory doesn't support mprotecting
+        // vm_mprotect(&kernel_address_space, new_thread->kernel_stack, PAGE_SIZE, 0);
+        // vm_mprotect(&kernel_address_space, p + PAGE_SIZE + kernel_stack_size, PAGE_SIZE, 0);
         new_thread->kernel_stack = (uintptr_t *) (p + PAGE_SIZE);
     }
 

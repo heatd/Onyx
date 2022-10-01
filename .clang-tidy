@@ -17,6 +17,7 @@ Checks: >
   -performance-noexcept-move-constructor,
   android-cloexec*,
   -misc-noexcept,
+  -misc-const-correctness,
   modernize-*,
   -modernize-avoid-c-arrays,
   -modernize-deprecated-headers,

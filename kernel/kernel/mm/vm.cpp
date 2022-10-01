@@ -295,6 +295,7 @@ void vm_late_init()
 {
     /* TODO: This should be arch specific stuff, move this to arch/ */
     uintptr_t heap_addr_no_aslr = heap_addr;
+    const auto vmalloc_noaslr = vmalloc_space;
 
     kstacks_addr = vm_randomize_address(kstacks_addr, KSTACKS_ASLR_BITS);
     vmalloc_space = vm_randomize_address(vmalloc_space, VMALLOC_ASLR_BITS);
@@ -329,6 +330,19 @@ void vm_late_init()
 
     v->type = VM_TYPE_REGULAR;
     v->rwx = VM_WRITE | VM_READ | VM_EXEC;
+
+    const auto vmalloc_len = VM_VMALLOC_SIZE - (vmalloc_space - vmalloc_noaslr);
+
+    vmalloc_init(vmalloc_space, vmalloc_len);
+    v = vm_reserve_region(&kernel_address_space, vmalloc_space, vmalloc_len);
+
+    if (!v)
+    {
+        panic("vmm: early boot oom");
+    }
+
+    v->type = VM_TYPE_REGULAR;
+    v->rwx = VM_WRITE | VM_READ;
 
     vm_zero_page = alloc_page(0);
     assert(vm_zero_page != nullptr);
@@ -1097,7 +1111,7 @@ void vm_change_perms(void *range, size_t pages, int perms)
  * @param perms The permissions on the allocation.
  * @return A pointer to the new allocation, or NULL with errno set on failure.
  */
-void *vmalloc(size_t pages, int type, int perms)
+void *vmalloc_sleep(size_t pages, int type, int perms)
 {
     struct vm_region *vm = vm_allocate_virt_region(VM_KERNEL, pages, type, perms);
     if (!vm)
@@ -1145,7 +1159,7 @@ void *vmalloc(size_t pages, int type, int perms)
  * @param ptr A pointer to the allocation.
  * @param pages The number of pages it consists in.
  */
-void vfree(void *ptr, size_t pages)
+void vfree_sleep(void *ptr, size_t pages)
 {
     vm_munmap(&kernel_address_space, ptr, pages << PAGE_SHIFT);
 }
@@ -3718,6 +3732,8 @@ expected<ref_guard<mm_address_space>, int> mm_address_space::create()
     if (!as)
         return unexpected<int>{-ENOENT};
 
+    spinlock_init(&as->page_table_lock);
+
     int st = vm_clone_as(as.get());
     if (st < 0)
         return unexpected<int>{st};
@@ -3734,6 +3750,8 @@ expected<ref_guard<mm_address_space>, int> mm_address_space::fork()
     ref_guard<mm_address_space> as = make_refc<mm_address_space>();
     if (!as)
         return unexpected<int>{-ENOENT};
+
+    spinlock_init(&as->page_table_lock);
 
     int st = vm_fork_address_space(as.get());
     if (st < 0)
