@@ -345,6 +345,8 @@ void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
         assert(as != nullptr);
     }
 
+    scoped_lock g{as->page_table_lock};
+
     unsigned int indices[x86_max_paging_levels];
 
     /* Note: page table flags are different from page perms because a page table's
@@ -473,6 +475,8 @@ bool x86_get_pt_entry_with_ptables(void *addr, uint64_t **entry_ptr, struct mm_a
 int paging_clone_as(mm_address_space *addr_space, mm_address_space *original)
 {
     scoped_mutex g{original->vm_lock};
+    scoped_lock g2{original->page_table_lock};
+
     PML *new_pml = alloc_pt();
     if (!new_pml)
         return -ENOMEM;
@@ -517,6 +521,8 @@ int paging_fork_tables(struct mm_address_space *addr_space)
 
     __atomic_add_fetch(&allocated_page_tables, 1, __ATOMIC_RELAXED);
     increment_vm_stat(addr_space, page_tables_size, PAGE_SIZE);
+
+    scoped_lock g{get_current_address_space()->page_table_lock};
 
     unsigned long new_pml = pfn_to_paddr(page_to_pfn(page));
     PML *p = (PML *) PHYS_TO_VIRT(new_pml);
@@ -607,7 +613,7 @@ bool x86_get_pt_entry(void *addr, uint64_t **entry_ptr, struct mm_address_space 
 
 bool __paging_change_perms(struct mm_address_space *mm, void *addr, int prot)
 {
-    MUST_HOLD_MUTEX(&mm->vm_lock);
+    scoped_lock g{mm->page_table_lock};
 
     uint64_t *entry;
     if (!x86_get_pt_entry(addr, &entry, mm))
@@ -641,6 +647,8 @@ bool paging_change_perms(void *addr, int prot)
 
 bool paging_write_protect(void *addr, struct mm_address_space *mm)
 {
+    scoped_lock g{mm->page_table_lock};
+
     uint64_t *ptentry;
     if (!x86_get_pt_entry(addr, &ptentry, mm))
         return false;
@@ -867,6 +875,8 @@ void vm_save_current_mmu(struct mm_address_space *mm)
  */
 void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots, int new_prots)
 {
+    scoped_lock g{as->page_table_lock};
+
     uint64_t *ptentry;
     if (!x86_get_pt_entry(addr, &ptentry, as))
         return;
@@ -1166,6 +1176,7 @@ int vm_mmu_unmap(struct mm_address_space *as, void *addr, size_t pages)
 {
     unsigned long virt = (unsigned long) addr;
     size_t size = pages << PAGE_SHIFT;
+    scoped_lock g{as->page_table_lock};
 
     page_table_iterator it{virt, size, as};
 
@@ -1346,6 +1357,7 @@ static inline unsigned long pte_to_mapping_info(unsigned long pt_entry, bool hug
 
 unsigned long __get_mapping_info(void *addr, struct mm_address_space *as)
 {
+    // TODO: Should we lock here? May be slow.
     const unsigned long virt = (unsigned long) addr;
     unsigned int indices[x86_max_paging_levels];
 

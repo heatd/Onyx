@@ -59,6 +59,7 @@ include/onyx/config.h
 LDFLAGS:=$(LDFLAGS) -fkeep-inline-functions -Wl,--build-id=none
 
 include lib/compiler-rt/builtins/Makefile
+include lib/binary_search_tree/Makefile
 
 LIBS:=$(LIBS) -nostdlib
 ARCHDIR:=arch/$(HOSTARCH)

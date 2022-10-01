@@ -438,7 +438,7 @@ public:
 public:
     size_t used_objects;
 
-    memory_pool()
+    constexpr memory_pool()
         : free_chunk_head{nullptr}, free_chunk_tail{nullptr}, lock{}, segment_head{},
           segment_tail{}, nr_objects{0}, used_objects{0}
     {

@@ -6,7 +6,8 @@
 
 #include <onyx/vm.h>
 
-extern "C" {
+extern "C"
+{
 
 void *__vmalloc(size_t len)
 {
@@ -15,6 +16,6 @@ void *__vmalloc(size_t len)
 
 void __vmunmap(void *addr, size_t len)
 {
-    vm_munmap(&kernel_address_space, addr, len);
+    vfree(addr, vm_size_to_pages(len));
 }
 }

@@ -44,7 +44,7 @@ struct slab_cache
  * @param ctor Unused
  * @return Pointer to the new slab_cache, or nullptr in case of an error
  */
-struct slab_cache *kmem_cache_create(char *name, size_t size, unsigned int flags,
+struct slab_cache *kmem_cache_create(const char *name, size_t size, unsigned int flags,
                                      void (*ctor)(void *));
 
 /**
