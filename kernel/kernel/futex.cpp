@@ -77,7 +77,6 @@ struct futex_key
     {
         if (both.offset != k.both.offset)
         {
-            printk("%d != %d\n", both.offset, k.both.offset);
             return false;
         }
 
@@ -524,16 +523,16 @@ int sys_futex(int *uaddr, int futex_op, int val, const struct timespec *timeout,
 
     switch (futex_op & FUTEX_OP_MASK)
     {
-    case FUTEX_WAIT:
-        return futex::wait(uaddr, val, flags, timeout);
-    case FUTEX_WAKE:
-        return futex::wake(uaddr, flags, val);
-    case FUTEX_CMP_REQUEUE:
-        return futex::cmp_requeue(uaddr, flags, val, get_val2(timeout), uaddr2, val3);
-    case FUTEX_REQUEUE:
-        // printk("futex(%p, %d, %d)(op %d)\n", uaddr, futex_op, val, futex_op & FUTEX_OP_MASK);
-        return futex::requeue(uaddr, flags, val, get_val2(timeout), uaddr2);
-    default:
-        return -ENOSYS;
+        case FUTEX_WAIT:
+            return futex::wait(uaddr, val, flags, timeout);
+        case FUTEX_WAKE:
+            return futex::wake(uaddr, flags, val);
+        case FUTEX_CMP_REQUEUE:
+            return futex::cmp_requeue(uaddr, flags, val, get_val2(timeout), uaddr2, val3);
+        case FUTEX_REQUEUE:
+            // printk("futex(%p, %d, %d)(op %d)\n", uaddr, futex_op, val, futex_op & FUTEX_OP_MASK);
+            return futex::requeue(uaddr, flags, val, get_val2(timeout), uaddr2);
+        default:
+            return -ENOSYS;
     }
 }
