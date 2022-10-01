@@ -22,6 +22,7 @@
 #include <onyx/file.h>
 #include <onyx/fs_mount.h>
 #include <onyx/limits.h>
+#include <onyx/mm/slab.h>
 #include <onyx/panic.h>
 #include <onyx/pipe.h>
 #include <onyx/process.h>
@@ -70,7 +71,7 @@ void fd_put(struct file *fd)
         close_vfs(fd->f_ino);
         // printk("file %s dentry refs %lu\n", fd->f_dentry->d_name, fd->f_dentry->d_ref);
         dentry_put(fd->f_dentry);
-        free(fd);
+        file_free(fd);
     }
 }
 
@@ -2248,4 +2249,36 @@ int sys_fstatfs(int fd, struct statfs *ubuf)
         return -errno;
 
     return core_statfs(f.get_file(), ubuf);
+}
+
+static struct slab_cache *file_cache = nullptr;
+
+/**
+ * @brief Allocate a struct file
+ *
+ * @return Pointer to struct file, or nullptr
+ */
+file *file_alloc()
+{
+    return (file *) kmem_cache_alloc(file_cache, 0);
+}
+/**
+ * @brief Free a struct file
+ *
+ * @arg file Pointer to struct file
+ */
+void file_free(struct file *file)
+{
+    kmem_cache_free(file_cache, (void *) file);
+}
+
+/**
+ * @brief Initialize the file cache
+ *
+ */
+void file_cache_init()
+{
+    file_cache = kmem_cache_create("file", sizeof(file), 0, nullptr);
+    if (!file_cache)
+        panic("Could not allocate slab cache for struct file");
 }

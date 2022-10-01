@@ -19,6 +19,27 @@ int open_with_vnode(struct file *node, int flags);
 struct file *get_file_description(int fd);
 void fd_get(struct file *fd);
 void fd_put(struct file *fd);
+
+/**
+ * @brief Initialize the file cache
+ *
+ */
+void file_cache_init();
+
+/**
+ * @brief Allocate a struct file
+ *
+ * @return Pointer to struct file, or nullptr
+ */
+file *file_alloc();
+
+/**
+ * @brief Free a struct file
+ *
+ * @arg file Pointer to struct file
+ */
+void file_free(struct file *file);
+
 int allocate_file_descriptor_table(struct process *process);
 int copy_file_descriptors(struct process *process, struct ioctx *ctx);
 struct file *get_dirfd_file(int dirfd);

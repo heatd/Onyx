@@ -17,6 +17,7 @@
 #include <onyx/cpu.h>
 #include <onyx/dentry.h>
 #include <onyx/dev.h>
+#include <onyx/file.h>
 #include <onyx/fnv.h>
 #include <onyx/limits.h>
 #include <onyx/log.h>
@@ -41,6 +42,7 @@ int vfs_init()
 {
     object_init(&boot_root.object, nullptr);
     dentry_init();
+    file_cache_init();
 
     return 0;
 }
@@ -679,7 +681,7 @@ int inode_flush(struct inode *ino)
 
 struct file *inode_to_file(struct inode *ino)
 {
-    struct file *f = (file *) zalloc(sizeof(struct file));
+    struct file *f = file_alloc();
     if (!f)
         return nullptr;
     f->f_ino = ino;
