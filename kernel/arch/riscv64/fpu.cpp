@@ -20,7 +20,8 @@ void setup_fpu_area(unsigned char *address)
 {
 }
 
-extern "C" {
+extern "C"
+{
 
 void save_fpu_quad(void *address);
 void save_fpu_double(void *address);
@@ -59,7 +60,7 @@ void fpu_ptrace_getfpregs(void *fpregs, struct user_fpregs_struct *regs)
 {
 }
 
-void fpu_init(void)
+void fpu_init()
 {
     isa_features = riscv_get_features();
     unsigned int register_width = 0;
@@ -80,16 +81,18 @@ void fpu_init(void)
     save_alignment = register_width; // register loads/stores will be naturally aligned
     save_size = (register_width * 32) + 4 /* fcsr is 32-bits */;
 
+    fpu_init_cache();
+
     // Set FS to initial
     riscv_or_csr(RISCV_SSTATUS, 1 << 13);
 }
 
-size_t fpu_get_save_size(void)
+size_t fpu_get_save_size()
 {
     return save_size;
 }
 
-size_t fpu_get_save_alignment(void)
+size_t fpu_get_save_alignment()
 {
     return cul::max(0UL, save_alignment);
 }

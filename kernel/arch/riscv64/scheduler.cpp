@@ -100,10 +100,9 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *tp)
 
     if (is_user)
     {
-        int st = posix_memalign((void **) &new_thread->fpu_area, fpu_get_save_alignment(),
-                                fpu_get_save_size());
+        new_thread->fpu_area = (unsigned char *) fpu_allocate_state();
 
-        if (st != 0)
+        if (!new_thread->fpu_area)
             goto error;
 
         memset(new_thread->fpu_area, 0, fpu_get_save_size());
@@ -259,10 +258,9 @@ void arch_context_switch(thread *prev, thread *next)
 
 int arch_transform_into_user_thread(thread *thread)
 {
-    int st =
-        posix_memalign((void **) &thread->fpu_area, fpu_get_save_alignment(), fpu_get_save_size());
+    thread->fpu_area = (unsigned char *) fpu_allocate_state();
 
-    if (st != 0)
+    if (!thread->fpu_area)
         return -ENOMEM;
 
     memset(thread->fpu_area, 0, fpu_get_save_size());

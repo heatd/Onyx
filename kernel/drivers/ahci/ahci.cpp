@@ -762,12 +762,13 @@ int ahci_allocate_port_lists(ahci_hba_memory_regs_t *hba, ahci_port_t *port,
         goto error;
 
     /* The fisb is 1024 bytes in size, with 1024 alignment */
-    if (posix_memalign(&fisb, 1024, 1024) != 0)
+    virtual_fisb = vmalloc(1, VM_TYPE_REGULAR, VM_WRITE | VM_READ);
+
+    if (!virtual_fisb)
         goto error;
 
     /* We keep the virtual fisb in order to free it in case anything goes wrong */
-    virtual_fisb = fisb;
-    fisb = virtual2phys(fisb);
+    fisb = virtual2phys(virtual_fisb);
 
     if ((uintptr_t) fisb > UINT32_MAX && addr64_supported == false)
         goto error;

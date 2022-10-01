@@ -22,6 +22,7 @@
 #include <onyx/file.h>
 #include <onyx/log.h>
 #include <onyx/mm/kasan.h>
+#include <onyx/mm/slab.h>
 #include <onyx/mm/vm_object.h>
 #include <onyx/page.h>
 #include <onyx/pagecache.h>
@@ -57,6 +58,7 @@ uintptr_t kstacks_addr = arch_kstacks_off;
 uintptr_t heap_addr = arch_heap_off;
 size_t heap_size = 0;
 
+void kmalloc_init();
 int populate_shared_mapping(void *page, struct file *fd, struct vm_region *entry, size_t nr_pages);
 void vm_remove_region(struct mm_address_space *as, struct vm_region *region);
 int vm_add_region(struct mm_address_space *as, struct vm_region *region);
@@ -106,13 +108,27 @@ int vm_cmp(const void *k1, const void *k2)
 
 static struct page *vm_zero_page = nullptr;
 
+static struct slab_cache *vm_region_cache = nullptr;
+
+static inline vm_region *vm_alloc_vmregion()
+{
+    return (vm_region *) kmem_cache_alloc(vm_region_cache, 0);
+}
+
+static inline void vm_free_vmregion(vm_region *region)
+{
+    kmem_cache_free(vm_region_cache, (void *) region);
+}
+
 struct vm_region *vm_reserve_region(struct mm_address_space *as, unsigned long start, size_t size)
 {
     MUST_HOLD_MUTEX(&as->vm_lock);
 
-    struct vm_region *region = (vm_region *) zalloc(sizeof(struct vm_region));
+    struct vm_region *region = vm_alloc_vmregion();
     if (!region)
         return nullptr;
+
+    memset(region, 0, sizeof(*region));
 
     region->base = start;
     region->pages = vm_size_to_pages(size);
@@ -131,7 +147,7 @@ struct vm_region *vm_reserve_region(struct mm_address_space *as, unsigned long s
             panic("oops");
         }
 
-        free(region);
+        vm_free_vmregion(region);
         return nullptr;
     }
 
@@ -301,6 +317,19 @@ void vm_late_init()
     vmalloc_space = vm_randomize_address(vmalloc_space, VMALLOC_ASLR_BITS);
     heap_addr = vm_randomize_address(heap_addr, HEAP_ASLR_BITS);
 
+    // Initialize vmalloc first. This will feed the rest of the allocators.
+    const auto vmalloc_len = VM_VMALLOC_SIZE - (vmalloc_space - vmalloc_noaslr);
+
+    vmalloc_init(vmalloc_space, vmalloc_len);
+    // Now initialize slabs for kmalloc
+
+    kmalloc_init();
+
+    vm_region_cache = kmem_cache_create("vm_region", sizeof(vm_region), 0, 0, nullptr);
+
+    if (!vm_region_cache)
+        panic("vm: early boot oom");
+
     heap_set_start(heap_addr);
 
     vm_addr_init();
@@ -331,9 +360,6 @@ void vm_late_init()
     v->type = VM_TYPE_REGULAR;
     v->rwx = VM_WRITE | VM_READ | VM_EXEC;
 
-    const auto vmalloc_len = VM_VMALLOC_SIZE - (vmalloc_space - vmalloc_noaslr);
-
-    vmalloc_init(vmalloc_space, vmalloc_len);
     v = vm_reserve_region(&kernel_address_space, vmalloc_space, vmalloc_len);
 
     if (!v)
@@ -477,7 +503,7 @@ void vm_region_destroy(struct vm_region *region)
 
     memset_s(region, 0xfd, sizeof(struct vm_region));
 
-    free(region);
+    vm_free_vmregion(region);
 }
 
 /**
@@ -866,11 +892,13 @@ static bool fork_vm_region(const void *key, void *datum, void *user_data)
     bool vmo_failure, is_private, using_shared_optimization, needs_to_fork_memory;
     unsigned int new_rwx;
 
-    struct vm_region *new_region = (vm_region *) memdup(region, sizeof(*region));
+    struct vm_region *new_region = vm_alloc_vmregion();
     if (!new_region)
     {
         goto ohno;
     }
+
+    memcpy(new_region, region, sizeof(*region));
 
 #if DEBUG_FORK_VM
     printk("Forking %p, size %lx\n", key, region->pages << PAGE_SHIFT);
@@ -879,7 +907,7 @@ static bool fork_vm_region(const void *key, void *datum, void *user_data)
 
     if (!res.inserted)
     {
-        free(new_region);
+        vm_free_vmregion(new_region);
         goto ohno;
     }
 
@@ -910,7 +938,7 @@ static bool fork_vm_region(const void *key, void *datum, void *user_data)
     {
         dict_remove_result res = rb_tree_remove(it->target_mm->area_tree, key);
         assert(res.removed == true);
-        free(new_region);
+        vm_free_vmregion(new_region);
         goto ohno;
     }
 

@@ -401,7 +401,7 @@ ACPI_STATUS AcpiOsEnterSleep(UINT8 SleepState, UINT32 RegaValue, UINT32 RegbValu
 ACPI_STATUS
 AcpiOsCreateCache(char *CacheName, UINT16 ObjectSize, UINT16 MaxDepth, ACPI_CACHE_T **ReturnCache)
 {
-    *ReturnCache = kmem_cache_create(CacheName, ObjectSize, 0, nullptr);
+    *ReturnCache = kmem_cache_create(CacheName, ObjectSize, 0, 0, nullptr);
     if (*ReturnCache == nullptr)
         return AE_NO_MEMORY;
     return AE_OK;
