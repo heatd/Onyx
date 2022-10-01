@@ -26,4 +26,24 @@ void fpu_init(void);
 size_t fpu_get_save_size(void);
 size_t fpu_get_save_alignment(void);
 
+/**
+ * @brief Initialize the FPU state slab cache
+ *
+ */
+void fpu_init_cache();
+
+/**
+ * @brief Allocate an FPU state object from the allocator
+ *
+ * @return Pointer to FPU state, or nullptr
+ */
+void *fpu_allocate_state();
+
+/**
+ * @brief Free FPU state object
+ *
+ * @param state Pointer to state
+ */
+void fpu_free_state(void *state);
+
 #endif

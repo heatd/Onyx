@@ -40,12 +40,13 @@ struct slab_cache
  *
  * @param name Name of the slab cache
  * @param size Size of each object
+ * @param alignment Alignment of each object
  * @param flags Flags (see KMEM_CACHE_*)
  * @param ctor Unused
  * @return Pointer to the new slab_cache, or nullptr in case of an error
  */
-struct slab_cache *kmem_cache_create(const char *name, size_t size, unsigned int flags,
-                                     void (*ctor)(void *));
+struct slab_cache *kmem_cache_create(const char *name, size_t size, size_t alignment,
+                                     unsigned int flags, void (*ctor)(void *));
 
 /**
  * @brief Allocate an object from the slab

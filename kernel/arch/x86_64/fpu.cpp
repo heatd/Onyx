@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -11,6 +11,7 @@
 #include <sys/user.h>
 
 #include <onyx/fpu.h>
+#include <onyx/mm/slab.h>
 #include <onyx/x86/avx.h>
 #include <onyx/x86/control_regs.h>
 
@@ -121,7 +122,40 @@ void fpu_ptrace_getfpregs(void *__fpregs, struct user_fpregs_struct *regs)
     memcpy(regs->st_space, &fpregs->registers, sizeof(regs->st_space) + sizeof(regs->xmm_space));
 }
 
-void fpu_init(void)
+static slab_cache *fpu_cache = nullptr;
+
+/**
+ * @brief Initialize the FPU state slab cache
+ *
+ */
+void fpu_init_cache()
+{
+    fpu_cache = kmem_cache_create("fpu-state", fpu_area_size, fpu_area_alignment, 0, nullptr);
+    if (!fpu_cache)
+        panic("Out of memory allocating fpu state");
+}
+
+/**
+ * @brief Allocate an FPU state object from the allocator
+ *
+ * @return Pointer to FPU state, or nullptr
+ */
+void *fpu_allocate_state()
+{
+    return kmem_cache_alloc(fpu_cache, 0);
+}
+
+/**
+ * @brief Free FPU state object
+ *
+ * @param state Pointer to state
+ */
+void fpu_free_state(void *state)
+{
+    kmem_cache_free(fpu_cache, state);
+}
+
+void fpu_init()
 {
     /* We are initializing the FPU as recommended in 9.2.1 of the
      * software programming guide

@@ -56,4 +56,6 @@ void avx_init(void)
 
         avx_supported = true;
     }
+
+    fpu_init_cache();
 }

@@ -145,6 +145,8 @@ bool perf_probe_is_enabled_wait()
     return perf_probe_wait_enabled;
 }
 
+extern cul::atomic_size_t used_pages;
+
 /**
  * @brief Enable CPU perf probing
  *
@@ -165,8 +167,9 @@ static int perf_probe_enable()
         {
             fg[i].windex = 0;
             fg[i].nentries = FLAME_GRAPH_NENTRIES;
-            fg[i].fge =
-                (flame_graph_entry *) calloc(sizeof(flame_graph_entry), FLAME_GRAPH_NENTRIES);
+            fg[i].fge = (flame_graph_entry *) vmalloc(
+                vm_size_to_pages(sizeof(flame_graph_entry) * FLAME_GRAPH_NENTRIES), VM_TYPE_REGULAR,
+                VM_READ | VM_WRITE);
             assert(fg[i].fge != nullptr);
         }
     }
@@ -225,7 +228,7 @@ static int perf_probe_ucopy(void *ubuf)
 
     for (unsigned int i = 0; i < get_nr_cpus(); i++)
     {
-        free(fg[i].fge);
+        vfree(fg[i].fge, vm_size_to_pages(sizeof(flame_graph_entry) * FLAME_GRAPH_NENTRIES));
     }
 
     free(fg);

@@ -55,12 +55,13 @@ struct bufctl
  *
  * @param name Name of the slab cache
  * @param size Size of each object
+ * @param alignment Alignment of each object
  * @param flags Flags (see KMEM_CACHE_*)
  * @param ctor Unused
  * @return Pointer to the new slab_cache, or nullptr in case of an error
  */
-struct slab_cache *kmem_cache_create(const char *name, size_t size, unsigned int flags,
-                                     void (*ctor)(void *))
+struct slab_cache *kmem_cache_create(const char *name, size_t size, size_t alignment,
+                                     unsigned int flags, void (*ctor)(void *))
 {
     auto c = slab_cache_pool.allocate();
     if (!c)
@@ -72,12 +73,13 @@ struct slab_cache *kmem_cache_create(const char *name, size_t size, unsigned int
     c->objsize = size;
     c->flags = flags;
 
-    // Minimum object alignment is size
-    c->alignment = size;
+    // Minimum object alignment is 16
+    c->alignment = alignment;
 
-    // ... but keeping 16 byte alignment like malloc is really important
-    c->alignment = ALIGN_TO(c->alignment, 16);
-    c->alignment = count_bits(c->alignment) != 1 ? 1 << (ilog2(c->alignment) + 1) : c->alignment;
+    if (c->alignment < 16)
+        c->alignment = 16;
+
+    // c->alignment = count_bits(c->alignment) != 1 ? 1 << (ilog2(c->alignment) + 1) : c->alignment;
 
     // If the creator wants it, align it to cache line sizes
     // TODO: Figure this out from architectural code
@@ -187,6 +189,8 @@ static void *kmem_cache_alloc_from_slab(struct slab *s, unsigned int flags)
         // Was partial, now full
         kmem_move_slab_to_full(s);
     }
+
+    ret->flags = 0;
 
     return (void *) ret;
 }
@@ -558,4 +562,100 @@ void kmem_cache_destroy(struct slab_cache *cache)
 
     // Destroy the slab cache itself
     slab_cache_pool.free(cache);
+}
+
+#define KMALLOC_NR_CACHES 22
+
+char kmalloc_cache_names[KMALLOC_NR_CACHES][20];
+struct slab_cache *kmalloc_caches[KMALLOC_NR_CACHES];
+
+void kmalloc_init()
+{
+    for (size_t i = 0; i < KMALLOC_NR_CACHES; i++)
+    {
+        // We start at 16 bytes
+        size_t size = 1UL << (4 + i);
+        snprintf(kmalloc_cache_names[i], 20, "kmalloc-%zu", size);
+        kmalloc_caches[i] = kmem_cache_create(kmalloc_cache_names[i], size, 0,
+                                              size <= 256 ? KMEM_CACHE_DIRMAP : 0, nullptr);
+        if (!kmalloc_caches[i])
+            panic("Early out of memory\n");
+    }
+}
+
+static inline int size_to_order(size_t size)
+{
+    if (size < 2) [[unlikely]]
+        return 0;
+
+    size_t order = ilog2(size - 1) + 1;
+    if (order < 4) [[unlikely]]
+        order = 4;
+    order -= 4;
+
+    if (order >= KMALLOC_NR_CACHES) [[unlikely]]
+        return -1;
+    return (int) order;
+}
+
+void *kmalloc(size_t size, int flags)
+{
+    auto order = size_to_order(size);
+
+    if (order < 0)
+        return nullptr;
+
+    return kmem_cache_alloc(kmalloc_caches[order], 0);
+}
+
+void *malloc(size_t size)
+{
+    return kmalloc(size, 0);
+}
+
+void free(void *ptr)
+{
+    return kfree(ptr);
+}
+
+void *calloc(size_t nr, size_t size)
+{
+    if (array_overflows(nr, size))
+        return errno = EOVERFLOW, nullptr;
+
+    const auto len = nr * size;
+
+    void *ptr = malloc(len);
+    if (!ptr) [[unlikely]]
+    {
+        return errno = ENOMEM, nullptr;
+    }
+
+    memset(ptr, 0, len);
+
+    return ptr;
+}
+
+void *realloc(void *ptr, size_t size)
+{
+    if (!ptr)
+        return malloc(size);
+
+    auto old_slab = kmem_pointer_to_slab(ptr);
+
+    if (old_slab->cache->objsize >= size)
+        return ptr;
+
+    auto newbuf = malloc(size);
+    if (!newbuf)
+        return nullptr;
+    memcpy(newbuf, ptr, size);
+    kfree(ptr);
+    return newbuf;
+}
+
+int posix_memalign(void **pptr, size_t align, size_t len)
+{
+    *pptr = nullptr;
+    return -1;
 }

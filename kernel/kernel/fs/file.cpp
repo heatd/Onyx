@@ -2278,7 +2278,7 @@ void file_free(struct file *file)
  */
 void file_cache_init()
 {
-    file_cache = kmem_cache_create("file", sizeof(file), 0, nullptr);
+    file_cache = kmem_cache_create("file", sizeof(file), 0, 0, nullptr);
     if (!file_cache)
         panic("Could not allocate slab cache for struct file");
 }
