@@ -7,6 +7,7 @@
  */
 
 #include <onyx/fpu.h>
+#include <onyx/mm/slab.h>
 #include <onyx/riscv/features.h>
 #include <onyx/riscv/intrinsics.h>
 
@@ -95,4 +96,37 @@ size_t fpu_get_save_size()
 size_t fpu_get_save_alignment()
 {
     return cul::max(0UL, save_alignment);
+}
+
+static slab_cache *fpu_cache = nullptr;
+
+/**
+ * @brief Initialize the FPU state slab cache
+ *
+ */
+void fpu_init_cache()
+{
+    fpu_cache = kmem_cache_create("fpu-state", save_size, fpu_get_save_alignment(), 0, nullptr);
+    if (!fpu_cache)
+        panic("Out of memory allocating fpu state");
+}
+
+/**
+ * @brief Allocate an FPU state object from the allocator
+ *
+ * @return Pointer to FPU state, or nullptr
+ */
+void *fpu_allocate_state()
+{
+    return kmem_cache_alloc(fpu_cache, 0);
+}
+
+/**
+ * @brief Free FPU state object
+ *
+ * @param state Pointer to state
+ */
+void fpu_free_state(void *state)
+{
+    kmem_cache_free(fpu_cache, state);
 }

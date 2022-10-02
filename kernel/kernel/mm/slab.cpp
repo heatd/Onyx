@@ -17,14 +17,29 @@
 static spinlock cache_list_lock;
 static struct list_head cache_list = LIST_HEAD_INIT(cache_list);
 
-memory_pool<slab_cache> slab_cache_pool;
+memory_pool<slab_cache, MEMORY_POOL_USE_VM> slab_cache_pool;
+
+#define KMEM_CACHE_KEEP_THRESHOLD 131072
 
 struct bufctl;
 
 /**
  * Commentary on the allocator's design:
- * It resembles a very traditional slab allocator as described by [Bonwick, 94].
+ * It resembles a very traditional slab allocator as described by [Bonwick, 94]. The big
+ * difference is that we disregard the caching part of the slab allocator as it has not
+ * proven useful in Linux, and others.
+ *
  * Slab caches are collections of slabs. They have free slabs, partial slabs, full slabs.
+ * Full slabs are fully allocated, partial slabs are partially allocated, free slabs are free.
+ * Free slabs stay around until someone purges them, UNLESS the objsize is too large (the
+ * threshold right now is 128KiB, but it is bound to change).
+ *
+ * Every object, for now, requires at least 16 byte alignment (and power of 2 alignment).
+ *
+ * Each slab cache, if not explicitly disabled or if size isn't too big, has percpu caches
+ * which hold magazines (atm, up to 128 elements) of objects.
+ * Ideally, you allocate and free straight from/to these, bypassing locking. The size of a
+ * batch (the allocation/freeing unit) derives from the size of your object.
  */
 
 struct slab
@@ -90,6 +105,12 @@ struct slab_cache *kmem_cache_create(const char *name, size_t size, size_t align
 
     c->objsize = ALIGN_TO(c->objsize, c->alignment);
 
+    if (c->objsize > PAGE_SIZE)
+    {
+        // If these objects are too large, opt out of percpu batch allocation
+        c->flags |= KMEM_CACHE_NOPCPU;
+    }
+
     c->ctor = ctor;
 
     INIT_LIST_HEAD(&c->free_slabs);
@@ -99,6 +120,18 @@ struct slab_cache *kmem_cache_create(const char *name, size_t size, size_t align
     c->nr_objects = 0;
     c->active_objects = 0;
     c->npartialslabs = c->nfreeslabs = c->nfullslabs = 0;
+
+    for (auto &pcpu : c->pcpu)
+    {
+        pcpu.size = 0;
+    }
+
+    if (c->objsize > 256)
+        c->mag_limit = 64;
+    else if (c->objsize > 1024)
+        c->mag_limit = 32;
+    else
+        c->mag_limit = SLAB_CACHE_PERCPU_MAGAZINE_SIZE;
 
     scoped_lock g{cache_list_lock};
     list_add_tail(&c->cache_list_node, &cache_list);
@@ -132,11 +165,14 @@ ALWAYS_INLINE static inline void kmem_move_slab_to_partial(struct slab *s, bool 
  *
  * @param s Slab
  */
-ALWAYS_INLINE static inline void kmem_move_slab_to_full(struct slab *s)
+ALWAYS_INLINE static inline void kmem_move_slab_to_full(struct slab *s, bool free)
 {
     list_remove(&s->slab_list_node);
     list_add_tail(&s->slab_list_node, &s->cache->full_slabs);
-    s->cache->npartialslabs--;
+    if (free)
+        s->cache->nfreeslabs--;
+    else
+        s->cache->npartialslabs--;
     s->cache->nfullslabs++;
 }
 
@@ -187,7 +223,7 @@ static void *kmem_cache_alloc_from_slab(struct slab *s, unsigned int flags)
     else if (s->active_objects == s->nobjects)
     {
         // Was partial, now full
-        kmem_move_slab_to_full(s);
+        kmem_move_slab_to_full(s, false);
     }
 
     ret->flags = 0;
@@ -242,6 +278,26 @@ static inline size_t kmem_calc_slab_size(struct slab_cache *cache)
     {
         // Temporary, should find a better heuristic
         return cul::align_up2(cache->objsize * 24 + sizeof(struct slab), (size_t) PAGE_SIZE);
+    }
+}
+
+/**
+ * @brief Calculate the number of objects of each slab for a given slab cache
+ *
+ * @param cache Slab cache
+ * @return Size of each slab
+ */
+static inline size_t kmem_calc_slab_nr_objs(struct slab_cache *cache)
+{
+    if (cache->objsize < PAGE_SIZE / 8)
+    {
+        // Small object, allocate a single page
+        return PAGE_SIZE / cache->objsize;
+    }
+    else
+    {
+        // Temporary, should find a better heuristic
+        return 24;
     }
 }
 
@@ -384,13 +440,13 @@ static void *kmem_cache_alloc_noslab(struct slab_cache *cache, unsigned int flag
 
 /**
  * @brief Allocate an object from the slab
- * This function call be called in nopreempt/softirq context.
+ * This function is used when slab caches opt out of percpu allocation.
  *
  * @param cache Slab cache
  * @param flags Allocation flags
  * @return Allocated object, or nullptr in OOM situations.
  */
-void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
+void *kmem_cache_alloc_nopcpu(struct slab_cache *cache, unsigned int flags)
 {
     scoped_lock g{cache->lock};
 
@@ -405,6 +461,126 @@ void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
 
     return kmem_cache_alloc_noslab(cache, flags);
 }
+
+static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
+                                       struct slab_cache_percpu_context *pcpu, unsigned int flags)
+{
+    // Lets attempt to allocate a batch (half our stack)
+    scoped_lock g{cache->lock};
+
+    const auto objs_per_slab = kmem_calc_slab_nr_objs(cache);
+    const auto batch_size = cache->mag_limit / 2;
+    auto nr_slabs = objs_per_slab / batch_size;
+    if (objs_per_slab % batch_size)
+        nr_slabs++;
+
+    for (size_t i = 0; i < nr_slabs; i++)
+    {
+        bool isfree = false;
+        struct slab *slab;
+        if (cache->npartialslabs)
+        {
+            assert(!list_is_empty(&cache->partial_slabs));
+            slab = container_of(list_first_element(&cache->partial_slabs), struct slab,
+                                slab_list_node);
+        }
+        else if (cache->nfreeslabs)
+        {
+            assert(!list_is_empty(&cache->free_slabs));
+            slab =
+                container_of(list_first_element(&cache->free_slabs), struct slab, slab_list_node);
+            isfree = true;
+        }
+        else
+        {
+            slab = kmem_cache_create_slab(cache, flags);
+            if (!slab)
+            {
+                // Only fail on memory allocation failure if we were allocating extra
+                return i == 0 ? -1 : 0;
+            }
+            isfree = true;
+        }
+
+        // Fill up our magazine with a batch of objects
+        bufctl *buf = slab->object_list;
+        size_t avail = slab->nobjects - slab->active_objects;
+
+        for (size_t j = 0; j < avail; j++)
+        {
+            if (pcpu->size == batch_size)
+            {
+                // If we're here, we're stopping in the middle of a slab
+                // because of that, move it to partial (from free) and get out.
+                if (isfree)
+                    kmem_move_slab_to_partial(slab, isfree);
+                goto out;
+            }
+
+            pcpu->magazine[pcpu->size++] = (void *) buf;
+            slab->object_list = (bufctl *) buf->next;
+            buf = (bufctl *) buf->next;
+            slab->active_objects++;
+        }
+
+        // We used up the whole slab, move it to full
+        kmem_move_slab_to_full(slab, isfree);
+    }
+
+out:
+    return 0;
+}
+/**
+ * @brief Allocate an object from the slab
+ * This function call be called in nopreempt/softirq context.
+ *
+ * @param cache Slab cache
+ * @param flags Allocation flags
+ * @return Allocated object, or nullptr in OOM situations.
+ */
+void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
+{
+    if (cache->flags & KMEM_CACHE_NOPCPU) [[unlikely]]
+    {
+        return kmem_cache_alloc_nopcpu(cache, flags);
+    }
+
+    // Disable preemption so we can safely touch the percpu data
+    sched_disable_preempt();
+
+    auto pcpu = &cache->pcpu[get_cpu_nr()];
+
+    pcpu->touched.add_fetch(1, mem_order::relaxed);
+
+    if (!pcpu->size) [[unlikely]]
+    {
+        // If our magazine is empty, lets refill it
+        if (kmem_cache_alloc_refill_mag(cache, pcpu, flags) < 0)
+        {
+            sched_enable_preempt();
+            return errno = ENOMEM, nullptr;
+        }
+    }
+
+    // If we have objects on our magazine, pop one out and
+    // return.
+    auto ret = pcpu->magazine[--pcpu->size];
+    ((bufctl *) ret)->flags = 0;
+
+    pcpu->touched.sub_fetch(1, mem_order::relaxed);
+
+    sched_enable_preempt();
+
+    return ret;
+}
+
+/**
+ * @brief Free a given slab and give it back to the page backend
+ * The given slab will be properly dissociated from its slab cache
+ *
+ * @param slab Slab to free
+ */
+static void kmem_cache_free_slab(struct slab *slab);
 
 /**
  * @brief Free an object to its slab
@@ -443,9 +619,91 @@ static void kmem_free_to_slab(struct slab_cache *cache, struct slab *slab, void 
     }
     else if (slab->active_objects == 0)
     {
-        // Move partial to free
-        kmem_move_slab_to_free(slab);
+        if (cache->objsize >= KMEM_CACHE_KEEP_THRESHOLD) [[unlikely]]
+        {
+            // Free the slab, since these objects are way too large
+            // we may as well assume they're a one-off allocation, as they
+            // usually are.
+            kmem_cache_free_slab(slab);
+            cache->npartialslabs--;
+        }
+        else
+            // Move partial to free
+            kmem_move_slab_to_free(slab);
     }
+}
+
+/**
+ * @brief Free a pointer to an object in a slab
+ * This function panics on bad pointers. If NULL is given, it's a no-op.
+ *
+ * @param ptr Pointer to an object, or NULL.
+ */
+static void kfree_nopcpu(void *ptr)
+{
+    auto slab = kmem_pointer_to_slab(ptr);
+    auto cache = slab->cache;
+
+    scoped_lock g{cache->lock};
+    kmem_free_to_slab(cache, slab, ptr);
+}
+
+void kmem_cache_return_pcpu_batch(struct slab_cache *cache, struct slab_cache_percpu_context *pcpu)
+{
+    scoped_lock g{cache->lock};
+    auto size = cache->mag_limit;
+    auto batchsize = size / 2;
+    for (int i = 0; i < batchsize; i++)
+    {
+        auto ptr = pcpu->magazine[i];
+        auto slab = kmem_pointer_to_slab(ptr);
+
+        if (slab->cache != cache) [[unlikely]]
+            panic("slab: Pointer %p was returned to the wrong cache\n", ptr);
+        ((bufctl *) ptr)->flags = 0;
+        kmem_free_to_slab(cache, slab, ptr);
+        pcpu->size--;
+    }
+
+    // Unlock the cache since we're about to do an expensive-ish memmove
+    g.unlock();
+
+    memmove(pcpu->magazine, &pcpu->magazine[batchsize], (size - pcpu->size) * sizeof(void *));
+}
+
+static void kmem_cache_free_pcpu(struct slab_cache *cache, void *ptr)
+{
+    bufctl *buf = (bufctl *) ptr;
+
+    if ((unsigned long) ptr % cache->alignment) [[unlikely]]
+    {
+        panic("slab: Bad pointer %p", ptr);
+    }
+
+    if (buf->flags == BUFCTL_PATTERN_FREE) [[unlikely]]
+    {
+        panic("slab: Double free at %p\n", ptr);
+    }
+
+    sched_disable_preempt();
+
+    auto pcpu = &cache->pcpu[get_cpu_nr()];
+
+    pcpu->touched.add_fetch(1, mem_order::relaxed);
+
+    if (pcpu->size == cache->mag_limit) [[unlikely]]
+    {
+        kmem_cache_return_pcpu_batch(cache, pcpu);
+    }
+    else
+    {
+        pcpu->magazine[pcpu->size++] = ptr;
+        buf->flags = BUFCTL_PATTERN_FREE;
+    }
+
+    pcpu->touched.sub_fetch(1, mem_order::relaxed);
+
+    sched_enable_preempt();
 }
 
 /**
@@ -460,8 +718,11 @@ void kfree(void *ptr)
         return;
     auto slab = kmem_pointer_to_slab(ptr);
     auto cache = slab->cache;
-    scoped_lock g{cache->lock};
-    kmem_free_to_slab(cache, slab, ptr);
+
+    if (cache->flags & KMEM_CACHE_NOPCPU)
+        return kfree_nopcpu(ptr);
+
+    kmem_cache_free_pcpu(cache, ptr);
 }
 
 /**
@@ -473,7 +734,11 @@ void kfree(void *ptr)
  */
 void kmem_cache_free(struct slab_cache *cache, void *ptr)
 {
-    return kfree(ptr);
+    if (!ptr) [[unlikely]]
+        return;
+    if (cache->flags & KMEM_CACHE_NOPCPU) [[unlikely]]
+        return kfree_nopcpu(ptr);
+    kmem_cache_free_pcpu(cache, ptr);
 }
 
 /**
@@ -502,6 +767,30 @@ static void kmem_cache_free_slab(struct slab *slab)
     }
 }
 
+static void kmem_purge_local_cache(struct slab_cache *cache)
+{
+    auto pcpu = &cache->pcpu[get_cpu_nr()];
+
+    // We use this cpu local atomic to know if we were touching
+    // pcpu structures at that moment.
+    if (pcpu->touched.load(mem_order::relaxed))
+        return;
+
+    // Cache lock is implicitly held.
+
+    for (int i = 0; i < pcpu->size; i++)
+    {
+        auto ptr = pcpu->magazine[i];
+        auto slab = kmem_pointer_to_slab(ptr);
+
+        if (slab->cache != cache) [[unlikely]]
+            panic("slab: Pointer %p was returned to the wrong cache\n", ptr);
+        ((bufctl *) ptr)->flags = 0;
+        kmem_free_to_slab(cache, slab, ptr);
+        pcpu->size--;
+    }
+}
+
 /**
  * @brief Purge a cache, unlocked
  *
@@ -511,6 +800,14 @@ static void __kmem_cache_purge(struct slab_cache *cache)
 {
     if (!cache->nfreeslabs)
         return;
+
+    sched_disable_preempt();
+
+    smp::sync_call_with_local([](void *ctx) { kmem_purge_local_cache((slab_cache *) ctx); }, cache,
+                              cpumask::all(),
+                              [](void *ctx) { kmem_purge_local_cache((slab_cache *) ctx); }, cache);
+
+    sched_enable_preempt();
 
     list_for_every_safe (&cache->free_slabs)
     {
@@ -549,13 +846,13 @@ void kmem_cache_destroy(struct slab_cache *cache)
         scoped_lock g{cache_list_lock};
         scoped_lock g2{cache->lock};
 
+        __kmem_cache_purge(cache);
+
         if (cache->npartialslabs || cache->nfullslabs)
         {
             panic("slab: Tried to destroy cache %s (%p) which has live objects\n", cache->name,
                   cache);
         }
-
-        __kmem_cache_purge(cache);
 
         list_remove(&cache->cache_list_node);
     }
@@ -576,8 +873,7 @@ void kmalloc_init()
         // We start at 16 bytes
         size_t size = 1UL << (4 + i);
         snprintf(kmalloc_cache_names[i], 20, "kmalloc-%zu", size);
-        kmalloc_caches[i] = kmem_cache_create(kmalloc_cache_names[i], size, 0,
-                                              size <= 256 ? KMEM_CACHE_DIRMAP : 0, nullptr);
+        kmalloc_caches[i] = kmem_cache_create(kmalloc_cache_names[i], size, 0, 0, nullptr);
         if (!kmalloc_caches[i])
             panic("Early out of memory\n");
     }

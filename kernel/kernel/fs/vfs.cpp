@@ -89,6 +89,7 @@ vmo_status_t vmo_inode_commit(struct vm_object *vmo, size_t off, struct page **p
         return VMO_STATUS_OUT_OF_MEM;
 
     page->flags |= PAGE_FLAG_BUFFER;
+    page->priv = 0;
 
     size_t to_read = i->i_size - off < PAGE_SIZE ? i->i_size - off : PAGE_SIZE;
 

@@ -2630,6 +2630,7 @@ vmo_status_t vm_commit_private(struct vm_object *vmo, size_t off, struct page **
     struct page *p = alloc_page(0);
     if (!p)
         return VMO_STATUS_OUT_OF_MEM;
+    p->priv = 0;
 
     struct inode *ino = vmo->ino;
     off_t file_off = (off_t) vmo->priv;

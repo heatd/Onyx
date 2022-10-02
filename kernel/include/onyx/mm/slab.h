@@ -13,6 +13,17 @@
 #include <onyx/list.h>
 #include <onyx/spinlock.h>
 
+#include <onyx/atomic.hpp>
+
+#define SLAB_CACHE_PERCPU_MAGAZINE_SIZE 128
+
+struct slab_cache_percpu_context
+{
+    void *magazine[SLAB_CACHE_PERCPU_MAGAZINE_SIZE];
+    int size;
+    atomic<int> touched;
+};
+
 struct slab_cache
 {
     const char *name;
@@ -30,10 +41,15 @@ struct slab_cache
     unsigned int flags;
     spinlock lock;
     void (*ctor)(void *);
+    int mag_limit;
+    // TODO: This is horrible. We need a way to allocate percpu memory,
+    // and then either trim it or grow it when CPUs come online.
+    struct slab_cache_percpu_context pcpu[CONFIG_SMP_NR_CPUS];
 };
 
 #define KMEM_CACHE_HWALIGN (1 << 0)
 #define KMEM_CACHE_DIRMAP  (1 << 1)
+#define KMEM_CACHE_NOPCPU  (1 << 2)
 
 /**
  * @brief Create a slab cache

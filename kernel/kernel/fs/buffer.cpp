@@ -211,6 +211,7 @@ vmo_status_t bbuffer_commit(vm_object *vmo, size_t off, page **ppage)
     if (!p)
         return VMO_STATUS_OUT_OF_MEM;
     p->flags |= PAGE_FLAG_BUFFER;
+    p->priv = 0;
 
     auto blkdev = reinterpret_cast<blockdev *>(vmo->priv);
 
