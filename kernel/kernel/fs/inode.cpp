@@ -65,6 +65,7 @@ struct page_cache_block *inode_get_cache_block(struct inode *ino, size_t off, lo
             return nullptr;
 
         p->flags = PAGE_FLAG_BUFFER;
+        p->priv = 0;
 
         auto block = pagecache_create_cache_block(p, PAGE_SIZE, off, ino);
         if (!block)
