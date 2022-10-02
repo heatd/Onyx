@@ -122,8 +122,9 @@ static int perf_probe_enable_wait()
         {
             fg[i].windex = 0;
             fg[i].nentries = FLAME_GRAPH_NENTRIES;
-            fg[i].fge =
-                (flame_graph_entry *) calloc(sizeof(flame_graph_entry), FLAME_GRAPH_NENTRIES);
+            fg[i].fge = (flame_graph_entry *) vmalloc(
+                vm_size_to_pages(sizeof(flame_graph_entry) * FLAME_GRAPH_NENTRIES), VM_TYPE_REGULAR,
+                VM_READ | VM_WRITE);
             assert(fg[i].fge != nullptr);
         }
     }
