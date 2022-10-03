@@ -532,14 +532,10 @@ unsigned long isr_handler(struct registers *ctx)
 {
     int int_no = ctx->int_no;
 
-    context_tracking_enter_kernel();
-
     if (!defer_irq_restore(int_no))
         irq_restore(ctx->rflags);
 
     int_handlers[int_no](ctx);
-
-    context_tracking_exit_kernel();
 
     return INTERRUPT_STACK_ALIGN(ctx);
 }
@@ -550,6 +546,8 @@ extern "C" unsigned long x86_dispatch_interrupt(struct registers *regs)
 {
     unsigned long vec_no = regs->int_no;
     unsigned long result;
+
+    context_tracking_enter_kernel();
 
     if (vec_no < EXCEPTION_VECTORS_END)
         return isr_handler(regs);
@@ -573,6 +571,8 @@ extern "C" unsigned long x86_dispatch_interrupt(struct registers *regs)
     }
     else
         result = INTERRUPT_STACK_ALIGN(irq_handler(regs));
+
+    context_tracking_exit_kernel();
 
     return result;
 }
