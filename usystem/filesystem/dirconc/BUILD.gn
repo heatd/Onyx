@@ -1,0 +1,8 @@
+import("//build/app.gni")
+
+app_executable("dirconc") {
+    package_name = "dirconc"
+    output_name = "$package_name"
+
+    sources = [ "dirconc.c" ]
+}

@@ -13,6 +13,7 @@ void superblock_init(struct superblock *sb)
     sb->s_ref = 1;
     spinlock_init(&sb->s_ilock);
     sb->s_flags = 0;
+    mutex_init(&sb->s_rename_lock);
 }
 
 int sb_read_bio(struct superblock *sb, struct page_iov *vec, size_t nr_vecs, size_t block_number)

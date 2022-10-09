@@ -48,8 +48,9 @@ static inline bool signal_is_standard(int sig)
     return !signal_is_realtime(sig);
 }
 
-#define THREAD_SIGNAL_STOPPING (1 << 0)
-#define THREAD_SIGNAL_EXITING  (1 << 1)
+#define THREAD_SIGNAL_STOPPING        (1 << 0)
+#define THREAD_SIGNAL_EXITING         (1 << 1)
+#define THREAD_SIGNAL_ORIGINAL_SIGSET (1 << 2)
 
 struct process;
 
@@ -74,6 +75,9 @@ struct signal_info
      * to this variable happen in kernel mode, in this exact thread.
      */
     stack_t altstack;
+
+    // Used by pselect, ppoll, sigsuspend
+    sigset_t original_sigset;
 
 #ifdef __cplusplus
 

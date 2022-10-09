@@ -24,7 +24,7 @@
 
 #define FUNC_NO_DISCARD             __attribute__((warn_unused_result))
 #define align(x)                    __attribute__((aligned(x)))
-#define __align_cache               align(16)
+#define __align_cache               align(64)
 #define likely(x)                   __builtin_expect(!!(x), 1)
 #define unlikely(x)                 __builtin_expect(!!(x), 0)
 #define prefetch(...)               __builtin_prefetch(__VA_ARGS__)

@@ -550,13 +550,14 @@ void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
 
     auto pcpu = &cache->pcpu[get_cpu_nr()];
 
-    pcpu->touched.add_fetch(1, mem_order::relaxed);
+    pcpu->touched.store(1, mem_order::release);
 
     if (!pcpu->size) [[unlikely]]
     {
         // If our magazine is empty, lets refill it
         if (kmem_cache_alloc_refill_mag(cache, pcpu, flags) < 0)
         {
+            pcpu->touched.store(0, mem_order::release);
             sched_enable_preempt();
             return errno = ENOMEM, nullptr;
         }
@@ -567,7 +568,7 @@ void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
     auto ret = pcpu->magazine[--pcpu->size];
     ((bufctl *) ret)->flags = 0;
 
-    pcpu->touched.sub_fetch(1, mem_order::relaxed);
+    pcpu->touched.store(0, mem_order::release);
 
     sched_enable_preempt();
 
@@ -689,7 +690,7 @@ static void kmem_cache_free_pcpu(struct slab_cache *cache, void *ptr)
 
     auto pcpu = &cache->pcpu[get_cpu_nr()];
 
-    pcpu->touched.add_fetch(1, mem_order::relaxed);
+    pcpu->touched.store(1, mem_order::release);
 
     if (pcpu->size == cache->mag_limit) [[unlikely]]
     {
@@ -701,7 +702,7 @@ static void kmem_cache_free_pcpu(struct slab_cache *cache, void *ptr)
         buf->flags = BUFCTL_PATTERN_FREE;
     }
 
-    pcpu->touched.sub_fetch(1, mem_order::relaxed);
+    pcpu->touched.store(0, mem_order::release);
 
     sched_enable_preempt();
 }

@@ -99,7 +99,7 @@ process::process() : pgrp_node{this}, session_node{this}
 {
     init_wait_queue_head(&this->wait_child_event);
     mutex_init(&condvar_mutex);
-    mutex_init(&ctx.fdlock);
+    spinlock_init(&ctx.fdlock);
     active_processes++;
 }
 
@@ -864,6 +864,7 @@ void process_kill_other_threads(void)
         scoped_lock g{t->sinfo.lock};
 
         t->sinfo.flags |= THREAD_SIGNAL_EXITING;
+        t->sinfo.signal_pending = true;
 
         /* If it's in an interruptible sleep, very good. Else, it's either
          * in an uninterruptible sleep or it was stopped but got woken up by SIGKILL code before us.

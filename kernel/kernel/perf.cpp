@@ -19,83 +19,12 @@
 
 #include <onyx/atomic.hpp>
 
-#define PERF_LOCK_EXCLUSIVE UINT_MAX
-
 /**
  * @brief Protects the data structures below (particularly, fg).
- * It counts the number of cpus that have it grabbed, or PERF_LOCK_EXCLUSIVE.
+ * It counts the number of cpus that have it grabbed, or perf_lock.lock_write.
  * EXCLUSIVE is held when setting up or disabling perf probing.
  */
-cul::atomic_uint perf_lock;
-
-/**
- * @brief Lock the perf lock in shared mode
- *
- */
-static void perf_lock_shared()
-{
-    while (true)
-    {
-        auto old = perf_lock.load(mem_order::relaxed);
-        if (old == PERF_LOCK_EXCLUSIVE)
-        {
-            do
-            {
-                cpu_relax();
-                old = perf_lock.load(mem_order::relaxed);
-            } while (old == PERF_LOCK_EXCLUSIVE);
-        }
-
-        if (perf_lock.compare_exchange_strong(old, old + 1, mem_order::acquire, mem_order::relaxed))
-            [[likely]]
-            return;
-    }
-}
-
-/**
- * @brief Unlock the shared perf lock
- *
- */
-static void perf_unlock_shared()
-{
-    perf_lock.sub_fetch(1, mem_order::release);
-}
-
-/**
- * @brief Lock the perf lock in exclusive mode
- *
- */
-static void perf_lock_exclusive()
-{
-    irq_disable();
-
-    while (true)
-    {
-        auto old = perf_lock.load(mem_order::relaxed);
-        if (old != 0)
-        {
-            do
-            {
-                cpu_relax();
-                old = perf_lock.load(mem_order::relaxed);
-            } while (old != 0);
-        }
-
-        if (perf_lock.compare_exchange_strong(old, PERF_LOCK_EXCLUSIVE, mem_order::acquire,
-                                              mem_order::relaxed)) [[likely]]
-            return;
-    }
-}
-
-/**
- * @brief Unlock the perf unlock in exclusive mode
- *
- */
-static void perf_unlock_exclusive()
-{
-    perf_lock.store(0, mem_order::release);
-    irq_enable();
-}
+rwslock perf_lock;
 
 bool perf_probe_enabled = false;
 bool perf_probe_wait_enabled = false;
@@ -109,10 +38,10 @@ clockevent *ce;
  */
 static int perf_probe_enable_wait()
 {
-    perf_lock_exclusive();
+    perf_lock.lock_write();
 
     if (perf_probe_enabled)
-        return perf_unlock_exclusive(), -EINVAL;
+        return perf_lock.unlock_write(), -EINVAL;
 
     if (!fg)
     {
@@ -131,7 +60,7 @@ static int perf_probe_enable_wait()
 
     perf_probe_wait_enabled = true;
 
-    perf_unlock_exclusive();
+    perf_lock.unlock_write();
 
     return 0;
 }
@@ -155,10 +84,10 @@ extern cul::atomic_size_t used_pages;
  */
 static int perf_probe_enable()
 {
-    perf_lock_exclusive();
+    perf_lock.lock_write();
 
     if (perf_probe_wait_enabled)
-        return perf_unlock_exclusive(), -EINVAL;
+        return perf_lock.unlock_write(), -EINVAL;
 
     if (!fg)
     {
@@ -194,7 +123,7 @@ static int perf_probe_enable()
 
     perf_probe_enabled = true;
 
-    perf_unlock_exclusive();
+    perf_lock.unlock_write();
 
     return 0;
 }
@@ -207,13 +136,15 @@ static int perf_probe_enable()
  */
 static int perf_probe_ucopy(void *ubuf)
 {
-    perf_lock_exclusive();
+    perf_lock.lock_write();
 
     if (!fg)
     {
-        perf_unlock_exclusive();
+        perf_lock.unlock_write();
         return -EINVAL;
     }
+
+    sched_enable_preempt();
 
     unsigned char *ubuf2 = (unsigned char *) ubuf;
     for (unsigned int i = 0; i < get_nr_cpus(); i++)
@@ -222,10 +153,16 @@ static int perf_probe_ucopy(void *ubuf)
         {
             auto fge = &fg[i].fge[j];
             if (copy_to_user(ubuf2, fge, sizeof(*fge)) < 0)
-                return perf_unlock_exclusive(), -EFAULT;
+            {
+                sched_disable_preempt();
+                perf_lock.unlock_write();
+                return -EFAULT;
+            }
             ubuf2 += sizeof(flame_graph_entry);
         }
     }
+
+    sched_disable_preempt();
 
     for (unsigned int i = 0; i < get_nr_cpus(); i++)
     {
@@ -235,7 +172,7 @@ static int perf_probe_ucopy(void *ubuf)
     free(fg);
     fg = nullptr;
 
-    perf_unlock_exclusive();
+    perf_lock.unlock_write();
 
     return 0;
 }
@@ -246,11 +183,11 @@ static int perf_probe_ucopy(void *ubuf)
  */
 static void perf_disable_probing()
 {
-    perf_lock_exclusive();
+    perf_lock.lock_write();
 
     if (!perf_probe_enabled && !perf_probe_wait_enabled)
     {
-        perf_unlock_exclusive();
+        perf_lock.unlock_write();
         return;
     }
 
@@ -263,7 +200,7 @@ static void perf_disable_probing()
 
     perf_probe_enabled = false;
 
-    perf_unlock_exclusive();
+    perf_lock.unlock_write();
 }
 
 static int perf_probe_ioctl_enable_disable_cpu(void *argp)
@@ -285,10 +222,10 @@ static int perf_probe_ioctl_enable_disable_cpu(void *argp)
 
 static unsigned int perf_probe_ioctl_get_buflen()
 {
-    perf_lock_shared();
+    perf_lock.lock_read();
 
     if (!fg)
-        return perf_unlock_shared(), -EINVAL;
+        return perf_lock.unlock_read(), -EINVAL;
 
     size_t len = 0;
     for (unsigned int i = 0; i < get_nr_cpus(); i++)
@@ -296,7 +233,7 @@ static unsigned int perf_probe_ioctl_get_buflen()
         len += fg[i].nentries * sizeof(flame_graph_entry);
     }
 
-    perf_unlock_shared();
+    perf_lock.unlock_read();
 
     return len;
 }
@@ -312,9 +249,9 @@ static unsigned int perf_probe_ioctl_enable_disable_wait(void *argp)
         st = perf_probe_enable_wait();
     else
     {
-        perf_lock_exclusive();
+        perf_lock.lock_write();
         perf_probe_wait_enabled = false;
-        perf_unlock_exclusive();
+        perf_lock.unlock_write();
     }
 
     return st;
@@ -358,11 +295,12 @@ void perf_probe_setup_wait(struct flame_graph_entry *fge)
  */
 void perf_probe_commit_wait(const struct flame_graph_entry *fge)
 {
-    perf_lock_shared();
+    if (perf_lock.try_read() < 0)
+        return;
 
     if (!perf_probe_wait_enabled)
     {
-        perf_unlock_shared();
+        perf_lock.unlock_read();
         return;
     }
 
@@ -375,7 +313,7 @@ void perf_probe_commit_wait(const struct flame_graph_entry *fge)
     e->rips[31] = t1 - e->rips[31];
     irq_restore(_);
 
-    perf_unlock_shared();
+    perf_lock.unlock_read();
 }
 
 /**
@@ -416,11 +354,13 @@ bool perf_probe_is_enabled()
  */
 void perf_probe_do(struct registers *regs)
 {
-    perf_lock_shared();
+    // Give up if we can't grab the lock
+    if (perf_lock.try_read() < 0)
+        return;
 
     if (!perf_probe_enabled)
     {
-        perf_unlock_shared();
+        perf_lock.unlock_read();
         return;
     }
 
@@ -436,7 +376,7 @@ void perf_probe_do(struct registers *regs)
 #endif
     irq_restore(_);
 
-    perf_unlock_shared();
+    perf_lock.unlock_read();
 }
 
 const file_ops perf_probe_fops = {.read = nullptr, // TODO

@@ -18,13 +18,9 @@
 struct ioctx
 {
     /* Current working directory */
-    struct spinlock cwd_lock
-    {
-    };
-    struct file *cwd{};
-    struct mutex fdlock
-    {
-    };
+    spinlock cwd_lock{};
+    file *cwd{};
+    spinlock fdlock{};
     struct file **file_desc{};
     unsigned int file_desc_entries{};
     unsigned long *cloexec_fds{};

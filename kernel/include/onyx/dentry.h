@@ -18,6 +18,8 @@
 #include <onyx/rwlock.h>
 #include <onyx/vfs.h>
 
+#include <onyx/atomic.hpp>
+
 #define INLINE_NAME_MAX 40
 
 #define DENTRY_FLAG_MOUNTPOINT (1 << 0)
@@ -38,9 +40,10 @@ struct dentry
 
     struct dentry *d_parent;
     struct list_head d_parent_dir_node;
+    struct list_head d_cache_node;
     struct list_head d_children_head;
     struct dentry *d_mount_dentry;
-    uint16_t d_flags;
+    atomic<uint16_t> d_flags;
 };
 
 struct dentry *dentry_open(char *path, struct dentry *base);

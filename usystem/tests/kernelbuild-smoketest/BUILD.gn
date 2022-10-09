@@ -1,0 +1,12 @@
+import("//build/package.gni")
+
+resource("kernelbuild-smoketest-script") {
+    sources = [ "kbuild-smoketest.sh" ]
+    outputs = [ "sbin/{{source_file_part}}" ]
+}
+
+package("kernelbuild-smoketest") {
+    deps = [
+        ":kernelbuild-smoketest-script",
+    ]
+}

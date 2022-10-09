@@ -372,7 +372,7 @@ public:
         return p[index];
     }
 
-    ~unique_ptr(void)
+    ~unique_ptr()
     {
         delete_mem();
     }

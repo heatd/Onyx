@@ -198,7 +198,7 @@ enum class sleep_result
 class poll_table
 {
 private:
-    cul::vector<poll_file> poll_table_array;
+    cul::vector<unique_ptr<poll_file>> poll_table_array;
     bool signaled;
 
     /* After adding every file to the array, we set this to false in order
@@ -214,7 +214,7 @@ public:
     {
     }
 
-    cul::vector<poll_file> &get_poll_table()
+    cul::vector<unique_ptr<poll_file>> &get_poll_table()
     {
         return poll_table_array;
     }

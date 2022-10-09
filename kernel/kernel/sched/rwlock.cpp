@@ -213,6 +213,42 @@ void rw_unlock_write(rwlock *lock)
     rw_lock_wake_up_threads(lock);
 }
 
+int rwslock::try_read()
+{
+    sched_disable_preempt();
+    unsigned long l;
+    unsigned long to_insert;
+
+    do
+    {
+        l = __atomic_load_n(&lock, __ATOMIC_RELAXED);
+        if (l == RDWR_LOCK_WRITE || l == RDWR_LOCK_WRITE - 1)
+        {
+            sched_enable_preempt();
+            return -EAGAIN;
+        }
+
+        to_insert = l + 1;
+    } while (!__atomic_compare_exchange_n(&lock, &l, to_insert, false, __ATOMIC_ACQUIRE,
+                                          __ATOMIC_RELAXED));
+    return 0;
+}
+
+int rwslock::try_write()
+{
+    sched_disable_preempt();
+    unsigned long expected = 0;
+    const unsigned long write_value = RDWR_LOCK_WRITE;
+    if (!__atomic_compare_exchange_n(&lock, &expected, write_value, false, __ATOMIC_ACQUIRE,
+                                     __ATOMIC_RELAXED))
+    {
+        sched_enable_preempt();
+        return -EAGAIN;
+    }
+
+    return 0;
+}
+
 void rwslock::lock_read()
 {
     sched_disable_preempt();

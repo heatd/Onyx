@@ -44,7 +44,7 @@ struct slab_cache
     int mag_limit;
     // TODO: This is horrible. We need a way to allocate percpu memory,
     // and then either trim it or grow it when CPUs come online.
-    struct slab_cache_percpu_context pcpu[CONFIG_SMP_NR_CPUS];
+    struct slab_cache_percpu_context pcpu[CONFIG_SMP_NR_CPUS] __align_cache;
 };
 
 #define KMEM_CACHE_HWALIGN (1 << 0)

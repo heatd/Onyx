@@ -203,8 +203,6 @@ size_t pipe_write(size_t offset, size_t sizeofwrite, void *buffer, struct file *
 void pipe::close_write_end()
 {
     /* wake up any possibly-blocked writers */
-    scoped_mutex g{pipe_lock};
-
     if (--writer_count == 0)
     {
         eof = 1;
@@ -214,8 +212,6 @@ void pipe::close_write_end()
 
 void pipe::close_read_end()
 {
-    scoped_mutex g{pipe_lock};
-
     if (--reader_count == 0)
     {
         broken = 1;

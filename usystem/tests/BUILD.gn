@@ -3,5 +3,6 @@ group("tests") {
         "kernel_api_tests",
         "system_benchmark",
         "testsuite",
+        "kernelbuild-smoketest"
     ]
 }

@@ -73,17 +73,19 @@ patch_package() {
 
 . PKGBUILD
 
-if [ -n "$tarball" ] && [ ! -f "${1}/PKGBUILD.stamp" ]; then
+if [ ! -f "${1}/PKGBUILD.stamp" ]; then
+if [ -n "$fetch_cmd" ]; then
+	sh -c "$fetch_cmd"
+elif [ -n "$tarball" ]; then
 	tarball_name="$(basename "$tarball")"
 
 	wget "$tarball"
 	tar xvf "$tarball_name"
 	rm "$tarball_name"
-
+fi
 	pushd .
 	patch_package
 	popd
-
 	touch "${1}/PKGBUILD.stamp"
 fi
 

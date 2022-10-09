@@ -2166,6 +2166,8 @@ int vm_handle_page_fault(struct fault_info *info)
 
     if (sched_is_preemption_disabled())
         panic("Page fault while preemption was disabled\n");
+    if (irq_is_disabled())
+        panic("Page fault while IRQs were disabled\n");
 
     /* Surrender immediately if there's no user address space or the fault was inside vm code */
     if (!as || mutex_holds_lock(&as->vm_lock))
