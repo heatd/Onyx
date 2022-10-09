@@ -41,6 +41,9 @@ public:
 
     void unlock_read();
     void unlock_write();
+
+    int try_read();
+    int try_write();
 };
 
 bool rw_lock_tryread(struct rwlock *lock);

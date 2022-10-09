@@ -143,8 +143,8 @@ static inline void list_reset(struct list_head *head)
  */
 struct extrusive_list_head
 {
-    void *ptr __align_cache;
-    struct extrusive_list_head *next __align_cache;
+    void *ptr;
+    struct extrusive_list_head *next;
 };
 
 static inline int extrusive_list_add(struct extrusive_list_head *list, void *ptr)

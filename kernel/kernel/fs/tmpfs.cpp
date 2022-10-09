@@ -86,8 +86,7 @@ char *tmpfs_readlink(struct file *f)
 
 int tmpfs_unlink(const char *name, int flags, struct dentry *dir)
 {
-    scoped_rwslock<rw_lock::write> g{dir->d_lock};
-    auto child = dentry_lookup_internal(name, dir, DENTRY_LOOKUP_UNLOCKED);
+    auto child = dentry_lookup_internal(name, dir, 0);
     assert(child != nullptr);
 
     if (S_ISDIR(child->d_inode->i_mode))

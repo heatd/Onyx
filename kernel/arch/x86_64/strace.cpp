@@ -72,6 +72,20 @@ void stack_trace_user(uintptr_t *stack)
     printk("Stack trace ended.\n");
 }
 
+#ifdef CONFIG_STACK_TRACE_SERIAL
+#include <onyx/serial.h>
+static char buffer[1000];
+
+#define budget_printk(...)                         \
+    snprintf(buffer, sizeof(buffer), __VA_ARGS__); \
+    platform_serial_write(buffer, strlen(buffer))
+
+#define stack_printk budget_printk
+#else
+#define stack_printk printk
+
+#endif
+
 char *resolve_sym(void *address);
 __attribute__((no_sanitize_undefined)) void stack_trace_ex(uint64_t *stack)
 {
@@ -99,7 +113,7 @@ __attribute__((no_sanitize_undefined)) void stack_trace_ex(uint64_t *stack)
         if (!s)
             break;
 
-        printk("Stack trace #%lu: %s\n", i, s);
+        stack_printk("Stack trace #%lu: %s\n", i, s);
 
         free(s);
 

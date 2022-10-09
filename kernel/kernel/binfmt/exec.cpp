@@ -318,10 +318,10 @@ int flush_old_exec(struct exec_state *state)
 
     process_kill_other_threads();
 
+    vm_set_aspace(state->new_address_space.get());
+
     curr->address_space = cul::move(state->new_address_space);
     mutex_init(&curr->address_space->vm_lock);
-
-    vm_set_aspace(curr->address_space.get());
 
     /* Close O_CLOEXEC files */
     file_do_cloexec(&curr->ctx);

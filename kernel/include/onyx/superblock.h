@@ -13,6 +13,7 @@
 #include <sys/types.h>
 
 #include <onyx/list.h>
+#include <onyx/mutex.h>
 #include <onyx/spinlock.h>
 
 struct file;
@@ -35,6 +36,7 @@ struct superblock
     struct blockdev *s_bdev;
     dev_t s_devnr;
     unsigned long s_flags;
+    mutex s_rename_lock;
 };
 
 void superblock_init(struct superblock *sb);

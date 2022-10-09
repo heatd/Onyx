@@ -156,11 +156,11 @@ struct file *__get_file_description(int fd, struct process *p)
 {
     struct ioctx *ctx = &p->ctx;
 
-    mutex_lock(&ctx->fdlock);
+    spin_lock(&ctx->fdlock);
 
     struct file *f = __get_file_description_unlocked(fd, p);
 
-    mutex_unlock(&ctx->fdlock);
+    spin_unlock(&ctx->fdlock);
 
     return f;
 }
@@ -189,11 +189,11 @@ int __file_close(int fd, struct process *p)
 {
     struct ioctx *ctx = &p->ctx;
 
-    mutex_lock(&ctx->fdlock);
+    spin_lock(&ctx->fdlock);
 
     int ret = __file_close_unlocked(fd, p);
 
-    mutex_unlock(&ctx->fdlock);
+    spin_unlock(&ctx->fdlock);
 
     return ret;
 }
@@ -210,7 +210,7 @@ struct file *get_file_description(int fd)
 
 int copy_file_descriptors(struct process *process, struct ioctx *ctx)
 {
-    scoped_mutex g{ctx->fdlock};
+    scoped_lock g{ctx->fdlock};
 
     process->ctx.file_desc = (file **) malloc(ctx->file_desc_entries * sizeof(void *));
     process->ctx.file_desc_entries = ctx->file_desc_entries;
@@ -327,7 +327,7 @@ void process_destroy_file_descriptors(process *process)
 {
     ioctx *ctx = &process->ctx;
     file **table = ctx->file_desc;
-    mutex_lock(&ctx->fdlock);
+    spin_lock(&ctx->fdlock);
 
     for (unsigned int i = 0; i < ctx->file_desc_entries; i++)
     {
@@ -342,7 +342,7 @@ void process_destroy_file_descriptors(process *process)
     ctx->file_desc = nullptr;
     ctx->file_desc_entries = 0;
 
-    mutex_unlock(&ctx->fdlock);
+    spin_unlock(&ctx->fdlock);
 }
 
 int alloc_fd(int fdbase)
@@ -354,7 +354,7 @@ int alloc_fd(int fdbase)
         return -EBADF;
 
     struct ioctx *ioctx = &current->ctx;
-    mutex_lock(&ioctx->fdlock);
+    scoped_lock g{ioctx->fdlock};
 
     unsigned long starting_long = fdbase / FDS_PER_LONG;
 
@@ -388,6 +388,7 @@ int alloc_fd(int fdbase)
                     ioctx->open_fds[i] |= (1UL << j);
                     /* And don't forget to reset the cloexec flag! */
                     fd_set_cloexec(fd, false, ioctx);
+                    g.keep_locked();
                     return fd;
                 }
             }
@@ -397,7 +398,6 @@ int alloc_fd(int fdbase)
         int new_entries = ioctx->file_desc_entries + FILE_DESCRIPTOR_GROW_NR;
         if (enlarge_file_descriptor_table(current, new_entries) < 0)
         {
-            mutex_unlock(&ioctx->fdlock);
             return -ENOMEM;
         }
     }
@@ -677,7 +677,7 @@ int sys_dup(int fd)
 
     /* We don't put the fd on success, because it's the reference the new fd holds */
 
-    mutex_unlock(&ioctx->fdlock);
+    spin_unlock(&ioctx->fdlock);
 
     return new_fd;
 out_error:
@@ -694,7 +694,7 @@ int sys_dup2(int oldfd, int newfd)
     if (newfd < 0 || oldfd < 0)
         return -EBADF;
 
-    scoped_mutex m{ioctx->fdlock};
+    scoped_lock g{ioctx->fdlock};
 
     struct file *f = __get_file_description_unlocked(oldfd, current);
     if (!f)
@@ -745,13 +745,12 @@ int sys_dup3(int oldfd, int newfd, int flags)
     if (flags & ~O_CLOEXEC)
         return -EINVAL;
 
-    mutex_lock(&ioctx->fdlock);
+    scoped_lock g{ioctx->fdlock};
 
     struct file *f = __get_file_description_unlocked(oldfd, current);
     if (!f)
     {
-        newfd = -errno;
-        goto out;
+        return -errno;
     }
 
     if ((unsigned int) newfd > ioctx->file_desc_entries)
@@ -766,8 +765,7 @@ int sys_dup3(int oldfd, int newfd, int flags)
 
     if (oldfd == newfd)
     {
-        newfd = -EINVAL;
-        goto out;
+        return -EINVAL;
     }
 
     if (ioctx->file_desc[newfd])
@@ -780,9 +778,6 @@ int sys_dup3(int oldfd, int newfd, int flags)
      * get_file_description as the ref for newfd. Therefore, we don't
      * fd_get and fd_put().
      */
-
-out:
-    mutex_unlock(&ioctx->fdlock);
 
     return newfd;
 }
@@ -1323,34 +1318,34 @@ int do_dupfd(struct file *f, int fdbase, bool cloexec)
 
     fd_set_cloexec(new_fd, cloexec, ioctx);
 
-    mutex_unlock(&ioctx->fdlock);
+    spin_unlock(&ioctx->fdlock);
 
     return new_fd;
 }
 
 int fcntl_f_getfd(int fd, struct ioctx *ctx)
 {
-    mutex_lock(&ctx->fdlock);
+    spin_lock(&ctx->fdlock);
 
     if (!validate_fd_number(fd, ctx))
     {
-        mutex_unlock(&ctx->fdlock);
+        spin_unlock(&ctx->fdlock);
         return -EBADF;
     }
 
     int st = fd_is_cloexec(fd, ctx) ? FD_CLOEXEC : 0;
 
-    mutex_unlock(&ctx->fdlock);
+    spin_unlock(&ctx->fdlock);
     return st;
 }
 
 int fcntl_f_setfd(int fd, unsigned long arg, struct ioctx *ctx)
 {
-    mutex_lock(&ctx->fdlock);
+    spin_lock(&ctx->fdlock);
 
     if (!validate_fd_number(fd, ctx))
     {
-        mutex_unlock(&ctx->fdlock);
+        spin_unlock(&ctx->fdlock);
         return -EBADF;
     }
 
@@ -1358,7 +1353,7 @@ int fcntl_f_setfd(int fd, unsigned long arg, struct ioctx *ctx)
 
     fd_set_cloexec(fd, wants_cloexec, ctx);
 
-    mutex_unlock(&ctx->fdlock);
+    spin_unlock(&ctx->fdlock);
 
     return 0;
 }
@@ -1367,17 +1362,17 @@ int fcntl_f_getfl(int fd, struct ioctx *ctx)
 {
     bool is_cloexec;
 
-    mutex_lock(&ctx->fdlock);
+    spin_lock(&ctx->fdlock);
 
     if (!validate_fd_number(fd, ctx))
     {
-        mutex_unlock(&ctx->fdlock);
+        spin_unlock(&ctx->fdlock);
         return -EBADF;
     }
 
     is_cloexec = fd_is_cloexec(fd, ctx);
 
-    mutex_unlock(&ctx->fdlock);
+    spin_unlock(&ctx->fdlock);
 
     struct file *f = get_file_description(fd);
     if (!f)
@@ -1694,7 +1689,7 @@ int sys_fmount(int fd, const char *upath)
 
 void file_do_cloexec(struct ioctx *ctx)
 {
-    mutex_lock(&ctx->fdlock);
+    scoped_lock g{ctx->fdlock};
     struct file **fd = ctx->file_desc;
 
     for (unsigned int i = 0; i < ctx->file_desc_entries; i++)
@@ -1707,8 +1702,6 @@ void file_do_cloexec(struct ioctx *ctx)
             __file_close_unlocked(i, get_current_process());
         }
     }
-
-    mutex_unlock(&ctx->fdlock);
 }
 
 int open_with_vnode(struct file *node, int flags)
@@ -1721,7 +1714,6 @@ int open_with_vnode(struct file *node, int flags)
     fd_num = file_alloc(node, ioctx);
     if (fd_num < 0)
     {
-        mutex_unlock(&ioctx->fdlock);
         return -errno;
     }
 
@@ -1731,7 +1723,7 @@ int open_with_vnode(struct file *node, int flags)
     bool cloexec = flags & O_CLOEXEC;
     fd_set_cloexec(fd_num, cloexec, ioctx);
 
-    mutex_unlock(&ioctx->fdlock);
+    spin_unlock(&ioctx->fdlock);
     return fd_num;
 }
 

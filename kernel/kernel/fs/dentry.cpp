@@ -21,12 +21,78 @@
 #include <onyx/wait.h>
 
 #include <onyx/expected.hpp>
+#include <onyx/hashtable.hpp>
 #include <onyx/list.hpp>
 #include <onyx/mm/pool.hpp>
 #include <onyx/string_view.hpp>
 
 static memory_pool<dentry, 0> dentry_pool;
 dentry *root_dentry = nullptr;
+
+fnv_hash_t hash_dentry(dentry *&d)
+{
+    auto hash = fnv_hash(&d->d_parent, sizeof(dentry *));
+    hash = fnv_hash_cont(d->d_name, d->d_name_length, hash);
+    return hash;
+}
+
+fnv_hash_t hash_dentry_fields(dentry *parent, std::string_view name)
+{
+    auto hash = fnv_hash(&parent, sizeof(dentry *));
+    hash = fnv_hash_cont(name.data(), name.length(), hash);
+    return hash;
+}
+
+cul::hashtable2<dentry *, 1024, fnv_hash_t, hash_dentry> dentry_ht;
+static rwslock dentry_ht_locks[1024];
+
+[[gnu::always_inline]] static inline bool dentry_compare_name(dentry *dent,
+                                                              std::string_view &to_cmp)
+{
+    std::string_view dent_name{dent->d_name, dent->d_name_length};
+
+    return dent_name.compare(to_cmp) == 0;
+}
+
+dentry *dentry_open_from_cache_unlocked(dentry *dent, std::string_view name)
+{
+    auto namehash = fnv_hash(name.data(), name.length());
+    auto hash = hash_dentry_fields(dent, name);
+    auto index = dentry_ht.get_hashtable_index(hash);
+    auto list = dentry_ht.get_hashtable(index);
+
+    list_for_every (list)
+    {
+        dentry *d = container_of(l, dentry, d_cache_node);
+        scoped_rwslock<rw_lock::read> g{d->d_lock};
+        if (d->d_parent == dent && d->d_name_hash == namehash && dentry_compare_name(d, name))
+        {
+            dentry_get(d);
+
+            return d;
+        }
+    }
+
+    return nullptr;
+}
+
+dentry *dentry_open_from_cache(dentry *dent, std::string_view name)
+{
+    auto hash = hash_dentry_fields(dent, name);
+    auto index = dentry_ht.get_hashtable_index(hash);
+    scoped_rwslock<rw_lock::read> g{dentry_ht_locks[index]};
+
+    return dentry_open_from_cache_unlocked(dent, name);
+}
+
+void dentry_remove_from_cache(dentry *dent, dentry *parent)
+{
+    auto hash = hash_dentry_fields(dent, std::string_view{dent->d_name, dent->d_name_length});
+    auto index = dentry_ht.get_hashtable_index(hash);
+    scoped_rwslock<rw_lock::write> g{dentry_ht_locks[index]};
+
+    list_remove(&dent->d_cache_node);
+}
 
 void dentry_get(dentry *d)
 {
@@ -112,6 +178,8 @@ void dentry_destroy(dentry *d)
             list_remove(&d->d_parent_dir_node);
         }
 
+        dentry_remove_from_cache(d, d->d_parent);
+
         dentry_put(d->d_parent);
     }
 
@@ -136,13 +204,15 @@ void dentry_destroy(dentry *d)
  */
 static void dentry_fail_lookup(dentry *d)
 {
+    dentry_remove_from_cache(d, d->d_parent);
+
     {
         scoped_rwslock<rw_lock::write> g{d->d_parent->d_lock};
         list_remove(&d->d_parent_dir_node);
         dentry_put(d->d_parent);
         d->d_parent = nullptr;
-        d->d_flags &= ~DENTRY_FLAG_PENDING;
         d->d_flags |= DENTRY_FLAG_FAILED;
+        d->d_flags &= ~DENTRY_FLAG_PENDING;
     }
 
     wake_address((void *) &d->d_flags);
@@ -170,6 +240,8 @@ void dentry_kill_unlocked(dentry *entry)
         dentry_put(entry->d_parent);
         entry->d_parent = nullptr;
     }
+
+    dentry_remove_from_cache(entry, entry->d_parent);
 
     dentry_destroy(entry);
 }
@@ -235,9 +307,7 @@ bool dentry_is_dir(const dentry *d)
     return S_ISDIR(d->d_inode->i_mode);
 }
 
-bool dentry_check_for_existence(std::string_view name, dentry *d);
-
-void dentry_wait_for_pending(dentry *dent)
+dentry *dentry_wait_for_pending(dentry *dent)
 {
     wait_for(
         &dent->d_flags,
@@ -246,51 +316,66 @@ void dentry_wait_for_pending(dentry *dent)
             return !(flags & DENTRY_FLAG_PENDING);
         },
         WAIT_FOR_FOREVER, 0);
+
+    if (dent->d_flags & DENTRY_FLAG_FAILED)
+    {
+        dentry_put(dent);
+        return nullptr;
+    }
+
+    assert(dent->d_inode != nullptr);
+
+    return dent;
 }
 
 expected<dentry *, int> __dentry_create_pending_lookup(const char *name, inode *ino, dentry *parent,
                                                        bool check_existance)
 {
-    if (check_existance)
+    auto hash = hash_dentry_fields(parent, name);
+    auto index = dentry_ht.get_hashtable_index(hash);
+    scoped_rwslock<rw_lock::write> g{dentry_ht_locks[index]};
+    auto list = dentry_ht.get_hashtable(index);
+
+    auto dent = dentry_open_from_cache_unlocked(parent, std::string_view(name));
+
+    if (dent)
     {
-        if (dentry_check_for_existence(name, parent))
+        g.unlock();
+        dent = dentry_wait_for_pending(dent);
+
+        if (dent && check_existance)
             return unexpected<int>{-EEXIST};
+        else if (dent)
+            return dent;
     }
+
+    scoped_rwslock<rw_lock::write> g2{parent->d_lock};
 
     auto d = dentry_create(name, ino, parent);
     if (!d)
         return unexpected<int>{-ENOMEM};
 
     d->d_flags |= DENTRY_FLAG_PENDING;
+
+    list_add_tail(&d->d_cache_node, list);
     return d;
 }
 
 expected<dentry *, int> dentry_create_pending_lookup(const char *name, inode *ino, dentry *parent,
                                                      bool check_existance = true)
 {
-    scoped_rwslock<rw_lock::write> g{parent->d_lock};
-
     return __dentry_create_pending_lookup(name, ino, parent, check_existance);
 }
 
-dentry *dentry_open_cached(std::string_view v, dentry *dir);
-
 dentry *__dentry_try_to_open(std::string_view name, dentry *dir)
 {
-    if (auto d = dentry_open_cached(name, dir); d)
+    if (auto d = dentry_open_from_cache(dir, name); d)
     {
         if (d->d_flags & DENTRY_FLAG_PENDING)
         {
-            dir->d_lock.unlock_write();
-            dentry_wait_for_pending(d);
-            dir->d_lock.lock_write();
+            d = dentry_wait_for_pending(d);
 
-            if (!(d->d_flags & DENTRY_FLAG_FAILED))
-                return d;
-            else
-            {
-                dentry_put(d);
-            }
+            return d;
         }
         else
             return d;
@@ -310,7 +395,12 @@ dentry *__dentry_try_to_open(std::string_view name, dentry *dir)
 
     auto dent = ex.value();
 
-    dir->d_lock.unlock_write();
+    if (!(dent->d_flags & DENTRY_FLAG_PENDING))
+    {
+        // We got lucky and got someone else's resolution.
+        // Easy.
+        return dent;
+    }
 
     auto pino = dir->d_inode;
 
@@ -324,11 +414,8 @@ dentry *__dentry_try_to_open(std::string_view name, dentry *dir)
     {
         // printk("failed\n");
         dentry_fail_lookup(dent);
-        dir->d_lock.lock_write();
         return nullptr;
     }
-
-    dir->d_lock.lock_write();
 
     dent->d_inode = ino;
     dentry_get(dent);
@@ -363,42 +450,14 @@ dentry *dentry_parent(dentry *dir)
     return __dentry_parent(dir);
 }
 
-bool dentry_compare_name(dentry *dent, std::string_view &to_cmp)
-{
-    std::string_view dent_name{dent->d_name, dent->d_name_length};
-
-    return dent_name.compare(to_cmp) == 0;
-}
-
-dentry *dentry_open_cached(std::string_view v, dentry *dir)
-{
-    const fnv_hash_t hash = fnv_hash(v.data(), v.length());
-
-    if (!v.compare(".."))
-    {
-        auto ret = dir->d_parent ? dir->d_parent : dir;
-        dentry_get(ret);
-        return ret;
-    }
-
-    list_for_every (&dir->d_children_head)
-    {
-        dentry *d = container_of(l, dentry, d_parent_dir_node);
-        if (d->d_name_hash == hash && dentry_compare_name(d, v))
-        {
-            dentry_get(d);
-
-            return d;
-        }
-    }
-
-    return nullptr;
-}
-
 dentry *dentry_lookup_internal(std::string_view v, dentry *dir, dentry_lookup_flags_t flags)
 {
-    bool lock = !(flags & DENTRY_LOOKUP_UNLOCKED);
     bool resolve = !(flags & DENTRY_LOOKUP_DONT_TRY_TO_RESOLVE);
+
+    if (!dentry_is_dir(dir))
+    {
+        return errno = ENOTDIR, nullptr;
+    }
 
     if (!v.compare("."))
     {
@@ -406,34 +465,27 @@ dentry *dentry_lookup_internal(std::string_view v, dentry *dir, dentry_lookup_fl
         return dir;
     }
 
-    if (!dentry_is_dir(dir))
+    if (!v.compare(".."))
     {
-        return errno = ENOTDIR, nullptr;
+        auto dent = dentry_parent(dir);
+        if (!dent)
+            dent = dir;
+        dentry_get(dent);
+        return dent;
     }
 
-    if (lock) [[likely]]
-        dir->d_lock.lock_read();
-
-    dentry *dent = dentry_open_cached(v, dir);
-
-    if (lock)
-        dir->d_lock.unlock_read();
+    dentry *dent = dentry_open_from_cache(dir, v);
 
     if (dent)
     {
         if (dent->d_flags & DENTRY_FLAG_PENDING)
         {
-            if (!lock)
-                dir->d_lock.unlock_write();
-            dentry_wait_for_pending(dent);
-            if (!lock)
-                dir->d_lock.lock_write();
+            dent = dentry_wait_for_pending(dent);
 
-            if (!(dent->d_flags & DENTRY_FLAG_FAILED))
+            if (dent)
                 return dent;
             else
             {
-                dentry_put(dent);
                 goto resolve;
             }
         }
@@ -442,8 +494,7 @@ dentry *dentry_lookup_internal(std::string_view v, dentry *dir, dentry_lookup_fl
     }
 
 resolve:
-    return resolve ? (lock ? dentry_try_to_open_locked(v, dir) : __dentry_try_to_open(v, dir))
-                   : nullptr;
+    return resolve ? __dentry_try_to_open(v, dir) : nullptr;
 }
 
 dentry *dentry_mount(const char *mountpoint, struct inode *inode)
@@ -593,15 +644,6 @@ bool dentry_is_symlink(dentry *d)
     return d->d_inode->i_type == VFS_TYPE_SYMLINK;
 }
 
-bool dentry_check_for_existence(std::string_view name, dentry *d)
-{
-    dentry *res = nullptr;
-    if ((res = dentry_lookup_internal(name, d, DENTRY_LOOKUP_UNLOCKED)) == nullptr)
-        return false;
-    dentry_put(res);
-    return true;
-}
-
 bool dentry_is_mountpoint(dentry *dir)
 {
     return dir->d_flags & DENTRY_FLAG_MOUNTPOINT;
@@ -694,6 +736,8 @@ int __dentry_resolve_path(nameidata &data)
                 return -errno;
             }
         }
+
+        assert(new_found->d_inode != nullptr);
 
         if (dentry_is_symlink(new_found))
         {
@@ -918,10 +962,9 @@ struct create_handling : public last_name_handling
         else if (in.type == create_file_type::mknod)
             new_inode = inode->i_fops->mknod(_name, in.mode, in.dev, dentry);
 
-        rw_unlock_write(&inode->i_rwlock);
-
         if (!new_inode)
         {
+            rw_unlock_write(&inode->i_rwlock);
             dentry_fail_lookup(new_dentry);
             return unexpected<int>{-errno};
         }
@@ -936,6 +979,8 @@ struct create_handling : public last_name_handling
         new_dentry->d_inode = new_inode;
 
         dentry_complete_lookup(new_dentry);
+        rw_unlock_write(&inode->i_rwlock);
+
 #if 0
 		printk("cinode refs: %lu\n", new_inode->i_refc);
 		printk("cdentry refs: %lu\n", new_dentry->d_ref);
@@ -973,10 +1018,9 @@ struct symlink_handling : public last_name_handling
 
         auto new_ino = inode->i_fops->symlink(_name, dest, dentry);
 
-        rw_unlock_write(&inode->i_rwlock);
-
         if (!new_ino)
         {
+            rw_unlock_write(&inode->i_rwlock);
             dentry_fail_lookup(new_dentry);
             return unexpected<int>{-errno};
         }
@@ -985,6 +1029,8 @@ struct symlink_handling : public last_name_handling
         dentry_get(new_dentry);
 
         dentry_complete_lookup(new_dentry);
+
+        rw_unlock_write(&inode->i_rwlock);
 
         return new_dentry;
     }
@@ -1100,7 +1146,14 @@ char *dentry_to_file_name(struct dentry *dentry)
         buf_len += d->d_name_length + 1;
         list_add(&p->node, &element_list);
 
-        d = dentry_parent(d);
+        if (d->d_flags & DENTRY_FLAG_MOUNT_ROOT)
+        {
+            d = dentry_parent(d);
+            if (d)
+                d = dentry_parent(d);
+        }
+        else
+            d = dentry_parent(d);
     }
 
     /* Remove one from the end to avoid trailing slashes */
@@ -1170,10 +1223,9 @@ struct link_handling : public last_name_handling
 
         auto st = inode->i_fops->link(dest, _name, dentry);
 
-        rw_unlock_write(&inode->i_rwlock);
-
         if (st < 0)
         {
+            rw_unlock_write(&inode->i_rwlock);
             dentry_fail_lookup(new_dentry);
             return unexpected<int>{st};
         }
@@ -1183,6 +1235,8 @@ struct link_handling : public last_name_handling
         dentry_get(new_dentry);
 
         dentry_complete_lookup(new_dentry);
+
+        rw_unlock_write(&inode->i_rwlock);
 
         return new_dentry;
     }
@@ -1269,6 +1323,8 @@ void dentry_do_unlink(dentry *entry)
         inode_dec_nlink(entry->d_inode);
     }
 
+    dentry_remove_from_cache(entry, parent);
+
     entry->d_lock.unlock_write();
 
     // We can do this because we're holding the parent dir's lock
@@ -1320,10 +1376,9 @@ struct unlink_handling : public last_name_handling
         /* Do the actual fs unlink */
         auto st = inode->i_fops->unlink(_name, flags, dentry);
 
-        rw_unlock_write(&inode->i_rwlock);
-
         if (st < 0)
         {
+            rw_unlock_write(&inode->i_rwlock);
             dentry_put(child);
             return unexpected<int>{st};
         }
@@ -1338,6 +1393,8 @@ struct unlink_handling : public last_name_handling
             /* Release the reference that we got from dentry_lookup_internal */
             dentry_put(child);
         }
+
+        rw_unlock_write(&inode->i_rwlock);
 
         /* Return the parent directory as a cookie so the calling code doesn't crash and die */
         return dentry;
@@ -1509,18 +1566,6 @@ struct rename_handling : public last_name_handling
         // printk("last name %.*s\n", (int) name.length(), name.data());
         auto inode = dir->d_inode;
 
-        if (dir->d_inode->i_dev != old->d_inode->i_dev)
-            return unexpected<int>{-EXDEV};
-
-        if (old->d_inode == dir->d_inode)
-            return unexpected<int>{-EINVAL};
-
-        if (!inode_can_access(inode, FILE_ACCESS_WRITE))
-            return unexpected<int>{-EACCES};
-
-        char _name[NAME_MAX + 1] = {};
-        memcpy(_name, name.data(), name.length());
-
         /* We've got multiple cases to handle here:
          * 1) name exists: We atomically replace them.
          * 2) oldpath and newpath are the same inode: We return success.
@@ -1544,8 +1589,21 @@ struct rename_handling : public last_name_handling
 
         // printk("dir1 %s dir2 %s\n", __dir1->d_name, __dir2->d_name);
 
-        scoped_rwlock<rw_lock::write> g{__dir1->d_inode->i_rwlock};
-        scoped_rwlock<rw_lock::write> g2{__dir2->d_inode->i_rwlock};
+        if (dir->d_inode->i_dev != old->d_inode->i_dev)
+            return unexpected<int>{-EXDEV};
+
+        if (old->d_inode == dir->d_inode)
+            return unexpected<int>{-EINVAL};
+
+        auto sb = inode->i_sb;
+
+        if (!inode_can_access(inode, FILE_ACCESS_WRITE))
+            return unexpected<int>{-EACCES};
+
+        scoped_mutex rename_lock_guard{sb->s_rename_lock};
+
+        char _name[NAME_MAX + 1] = {};
+        memcpy(_name, name.data(), name.length());
 
         // printk("lookup0\n");
         dentry *dest = dentry_lookup_internal(name, dir);
@@ -1557,6 +1615,9 @@ struct rename_handling : public last_name_handling
             dentry_put(dest);
             return unexpected<int>{-EBUSY};
         }
+
+        scoped_rwlock<rw_lock::write> g{__dir1->d_inode->i_rwlock};
+        scoped_rwlock<rw_lock::write> g2{__dir2->d_inode->i_rwlock};
 
         if (dest)
         {
@@ -1572,6 +1633,16 @@ struct rename_handling : public last_name_handling
                 dentry_put(dest);
                 return unexpected<int>{-EISDIR};
             }
+        }
+
+        auto old_parent = __dentry_parent(old);
+
+        if (!old_parent)
+        {
+            if (dest)
+                dentry_put(dest);
+
+            return unexpected<int>{-ENOENT};
         }
 
         /* It's invalid to try to make a directory be a subdirectory of itself */
@@ -1615,10 +1686,6 @@ struct rename_handling : public last_name_handling
         st = inode->i_fops->link(&f, _name, dir);
 
         // printk("linked\n");
-
-        auto old_parent = __dentry_parent(old);
-
-        assert(old_parent != nullptr);
 
         // printk("unlinking\n");
 

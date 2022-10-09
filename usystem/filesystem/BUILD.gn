@@ -2,6 +2,7 @@ group("filesystem") {
     deps = [
         "fs_tests",
         "fsx",
-        "fsstress" 
+        "fsstress",
+        "dirconc"
     ]
 }

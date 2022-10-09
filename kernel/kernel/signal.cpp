@@ -913,10 +913,9 @@ int sys_sigsuspend(const sigset_t *uset)
     if (copy_from_user(&set, uset, sizeof(sigset_t)) < 0)
         return -EFAULT;
 
-    /* Ok, mask the signals in set */
-    sigset_t old;
     /* First, save the old sigset */
-    memcpy(&old, &current->sinfo.sigmask, sizeof(sigset_t));
+    memcpy(&current->sinfo.original_sigset, &current->sinfo.sigmask, sizeof(sigset_t));
+    current->sinfo.flags |= THREAD_SIGNAL_ORIGINAL_SIGSET;
     /* Now, set the signal mask */
     current->sinfo.set_blocked(&set);
 
@@ -926,12 +925,10 @@ int sys_sigsuspend(const sigset_t *uset)
 
     wait_for_event_interruptible(&wq, false);
 
-    current->sinfo.set_blocked(&old);
-
     return -EINTR;
 }
 
-int sys_pause(void)
+int sys_pause()
 {
     struct wait_queue wq;
     init_wait_queue_head(&wq);

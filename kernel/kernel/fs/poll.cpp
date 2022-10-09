@@ -8,6 +8,7 @@
 
 #include <onyx/file.h>
 #include <onyx/poll.h>
+#include <onyx/process.h>
 #include <onyx/signal.h>
 #include <onyx/vfs.h>
 
@@ -98,26 +99,35 @@ class auto_signal_mask
 {
 private:
     bool sigmask_valid;
-    sigset_t original_sigmask;
     sigset_t &temp_sigmask;
+    bool disable_{false};
 
 public:
-    auto_signal_mask(bool valid, sigset_t &set)
-        : sigmask_valid{valid}, original_sigmask{}, temp_sigmask{set}
+    auto_signal_mask(bool valid, sigset_t &set) : sigmask_valid{valid}, temp_sigmask{set}
     {
         if (!sigmask_valid)
             return;
         auto thread = get_current_thread();
-        original_sigmask = thread->sinfo.set_blocked(&temp_sigmask);
+        thread->sinfo.original_sigset = thread->sinfo.set_blocked(&temp_sigmask);
+        thread->sinfo.flags |= THREAD_SIGNAL_ORIGINAL_SIGSET;
     }
 
     ~auto_signal_mask()
     {
-        if (!sigmask_valid)
+        if (!sigmask_valid || disable_)
             return;
-        get_current_thread()->sinfo.set_blocked(&original_sigmask);
+        auto thread = get_current_thread();
+        thread->sinfo.set_blocked(&thread->sinfo.original_sigset);
+        thread->sinfo.flags &= ~THREAD_SIGNAL_ORIGINAL_SIGSET;
+    }
+
+    void disable()
+    {
+        disable_ = true;
     }
 };
+
+struct file *__get_file_description_unlocked(int fd, struct process *p);
 
 int sys_ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *utimeout,
               const sigset_t *usigmask, size_t sigsetsize)
@@ -149,13 +159,17 @@ int sys_ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *utimeout,
             return -EFAULT;
     }
 
-    const auto_signal_mask mask_guard{valid_sigmask, set};
+    auto_signal_mask mask_guard{valid_sigmask, set};
 
     int nr_nonzero_revents = 0;
 
     poll_table pt;
     struct pollfd *end = fds + nfds;
     auto &vec = pt.get_poll_table();
+    if (!vec.reserve(nfds))
+        return -ENOMEM;
+
+    scoped_lock pfdg{get_current_process()->ctx.fdlock};
 
     /* First, we iterate through the file descriptors and add ourselves to wait queues */
     for (struct pollfd *it = fds; it != end; it++)
@@ -174,7 +188,7 @@ int sys_ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *utimeout,
             continue;
         }
 
-        struct file *f = get_file_description(kpollfd.fd);
+        struct file *f = __get_file_description_unlocked(kpollfd.fd, get_current_process());
         if (!f)
         {
             kpollfd.revents = POLLNVAL;
@@ -184,7 +198,12 @@ int sys_ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *utimeout,
             continue;
         }
 
-        poll_file pf{kpollfd.fd, &pt, f, kpollfd.events, it};
+        auto pf = make_unique<poll_file>(kpollfd.fd, &pt, f, kpollfd.events, it);
+        if (!pf)
+        {
+            fd_put(f);
+            return -ENOMEM;
+        }
 
         if (!vec.push_back(cul::move(pf)))
         {
@@ -195,30 +214,32 @@ int sys_ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *utimeout,
         fd_put(f);
     }
 
+    pfdg.unlock();
+
     bool should_return = false;
 
     while (!should_return)
     {
         /* The current poll implementation wasn't safe.
          * Particularly, we could miss wakeups in between the check and the sleep,
-         * howver I don't believe this is the case anymore.
+         * however I don't believe this is the case anymore.
          */
 
-        for (auto &poll_file : vec)
+        for (auto &pf : vec)
         {
-            auto file = poll_file.get_file();
-            auto events = poll_file.get_efective_event_mask();
+            auto file = pf->get_file();
+            auto events = pf->get_efective_event_mask();
 
-            auto revents = poll_vfs(&poll_file, events, file);
+            auto revents = poll_vfs(pf.get(), events, file);
 
             if (revents != 0)
             {
                 struct pollfd pfd;
-                pfd.fd = poll_file.get_fd();
-                pfd.events = poll_file.get_event_mask();
+                pfd.fd = pf->get_fd();
+                pfd.events = pf->get_event_mask();
                 pfd.revents = revents;
 
-                auto upollfd = poll_file.get_upollfd();
+                auto upollfd = pf->get_upollfd();
                 /* Flush the structure to userspace */
                 if (copy_to_user(upollfd, &pfd, sizeof(struct pollfd)) < 0)
                     return -EFAULT;
@@ -239,7 +260,10 @@ int sys_ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *utimeout,
         else if (res == sleep_result::timeout)
             break;
         else if (res == sleep_result::signal)
+        {
+            mask_guard.disable();
             return -EINTR;
+        }
     }
 
     return nr_nonzero_revents;
@@ -318,7 +342,7 @@ int sys_pselect(int nfds, fd_set *ureadfds, fd_set *uwritefds, fd_set *uexceptfd
             return -EFAULT;
     }
 
-    const auto_signal_mask mask_guard{valid_sigmask, set};
+    auto_signal_mask mask_guard{valid_sigmask, set};
 
     int fd_bits_set = 0;
 
@@ -343,7 +367,12 @@ int sys_pselect(int nfds, fd_set *ureadfds, fd_set *uwritefds, fd_set *uexceptfd
             return -EBADF;
         }
 
-        poll_file pf{i, &pt, f, events, nullptr};
+        auto pf = make_unique<poll_file>(i, &pt, f, events, nullptr);
+        if (!pf)
+        {
+            fd_put(f);
+            return -ENOMEM;
+        }
 
         if (!vec.push_back(cul::move(pf)))
         {
@@ -373,14 +402,14 @@ int sys_pselect(int nfds, fd_set *ureadfds, fd_set *uwritefds, fd_set *uexceptfd
 
         for (auto &poll_file : vec)
         {
-            auto file = poll_file.get_file();
-            auto events = poll_file.get_efective_event_mask();
+            auto file = poll_file->get_file();
+            auto events = poll_file->get_efective_event_mask();
 
-            auto revents = poll_vfs(&poll_file, events, file);
+            auto revents = poll_vfs(poll_file.get(), events, file);
 
             if (revents != 0)
             {
-                auto fd = poll_file.get_fd();
+                auto fd = poll_file->get_fd();
 
                 if (revents & POLLIN)
                 {
@@ -415,7 +444,10 @@ int sys_pselect(int nfds, fd_set *ureadfds, fd_set *uwritefds, fd_set *uexceptfd
         else if (res == sleep_result::timeout)
             break;
         else if (res == sleep_result::signal)
+        {
+            mask_guard.disable();
             return -EINTR;
+        }
     }
 
     if (ureadfds && copy_to_user(ureadfds, &readfds, sizeof(readfds)) < 0)

@@ -218,6 +218,16 @@ public:
     {
         return this->load();
     }
+
+    type operator|=(type val)
+    {
+        return this->or_fetch(val);
+    }
+
+    type operator&=(type val)
+    {
+        return this->and_fetch(val);
+    }
 };
 
 namespace cul

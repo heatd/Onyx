@@ -47,7 +47,7 @@ int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigactio
         sp = (unsigned long) sinfo->altstack.ss_sp + sinfo->altstack.ss_size;
         if (sinfo->altstack.ss_flags & SS_AUTODISARM)
         {
-            sinfo->altstack.ss_sp = NULL;
+            sinfo->altstack.ss_sp = nullptr;
             sinfo->altstack.ss_size = 0;
             sinfo->altstack.ss_flags = SS_DISABLE;
         }
@@ -120,7 +120,10 @@ int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigactio
         return -EFAULT;
 
     /* We're saving the sigmask, that will then be restored */
-    if (copy_to_user(&sframe->uc.uc_sigmask, &curr->sinfo.sigmask, sizeof(sigset_t)) < 0)
+    auto mask = curr->sinfo.flags & THREAD_SIGNAL_ORIGINAL_SIGSET ? &curr->sinfo.original_sigset
+                                                                  : &curr->sinfo.sigmask;
+    curr->sinfo.flags &= ~THREAD_SIGNAL_ORIGINAL_SIGSET;
+    if (copy_to_user(&sframe->uc.uc_sigmask, mask, sizeof(sigset_t)) < 0)
         return -EFAULT;
 
     save_fpu(curr->fpu_area);
