@@ -188,3 +188,6 @@ intel-passthrough-qemu: iso
 
 virtualbox: iso
 	virtualbox --startvm Onyx --dbg
+	
+lingemu_virt: iso
+        lingemu runvirt -m 512 --diskcontroller type=ahci,name=ahcibus1 --disk Onyx.iso,disktype=cdrom,controller=ahcibus1
