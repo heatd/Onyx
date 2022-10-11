@@ -1,5 +1,5 @@
 # Onyx Coding Guidelines
-This file will describe the coding guidelines used to get a pull accepted to the OS
+This file will describe the coding guidelines used to get a pull request accepted to the OS
 ## Indentation
 A tab MUST equal 8 spaces (don't come up with any broken indentation, because I won't fix it)
 ## Operator spacing
