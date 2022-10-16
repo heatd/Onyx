@@ -120,6 +120,29 @@ static inline void vm_free_vmregion(vm_region *region)
     kmem_cache_free(vm_region_cache, (void *) region);
 }
 
+bool vm_insert_region(struct mm_address_space *as, struct vm_region *region)
+{
+    return bst_insert(
+        &as->region_tree, &region->tree_node,
+        [](struct bst_node *lhs_, struct bst_node *rhs_) -> int {
+            auto lhs = container_of(lhs_, vm_region, tree_node);
+            auto rhs = container_of(rhs_, vm_region, tree_node);
+
+            if (check_for_overlap(lhs->base, lhs->base + (lhs->pages << PAGE_SHIFT) - 1, rhs->base,
+                                  rhs->base + (rhs->pages << PAGE_SHIFT) - 1))
+            {
+                panic("vm_insert_region: Region [%lx, %lx] and [%lx, %lx] overlap\n", lhs->base,
+                      lhs->base + (lhs->pages << PAGE_SHIFT), rhs->base,
+                      rhs->base + (rhs->pages << PAGE_SHIFT));
+                return 0;
+            }
+            else if (rhs->base > lhs->base)
+                return 1;
+            else
+                return -1;
+        });
+}
+
 struct vm_region *vm_reserve_region(struct mm_address_space *as, unsigned long start, size_t size)
 {
     MUST_HOLD_MUTEX(&as->vm_lock);
@@ -133,27 +156,35 @@ struct vm_region *vm_reserve_region(struct mm_address_space *as, unsigned long s
     region->base = start;
     region->pages = vm_size_to_pages(size);
     region->rwx = 0;
+    bst_node_initialize(&region->tree_node);
 
-    dict_insert_result res = rb_tree_insert(as->area_tree, (void *) start);
+    bool success =
+        bst_insert(&as->region_tree, &region->tree_node,
+                   [](struct bst_node *lhs_, struct bst_node *rhs_) -> int {
+                       auto lhs = container_of(lhs_, vm_region, tree_node);
+                       auto rhs = container_of(rhs_, vm_region, tree_node);
 
-    if (!res.inserted)
+                       if (check_for_overlap(lhs->base, lhs->base + (lhs->pages << PAGE_SHIFT) - 1,
+                                             rhs->base, rhs->base + (rhs->pages << PAGE_SHIFT) - 1))
+                       {
+                           panic("vm_reserve_region: Region [%lx, %lx] and [%lx, %lx] overlap\n",
+                                 lhs->base, lhs->base + (lhs->pages << PAGE_SHIFT), rhs->base,
+                                 rhs->base + (rhs->pages << PAGE_SHIFT));
+                           return 0;
+                       }
+                       else if (rhs->base > lhs->base)
+                           return 1;
+                       else
+                           return -1;
+                   });
+
+    if (!success)
     {
-        if (res.datum_ptr)
-        {
-            mutex_unlock(&as->vm_lock);
-            printk("Oopsie at %lx\n", start);
-
-            vm_print_umap();
-            panic("oops");
-        }
-
-        vm_free_vmregion(region);
-        return nullptr;
+        panic("Could not insert vm region [%lx, %lx]", start,
+              start + (region->pages << PAGE_SHIFT) - 1);
     }
 
     region->mm = as;
-
-    *res.datum_ptr = region;
 
     return region;
 }
@@ -169,28 +200,46 @@ unsigned long vm_allocate_base(struct mm_address_space *as, unsigned long min, s
     if (min < as->start)
         min = as->start;
 
-    struct rb_itor it;
-    it.node = nullptr;
-    it.tree = as->area_tree;
-    bool node_valid;
+    struct a : bst_node
+    {
+        unsigned long min;
+    } priv;
+
+    priv.min = min;
+
+    auto compare = [](bst_node *node0, bst_node *fake) -> int {
+        struct a *priv = (a *) fake;
+        auto reg = container_of(node0, vm_region, tree_node);
+        auto end = reg->base + (reg->pages << PAGE_SHIFT) - 1;
+        if (check_for_overlap(reg->base, end, priv->min, priv->min + PAGE_SIZE))
+            return 0;
+        else if (end >= priv->min)
+            return -1;
+        else // if (end < priv->min)
+            return 1;
+    };
+
+    struct bst_node *node = nullptr;
     unsigned long last_end = min;
     struct vm_region *f = nullptr;
 
     if (min != as->start)
-        node_valid = rb_itor_search_ge(&it, (const void *) min);
+    {
+        node = bst_search(&as->region_tree, &priv, compare);
+    }
     else
     {
-        node_valid = rb_itor_first(&it);
+        node = bst_min(&as->region_tree, nullptr);
     }
 
-    if (!node_valid)
+    if (!node)
         goto done;
 
     /* Check if there's a gap between the first node
      * and the start of the address space
      */
 
-    f = (struct vm_region *) *rb_itor_datum(&it);
+    f = container_of(node, vm_region, tree_node);
 
 #if DEBUG_VM_1
     printk("Tiniest node: %016lx\n", f->base);
@@ -203,16 +252,16 @@ unsigned long vm_allocate_base(struct mm_address_space *as, unsigned long min, s
         goto done;
     }
 
-    while (node_valid)
+    while (node)
     {
-        f = (struct vm_region *) *rb_itor_datum(&it);
+        f = container_of(node, vm_region, tree_node);
         last_end = f->base + (f->pages << PAGE_SHIFT);
 
-        node_valid = rb_itor_next(&it);
-        if (!node_valid)
+        node = bst_next(&as->region_tree, node);
+        if (!node)
             break;
 
-        struct vm_region *vm = (struct vm_region *) *rb_itor_datum(&it);
+        struct vm_region *vm = container_of(node, vm_region, tree_node);
 
         if (vm->base - last_end >= size && min <= vm->base)
             break;
@@ -249,19 +298,17 @@ struct vm_region *vm_allocate_region(struct mm_address_space *as, unsigned long 
     return reg;
 }
 
-void vm_addr_init(void)
+void vm_addr_init()
 {
-    kernel_address_space.area_tree = rb_tree_new(vm_cmp);
     kernel_address_space.start = KADDR_START;
     kernel_address_space.end = UINTPTR_MAX;
+    bst_root_initialize(&kernel_address_space.region_tree);
 
     // Permanent reference
     kernel_address_space.ref();
 
     mutex_init(&kernel_address_space.vm_lock);
     vm_save_current_mmu(&kernel_address_space);
-
-    assert(kernel_address_space.area_tree != nullptr);
 }
 
 static inline void __vm_lock(bool kernel)
@@ -524,7 +571,7 @@ void vm_destroy_mappings(void *range, size_t pages)
 
     vm_unmap_range(range, pages);
 
-    rb_tree_remove(mm->area_tree, (const void *) reg->base);
+    bst_delete(&mm->region_tree, &reg->tree_node);
 
     if (is_mapping_shared(reg))
         decrement_vm_stat(mm, shared_set_size, pages << PAGE_SHIFT);
@@ -627,29 +674,41 @@ struct vm_region *vm_allocate_virt_region(uint64_t flags, size_t pages, uint32_t
     return region;
 }
 
+vm_region *vm_search(struct mm_address_space *mm, void *addr, size_t length)
+{
+    struct search_type
+    {
+        unsigned long base;
+        size_t pages;
+        struct bst_node node;
+    } search;
+
+    search.base = (unsigned long) addr & -PAGE_SIZE;
+    search.pages = vm_size_to_pages(length);
+
+    auto node = bst_search(
+        &mm->region_tree, &search.node, [](struct bst_node *lhs_, struct bst_node *rhs_) -> int {
+            auto lhs = container_of(lhs_, vm_region, tree_node);
+            auto rhs = container_of(rhs_, search_type, node);
+
+            if (check_for_overlap(lhs->base, lhs->base + (lhs->pages << PAGE_SHIFT) - 1, rhs->base,
+                                  rhs->base + (rhs->pages << PAGE_SHIFT) - 1))
+            {
+                return 0;
+            }
+            else if (rhs->base > lhs->base)
+                return 1;
+            else
+                return -1;
+        });
+
+    return node ? container_of(node, vm_region, tree_node) : nullptr;
+}
+
 bool vm_region_is_empty(void *addr, size_t length)
 {
     struct mm_address_space *mm = get_current_address_space();
-    struct rb_itor it;
-    it.tree = mm->area_tree;
-    it.node = nullptr;
-    unsigned long limit = (unsigned long) addr + length;
-
-    bool node_valid = rb_itor_first(&it);
-
-    while (node_valid)
-    {
-        struct vm_region *reg = (vm_region *) *rb_itor_datum(&it);
-
-        if (limits_are_contained(reg, (unsigned long) addr, limit))
-        {
-            return false;
-        }
-
-        node_valid = rb_itor_next(&it);
-    }
-
-    return true;
+    return vm_search(mm, addr, length) == nullptr;
 }
 
 #define VM_CREATE_REGION_AT_DEBUG 0
@@ -724,33 +783,6 @@ struct vm_region *vm_create_region_at(void *addr, size_t pages, uint32_t type, u
     return v;
 }
 
-struct vm_region *vm_find_region_in_tree(void *addr, rb_tree *tree)
-{
-    struct rb_itor it;
-    it.node = nullptr;
-    it.tree = tree;
-
-    if (!rb_itor_search_le(&it, addr))
-        return nullptr;
-
-    while (true)
-    {
-        struct vm_region *region = (vm_region *) *rb_itor_datum(&it);
-        if (region->base <= (unsigned long) addr &&
-            region->base + (region->pages << PAGE_SHIFT) > (unsigned long) addr)
-        {
-            return region;
-        }
-
-        if (!rb_itor_next(&it))
-        {
-            break;
-        }
-    }
-
-    return nullptr;
-}
-
 /**
  * @brief Finds a vm region.
  *
@@ -759,16 +791,9 @@ struct vm_region *vm_find_region_in_tree(void *addr, rb_tree *tree)
  */
 struct vm_region *vm_find_region(void *addr)
 {
-    struct process *current = get_current_process();
-    struct vm_region *reg = nullptr;
-    if (current)
-    {
-        reg = vm_find_region_in_tree(addr, current->address_space->area_tree);
-        if (reg)
-            return reg;
-    }
-
-    return vm_find_region_in_tree(addr, kernel_address_space.area_tree);
+    auto addrspace = (unsigned long) addr < kernel_address_space.start ? get_current_address_space()
+                                                                       : &kernel_address_space;
+    return vm_search(addrspace, addr, 2);
 }
 
 /**
@@ -884,13 +909,11 @@ out:
 }
 
 #define DEBUG_FORK_VM 0
-static bool fork_vm_region(const void *key, void *datum, void *user_data)
+static bool fork_vm_region(struct vm_region *region, struct fork_iteration *it)
 {
-    struct fork_iteration *it = (fork_iteration *) user_data;
-    struct vm_region *region = (vm_region *) datum;
-    dict_insert_result res;
     bool vmo_failure, is_private, using_shared_optimization, needs_to_fork_memory;
     unsigned int new_rwx;
+    bool res;
 
     struct vm_region *new_region = vm_alloc_vmregion();
     if (!new_region)
@@ -901,20 +924,18 @@ static bool fork_vm_region(const void *key, void *datum, void *user_data)
     memcpy(new_region, region, sizeof(*region));
 
 #if DEBUG_FORK_VM
-    printk("Forking %p, size %lx\n", key, region->pages << PAGE_SHIFT);
+    printk("Forking [%016lx, %016lx] perms %x\n", region->base,
+           region->base + (region->pages << PAGE_SHIFT) - 1, region->rwx);
 #endif
-    res = rb_tree_insert(it->target_mm->area_tree, (void *) key);
+    bst_node_initialize(&new_region->tree_node);
 
-    if (!res.inserted)
-    {
-        vm_free_vmregion(new_region);
-        goto ohno;
-    }
+    res = vm_insert_region(it->target_mm, new_region);
+
+    assert(res == true);
 
     if (new_region->fd)
         fd_get(new_region->fd);
 
-    *res.datum_ptr = new_region;
     vmo_failure = false;
     is_private = !is_mapping_shared(new_region);
     using_shared_optimization = vm_using_shared_optimization(new_region);
@@ -936,8 +957,7 @@ static bool fork_vm_region(const void *key, void *datum, void *user_data)
 
     if (vmo_failure)
     {
-        dict_remove_result res = rb_tree_remove(it->target_mm->area_tree, key);
-        assert(res.removed == true);
+        vm_remove_region(it->target_mm, new_region);
         vm_free_vmregion(new_region);
         goto ohno;
     }
@@ -977,9 +997,8 @@ ohno:
     return false;
 }
 
-void addr_space_delete(void *key, void *value)
+void addr_space_delete(vm_region *region)
 {
-    struct vm_region *region = (vm_region *) value;
 
     do_vm_unmap((void *) region->base, region->pages);
 
@@ -992,7 +1011,11 @@ void tear_down_addr_space(struct mm_address_space *addr_space)
      * Note: We free the tree first in order to free any forked pages.
      * If we didn't we would leak some memory.
      */
-    rb_tree_free(addr_space->area_tree, addr_space_delete);
+    vm_region *entry;
+    bst_for_every_entry_delete(&addr_space->region_tree, entry, vm_region, tree_node)
+    {
+        addr_space_delete(entry);
+    }
 
     paging_free_page_tables(addr_space);
 }
@@ -1052,26 +1075,21 @@ int vm_fork_address_space(struct mm_address_space *addr_space)
 
     struct mm_address_space *current_mm = get_current_address_space();
 
-    addr_space->area_tree = rb_tree_new(vm_cmp);
-
-    if (!addr_space->area_tree)
-    {
-        tear_down_addr_space(addr_space);
-        __vm_unlock(false);
-        return -1;
-    }
+    bst_root_initialize(&addr_space->region_tree);
 
     addr_space->resident_set_size = current_mm->resident_set_size;
     addr_space->shared_set_size = current_mm->shared_set_size;
     addr_space->virtual_memory_size = current_mm->virtual_memory_size;
 
-    rb_tree_traverse(current_mm->area_tree, fork_vm_region, (void *) &it);
-
-    if (!it.success)
+    vm_region *entry;
+    bst_for_every_entry(&current_mm->region_tree, entry, vm_region, tree_node)
     {
-        tear_down_addr_space(addr_space);
-        __vm_unlock(false);
-        return -1;
+        if (!fork_vm_region(entry, &it))
+        {
+            tear_down_addr_space(addr_space);
+            __vm_unlock(false);
+            return -1;
+        }
     }
 
     /* We add the old ones here because rss will only be incremented by pages that were newly
@@ -1190,6 +1208,51 @@ void *vmalloc_sleep(size_t pages, int type, int perms)
 void vfree_sleep(void *ptr, size_t pages)
 {
     vm_munmap(&kernel_address_space, ptr, pages << PAGE_SHIFT);
+}
+
+bool vm_may_merge_with_adj(vm_region *reg)
+{
+    // TODO: merging is broken right now
+    return false;
+#if 0
+    auto prev_node = bst_prev(&reg->mm->region_tree, &reg->tree_node);
+
+    if (!prev_node)
+        return false;
+
+    auto prev = container_of(prev_node, vm_region, tree_node);
+
+    if (vmo_is_shared(prev->vmo))
+        return false;
+
+    return (false && prev->mapping_type == reg->mapping_type && reg->type == prev->type &&
+            prev->base + (prev->pages << PAGE_SHIFT) == reg->base && prev->fd == reg->fd &&
+            reg->fd == nullptr && reg->rwx == prev->rwx && !is_mapping_shared(reg) &&
+            !is_file_backed(reg));
+#endif
+}
+
+void vm_merge_with_prev(vm_region *reg)
+{
+    auto prev_node = bst_prev(&reg->mm->region_tree, &reg->tree_node);
+
+    assert(prev_node);
+    auto prev = container_of(prev_node, vm_region, tree_node);
+
+#if 0
+    printk("[%lx, %lx] + [%lx, %lx] =", prev->base, prev->base + (prev->pages << PAGE_SHIFT),
+           reg->base, reg->base + (reg->pages << PAGE_SHIFT));
+#endif
+    prev->pages += reg->pages;
+    auto oldsize = prev->vmo->size;
+    prev->vmo->size = oldsize + (reg->pages << PAGE_SHIFT);
+    // vmo_truncate(prev->vmo, oldsize + ((reg->pages + 200) << PAGE_SHIFT), 0);
+    vm_remove_region(reg->mm, reg);
+#if 0
+    printk(" [%lx, %lx]\n", prev->base, prev->base + (prev->pages << PAGE_SHIFT));
+    printk("vmo size %lx -> %lx\n", oldsize, prev->vmo->size);
+#endif
+    vm_free_vmregion(reg);
 }
 
 /**
@@ -1312,6 +1375,12 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 
             return ret;
         }
+    }
+    else if (vm_may_merge_with_adj(area))
+    {
+        base = (void *) area->base;
+        vm_merge_with_prev(area);
+        return base;
     }
 
     if (vm_region_setup_backing(area, pages, !(flags & MAP_ANONYMOUS)) < 0)
@@ -1487,6 +1556,8 @@ struct vm_region *vm_split_region(struct mm_address_space *as, struct vm_region 
 
         if (to_shave_off != remainder)
         {
+            vm_remove_region(as, region);
+
             unsigned long second_region_start = addr + to_shave_off;
             unsigned long second_region_size = remainder - to_shave_off;
 
@@ -1511,8 +1582,6 @@ struct vm_region *vm_split_region(struct mm_address_space *as, struct vm_region 
             vm_copy_region(region, to_ret);
             to_ret->offset += offset;
 
-            vm_remove_region(as, region);
-
             /* The original region's size is offset */
             region->pages = offset >> PAGE_SHIFT;
 
@@ -1524,6 +1593,8 @@ struct vm_region *vm_split_region(struct mm_address_space *as, struct vm_region 
         }
         else
         {
+            region->pages -= to_shave_off >> PAGE_SHIFT;
+
             struct vm_region *to_ret = vm_reserve_region(as, addr, to_shave_off);
             if (!to_ret)
             {
@@ -1533,7 +1604,6 @@ struct vm_region *vm_split_region(struct mm_address_space *as, struct vm_region 
             vm_copy_region(region, to_ret);
             to_ret->offset += offset;
 
-            region->pages -= to_shave_off >> PAGE_SHIFT;
             return to_ret;
         }
     }
@@ -1600,7 +1670,7 @@ int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot
 
     while (addr < limit)
     {
-        struct vm_region *region = vm_find_region_in_tree((void *) addr, as->area_tree);
+        struct vm_region *region = vm_search(as, __addr, size);
         if (!region)
             return -EINVAL;
 
@@ -1749,7 +1819,7 @@ static bool vm_print(const void *key, void *datum, void *user_data)
  */
 void vm_print_map(void)
 {
-    rb_tree_traverse(kernel_address_space.area_tree, vm_print, nullptr);
+    // rb_tree_traverse(kernel_address_space.area_tree, vm_print, nullptr);
 }
 
 /**
@@ -1758,7 +1828,7 @@ void vm_print_map(void)
  */
 void vm_print_umap()
 {
-    rb_tree_traverse(get_current_address_space()->area_tree, vm_print, nullptr);
+    // rb_tree_traverse(get_current_address_space()->area_tree, vm_print, nullptr);
 }
 
 #define DEBUG_PRINT_MAPPING 0
@@ -2225,10 +2295,8 @@ int vm_handle_page_fault(struct fault_info *info)
     return ret;
 }
 
-static void vm_destroy_area(void *key, void *datum)
+static void vm_destroy_area(vm_region *region)
 {
-    struct vm_region *region = (vm_region *) datum;
-
     vm_mmu_unmap(region->mm, (void *) region->base, region->pages);
 
     decrement_vm_stat(region->mm, virtual_memory_size, region->pages << PAGE_SHIFT);
@@ -2253,7 +2321,12 @@ void vm_destroy_addr_space(struct mm_address_space *mm)
     /* First, iterate through the rb tree and free/unmap stuff */
     scoped_mutex g{mm->vm_lock};
 
-    rb_tree_free(mm->area_tree, vm_destroy_area);
+    vm_region *entry;
+
+    bst_for_every_entry_delete(&mm->region_tree, entry, vm_region, tree_node)
+    {
+        vm_destroy_area(entry);
+    }
 
     assert(mm->resident_set_size == 0);
     assert(mm->shared_set_size == 0);
@@ -2465,14 +2538,6 @@ void vm_sysfs_init(void)
     sysfs_add(&vm_obj, nullptr);
 }
 
-struct vm_region *vm_find_region_and_readable(void *usr)
-{
-    struct vm_region *entry = vm_find_region(usr);
-    if (unlikely(!entry))
-        return nullptr;
-    return entry;
-}
-
 char *strcpy_from_user(const char *uptr)
 {
     ssize_t len = strlen_user(uptr);
@@ -2549,8 +2614,11 @@ void vm_do_fatal_page_fault(struct fault_info *info)
     if (is_user_mode)
     {
         struct process *current = get_current_process();
-        printf("SEGV at %016lx at ip %lx in process %u(%s)\n", info->fault_address, info->ip,
+        printf("%s at %016lx at ip %lx in process %u(%s)\n",
+               info->signal == SIGSEGV ? "SEGV" : "SIGBUS", info->fault_address, info->ip,
                current->get_pid(), current->cmd_line.c_str());
+        printf("Error info: %x on %c%c%c\n", info->error_info, info->read ? 'r' : '-',
+               info->write ? 'w' : '-', info->exec ? 'x' : '-');
         printf("Program base: %p\n", current->interp_base);
 
         siginfo_t sinfo = {};
@@ -2847,12 +2915,7 @@ int vm_create_address_space(struct mm_address_space *mm)
 
     mutex_init(&mm->vm_lock);
 
-    mm->area_tree = rb_tree_new(vm_cmp);
-
-    if (!mm->area_tree)
-    {
-        return -ENOMEM;
-    }
+    bst_root_initialize(&mm->region_tree);
 
     return 0;
 }
@@ -2900,38 +2963,37 @@ void vm_remove_region(struct mm_address_space *as, struct vm_region *region)
 {
     MUST_HOLD_MUTEX(&as->vm_lock);
 
-    dict_remove_result res = rb_tree_remove(as->area_tree, (const void *) region->base);
-    assert(res.removed == true);
+    bst_delete(&as->region_tree, &region->tree_node);
 }
 
 int vm_add_region(struct mm_address_space *as, struct vm_region *region)
 {
     MUST_HOLD_MUTEX(&as->vm_lock);
 
-    dict_insert_result res = rb_tree_insert(as->area_tree, (void *) region->base);
-
-    if (!res.inserted)
-        return -1;
-    *res.datum_ptr = (void *) region;
-
-    return 0;
+    return vm_insert_region(as, region);
 }
 
 int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 {
+    auto oldsize = size;
     size = ALIGN_TO(size, PAGE_SIZE);
     unsigned long addr = (unsigned long) __addr;
     unsigned long limit = addr + size;
+    // printk("munmap [%016lx, %016lx]\n", addr, limit - 1);
 
     MUST_HOLD_MUTEX(&as->vm_lock);
 
     while (addr < limit)
     {
-        struct vm_region *region = vm_find_region_in_tree((void *) addr, as->area_tree);
+        struct vm_region *region =
+            vm_search(as, (void *) ((unsigned long) __addr & -PAGE_SIZE), oldsize);
         if (!region)
         {
             return -EINVAL;
         }
+
+        // printk("Looking at region [%016lx, %016lx]\n", region->base,
+        //        region->base + (region->pages << PAGE_SHIFT) - 1);
 
         bool is_shared = is_mapping_shared(region);
 
@@ -2946,8 +3008,6 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 
             if (to_shave_off != region_size)
             {
-                vm_remove_region(as, region);
-
                 /* If we're shaving off from the front, we'll need to adjust
                  * both the base, the size *and* the mapping's offset in relation to the VMO.
                  * TODO: Punch a whole through anonymous VMOs.
@@ -2955,11 +3015,6 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
                 region->base += to_shave_off;
                 region->pages -= to_shave_off >> PAGE_SHIFT;
                 region->offset += to_shave_off;
-
-                if (vm_add_region(as, region) < 0)
-                {
-                    return -ENOMEM;
-                }
             }
             else
             {
@@ -2975,6 +3030,9 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 
             if (to_shave_off != remainder)
             {
+                /* The original region's size is offset */
+                region->pages = offset >> PAGE_SHIFT;
+
                 unsigned long second_region_start = addr + to_shave_off;
                 unsigned long second_region_size = remainder - to_shave_off;
 
@@ -2998,8 +3056,6 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
                 new_region->offset = offset + to_shave_off;
                 new_region->mm = region->mm;
                 new_region->flags = region->flags;
-
-                vm_remove_region(as, region);
 
                 if (!is_mapping_shared(region) && !vmo_is_shared(region->vmo))
                 {
@@ -3026,16 +3082,13 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
                     vmo_ref(region->vmo);
                     new_region->vmo = region->vmo;
                 }
-                /* The original region's size is offset */
-                region->pages = offset >> PAGE_SHIFT;
-
-                vm_add_region(as, region);
             }
             else
             {
-                if (!is_mapping_shared(region) && !vmo_is_shared(region->vmo))
-                    vmo_resize(region_size - to_shave_off, region->vmo);
                 region->pages -= to_shave_off >> PAGE_SHIFT;
+
+                if (!is_mapping_shared(region) && !vmo_is_shared(region->vmo))
+                    vmo_truncate(region->vmo, region->vmo->size - to_shave_off, 0);
             }
         }
 
@@ -3090,25 +3143,28 @@ void vm_invalidate_range(unsigned long addr, size_t pages)
     return mmu_invalidate_range(addr, pages, get_current_address_space());
 }
 
+struct vm_region *vm_next_region(mm_address_space *as, vm_region *region)
+{
+    auto node = bst_next(&as->region_tree, &region->tree_node);
+
+    return node ? container_of(node, vm_region, tree_node) : nullptr;
+}
+
 bool vm_can_expand(struct mm_address_space *as, struct vm_region *region, size_t new_size)
 {
     /* Can always shrink the mapping */
     if (new_size < region->pages << PAGE_SHIFT)
         return true;
-    struct rb_itor it;
-    it.node = nullptr;
-    it.tree = as->area_tree;
 
-    assert(rb_itor_search(&it, (const void *) region->base) != false);
+    auto next = vm_next_region(as, region);
 
-    /* If there's no region whose address > region->base, we know we can expand freely */
-    bool node_valid = rb_itor_next(&it);
-    if (!node_valid)
+    // If there's no region after this one, we're clear to expand
+    // TODO: What if we overflow here?
+    if (!next)
         return true;
 
-    struct vm_region *second_region = (vm_region *) *rb_itor_datum(&it);
     /* Calculate the hole size, and if >= new_size, we're good */
-    size_t hole_size = second_region->base - region->base;
+    size_t hole_size = next->base - region->base;
 
     return hole_size >= new_size;
 }
@@ -3297,43 +3353,15 @@ void vm_unmap_every_region_in_range(struct mm_address_space *as, unsigned long s
     unsigned long limit = start + length;
 
 #if VM_UNMAP_EVERY_REGION_IN_RANGE_DEBUG
-    sched_enable_preempt();
-
     printk("Unmapping from %lx to %lx\n", start, limit);
 #endif
 
-begin:;
-    struct rb_itor it;
-    it.node = nullptr;
-    it.tree = as->area_tree;
-
-    bool node_valid = rb_itor_first(&it);
-
-    while (node_valid)
+    while (true)
     {
-        void **pp = rb_itor_datum(&it);
-        assert(pp != nullptr);
+        auto reg = vm_search(as, (void *) start, length);
 
-        struct vm_region *reg = (vm_region *) *pp;
-
-#if VM_UNMAP_EVERY_REGION_IN_RANGE_DEBUG
-        printk("Testing if %lx - %lx overlaps with %lx - %lx: ", reg->base,
-               reg->base + (reg->pages << PAGE_SHIFT), start, limit);
-#endif
-        if (!limits_are_contained(reg, start, limit))
-        {
-#if VM_UNMAP_EVERY_REGION_IN_RANGE_DEBUG
-            printk("no\n");
-#endif
-            node_valid = rb_itor_next(&it);
-            if (!node_valid)
-                break;
-            continue;
-        }
-
-#if VM_UNMAP_EVERY_REGION_IN_RANGE_DEBUG
-        printk("yes\n");
-#endif
+        if (!reg)
+            break;
 
         unsigned long reg_len = reg->pages << PAGE_SHIFT;
         unsigned long reg_addr = reg->base < start ? start : reg->base;
@@ -3342,17 +3370,15 @@ begin:;
         if (to_unmap == 0)
             break;
 #if VM_UNMAP_EVERY_REGION_IN_RANGE_DEBUG
-        printk("__vm_munmap %lx - %lx\n", reg_addr, reg_addr + to_unmap);
+        printk("__vm_munmap %lx - %lx, found region [%lx, %lx]\n", reg_addr, reg_addr + to_unmap,
+               reg->base, reg->base + reg_len - 1);
 #endif
         int st = __vm_munmap(as, (void *) reg_addr, to_unmap);
 
         assert(st == 0);
-
-        goto begin;
     }
 
 #if VM_UNMAP_EVERY_REGION_IN_RANGE_DEBUG
-    sched_disable_preempt();
 #endif
 }
 
@@ -3483,7 +3509,7 @@ int vm_change_locks_range_in_region(struct vm_region *region, unsigned long addr
 
     struct rb_itor it;
     it.node = nullptr;
-    it.tree = region->mm->area_tree;
+    it.tree = region->vmo->pages;
     unsigned long starting_off = region->offset + (addr - region->base);
     unsigned long end_off = starting_off + len;
     bool node_valid = rb_itor_search_ge(&it, (void *) starting_off);
@@ -3764,6 +3790,7 @@ expected<ref_guard<mm_address_space>, int> mm_address_space::create()
         return unexpected<int>{-ENOENT};
 
     spinlock_init(&as->page_table_lock);
+    bst_root_initialize(&as->region_tree);
 
     int st = vm_clone_as(as.get());
     if (st < 0)
@@ -3783,6 +3810,7 @@ expected<ref_guard<mm_address_space>, int> mm_address_space::fork()
         return unexpected<int>{-ENOENT};
 
     spinlock_init(&as->page_table_lock);
+    bst_root_initialize(&as->region_tree);
 
     int st = vm_fork_address_space(as.get());
     if (st < 0)
