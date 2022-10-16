@@ -251,7 +251,7 @@ struct bst_node *bst_next(const struct bst_root *root, struct bst_node *node);
 #define bst_for_every_entry(root, entry, type, member) \
     for (struct bst_node *_bst_for_every_cursor = bst_next(root, NULL); \
             (_bst_for_every_cursor != NULL) && \
-            ((entry) = containerof(_bst_for_every_cursor, type, member)) && \
+            ((entry) = container_of(_bst_for_every_cursor, type, member)) && \
             ((_bst_for_every_cursor = bst_next(root, _bst_for_every_cursor)) \
              || true);)
 
@@ -274,7 +274,7 @@ void bst_delete_all_helper(struct bst_root *root, struct bst_node *node);
 #define bst_for_every_entry_delete(root, entry, type, member) \
     for (struct bst_node *_bst_for_every_cursor = bst_next(root, NULL); \
             (_bst_for_every_cursor != NULL) && ({\
-            (entry) = containerof(_bst_for_every_cursor, type, member); \
+            (entry) = container_of(_bst_for_every_cursor, type, member); \
             _bst_for_every_cursor = bst_next(root, _bst_for_every_cursor); \
             bst_delete_all_helper(root, &(entry)->member); true;});)
 

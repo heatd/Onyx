@@ -8,6 +8,7 @@
 #ifndef _ONYX_VM_H
 #define _ONYX_VM_H
 
+#include <lib/binary_search_tree.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -21,7 +22,6 @@
 #include <onyx/scheduler.h>
 #include <onyx/spinlock.h>
 
-#include <libdict/rb_tree.h>
 #include <platform/page.h>
 #include <platform/vm.h>
 #include <platform/vm_layout.h>
@@ -94,7 +94,7 @@ struct vm_object;
 /**
  * @brief A VM region is a segment of an address space which is mapped and has some
  * particular metadata in common. These are stored in an mm_address_space and are managed by
- * mmap-like functions(like vm_mmap or vmalloc), mprotect-like functions(like vm_mprotect) and
+ * mmap-like functions (like vm_mmap or vmalloc), mprotect-like functions (like vm_mprotect) and
  * munmap like functions (like vm_munmap).
  *
  */
@@ -110,6 +110,7 @@ struct vm_region
     int flags;
     struct vm_object *vmo;
     mm_address_space *mm;
+    struct bst_node tree_node;
 
     list_head vmo_head;
     uintptr_t caller;
@@ -133,7 +134,6 @@ struct fault_info
     int error_info;
 };
 
-struct rb_tree;
 struct vm_object;
 
 /**
@@ -144,8 +144,8 @@ struct vm_object;
  */
 struct mm_address_space : public refcountable
 {
-    /* Virtual address space Red-black tree */
-    rb_tree *area_tree{};
+    /* Virtual address space WAVL tree */
+    struct bst_root region_tree;
     unsigned long start{};
     unsigned long end{};
     mutex vm_lock{};
@@ -175,7 +175,6 @@ struct mm_address_space : public refcountable
 
     mm_address_space &operator=(mm_address_space &&as)
     {
-        area_tree = as.area_tree;
         start = as.start;
         end = as.end;
         mmap_base = as.mmap_base;
@@ -870,13 +869,6 @@ struct page *vm_get_zero_page();
  */
 void vm_make_anon(vm_region *region);
 
-template <typename Callable>
-static bool for_every_region_visit(const void *key, void *region, void *caller_data)
-{
-    Callable &c = *(Callable *) caller_data;
-    return c((vm_region *) region);
-}
-
 /**
  * @brief Calls the specified function \p func on every region of the address space \p as.
  *
@@ -886,7 +878,12 @@ static bool for_every_region_visit(const void *key, void *region, void *caller_d
 template <typename Callable>
 inline void vm_for_every_region(mm_address_space &as, Callable func)
 {
-    rb_tree_traverse(as.area_tree, for_every_region_visit<Callable>, &func);
+    vm_region *entry;
+    bst_for_every_entry(&as.region_tree, entry, vm_region, tree_node)
+    {
+        if (!func(entry))
+            break;
+    }
 }
 
 /**
