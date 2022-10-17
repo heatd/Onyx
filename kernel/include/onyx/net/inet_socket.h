@@ -46,7 +46,6 @@ struct inet_socket : public socket
     inet_route route_cache;
 
     struct list_head rx_packet_list;
-    struct spinlock rx_packet_list_lock;
 
     wait_queue rx_wq;
     const inet_proto *proto_info;
@@ -59,7 +58,6 @@ struct inet_socket : public socket
           ipv4_on_inet6{}, ipv6_only{}, route_cache_valid{}, ttl{INET_DEFAULT_TTL}
     {
         INIT_LIST_HEAD(&rx_packet_list);
-        spinlock_init(&rx_packet_list_lock);
         init_wait_queue_head(&rx_wq);
     }
 

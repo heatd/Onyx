@@ -10,9 +10,9 @@
 #include <netinet/in.h>
 
 #include <onyx/net/neighbour.h>
-#include <onyx/net/netif.h>
 #include <onyx/public/socket.h>
 
+struct netif;
 /* Internal routing table entry */
 struct inet4_route
 {

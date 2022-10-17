@@ -433,6 +433,8 @@ int handle_packet(netif *nif, packetbuf *buf)
     route.mask.in6 = {}; // TODO
     route.flags = 0;
 
+    new (&buf->route) inet_route{route};
+
 #if 0
     // TODO
     if (addr_is_multicast(header->dest_ip))

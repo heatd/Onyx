@@ -143,6 +143,7 @@ int netkernel_socket::connect(sockaddr *addr, socklen_t addrlen, int flags)
 
 ssize_t netkernel_socket::sendmsg(const struct msghdr *msg, int flags)
 {
+    scoped_hybrid_lock hlock{socket_lock, this};
     auto addr = (const sockaddr *) msg->msg_name;
     auto addrlen = msg->msg_namelen;
     if (!addr && !connected)
@@ -241,6 +242,8 @@ ssize_t netkernel_socket::recvmsg(struct msghdr *msg, int flags)
     if (iovlen < 0)
         return iovlen;
 
+    scoped_hybrid_lock hlock{socket_lock, this};
+
     auto st = get_datagram(flags);
     if (st.has_error())
         return st.error();
@@ -271,7 +274,6 @@ ssize_t netkernel_socket::recvmsg(struct msghdr *msg, int flags)
         auto to_copy = min((ssize_t) iov.iov_len, read - was_read);
         if (copy_to_user(iov.iov_base, ptr, to_copy) < 0)
         {
-            spin_unlock(&rx_packet_list_lock);
             return -EFAULT;
         }
 
@@ -293,9 +295,45 @@ ssize_t netkernel_socket::recvmsg(struct msghdr *msg, int flags)
         }
     }
 
-    spin_unlock(&rx_packet_list_lock);
-
     return to_ret;
+}
+
+void netkernel_socket::rx_pbuf(packetbuf *buf)
+{
+    scoped_hybrid_lock<true> g{socket_lock, this};
+
+    if (!socket_lock.is_ours())
+    {
+        buf->ref();
+        add_backlog(&buf->list_node);
+        return;
+    }
+
+    buf->ref();
+
+    list_add_tail(&buf->list_node, &rx_packet_list);
+
+    wait_queue_wake_all(&rx_wq);
+}
+
+/**
+ * @brief Handle netkernel socket backlog
+ *
+ */
+void netkernel_socket::handle_backlog()
+{
+    // Take every packet and queue it
+    list_for_every_safe (&socket_backlog)
+    {
+        auto pbuf = list_head_cpp<packetbuf>::self_from_list_head(l);
+        list_remove(&pbuf->list_node);
+        pbuf->ref();
+
+        list_add_tail(&pbuf->list_node, &rx_packet_list);
+
+        wait_queue_wake_all(&rx_wq);
+        pbuf->unref();
+    }
 }
 
 socket *create_socket(int type)

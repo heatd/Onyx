@@ -12,6 +12,7 @@
 #include <stddef.h>
 
 #include <onyx/limits.h>
+#include <onyx/net/inet_route.h>
 #include <onyx/page.h>
 #include <onyx/page_iov.h>
 #include <onyx/refcount.h>
@@ -91,6 +92,10 @@ struct packetbuf : public refcountable
     int domain;
 
     list_head_cpp<packetbuf> list_node;
+
+    union {
+        inet_route route;
+    };
 
 private:
     /* Using put with other page vecs is bound to break something */

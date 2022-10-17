@@ -782,6 +782,87 @@ int tcp_socket::do_established_rcv(const packet_handling_data &data)
     return 0;
 }
 
+/**
+ * @brief Append a packetbuf packet to the backlog
+ *
+ * @param buf packetbuf
+ */
+void tcp_socket::append_backlog(packetbuf *buf)
+{
+    buf->ref();
+    add_backlog(&buf->list_node);
+}
+
+/**
+ * @brief Handle TCP socket backlog (pending segments)
+ *
+ */
+void tcp_socket::handle_backlog()
+{
+    // For every pending segment, get its packetbuf. Then figure out packet_handling_data and ship
+    // it to the proper handling functions.
+
+    list_for_every_safe (&socket_backlog)
+    {
+        auto pbuf = list_head_cpp<packetbuf>::self_from_list_head(l);
+
+        sockaddr_in_both both;
+
+        auto header = (tcp_header *) pbuf->transport_header;
+        uint16_t tcp_payload_len;
+
+        if (pbuf->domain == AF_INET)
+        {
+            auto ip_header = (struct ip_header *) pbuf->net_header;
+            ipv4_to_sockaddr(ip_header->source_ip, header->source_port, both.in4);
+            tcp_payload_len =
+                static_cast<uint16_t>(ntohs(ip_header->total_len) - ip_header_length(ip_header));
+        }
+        else if (pbuf->domain == AF_INET6)
+        {
+            auto ip_header = (struct ip6hdr *) pbuf->net_header;
+            ipv6_to_sockaddr(ip_header->src_addr, header->source_port, both.in6);
+            tcp_payload_len = ntohs(ip_header->payload_length);
+        }
+        else
+        {
+            panic("invalid domain");
+        }
+
+        const tcp_socket::packet_handling_data handle_data{pbuf,  header,       tcp_payload_len,
+                                                           &both, pbuf->domain, pbuf->route};
+        list_remove(&pbuf->list_node);
+
+        handle_segment(handle_data);
+
+        pbuf->unref();
+    }
+}
+
+int tcp_socket::handle_segment(const tcp_socket::packet_handling_data &data)
+{
+    if (state == tcp_state::TCP_STATE_SYN_SENT)
+        return do_receive_syn_sent(data);
+
+    // All these states share a substancial amount of code.
+    switch (state)
+    {
+        case tcp_state::TCP_STATE_FIN_WAIT_1:
+        case tcp_state::TCP_STATE_FIN_WAIT_2:
+        case tcp_state::TCP_STATE_CLOSE_WAIT:
+        case tcp_state::TCP_STATE_CLOSING:
+        case tcp_state::TCP_STATE_LAST_ACK:
+        case tcp_state::TCP_STATE_ESTABLISHED:
+            return do_established_rcv(data);
+        default:
+            break;
+    }
+
+    if (state == tcp_state::TCP_STATE_LISTEN)
+        return do_listen_rcv(data);
+    return -EINVAL;
+}
+
 int tcp_socket::handle_packet(const tcp_socket::packet_handling_data &data)
 {
     auto data_off = TCP_GET_DATA_OFF(ntohs(data.header->data_offset_and_flags));
@@ -809,25 +890,15 @@ int tcp_socket::handle_packet(const tcp_socket::packet_handling_data &data)
         return 0;
     }
 
-    if (state == tcp_state::TCP_STATE_SYN_SENT)
-        return do_receive_syn_sent(data);
+    scoped_hybrid_lock<true> hlock{socket_lock, this};
 
-    // All these states share a substancial amount of code.
-    switch (state)
+    if (!socket_lock.is_ours())
     {
-        case tcp_state::TCP_STATE_FIN_WAIT_1:
-        case tcp_state::TCP_STATE_FIN_WAIT_2:
-        case tcp_state::TCP_STATE_CLOSE_WAIT:
-        case tcp_state::TCP_STATE_CLOSING:
-        case tcp_state::TCP_STATE_LAST_ACK:
-        case tcp_state::TCP_STATE_ESTABLISHED:
-            return do_established_rcv(data);
-        default:
-            break;
+        append_backlog(data.buffer);
+        return 0;
     }
 
-    if (state == tcp_state::TCP_STATE_LISTEN)
-        return do_listen_rcv(data);
+    handle_segment(data);
 
     return 0;
 }
@@ -925,10 +996,7 @@ int tcp_handle_packet(const inet_route &route, packetbuf *buf)
     const tcp_socket::packet_handling_data handle_data{buf,   header,  tcp_payload_len,
                                                        &both, AF_INET, route};
 
-    socket->socket_lock.lock_bh();
     st = socket->handle_packet(handle_data);
-    socket->socket_lock.unlock_bh();
-    socket->unref();
 
     return st;
 }
@@ -970,9 +1038,7 @@ int tcp6_handle_packet(const inet_route &route, packetbuf *buf)
     const tcp_socket::packet_handling_data handle_data{buf,   header,   tcp_payload_len,
                                                        &both, AF_INET6, route};
 
-    socket->socket_lock.lock_bh();
     st = socket->handle_packet(handle_data);
-    socket->socket_lock.unlock_bh();
     socket->unref();
 
     return st;
@@ -1911,8 +1977,6 @@ int tcp_socket::send_fin()
 
 expected<packetbuf *, int> tcp_socket::get_segment(int flags)
 {
-    scoped_lock g{rx_packet_list_lock};
-
     int st = 0;
     packetbuf *buf = nullptr;
 
@@ -1930,8 +1994,6 @@ expected<packetbuf *, int> tcp_socket::get_segment(int flags)
 
         st = wait_for_segments();
     } while (!buf);
-
-    g.keep_locked();
 
     return buf;
 }
@@ -1990,10 +2052,9 @@ ssize_t tcp_socket::recvmsg(msghdr *msg, int flags)
     {
         auto iov = msg->msg_iov[i];
         auto to_copy = min((ssize_t) iov.iov_len, read - was_read);
-        // TODO: Replace rx_packet_list_lock with the socket hybrid lock
+
         if (copy_to_user(iov.iov_base, ptr, to_copy) < 0)
         {
-            spin_unlock(&rx_packet_list_lock);
             return -EFAULT;
         }
 
@@ -2015,8 +2076,6 @@ ssize_t tcp_socket::recvmsg(msghdr *msg, int flags)
         }
     }
 
-    spin_unlock(&rx_packet_list_lock);
-
 #if 0
 	printk("recv success %ld bytes\n", read);
 	printk("iovlen %ld\n", iovlen);
@@ -2032,8 +2091,6 @@ short tcp_socket::poll(void *poll_file, short events)
     short avail_events = 0;
 
     scoped_hybrid_lock g2{socket_lock, this};
-
-    scoped_lock g{rx_packet_list_lock};
 
     if (state == tcp_state::TCP_STATE_CLOSED)
     {

@@ -1,8 +1,11 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
+
 #ifndef _ONYX_HYBRID_LOCK_H
 #define _ONYX_HYBRID_LOCK_H
 
@@ -10,6 +13,8 @@
 #include <onyx/scoped_lock.h>
 #include <onyx/spinlock.h>
 #include <onyx/wait_queue.h>
+
+#include <onyx/atomic.hpp>
 
 struct socket;
 void sock_do_post_work(socket *sock);
@@ -25,16 +30,16 @@ class hybrid_lock
 {
 private:
     spinlock lock_;
-    raw_spinlock_t owned;
+    atomic<raw_spinlock_t> owned;
     wait_queue wq;
 
     void __wait_for_owned()
     {
-        wait_for_event_locked(&wq, owned != 0, &lock_);
+        wait_for_event_locked(&wq, owned == 0, &lock_);
     }
 
 public:
-    hybrid_lock() : owned{}, wq{}
+    hybrid_lock()
     {
         init_wait_queue_head(&wq);
         spinlock_init(&lock_);
@@ -46,7 +51,7 @@ public:
 
         if (owned)
             __wait_for_owned();
-        owned = get_cpu_nr() + 1;
+        owned.store(get_cpu_nr() + 1, mem_order::release);
     }
 
     void unlock_sock(socket *sock)
@@ -56,7 +61,7 @@ public:
         if (sock_needs_work(sock)) [[unlikely]]
             sock_do_post_work(sock);
 
-        owned = 0;
+        owned.store(0, mem_order::release);
 
         wait_queue_wake(&wq);
     }

@@ -60,8 +60,7 @@ class udp_socket : public inet_socket
 
     int wait_for_dgrams()
     {
-        return wait_for_event_locked_interruptible(&rx_wq, !list_is_empty(&rx_packet_list),
-                                                   &rx_packet_list_lock);
+        return wait_for_event_socklocked_interruptible(&rx_wq, !list_is_empty(&rx_packet_list));
     }
 
     template <typename AddrType>
@@ -85,15 +84,18 @@ public:
                     in_port_t dest_port, inet_route &route, int msg_domain);
     ssize_t recvmsg(msghdr *msg, int flags) override;
 
-    void rx_dgram(packetbuf *buf)
-    {
-        append_inet_rx_pbuf(buf);
-    }
+    void rx_dgram(packetbuf *buf);
 
     short poll(void *poll_file, short events) override;
 
     int getsockname(sockaddr *addr, socklen_t *len) override;
     int getpeername(sockaddr *addr, socklen_t *len) override;
+
+    /**
+     * @brief Handle UDP socket backlog
+     *
+     */
+    void handle_backlog() override;
 };
 
 struct socket *udp_create_socket(int type);
