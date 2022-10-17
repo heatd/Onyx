@@ -24,6 +24,7 @@
 #include <onyx/net/socket_table.h>
 #include <onyx/net/tcp.h>
 #include <onyx/net/udp.h>
+#include <onyx/new.h>
 #include <onyx/public/socket.h>
 #include <onyx/random.h>
 #include <onyx/utils.h>
@@ -449,6 +450,8 @@ int handle_packet(netif *nif, packetbuf *buf)
         route.flags |= INET4_ROUTE_FLAG_BROADCAST;
     }
 
+    new (&buf->route) inet_route{route};
+
     if (header->proto == IPPROTO_UDP)
         return udp_handle_packet(route, buf);
     else if (header->proto == IPPROTO_TCP)
@@ -790,8 +793,6 @@ void inet_socket::unbind()
 
 void inet_socket::append_inet_rx_pbuf(packetbuf *buf)
 {
-    scoped_lock g{rx_packet_list_lock};
-
     buf->ref();
 
     list_add_tail(&buf->list_node, &rx_packet_list);
@@ -804,6 +805,14 @@ inet_socket::~inet_socket()
     unbind();
 
     list_for_every_safe (&rx_packet_list)
+    {
+        auto buf = list_head_cpp<packetbuf>::self_from_list_head(l);
+        list_remove(&buf->list_node);
+
+        buf->unref();
+    }
+
+    list_for_every_safe (&socket_backlog)
     {
         auto buf = list_head_cpp<packetbuf>::self_from_list_head(l);
         list_remove(&buf->list_node);

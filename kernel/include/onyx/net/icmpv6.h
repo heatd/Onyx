@@ -55,7 +55,7 @@ class icmp6_socket : public inet_socket
 {
 private:
     static constexpr unsigned int icmp_max_filters = 5;
-    spinlock filters_lock;
+    spinlock filters_lock{};
     cul::vector<icmp_filter> filters;
 
     int add_filter(icmp_filter &&f);
@@ -77,17 +77,16 @@ private:
 
     int wait_for_dgrams()
     {
-        return wait_for_event_locked_interruptible(&rx_wq, !list_is_empty(&rx_packet_list),
-                                                   &rx_packet_list_lock);
+        return wait_for_event_socklocked_interruptible(&rx_wq, !list_is_empty(&rx_packet_list));
     }
 
 public:
-    icmp6_socket() : filters_lock{}, filters{}
+    icmp6_socket()
     {
         spinlock_init(&filters_lock);
     }
 
-    ~icmp6_socket() = default;
+    ~icmp6_socket() override = default;
 
     int bind(struct sockaddr *addr, socklen_t addrlen) override;
     int connect(struct sockaddr *addr, socklen_t addrlen, int flags) override;
@@ -113,6 +112,14 @@ public:
 
         return false;
     }
+
+    void rx_dgram(packetbuf *buf);
+
+    /**
+     * @brief Handle ICMP socket backlog
+     *
+     */
+    void handle_backlog() override;
 };
 
 icmp6_socket *create_socket(int type);

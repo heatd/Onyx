@@ -112,8 +112,7 @@ private:
 
     int wait_for_dgrams()
     {
-        return wait_for_event_locked_interruptible(&rx_wq, !list_is_empty(&rx_packet_list),
-                                                   &rx_packet_list_lock);
+        return wait_for_event_socklocked_interruptible(&rx_wq, !list_is_empty(&rx_packet_list));
     }
 
 public:
@@ -148,6 +147,14 @@ public:
 
         return false;
     }
+
+    void rx_dgram(packetbuf *buf);
+
+    /**
+     * @brief Handle ICMP socket backlog
+     *
+     */
+    void handle_backlog() override;
 };
 
 icmp_socket *create_socket(int type);

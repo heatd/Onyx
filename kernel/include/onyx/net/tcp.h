@@ -431,8 +431,7 @@ private:
 
     int wait_for_segments()
     {
-        return wait_for_event_locked_interruptible(&rx_wq, !list_is_empty(&rx_packet_list),
-                                                   &rx_packet_list_lock);
+        return wait_for_event_socklocked_interruptible(&rx_wq, !list_is_empty(&rx_packet_list));
     }
 
     /**
@@ -481,6 +480,13 @@ private:
      * @return 0 on success, negative error codes
      */
     int make_connection_from(const tcp_connection_req *req);
+
+    /**
+     * @brief Append a packetbuf packet to the backlog
+     *
+     * @param buf packetbuf
+     */
+    void append_backlog(packetbuf *buf);
 
 public:
     struct spinlock pending_out_lock;
@@ -552,6 +558,14 @@ public:
     int accept_connection(tcp_connection_req *req, const packet_handling_data &data);
 
     int handle_packet(const packet_handling_data &data);
+
+    /**
+     * @brief Handle an incoming TCP segment
+     *
+     * @param data Packet handling data
+     * @return 0 on sucesss, negative error codes
+     */
+    int handle_segment(const packet_handling_data &data);
 
     friend class tcp_packet;
 
@@ -686,6 +700,12 @@ public:
      * @return 0 on success, negative error codes
      */
     int send_segment(packetbuf *buf);
+
+    /**
+     * @brief Handle TCP socket backlog (pending segments)
+     *
+     */
+    void handle_backlog() override;
 };
 
 constexpr inline uint16_t tcp_header_length_to_data_off(uint16_t len)

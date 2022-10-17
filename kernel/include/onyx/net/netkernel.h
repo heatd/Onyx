@@ -26,7 +26,6 @@ class netkernel_object;
 class netkernel_socket : public socket
 {
 private:
-    spinlock rx_packet_list_lock;
     struct list_head rx_packet_list;
     wait_queue rx_wq;
 
@@ -45,30 +44,19 @@ private:
 
     int wait_for_dgrams()
     {
-        return wait_for_event_locked_interruptible(&rx_wq, !list_is_empty(&rx_packet_list),
-                                                   &rx_packet_list_lock);
+        return wait_for_event_socklocked_interruptible(&rx_wq, !list_is_empty(&rx_packet_list));
     }
 
-    void rx_pbuf(packetbuf *buf)
-    {
-        scoped_lock g{rx_packet_list_lock};
-
-        buf->ref();
-
-        list_add_tail(&buf->list_node, &rx_packet_list);
-
-        wait_queue_wake_all(&rx_wq);
-    }
+    void rx_pbuf(packetbuf *buf);
 
 public:
     shared_ptr<netkernel_object> dst;
 
-    netkernel_socket(int type) : socket{}, rx_packet_list_lock{}, rx_packet_list{}, rx_wq{}, dst{}
+    netkernel_socket(int type) : rx_packet_list{}
     {
         domain = AF_NETKERNEL;
         proto = NETKERNEL_PROTO;
         INIT_LIST_HEAD(&rx_packet_list);
-        spinlock_init(&rx_packet_list_lock);
         init_wait_queue_head(&rx_wq);
         this->type = type;
     }
@@ -81,7 +69,6 @@ public:
 
     expected<packetbuf *, int> get_datagram(int flags)
     {
-        scoped_lock g{rx_packet_list_lock};
 
         int st = 0;
         packetbuf *buf = nullptr;
@@ -98,10 +85,14 @@ public:
             st = wait_for_dgrams();
         } while (!buf);
 
-        g.keep_locked();
-
         return buf;
     }
+
+    /**
+     * @brief Handle netkernel socket backlog
+     *
+     */
+    void handle_backlog() override;
 };
 
 /**

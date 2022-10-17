@@ -447,6 +447,36 @@ int udp_handle_packet_mcast_bcast(const inet_route &route, packetbuf *buf)
     return 0;
 }
 
+void udp_socket::rx_dgram(packetbuf *buf)
+{
+    scoped_hybrid_lock<true> g{socket_lock, this};
+
+    if (!socket_lock.is_ours())
+    {
+        buf->ref();
+        add_backlog(&buf->list_node);
+        return;
+    }
+
+    append_inet_rx_pbuf(buf);
+}
+
+/**
+ * @brief Handle UDP socket backlog
+ *
+ */
+void udp_socket::handle_backlog()
+{
+    // Take every packet and queue it
+    list_for_every_safe (&socket_backlog)
+    {
+        auto pbuf = list_head_cpp<packetbuf>::self_from_list_head(l);
+        list_remove(&pbuf->list_node);
+        append_inet_rx_pbuf(pbuf);
+        pbuf->unref();
+    }
+}
+
 int udp_handle_packet(const inet_route &route, packetbuf *buf)
 {
     struct udphdr *udp_header = (struct udphdr *) buf->data;
@@ -519,8 +549,6 @@ int udp_handle_packet_v6(netif *netif, packetbuf *buf)
 
 expected<packetbuf *, int> udp_socket::get_datagram(int flags)
 {
-    scoped_lock g{rx_packet_list_lock};
-
     int st = 0;
     packetbuf *buf = nullptr;
 
@@ -536,8 +564,6 @@ expected<packetbuf *, int> udp_socket::get_datagram(int flags)
         st = wait_for_dgrams();
     } while (!buf);
 
-    g.keep_locked();
-
     return buf;
 }
 
@@ -546,6 +572,8 @@ ssize_t udp_socket::recvmsg(msghdr *msg, int flags)
     auto iovlen = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
     if (iovlen < 0)
         return iovlen;
+
+    scoped_hybrid_lock hlock{socket_lock, this};
 
     auto st = get_datagram(flags);
     if (st.has_error())
@@ -578,7 +606,6 @@ ssize_t udp_socket::recvmsg(msghdr *msg, int flags)
         auto to_copy = min((ssize_t) iov.iov_len, read - was_read);
         if (copy_to_user(iov.iov_base, ptr, to_copy) < 0)
         {
-            spin_unlock(&rx_packet_list_lock);
             return -EFAULT;
         }
 
@@ -594,8 +621,6 @@ ssize_t udp_socket::recvmsg(msghdr *msg, int flags)
         list_remove(&buf->list_node);
         buf->unref();
     }
-
-    spin_unlock(&rx_packet_list_lock);
 
 #if 0
 	printk("recv success %ld bytes\n", read);
@@ -654,7 +679,7 @@ short udp_socket::poll(void *poll_file, short events)
 {
     short avail_events = POLLOUT;
 
-    scoped_lock g{rx_packet_list_lock};
+    scoped_hybrid_lock hlock{socket_lock, this};
 
     if (events & POLLIN)
     {

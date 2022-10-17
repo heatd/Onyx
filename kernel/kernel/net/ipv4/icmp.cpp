@@ -159,7 +159,7 @@ int handle_packet(const inet_route &route, packetbuf *buf)
             if (!pbf)
                 break;
 
-            socket->append_inet_rx_pbuf(pbf);
+            socket->rx_dgram(pbf);
             pbf->unref();
         }
 
@@ -362,8 +362,6 @@ int icmp_socket::setsockopt(int level, int optname, const void *val, socklen_t l
 
 expected<packetbuf *, int> icmp_socket::get_datagram(int flags)
 {
-    scoped_lock g{rx_packet_list_lock};
-
     int st = 0;
     packetbuf *buf = nullptr;
 
@@ -379,8 +377,6 @@ expected<packetbuf *, int> icmp_socket::get_datagram(int flags)
         st = wait_for_dgrams();
     } while (!buf);
 
-    g.keep_locked();
-
     return buf;
 }
 
@@ -389,6 +385,8 @@ ssize_t icmp_socket::recvmsg(msghdr *msg, int flags)
     auto iovlen = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
     if (iovlen < 0)
         return iovlen;
+
+    scoped_hybrid_lock hlock{socket_lock, this};
 
     auto st = get_datagram(flags);
     if (st.has_error())
@@ -435,7 +433,6 @@ ssize_t icmp_socket::recvmsg(msghdr *msg, int flags)
 
         if (copy_to_user(iov.iov_base, ptr, to_copy) < 0)
         {
-            spin_unlock(&rx_packet_list_lock);
             return -EFAULT;
         }
 
@@ -451,14 +448,12 @@ ssize_t icmp_socket::recvmsg(msghdr *msg, int flags)
         buf->unref();
     }
 
-    spin_unlock(&rx_packet_list_lock);
-
     return read;
 }
 
 short icmp_socket::poll(void *poll_file, short events)
 {
-    scoped_lock g{rx_packet_list_lock};
+    scoped_hybrid_lock hlock{socket_lock, this};
     short avail_events = POLLOUT;
 
     if (events & POLLIN)
@@ -484,6 +479,36 @@ icmp_socket *create_socket(int type)
     }
 
     return sock;
+}
+
+void icmp_socket::rx_dgram(packetbuf *buf)
+{
+    scoped_hybrid_lock<true> g{socket_lock, this};
+
+    if (!socket_lock.is_ours())
+    {
+        buf->ref();
+        add_backlog(&buf->list_node);
+        return;
+    }
+
+    append_inet_rx_pbuf(buf);
+}
+
+/**
+ * @brief Handle ICMP socket backlog
+ *
+ */
+void icmp_socket::handle_backlog()
+{
+    // Take every packet and queue it
+    list_for_every_safe (&socket_backlog)
+    {
+        auto pbuf = list_head_cpp<packetbuf>::self_from_list_head(l);
+        list_remove(&pbuf->list_node);
+        append_inet_rx_pbuf(pbuf);
+        pbuf->unref();
+    }
 }
 
 } // namespace icmp
