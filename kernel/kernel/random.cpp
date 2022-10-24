@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -23,7 +23,7 @@
 
 const size_t max_entropy = PAGE_SIZE * 4;
 static char entropy_buffer[PAGE_SIZE * 4] = {};
-struct spinlock entropy_lock;
+struct mutex entropy_lock;
 static size_t current_entropy = 0;
 
 void add_entropy(void *ent, size_t size)
@@ -39,7 +39,7 @@ void add_entropy(void *ent, size_t size)
     }
 }
 
-void entropy_refill(void)
+void entropy_refill()
 {
     unsigned int *buf = (unsigned int *) entropy_buffer;
     size_t nr_refills = max_entropy / sizeof(unsigned int);
@@ -54,7 +54,7 @@ void entropy_refill(void)
 
 extern "C" void get_entropy(char *buf, size_t s)
 {
-    scoped_lock g{entropy_lock};
+    scoped_mutex g{entropy_lock};
 
     for (size_t i = 0; i < s; i++)
     {
@@ -142,19 +142,19 @@ size_t get_entropy_from_pool(int pool, size_t size, void *buffer)
     assert(pool == ENTROPY_POOL_RANDOM || pool == ENTROPY_POOL_URANDOM);
     size_t ret = (size_t) -EINVAL;
 
-    scoped_lock g{entropy_lock};
+    scoped_mutex g{entropy_lock};
 
     switch (pool)
     {
-    case ENTROPY_POOL_RANDOM: {
-        ret = random_get_entropy(size, buffer);
-        break;
-    }
+        case ENTROPY_POOL_RANDOM: {
+            ret = random_get_entropy(size, buffer);
+            break;
+        }
 
-    case ENTROPY_POOL_URANDOM: {
-        ret = urandom_get_entropy(size, buffer);
-        break;
-    }
+        case ENTROPY_POOL_URANDOM: {
+            ret = urandom_get_entropy(size, buffer);
+            break;
+        }
     }
 
     return ret;
@@ -205,7 +205,7 @@ static int init_urandom_dev(dev_t major_nr)
     return 0;
 }
 
-void entropy_init_dev(void)
+void entropy_init_dev()
 {
     // random registration is responsible for getting the major number for random and urandom
     // This is kind of not very pretty honestly...
@@ -217,7 +217,7 @@ void entropy_init_dev(void)
     init_urandom_dev(random_devs_major);
 }
 
-unsigned int get_random_int(void)
+unsigned int get_random_int()
 {
     auto num = entropy::platform::get_hwrandom();
 
