@@ -115,6 +115,14 @@ public:
         p = nullptr;
     }
 
+    T* release()
+    {
+        refed_counter = 0;
+        auto ret = p;
+        p = nullptr;
+        return ret;
+    }
+
     explicit ref_guard(T* p) : p(p), refed_counter{1}
     {
     }
