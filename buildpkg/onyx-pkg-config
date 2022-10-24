@@ -8,6 +8,6 @@ fi
 export PKG_CONFIG_SYSROOT_DIR=$SYSROOT
 export PKG_CONFIG_LIBDIR=$SYSROOT/usr/lib/pkgconfig
 
-export PKG_CONFIG_PATH=$PKG_CONFIG_LIBDIR
+export PKG_CONFIG_PATH="${PKG_CONFIG_LIBDIR}:$SYSROOT/usr/share/pkgconfig"
 
 exec pkg-config "$@"
