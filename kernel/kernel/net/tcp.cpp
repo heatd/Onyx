@@ -644,6 +644,7 @@ int tcp_socket::accept_connection(tcp_connection_req *req, const packet_handling
 
     list_add_tail(&sock->accept_node, &accept_queue);
     wait_queue_wake_all(&accept_wq);
+    sock.release();
     accept_queue_len++;
 
     return 0;
@@ -2149,6 +2150,9 @@ short tcp_socket::poll(void *poll_file, short events)
 
 int tcp_socket::getsockname(sockaddr *addr, socklen_t *len)
 {
+    if (!bound)
+        return -EINVAL;
+
     copy_addr_to_sockaddr(src_addr, addr, len);
 
     return 0;
@@ -2156,7 +2160,11 @@ int tcp_socket::getsockname(sockaddr *addr, socklen_t *len)
 
 int tcp_socket::getpeername(sockaddr *addr, socklen_t *len)
 {
+    if (!connected)
+        return -ENOTCONN;
+
     copy_addr_to_sockaddr(dest_addr, addr, len);
+
     return 0;
 }
 
