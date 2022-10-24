@@ -481,8 +481,7 @@ bool inode_is_cacheable(struct inode *ino)
      * Or use the .read and .write function pointers.
      */
 
-    if (ino->i_type != VFS_TYPE_FILE && ino->i_type != VFS_TYPE_DIR &&
-        ino->i_type != VFS_TYPE_SYMLINK)
+    if (!S_ISREG(ino->i_mode) && !S_ISDIR(ino->i_mode) && !S_ISLNK(ino->i_mode))
         return false;
 
     return true;
