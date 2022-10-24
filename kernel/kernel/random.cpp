@@ -28,7 +28,7 @@ static size_t current_entropy = 0;
 
 void add_entropy(void *ent, size_t size)
 {
-    scoped_lock g{entropy_lock};
+    scoped_mutex g{entropy_lock};
     if (current_entropy == max_entropy || current_entropy + size > max_entropy)
     {
     }

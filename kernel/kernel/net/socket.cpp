@@ -1015,19 +1015,16 @@ int sys_accept4(int sockfd, struct sockaddr *addr, socklen_t *slen, int flags)
 
     if (addr)
     {
-        printk("Addr emu\n");
         sockaddr_storage kaddr;
         socklen_t kaddrlen;
 
-        if (st = sock->getpeername((sockaddr *) &kaddr, &kaddrlen); st < 0)
+        if (st = new_socket->getpeername((sockaddr *) &kaddr, &kaddrlen); st < 0)
         {
-            printk("peerst %d\n", st);
             goto out;
         }
 
         if (st = copy_sockaddr((sockaddr *) &kaddr, kaddrlen, addr, slen); st < 0)
         {
-            printk("st %d\n", st);
             goto out;
         }
     }
