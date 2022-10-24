@@ -111,7 +111,7 @@ static inline void list_remove(struct list_head *node)
     node->prev = node->next = LIST_REMOVE_POISON;
 }
 
-static inline bool list_is_empty(struct list_head *head)
+static inline bool list_is_empty(const struct list_head *head)
 {
     return head->next == head;
 }
