@@ -8,6 +8,7 @@
 
 #include <lib/binary_search_tree.h>
 
+#include <onyx/mm/kasan.h>
 #include <onyx/spinlock.h>
 #include <onyx/vm.h>
 
@@ -190,6 +191,14 @@ void *vmalloc(size_t pages, int type, int perms)
         pool.free(vmal_reg);
     };
 
+#ifdef CONFIG_KASAN
+    if (kasan_alloc_shadow(vmal_reg->addr, pages << PAGE_SHIFT, true) < 0)
+    {
+        delvmr();
+        return errno = ENOMEM, nullptr;
+    }
+#endif
+
     auto pgs = alloc_pages(pages, 0);
     if (!pgs)
     {
@@ -209,6 +218,8 @@ void *vmalloc(size_t pages, int type, int perms)
             delvmr();
             return errno = ENOMEM, nullptr;
         }
+
+        *(char *) (vmal_reg->addr + (i << PAGE_SHIFT)) = 0;
     }
 
     vmal_reg->backing_pgs = pgs;
@@ -276,6 +287,11 @@ void vfree(void *ptr, size_t pages)
         panic("vfree: Given length %lx does not match with vmalloc allocation length %lx\n",
               pages << PAGE_SHIFT, reg->pages << PAGE_SHIFT);
     }
+
+#ifdef CONFIG_KASAN
+    // Re-poison the shadow as free
+    asan_poison_shadow((unsigned long) ptr, reg->pages << PAGE_SHIFT, KASAN_FREED);
+#endif
 
     // First, free the pages, then unmap the memory, then finally unlink it
     free_pages(reg->backing_pgs);

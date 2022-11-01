@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 /**************************************************************************
  *
@@ -23,6 +25,7 @@
 #include <onyx/modules.h>
 #include <onyx/paging.h>
 #include <onyx/panic.h>
+#include <onyx/percpu.h>
 #include <onyx/process.h>
 #include <onyx/registers.h>
 #include <onyx/task_switching.h>
@@ -51,12 +54,36 @@ void vterm_panic(void);
 
 void bust_printk_lock(void);
 
+PER_CPU_VAR(bool in_panic) = false;
+PER_CPU_VAR(bool start_end) = false;
+
 #define PANIC_STACK_BUF_SZ 1024
+
+void panic_start()
+{
+    irq_disable();
+
+    if (get_per_cpu(in_panic))
+        halt();
+
+    write_per_cpu(in_panic, true);
+    write_per_cpu(start_end, true);
+
+    /* Turn off vterm multthreading */
+    vterm_panic();
+
+    bust_printk_lock();
+}
 
 __attribute__((noreturn, noinline)) void panic(const char *msg, ...)
 {
     /* First, disable interrupts */
     irq_disable();
+
+    if (get_per_cpu(in_panic) && !get_per_cpu(start_end))
+        halt();
+
+    write_per_cpu(in_panic, true);
 
     char buffer[PANIC_STACK_BUF_SZ];
     panicing = 1;
@@ -69,10 +96,13 @@ __attribute__((noreturn, noinline)) void panic(const char *msg, ...)
 
     va_end(parameters);
 
-    /* Turn off vterm multthreading */
-    vterm_panic();
+    if (!get_per_cpu(start_end))
+    {
+        /* Turn off vterm multthreading */
+        vterm_panic();
 
-    bust_printk_lock();
+        bust_printk_lock();
+    }
 
     /* And dump the context to it */
 #if 0

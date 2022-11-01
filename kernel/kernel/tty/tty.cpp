@@ -291,6 +291,9 @@ size_t ttydevfs_write(size_t offset, size_t len, void *ubuffer, struct file *f)
     }
 
     tty_write(buffer, len, tty);
+
+    free(buffer);
+
     return len;
 }
 

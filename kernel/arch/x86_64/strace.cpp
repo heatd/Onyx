@@ -87,6 +87,7 @@ static char buffer[1000];
 #endif
 
 char *resolve_sym(void *address);
+NO_ASAN
 __attribute__((no_sanitize_undefined)) void stack_trace_ex(uint64_t *stack)
 {
     // Get all the unwinds possible using threading structures
@@ -123,6 +124,7 @@ __attribute__((no_sanitize_undefined)) void stack_trace_ex(uint64_t *stack)
     }
 }
 
+NO_ASAN
 size_t stack_trace_get(unsigned long *stack, unsigned long *pcs, size_t nr_pcs)
 {
     thread_t *thread = get_current_thread();
@@ -172,9 +174,10 @@ size_t stack_trace_get(unsigned long *stack, unsigned long *pcs, size_t nr_pcs)
     return i;
 }
 
-void stack_trace(void)
+NO_ASAN
+void stack_trace()
 {
-    uint64_t *stack = NULL;
+    uint64_t *stack = nullptr;
     get_frame_pointer(&stack);
     stack_trace_ex(stack);
 }

@@ -1,5 +1,9 @@
-mm-y:= bootmem.o page.o pagealloc.o vm_object.o vm.o flush.o slab.o vmalloc.o
+mm-y:= bootmem.o page.o pagealloc.o vm_object.o vm.o flush.o vmalloc.o
 
-mm-$(CONFIG_KASAN)+= asan/asan.o
+ifeq ($(CONFIG_KASAN), y)
+obj-y_NOKASAN+= kernel/mm/asan/asan.o kernel/mm/asan/quarantine.o
+endif
+
+obj-y_NOKASAN+= kernel/mm/slab.o
 
 obj-y+= $(patsubst %, kernel/mm/%, $(mm-y))

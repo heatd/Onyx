@@ -1700,6 +1700,7 @@ void vterm_panic(void)
 
     if (primary_vterm.tty)
         primary_vterm.tty->lock.counter = 0;
+    primary_vterm.vt_lock.counter = 0;
 }
 
 void vterm_release_video(void *vt_)

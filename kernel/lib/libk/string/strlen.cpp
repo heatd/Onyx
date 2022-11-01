@@ -9,6 +9,8 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <onyx/compiler.h>
+
 #define CONST1 ((size_t) 0x0101010101010101ULL)
 #define CONST2 ((size_t) 0x8080808080808080ULL)
 
@@ -18,7 +20,7 @@
 
 typedef size_t __attribute__((__may_alias__)) word_t;
 
-extern "C" size_t strlen(const char *s)
+extern "C" NO_ASAN size_t strlen(const char *s)
 {
     auto start = s;
 

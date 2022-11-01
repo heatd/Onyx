@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2019 Pedro Falcato
+ * Copyright (c) 2019 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #include <assert.h>
@@ -14,6 +16,7 @@
 
 #include <onyx/compiler.h>
 #include <onyx/mm/kasan.h>
+#include <onyx/mm/slab.h>
 #include <onyx/page.h>
 #include <onyx/panic.h>
 #include <onyx/percpu.h>
@@ -27,33 +30,135 @@
 
 #define __alias(symbol) __attribute__((__alias__(#symbol)))
 
-#define KASAN_SHIFT      3
-#define KASAN_N_MASK     ((1 << KASAN_SHIFT) - 1)
-#define KASAN_ACCESSIBLE 0x0
-#define KASAN_REDZONE    0xff
-#define KASAN_FREED      0xfe
+#define KASAN_SHIFT  3
+#define KASAN_N_MASK ((1 << KASAN_SHIFT) - 1)
 
 bool kasan_is_init = false;
 
 #define ADDR_SPACE_SIZE (KADDR_SPACE_SIZE / 8)
 
-const unsigned long kasan_space = arch_high_half + arch_kasan_off;
+const unsigned long kasan_space = 0xffffec0000000000;
+unsigned long kasan_max = 0xfffffc0000000000;
 
 bool kasan_is_cleared_access(unsigned long addr, size_t size)
 {
-    if (addr >= PHYS_BASE && addr + size <= PHYS_BASE + 0x80000000000)
-        return true;
-    if (addr >= kasan_space && addr + size <= kasan_space + ADDR_SPACE_SIZE)
-        return true;
-    return false;
+    return addr >= kasan_space && addr + size <= kasan_space + ADDR_SPACE_SIZE;
 }
 
 static inline char *kasan_get_ptr(unsigned long addr)
 {
-    return (char *) (kasan_space + ((addr - arch_high_half) >> KASAN_SHIFT));
+    return (char *) 0xdffffc0000000000 + (addr >> KASAN_SHIFT);
 }
 
-void vterm_panic(void);
+void vterm_panic();
+
+unsigned long kasan_get_freed_region_start(unsigned long addr)
+{
+    auto shadow = kasan_get_ptr(addr);
+
+    unsigned long cursor = addr & ~7;
+
+    while ((unsigned char) *shadow == KASAN_FREED)
+    {
+        --shadow, cursor -= 8;
+    }
+
+    return cursor + 8;
+}
+
+unsigned long kasan_get_freed_region_end(unsigned long addr)
+{
+    auto shadow = kasan_get_ptr(addr);
+
+    unsigned long cursor = addr & ~7;
+
+    while ((unsigned char) *shadow == KASAN_FREED)
+    {
+        ++shadow, cursor += 8;
+    }
+
+    return cursor;
+}
+
+void kasan_print_location(unsigned long addr)
+{
+    auto shadow = kasan_get_ptr(addr);
+
+    unsigned char shadow_byte = *shadow;
+
+    if (shadow_byte == KASAN_FREED)
+    {
+        unsigned long start = kasan_get_freed_region_start(addr);
+        unsigned long end = kasan_get_freed_region_end(addr);
+        printk("%#lx is located %zu bytes inside of %zu-byte region [%#lx, %#lx)\n", addr,
+               addr - start, end - start, start, end);
+    }
+}
+
+static void kasan_dump_shadow(unsigned long addr)
+{
+    uintptr_t shadow = (uintptr_t) kasan_get_ptr(addr);
+    printk("Shadow memory state around the buggy address %#lx:\n", shadow);
+    // Print at least 0x30 bytes of the shadow map before and after the invalid access.
+    uintptr_t start_addr = (shadow & ~0x07) - 0x30;
+    start_addr = cul::max(kasan_space, start_addr);
+    // Print the shadow map memory state and look for the location to print a caret.
+    bool caret = false;
+    size_t caret_ind = 0;
+    for (size_t i = 0; i < 14; i++)
+    {
+        // TODO(fxbug.dev/51170): When kernel printf properly supports #, switch.
+        printk("0x%016lx:", start_addr);
+        for (size_t j = 0; j < 8; j++)
+        {
+            printk(" 0x%02hhx", reinterpret_cast<uint8_t *>(start_addr)[j]);
+            if (!caret)
+            {
+                if ((start_addr + j) == reinterpret_cast<uintptr_t>(kasan_get_ptr(addr)))
+                {
+                    caret = true;
+                    caret_ind = j;
+                }
+            }
+        }
+        printk("\n");
+        if (caret)
+        {
+            // The address takes 16 characters; add in space for ':', and "0x".
+            printk("%*s", 16 + 1 + 2, "");
+            // Print either a caret or spaces under the line containing the invalid access.
+            for (size_t j = 0; j < 8; j++)
+            {
+                printk("  %2s ", j == caret_ind ? "^^" : "");
+            }
+            printk("\n");
+            caret = false;
+        }
+        start_addr += 8;
+    }
+
+    printk("\n");
+    auto slab = kmem_pointer_to_slab_maybe((void *) addr);
+
+    printk("Memory information: ");
+
+    if (slab)
+    {
+        kmem_cache_print_slab_info_kasan((void *) addr, slab);
+
+        kasan_print_location(addr);
+        printk("                    ");
+    }
+
+    auto mapping_info = get_mapping_info((void *) addr);
+
+    if (mapping_info & PAGE_PRESENT)
+    {
+        printk("mapped to %016lx\n", MAPPING_INFO_PADDR(mapping_info));
+    }
+    else
+        printk("not mapped\n");
+}
 
 void kasan_fail(unsigned long addr, size_t size, bool write, unsigned char b)
 {
@@ -72,17 +177,22 @@ void kasan_fail(unsigned long addr, size_t size, bool write, unsigned char b)
             break;
         case KASAN_REDZONE:
             thing_accessed = "Accessed zone marked KASAN_REDZONE";
-            __attribute__((fallthrough));
+            [[fallthrough]];
         default:
             event = "invalid access";
             break;
     };
 
-    printk("\n====================================================================================="
+    panic_start();
+
+    printk("\n================================================================================="
+           "===="
            "========\n\n");
 
-    char buffer[200] = {0};
-    snprintf(buffer, 200,
+    kasan_dump_shadow(addr);
+
+    char buffer[1024] = {0};
+    snprintf(buffer, 1024,
              "kasan: "
              "detected memory error (%s) at %lx, %s of size %lu\nMemory error: %s(kasan code %x)",
              event, addr, write ? "write" : "read", size, thing_accessed, b);
@@ -113,18 +223,10 @@ void kasan_check_memory_fast(unsigned long addr, size_t size, bool write)
 
 void kasan_check_memory(unsigned long addr, size_t size, bool write)
 {
-    if (!kasan_is_init)
-        return;
-
     size_t n_ = KASAN_MISALIGNMENT(addr);
 
-    if (kasan_is_cleared_access(addr, size))
-    {
-        return;
-    }
-
     if ((unsigned long) kasan_get_ptr(addr) < kasan_space)
-        panic("Bad kasan pointer %lx\n", addr);
+        panic("Bad kasan pointer %lx -> %p\n", addr, kasan_get_ptr(addr));
 
     if (n_ + size <= 8 && n_ == 0)
     {
@@ -177,7 +279,8 @@ void kasan_check_memory(unsigned long addr, size_t size, bool write)
                                                      \
     USED void __asan_store##size##_noabort(unsigned long addr) __alias(__asan_store##size);
 
-extern "C" {
+extern "C"
+{
 
 KASAN_LOAD(1);
 KASAN_LOAD(2);
@@ -215,8 +318,51 @@ USED void __asan_report_load_n_noabort(unsigned long addr, size_t size)
     kasan_check_memory(addr, size, false);
 }
 
+static unsigned long stray_shadow_unpoison = 0;
+
+extern "C" void asan_unpoison_stack_shadow()
+{
+    // Called by code that needs to exit and not unwind the stack. This forcibly unpoisons the whole
+    // stack.
+    auto cur = get_current_thread();
+    unsigned long local_stack;
+    unsigned long bottom = (unsigned long) &local_stack;
+    auto len = ((unsigned long) cur->kernel_stack_top) - bottom;
+
+    // This is needed when called at early boot/cpu0 init thread, where the cur stack != thread's
+    // stack
+    // TODO: Fix?
+    if (len > 0x100000)
+    {
+        stray_shadow_unpoison++;
+        return;
+    }
+
+    asan_unpoison_shadow(bottom, len);
+}
+
+extern "C" void asan_unpoison_stack_shadow_ctxswitch(struct registers *regs)
+{
+#ifdef __x86_64__
+    auto to_sp = regs->rsp;
+#endif
+    // Called by code that needs to exit and not unwind the stack. This forcibly unpoisons the whole
+    // stack.
+    unsigned long local_stack;
+    unsigned long bottom = (unsigned long) &local_stack;
+    auto len = to_sp - bottom;
+    if (len > 0x100000)
+    {
+        stray_shadow_unpoison++;
+        return;
+    }
+
+    asan_unpoison_shadow(bottom, len);
+}
+
 USED void __asan_handle_no_return(void)
 {
+    asan_unpoison_stack_shadow();
 }
 
 USED void __asan_before_dynamic_init(void)
@@ -327,10 +473,15 @@ static bool asan_visit_region(struct vm_region *region)
     return true;
 }
 
-void kasan_init(void)
+void kasan_init()
 {
-    vm_for_every_region(kernel_address_space, asan_visit_region);
-    kasan_is_init = true;
+    // vm_for_every_region(kernel_address_space, asan_visit_region);
+    // kasan_is_init = true;
+}
+
+[[gnu::weak]] int mmu_map_kasan_shadow(void *shadow_start, size_t pages)
+{
+    return -ENOMEM;
 }
 
 int kasan_alloc_shadow(unsigned long addr, size_t size, bool accessible)
@@ -352,26 +503,24 @@ int kasan_alloc_shadow(unsigned long addr, size_t size, bool accessible)
     /*printf("Kasan start: %lx\n", kasan_start);
     printf("Kasan end: %lx\n", kasan_end);
     printf("Actual start: %lx\nActual end: %lx\n", actual_start, actual_end);*/
-    /* TODO: This is a huge memory leak right now. */
-    assert(vm_map_range((void *) kasan_start, (kasan_end - kasan_start) >> PAGE_SHIFT,
-                        VM_READ | VM_WRITE | VM_DONT_MAP_OVER) != NULL);
+
+    if (mmu_map_kasan_shadow((void *) kasan_start, (kasan_end - kasan_start) >> PAGE_SHIFT) < 0)
+        return -ENOMEM;
+
     /* Mask excess bytes as redzones */
     /* memset((void *) kasan_start, KASAN_REDZONE, actual_start - kasan_start);
     memset((void *) actual_end, KASAN_REDZONE, kasan_end - actual_end);*/
 
-    if (!accessible)
-    {
-        memset((void *) actual_start, (unsigned char) KASAN_REDZONE, actual_end - actual_start);
-    }
+    memset((void *) actual_start, accessible ? 0 : (unsigned char) KASAN_REDZONE,
+           actual_end - actual_start);
 
     return 0;
 }
 
 void platform_serial_write(const char *s, size_t size);
 
-extern "C" void asan_poison_shadow(unsigned long addr, size_t size, uint8_t value)
+void asan_poison_shadow(unsigned long addr, size_t size, uint8_t value)
 {
-
 #if 0
 	if()
 	{
@@ -480,4 +629,54 @@ extern "C" void kasan_set_state(unsigned long *__ptr, size_t size, int state)
         asan_unpoison_shadow(addr, size);
     else
         asan_poison_shadow(addr, size, state == 1 ? KASAN_FREED : KASAN_REDZONE);
+}
+
+#if 0
+static const uint64_t kAllocaRedzoneSize = 32UL;
+static const uint64_t kAllocaRedzoneMask = 31UL;
+#endif
+
+extern "C" USED void __asan_alloca_poison(unsigned long addr, unsigned long size)
+{
+    /*
+        unsigned long LeftRedzoneAddr = addr - kAllocaRedzoneSize;
+        unsigned long PartialRzAddr = addr + size;
+        unsigned long RightRzAddr = (PartialRzAddr + kAllocaRedzoneMask) & ~kAllocaRedzoneMask;
+        unsigned long PartialRzAligned = PartialRzAddr & ~7;
+        asan_poison_shadow(LeftRedzoneAddr, kAllocaRedzoneSize, kAsanAllocaLeftMagic);
+        FastPoisonShadowPartialRightRedzone(PartialRzAligned, PartialRzAddr & 7,
+                                            RightRzAddr - PartialRzAligned, kAsanAllocaRightMagic);
+        asan_poison_shadow(RightRzAddr, kAllocaRedzoneSize, kAsanAllocaRightMagic);
+    */
+}
+
+extern "C" USED void __asan_allocas_unpoison(unsigned long top, unsigned long bottom)
+{
+    if ((!top) || (top > bottom))
+        return;
+    memset(reinterpret_cast<void *>(kasan_get_ptr(top)), 0, (bottom - top) >> 3);
+}
+
+/**
+ * @brief Get the redzone's size for the objsize
+ *
+ * @param objsize Object size
+ * @return Redzone's size, on each side of the object
+ */
+size_t kasan_get_redzone_size(size_t objsize)
+{
+    if (objsize >= 128)
+        return 64;
+    else if (objsize >= 512)
+        return 128;
+    else if (objsize >= 1024)
+        return 256;
+    else if (objsize >= 2048)
+        return 512;
+    else if (objsize < 32)
+        return 16;
+    else if (objsize < 128)
+        return 32;
+    else
+        return 1024;
 }

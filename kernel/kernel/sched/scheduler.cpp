@@ -23,6 +23,7 @@
 #include <onyx/elf.h>
 #include <onyx/fpu.h>
 #include <onyx/irq.h>
+#include <onyx/mm/kasan.h>
 #include <onyx/panic.h>
 #include <onyx/percpu.h>
 #include <onyx/perf_probe.h>
@@ -215,17 +216,17 @@ thread_t *__sched_find_next(unsigned int cpu)
             /* Advance the queue by one */
             thread_queues[i] = ret->next_prio;
             if (thread_queues[i])
-                ret->prev_prio = NULL;
-            ret->next_prio = NULL;
+                ret->prev_prio = nullptr;
+            ret->next_prio = nullptr;
 
             return ret;
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
-thread_t *sched_find_next(void)
+thread_t *sched_find_next()
 {
     return __sched_find_next(get_cpu_nr());
 }
@@ -255,6 +256,10 @@ unsigned long sched_get_preempt_counter(void)
 void sched_save_thread(thread *thread, void *stack)
 {
     thread->kernel_stack = (uintptr_t *) stack;
+#ifdef CONFIG_KASAN
+    asan_unpoison_shadow((unsigned long) __builtin_frame_address(0),
+                         (char *) stack - (char *) __builtin_frame_address(0));
+#endif
     thread->errno_val = errno;
 
     native::arch_save_thread(thread, stack);
@@ -296,8 +301,21 @@ void sched_load_thread(thread *thread, unsigned int cpu)
     spin_unlock_irqrestore(get_per_cpu_ptr_any(scheduler_lock, cpu), irq_save_and_disable());
 }
 
-void sched_load_finish(thread *prev_thread, thread *next_thread)
+extern "C" void asan_unpoison_stack_shadow_ctxswitch(struct registers *regs);
+
+NO_ASAN void sched_load_finish(thread *prev_thread, thread *next_thread)
 {
+#ifdef CONFIG_KASAN
+    asan_unpoison_stack_shadow_ctxswitch((struct registers *) prev_thread->kernel_stack);
+#endif
+    sched_load_thread(next_thread, get_cpu_nr());
+
+    if (prev_thread && prev_thread->status == THREAD_DEAD && prev_thread->flags & THREAD_IS_DYING)
+    {
+        /* Finally, kill the thread for good */
+        prev_thread->flags &= ~THREAD_IS_DYING;
+    }
+
     native::arch_context_switch(prev_thread, next_thread);
 }
 
@@ -347,15 +365,6 @@ extern "C" void *sched_schedule(void *last_stack)
         {
             source_thread->get_aspace()->active_mask.remove_cpu_atomic(get_cpu_nr());
         }
-    }
-
-    sched_load_thread(curr_thread, get_cpu_nr());
-
-    if (source_thread && source_thread->status == THREAD_DEAD &&
-        source_thread->flags & THREAD_IS_DYING)
-    {
-        /* Finally, kill the thread for good */
-        source_thread->flags &= ~THREAD_IS_DYING;
     }
 
     sched_load_finish(source_thread, curr_thread);
@@ -463,9 +472,9 @@ void thread_add(thread_t *thread, unsigned int cpu_num)
 
 void sched_init_cpu(unsigned int cpu)
 {
-    thread *t = sched_create_thread(sched_idle, THREAD_KERNEL, NULL);
+    thread *t = sched_create_thread(sched_idle, THREAD_KERNEL, nullptr);
 
-    assert(t != NULL);
+    assert(t != nullptr);
 
     t->priority = SCHED_PRIO_VERY_LOW;
     t->cpu = cpu;
@@ -1099,18 +1108,18 @@ void __sched_kill_other(thread *thread, unsigned int cpu)
     cpu_send_message(cpu, CPU_KILL_THREAD, NULL, false);
 }
 
-pid_t sys_gettid(void)
+pid_t sys_gettid()
 {
     thread *current = get_current_thread();
     /* TODO: Should we emulate actual linux behavior? */
     return current->id;
 }
 
-void sched_transition_to_idle(void)
+void sched_transition_to_idle()
 {
     thread *curr = get_current_thread();
     curr->priority = SCHED_PRIO_VERY_LOW;
-    curr->entry(NULL);
+    curr->entry(nullptr);
 }
 
 int sched_transition_to_user_thread(thread *thread)

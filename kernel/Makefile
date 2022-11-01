@@ -110,17 +110,26 @@ endif
 endif
 
 ifeq ($(CONFIG_KASAN), y)
-CFLAGS+=-fsanitize=address
+CFLAGS_KASAN:=-fsanitize=kernel-address
 
 ifeq ($(ONYX_USING_CLANG), yes)
 
+ifeq ($(CONFIG_KASAN_NOINLINE), y)
+CFLAGS_KASAN+=-mllvm -asan-instrumentation-with-call-threshold=0
+endif
 # Note: clang tries really hard to access the linear map, but we don't have a linear map (just yet!)
 # Therefore, we disable it for now
-CFLAGS+=-mllvm -asan-instrumentation-with-call-threshold=0 -mllvm -asan-globals-live-support=false
-CFLAGS+=-mllvm -asan-stack=0 -mllvm -asan-globals=0
+CFLAGS_KASAN+=-mllvm -asan-globals-live-support=false -mllvm -asan-globals=0 -mllvm -asan-stack=1
 else
-CFLAGS+=--param asan-globals=0 --param asan-instrumentation-with-call-threshold=0 --param asan-stack=0 --param asan-globals=0
+CFLAGS_KASAN+=--param asan-globals=0 --param asan-stack=1 -fasan-shadow-offset=0xdffffc0000000000
+
+ifeq ($(CONFIG_KASAN_NOINLINE), y)
+CFLAGS_KASAN+=--param asan-instrumentation-with-call-threshold=0
 endif
+
+endif
+
+CFLAGS+=$(CFLAGS_KASAN)
 
 endif
 
@@ -260,19 +269,7 @@ acpica/%.o: acpica/%.c $(GENERATED_HEADERS)
 	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) $(CPPFLAGS)
 
 $(obj-y_NOKASAN): 
-$(obj-y_NOKASAN): CFLAGS+=-fno-sanitize=address
-
-kernel/mm/kasan.o: kernel/mm/kasan.cpp $(GENERATED_HEADERS)
-	@echo [CC] NOKASAN $<
-	@$(CC) -c $< -o $@ -std=c++17 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) -fno-sanitize=address -fno-lto $(CPPFLAGS)
-
-kernel/mm/malloc/%.o: kernel/mm/malloc/%.c $(GENERATED_HEADERS)
-	@echo [CC] NOKASAN $<
-	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) -fno-sanitize=address -fno-lto $(CPPFLAGS)
-
-kernel/mm/malloc/%.o: kernel/mm/malloc/%.cpp $(GENERATED_HEADERS)
-	@echo [CC] NOKASAN $<
-	@$(CXX) -c $< -o $@ -std=c++20 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) $(CXXFLAGS) -fno-sanitize=address -fno-lto $(CPPFLAGS)
+$(obj-y_NOKASAN): CFLAGS:=$(filter-out $(CFLAGS_KASAN), $(CFLAGS))
 
 kernel/ssp.o: kernel/ssp.cpp $(GENERATED_HEADERS)
 	@echo [CC] NOKASAN $<

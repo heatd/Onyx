@@ -11,6 +11,7 @@
 #include <stddef.h>
 
 #include <onyx/list.h>
+#include <onyx/mm/kasan.h>
 #include <onyx/spinlock.h>
 
 #include <onyx/atomic.hpp>
@@ -22,7 +23,7 @@ struct slab_cache_percpu_context
     void *magazine[SLAB_CACHE_PERCPU_MAGAZINE_SIZE];
     int size;
     atomic<int> touched;
-};
+} __align_cache;
 
 struct slab_cache
 {
@@ -34,6 +35,8 @@ struct slab_cache
     size_t active_objects;
     size_t alignment;
     size_t objsize;
+    size_t actual_objsize;
+    size_t redzone;
     size_t npartialslabs;
     size_t nfreeslabs;
     size_t nfullslabs;
@@ -108,5 +111,27 @@ void kmem_cache_purge(struct slab_cache *cache);
  * @param cache Slab cache
  */
 void kmem_cache_destroy(struct slab_cache *cache);
+
+struct slab;
+
+/**
+ * @brief Convert a pointer to its slab
+ * This function returns null if its not part of a slab.
+ *
+ * @param mem Pointer to memory
+ * @return struct slab, or nullptr
+ */
+struct slab *kmem_pointer_to_slab_maybe(void *mem);
+
+#ifdef CONFIG_KASAN
+
+/**
+ * @brief Print KASAN-relevant info for this mem-slab
+ *
+ * @param mem Pointer to the memory
+ * @param slab Pointer to its slab
+ */
+void kmem_cache_print_slab_info_kasan(void *mem, struct slab *slab);
+#endif
 
 #endif
