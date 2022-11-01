@@ -191,6 +191,12 @@ struct mm_address_space : public refcountable
         return *this;
     }
 
+    constexpr mm_address_space()
+    {
+        spinlock_init(&page_table_lock);
+        bst_root_initialize(&region_tree);
+    }
+
     /**
      * @brief Creates a new standalone address space
      *

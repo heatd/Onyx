@@ -243,7 +243,7 @@ void arch_load_process(process *process, thread *thread, unsigned int cpu)
 
 extern "C" [[noreturn]] void riscv_context_switch(thread *prev, unsigned char *stack,
                                                   bool needs_to_kill_prev);
-void arch_context_switch(thread *prev, thread *next)
+[[noreturn]] void arch_context_switch(thread *prev, thread *next)
 {
     // riscv_context_switch wants interrupts to be disabled
     irq_disable();

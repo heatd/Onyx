@@ -242,8 +242,11 @@ public:
         }
 
 #ifdef CONFIG_KASAN
-        kasan_alloc_shadow((unsigned long) this, size - size_of_inline_segment(), false);
-        kasan_set_state((unsigned long *) this, size_of_inline_segment(), 0);
+        if constexpr (use_virtual_memory)
+        {
+            kasan_alloc_shadow((unsigned long) this, size - size_of_inline_segment(), false);
+            kasan_set_state((unsigned long *) this, size_of_inline_segment(), 0);
+        }
 #endif
         return cul::pair<memory_chunk<T> *, memory_chunk<T> *>(first, prev);
     }
@@ -481,16 +484,19 @@ public:
         assert(return_chunk->object_canary == OBJECT_CANARY);
 #endif
 #ifdef CONFIG_KASAN
-        kasan_set_state((unsigned long *) (return_chunk + 1), sizeof(T), 0);
+        if constexpr (using_vm)
+            kasan_set_state((unsigned long *) (return_chunk + 1), sizeof(T), 0);
 #endif
         return reinterpret_cast<T *>(return_chunk + 1);
     }
 
+    NO_ASAN
     void free(T *ptr)
     {
         auto chunk = ptr_to_chunk(ptr);
 #ifdef CONFIG_KASAN
-        kasan_set_state((unsigned long *) ptr, sizeof(T), 1);
+        if constexpr (using_vm)
+            kasan_set_state((unsigned long *) ptr, sizeof(T), 1);
 #endif
         // std::cout << "Removing chunk " << chunk << "\n";
         scoped_lock<spinlock, usable_onirq> guard{lock};

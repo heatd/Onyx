@@ -292,6 +292,7 @@ void page_fault_handler(struct registers *ctx)
     info.exec = error_code & 0x10;
     info.user = error_code & 0x4;
     info.ip = ctx->rip;
+    info.error_info = 0;
 
     if (vm_is_smap_fault(ctx, info) || vm_handle_page_fault(&info) < 0)
     {
@@ -550,7 +551,11 @@ extern "C" unsigned long x86_dispatch_interrupt(struct registers *regs)
     context_tracking_enter_kernel();
 
     if (vec_no < EXCEPTION_VECTORS_END)
-        return isr_handler(regs);
+    {
+        auto ret = isr_handler(regs);
+        context_tracking_exit_kernel();
+        return ret;
+    }
 
     platform_send_eoi(vec_no - EXCEPTION_VECTORS_END);
 

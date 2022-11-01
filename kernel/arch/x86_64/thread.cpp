@@ -321,7 +321,7 @@ void arch_load_process(struct process *process, struct thread *thread, unsigned 
     vm_load_aspace(as, cpu);
 }
 
-void arch_context_switch(thread *prev, thread *next)
+[[noreturn]] void arch_context_switch(thread *prev, thread *next)
 {
     bool is_last_dead = prev && prev->status == THREAD_DEAD;
     x86_context_switch(prev, (unsigned char *) next->kernel_stack, is_last_dead);

@@ -44,6 +44,7 @@ struct bufctl;
 
 struct slab
 {
+    unsigned long canary;
     union {
         void *start;
         struct page *pages;
@@ -56,6 +57,8 @@ struct slab
     size_t nobjects;
     struct slab_cache *cache;
 };
+
+#define SLAB_CANARY 0x00600DBAAE600DBA
 
 #define BUFCTL_PATTERN_FREE 0xdeadbeef
 
@@ -86,6 +89,12 @@ struct slab_cache *kmem_cache_create(const char *name, size_t size, size_t align
 
     c->name = name;
     c->objsize = size;
+    c->actual_objsize = size;
+#ifdef CONFIG_KASAN
+    c->redzone = kasan_get_redzone_size(c->objsize) * 2;
+#else
+    c->redzone = 0;
+#endif
     c->flags = flags;
 
     // Minimum object alignment is 16
@@ -104,6 +113,7 @@ struct slab_cache *kmem_cache_create(const char *name, size_t size, size_t align
     }
 
     c->objsize = ALIGN_TO(c->objsize, c->alignment);
+    c->redzone = ALIGN_TO(c->redzone, c->alignment);
 
     if (c->objsize > PAGE_SIZE)
     {
@@ -269,7 +279,8 @@ static inline void *kmem_cache_alloc_from_free(struct slab_cache *cache, unsigne
  */
 static inline size_t kmem_calc_slab_size(struct slab_cache *cache)
 {
-    if (cache->objsize < PAGE_SIZE / 8)
+    auto effobjsize = cache->objsize + cache->redzone;
+    if (effobjsize < PAGE_SIZE / 8)
     {
         // Small object, allocate a single page
         return PAGE_SIZE;
@@ -277,7 +288,7 @@ static inline size_t kmem_calc_slab_size(struct slab_cache *cache)
     else
     {
         // Temporary, should find a better heuristic
-        return cul::align_up2(cache->objsize * 24 + sizeof(struct slab), (size_t) PAGE_SIZE);
+        return cul::align_up2(effobjsize * 24 + sizeof(struct slab), (size_t) PAGE_SIZE);
     }
 }
 
@@ -289,10 +300,11 @@ static inline size_t kmem_calc_slab_size(struct slab_cache *cache)
  */
 static inline size_t kmem_calc_slab_nr_objs(struct slab_cache *cache)
 {
-    if (cache->objsize < PAGE_SIZE / 8)
+    auto effobjsize = cache->objsize + cache->redzone;
+    if (effobjsize < PAGE_SIZE / 8)
     {
         // Small object, allocate a single page
-        return PAGE_SIZE / cache->objsize;
+        return PAGE_SIZE / effobjsize;
     }
     else
     {
@@ -327,7 +339,7 @@ struct page *kmem_pointer_to_page(void *mem)
  * @param mem Pointer
  * @return Pointer to the slab
  */
-static inline struct slab *kmem_pointer_to_slab(void *mem)
+struct slab *kmem_pointer_to_slab(void *mem)
 {
     auto page = kmem_pointer_to_page(mem);
     struct slab *s = (struct slab *) page->priv;
@@ -340,13 +352,35 @@ static inline struct slab *kmem_pointer_to_slab(void *mem)
 }
 
 /**
+ * @brief Convert a pointer to its slab
+ * This function returns null if its not part of a slab.
+ *
+ * @param mem Pointer to memory
+ * @return struct slab, or nullptr
+ */
+struct slab *kmem_pointer_to_slab_maybe(void *mem)
+{
+    unsigned long info = get_mapping_info(mem);
+    if (!(info & PAGE_PRESENT)) [[unlikely]]
+    {
+        return nullptr;
+    }
+
+    auto phys MAPPING_INFO_PADDR(info);
+    auto page = phys_to_page(phys);
+
+    struct slab *s = (struct slab *) page->priv;
+    return s;
+}
+
+/**
  * @brief Create a slab for a given cache
  *
  * @param cache Slab cache
  * @param flags Allocation flags
  * @return A pointer to the new slab, or nullptr in OOM situations.
  */
-static struct slab *kmem_cache_create_slab(struct slab_cache *cache, unsigned int flags)
+NO_ASAN static struct slab *kmem_cache_create_slab(struct slab_cache *cache, unsigned int flags)
 {
     char *start = nullptr;
     struct page *pages = nullptr;
@@ -373,13 +407,19 @@ static struct slab *kmem_cache_create_slab(struct slab_cache *cache, unsigned in
     // TODO: Colouring? But geist said that maybe it's not necessary these days
 
     const size_t useful_size = slab_size - sizeof(struct slab);
-    const size_t nr_objects = useful_size / cache->objsize;
+    const size_t nr_objects = useful_size / (cache->objsize + cache->redzone);
 
     struct bufctl *first = nullptr;
     struct bufctl *last = nullptr;
     // Setup objects and chain them together
     for (size_t i = 0; i < nr_objects; i++, ptr += cache->objsize)
     {
+        const auto redzone = cache->redzone / 2;
+#ifdef CONFIG_KASAN
+        asan_poison_shadow((unsigned long) ptr, redzone, KASAN_LEFT_REDZONE);
+#endif
+        ptr += redzone;
+
         struct bufctl *ctl = (struct bufctl *) ptr;
         ctl->next = nullptr;
         ctl->flags = BUFCTL_PATTERN_FREE;
@@ -392,11 +432,21 @@ static struct slab *kmem_cache_create_slab(struct slab_cache *cache, unsigned in
             first = ctl;
         }
 
+#ifdef CONFIG_KASAN
+        asan_poison_shadow((unsigned long) ptr, cache->objsize, KASAN_REDZONE);
+#endif
         last = ctl;
+        ptr += cache->objsize;
+#ifdef CONFIG_KASAN
+        asan_poison_shadow((unsigned long) ptr, redzone, KASAN_REDZONE);
+#endif
+        ptr += redzone;
+        ptr -= cache->objsize;
     }
 
     // Setup the struct slab at the end of the allocation
     struct slab *slab = (struct slab *) (start + useful_size);
+    slab->canary = SLAB_CANARY;
     slab->cache = cache;
     slab->active_objects = 0;
     slab->nobjects = nr_objects;
@@ -419,6 +469,10 @@ static struct slab *kmem_cache_create_slab(struct slab_cache *cache, unsigned in
         auto page = kmem_pointer_to_page(ptr);
         page->priv = (unsigned long) slab;
     }
+
+#ifdef CONFIG_KASAN
+    asan_poison_shadow((unsigned long) slab, sizeof(struct slab), KASAN_REDZONE);
+#endif
 
     return slab;
 }
@@ -517,6 +571,9 @@ static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
                 goto out;
             }
 
+            if (buf->flags != BUFCTL_PATTERN_FREE)
+                panic("Bad buf %p, slab %p", buf, slab);
+
             pcpu->magazine[pcpu->size++] = (void *) buf;
             slab->object_list = (bufctl *) buf->next;
             buf = (bufctl *) buf->next;
@@ -542,7 +599,14 @@ void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
 {
     if (cache->flags & KMEM_CACHE_NOPCPU) [[unlikely]]
     {
-        return kmem_cache_alloc_nopcpu(cache, flags);
+        auto ret = kmem_cache_alloc_nopcpu(cache, flags);
+        if (ret)
+        {
+#ifdef CONFIG_KASAN
+            asan_unpoison_shadow((unsigned long) ret, cache->actual_objsize);
+#endif
+        }
+        return ret;
     }
 
     // Disable preemption so we can safely touch the percpu data
@@ -571,6 +635,10 @@ void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
     pcpu->touched.store(0, mem_order::release);
 
     sched_enable_preempt();
+
+#ifdef CONFIG_KASAN
+    asan_unpoison_shadow((unsigned long) ret, cache->actual_objsize);
+#endif
 
     return ret;
 }
@@ -645,6 +713,10 @@ static void kfree_nopcpu(void *ptr)
     auto slab = kmem_pointer_to_slab(ptr);
     auto cache = slab->cache;
 
+#ifdef CONFIG_KASAN
+    asan_poison_shadow((unsigned long) ptr, cache->objsize, KASAN_FREED);
+#endif
+
     scoped_lock g{cache->lock};
     kmem_free_to_slab(cache, slab, ptr);
 }
@@ -686,6 +758,10 @@ static void kmem_cache_free_pcpu(struct slab_cache *cache, void *ptr)
         panic("slab: Double free at %p\n", ptr);
     }
 
+#ifdef CONFIG_KASAN
+    asan_poison_shadow((unsigned long) ptr, cache->objsize, KASAN_FREED);
+#endif
+
     sched_disable_preempt();
 
     auto pcpu = &cache->pcpu[get_cpu_nr()];
@@ -707,6 +783,23 @@ static void kmem_cache_free_pcpu(struct slab_cache *cache, void *ptr)
     sched_enable_preempt();
 }
 
+#ifdef CONFIG_KASAN
+
+void kasan_kfree(void *ptr, size_t chunk_size)
+{
+    bufctl *buf = (bufctl *) ptr;
+
+    if (buf->flags == BUFCTL_PATTERN_FREE) [[unlikely]]
+    {
+        panic("slab: Double free at %p\n", ptr);
+    }
+
+    buf->flags = BUFCTL_PATTERN_FREE;
+    asan_poison_shadow((unsigned long) ptr, chunk_size, KASAN_FREED);
+    kasan_quarantine_add_chunk(buf, chunk_size);
+}
+
+#endif
 /**
  * @brief Free a pointer to an object in a slab
  * This function panics on bad pointers. If NULL is given, it's a no-op.
@@ -719,6 +812,11 @@ void kfree(void *ptr)
         return;
     auto slab = kmem_pointer_to_slab(ptr);
     auto cache = slab->cache;
+
+#ifdef CONFIG_KASAN
+    kasan_kfree(ptr, cache->objsize);
+    return;
+#endif
 
     if (cache->flags & KMEM_CACHE_NOPCPU)
         return kfree_nopcpu(ptr);
@@ -737,6 +835,12 @@ void kmem_cache_free(struct slab_cache *cache, void *ptr)
 {
     if (!ptr) [[unlikely]]
         return;
+
+#ifdef CONFIG_KASAN
+    kasan_kfree(ptr, cache->objsize);
+    return;
+#endif
+
     if (cache->flags & KMEM_CACHE_NOPCPU) [[unlikely]]
         return kfree_nopcpu(ptr);
     kmem_cache_free_pcpu(cache, ptr);
@@ -788,8 +892,9 @@ static void kmem_purge_local_cache(struct slab_cache *cache)
             panic("slab: Pointer %p was returned to the wrong cache\n", ptr);
         ((bufctl *) ptr)->flags = 0;
         kmem_free_to_slab(cache, slab, ptr);
-        pcpu->size--;
     }
+
+    pcpu->size = 0;
 }
 
 /**
@@ -799,8 +904,10 @@ static void kmem_purge_local_cache(struct slab_cache *cache)
  */
 static void __kmem_cache_purge(struct slab_cache *cache)
 {
-    if (!cache->nfreeslabs)
-        return;
+#ifdef CONFIG_KASAN
+    // Flushing the KASAN quarantine is important as to let objects go back to the slabs
+    kasan_flush_quarantine();
+#endif
 
     sched_disable_preempt();
 
@@ -809,6 +916,9 @@ static void __kmem_cache_purge(struct slab_cache *cache)
                               [](void *ctx) { kmem_purge_local_cache((slab_cache *) ctx); }, cache);
 
     sched_enable_preempt();
+
+    if (!cache->nfreeslabs)
+        return;
 
     list_for_every_safe (&cache->free_slabs)
     {
@@ -902,7 +1012,19 @@ void *kmalloc(size_t size, int flags)
     if (order < 0)
         return nullptr;
 
-    return kmem_cache_alloc(kmalloc_caches[order], 0);
+    void *ret = kmem_cache_alloc(kmalloc_caches[order], 0);
+
+    if (ret)
+    {
+        // If KASAN is on, poison the remainder (objsize - alloc_size) of the allocation.
+#ifdef CONFIG_KASAN
+        auto cacheobjsize = kmalloc_caches[order]->objsize;
+        if (size - cacheobjsize)
+            asan_poison_shadow((unsigned long) ret + size, cacheobjsize - size, KASAN_REDZONE);
+#endif
+    }
+
+    return ret;
 }
 
 void *malloc(size_t size)
@@ -941,7 +1063,16 @@ void *realloc(void *ptr, size_t size)
     auto old_slab = kmem_pointer_to_slab(ptr);
 
     if (old_slab->cache->objsize >= size)
+    {
+        // If KASAN is on, (un)poison the remainder (objsize - alloc_size) of the allocation.
+#ifdef CONFIG_KASAN
+        auto cacheobjsize = old_slab->cache->objsize;
+        asan_unpoison_shadow((unsigned long) ptr, size);
+        if (size - cacheobjsize)
+            asan_poison_shadow((unsigned long) ptr + size, cacheobjsize - size, KASAN_REDZONE);
+#endif
         return ptr;
+    }
 
     auto newbuf = malloc(size);
     if (!newbuf)
@@ -956,3 +1087,33 @@ int posix_memalign(void **pptr, size_t align, size_t len)
     *pptr = nullptr;
     return -1;
 }
+
+#ifdef CONFIG_KASAN
+
+void kmem_free_kasan(void *ptr)
+{
+    auto slab = kmem_pointer_to_slab(ptr);
+    assert(slab != nullptr);
+    ((bufctl *) ptr)->flags = 0;
+    kmem_free_to_slab(slab->cache, slab, ptr);
+}
+
+/**
+ * @brief Print KASAN-relevant info for this mem-slab
+ *
+ * @param mem Pointer to the memory
+ * @param slab Pointer to its slab
+ */
+void kmem_cache_print_slab_info_kasan(void *mem, struct slab *slab)
+{
+    const char *status =
+        (slab->active_objects == 0 ? "free"
+                                   : (slab->active_objects == slab->nobjects ? "full" : "partial"));
+
+    printk("%p is apart of cache %s slab %p - slab status %s\n", mem, slab->cache->name, slab,
+           status);
+    // Pad "Memory information: " for the next info dump
+    printk("                    ");
+}
+
+#endif

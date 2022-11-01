@@ -239,7 +239,7 @@ void sched_enable_pulse(void);
 
 namespace native
 {
-void arch_context_switch(thread *prev, thread *next);
+[[noreturn]] void arch_context_switch(thread *prev, thread *next);
 int arch_transform_into_user_thread(thread *thread);
 }; // namespace native
 

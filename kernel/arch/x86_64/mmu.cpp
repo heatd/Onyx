@@ -204,12 +204,15 @@ void *x86_placement_map(unsigned long _phys)
     return (void *) (placement_mappings_start + (_phys - phys));
 }
 
+#define PA2VA(val) ((unsigned long) (val) + KERNEL_VIRTUAL_BASE - get_kernel_phys_offset())
+#define VA2PA(val) ((unsigned long) (val) -KERNEL_VIRTUAL_BASE + get_kernel_phys_offset())
+
 void x86_setup_placement_mappings(void)
 {
     unsigned int indices[x86_max_paging_levels];
     const unsigned long virt = placement_mappings_start;
 
-    PML *pml = boot_pml4;
+    PML *pml = (PML *) PA2VA(boot_pml4);
 
     x86_addr_to_indices(virt, indices);
 
@@ -219,7 +222,7 @@ void x86_setup_placement_mappings(void)
         if (entry & X86_PAGING_PRESENT)
         {
             void *page = (void *) PML_EXTRACT_ADDRESS(entry);
-            pml = (PML *) page;
+            pml = (PML *) PA2VA((PML *) page);
         }
         else
         {
@@ -242,27 +245,31 @@ void x86_setup_placement_mappings(void)
 
             pml->entries[indices[i - 1]] = make_pml3e(page, 0, 0, 1, 0, 0, 0, 1, 1);
 
-            pml = (PML *) page;
+            pml = (PML *) PA2VA((PML *) page);
         }
     }
 }
 
+NO_ASAN
 void paging_init(void)
 {
     /* Get the current PML and store it */
     __asm__ __volatile__("movq %%cr3, %%rax\t\nmovq %%rax, %0" : "=r"(boot_pml4)::"rax", "memory");
+    kernel_address_space.arch_mmu.cr3 = boot_pml4;
 
     /* Bootstrap the first 4GB */
     uintptr_t virt = PHYS_BASE;
     PML *pml3 = (PML *) ((unsigned long) &pdptphysical_map + get_kernel_phys_offset());
+    PML *pml4 =
+        (PML *) ((unsigned long) boot_pml4 + KERNEL_VIRTUAL_BASE - get_kernel_phys_offset());
     unsigned int indices[x86_max_paging_levels];
     x86_addr_to_indices(virt, indices);
 
-    boot_pml4->entries[indices[x86_paging_levels - 1]] =
-        make_pml4e((uint64_t) pml3, 0, 0, 0, 0, 1, 1);
+    pml4->entries[indices[x86_paging_levels - 1]] = make_pml4e((uint64_t) pml3, 0, 0, 0, 0, 1, 1);
     auto pdphysmap_phys =
         (uint64_t) &pdphysical_map - KERNEL_VIRTUAL_BASE + get_kernel_phys_offset();
 
+    pml3 = (PML *) ((unsigned long) &pdptphysical_map + KERNEL_VIRTUAL_BASE);
     for (int i = 0; i < 4; i++)
     {
         pml3->entries[i] = make_pml3e(pdphysmap_phys + 0x1000 * i, 0, 0, 1, 0, 0, 0, 1, 1);
@@ -279,7 +286,8 @@ void paging_init(void)
     x86_setup_placement_mappings();
 }
 
-void paging_map_all_phys(void)
+NO_ASAN
+void paging_map_all_phys()
 {
     bool is_1gb_supported = x86_has_cap(X86_FEATURE_PDPE1GB);
 
@@ -287,7 +295,8 @@ void paging_map_all_phys(void)
     uintptr_t virt = PHYS_BASE;
     decomposed_addr_t decAddr;
     memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
-    uint64_t *entry = &get_current_pml4()->entries[decAddr.pml4];
+    PML *bpml = (PML *) PA2VA(boot_pml4);
+    uint64_t *entry = &bpml->entries[decAddr.pml4];
     PML *pml3 = (PML *) ((unsigned long) &pdptphysical_map + get_kernel_phys_offset());
 
     *entry = make_pml4e((uint64_t) pml3, 0, 0, 0, 0, 1, 1);
@@ -358,7 +367,7 @@ void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
 
     x86_addr_to_indices(virt, indices);
 
-    PML *pml = (PML *) ((uint64_t) as->arch_mmu.cr3 + PHYS_BASE);
+    PML *pml = (PML *) PHYS_TO_VIRT(as->arch_mmu.cr3);
 
     for (unsigned int i = x86_paging_levels; i != 1; i--)
     {
@@ -373,7 +382,7 @@ void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
             assert(entry == 0);
             void *page = alloc_pt();
             if (!page)
-                return NULL;
+                return nullptr;
 
             increment_vm_stat(as, page_tables_size, PAGE_SIZE);
             pml->entries[indices[i - 1]] = (uint64_t) page | page_table_flags;
@@ -719,16 +728,15 @@ void paging_protect_kernel(void)
 {
     PML *original_pml = boot_pml4;
     PML *pml = alloc_pt();
-    assert(pml != NULL);
+    assert(pml != nullptr);
     boot_pml4 = pml;
 
     uintptr_t text_start = (uintptr_t) &_text_start;
     uintptr_t data_start = (uintptr_t) &_data_start;
     uintptr_t vdso_start = (uintptr_t) &_vdso_sect_start;
 
-    memcpy((PML *) ((uintptr_t) pml + PHYS_BASE), (PML *) ((uintptr_t) original_pml + PHYS_BASE),
-           sizeof(PML));
-    PML *p = (PML *) ((uintptr_t) pml + PHYS_BASE);
+    memcpy(PHYS_TO_VIRT(pml), PHYS_TO_VIRT(original_pml), sizeof(PML));
+    PML *p = (PML *) PHYS_TO_VIRT(pml);
     p->entries[511] = 0UL;
     p->entries[0] = 0UL;
 
@@ -1391,3 +1399,207 @@ unsigned long __get_mapping_info(void *addr, struct mm_address_space *as)
 
     return pte_to_mapping_info(pml->entries[indices[0]], false, 0);
 }
+
+#ifdef CONFIG_KASAN
+#define KASAN_VIRTUAL 0xffffec0000000000
+
+extern "C" char x86_stack_bottom[];
+extern "C" char kasan_shadow_page_tables[];
+static PML *shadow_pdpt, *shadow_pd, *shadow_pt;
+static unsigned long *zero_shadow_map;
+
+static inline char *kasan_get_ptr(unsigned long addr)
+{
+    return (char *) 0xdffffc0000000000 + (addr >> 3);
+}
+
+extern "C" NO_ASAN void x86_bootstrap_kasan()
+{
+    PML *pml4;
+    PML *shadow_pts = (PML *) kasan_shadow_page_tables;
+    __asm__ __volatile__("mov %%cr3, %0" : "=r"(pml4));
+    unsigned int indices[x86_max_paging_levels];
+
+    for (unsigned int i = 0; i < x86_paging_levels; i++)
+    {
+        indices[i] = (KASAN_VIRTUAL >> 12) >> (i * 9) & 0x1ff;
+    }
+
+    for (unsigned int i = 0; i < 32; i++)
+    {
+        pml4->entries[indices[x86_paging_levels - 1] + i] =
+            ((unsigned long) shadow_pts - KERNEL_VIRTUAL_BASE) | X86_PAGING_PRESENT |
+            X86_PAGING_GLOBAL | X86_PAGING_NX;
+    }
+
+    shadow_pdpt = shadow_pts;
+    shadow_pd = ++shadow_pts;
+    for (unsigned int i = 0; i < 512; i++)
+    {
+        shadow_pdpt->entries[i] = ((unsigned long) shadow_pd - KERNEL_VIRTUAL_BASE) |
+                                  X86_PAGING_PRESENT | X86_PAGING_GLOBAL | X86_PAGING_NX;
+    }
+
+    shadow_pt = ++shadow_pts;
+
+    for (unsigned int i = 0; i < 512; i++)
+    {
+        shadow_pd->entries[i] = ((unsigned long) shadow_pt - KERNEL_VIRTUAL_BASE) |
+                                X86_PAGING_PRESENT | X86_PAGING_GLOBAL | X86_PAGING_NX;
+    }
+
+    zero_shadow_map = (unsigned long *) ++shadow_pts;
+    for (unsigned int i = 0; i < 512; i++)
+    {
+        shadow_pt->entries[i] = ((unsigned long) zero_shadow_map - KERNEL_VIRTUAL_BASE) |
+                                X86_PAGING_PRESENT | X86_PAGING_GLOBAL | X86_PAGING_NX;
+    }
+
+    // Map a page for the kernel stack, since the compiler generates code to write to it
+
+    unsigned long cowable_pagetables[4];
+    cowable_pagetables[0] = VA2PA(shadow_pdpt);
+    cowable_pagetables[1] = VA2PA(shadow_pd);
+    cowable_pagetables[2] = VA2PA(shadow_pt);
+    cowable_pagetables[3] = VA2PA(zero_shadow_map);
+
+    /* Note: page table flags are different from page perms because a page table's
+     * permissions apply throughout the whole table.
+     * Because of that, the PT's flags are Present | Write | (possible User)
+     */
+    uint64_t page_table_flags = X86_PAGING_PRESENT | X86_PAGING_WRITE;
+
+    auto virt = (unsigned long) kasan_get_ptr((unsigned long) &x86_stack_bottom);
+
+    for (unsigned int i = 0; i < x86_paging_levels; i++)
+    {
+        indices[i] = (virt >> 12) >> (i * 9) & 0x1ff;
+    }
+
+    PML *pml = pml4;
+
+    for (unsigned int i = x86_paging_levels; i != 1; i--)
+    {
+        auto oldpml = pml;
+        uint64_t entry = pml->entries[indices[i - 1]];
+        if (!(entry & X86_PAGING_PRESENT))
+        {
+            panic("Shadow does not have valid page table");
+        }
+
+        void *page = (void *) PML_EXTRACT_ADDRESS(entry);
+        pml = (PML *) PA2VA(page);
+        if ((unsigned long) page != cowable_pagetables[x86_paging_levels - i])
+            continue;
+
+        auto newpml = ++shadow_pts;
+
+        // Copy the old page table
+        memcpy(newpml, pml, PAGE_SIZE);
+
+        oldpml->entries[indices[i - 1]] = (uint64_t) VA2PA(newpml) | page_table_flags;
+        pml = (PML *) newpml;
+    }
+
+    auto &entry = pml->entries[indices[0]];
+
+    assert(entry & X86_PAGING_PRESENT);
+    if (PML_EXTRACT_ADDRESS(entry) == cowable_pagetables[3])
+    {
+        PML *p = ++shadow_pts;
+        entry = (unsigned long) VA2PA(p) | X86_PAGING_WRITE | X86_PAGING_GLOBAL | X86_PAGING_NX |
+                X86_PAGING_PRESENT;
+    }
+    else
+    {
+        assert(entry & X86_PAGING_WRITE);
+    }
+}
+
+int mmu_map_real_shadow(unsigned long virt)
+{
+    unsigned int indices[x86_max_paging_levels];
+    unsigned long cowable_pagetables[4];
+    cowable_pagetables[0] = VA2PA(shadow_pdpt);
+    cowable_pagetables[1] = VA2PA(shadow_pd);
+    cowable_pagetables[2] = VA2PA(shadow_pt);
+    cowable_pagetables[3] = VA2PA(zero_shadow_map);
+
+    /* Note: page table flags are different from page perms because a page table's
+     * permissions apply throughout the whole table.
+     * Because of that, the PT's flags are Present | Write | (possible User)
+     */
+    uint64_t page_table_flags = X86_PAGING_PRESENT | X86_PAGING_WRITE;
+
+    x86_addr_to_indices(virt, indices);
+
+    PML *pml = (PML *) PHYS_TO_VIRT(get_current_pml4());
+
+    for (unsigned int i = x86_paging_levels; i != 1; i--)
+    {
+        auto oldpml = pml;
+        uint64_t entry = pml->entries[indices[i - 1]];
+        if (!(entry & X86_PAGING_PRESENT))
+        {
+            panic("Shadow does not have valid page table");
+        }
+
+        void *page = (void *) PML_EXTRACT_ADDRESS(entry);
+        pml = (PML *) PHYS_TO_VIRT(page);
+        if ((unsigned long) page != cowable_pagetables[x86_paging_levels - i])
+            continue;
+
+        page = alloc_pt();
+        if (!page)
+            return -ENOMEM;
+
+        // Copy the old page table
+        memcpy(PHYS_TO_VIRT(page), pml, PAGE_SIZE);
+
+        increment_vm_stat((&kernel_address_space), page_tables_size, PAGE_SIZE);
+        oldpml->entries[indices[i - 1]] = (uint64_t) page | page_table_flags;
+        pml = (PML *) PHYS_TO_VIRT(page);
+    }
+
+    auto &entry = pml->entries[indices[0]];
+
+    assert(entry & X86_PAGING_PRESENT);
+    if (PML_EXTRACT_ADDRESS(entry) == cowable_pagetables[3])
+    {
+        // Create a new shadow page
+        struct page *p = alloc_page(0);
+        if (!p)
+            return -ENOMEM;
+        entry = (unsigned long) page_to_phys(p) | X86_PAGING_WRITE | X86_PAGING_GLOBAL |
+                X86_PAGING_NX | X86_PAGING_PRESENT;
+        return 1;
+    }
+    else
+    {
+        assert(entry & X86_PAGING_WRITE);
+    }
+
+    return 0;
+}
+
+int mmu_map_kasan_shadow(void *shadow_start, size_t pages)
+{
+    scoped_lock g{kernel_address_space.page_table_lock};
+    bool invalidate = false;
+
+    for (size_t i = 0; i < pages; i++)
+    {
+        int st = mmu_map_real_shadow(((unsigned long) shadow_start) + (i << PAGE_SHIFT));
+        if (st < 0)
+            return -ENOMEM;
+        invalidate = invalidate ? invalidate : st == 1;
+    }
+
+    // TODO: Be smart about invalidation
+    if (invalidate)
+        mmu_invalidate_range((unsigned long) shadow_start, pages, &kernel_address_space);
+
+    return 0;
+}
+
+#endif

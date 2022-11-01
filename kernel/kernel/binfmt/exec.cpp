@@ -346,7 +346,7 @@ int flush_old_exec(struct exec_state *state)
     return_from_execve(): Return from execve, while loading registers and zero'ing the others.
     Does not return!
 */
-extern "C" int return_from_execve(void *entry, void *stack);
+extern "C" [[noreturn]] void return_from_execve(void *entry, void *stack);
 /*
     execve(2): Executes a program with argv and envp, replacing the current process.
 */
@@ -517,7 +517,7 @@ int sys_execve(const char *p, const char **argv, const char **envp)
     free(path);
 
     context_tracking_exit_kernel();
-    return return_from_execve(entry, si.top);
+    return_from_execve(entry, si.top);
 
 error_die_signal:
     free(path);

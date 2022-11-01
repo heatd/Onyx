@@ -220,56 +220,56 @@ static void pop_arg(union arg *arg, int type, va_list *ap)
         return;
     switch (type)
     {
-    case PTR:
-        arg->p = va_arg(*ap, void *);
-        break;
-    case INT:
-        arg->i = va_arg(*ap, int);
-        break;
-    case UINT:
-        arg->i = va_arg(*ap, unsigned int);
+        case PTR:
+            arg->p = va_arg(*ap, void *);
+            break;
+        case INT:
+            arg->i = va_arg(*ap, int);
+            break;
+        case UINT:
+            arg->i = va_arg(*ap, unsigned int);
 #ifndef LONG_IS_INT
-        break;
-    case LONG:
-        arg->i = va_arg(*ap, long);
-        break;
-    case ULONG:
-        arg->i = va_arg(*ap, unsigned long);
+            break;
+        case LONG:
+            arg->i = va_arg(*ap, long);
+            break;
+        case ULONG:
+            arg->i = va_arg(*ap, unsigned long);
 #endif
-        break;
-    case ULLONG:
-        arg->i = va_arg(*ap, unsigned long long);
-        break;
-    case SHORT:
-        arg->i = (short) va_arg(*ap, int);
-        break;
-    case USHORT:
-        arg->i = (unsigned short) va_arg(*ap, int);
-        break;
-    case CHAR:
-        arg->i = (signed char) va_arg(*ap, int);
-        break;
-    case UCHAR:
-        arg->i = (unsigned char) va_arg(*ap, int);
+            break;
+        case ULLONG:
+            arg->i = va_arg(*ap, unsigned long long);
+            break;
+        case SHORT:
+            arg->i = (short) va_arg(*ap, int);
+            break;
+        case USHORT:
+            arg->i = (unsigned short) va_arg(*ap, int);
+            break;
+        case CHAR:
+            arg->i = (signed char) va_arg(*ap, int);
+            break;
+        case UCHAR:
+            arg->i = (unsigned char) va_arg(*ap, int);
 #ifdef ODD_TYPES
-        break;
-    case LLONG:
-        arg->i = va_arg(*ap, long long);
-        break;
-    case SIZET:
-        arg->i = va_arg(*ap, size_t);
-        break;
-    case IMAX:
-        arg->i = va_arg(*ap, intmax_t);
-        break;
-    case UMAX:
-        arg->i = va_arg(*ap, uintmax_t);
-        break;
-    case PDIFF:
-        arg->i = va_arg(*ap, ptrdiff_t);
-        break;
-    case UIPTR:
-        arg->i = (uintptr_t) va_arg(*ap, void *);
+            break;
+        case LLONG:
+            arg->i = va_arg(*ap, long long);
+            break;
+        case SIZET:
+            arg->i = va_arg(*ap, size_t);
+            break;
+        case IMAX:
+            arg->i = va_arg(*ap, intmax_t);
+            break;
+        case UMAX:
+            arg->i = va_arg(*ap, uintmax_t);
+            break;
+        case PDIFF:
+            arg->i = va_arg(*ap, ptrdiff_t);
+            break;
+        case UIPTR:
+            arg->i = (uintptr_t) va_arg(*ap, void *);
 #endif
     }
 }
@@ -375,7 +375,7 @@ static int printf_core(struct sprintf_buf *f, const char *fmt, va_list *ap, unio
         {
             l10n = 1;
             argpos = s[1] - '0';
-            s += 3;
+            s += 3; // bockk
         }
         else
         {
@@ -483,116 +483,116 @@ static int printf_core(struct sprintf_buf *f, const char *fmt, va_list *ap, unio
 
         switch (t)
         {
-        case 'n':
-            switch (ps)
-            {
-            case BARE:
-                *(int *) arg.p = cnt;
-                break;
-            case LPRE:
-                *(long *) arg.p = cnt;
-                break;
-            case LLPRE:
-                *(long long *) arg.p = cnt;
-                break;
-            case HPRE:
-                *(unsigned short *) arg.p = cnt;
-                break;
-            case HHPRE:
-                *(unsigned char *) arg.p = cnt;
-                break;
-            case ZTPRE:
-                *(size_t *) arg.p = cnt;
-                break;
-            case JPRE:
-                *(uintmax_t *) arg.p = cnt;
-                break;
-            }
-            continue;
-        case 'p':
-            p = MAX(p, 2 * sizeof(void *));
-            t = 'x';
-            fl |= ALT_FORM;
-        case 'x':
-        case 'X':
-            a = fmt_x(arg.i, z, t & 32);
-            if (arg.i && (fl & ALT_FORM))
-                prefix += (t >> 4), pl = 2;
-            if (0)
-            {
-            case 'o':
-                a = fmt_o(arg.i, z);
-                if ((fl & ALT_FORM) && arg.i)
-                    prefix += 5, pl = 1;
-            }
-            if (0)
-            {
-            case 'd':
-            case 'i':
-                pl = 1;
-                if (arg.i > INTMAX_MAX)
+            case 'n':
+                switch (ps)
                 {
-                    arg.i = -arg.i;
+                    case BARE:
+                        *(int *) arg.p = cnt;
+                        break;
+                    case LPRE:
+                        *(long *) arg.p = cnt;
+                        break;
+                    case LLPRE:
+                        *(long long *) arg.p = cnt;
+                        break;
+                    case HPRE:
+                        *(unsigned short *) arg.p = cnt;
+                        break;
+                    case HHPRE:
+                        *(unsigned char *) arg.p = cnt;
+                        break;
+                    case ZTPRE:
+                        *(size_t *) arg.p = cnt;
+                        break;
+                    case JPRE:
+                        *(uintmax_t *) arg.p = cnt;
+                        break;
                 }
-                else if (fl & MARK_POS)
+                continue;
+            case 'p':
+                p = MAX(p, 2 * sizeof(void *));
+                t = 'x';
+                fl |= ALT_FORM;
+            case 'x':
+            case 'X':
+                a = fmt_x(arg.i, z, t & 32);
+                if (arg.i && (fl & ALT_FORM))
+                    prefix += (t >> 4), pl = 2;
+                if (0)
                 {
-                    prefix++;
+                    case 'o':
+                        a = fmt_o(arg.i, z);
+                        if ((fl & ALT_FORM) && arg.i)
+                            prefix += 5, pl = 1;
                 }
-                else if (fl & PAD_POS)
+                if (0)
                 {
-                    prefix += 2;
+                    case 'd':
+                    case 'i':
+                        pl = 1;
+                        if (arg.i > INTMAX_MAX)
+                        {
+                            arg.i = -arg.i;
+                        }
+                        else if (fl & MARK_POS)
+                        {
+                            prefix++;
+                        }
+                        else if (fl & PAD_POS)
+                        {
+                            prefix += 2;
+                        }
+                        else
+                            pl = 0;
+                    case 'u':
+                        a = fmt_u(arg.i, z);
                 }
-                else
-                    pl = 0;
-            case 'u':
-                a = fmt_u(arg.i, z);
-            }
-            if (p >= 0)
+                if (p >= 0)
+                    fl &= ~ZERO_PAD;
+                if (!arg.i && !p)
+                {
+                    a = z;
+                    break;
+                }
+                p = MAX(p, z - a + !arg.i);
+                break;
+            case 'c':
+                *(a = z - (p = 1)) = arg.i;
                 fl &= ~ZERO_PAD;
-            if (!arg.i && !p)
-            {
-                a = z;
                 break;
-            }
-            p = MAX(p, z - a + !arg.i);
-            break;
-        case 'c':
-            *(a = z - (p = 1)) = arg.i;
-            fl &= ~ZERO_PAD;
-            break;
-        case 'm':
-            if (1)
-                a = strerror(errno);
-            else
-            case 's':
-                a = arg.p ? arg.p : "(null)";
-            z = memchr(a, 0, p);
-            if (!z)
-                z = a + p;
-            else
-                p = z - a;
-            fl &= ~ZERO_PAD;
-            break;
-        case 'C':
-            wc[0] = arg.i;
-            wc[1] = 0;
-            arg.p = wc;
-            p = -1;
-        case 'S':
-            ws = arg.p;
-            for (i = l = 0; i < 0U + p && *ws && (l = wctomb(mb, *ws++)) >= 0 && l <= 0U + p - i;
-                 i += l)
-                ;
-            if (l < 0)
-                return -1;
-            p = i;
-            pad(f, ' ', w, p, fl);
-            ws = arg.p;
-            for (i = 0; i < 0U + p && *ws && i + (l = wctomb(mb, *ws++)) <= p; i += l)
-                out(f, mb, l);
-            pad(f, ' ', w, p, fl ^ LEFT_ADJ);
-            l = w > p ? w : p;
-            continue;
+            case 'm':
+                if (1)
+                    a = strerror(errno);
+                else
+                case 's':
+                    a = arg.p ? arg.p : "(null)";
+                z = memchr(a, 0, p);
+                if (!z)
+                    z = a + p;
+                else
+                    p = z - a;
+                fl &= ~ZERO_PAD;
+                break;
+            case 'C':
+                wc[0] = arg.i;
+                wc[1] = 0;
+                arg.p = wc;
+                p = -1;
+            case 'S':
+                ws = arg.p;
+                for (i = l = 0;
+                     i < 0U + p && *ws && (l = wctomb(mb, *ws++)) >= 0 && l <= 0U + p - i; i += l)
+                    ;
+                if (l < 0)
+                    return -1;
+                p = i;
+                pad(f, ' ', w, p, fl);
+                ws = arg.p;
+                for (i = 0; i < 0U + p && *ws && i + (l = wctomb(mb, *ws++)) <= p; i += l)
+                    out(f, mb, l);
+                pad(f, ' ', w, p, fl ^ LEFT_ADJ);
+                l = w > p ? w : p;
+                continue;
         }
 
         if (p < z - a)

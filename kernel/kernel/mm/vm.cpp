@@ -96,7 +96,7 @@ uintptr_t max(uintptr_t x, uintptr_t y)
 #define KADDR_SPACE_SIZE 0x800000000000
 #define KADDR_START      0xffff800000000000
 
-struct mm_address_space kernel_address_space = {};
+constinit struct mm_address_space kernel_address_space = {};
 
 int vm_cmp(const void *k1, const void *k2)
 {
@@ -302,13 +302,9 @@ void vm_addr_init()
 {
     kernel_address_space.start = KADDR_START;
     kernel_address_space.end = UINTPTR_MAX;
-    bst_root_initialize(&kernel_address_space.region_tree);
 
     // Permanent reference
     kernel_address_space.ref();
-
-    mutex_init(&kernel_address_space.vm_lock);
-    vm_save_current_mmu(&kernel_address_space);
 }
 
 static inline void __vm_lock(bool kernel)
@@ -1926,9 +1922,7 @@ void *mmiomap(void *phys, size_t size, size_t flags)
         printf("map_pages_to_vaddr: Could not map pages\n");
         return nullptr;
     }
-#ifdef CONFIG_KASAN
-    kasan_alloc_shadow(entry->base, size, true);
-#endif
+
     return (void *) ((uintptr_t) p + p_off);
 }
 
@@ -2889,9 +2883,6 @@ void *map_page_list(struct page *pl, size_t size, uint64_t prot)
         pl = pl->next_un.next_allocation;
         u += PAGE_SIZE;
     }
-#ifdef CONFIG_KASAN
-    kasan_alloc_shadow((unsigned long) vaddr, size, true);
-#endif
 
     return vaddr;
 }

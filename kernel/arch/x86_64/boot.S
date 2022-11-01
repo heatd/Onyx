@@ -65,17 +65,23 @@ hdr_end:
 
 .section .bss
 
+#ifdef CONFIG_KASAN
+.align 8 * 16384
+#else
 .align 16
+#endif
 
-stack_bottom:
+.global x86_stack_bottom
+x86_stack_bottom:
 .skip 16384
 
-stack_top:
+x86_stack_top:
 
 .section .text
 _start:
-	push $0
-	movq $stack_top, %rsp
+	movq $x86_stack_top, %rsp
+	pushq $0
+	mov %rsp, %rbp
 
 	/* Take the time to wrmsr the default GS_BASE */
 	mov $percpu_base, %rdx
@@ -86,6 +92,15 @@ _start:
 	wrmsr
 
 	mov %r11, %gs:__cpu_base
+
+	push %rdi
+	push %rsi
+
+#ifdef CONFIG_KASAN
+	call x86_bootstrap_kasan
+#endif
+	pop %rsi
+	pop %rdi
 
 	call multiboot2_kernel_entry
 	call _init
@@ -188,8 +203,6 @@ entry_point:
 	movq $_start, %rax
 	jmp *%rax
 
-.code32
-
 .macro PAGE_TABLE_INDEX source_ptr, level
 
 mov $\level * 9, %cl
@@ -199,6 +212,8 @@ shrdl %esi, %ebx
 and $0x1ff, %ebx
 
 .endm
+
+.code32
 
 setup_paging_and_longm:
 	/* Register allocation:
@@ -359,5 +374,12 @@ gdtr3:
 	.word gdt_end - gdt_begin - 1
 	.quad gdt_begin + 0xFFFFFFFF80000000
 
-.bss
-.skip 4096
+#ifdef CONFIG_KASAN
+
+.section .bss
+.align 4096
+.global kasan_shadow_page_tables
+kasan_shadow_page_tables:
+	.skip 4096 * 16
+
+#endif

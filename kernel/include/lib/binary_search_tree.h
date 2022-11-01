@@ -61,11 +61,19 @@ extern "C" {
 #define BST_NODE_INITIAL_VALUE {0, NULL, {NULL, NULL}}
 #define BST_ROOT_INITIAL_VALUE {NULL}
 
+#ifdef __cplusplus
+#define CONSTEXPR constexpr
+#else
+#define CONSTEXPR
+#endif
+
+CONSTEXPR
 static inline void bst_node_initialize(struct bst_node *node) {
     /* Set rank to an invalid value to detect double insertion. */
     node->rank = 0;
 }
 
+CONSTEXPR
 static inline void bst_root_initialize(struct bst_root *root) {
     root->root = NULL;
 }
