@@ -125,9 +125,14 @@ CFLAGS_KASAN+=--param asan-globals=0 --param asan-stack=1 -fasan-shadow-offset=0
 
 ifeq ($(CONFIG_KASAN_NOINLINE), y)
 CFLAGS_KASAN+=--param asan-instrumentation-with-call-threshold=0
+else
+CFLAGS_KASAN+=--param asan-instrumentation-with-call-threshold=100000
 endif
 
 endif
+
+# We can't use LTO for these object files since they're compiled in a different way
+CFLAGS_NOKASAN:=-fno-lto
 
 CFLAGS+=$(CFLAGS_KASAN)
 
@@ -269,7 +274,7 @@ acpica/%.o: acpica/%.c $(GENERATED_HEADERS)
 	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) $(CPPFLAGS)
 
 $(obj-y_NOKASAN): 
-$(obj-y_NOKASAN): CFLAGS:=$(filter-out $(CFLAGS_KASAN), $(CFLAGS))
+$(obj-y_NOKASAN): CFLAGS:=$(filter-out $(CFLAGS_KASAN), $(CFLAGS)) $(CFLAGS_NOKASAN)
 
 kernel/ssp.o: kernel/ssp.cpp $(GENERATED_HEADERS)
 	@echo [CC] NOKASAN $<
