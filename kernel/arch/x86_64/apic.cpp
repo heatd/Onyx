@@ -746,7 +746,7 @@ bool apic_send_sipi_and_wait(uint8_t lapicid, struct smp_header *s)
     boot_send_ipi(lapicid, ICR_DELIVERY_SIPI, 0);
 
     hrtime_t t0 = clocksource_get_time();
-    while (clocksource_get_time() - t0 < 1000 * NS_PER_MS)
+    while (clocksource_get_time() - t0 < 200 * NS_PER_MS)
     {
         if (s->boot_done == true)
         {
@@ -762,7 +762,7 @@ void apic_wake_up_processor(uint8_t lapicid, struct smp_header *s)
     boot_send_ipi(lapicid, ICR_DELIVERY_INIT, 0);
 
     hrtime_t t0 = clocksource_get_time();
-    while (clocksource_get_time() - t0 < 200 * NS_PER_MS)
+    while (clocksource_get_time() - t0 < 10 * NS_PER_MS)
     {
         cpu_relax();
     }
