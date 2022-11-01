@@ -229,13 +229,11 @@ void x86_setup_placement_mappings(void)
             unsigned long page = 0;
             if (i == 3)
             {
-                page = ((unsigned long) &placement_mappings_page_dir - KERNEL_VIRTUAL_BASE +
-                        get_kernel_phys_offset());
+                page = VA2PA(&placement_mappings_page_dir);
             }
             else if (i == 2)
             {
-                page = ((unsigned long) &placement_mappings_page_table - KERNEL_VIRTUAL_BASE +
-                        get_kernel_phys_offset());
+                page = VA2PA(&placement_mappings_page_table);
             }
             else
             {
@@ -266,8 +264,7 @@ void paging_init(void)
     x86_addr_to_indices(virt, indices);
 
     pml4->entries[indices[x86_paging_levels - 1]] = make_pml4e((uint64_t) pml3, 0, 0, 0, 0, 1, 1);
-    auto pdphysmap_phys =
-        (uint64_t) &pdphysical_map - KERNEL_VIRTUAL_BASE + get_kernel_phys_offset();
+    auto pdphysmap_phys = VA2PA(&pdphysical_map);
 
     pml3 = (PML *) ((unsigned long) &pdptphysical_map + KERNEL_VIRTUAL_BASE);
     for (int i = 0; i < 4; i++)
@@ -743,19 +740,13 @@ void paging_protect_kernel(void)
     kernel_address_space.arch_mmu.cr3 = pml;
 
     size_t size = (uintptr_t) &_text_end - text_start;
-    map_pages_to_vaddr((void *) text_start,
-                       (void *) (text_start - KERNEL_VIRTUAL_BASE + get_kernel_phys_offset()), size,
-                       VM_READ | VM_EXEC);
+    map_pages_to_vaddr((void *) text_start, (void *) VA2PA(text_start), size, VM_READ | VM_EXEC);
 
     size = (uintptr_t) &_data_end - data_start;
-    map_pages_to_vaddr((void *) data_start,
-                       (void *) (data_start - KERNEL_VIRTUAL_BASE + get_kernel_phys_offset()), size,
-                       VM_WRITE | VM_READ);
+    map_pages_to_vaddr((void *) data_start, (void *) VA2PA(data_start), size, VM_WRITE | VM_READ);
 
     size = (uintptr_t) &_vdso_sect_end - vdso_start;
-    map_pages_to_vaddr((void *) vdso_start,
-                       (void *) (vdso_start - KERNEL_VIRTUAL_BASE + get_kernel_phys_offset()), size,
-                       VM_READ | VM_WRITE);
+    map_pages_to_vaddr((void *) vdso_start, (void *) VA2PA(vdso_start), size, VM_READ | VM_WRITE);
 
     percpu_map_master_copy();
 
@@ -1428,31 +1419,30 @@ extern "C" NO_ASAN void x86_bootstrap_kasan()
     for (unsigned int i = 0; i < 32; i++)
     {
         pml4->entries[indices[x86_paging_levels - 1] + i] =
-            ((unsigned long) shadow_pts - KERNEL_VIRTUAL_BASE) | X86_PAGING_PRESENT |
-            X86_PAGING_GLOBAL | X86_PAGING_NX;
+            VA2PA(shadow_pts) | X86_PAGING_PRESENT | X86_PAGING_GLOBAL | X86_PAGING_NX;
     }
 
     shadow_pdpt = shadow_pts;
     shadow_pd = ++shadow_pts;
     for (unsigned int i = 0; i < 512; i++)
     {
-        shadow_pdpt->entries[i] = ((unsigned long) shadow_pd - KERNEL_VIRTUAL_BASE) |
-                                  X86_PAGING_PRESENT | X86_PAGING_GLOBAL | X86_PAGING_NX;
+        shadow_pdpt->entries[i] =
+            VA2PA(shadow_pd) | X86_PAGING_PRESENT | X86_PAGING_GLOBAL | X86_PAGING_NX;
     }
 
     shadow_pt = ++shadow_pts;
 
     for (unsigned int i = 0; i < 512; i++)
     {
-        shadow_pd->entries[i] = ((unsigned long) shadow_pt - KERNEL_VIRTUAL_BASE) |
-                                X86_PAGING_PRESENT | X86_PAGING_GLOBAL | X86_PAGING_NX;
+        shadow_pd->entries[i] =
+            VA2PA(shadow_pt) | X86_PAGING_PRESENT | X86_PAGING_GLOBAL | X86_PAGING_NX;
     }
 
     zero_shadow_map = (unsigned long *) ++shadow_pts;
     for (unsigned int i = 0; i < 512; i++)
     {
-        shadow_pt->entries[i] = ((unsigned long) zero_shadow_map - KERNEL_VIRTUAL_BASE) |
-                                X86_PAGING_PRESENT | X86_PAGING_GLOBAL | X86_PAGING_NX;
+        shadow_pt->entries[i] =
+            VA2PA(zero_shadow_map) | X86_PAGING_PRESENT | X86_PAGING_GLOBAL | X86_PAGING_NX;
     }
 
     // Map a page for the kernel stack, since the compiler generates code to write to it

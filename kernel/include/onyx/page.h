@@ -329,11 +329,15 @@ static inline unique_page make_unique_page(unsigned long nr_pages, unsigned long
     return alloc_pages(nr_pages, flags);
 }
 
+extern uint64_t kernel_phys_offset;
 /**
  * @brief Get the kernel's physical load offset
  *
  * @return Load offset
  */
-uint64_t get_kernel_phys_offset();
+static inline uint64_t get_kernel_phys_offset()
+{
+    return kernel_phys_offset;
+}
 
 #endif

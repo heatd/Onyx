@@ -51,16 +51,6 @@ extern unsigned char kernel_end;
 uint64_t kernel_phys_offset = 0;
 
 /**
- * @brief Get the kernel's physical load offset
- *
- * @return Load offset
- */
-uint64_t get_kernel_phys_offset()
-{
-    return kernel_phys_offset;
-}
-
-/**
  * @brief Retrieves the kernel's limits in physical memory and virtual memory.
  *
  * @param l A pointer to a kernel_limits object where the limits will be placed.
