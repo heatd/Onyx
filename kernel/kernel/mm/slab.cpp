@@ -328,7 +328,7 @@ struct page *kmem_pointer_to_page(void *mem)
         panic("slab: Bad pointer %p passed to free\n", mem);
     }
 
-    auto phys MAPPING_INFO_PADDR(info);
+    auto phys = MAPPING_INFO_PADDR(info);
     return phys_to_page(phys);
 }
 
