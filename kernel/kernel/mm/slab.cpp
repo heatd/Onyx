@@ -1088,6 +1088,13 @@ int posix_memalign(void **pptr, size_t align, size_t len)
     return -1;
 }
 
+void *reallocarray(void *ptr, size_t m, size_t n)
+{
+    if (array_overflows(m, n))
+        return errno = EOVERFLOW, nullptr;
+    return realloc(ptr, n * m);
+}
+
 #ifdef CONFIG_KASAN
 
 void kmem_free_kasan(void *ptr)
