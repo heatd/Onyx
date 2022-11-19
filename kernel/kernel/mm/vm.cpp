@@ -288,6 +288,8 @@ struct vm_region *vm_allocate_region(struct mm_address_space *as, unsigned long 
 
     unsigned long new_base = vm_allocate_base(as, min, size);
 
+    assert((new_base & (PAGE_SIZE - 1)) == 0);
+
     struct vm_region *reg = vm_reserve_region(as, new_base, size);
 
     if (reg)
@@ -1288,7 +1290,8 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
     int vm_prot = VM_USER | ((prot & PROT_READ) ? VM_READ : 0) |
                   ((prot & PROT_WRITE) ? VM_WRITE : 0) | ((prot & PROT_EXEC) ? VM_EXEC : 0);
 
-    if (is_higher_half(addr)) /* User addresses can't be on the kernel's address space */
+    /* Sanitize the address */
+    if (is_higher_half(addr) || (unsigned long) addr & (PAGE_SIZE - 1))
     {
         if (flags & MAP_FIXED)
         {
@@ -2966,29 +2969,37 @@ int vm_add_region(struct mm_address_space *as, struct vm_region *region)
 
 int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 {
-    auto oldsize = size;
-    size = ALIGN_TO(size, PAGE_SIZE);
-    unsigned long addr = (unsigned long) __addr;
-    unsigned long limit = addr + size;
+    unsigned long aligned_start = (unsigned long) __addr & -PAGE_SIZE;
+    unsigned long limit = ALIGN_TO(((unsigned long) __addr) + size, PAGE_SIZE);
+    size = limit - aligned_start;
     // printk("munmap [%016lx, %016lx]\n", addr, limit - 1);
 
     MUST_HOLD_MUTEX(&as->vm_lock);
 
-    while (addr < limit)
+    size_t found = 0;
+
+    while (true)
     {
-        struct vm_region *region =
-            vm_search(as, (void *) ((unsigned long) __addr & -PAGE_SIZE), oldsize);
+        struct vm_region *region = vm_search(as, (void *) aligned_start, size);
         if (!region)
         {
-            return -EINVAL;
+            return found ? 0 : -EINVAL;
         }
+
+        found++;
 
         // printk("Looking at region [%016lx, %016lx]\n", region->base,
         //        region->base + (region->pages << PAGE_SHIFT) - 1);
 
         bool is_shared = is_mapping_shared(region);
 
-        __vm_unmap_range((void *) addr, (limit - addr) >> PAGE_SHIFT);
+        unsigned long reg_len = region->pages << PAGE_SHIFT;
+        unsigned long addr = region->base < aligned_start ? aligned_start : region->base;
+        unsigned long to_unmap = limit - addr < reg_len ? limit - addr : reg_len;
+
+        size_t pages_to_unmap = vm_size_to_pages(to_unmap);
+
+        vm_mmu_unmap(region->mm, (void *) addr, pages_to_unmap);
 
         size_t region_size = region->pages << PAGE_SHIFT;
 
@@ -3086,9 +3097,6 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
         decrement_vm_stat(as, virtual_memory_size, to_shave_off);
         if (is_shared)
             decrement_vm_stat(as, shared_set_size, to_shave_off);
-
-        addr += to_shave_off;
-        size -= to_shave_off;
     }
 
     return 0;
@@ -3341,36 +3349,7 @@ bool limits_are_contained(struct vm_region *reg, unsigned long start, unsigned l
 void vm_unmap_every_region_in_range(struct mm_address_space *as, unsigned long start,
                                     unsigned long length)
 {
-    unsigned long limit = start + length;
-
-#if VM_UNMAP_EVERY_REGION_IN_RANGE_DEBUG
-    printk("Unmapping from %lx to %lx\n", start, limit);
-#endif
-
-    while (true)
-    {
-        auto reg = vm_search(as, (void *) start, length);
-
-        if (!reg)
-            break;
-
-        unsigned long reg_len = reg->pages << PAGE_SHIFT;
-        unsigned long reg_addr = reg->base < start ? start : reg->base;
-        unsigned long to_unmap = limit - reg_addr < reg_len ? limit - reg_addr : reg_len;
-
-        if (to_unmap == 0)
-            break;
-#if VM_UNMAP_EVERY_REGION_IN_RANGE_DEBUG
-        printk("__vm_munmap %lx - %lx, found region [%lx, %lx]\n", reg_addr, reg_addr + to_unmap,
-               reg->base, reg->base + reg_len - 1);
-#endif
-        int st = __vm_munmap(as, (void *) reg_addr, to_unmap);
-
-        assert(st == 0);
-    }
-
-#if VM_UNMAP_EVERY_REGION_IN_RANGE_DEBUG
-#endif
+    __vm_munmap(as, (void *) start, length);
 }
 
 /* TODO: Test things */

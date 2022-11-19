@@ -226,7 +226,7 @@ void *process_setup_auxv(void *buffer, char *strings_space, struct process *proc
                 val = process->info.phnum;
                 break;
             case AT_PHDR:
-                val = (uintptr_t) process->info.phdr;
+                val = process->info.phdr;
                 break;
             case AT_EXECFN:
 

@@ -12,7 +12,7 @@
 #include <onyx/binfmt.h>
 #include <onyx/exec.h>
 
-static struct binfmt *format_list = NULL;
+static struct binfmt *format_list;
 void *load_binary(struct binfmt_args *args)
 {
     struct binfmt *f = format_list;
@@ -24,7 +24,7 @@ void *load_binary(struct binfmt_args *args)
             return f->callback(args);
         }
     }
-    return NULL;
+    return errno = ENOEXEC, nullptr;
 }
 
 int install_binfmt(struct binfmt *format)
@@ -34,14 +34,12 @@ int install_binfmt(struct binfmt *format)
     else
     {
         struct binfmt *f = format_list;
-        for (; f->next != NULL; f = f->next)
+        for (; f->next; f = f->next)
             ;
         f->next = format;
     }
     return 0;
 }
-
-#include <onyx/dentry.h>
 
 void *bin_do_interp(struct binfmt_args *_args)
 {
@@ -55,18 +53,18 @@ void *bin_do_interp(struct binfmt_args *_args)
 		printk("Could not open %s\n", args.interp_path);
 		perror("open_vfs");
 #endif
-        return NULL;
+        return nullptr;
     }
 
     if (!file_is_executable(file))
     {
         errno = EACCES;
-        return NULL;
+        return nullptr;
     }
 
     if (read_vfs(0, BINFMT_SIGNATURE_LENGTH, args.file_signature, file) < 0)
     {
-        return NULL;
+        return nullptr;
     }
 
     args.filename = args.interp_path;

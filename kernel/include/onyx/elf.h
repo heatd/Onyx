@@ -211,7 +211,8 @@ typedef struct
 #define EM_TILEPRO      188
 #define EM_MICROBLAZE   189
 #define EM_TILEGX       191
-#define EM_NUM          192
+#define EM_RISCV        243
+#define EM_NUM          244
 #define EM_ALPHA        0x9026
 
 #define EV_NONE    0
@@ -2818,7 +2819,6 @@ enum
 #define R_OR1K_TLS_DTPOFF    33
 #define R_OR1K_TLS_DTPMOD    34
 
-#define ELF_INTERP_MAGIC                 0x7FF00D
 #define RELOCATE_R_X86_64_64(S, A)       (S + A)
 #define RELOCATE_R_X86_64_32(S, A)       (S + A)
 #define RELOCATE_R_X86_64_16(S, A)       (S + A)
@@ -2827,16 +2827,14 @@ enum
 #define RELOCATE_R_X86_64_PC32(S, A, P)  (S + A - P)
 #define RELOCATE_R_X86_64_RELATIVE(B, A) (B + A)
 
-bool elf_is_valid(Elf64_Ehdr *header);
-
 #define DYN_CNT 32
 
 struct elf_info
 {
     size_t phent;
     size_t phnum;
-    Elf64_Phdr *phdr;
-    Elf64_Dyn *dyn;
+    unsigned long phdr;
+    unsigned long dyn;
     void *program_entry;
 };
 
