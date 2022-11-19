@@ -165,24 +165,22 @@ struct file *__get_file_description(int fd, struct process *p)
     return f;
 }
 
-int __file_close_unlocked(int fd, struct process *p)
+expected<file *, int> __file_close_unlocked(int fd, struct process *p)
 {
     // printk("pid %d close %d\n", get_current_process()->pid, fd);
     struct ioctx *ctx = &p->ctx;
 
     if (!validate_fd_number(fd, ctx))
-        return -EBADF;
+        return unexpected<int>{-EBADF};
 
     struct file *f = ctx->file_desc[fd];
 
-    /* Decrement the ref count and set the entry to nullptr */
+    /* Set the entry to nullptr */
     /* TODO: Shrink the fd table? */
-    fd_put(f);
-
     ctx->file_desc[fd] = nullptr;
     fd_close_bit(fd, ctx);
 
-    return 0;
+    return f;
 }
 
 int __file_close(int fd, struct process *p)
@@ -191,11 +189,16 @@ int __file_close(int fd, struct process *p)
 
     spin_lock(&ctx->fdlock);
 
-    int ret = __file_close_unlocked(fd, p);
+    auto ex = __file_close_unlocked(fd, p);
 
     spin_unlock(&ctx->fdlock);
 
-    return ret;
+    if (ex.has_error())
+        return ex.error();
+
+    fd_put(ex.value());
+
+    return 0;
 }
 
 int file_close(int fd)
@@ -685,7 +688,9 @@ out_error:
     return st;
 }
 
-int sys_dup2(int oldfd, int newfd)
+#define DUP23_DUP3 (1 << 0)
+
+int sys_dup23_internal(int oldfd, int newfd, int dupflags, unsigned int flags)
 {
     // printk("pid %d oldfd %d newfd %d\n", get_current_process()->pid, oldfd, newfd);
     struct process *current = get_current_process();
@@ -695,6 +700,8 @@ int sys_dup2(int oldfd, int newfd)
         return -EBADF;
 
     scoped_lock g{ioctx->fdlock};
+
+    struct file *newf_old = nullptr;
 
     struct file *f = __get_file_description_unlocked(oldfd, current);
     if (!f)
@@ -713,14 +720,26 @@ int sys_dup2(int oldfd, int newfd)
         }
     }
 
-    if (oldfd == newfd)
-        goto out;
+    if (oldfd == newfd && flags & DUP23_DUP3)
+    {
+        fd_put(f);
+        return -EINVAL;
+    }
 
     if (ioctx->file_desc[newfd])
-        __file_close_unlocked(newfd, current);
+    {
+        auto ex = __file_close_unlocked(newfd, current);
+        if (ex.has_error())
+        {
+            fd_put(f);
+            return ex.error();
+        }
+
+        newf_old = ex.value();
+    }
 
     ioctx->file_desc[newfd] = ioctx->file_desc[oldfd];
-    fd_set_cloexec(newfd, false, ioctx);
+    fd_set_cloexec(newfd, dupflags & O_CLOEXEC, ioctx);
     fd_set_open(newfd, true, ioctx);
 
     // printk("refs: %lu\n", f->f_refcount);
@@ -730,56 +749,26 @@ int sys_dup2(int oldfd, int newfd)
      * fd_get and fd_put().
      */
 
+    g.unlock();
+
+    if (newf_old)
+        fd_put(newf_old);
+
 out:
     return newfd;
 }
 
+int sys_dup2(int oldfd, int newfd)
+{
+    return sys_dup23_internal(oldfd, newfd, 0, 0);
+}
+
 int sys_dup3(int oldfd, int newfd, int flags)
 {
-    struct process *current = get_current_process();
-    struct ioctx *ioctx = &current->ctx;
-
-    if (newfd < 0 || oldfd < 0)
-        return -EINVAL;
-
     if (flags & ~O_CLOEXEC)
         return -EINVAL;
 
-    scoped_lock g{ioctx->fdlock};
-
-    struct file *f = __get_file_description_unlocked(oldfd, current);
-    if (!f)
-    {
-        return -errno;
-    }
-
-    if ((unsigned int) newfd > ioctx->file_desc_entries)
-    {
-        int st = enlarge_file_descriptor_table(current, newfd + 1);
-        if (st < 0)
-        {
-            fd_put(f);
-            return st;
-        }
-    }
-
-    if (oldfd == newfd)
-    {
-        return -EINVAL;
-    }
-
-    if (ioctx->file_desc[newfd])
-        __file_close_unlocked(newfd, current);
-
-    ioctx->file_desc[newfd] = ioctx->file_desc[oldfd];
-    fd_set_cloexec(newfd, flags & O_CLOEXEC, ioctx);
-    fd_set_open(newfd, true, ioctx);
-    /* Note: To avoid fd_get/fd_put, we use the ref we get from
-     * get_file_description as the ref for newfd. Therefore, we don't
-     * fd_get and fd_put().
-     */
-
-    return newfd;
+    return sys_dup23_internal(oldfd, newfd, flags, DUP23_DUP3);
 }
 
 bool fd_may_access(struct file *f, unsigned int access)
@@ -1699,7 +1688,10 @@ void file_do_cloexec(struct ioctx *ctx)
         if (fd_is_cloexec(i, ctx))
         {
             /* Close the file */
-            __file_close_unlocked(i, get_current_process());
+            // FIXME: Doing this under a spinlock is not correct and does crash if the struct file
+            // cleanup needs to grab a lock. for instance, during any possible writeback
+            auto file = __file_close_unlocked(i, get_current_process()).unwrap();
+            fd_put(file);
         }
     }
 }
