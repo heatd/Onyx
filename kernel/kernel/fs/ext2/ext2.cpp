@@ -36,7 +36,6 @@ void ext2_close(struct inode *ino);
 struct inode *ext2_mknod(const char *name, mode_t mode, dev_t dev, struct dentry *dir);
 struct inode *ext2_mkdir(const char *name, mode_t mode, struct dentry *dir);
 int ext2_link_fops(struct file *target, const char *name, struct dentry *dir);
-int ext2_unlink(const char *name, int flags, struct dentry *dir);
 int ext2_fallocate(int mode, off_t off, off_t len, struct file *f);
 int ext2_ftruncate(size_t len, struct file *f);
 ssize_t ext2_readpage(struct page *page, size_t off, struct inode *ino);
@@ -151,16 +150,25 @@ ssize_t ext2_readpage(struct page *page, size_t off, struct inode *ino)
             return -ENOMEM;
         }
 
-        /* TODO: Coalesce reads */
-        page_iov v[1];
-        v->page = page;
-        v->length = sb->block_size;
-        v->page_off = curr_off;
-
-        if (sb_read_bio(sb, v, 1, res.value()) < 0)
+        auto block = res.value();
+        if (block != EXT2_ERR_INV_BLOCK)
         {
-            page_destroy_block_bufs(page);
-            return -EIO;
+            /* TODO: Coalesce reads */
+            page_iov v[1];
+            v->page = page;
+            v->length = sb->block_size;
+            v->page_off = curr_off;
+
+            if (sb_read_bio(sb, v, 1, block) < 0)
+            {
+                page_destroy_block_bufs(page);
+                return -EIO;
+            }
+        }
+        else
+        {
+            // Zero the block, since it's a hole
+            memset((char *) PAGE_TO_VIRT(page) + curr_off, 0, sb->block_size);
         }
 
         if (is_buffer)
