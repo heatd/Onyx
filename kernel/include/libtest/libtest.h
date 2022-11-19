@@ -17,8 +17,6 @@ struct libtest_test
     unsigned long invoke;
 };
 
-#define STRINGIFY(x) #x
-
 #define DECLARE_TEST(func, times_to_invoke)                                                     \
     __attribute__((section(".testcases"), used, aligned(1))) const struct libtest_test __PASTE( \
         func, __COUNTER__) = {func, STRINGIFY(func), times_to_invoke};

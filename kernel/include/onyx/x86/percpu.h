@@ -11,11 +11,27 @@
 
 #include <stdint.h>
 
-#define get_per_cpu_x86_internal(var, suffix, type)                               \
-    ({                                                                            \
-        type val;                                                                 \
-        __asm__ __volatile__("mov" suffix " %%gs:%1, %0" : "=r"(val) : "m"(var)); \
-        (__typeof__(var)) (unsigned long) val;                                    \
+#ifdef __clang__
+
+// Clang doesn't implement %p yet
+// TODO: Implement and submit a PR?
+// clang-format off
+#define __PCPU_VAR             " %%gs:%c1"
+#define __PCPU_CONSTRAINT(var) "i"((unsigned long) &var)
+// clang-format on
+#else
+// GCC rejects the trick we use for clang, so use the "proper" solution here
+// clang-format off
+#define __PCPU_VAR             " %%gs:%p1"
+#define __PCPU_CONSTRAINT(var) "m"(var)
+// clang-format on
+#endif
+
+#define get_per_cpu_x86_internal(var, suffix, type)                                                \
+    ({                                                                                             \
+        type val;                                                                                  \
+        __asm__ __volatile__("mov" suffix __PCPU_VAR ", %0" : "=r"(val) : __PCPU_CONSTRAINT(var)); \
+        (__typeof__(var)) (unsigned long) val;                                                     \
     })
 
 #define get_per_cpu_1(var) get_per_cpu_x86_internal(var, "b", uint8_t)
@@ -44,70 +60,33 @@
         v;                              \
     })
 
-#define get_per_cpu_no_cast(var)          \
-    ({                                    \
-        unsigned long val;                \
-        __asm__ __volatile__("movq %%gs:" \
-                             "%1, %0"     \
-                             : "=r"(val)  \
-                             : "m"(var)); \
-        val;                              \
+#define get_per_cpu_no_cast(var)                                                             \
+    ({                                                                                       \
+        unsigned long val;                                                                   \
+        __asm__ __volatile__("movq" __PCPU_VAR ", %0" : "=r"(val) : __PCPU_CONSTRAINT(var)); \
+        val;                                                                                 \
     })
 
-#define write_per_cpu_1(var, val)                                         \
-    ({                                                                    \
-        __asm__ __volatile__("movb %0, %%gs:"                             \
-                             "%1" ::"r"(((uint8_t) (unsigned long) val)), \
-                             "m"(var));                                   \
+#define write_per_cpu_internal(var, val, suffix, type)                                           \
+    ({                                                                                           \
+        __asm__ __volatile__("mov" suffix " %0," __PCPU_VAR ::"r"(((type) (unsigned long) val)), \
+                             __PCPU_CONSTRAINT(var));                                            \
     })
 
-#define write_per_cpu_2(var, val)             \
-    ({                                        \
-        __asm__ __volatile__("movw %0, %%gs:" \
-                             "%1" ::"r"(val), \
-                             "m"(var));       \
+#define write_per_cpu_1(var, val) write_per_cpu_internal(var, val, "b", uint8_t)
+#define write_per_cpu_2(var, val) write_per_cpu_internal(var, val, "w", uint16_t)
+#define write_per_cpu_4(var, val) write_per_cpu_internal(var, val, "l", uint32_t)
+#define write_per_cpu_8(var, val) write_per_cpu_internal(var, val, "q", uint64_t)
+
+#define add_per_cpu_internal(var, val, suffix, type)                                           \
+    ({                                                                                         \
+        __asm__ __volatile__("add" suffix " %0," __PCPU_VAR ::"r"((type) (unsigned long) val), \
+                             __PCPU_CONSTRAINT(var));                                          \
     })
 
-#define write_per_cpu_4(var, val)             \
-    ({                                        \
-        __asm__ __volatile__("movl %0, %%gs:" \
-                             "%1" ::"r"(val), \
-                             "m"(var));       \
-    })
-
-#define write_per_cpu_8(var, val)                             \
-    ({                                                        \
-        __asm__ __volatile__("movq %0, %%gs:"                 \
-                             "%1" ::"r"((unsigned long) val), \
-                             "m"(var));                       \
-    })
-
-#define add_per_cpu_1(var, val)               \
-    ({                                        \
-        __asm__ __volatile__("addb %0, %%gs:" \
-                             "%1" ::"r"(val), \
-                             "m"(var));       \
-    })
-
-#define add_per_cpu_2(var, val)               \
-    ({                                        \
-        __asm__ __volatile__("addw %0, %%gs:" \
-                             "%1" ::"r"(val), \
-                             "m"(var));       \
-    })
-
-#define add_per_cpu_4(var, val)               \
-    ({                                        \
-        __asm__ __volatile__("addl %0, %%gs:" \
-                             "%1" ::"r"(val), \
-                             "m"(var));       \
-    })
-
-#define add_per_cpu_8(var, val)                               \
-    ({                                                        \
-        __asm__ __volatile__("addq %0, %%gs:"                 \
-                             "%1" ::"r"((unsigned long) val), \
-                             "m"(var));                       \
-    })
+#define add_per_cpu_1(var, val) add_per_cpu_internal(var, val, "b", uint8_t)
+#define add_per_cpu_2(var, val) add_per_cpu_internal(var, val, "w", uint16_t)
+#define add_per_cpu_4(var, val) add_per_cpu_internal(var, val, "l", uint32_t)
+#define add_per_cpu_8(var, val) add_per_cpu_internal(var, val, "q", uint64_t)
 
 #endif

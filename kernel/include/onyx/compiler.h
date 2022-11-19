@@ -96,6 +96,9 @@ unsigned int count_bits(Type val)
 #define ___PASTE(a, b) a##b
 #define __PASTE(a, b)  ___PASTE(a, b)
 
+#define STRINGIFY(a)   __STRINGIFY(a)
+#define __STRINGIFY(a) #a
+
 #define COMPILER_BARRIER() __asm__ __volatile__("" ::: "memory")
 #define ilog2(X)           ((unsigned) (8 * sizeof(unsigned long long) - __builtin_clzll((X)) - 1))
 #define ALIGN_TO(x, y)     (((unsigned long) (x) + ((y) -1)) & -(y))

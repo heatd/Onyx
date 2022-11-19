@@ -122,10 +122,10 @@ extern
 #endif
     unsigned long __cpu_base;
 
-#define get_per_cpu_ptr_no_cast(var)                                 \
-    ({                                                               \
-        unsigned long ___cpu_base = get_per_cpu_no_cast(__cpu_base); \
-        ((unsigned long) &var + ___cpu_base);                        \
+#define get_per_cpu_ptr_no_cast(var)                         \
+    ({                                                       \
+        unsigned long ___cpu_base = get_per_cpu(__cpu_base); \
+        ((unsigned long) &var + ___cpu_base);                \
     })
 
 #define get_per_cpu_ptr(var) ({ (__typeof__(var) *) get_per_cpu_ptr_no_cast(var); })
