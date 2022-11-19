@@ -576,6 +576,10 @@ static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
 
             pcpu->magazine[pcpu->size++] = (void *) buf;
             slab->object_list = (bufctl *) buf->next;
+
+            if (!buf->next && j + 1 != avail)
+                panic("Corrupted buf %p, slab %p", buf, slab);
+
             buf = (bufctl *) buf->next;
             slab->active_objects++;
         }

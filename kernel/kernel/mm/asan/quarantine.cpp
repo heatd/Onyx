@@ -72,6 +72,8 @@ struct quarantine_queue
      */
     void add_chunk(quarantine_chunk *chunk, size_t chunk_size)
     {
+        chunk->next = nullptr;
+
         if (!global_queue_head_)
         {
             global_queue_head_ = chunk;

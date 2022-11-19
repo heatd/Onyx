@@ -51,6 +51,7 @@ size_t kasan_get_redzone_size(size_t objsize);
 #define KASAN_ACCESSIBLE   0x0
 #define KASAN_REDZONE      0xff
 #define KASAN_FREED        0xfe
+#define KASAN_QUARANTINED  0x9e
 #define KASAN_LEFT_REDZONE 0xfa
 
 #endif
