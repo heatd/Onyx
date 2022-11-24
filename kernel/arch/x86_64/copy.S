@@ -1,4 +1,13 @@
+/*
+ * Copyright (c) 2018 - 2022 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
 .section .text
+
+#include <onyx/x86/asm.h>
 
 .global __copy_non_temporal
 .type __copy_non_temporal, @function
@@ -10,8 +19,7 @@
 # RSI holds source buffer
 # RDX holds byte count
 __copy_non_temporal:
-
-prefetchnta (%rsi)
+	prefetchnta (%rsi)
 
 .loop:
 	mov (%rsi), %rax
@@ -22,9 +30,9 @@ prefetchnta (%rsi)
 
 	jnz .loop
 
-xor %rax, %rax
+	xor %rax, %rax
 
-ret
+	RET
 
 .global __set_non_temporal
 .type __set_non_temporal, @function
@@ -37,34 +45,34 @@ ret
 # RDX holds byte count
 __set_non_temporal:
 
-# Since the byte value is probably not set up like we want it to,
-# fill the register using the byte, so we can copy 8 bytes at a time
+	# Since the byte value is probably not set up like we want it to,
+	# fill the register using the byte, so we can copy 8 bytes at a time
 
-# Byte 0
-mov %rsi, %r8
-and $0xff, %r8
-mov %r8, %rax
-# Byte 1
-shl $8, %r8
-or %r8, %rax
-# Byte 2
-shl $8, %r8
-or %r8, %rax
-# Byte 3
-shl $8, %r8
-or %r8, %rax
-# Byte 4
-shl $8, %r8
-or %r8, %rax
-# Byte 5
-shl $8, %r8
-or %r8, %rax
-# Byte 6
-shl $8, %r8
-or %r8, %rax
-# Byte 7
-shl $8, %r8
-or %r8, %rax
+	# Byte 0
+	mov %rsi, %r8
+	and $0xff, %r8
+	mov %r8, %rax
+	# Byte 1
+	shl $8, %r8
+	or %r8, %rax
+	# Byte 2
+	shl $8, %r8
+	or %r8, %rax
+	# Byte 3
+	shl $8, %r8
+	or %r8, %rax
+	# Byte 4
+	shl $8, %r8
+	or %r8, %rax
+	# Byte 5
+	shl $8, %r8
+	or %r8, %rax
+	# Byte 6
+	shl $8, %r8
+	or %r8, %rax
+	# Byte 7
+	shl $8, %r8
+	or %r8, %rax
 
 .L0:
 	movnti %rax, (%rdi)
@@ -73,9 +81,9 @@ or %r8, %rax
 
 	jnz .L0
 
-xor %rax, %rax
+	xor %rax, %rax
 
-ret
+	RET
 
 .global memcpy
 .type memcpy, @function
@@ -90,7 +98,7 @@ memcpy:
 
 	pop %rbp
 
-	ret
+	RET
 
 .global memset
 .type memset, @function
@@ -110,4 +118,4 @@ memset:
 	mov %rsi, %rax
 
 	pop %rbp
-	ret
+	RET

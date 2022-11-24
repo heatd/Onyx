@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 - 2021 Pedro Falcato
+ * Copyright (c) 2018 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -7,6 +7,7 @@
  */
 #include <onyx/x86/control_regs.h>
 #include <onyx/x86/msr.h>
+#include <onyx/x86/asm.h>
 
 #define SMP_TRAMPOLINE_BASE	0x0
 .section .text
@@ -140,7 +141,7 @@ _long_mode:
 
 	.extern smpboot_main
 	push $smpboot_main
-	ret
+	RET
 halt:
 	hlt
 	jmp halt

@@ -8,6 +8,8 @@ x86_64-y:= apic.o avx.o boot.o copy_user.o copy.o cpu.o debug.o \
 x86_64-$(CONFIG_KTRACE)+= ktrace.o fentry.o
 x86_64-$(CONFIG_ACPI)+= acpi/acpi.o
 
+x86_64-$(CONFIG_X86_RETHUNK)+= rethunk.o
+
 obj-y+= $(patsubst %, arch/x86_64/%, $(x86_64-y))
 
 arch/x86_64/vdso_helper.o: arch/x86_64/vdso_helper.S onyx-vdso.so.0 kernel.config

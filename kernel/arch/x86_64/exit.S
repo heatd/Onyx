@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -8,6 +8,7 @@
 
 #include <onyx/registers.h>
 #include <onyx/x86/segments.h>
+#include <onyx/x86/asm.h>
 
 #define REGISTERS_UNUSED_OFF		16
 
@@ -80,7 +81,7 @@ return_from_execve:
 __cxa_atexit:
 	# NOTE: We can do this with __cxa_atexit because we, as the kernel, will never exit!
 	xor %eax, %eax
-	ret
+	RET
 
 /* extern "C" 
 [[noreturn]]

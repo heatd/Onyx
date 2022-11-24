@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 - 2021 Pedro Falcato
+ * Copyright (c) 2018 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -7,6 +7,7 @@
  */
 
 #include <platform/syscall.h>
+#include <onyx/x86/asm.h>
 
 .section .text
 
@@ -234,7 +235,7 @@ __enter_sleep_state:
 	# Flush the TLB
 	mov %cr3, %rdi
 	mov %rdi, %cr3
-	ret
+	RET
 .failure:
 	mov $-1, %rax
 	jmp .return

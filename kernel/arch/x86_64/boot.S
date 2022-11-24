@@ -6,7 +6,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-
+#include <onyx/x86/asm.h>
 #include <onyx/x86/control_regs.h>
 #include <onyx/x86/msr.h>
 
@@ -339,7 +339,7 @@ setup_paging_and_longm:
 
 	add $8, %esp
 
-	ret
+	RET
 gdt: 
 	.quad 0x0000000000000000
 	.quad 0x00CF9A000000FFFF

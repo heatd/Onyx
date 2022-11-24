@@ -8,6 +8,7 @@
 
 #include <onyx/registers.h>
 #include <onyx/x86/segments.h>
+#include <onyx/x86/asm.h>
 
 .section .text
 
@@ -534,7 +535,7 @@ platform_yield:
 	pop %rax
 	pop %rbp
 
-	ret
+	RET
 	.cfi_endproc
 	
 

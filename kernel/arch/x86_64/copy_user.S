@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2021 Pedro Falcato
+ * Copyright (c) 2019 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -7,6 +7,7 @@
  */
 
 #include <onyx/x86/alternatives.h>
+#include <onyx/x86/asm.h>
 
 /**
  * @brief Copies data to user space.
@@ -50,7 +51,7 @@ copy_to_user:
 	rep movsb (%rsi), (%rdi)
 2:
 	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_clac_patch, 3, 0, 0)
-	ret
+	RET
 3:
 	# CBN_STATUS_SEGFAULT = -5
 	# These pieces of code were ported from Carbon but the principle applies
@@ -104,7 +105,7 @@ copy_from_user:
 	rep movsb (%rsi), (%rdi)
 2:
 	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_clac_patch, 3, 0, 0)
-	ret
+	RET
 3:
 	# CBN_STATUS_SEGFAULT = -5
 	mov $-14, %rax
@@ -191,7 +192,7 @@ strlen_user:
 
 6:
 	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_clac_patch, 3, 0, 0)
-	ret
+	RET
 7:
 	# CBN_STATUS_SEGFAULT = -5
 	mov $-14, %rax
@@ -227,7 +228,7 @@ get_user32:
 	xor %rax, %rax
 2:
 	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_clac_patch, 3, 0, 0)
-	ret
+	RET
 3:
 	mov $-14, %rax
 	jmp 2b
@@ -257,7 +258,7 @@ get_user64:
 	xor %rax, %rax
 2:
 	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_clac_patch, 3, 0, 0)
-	ret
+	RET
 3:
 	mov $-14, %rax
 	jmp 2b
@@ -307,7 +308,7 @@ user_memset:
 	rep stosb (%rdi)
 2:
 	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_clac_patch, 3, 0, 0)
-	ret
+	RET
 3:
 	# CBN_STATUS_SEGFAULT = -5
 	# These pieces of code were ported from Carbon but the principle applies

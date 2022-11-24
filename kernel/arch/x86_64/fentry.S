@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2021 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -8,6 +8,7 @@
 
 #include <onyx/x86/segments.h>
 #include <onyx/registers.h>
+#include <onyx/x86/asm.h>
 
 .macro pushaq
 	push %rax
@@ -73,7 +74,7 @@ __fentry__:
 
 	pop %rbp
 
-	ret
+	RET
 
 .global __return__
 __return__:
