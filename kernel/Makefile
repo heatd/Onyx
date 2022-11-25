@@ -117,8 +117,7 @@ ifeq ($(ONYX_USING_CLANG), yes)
 ifeq ($(CONFIG_KASAN_NOINLINE), y)
 CFLAGS_KASAN+=-mllvm -asan-instrumentation-with-call-threshold=0
 endif
-# Note: clang tries really hard to access the linear map, but we don't have a linear map (just yet!)
-# Therefore, we disable it for now
+
 CFLAGS_KASAN+=-mllvm -asan-globals-live-support=false -mllvm -asan-globals=0 -mllvm -asan-stack=1
 else
 CFLAGS_KASAN+=--param asan-globals=0 --param asan-stack=1 -fasan-shadow-offset=0xdffffc0000000000
