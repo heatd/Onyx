@@ -9,6 +9,7 @@
 #include <onyx/registers.h>
 #include <onyx/x86/segments.h>
 #include <onyx/x86/asm.h>
+#include <onyx/x86/alternatives.h>
 
 .section .text
 
@@ -195,12 +196,22 @@ x86_scheduler_exit:
 	call handle_signal
 	jmp 2b
 
+.pushsection .text.x86_entry
+
+/* Everything past this point is permanently mapped */
+
 .type x86_interrupt_common,@function
+.align 64
 x86_interrupt_common:
 	.cfi_startproc
 	pushaq
 	CFI_INTERRUPT_FRAME_BEFORE_DS
 	cld
+	/* Clear the AC flag if we were in copy_from_user() et al
+	 * This prevents us from running a full ISR or IRQ without SMAP
+	 * protection.
+	 */
+	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_clac_patch, 3, 0, 0)
 
 	mov %ds, %rax
 	push %rax
@@ -499,6 +510,8 @@ IRQ 223
 IRQ 224
 IRQ 225
 
+/* -- Permanent map end -- */
+.popsection
 
 .pushsection .rodata.isr_table
 .global x86_isr_table_end

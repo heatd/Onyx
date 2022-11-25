@@ -9,7 +9,8 @@
 #include <platform/syscall.h>
 #include <onyx/x86/asm.h>
 
-.section .text
+/* Everything here is permanently mapped */
+.section .text.x86_entry
 
 # Syscall ABI details:
 # Arguments are passed on %rdi, %rsi, %rdx, %r10, %r8 and %r9
@@ -78,6 +79,7 @@
 #define KERNEL_DS		0x10
 
 .global syscall_ENTRY64
+.align 64
 .type syscall_ENTRY64,@function
 syscall_ENTRY64:
 
@@ -210,6 +212,8 @@ syscall_signal_path:
 	iretq
 
 .cfi_endproc
+
+.section .text
 
 .extern AcpiEnterSleepState
 .global __enter_sleep_state
