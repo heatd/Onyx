@@ -770,8 +770,7 @@ struct tcp_pending_out : public refcountable
      */
     int wait()
     {
-        scoped_lock g{sock->pending_out_lock};
-        int st = wait_for_event_locked_interruptible(&wq, done(), &sock->pending_out_lock);
+        int st = wait_for_event_socklocked_interruptible_2(&wq, done(), sock);
 
         if (st == -EINTR)
             remove();

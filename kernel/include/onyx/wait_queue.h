@@ -153,6 +153,10 @@ bool signal_is_pending();
     __wait_for_event(wq, cond, THREAD_INTERRUPTIBLE, socket_lock.unlock_sock(this); sched_yield(); \
                      socket_lock.lock())
 
+#define wait_for_event_socklocked_interruptible_2(wq, cond, sock)                           \
+    __wait_for_event(wq, cond, THREAD_INTERRUPTIBLE, (sock)->socket_lock.unlock_sock(sock); \
+                     sched_yield(); (sock)->socket_lock.lock())
+
 #define WAIT_QUEUE_INIT(x) {.lock = {}, .token_list = LIST_HEAD_INIT(&x.token_list)};
 
 static inline void init_wait_queue_head(struct wait_queue *q)

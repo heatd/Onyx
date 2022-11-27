@@ -1966,7 +1966,7 @@ int tcp_socket::send_fin()
     tph->checksum =
         call_based_on_inet(tcp_calculate_checksum, tph, static_cast<uint16_t>(sizeof(tcp_header)),
                            route.src_addr, route.dst_addr, need_csum);
-    pending_out.append_packet(pbuf.get());
+    pending_out.append_packet(pbuf.release());
 
     // Note: Since we're shutting down the socket, there's no need to be careful wrt
     // cork code trying to fit more sendmsg() data into our fin packet.
