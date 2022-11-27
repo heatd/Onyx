@@ -204,8 +204,8 @@ void *x86_placement_map(unsigned long _phys)
     return (void *) (placement_mappings_start + (_phys - phys));
 }
 
-#define PA2VA(val) ((unsigned long) (val) + KERNEL_VIRTUAL_BASE - get_kernel_phys_offset())
-#define VA2PA(val) ((unsigned long) (val) -KERNEL_VIRTUAL_BASE + get_kernel_phys_offset())
+#define PA2VA(val) ((unsigned long) (val) + KERNEL_VIRTUAL_BASE - kernel_phys_offset)
+#define VA2PA(val) ((unsigned long) (val) -KERNEL_VIRTUAL_BASE + kernel_phys_offset)
 
 void x86_setup_placement_mappings(void)
 {
