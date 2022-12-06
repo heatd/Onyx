@@ -408,6 +408,7 @@ int alloc_fd(int fdbase)
 
 int file_alloc(struct file *f, struct ioctx *ioctx)
 {
+    assert(f != nullptr);
     int filedesc = alloc_fd(0);
     if (filedesc < 0)
         return errno = -filedesc, filedesc;
@@ -720,10 +721,10 @@ int sys_dup23_internal(int oldfd, int newfd, int dupflags, unsigned int flags)
         }
     }
 
-    if (oldfd == newfd && flags & DUP23_DUP3)
+    if (oldfd == newfd)
     {
         fd_put(f);
-        return -EINVAL;
+        return flags & DUP23_DUP3 ? -EINVAL : 0;
     }
 
     if (ioctx->file_desc[newfd])
@@ -738,7 +739,7 @@ int sys_dup23_internal(int oldfd, int newfd, int dupflags, unsigned int flags)
         newf_old = ex.value();
     }
 
-    ioctx->file_desc[newfd] = ioctx->file_desc[oldfd];
+    ioctx->file_desc[newfd] = f;
     fd_set_cloexec(newfd, dupflags & O_CLOEXEC, ioctx);
     fd_set_open(newfd, true, ioctx);
 
