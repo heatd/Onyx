@@ -135,7 +135,7 @@ const char *errno_table[] = {"Operation not permitted",
 
 char *strerror(int errnum)
 {
-    if (errnum < 0)
+    if (errnum <= 0)
         return "Unknown error";
     if (errnum > 131)
         return "Unknown error";
