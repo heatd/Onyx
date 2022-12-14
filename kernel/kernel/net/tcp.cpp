@@ -566,7 +566,7 @@ int tcp_socket::make_connection_from(const tcp_connection_req *req)
     last_ack_number = ack_number - 1;
     mss = req->mss;
     window_size = req->window_size;
-    window_size_shift = req->window_size;
+    window_size_shift = req->window_shift;
     route_cache = req->route;
     route_cache_valid = 1;
 
@@ -974,9 +974,9 @@ int tcp_handle_packet(const inet_route &route, packetbuf *buf)
     if (route.flags & (INET4_ROUTE_FLAG_BROADCAST | INET4_ROUTE_FLAG_MULTICAST))
         return 0;
 
-    auto socket =
-        inet_resolve_socket_conn<tcp_socket>(ip_header->source_ip, header->source_port,
-                                             header->dest_port, IPPROTO_TCP, route.nif, &tcp_proto);
+    ref_guard<tcp_socket> socket{inet_resolve_socket_conn<tcp_socket>(
+        ip_header->source_ip, header->source_port, header->dest_port, IPPROTO_TCP, route.nif,
+        &tcp_proto)};
     uint16_t tcp_payload_len =
         static_cast<uint16_t>(ntohs(ip_header->total_len) - ip_header_length(ip_header));
 
@@ -1017,9 +1017,9 @@ int tcp6_handle_packet(const inet_route &route, packetbuf *buf)
     if (route.flags & (INET4_ROUTE_FLAG_BROADCAST | INET4_ROUTE_FLAG_MULTICAST))
         return 0;
 
-    auto socket = inet6_resolve_socket_conn<tcp_socket>(ip_header->src_addr, header->source_port,
-                                                        header->dest_port, IPPROTO_TCP, route.nif,
-                                                        &tcp_proto);
+    ref_guard<tcp_socket> socket{inet6_resolve_socket_conn<tcp_socket>(
+        ip_header->src_addr, header->source_port, ip_header->dst_addr, header->dest_port,
+        IPPROTO_TCP, route.nif, &tcp_proto)};
     uint16_t tcp_payload_len = ntohs(ip_header->payload_length);
 
     if (!socket)
@@ -1040,7 +1040,6 @@ int tcp6_handle_packet(const inet_route &route, packetbuf *buf)
                                                        &both, AF_INET6, route};
 
     st = socket->handle_packet(handle_data);
-    socket->unref();
 
     return st;
 }
@@ -1282,6 +1281,7 @@ void tcp_out_timeout(clockevent *ev)
     }
 
     t->transmission_try++;
+    // printk("out r%u\n", t->transmission_try);
     tcp_socket *sock = t->sock;
 
     iflow flow{sock->route_cache, IPPROTO_TCP, sock->effective_domain() == AF_INET6};
@@ -1895,6 +1895,8 @@ void tcp_socket::close()
     {
         // If we're the last reference to the socket, shut it down
         shutdown(SHUTDOWN_RDWR);
+
+        // printk("close state %u refs %lu\n", state, __get_refcount());
 
         if (state == tcp_state::TCP_STATE_CLOSED)
         {

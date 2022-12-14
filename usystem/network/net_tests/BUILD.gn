@@ -4,6 +4,6 @@ app_executable("net_tests") {
     package_name = "net_tests"
     output_name = "$package_name"
 
-    sources = [ "src/udp.cpp", "src/unix.cpp"]
+    sources = [ "src/udp.cpp", "src/unix.cpp", "src/tcp.cpp"]
     deps = [ "//googletest:gtest_main" ]
 }

@@ -197,7 +197,7 @@ void proto_family::unbind(inet_socket *sock)
 rwlock routing_table_lock;
 cul::vector<shared_ptr<inet6_route>> routing_table;
 
-void print_v6_addr(const in6_addr &addr)
+static void print_v6_addr(const in6_addr &addr)
 {
     printk("%x:%x:%x:%x:%x:%x:%x:%x\n", ntohs(addr.s6_addr16[0]), ntohs(addr.s6_addr16[1]),
            ntohs(addr.s6_addr16[2]), ntohs(addr.s6_addr16[3]), ntohs(addr.s6_addr16[4]),
@@ -270,6 +270,9 @@ expected<inet_route, int> route_from_routing_table(const inet_sock_address &to,
     r.nif = best_route->nif;
     r.mask.in6 = best_route->mask;
     r.src_addr.in6 = netif_get_v6_address(r.nif, saddr_flags);
+#if 0
+    print_v6_addr(r.src_addr.in6);
+#endif
     r.flags = best_route->flags;
     r.gateway_addr.in6 = best_route->gateway;
 

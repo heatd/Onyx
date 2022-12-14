@@ -117,8 +117,8 @@ int handle_packet(netif *nif, packetbuf *buf)
 
     do
     {
-        socket = inet6_resolve_socket<icmp6_socket>(iphdr->src_addr, 0, 0, IPPROTO_ICMPV6, nif,
-                                                    true, &icmp6_proto, inst);
+        socket = inet6_resolve_socket<icmp6_socket>(iphdr->src_addr, 0, iphdr->dst_addr, 0,
+                                                    IPPROTO_ICMPV6, nif, true, &icmp6_proto, inst);
         if (!socket)
             break;
 

@@ -91,6 +91,36 @@ atomic<uint32_t> next_if = 1;
 
 const struct file_ops netif_fops = {.ioctl = netif_ioctl};
 
+void netif_register_loopback_route4(struct netif *netif)
+{
+    struct inet4_route route;
+
+    route.mask = htonl(0xff000000);
+    route.dest = htonl(INADDR_LOOPBACK);
+    route.dest &= route.mask;
+    route.gateway = 0;
+    route.nif = netif;
+    route.metric = 1000;
+    route.flags = INET4_ROUTE_FLAG_SCOPE_LOCAL;
+
+    assert(ip::v4::add_route(route) == true);
+}
+
+void netif_register_loopback_route6(struct netif *netif)
+{
+    struct inet6_route route;
+
+    route.mask = IN6ADDR_LOOPBACK_INIT;
+    route.dest = IN6ADDR_LOOPBACK_INIT;
+
+    route.gateway = IN6ADDR_ANY_INIT;
+    route.nif = netif;
+    route.metric = 1000;
+    route.flags = INET4_ROUTE_FLAG_SCOPE_LOCAL;
+
+    assert(ip::v6::add_route(route) == true);
+}
+
 void netif_register_if(struct netif *netif)
 {
     rwlock_init(&netif->inet6_addr_list_lock);
@@ -118,19 +148,10 @@ void netif_register_if(struct netif *netif)
 
     bool is_loopback = netif->flags & NETIF_LOOPBACK;
 
-    struct inet4_route route;
-
     if (is_loopback)
     {
-        route.mask = is_loopback ? htonl(0xff000000) : 0;
-        route.dest = is_loopback ? htonl(INADDR_LOOPBACK) : 0;
-        route.dest &= route.mask;
-        route.gateway = 0;
-        route.nif = netif;
-        route.metric = is_loopback ? 1000 : 10;
-        route.flags = INET4_ROUTE_FLAG_SCOPE_LOCAL;
-
-        assert(ip::v4::add_route(route) == true);
+        netif_register_loopback_route4(netif);
+        netif_register_loopback_route6(netif);
     }
 }
 
@@ -185,6 +206,11 @@ netif *netif_get_from_addr(const inet_sock_address &s, int domain)
     {
         // printk("local %x\n", n->local_ip.sin_addr.s_addr);
         if (domain == AF_INET && n->local_ip.sin_addr.s_addr == s.in4.s_addr)
+        {
+            return n;
+        }
+
+        if (domain == AF_INET6 && netif_find_v6_address(n, s.in6))
         {
             return n;
         }
@@ -314,7 +340,7 @@ void netif_do_rxpoll(netif *nif)
     }
 }
 
-int netif_do_rx(void)
+int netif_do_rx()
 {
     auto queue = get_per_cpu_ptr(rx_queue);
 

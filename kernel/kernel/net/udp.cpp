@@ -525,8 +525,8 @@ int udp_handle_packet_v6(netif *netif, packetbuf *buf)
     auto header = (ip6hdr *) buf->net_header;
 
     auto socket = inet6_resolve_socket<udp_socket>(header->src_addr, udp_header->source_port,
-                                                   udp_header->dest_port, IPPROTO_UDP, netif, true,
-                                                   &udp_proto);
+                                                   header->dst_addr, udp_header->dest_port,
+                                                   IPPROTO_UDP, netif, true, &udp_proto);
     if (!socket)
     {
         /* TODO: Implement ICMPV6 dst unreachables, etc */

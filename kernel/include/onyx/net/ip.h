@@ -178,16 +178,15 @@ inline T *inet_resolve_socket_conn(in_addr_t src, in_port_t port_src, in_port_t 
 }
 
 template <typename T>
-inline T *inet6_resolve_socket(const in6_addr &src, in_port_t port_src, in_port_t port_dst,
-                               int proto, netif *nif, bool ign_dst, const inet_proto *proto_info,
-                               unsigned int instance = 0)
+inline T *inet6_resolve_socket(const in6_addr &src, in_port_t port_src, const in6_addr &dst,
+                               in_port_t port_dst, int proto, netif *nif, bool ign_dst,
+                               const inet_proto *proto_info, unsigned int instance = 0)
 {
     const in6_addr &__src = src;
     auto flags = (!ign_dst ? GET_SOCKET_DSTADDR_VALID : 0);
 
     const inet_sock_address socket_dst{__src, port_src, nif->if_id};
-    /* TODO: Fix this */
-    const inet_sock_address socket_src{in6addr_any, port_dst, nif->if_id};
+    const inet_sock_address socket_src{dst, port_dst, nif->if_id};
 
     const socket_id id(proto, AF_INET6, socket_src, socket_dst);
 
@@ -197,18 +196,19 @@ inline T *inet6_resolve_socket(const in6_addr &src, in_port_t port_src, in_port_
 }
 
 template <typename T>
-inline T *inet6_resolve_socket_conn(const in6_addr &src, in_port_t port_src, in_port_t port_dst,
-                                    int proto, netif *nif, const inet_proto *proto_info,
-                                    unsigned int instance = 0)
+inline T *inet6_resolve_socket_conn(const in6_addr &src, in_port_t port_src, const in6_addr &dst,
+                                    in_port_t port_dst, int proto, netif *nif,
+                                    const inet_proto *proto_info, unsigned int instance = 0)
 {
     // Try to get a socket that's connected first
-    if (auto sock = inet6_resolve_socket<T>(src, port_src, port_dst, proto, nif, false, proto_info,
-                                            instance);
+    if (auto sock = inet6_resolve_socket<T>(src, port_src, dst, port_dst, proto, nif, false,
+                                            proto_info, instance);
         sock != nullptr)
         return sock;
 
     // Then a listening socket
-    return inet6_resolve_socket<T>(src, port_src, port_dst, proto, nif, true, proto_info, instance);
+    return inet6_resolve_socket<T>(src, port_src, dst, port_dst, proto, nif, true, proto_info,
+                                   instance);
 }
 
 /* Ports under 1024 are privileged; they can only bound to by root. */

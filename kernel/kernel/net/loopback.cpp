@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <stdio.h>
 
@@ -12,26 +14,79 @@
 #include <onyx/net/network.h>
 #include <onyx/packetbuf.h>
 
+/*
+ * The loopback device uses a global packet queue (pqueue) protected by a single spinlock
+ * (pqueue_lock). Note that this obviously doesn't scale. It may be a good idea to get a percpu
+ * thing, or maybe some other scheme.
+ */
+static spinlock pqueue_lock = STATIC_SPINLOCK_INIT;
+static list_head pqueue = LIST_HEAD_INIT(pqueue);
+
+/**
+ * @brief Send a packet through the loopback device
+ *
+ * @param buf pbuf to send
+ * @param nif Our nif (allocated in loopback_init)
+ * @return 0 on success, negative error codes
+ */
 int loopback_send_packet(packetbuf *buf, netif *nif)
 {
-    /* TODO: Detect errors */
-#if 0
-	printk("send packet loopback\n");
-#endif
-
-    auto new_buf = make_refc<packetbuf>();
-    if (!new_buf)
+    // We need to clone the original buf so we can pass it
+    // down the stack again.
+    auto newbuf = packetbuf_clone(buf);
+    if (!newbuf)
         return -ENOMEM;
 
-    if (!new_buf->allocate_space(buf->length()))
-        return -ENOMEM;
+    // Append the packet to the pqueue (see above) and signal RX
 
-    memcpy(new_buf->put(buf->length()), buf->data, buf->length());
-    nif->dll_ops->rx_packet(nif, new_buf.get());
+    spin_lock(&pqueue_lock);
+
+    list_add_tail(&newbuf->list_node, &pqueue);
+
+    spin_unlock(&pqueue_lock);
+    netif_signal_rx(nif);
+
     return 0;
 }
 
-void loopback_init(void)
+/**
+ * @brief Dispatch pending RX packets
+ *
+ * @param nif Our nif (allocated in loopback_init)
+ * @return 0 on success, negative error codes
+ */
+int loopback_pollrx(netif *nif)
+{
+    // We need to hold the lock around list accesses (pqueue).
+    spin_lock(&pqueue_lock);
+    while (!list_is_empty(&pqueue))
+    {
+        auto pbuf = list_head_cpp<packetbuf>::self_from_list_head(list_first_element(&pqueue));
+        list_remove(&pbuf->list_node);
+
+        // Unlock. process_pbuf may want to send buffers, which may want to lock pqueue, so we must
+        // drop this lock while calling netif_process_pbuf.
+
+        spin_unlock(&pqueue_lock);
+
+        netif_process_pbuf(nif, pbuf);
+
+        // Relock for the next run.
+        spin_lock(&pqueue_lock);
+    }
+
+    spin_unlock(&pqueue_lock);
+
+    return 0;
+}
+
+/**
+ * @brief Initialize the loopback device
+ * To think about: is there any advantage in being able to have multiple?
+ * (apart from modularity and maybe testing)
+ *
+ */
+void loopback_init()
 {
     netif *n = new netif{};
     n->flags = NETIF_LINKUP | NETIF_LOOPBACK;
@@ -39,6 +94,8 @@ void loopback_init(void)
     n->mtu = UINT16_MAX;
     n->local_ip.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     n->sendpacket = loopback_send_packet;
+    n->poll_rx = loopback_pollrx;
+    n->rx_end = [](netif *nif) {}; // rx_end does nothing for us, as we do not have interrupts.
     n->dll_ops = &eth_ops;
 
     netif_register_if(n);
