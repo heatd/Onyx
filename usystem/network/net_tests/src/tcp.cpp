@@ -158,3 +158,55 @@ TEST(Tcp, Inet6AnyConnection)
     future.wait();
     ASSERT_EQ(future.get(), 0);
 }
+
+TEST(Tcp, DISABLED_Inet6Inet4Connection)
+{
+    sync_data sdata{};
+    int sock = socket(AF_INET6, SOCK_STREAM, 0);
+
+    ASSERT_NE(sock, -1);
+
+    sockaddr_in6 sa = {};
+    sa.sin6_addr = IN6ADDR_ANY_INIT;
+    sa.sin6_port = htons(1066);
+    sa.sin6_family = AF_INET6;
+    sa.sin6_flowinfo = 0;
+    sa.sin6_scope_id = 0;
+
+    ASSERT_NE(bind(sock, (const sockaddr *) &sa, sizeof(sa)), -1);
+
+    ASSERT_NE(listen(sock, 0), -1);
+
+    int sock2 = socket(AF_INET, SOCK_STREAM, 0);
+
+    ASSERT_NE(sock2, -1);
+
+    sockaddr_in sa2;
+    sa2.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    sa2.sin_family = AF_INET;
+    sa2.sin_port = htons(1066);
+    memset(sa2.sin_zero, 0, sizeof(sa2.sin_zero));
+
+    std::thread t([&]() { accept_connections(sock, sdata); });
+
+    sa.sin6_addr = IN6ADDR_LOOPBACK_INIT;
+    ASSERT_NE(connect(sock2, (const sockaddr *) &sa2, sizeof(sa2)), -1);
+
+    for (size_t i = 0; i < lorem_ipsum.size(); i += 20)
+    {
+        size_t to_transfer = std::min<size_t>(lorem_ipsum.size() - i, 20);
+        EXPECT_NE(send(sock2, &lorem_ipsum[i], to_transfer, 0), -1);
+    }
+
+    ASSERT_NE(shutdown(sock2, SHUT_RDWR), -1);
+
+    t.join();
+
+    close(sock2);
+
+    close(sock);
+
+    auto future = sdata.out.get_future();
+    future.wait();
+    ASSERT_EQ(future.get(), 0);
+}
