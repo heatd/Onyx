@@ -92,7 +92,7 @@ struct un_name
         }
         else
         {
-            anon_path_ = cul::move(rhs.anon_path_);
+            new (&anon_path_) cul::string{cul::move(rhs.anon_path_)};
         }
 
         return *this;
@@ -112,7 +112,7 @@ struct un_name
         }
         else
         {
-            anon_path_ = cul::move(rhs.anon_path_);
+            new (&anon_path_) cul::string{cul::move(rhs.anon_path_)};
         }
     }
 
