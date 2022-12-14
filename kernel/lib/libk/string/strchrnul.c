@@ -5,11 +5,14 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <onyx/compiler.h>
+
 #define ALIGN      (sizeof(size_t))
 #define ONES       ((size_t) -1 / UCHAR_MAX)
 #define HIGHS      (ONES * (UCHAR_MAX / 2 + 1))
 #define HASZERO(x) (((x) -ONES) & ~(x) &HIGHS)
 
+NO_ASAN
 char *__strchrnul(const char *s, int c)
 {
     size_t *w, k;
