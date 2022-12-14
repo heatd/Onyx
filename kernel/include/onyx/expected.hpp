@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #ifndef _ONYX_EXPECTED_HPP
 #define _ONYX_EXPECTED_HPP
@@ -48,7 +50,7 @@ public:
     constexpr expected(const unexpected<_ErrorType>& e) : e{e.value()}, _has_value{false}
     {
     }
-    constexpr expected(_Type&& t) : t{cul::move(t)}, _has_value{true}
+    constexpr expected(_Type&& type) : t{cul::move(type)}, _has_value{true}
     {
     }
 
@@ -56,9 +58,9 @@ public:
     {
         _has_value = rhs._has_value;
         if (_has_value)
-            t = cul::move(rhs.t);
+            new (&t) _Type{cul::move(rhs.t)};
         else
-            e = cul::move(rhs.e);
+            new (&e) _ErrorType{cul::move(rhs.e)};
     }
 
     constexpr expected(unexpected<_ErrorType>&& e) : e{cul::move(e.value())}, _has_value{false}
@@ -67,11 +69,30 @@ public:
 
     constexpr expected<_Type, _ErrorType>& operator=(expected<_Type, _ErrorType>&& rhs)
     {
-        _has_value = rhs._has_value;
-        if (_has_value)
-            t = cul::move(rhs.t);
+        if (_has_value == rhs._has_value)
+        {
+            // has_value == other has_value means that whatever we're assigning to
+            // was already constructed, so just move
+            if (rhs._has_value)
+                t = cul::move(rhs.t);
+            else
+                e = cul::move(rhs.e);
+        }
         else
-            e = cul::move(rhs.e);
+        {
+            // Destroy what was there before we construct a new thing
+            if (!_has_value) [[unlikely]]
+                e.~_ErrorType();
+            else [[likely]]
+                t.~_Type();
+
+            if (rhs._has_value)
+                new (&t) _Type{cul::move(rhs.t)};
+            else
+                new (&e) _ErrorType{cul::move(rhs.e)};
+        }
+
+        _has_value = rhs._has_value;
         return *this;
     }
 
