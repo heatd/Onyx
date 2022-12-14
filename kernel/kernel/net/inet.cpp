@@ -21,27 +21,32 @@ socket *choose_protocol_and_create(int type, int protocol)
 {
     switch (type)
     {
-    case SOCK_DGRAM: {
-        switch (protocol)
-        {
-        case IPPROTO_UDP:
-            return udp_create_socket(type);
-        case IPPROTO_ICMP:
-            return icmp::create_socket(type);
-        case IPPROTO_ICMPV6:
-            return icmpv6::create_socket(type);
-        default:
-            return nullptr;
+        case SOCK_DGRAM: {
+            switch (protocol)
+            {
+                case IPPROTO_UDP:
+                    return udp_create_socket(type);
+                case IPPROTO_ICMP:
+                    return icmp::create_socket(type);
+                case IPPROTO_ICMPV6:
+                    return icmpv6::create_socket(type);
+                default:
+                    return nullptr;
+            }
+        }
+
+        case SOCK_STREAM: {
+            switch (protocol)
+            {
+                case IPPROTO_TCP:
+                    return tcp_create_socket(type);
+                default:
+                    return nullptr;
+            }
         }
     }
 
-    case SOCK_STREAM: {
-    case IPPROTO_TCP:
-        return tcp_create_socket(type);
-    default:
-        return nullptr;
-    }
-    }
+    return nullptr;
 }
 
 /* Use linux's ephemeral ports */
@@ -122,7 +127,6 @@ void copy_msgname_to_user(struct msghdr *msg, packetbuf *buf, bool isv6, in_port
         in6.sin6_family = AF_INET6;
         /* TODO: Probably not correct */
         in6.sin6_flowinfo = hdr->flow_label[0] | hdr->flow_label[1] << 8 | hdr->flow_label[2] << 16;
-        ;
         in6.sin6_port = port;
         memcpy(&in6.sin6_addr, &hdr->src_addr, sizeof(hdr->src_addr));
 
