@@ -53,7 +53,7 @@ struct tty
     unsigned int input_flags;
     bool line_ready;
     struct wait_queue read_queue;
-    struct spinlock input_lock;
+    struct mutex input_lock;
     char input_buf[2048];
     unsigned int input_buf_pos;
 

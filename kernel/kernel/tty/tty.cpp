@@ -134,7 +134,7 @@ void tty_init(void *priv, void (*ctor)(struct tty *tty))
 
     tty->priv = priv;
     mutex_init(&tty->lock);
-    spinlock_init(&tty->input_lock);
+    mutex_init(&tty->input_lock);
     rwlock_init(&tty->termio_lock);
     tty->response = nullptr;
 
@@ -186,7 +186,7 @@ void tty_write(const char *data, size_t size, struct tty *tty)
         tty_received_characters(tty, resp);
         free(resp);
 
-        // Early return as to not double free the lock
+        // Early return as to not double-release the lock
         return;
     }
 
@@ -237,15 +237,15 @@ ssize_t tty_has_input_available(unsigned int flags, struct tty *tty)
 
 ssize_t tty_wait_for_line(unsigned int flags, struct tty *tty)
 {
-    spin_lock(&tty->input_lock);
+    mutex_lock(&tty->input_lock);
 
     int res = -EWOULDBLOCK;
 
     if (flags & O_NONBLOCK && !tty_has_input_available(flags, tty))
         goto out_error;
 
-    res = wait_for_event_locked_interruptible(&tty->read_queue, __tty_has_input_available(tty) != 0,
-                                              &tty->input_lock);
+    res = wait_for_event_mutex_interruptible(&tty->read_queue, __tty_has_input_available(tty) != 0,
+                                             &tty->input_lock);
 
     if (res < 0)
         goto out_error;
@@ -253,7 +253,7 @@ ssize_t tty_wait_for_line(unsigned int flags, struct tty *tty)
     return 0;
 out_error:
 
-    spin_unlock(&tty->input_lock);
+    mutex_unlock(&tty->input_lock);
     return res;
 }
 
@@ -346,18 +346,18 @@ size_t ttydevfs_read(size_t offset, size_t count, void *buffer, struct file *thi
     size_t len = __tty_has_input_available(tty);
     size_t read = tty_consume_input(buffer, count, len, tty);
 
-    spin_unlock(&tty->input_lock);
+    mutex_unlock(&tty->input_lock);
 
     return read;
 }
 
 void tty_flush_input(struct tty *tty)
 {
-    spin_lock(&tty->input_lock);
+    mutex_lock(&tty->input_lock);
 
     tty->input_buf_pos = 0;
 
-    spin_unlock(&tty->input_lock);
+    mutex_unlock(&tty->input_lock);
 }
 
 unsigned int tty_tcsets(int req, struct tty *tty, struct termios *uterm)
@@ -604,14 +604,14 @@ short tty_poll(void *poll_file, short events, struct file *f)
         /* We lock termio for reading here because tty_has_input_available will touch the termio */
         rw_lock_read(&tty->termio_lock);
 
-        spin_lock(&tty->input_lock);
+        mutex_lock(&tty->input_lock);
 
         if (__tty_has_input_available(tty))
             revents |= POLLIN;
         else
             poll_wait_helper(poll_file, &tty->read_queue);
 
-        spin_unlock(&tty->input_lock);
+        mutex_unlock(&tty->input_lock);
 
         rw_unlock_read(&tty->termio_lock);
     }

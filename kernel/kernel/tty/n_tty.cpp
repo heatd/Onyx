@@ -120,7 +120,7 @@ static ssize_t n_tty_receive_input(char c, struct tty *tty)
     if (TTY_IFLAG(tty, IGNCR) && c == '\r')
         return 0;
 
-    spin_lock(&tty->input_lock);
+    mutex_lock(&tty->input_lock);
 
     if (TTY_IFLAG(tty, ICRNL) && c == '\r')
         c = '\n';
@@ -138,7 +138,7 @@ static ssize_t n_tty_receive_input(char c, struct tty *tty)
         wait_queue_wake_all(&tty->read_queue);
     }
 
-    spin_unlock(&tty->input_lock);
+    mutex_unlock(&tty->input_lock);
 
     if (TTY_LFLAG(tty, ECHO) && !args.do_not_print)
     {
