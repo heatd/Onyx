@@ -17,3 +17,6 @@
 [submodule "kernel/lib/zstd/zstd"]
 	path = kernel/lib/zstd/zstd
 	url = https://github.com/facebook/zstd
+[submodule "musl"]
+	path = musl
+	url = https://github.com/heatd/musl.git
