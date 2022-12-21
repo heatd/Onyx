@@ -8,6 +8,7 @@
 #define _ACONYX_
 #include <stdarg.h>
 #include <stdint.h>
+#include <onyx/types.h>
 
 // TODO: Handle this being different
 #define ACPI_MACHINE_WIDTH 64
@@ -41,6 +42,8 @@ struct spinlock;
 struct slab_cache;
 #undef ACPI_USE_LOCAL_CACHE
 #define acpi_cache_t struct slab_cache
+
+#define ACPI_USE_SYSTEM_INTTYPES
 // #undef ACPI_USE_NATIVE_DIVIDE
 
 #include "acgcc.h"
