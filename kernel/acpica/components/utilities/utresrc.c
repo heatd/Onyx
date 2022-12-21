@@ -1,153 +1,10 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /*******************************************************************************
  *
  * Module Name: utresrc - Resource management utilities
  *
  ******************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #include "acpi.h"
 #include "accommon.h"
@@ -155,64 +12,64 @@
 
 
 #define _COMPONENT          ACPI_UTILITIES
-        ACPI_MODULE_NAME    ("utresrc")
+	 ACPI_MODULE_NAME    ("utresrc")
 
 
 /*
  * Base sizes of the raw AML resource descriptors, indexed by resource type.
  * Zero indicates a reserved (and therefore invalid) resource type.
  */
-const UINT8                 AcpiGbl_ResourceAmlSizes[] =
+const u8                            acpi_gbl_resource_aml_sizes[] =
 {
-    /* Small descriptors */
+	/* Small descriptors */
 
-    0,
-    0,
-    0,
-    0,
-    ACPI_AML_SIZE_SMALL (AML_RESOURCE_IRQ),
-    ACPI_AML_SIZE_SMALL (AML_RESOURCE_DMA),
-    ACPI_AML_SIZE_SMALL (AML_RESOURCE_START_DEPENDENT),
-    ACPI_AML_SIZE_SMALL (AML_RESOURCE_END_DEPENDENT),
-    ACPI_AML_SIZE_SMALL (AML_RESOURCE_IO),
-    ACPI_AML_SIZE_SMALL (AML_RESOURCE_FIXED_IO),
-    ACPI_AML_SIZE_SMALL (AML_RESOURCE_FIXED_DMA),
-    0,
-    0,
-    0,
-    ACPI_AML_SIZE_SMALL (AML_RESOURCE_VENDOR_SMALL),
-    ACPI_AML_SIZE_SMALL (AML_RESOURCE_END_TAG),
+	0,
+	0,
+	0,
+	0,
+	ACPI_AML_SIZE_SMALL (struct aml_resource_irq),
+	ACPI_AML_SIZE_SMALL (struct aml_resource_dma),
+	ACPI_AML_SIZE_SMALL (struct aml_resource_start_dependent),
+	ACPI_AML_SIZE_SMALL (struct aml_resource_end_dependent),
+	ACPI_AML_SIZE_SMALL (struct aml_resource_io),
+	ACPI_AML_SIZE_SMALL (struct aml_resource_fixed_io),
+	ACPI_AML_SIZE_SMALL (struct aml_resource_fixed_dma),
+	0,
+	0,
+	0,
+	ACPI_AML_SIZE_SMALL (struct aml_resource_vendor_small),
+	ACPI_AML_SIZE_SMALL (struct aml_resource_end_tag),
 
-    /* Large descriptors */
+	/* Large descriptors */
 
-    0,
-    ACPI_AML_SIZE_LARGE (AML_RESOURCE_MEMORY24),
-    ACPI_AML_SIZE_LARGE (AML_RESOURCE_GENERIC_REGISTER),
-    0,
-    ACPI_AML_SIZE_LARGE (AML_RESOURCE_VENDOR_LARGE),
-    ACPI_AML_SIZE_LARGE (AML_RESOURCE_MEMORY32),
-    ACPI_AML_SIZE_LARGE (AML_RESOURCE_FIXED_MEMORY32),
-    ACPI_AML_SIZE_LARGE (AML_RESOURCE_ADDRESS32),
-    ACPI_AML_SIZE_LARGE (AML_RESOURCE_ADDRESS16),
-    ACPI_AML_SIZE_LARGE (AML_RESOURCE_EXTENDED_IRQ),
-    ACPI_AML_SIZE_LARGE (AML_RESOURCE_ADDRESS64),
-    ACPI_AML_SIZE_LARGE (AML_RESOURCE_EXTENDED_ADDRESS64),
-    ACPI_AML_SIZE_LARGE (AML_RESOURCE_GPIO),
-    ACPI_AML_SIZE_LARGE (AML_RESOURCE_PIN_FUNCTION),
-    ACPI_AML_SIZE_LARGE (AML_RESOURCE_COMMON_SERIALBUS),
-    ACPI_AML_SIZE_LARGE (AML_RESOURCE_PIN_CONFIG),
-    ACPI_AML_SIZE_LARGE (AML_RESOURCE_PIN_GROUP),
-    ACPI_AML_SIZE_LARGE (AML_RESOURCE_PIN_GROUP_FUNCTION),
-    ACPI_AML_SIZE_LARGE (AML_RESOURCE_PIN_GROUP_CONFIG),
+	0,
+	ACPI_AML_SIZE_LARGE (struct aml_resource_memory24),
+	ACPI_AML_SIZE_LARGE (struct aml_resource_generic_register),
+	0,
+	ACPI_AML_SIZE_LARGE (struct aml_resource_vendor_large),
+	ACPI_AML_SIZE_LARGE (struct aml_resource_memory32),
+	ACPI_AML_SIZE_LARGE (struct aml_resource_fixed_memory32),
+	ACPI_AML_SIZE_LARGE (struct aml_resource_address32),
+	ACPI_AML_SIZE_LARGE (struct aml_resource_address16),
+	ACPI_AML_SIZE_LARGE (struct aml_resource_extended_irq),
+	ACPI_AML_SIZE_LARGE (struct aml_resource_address64),
+	ACPI_AML_SIZE_LARGE (struct aml_resource_extended_address64),
+	ACPI_AML_SIZE_LARGE (struct aml_resource_gpio),
+	ACPI_AML_SIZE_LARGE (struct aml_resource_pin_function),
+	ACPI_AML_SIZE_LARGE (struct aml_resource_common_serialbus),
+	ACPI_AML_SIZE_LARGE (struct aml_resource_pin_config),
+	ACPI_AML_SIZE_LARGE (struct aml_resource_pin_group),
+	ACPI_AML_SIZE_LARGE (struct aml_resource_pin_group_function),
+	ACPI_AML_SIZE_LARGE (struct aml_resource_pin_group_config),
 };
 
-const UINT8                 AcpiGbl_ResourceAmlSerialBusSizes[] =
+const u8                            acpi_gbl_resource_aml_serial_bus_sizes[] =
 {
-    0,
-    ACPI_AML_SIZE_LARGE (AML_RESOURCE_I2C_SERIALBUS),
-    ACPI_AML_SIZE_LARGE (AML_RESOURCE_SPI_SERIALBUS),
-    ACPI_AML_SIZE_LARGE (AML_RESOURCE_UART_SERIALBUS),
-    ACPI_AML_SIZE_LARGE (AML_RESOURCE_CSI2_SERIALBUS),
+	0,
+	ACPI_AML_SIZE_LARGE (struct aml_resource_i2c_serialbus),
+	ACPI_AML_SIZE_LARGE (struct aml_resource_spi_serialbus),
+	ACPI_AML_SIZE_LARGE (struct aml_resource_uart_serialbus),
+	ACPI_AML_SIZE_LARGE (struct aml_resource_csi2_serialbus),
 };
 
 
@@ -222,61 +79,61 @@ const UINT8                 AcpiGbl_ResourceAmlSerialBusSizes[] =
  * lengths must meet the minimum required length, etc.
  * Zero indicates a reserved (and therefore invalid) resource type.
  */
-static const UINT8          AcpiGbl_ResourceTypes[] =
+static const u8                     acpi_gbl_resource_types[] =
 {
-    /* Small descriptors */
+	/* Small descriptors */
 
-    0,
-    0,
-    0,
-    0,
-    ACPI_SMALL_VARIABLE_LENGTH,     /* 04 IRQ */
-    ACPI_FIXED_LENGTH,              /* 05 DMA */
-    ACPI_SMALL_VARIABLE_LENGTH,     /* 06 StartDependentFunctions */
-    ACPI_FIXED_LENGTH,              /* 07 EndDependentFunctions */
-    ACPI_FIXED_LENGTH,              /* 08 IO */
-    ACPI_FIXED_LENGTH,              /* 09 FixedIO */
-    ACPI_FIXED_LENGTH,              /* 0A FixedDMA */
-    0,
-    0,
-    0,
-    ACPI_VARIABLE_LENGTH,           /* 0E VendorShort */
-    ACPI_FIXED_LENGTH,              /* 0F EndTag */
+	0,
+	0,
+	0,
+	0,
+	ACPI_SMALL_VARIABLE_LENGTH,     /* 04 IRQ */
+	ACPI_FIXED_LENGTH,              /* 05 DMA */
+	ACPI_SMALL_VARIABLE_LENGTH,     /* 06 start_dependent_functions */
+	ACPI_FIXED_LENGTH,              /* 07 end_dependent_functions */
+	ACPI_FIXED_LENGTH,              /* 08 IO */
+	ACPI_FIXED_LENGTH,              /* 09 fixed_IO */
+	ACPI_FIXED_LENGTH,              /* 0A fixed_DMA */
+	0,
+	0,
+	0,
+	ACPI_VARIABLE_LENGTH,           /* 0E vendor_short */
+	ACPI_FIXED_LENGTH,              /* 0F end_tag */
 
-    /* Large descriptors */
+	/* Large descriptors */
 
-    0,
-    ACPI_FIXED_LENGTH,              /* 01 Memory24 */
-    ACPI_FIXED_LENGTH,              /* 02 GenericRegister */
-    0,
-    ACPI_VARIABLE_LENGTH,           /* 04 VendorLong */
-    ACPI_FIXED_LENGTH,              /* 05 Memory32 */
-    ACPI_FIXED_LENGTH,              /* 06 Memory32Fixed */
-    ACPI_VARIABLE_LENGTH,           /* 07 Dword* address */
-    ACPI_VARIABLE_LENGTH,           /* 08 Word* address */
-    ACPI_VARIABLE_LENGTH,           /* 09 ExtendedIRQ */
-    ACPI_VARIABLE_LENGTH,           /* 0A Qword* address */
-    ACPI_FIXED_LENGTH,              /* 0B Extended* address */
-    ACPI_VARIABLE_LENGTH,           /* 0C Gpio* */
-    ACPI_VARIABLE_LENGTH,           /* 0D PinFunction */
-    ACPI_VARIABLE_LENGTH,           /* 0E *SerialBus */
-    ACPI_VARIABLE_LENGTH,           /* 0F PinConfig */
-    ACPI_VARIABLE_LENGTH,           /* 10 PinGroup */
-    ACPI_VARIABLE_LENGTH,           /* 11 PinGroupFunction */
-    ACPI_VARIABLE_LENGTH,           /* 12 PinGroupConfig */
+	0,
+	ACPI_FIXED_LENGTH,              /* 01 Memory24 */
+	ACPI_FIXED_LENGTH,              /* 02 generic_register */
+	0,
+	ACPI_VARIABLE_LENGTH,           /* 04 vendor_long */
+	ACPI_FIXED_LENGTH,              /* 05 Memory32 */
+	ACPI_FIXED_LENGTH,              /* 06 memory32_fixed */
+	ACPI_VARIABLE_LENGTH,           /* 07 Dword* address */
+	ACPI_VARIABLE_LENGTH,           /* 08 Word* address */
+	ACPI_VARIABLE_LENGTH,           /* 09 extended_IRQ */
+	ACPI_VARIABLE_LENGTH,           /* 0A Qword* address */
+	ACPI_FIXED_LENGTH,              /* 0B Extended* address */
+	ACPI_VARIABLE_LENGTH,           /* 0C Gpio* */
+	ACPI_VARIABLE_LENGTH,           /* 0D pin_function */
+	ACPI_VARIABLE_LENGTH,           /* 0E *serial_bus */
+	ACPI_VARIABLE_LENGTH,           /* 0F pin_config */
+	ACPI_VARIABLE_LENGTH,           /* 10 pin_group */
+	ACPI_VARIABLE_LENGTH,           /* 11 pin_group_function */
+	ACPI_VARIABLE_LENGTH,           /* 12 pin_group_config */
 };
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtWalkAmlResources
+ * FUNCTION:    acpi_ut_walk_aml_resources
  *
- * PARAMETERS:  WalkState           - Current walk info
- * PARAMETERS:  Aml                 - Pointer to the raw AML resource template
- *              AmlLength           - Length of the entire template
- *              UserFunction        - Called once for each descriptor found. If
- *                                    NULL, a pointer to the EndTag is returned
- *              Context             - Passed to UserFunction
+ * PARAMETERS:  walk_state          - Current walk info
+ * PARAMETERS:  aml                 - Pointer to the raw AML resource template
+ *              aml_length          - Length of the entire template
+ *              user_function       - Called once for each descriptor found. If
+ *                                    NULL, a pointer to the end_tag is returned
+ *              context             - Passed to user_function
  *
  * RETURN:      Status
  *
@@ -285,129 +142,121 @@ static const UINT8          AcpiGbl_ResourceTypes[] =
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiUtWalkAmlResources (
-    ACPI_WALK_STATE         *WalkState,
-    UINT8                   *Aml,
-    ACPI_SIZE               AmlLength,
-    ACPI_WALK_AML_CALLBACK  UserFunction,
-    void                    **Context)
+acpi_status
+acpi_ut_walk_aml_resources (
+	struct acpi_walk_state          *walk_state,
+	u8                              *aml,
+	acpi_size                       aml_length,
+	acpi_walk_aml_callback          user_function,
+	void                            **context)
 {
-    ACPI_STATUS             Status;
-    UINT8                   *EndAml;
-    UINT8                   ResourceIndex;
-    UINT32                  Length;
-    UINT32                  Offset = 0;
-    UINT8                   EndTag[2] = {0x79, 0x00};
+	acpi_status                     status;
+	u8                              *end_aml;
+	u8                              resource_index;
+	u32                             length;
+	u32                             offset = 0;
+	u8                              end_tag[2] = {0x79, 0x00};
 
 
-    ACPI_FUNCTION_TRACE (UtWalkAmlResources);
+	ACPI_FUNCTION_TRACE (ut_walk_aml_resources);
 
 
-    /* The absolute minimum resource template is one EndTag descriptor */
+	/* The absolute minimum resource template is one end_tag descriptor */
 
-    if (AmlLength < sizeof (AML_RESOURCE_END_TAG))
-    {
-        return_ACPI_STATUS (AE_AML_NO_RESOURCE_END_TAG);
-    }
+	if (aml_length < sizeof (struct aml_resource_end_tag)) {
+		return_ACPI_STATUS (AE_AML_NO_RESOURCE_END_TAG);
+	}
 
-    /* Point to the end of the resource template buffer */
+	/* Point to the end of the resource template buffer */
 
-    EndAml = Aml + AmlLength;
+	end_aml = aml + aml_length;
 
-    /* Walk the byte list, abort on any invalid descriptor type or length */
+	/* Walk the byte list, abort on any invalid descriptor type or length */
 
-    while (Aml < EndAml)
-    {
-        /* Validate the Resource Type and Resource Length */
+	while (aml < end_aml) {
 
-        Status = AcpiUtValidateResource (WalkState, Aml, &ResourceIndex);
-        if (ACPI_FAILURE (Status))
-        {
-            /*
-             * Exit on failure. Cannot continue because the descriptor
-             * length may be bogus also.
-             */
-            return_ACPI_STATUS (Status);
-        }
+		/* Validate the Resource Type and Resource Length */
 
-        /* Get the length of this descriptor */
+		status = acpi_ut_validate_resource (walk_state, aml, &resource_index);
+		if (ACPI_FAILURE (status)) {
+			/*
+			 * Exit on failure. Cannot continue because the descriptor
+			 * length may be bogus also.
+			 */
+			return_ACPI_STATUS (status);
+		}
 
-        Length = AcpiUtGetDescriptorLength (Aml);
+		/* Get the length of this descriptor */
 
-        /* Invoke the user function */
+		length = acpi_ut_get_descriptor_length (aml);
 
-        if (UserFunction)
-        {
-            Status = UserFunction (
-                Aml, Length, Offset, ResourceIndex, Context);
-            if (ACPI_FAILURE (Status))
-            {
-                return_ACPI_STATUS (Status);
-            }
-        }
+		/* Invoke the user function */
 
-        /* An EndTag descriptor terminates this resource template */
+		if (user_function) {
+			status = user_function (
+				aml, length, offset, resource_index, context);
+			if (ACPI_FAILURE (status)) {
+				return_ACPI_STATUS (status);
+			}
+		}
 
-        if (AcpiUtGetResourceType (Aml) == ACPI_RESOURCE_NAME_END_TAG)
-        {
-            /*
-             * There must be at least one more byte in the buffer for
-             * the 2nd byte of the EndTag
-             */
-            if ((Aml + 1) >= EndAml)
-            {
-                return_ACPI_STATUS (AE_AML_NO_RESOURCE_END_TAG);
-            }
+		/* An end_tag descriptor terminates this resource template */
 
-            /*
-             * Don't attempt to perform any validation on the 2nd byte.
-             * Although all known ASL compilers insert a zero for the 2nd
-             * byte, it can also be a checksum (as per the ACPI spec),
-             * and this is occasionally seen in the field. July 2017.
-             */
+		if (acpi_ut_get_resource_type (aml) == ACPI_RESOURCE_NAME_END_TAG) {
+			/*
+			 * There must be at least one more byte in the buffer for
+			 * the 2nd byte of the end_tag
+			 */
+			if ((aml + 1) >= end_aml) {
+				return_ACPI_STATUS (AE_AML_NO_RESOURCE_END_TAG);
+			}
 
-            /* Return the pointer to the EndTag if requested */
+			/*
+			 * Don't attempt to perform any validation on the 2nd byte.
+			 * Although all known ASL compilers insert a zero for the 2nd
+			 * byte, it can also be a checksum (as per the ACPI spec),
+			 * and this is occasionally seen in the field. July 2017.
+			 */
 
-            if (!UserFunction)
-            {
-                *Context = Aml;
-            }
+			/* Return the pointer to the end_tag if requested */
 
-            /* Normal exit */
+			if (!user_function) {
+				*context = aml;
+			}
 
-            return_ACPI_STATUS (AE_OK);
-        }
+			/* Normal exit */
 
-        Aml += Length;
-        Offset += Length;
-    }
+			return_ACPI_STATUS (AE_OK);
+		}
 
-    /* Did not find an EndTag descriptor */
+		aml += length;
+		offset += length;
+	}
 
-    if (UserFunction)
-    {
-        /* Insert an EndTag anyway. AcpiRsGetListLength always leaves room */
+	/* Did not find an end_tag descriptor */
 
-        (void) AcpiUtValidateResource (WalkState, EndTag, &ResourceIndex);
-        Status = UserFunction (EndTag, 2, Offset, ResourceIndex, Context);
-        if (ACPI_FAILURE (Status))
-        {
-            return_ACPI_STATUS (Status);
-        }
-    }
+	if (user_function) {
 
-    return_ACPI_STATUS (AE_AML_NO_RESOURCE_END_TAG);
+		/* Insert an end_tag anyway. acpi_rs_get_list_length always leaves room */
+
+		(void) acpi_ut_validate_resource (walk_state, end_tag, &resource_index);
+		status = user_function (end_tag, 2, offset, resource_index, context);
+		if (ACPI_FAILURE (status)) {
+			return_ACPI_STATUS (status);
+		}
+	}
+
+	return_ACPI_STATUS (AE_AML_NO_RESOURCE_END_TAG);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtValidateResource
+ * FUNCTION:    acpi_ut_validate_resource
  *
- * PARAMETERS:  WalkState           - Current walk info
- *              Aml                 - Pointer to the raw AML resource descriptor
- *              ReturnIndex         - Where the resource index is returned. NULL
+ * PARAMETERS:  walk_state          - Current walk info
+ *              aml                 - Pointer to the raw AML resource descriptor
+ *              return_index        - Where the resource index is returned. NULL
  *                                    if the index is not required.
  *
  * RETURN:      Status, and optionally the Index into the global resource tables
@@ -418,170 +267,158 @@ AcpiUtWalkAmlResources (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiUtValidateResource (
-    ACPI_WALK_STATE         *WalkState,
-    void                    *Aml,
-    UINT8                   *ReturnIndex)
+acpi_status
+acpi_ut_validate_resource (
+	struct acpi_walk_state          *walk_state,
+	void                            *aml,
+	u8                              *return_index)
 {
-    AML_RESOURCE            *AmlResource;
-    UINT8                   ResourceType;
-    UINT8                   ResourceIndex;
-    ACPI_RS_LENGTH          ResourceLength;
-    ACPI_RS_LENGTH          MinimumResourceLength;
+	union aml_resource              *aml_resource;
+	u8                              resource_type;
+	u8                              resource_index;
+	acpi_rs_length                  resource_length;
+	acpi_rs_length                  minimum_resource_length;
 
 
-    ACPI_FUNCTION_ENTRY ();
+	ACPI_FUNCTION_ENTRY ();
 
 
-    /*
-     * 1) Validate the ResourceType field (Byte 0)
-     */
-    ResourceType = ACPI_GET8 (Aml);
+	/*
+	 * 1) Validate the resource_type field (Byte 0)
+	 */
+	resource_type = ACPI_GET8 (aml);
 
-    /*
-     * Byte 0 contains the descriptor name (Resource Type)
-     * Examine the large/small bit in the resource header
-     */
-    if (ResourceType & ACPI_RESOURCE_NAME_LARGE)
-    {
-        /* Verify the large resource type (name) against the max */
+	/*
+	 * Byte 0 contains the descriptor name (Resource Type)
+	 * Examine the large/small bit in the resource header
+	 */
+	if (resource_type & ACPI_RESOURCE_NAME_LARGE) {
 
-        if (ResourceType > ACPI_RESOURCE_NAME_LARGE_MAX)
-        {
-            goto InvalidResource;
-        }
+		/* Verify the large resource type (name) against the max */
 
-        /*
-         * Large Resource Type -- bits 6:0 contain the name
-         * Translate range 0x80-0x8B to index range 0x10-0x1B
-         */
-        ResourceIndex = (UINT8) (ResourceType - 0x70);
-    }
-    else
-    {
-        /*
-         * Small Resource Type -- bits 6:3 contain the name
-         * Shift range to index range 0x00-0x0F
-         */
-        ResourceIndex = (UINT8)
-            ((ResourceType & ACPI_RESOURCE_NAME_SMALL_MASK) >> 3);
-    }
+		if (resource_type > ACPI_RESOURCE_NAME_LARGE_MAX) {
+			goto invalid_resource;
+		}
 
-    /*
-     * Check validity of the resource type, via AcpiGbl_ResourceTypes.
-     * Zero indicates an invalid resource.
-     */
-    if (!AcpiGbl_ResourceTypes[ResourceIndex])
-    {
-        goto InvalidResource;
-    }
+		/*
+		 * Large Resource Type -- bits 6:0 contain the name
+		 * Translate range 0x80-0x8B to index range 0x10-0x1B
+		 */
+		resource_index = (u8) (resource_type - 0x70);
+	}
+	else {
+		/*
+		 * Small Resource Type -- bits 6:3 contain the name
+		 * Shift range to index range 0x00-0x0F
+		 */
+		resource_index = (u8)
+			((resource_type & ACPI_RESOURCE_NAME_SMALL_MASK) >> 3);
+	}
 
-    /*
-     * Validate the ResourceLength field. This ensures that the length
-     * is at least reasonable, and guarantees that it is non-zero.
-     */
-    ResourceLength = AcpiUtGetResourceLength (Aml);
-    MinimumResourceLength = AcpiGbl_ResourceAmlSizes[ResourceIndex];
+	/*
+	 * Check validity of the resource type, via acpi_gbl_resource_types.
+	 * Zero indicates an invalid resource.
+	 */
+	if (!acpi_gbl_resource_types[resource_index]) {
+		goto invalid_resource;
+	}
 
-    /* Validate based upon the type of resource - fixed length or variable */
+	/*
+	 * Validate the resource_length field. This ensures that the length
+	 * is at least reasonable, and guarantees that it is non-zero.
+	 */
+	resource_length = acpi_ut_get_resource_length (aml);
+	minimum_resource_length = acpi_gbl_resource_aml_sizes[resource_index];
 
-    switch (AcpiGbl_ResourceTypes[ResourceIndex])
-    {
-    case ACPI_FIXED_LENGTH:
+	/* Validate based upon the type of resource - fixed length or variable */
 
-        /* Fixed length resource, length must match exactly */
+	switch (acpi_gbl_resource_types[resource_index]) {
+	case ACPI_FIXED_LENGTH:
 
-        if (ResourceLength != MinimumResourceLength)
-        {
-            goto BadResourceLength;
-        }
-        break;
+		/* Fixed length resource, length must match exactly */
 
-    case ACPI_VARIABLE_LENGTH:
+		if (resource_length != minimum_resource_length) {
+			goto bad_resource_length;
+		}
+		break;
 
-        /* Variable length resource, length must be at least the minimum */
+	case ACPI_VARIABLE_LENGTH:
 
-        if (ResourceLength < MinimumResourceLength)
-        {
-            goto BadResourceLength;
-        }
-        break;
+		/* Variable length resource, length must be at least the minimum */
 
-    case ACPI_SMALL_VARIABLE_LENGTH:
+		if (resource_length < minimum_resource_length) {
+			goto bad_resource_length;
+		}
+		break;
 
-        /* Small variable length resource, length can be (Min) or (Min-1) */
+	case ACPI_SMALL_VARIABLE_LENGTH:
 
-        if ((ResourceLength > MinimumResourceLength) ||
-            (ResourceLength < (MinimumResourceLength - 1)))
-        {
-            goto BadResourceLength;
-        }
-        break;
+		/* Small variable length resource, length can be (Min) or (Min-1) */
 
-    default:
+		if ((resource_length > minimum_resource_length) ||
+			(resource_length < (minimum_resource_length - 1))) {
+			goto bad_resource_length;
+		}
+		break;
 
-        /* Shouldn't happen (because of validation earlier), but be sure */
+	default:
 
-        goto InvalidResource;
-    }
+		/* Shouldn't happen (because of validation earlier), but be sure */
 
-    AmlResource = ACPI_CAST_PTR (AML_RESOURCE, Aml);
-    if (ResourceType == ACPI_RESOURCE_NAME_SERIAL_BUS)
-    {
-        /* Validate the BusType field */
+		goto invalid_resource;
+	}
 
-        if ((AmlResource->CommonSerialBus.Type == 0) ||
-            (AmlResource->CommonSerialBus.Type > AML_RESOURCE_MAX_SERIALBUSTYPE))
-        {
-            if (WalkState)
-            {
-                ACPI_ERROR ((AE_INFO,
-                    "Invalid/unsupported SerialBus resource descriptor: BusType 0x%2.2X",
-                    AmlResource->CommonSerialBus.Type));
-            }
-            return (AE_AML_INVALID_RESOURCE_TYPE);
-        }
-    }
+	aml_resource = ACPI_CAST_PTR (union aml_resource, aml);
+	if (resource_type == ACPI_RESOURCE_NAME_SERIAL_BUS) {
 
-    /* Optionally return the resource table index */
+		/* Validate the bus_type field */
 
-    if (ReturnIndex)
-    {
-        *ReturnIndex = ResourceIndex;
-    }
+		if ((aml_resource->common_serial_bus.type == 0) ||
+			(aml_resource->common_serial_bus.type > AML_RESOURCE_MAX_SERIALBUSTYPE)) {
+			if (walk_state) {
+				ACPI_ERROR ((AE_INFO,
+					"Invalid/unsupported SerialBus resource descriptor: BusType 0x%2.2X",
+					aml_resource->common_serial_bus.type));
+			}
+			return (AE_AML_INVALID_RESOURCE_TYPE);
+		}
+	}
 
-    return (AE_OK);
+	/* Optionally return the resource table index */
+
+	if (return_index) {
+		*return_index = resource_index;
+	}
+
+	return (AE_OK);
 
 
-InvalidResource:
+invalid_resource:
 
-    if (WalkState)
-    {
-        ACPI_ERROR ((AE_INFO,
-            "Invalid/unsupported resource descriptor: Type 0x%2.2X",
-            ResourceType));
-    }
-    return (AE_AML_INVALID_RESOURCE_TYPE);
+	if (walk_state) {
+		ACPI_ERROR ((AE_INFO,
+			"Invalid/unsupported resource descriptor: Type 0x%2.2X",
+			resource_type));
+	}
+	return (AE_AML_INVALID_RESOURCE_TYPE);
 
-BadResourceLength:
+bad_resource_length:
 
-    if (WalkState)
-    {
-        ACPI_ERROR ((AE_INFO,
-            "Invalid resource descriptor length: Type "
-            "0x%2.2X, Length 0x%4.4X, MinLength 0x%4.4X",
-            ResourceType, ResourceLength, MinimumResourceLength));
-    }
-    return (AE_AML_BAD_RESOURCE_LENGTH);
+	if (walk_state) {
+		ACPI_ERROR ((AE_INFO,
+			"Invalid resource descriptor length: Type "
+			"0x%2.2X, Length 0x%4.4X, MinLength 0x%4.4X",
+			resource_type, resource_length, minimum_resource_length));
+	}
+	return (AE_AML_BAD_RESOURCE_LENGTH);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtGetResourceType
+ * FUNCTION:    acpi_ut_get_resource_type
  *
- * PARAMETERS:  Aml             - Pointer to the raw AML resource descriptor
+ * PARAMETERS:  aml             - Pointer to the raw AML resource descriptor
  *
  * RETURN:      The Resource Type with no extraneous bits (except the
  *              Large/Small descriptor bit -- this is left alone)
@@ -591,37 +428,36 @@ BadResourceLength:
  *
  ******************************************************************************/
 
-UINT8
-AcpiUtGetResourceType (
-    void                    *Aml)
+u8
+acpi_ut_get_resource_type (
+	void                            *aml)
 {
-    ACPI_FUNCTION_ENTRY ();
+	ACPI_FUNCTION_ENTRY ();
 
 
-    /*
-     * Byte 0 contains the descriptor name (Resource Type)
-     * Examine the large/small bit in the resource header
-     */
-    if (ACPI_GET8 (Aml) & ACPI_RESOURCE_NAME_LARGE)
-    {
-        /* Large Resource Type -- bits 6:0 contain the name */
+	/*
+	 * Byte 0 contains the descriptor name (Resource Type)
+	 * Examine the large/small bit in the resource header
+	 */
+	if (ACPI_GET8 (aml) & ACPI_RESOURCE_NAME_LARGE) {
 
-        return (ACPI_GET8 (Aml));
-    }
-    else
-    {
-        /* Small Resource Type -- bits 6:3 contain the name */
+		/* Large Resource Type -- bits 6:0 contain the name */
 
-        return ((UINT8) (ACPI_GET8 (Aml) & ACPI_RESOURCE_NAME_SMALL_MASK));
-    }
+		return (ACPI_GET8 (aml));
+	}
+	else {
+		/* Small Resource Type -- bits 6:3 contain the name */
+
+		return ((u8) (ACPI_GET8 (aml) & ACPI_RESOURCE_NAME_SMALL_MASK));
+	}
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtGetResourceLength
+ * FUNCTION:    acpi_ut_get_resource_length
  *
- * PARAMETERS:  Aml             - Pointer to the raw AML resource descriptor
+ * PARAMETERS:  aml             - Pointer to the raw AML resource descriptor
  *
  * RETURN:      Byte Length
  *
@@ -631,44 +467,43 @@ AcpiUtGetResourceType (
  *
  ******************************************************************************/
 
-UINT16
-AcpiUtGetResourceLength (
-    void                    *Aml)
+u16
+acpi_ut_get_resource_length (
+	void                            *aml)
 {
-    ACPI_RS_LENGTH          ResourceLength;
+	acpi_rs_length                  resource_length;
 
 
-    ACPI_FUNCTION_ENTRY ();
+	ACPI_FUNCTION_ENTRY ();
 
 
-    /*
-     * Byte 0 contains the descriptor name (Resource Type)
-     * Examine the large/small bit in the resource header
-     */
-    if (ACPI_GET8 (Aml) & ACPI_RESOURCE_NAME_LARGE)
-    {
-        /* Large Resource type -- bytes 1-2 contain the 16-bit length */
+	/*
+	 * Byte 0 contains the descriptor name (Resource Type)
+	 * Examine the large/small bit in the resource header
+	 */
+	if (ACPI_GET8 (aml) & ACPI_RESOURCE_NAME_LARGE) {
 
-        ACPI_MOVE_16_TO_16 (&ResourceLength, ACPI_ADD_PTR (UINT8, Aml, 1));
+		/* Large Resource type -- bytes 1-2 contain the 16-bit length */
 
-    }
-    else
-    {
-        /* Small Resource type -- bits 2:0 of byte 0 contain the length */
+		ACPI_MOVE_16_TO_16 (&resource_length, ACPI_ADD_PTR (u8, aml, 1));
 
-        ResourceLength = (UINT16) (ACPI_GET8 (Aml) &
-            ACPI_RESOURCE_NAME_SMALL_LENGTH_MASK);
-    }
+	}
+	else {
+		/* Small Resource type -- bits 2:0 of byte 0 contain the length */
 
-    return (ResourceLength);
+		resource_length = (u16) (ACPI_GET8 (aml) &
+			ACPI_RESOURCE_NAME_SMALL_LENGTH_MASK);
+	}
+
+	return (resource_length);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtGetResourceHeaderLength
+ * FUNCTION:    acpi_ut_get_resource_header_length
  *
- * PARAMETERS:  Aml             - Pointer to the raw AML resource descriptor
+ * PARAMETERS:  aml             - Pointer to the raw AML resource descriptor
  *
  * RETURN:      Length of the AML header (depends on large/small descriptor)
  *
@@ -676,31 +511,29 @@ AcpiUtGetResourceLength (
  *
  ******************************************************************************/
 
-UINT8
-AcpiUtGetResourceHeaderLength (
-    void                    *Aml)
+u8
+acpi_ut_get_resource_header_length (
+	void                            *aml)
 {
-    ACPI_FUNCTION_ENTRY ();
+	ACPI_FUNCTION_ENTRY ();
 
 
-    /* Examine the large/small bit in the resource header */
+	/* Examine the large/small bit in the resource header */
 
-    if (ACPI_GET8 (Aml) & ACPI_RESOURCE_NAME_LARGE)
-    {
-        return (sizeof (AML_RESOURCE_LARGE_HEADER));
-    }
-    else
-    {
-        return (sizeof (AML_RESOURCE_SMALL_HEADER));
-    }
+	if (ACPI_GET8 (aml) & ACPI_RESOURCE_NAME_LARGE) {
+		return (sizeof (struct aml_resource_large_header));
+	}
+	else {
+		return (sizeof (struct aml_resource_small_header));
+	}
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtGetDescriptorLength
+ * FUNCTION:    acpi_ut_get_descriptor_length
  *
- * PARAMETERS:  Aml             - Pointer to the raw AML resource descriptor
+ * PARAMETERS:  aml             - Pointer to the raw AML resource descriptor
  *
  * RETURN:      Byte length
  *
@@ -710,59 +543,58 @@ AcpiUtGetResourceHeaderLength (
  *
  ******************************************************************************/
 
-UINT32
-AcpiUtGetDescriptorLength (
-    void                    *Aml)
+u32
+acpi_ut_get_descriptor_length (
+	void                            *aml)
 {
-    ACPI_FUNCTION_ENTRY ();
+	ACPI_FUNCTION_ENTRY ();
 
 
-    /*
-     * Get the Resource Length (does not include header length) and add
-     * the header length (depends on if this is a small or large resource)
-     */
-    return (AcpiUtGetResourceLength (Aml) +
-        AcpiUtGetResourceHeaderLength (Aml));
+	/*
+	 * Get the Resource Length (does not include header length) and add
+	 * the header length (depends on if this is a small or large resource)
+	 */
+	return (acpi_ut_get_resource_length (aml) +
+		acpi_ut_get_resource_header_length (aml));
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtGetResourceEndTag
+ * FUNCTION:    acpi_ut_get_resource_end_tag
  *
- * PARAMETERS:  ObjDesc         - The resource template buffer object
- *              EndTag          - Where the pointer to the EndTag is returned
+ * PARAMETERS:  obj_desc        - The resource template buffer object
+ *              end_tag         - Where the pointer to the end_tag is returned
  *
  * RETURN:      Status, pointer to the end tag
  *
- * DESCRIPTION: Find the EndTag resource descriptor in an AML resource template
+ * DESCRIPTION: Find the end_tag resource descriptor in an AML resource template
  *              Note: allows a buffer length of zero.
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiUtGetResourceEndTag (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    UINT8                   **EndTag)
+acpi_status
+acpi_ut_get_resource_end_tag (
+	union acpi_operand_object       *obj_desc,
+	u8                              **end_tag)
 {
-    ACPI_STATUS             Status;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE (UtGetResourceEndTag);
+	ACPI_FUNCTION_TRACE (ut_get_resource_end_tag);
 
 
-    /* Allow a buffer length of zero */
+	/* Allow a buffer length of zero */
 
-    if (!ObjDesc->Buffer.Length)
-    {
-        *EndTag = ObjDesc->Buffer.Pointer;
-        return_ACPI_STATUS (AE_OK);
-    }
+	if (!obj_desc->buffer.length) {
+		*end_tag = obj_desc->buffer.pointer;
+		return_ACPI_STATUS (AE_OK);
+	}
 
-    /* Validate the template and get a pointer to the EndTag */
+	/* Validate the template and get a pointer to the end_tag */
 
-    Status = AcpiUtWalkAmlResources (NULL, ObjDesc->Buffer.Pointer,
-        ObjDesc->Buffer.Length, NULL, (void **) EndTag);
+	status = acpi_ut_walk_aml_resources (NULL, obj_desc->buffer.pointer,
+		obj_desc->buffer.length, NULL, (void **) end_tag);
 
-    return_ACPI_STATUS (Status);
+	return_ACPI_STATUS (status);
 }

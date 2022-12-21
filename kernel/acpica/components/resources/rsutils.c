@@ -1,153 +1,10 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /*******************************************************************************
  *
  * Module Name: rsutils - Utilities for the resource manager
  *
  ******************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #include "acpi.h"
 #include "accommon.h"
@@ -156,15 +13,15 @@
 
 
 #define _COMPONENT          ACPI_RESOURCES
-        ACPI_MODULE_NAME    ("rsutils")
+	 ACPI_MODULE_NAME    ("rsutils")
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiRsDecodeBitmask
+ * FUNCTION:    acpi_rs_decode_bitmask
  *
- * PARAMETERS:  Mask            - Bitmask to decode
- *              List            - Where the converted list is returned
+ * PARAMETERS:  mask            - Bitmask to decode
+ *              list            - Where the converted list is returned
  *
  * RETURN:      Count of bits set (length of list)
  *
@@ -172,41 +29,39 @@
  *
  ******************************************************************************/
 
-UINT8
-AcpiRsDecodeBitmask (
-    UINT16                  Mask,
-    UINT8                   *List)
+u8
+acpi_rs_decode_bitmask (
+	u16                             mask,
+	u8                              *list)
 {
-    UINT8                   i;
-    UINT8                   BitCount;
+	u8                              i;
+	u8                              bit_count;
 
 
-    ACPI_FUNCTION_ENTRY ();
+	ACPI_FUNCTION_ENTRY ();
 
 
-    /* Decode the mask bits */
+	/* Decode the mask bits */
 
-    for (i = 0, BitCount = 0; Mask; i++)
-    {
-        if (Mask & 0x0001)
-        {
-            List[BitCount] = i;
-            BitCount++;
-        }
+	for (i = 0, bit_count = 0; mask; i++) {
+		if (mask & 0x0001) {
+			list[bit_count] = i;
+			bit_count++;
+		}
 
-        Mask >>= 1;
-    }
+		mask >>= 1;
+	}
 
-    return (BitCount);
+	return (bit_count);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiRsEncodeBitmask
+ * FUNCTION:    acpi_rs_encode_bitmask
  *
- * PARAMETERS:  List            - List of values to encode
- *              Count           - Length of list
+ * PARAMETERS:  list            - List of values to encode
+ *              count           - Length of list
  *
  * RETURN:      Encoded bitmask
  *
@@ -214,37 +69,36 @@ AcpiRsDecodeBitmask (
  *
  ******************************************************************************/
 
-UINT16
-AcpiRsEncodeBitmask (
-    UINT8                   *List,
-    UINT8                   Count)
+u16
+acpi_rs_encode_bitmask (
+	u8                              *list,
+	u8                              count)
 {
-    UINT32                  i;
-    UINT16                  Mask;
+	u32                             i;
+	u16                             mask;
 
 
-    ACPI_FUNCTION_ENTRY ();
+	ACPI_FUNCTION_ENTRY ();
 
 
-    /* Encode the list into a single bitmask */
+	/* Encode the list into a single bitmask */
 
-    for (i = 0, Mask = 0; i < Count; i++)
-    {
-        Mask |= (0x1 << List[i]);
-    }
+	for (i = 0, mask = 0; i < count; i++) {
+		mask |= (0x1 << list[i]);
+	}
 
-    return (Mask);
+	return (mask);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiRsMoveData
+ * FUNCTION:    acpi_rs_move_data
  *
- * PARAMETERS:  Destination         - Pointer to the destination descriptor
- *              Source              - Pointer to the source descriptor
- *              ItemCount           - How many items to move
- *              MoveType            - Byte width
+ * PARAMETERS:  destination         - Pointer to the destination descriptor
+ *              source              - Pointer to the source descriptor
+ *              item_count          - How many items to move
+ *              move_type           - Byte width
  *
  * RETURN:      None
  *
@@ -255,82 +109,80 @@ AcpiRsEncodeBitmask (
  ******************************************************************************/
 
 void
-AcpiRsMoveData (
-    void                    *Destination,
-    void                    *Source,
-    UINT16                  ItemCount,
-    UINT8                   MoveType)
+acpi_rs_move_data (
+	void                            *destination,
+	void                            *source,
+	u16                             item_count,
+	u8                              move_type)
 {
-    UINT32                  i;
+	u32                             i;
 
 
-    ACPI_FUNCTION_ENTRY ();
+	ACPI_FUNCTION_ENTRY ();
 
 
-    /* One move per item */
+	/* One move per item */
 
-    for (i = 0; i < ItemCount; i++)
-    {
-        switch (MoveType)
-        {
-        /*
-         * For the 8-bit case, we can perform the move all at once
-         * since there are no alignment or endian issues
-         */
-        case ACPI_RSC_MOVE8:
-        case ACPI_RSC_MOVE_GPIO_RES:
-        case ACPI_RSC_MOVE_SERIAL_VEN:
-        case ACPI_RSC_MOVE_SERIAL_RES:
+	for (i = 0; i < item_count; i++) {
+		switch (move_type) {
+		/*
+		 * For the 8-bit case, we can perform the move all at once
+		 * since there are no alignment or endian issues
+		 */
+		case ACPI_RSC_MOVE8:
+		case ACPI_RSC_MOVE_GPIO_RES:
+		case ACPI_RSC_MOVE_SERIAL_VEN:
+		case ACPI_RSC_MOVE_SERIAL_RES:
 
-            memcpy (Destination, Source, ItemCount);
-            return;
+			memcpy (destination, source, item_count);
+			return;
 
-        /*
-         * 16-, 32-, and 64-bit cases must use the move macros that perform
-         * endian conversion and/or accommodate hardware that cannot perform
-         * misaligned memory transfers
-         */
-        case ACPI_RSC_MOVE16:
-        case ACPI_RSC_MOVE_GPIO_PIN:
+		/*
+		 * 16-, 32-, and 64-bit cases must use the move macros that perform
+		 * endian conversion and/or accommodate hardware that cannot perform
+		 * misaligned memory transfers
+		 */
+		case ACPI_RSC_MOVE16:
+		case ACPI_RSC_MOVE_GPIO_PIN:
 
-            ACPI_MOVE_16_TO_16 (
-                &ACPI_CAST_PTR (UINT16, Destination)[i],
-                &ACPI_CAST_PTR (UINT16, Source)[i]);
-            break;
+			ACPI_MOVE_16_TO_16 (
+				&ACPI_CAST_PTR (u16, destination)[i],
+				&ACPI_CAST_PTR (u16, source)[i]);
+			break;
 
-        case ACPI_RSC_MOVE32:
+		case ACPI_RSC_MOVE32:
 
-            ACPI_MOVE_32_TO_32 (
-                &ACPI_CAST_PTR (UINT32, Destination)[i],
-                &ACPI_CAST_PTR (UINT32, Source)[i]);
-            break;
+			ACPI_MOVE_32_TO_32 (
+				&ACPI_CAST_PTR (u32, destination)[i],
+				&ACPI_CAST_PTR (u32, source)[i]);
+			break;
 
-        case ACPI_RSC_MOVE64:
+		case ACPI_RSC_MOVE64:
 
-            ACPI_MOVE_64_TO_64 (
-                &ACPI_CAST_PTR (UINT64, Destination)[i],
-                &ACPI_CAST_PTR (UINT64, Source)[i]);
-            break;
+			ACPI_MOVE_64_TO_64 (
+				&ACPI_CAST_PTR (u64, destination)[i],
+				&ACPI_CAST_PTR (u64, source)[i]);
+			break;
 
-        default:
+		default:
 
-            return;
-        }
-    }
+			return;
+		}
+	}
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiRsSetResourceLength
+ * FUNCTION:    acpi_rs_set_resource_length
  *
- * PARAMETERS:  TotalLength         - Length of the AML descriptor, including
+ * PARAMETERS:  total_length        - Length of the AML descriptor, including
  *                                    the header and length fields.
- *              Aml                 - Pointer to the raw AML descriptor
+ *              aml                 - Pointer to the raw AML descriptor
  *
  * RETURN:      None
  *
- * DESCRIPTION: Set the ResourceLength field of an AML
+ * DESCRIPTION: Set the resource_length field of an AML
  *              resource descriptor, both Large and Small descriptors are
  *              supported automatically. Note: Descriptor Type field must
  *              be valid.
@@ -338,86 +190,85 @@ AcpiRsMoveData (
  ******************************************************************************/
 
 void
-AcpiRsSetResourceLength (
-    ACPI_RSDESC_SIZE        TotalLength,
-    AML_RESOURCE            *Aml)
+acpi_rs_set_resource_length (
+	acpi_rsdesc_size                total_length,
+	union aml_resource              *aml)
 {
-    ACPI_RS_LENGTH          ResourceLength;
+	acpi_rs_length                  resource_length;
 
 
-    ACPI_FUNCTION_ENTRY ();
+	ACPI_FUNCTION_ENTRY ();
 
 
-    /* Length is the total descriptor length minus the header length */
+	/* Length is the total descriptor length minus the header length */
 
-    ResourceLength = (ACPI_RS_LENGTH)
-        (TotalLength - AcpiUtGetResourceHeaderLength (Aml));
+	resource_length = (acpi_rs_length)
+		(total_length - acpi_ut_get_resource_header_length (aml));
 
-    /* Length is stored differently for large and small descriptors */
+	/* Length is stored differently for large and small descriptors */
 
-    if (Aml->SmallHeader.DescriptorType & ACPI_RESOURCE_NAME_LARGE)
-    {
-        /* Large descriptor -- bytes 1-2 contain the 16-bit length */
+	if (aml->small_header.descriptor_type & ACPI_RESOURCE_NAME_LARGE) {
 
-        ACPI_MOVE_16_TO_16 (
-            &Aml->LargeHeader.ResourceLength, &ResourceLength);
-    }
-    else
-    {
-        /*
-         * Small descriptor -- bits 2:0 of byte 0 contain the length
-         * Clear any existing length, preserving descriptor type bits
-         */
-        Aml->SmallHeader.DescriptorType = (UINT8)
-            ((Aml->SmallHeader.DescriptorType &
-                ~ACPI_RESOURCE_NAME_SMALL_LENGTH_MASK)
-            | ResourceLength);
-    }
+		/* Large descriptor -- bytes 1-2 contain the 16-bit length */
+
+		ACPI_MOVE_16_TO_16 (
+			&aml->large_header.resource_length, &resource_length);
+	}
+	else {
+		/*
+		 * Small descriptor -- bits 2:0 of byte 0 contain the length
+		 * Clear any existing length, preserving descriptor type bits
+		 */
+		aml->small_header.descriptor_type = (u8)
+			((aml->small_header.descriptor_type &
+				~ACPI_RESOURCE_NAME_SMALL_LENGTH_MASK)
+			| resource_length);
+	}
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiRsSetResourceHeader
+ * FUNCTION:    acpi_rs_set_resource_header
  *
- * PARAMETERS:  DescriptorType      - Byte to be inserted as the type
- *              TotalLength         - Length of the AML descriptor, including
+ * PARAMETERS:  descriptor_type     - Byte to be inserted as the type
+ *              total_length        - Length of the AML descriptor, including
  *                                    the header and length fields.
- *              Aml                 - Pointer to the raw AML descriptor
+ *              aml                 - Pointer to the raw AML descriptor
  *
  * RETURN:      None
  *
- * DESCRIPTION: Set the DescriptorType and ResourceLength fields of an AML
+ * DESCRIPTION: Set the descriptor_type and resource_length fields of an AML
  *              resource descriptor, both Large and Small descriptors are
  *              supported automatically
  *
  ******************************************************************************/
 
 void
-AcpiRsSetResourceHeader (
-    UINT8                   DescriptorType,
-    ACPI_RSDESC_SIZE        TotalLength,
-    AML_RESOURCE            *Aml)
+acpi_rs_set_resource_header (
+	u8                              descriptor_type,
+	acpi_rsdesc_size                total_length,
+	union aml_resource              *aml)
 {
-    ACPI_FUNCTION_ENTRY ();
+	ACPI_FUNCTION_ENTRY ();
 
 
-    /* Set the Resource Type */
+	/* Set the Resource Type */
 
-    Aml->SmallHeader.DescriptorType = DescriptorType;
+	aml->small_header.descriptor_type = descriptor_type;
 
-    /* Set the Resource Length */
+	/* Set the Resource Length */
 
-    AcpiRsSetResourceLength (TotalLength, Aml);
+	acpi_rs_set_resource_length (total_length, aml);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiRsStrcpy
+ * FUNCTION:    acpi_rs_strcpy
  *
- * PARAMETERS:  Destination         - Pointer to the destination string
- *              Source              - Pointer to the source string
+ * PARAMETERS:  destination         - Pointer to the destination string
+ *              source              - Pointer to the source string
  *
  * RETURN:      String length, including NULL terminator
  *
@@ -426,193 +277,191 @@ AcpiRsSetResourceHeader (
  *
  ******************************************************************************/
 
-static UINT16
-AcpiRsStrcpy (
-    char                    *Destination,
-    char                    *Source)
+static u16
+acpi_rs_strcpy (
+	char                            *destination,
+	char                            *source)
 {
-    UINT16                  i;
+	u16                             i;
 
 
-    ACPI_FUNCTION_ENTRY ();
+	ACPI_FUNCTION_ENTRY ();
 
 
-    for (i = 0; Source[i]; i++)
-    {
-        Destination[i] = Source[i];
-    }
+	for (i = 0; source[i]; i++) {
+		destination[i] = source[i];
+	}
 
-    Destination[i] = 0;
+	destination[i] = 0;
 
-    /* Return string length including the NULL terminator */
+	/* Return string length including the NULL terminator */
 
-    return ((UINT16) (i + 1));
+	return ((u16) (i + 1));
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiRsGetResourceSource
+ * FUNCTION:    acpi_rs_get_resource_source
  *
- * PARAMETERS:  ResourceLength      - Length field of the descriptor
- *              MinimumLength       - Minimum length of the descriptor (minus
+ * PARAMETERS:  resource_length     - Length field of the descriptor
+ *              minimum_length      - Minimum length of the descriptor (minus
  *                                    any optional fields)
- *              ResourceSource      - Where the ResourceSource is returned
- *              Aml                 - Pointer to the raw AML descriptor
- *              StringPtr           - (optional) where to store the actual
- *                                    ResourceSource string
+ *              resource_source     - Where the resource_source is returned
+ *              aml                 - Pointer to the raw AML descriptor
+ *              string_ptr          - (optional) where to store the actual
+ *                                    resource_source string
  *
  * RETURN:      Length of the string plus NULL terminator, rounded up to native
  *              word boundary
  *
- * DESCRIPTION: Copy the optional ResourceSource data from a raw AML descriptor
+ * DESCRIPTION: Copy the optional resource_source data from a raw AML descriptor
  *              to an internal resource descriptor
  *
  ******************************************************************************/
 
-ACPI_RS_LENGTH
-AcpiRsGetResourceSource (
-    ACPI_RS_LENGTH          ResourceLength,
-    ACPI_RS_LENGTH          MinimumLength,
-    ACPI_RESOURCE_SOURCE    *ResourceSource,
-    AML_RESOURCE            *Aml,
-    char                    *StringPtr)
+acpi_rs_length
+acpi_rs_get_resource_source (
+	acpi_rs_length                  resource_length,
+	acpi_rs_length                  minimum_length,
+	struct acpi_resource_source     *resource_source,
+	union aml_resource              *aml,
+	char                            *string_ptr)
 {
-    ACPI_RSDESC_SIZE        TotalLength;
-    UINT8                   *AmlResourceSource;
+	acpi_rsdesc_size                total_length;
+	u8                              *aml_resource_source;
 
 
-    ACPI_FUNCTION_ENTRY ();
+	ACPI_FUNCTION_ENTRY ();
 
 
-    TotalLength = ResourceLength + sizeof (AML_RESOURCE_LARGE_HEADER);
-    AmlResourceSource = ACPI_ADD_PTR (UINT8, Aml, MinimumLength);
+	total_length = resource_length + sizeof (struct aml_resource_large_header);
+	aml_resource_source = ACPI_ADD_PTR (u8, aml, minimum_length);
 
-    /*
-     * ResourceSource is present if the length of the descriptor is longer
-     * than the minimum length.
-     *
-     * Note: Some resource descriptors will have an additional null, so
-     * we add 1 to the minimum length.
-     */
-    if (TotalLength > (ACPI_RSDESC_SIZE) (MinimumLength + 1))
-    {
-        /* Get the ResourceSourceIndex */
+	/*
+	 * resource_source is present if the length of the descriptor is longer
+	 * than the minimum length.
+	 *
+	 * Note: Some resource descriptors will have an additional null, so
+	 * we add 1 to the minimum length.
+	 */
+	if (total_length > (acpi_rsdesc_size) (minimum_length + 1)) {
 
-        ResourceSource->Index = AmlResourceSource[0];
+		/* Get the resource_source_index */
 
-        ResourceSource->StringPtr = StringPtr;
-        if (!StringPtr)
-        {
-            /*
-             * String destination pointer is not specified; Set the String
-             * pointer to the end of the current ResourceSource structure.
-             */
-            ResourceSource->StringPtr = ACPI_ADD_PTR (
-                char, ResourceSource, sizeof (ACPI_RESOURCE_SOURCE));
-        }
+		resource_source->index = aml_resource_source[0];
 
-        /*
-         * In order for the Resource length to be a multiple of the native
-         * word, calculate the length of the string (+1 for NULL terminator)
-         * and expand to the next word multiple.
-         *
-         * Zero the entire area of the buffer.
-         */
-        TotalLength = (UINT32) strlen (
-            ACPI_CAST_PTR (char, &AmlResourceSource[1])) + 1;
+		resource_source->string_ptr = string_ptr;
+		if (!string_ptr) {
+			/*
+			 * String destination pointer is not specified; Set the String
+			 * pointer to the end of the current resource_source structure.
+			 */
+			resource_source->string_ptr = ACPI_ADD_PTR (
+				char, resource_source, sizeof (struct acpi_resource_source));
+		}
 
-        TotalLength = (UINT32) ACPI_ROUND_UP_TO_NATIVE_WORD (TotalLength);
+		/*
+		 * In order for the Resource length to be a multiple of the native
+		 * word, calculate the length of the string (+1 for NULL terminator)
+		 * and expand to the next word multiple.
+		 *
+		 * Zero the entire area of the buffer.
+		 */
+		total_length = (u32) strlen (
+			ACPI_CAST_PTR (char, &aml_resource_source[1])) + 1;
 
-        memset (ResourceSource->StringPtr, 0, TotalLength);
+		total_length = (u32) ACPI_ROUND_UP_TO_NATIVE_WORD (total_length);
 
-        /* Copy the ResourceSource string to the destination */
+		memset (resource_source->string_ptr, 0, total_length);
 
-        ResourceSource->StringLength = AcpiRsStrcpy (
-            ResourceSource->StringPtr,
-            ACPI_CAST_PTR (char, &AmlResourceSource[1]));
+		/* Copy the resource_source string to the destination */
 
-        return ((ACPI_RS_LENGTH) TotalLength);
-    }
+		resource_source->string_length = acpi_rs_strcpy (
+			resource_source->string_ptr,
+			ACPI_CAST_PTR (char, &aml_resource_source[1]));
 
-    /* ResourceSource is not present */
+		return ((acpi_rs_length) total_length);
+	}
 
-    ResourceSource->Index = 0;
-    ResourceSource->StringLength = 0;
-    ResourceSource->StringPtr = NULL;
-    return (0);
+	/* resource_source is not present */
+
+	resource_source->index = 0;
+	resource_source->string_length = 0;
+	resource_source->string_ptr = NULL;
+	return (0);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiRsSetResourceSource
+ * FUNCTION:    acpi_rs_set_resource_source
  *
- * PARAMETERS:  Aml                 - Pointer to the raw AML descriptor
- *              MinimumLength       - Minimum length of the descriptor (minus
+ * PARAMETERS:  aml                 - Pointer to the raw AML descriptor
+ *              minimum_length      - Minimum length of the descriptor (minus
  *                                    any optional fields)
- *              ResourceSource      - Internal ResourceSource
+ *              resource_source     - Internal resource_source
 
  *
  * RETURN:      Total length of the AML descriptor
  *
- * DESCRIPTION: Convert an optional ResourceSource from internal format to a
+ * DESCRIPTION: Convert an optional resource_source from internal format to a
  *              raw AML resource descriptor
  *
  ******************************************************************************/
 
-ACPI_RSDESC_SIZE
-AcpiRsSetResourceSource (
-    AML_RESOURCE            *Aml,
-    ACPI_RS_LENGTH          MinimumLength,
-    ACPI_RESOURCE_SOURCE    *ResourceSource)
+acpi_rsdesc_size
+acpi_rs_set_resource_source (
+	union aml_resource              *aml,
+	acpi_rs_length                  minimum_length,
+	struct acpi_resource_source     *resource_source)
 {
-    UINT8                   *AmlResourceSource;
-    ACPI_RSDESC_SIZE        DescriptorLength;
+	u8                              *aml_resource_source;
+	acpi_rsdesc_size                descriptor_length;
 
 
-    ACPI_FUNCTION_ENTRY ();
+	ACPI_FUNCTION_ENTRY ();
 
 
-    DescriptorLength = MinimumLength;
+	descriptor_length = minimum_length;
 
-    /* Non-zero string length indicates presence of a ResourceSource */
+	/* Non-zero string length indicates presence of a resource_source */
 
-    if (ResourceSource->StringLength)
-    {
-        /* Point to the end of the AML descriptor */
+	if (resource_source->string_length) {
 
-        AmlResourceSource = ACPI_ADD_PTR (UINT8, Aml, MinimumLength);
+		/* Point to the end of the AML descriptor */
 
-        /* Copy the ResourceSourceIndex */
+		aml_resource_source = ACPI_ADD_PTR (u8, aml, minimum_length);
 
-        AmlResourceSource[0] = (UINT8) ResourceSource->Index;
+		/* Copy the resource_source_index */
 
-        /* Copy the ResourceSource string */
+		aml_resource_source[0] = (u8) resource_source->index;
 
-        strcpy (ACPI_CAST_PTR (char, &AmlResourceSource[1]),
-            ResourceSource->StringPtr);
+		/* Copy the resource_source string */
 
-        /*
-         * Add the length of the string (+ 1 for null terminator) to the
-         * final descriptor length
-         */
-        DescriptorLength += ((ACPI_RSDESC_SIZE)
-            ResourceSource->StringLength + 1);
-    }
+		strcpy (ACPI_CAST_PTR (char, &aml_resource_source[1]),
+			resource_source->string_ptr);
 
-    /* Return the new total length of the AML descriptor */
+		/*
+		 * Add the length of the string (+ 1 for null terminator) to the
+		 * final descriptor length
+		 */
+		descriptor_length += ((acpi_rsdesc_size)
+			resource_source->string_length + 1);
+	}
 
-    return (DescriptorLength);
+	/* Return the new total length of the AML descriptor */
+
+	return (descriptor_length);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiRsGetPrtMethodData
+ * FUNCTION:    acpi_rs_get_prt_method_data
  *
- * PARAMETERS:  Node            - Device node
- *              RetBuffer       - Pointer to a buffer structure for the
+ * PARAMETERS:  node            - Device node
+ *              ret_buffer      - Pointer to a buffer structure for the
  *                                results
  *
  * RETURN:      Status
@@ -625,48 +474,47 @@ AcpiRsSetResourceSource (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiRsGetPrtMethodData (
-    ACPI_NAMESPACE_NODE     *Node,
-    ACPI_BUFFER             *RetBuffer)
+acpi_status
+acpi_rs_get_prt_method_data (
+	struct acpi_namespace_node      *node,
+	struct acpi_buffer              *ret_buffer)
 {
-    ACPI_OPERAND_OBJECT     *ObjDesc;
-    ACPI_STATUS             Status;
+	union acpi_operand_object       *obj_desc;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE (RsGetPrtMethodData);
+	ACPI_FUNCTION_TRACE (rs_get_prt_method_data);
 
 
-    /* Parameters guaranteed valid by caller */
+	/* Parameters guaranteed valid by caller */
 
-    /* Execute the method, no parameters */
+	/* Execute the method, no parameters */
 
-    Status = AcpiUtEvaluateObject (
-        Node, METHOD_NAME__PRT, ACPI_BTYPE_PACKAGE, &ObjDesc);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_ut_evaluate_object (
+		node, METHOD_NAME__PRT, ACPI_BTYPE_PACKAGE, &obj_desc);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    /*
-     * Create a resource linked list from the byte stream buffer that comes
-     * back from the _CRS method execution.
-     */
-    Status = AcpiRsCreatePciRoutingTable (ObjDesc, RetBuffer);
+	/*
+	 * Create a resource linked list from the byte stream buffer that comes
+	 * back from the _CRS method execution.
+	 */
+	status = acpi_rs_create_pci_routing_table (obj_desc, ret_buffer);
 
-    /* On exit, we must delete the object returned by EvaluateObject */
+	/* On exit, we must delete the object returned by evaluate_object */
 
-    AcpiUtRemoveReference (ObjDesc);
-    return_ACPI_STATUS (Status);
+	acpi_ut_remove_reference (obj_desc);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiRsGetCrsMethodData
+ * FUNCTION:    acpi_rs_get_crs_method_data
  *
- * PARAMETERS:  Node            - Device node
- *              RetBuffer       - Pointer to a buffer structure for the
+ * PARAMETERS:  node            - Device node
+ *              ret_buffer      - Pointer to a buffer structure for the
  *                                results
  *
  * RETURN:      Status
@@ -679,49 +527,48 @@ AcpiRsGetPrtMethodData (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiRsGetCrsMethodData (
-    ACPI_NAMESPACE_NODE     *Node,
-    ACPI_BUFFER             *RetBuffer)
+acpi_status
+acpi_rs_get_crs_method_data (
+	struct acpi_namespace_node      *node,
+	struct acpi_buffer              *ret_buffer)
 {
-    ACPI_OPERAND_OBJECT     *ObjDesc;
-    ACPI_STATUS             Status;
+	union acpi_operand_object       *obj_desc;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE (RsGetCrsMethodData);
+	ACPI_FUNCTION_TRACE (rs_get_crs_method_data);
 
 
-    /* Parameters guaranteed valid by caller */
+	/* Parameters guaranteed valid by caller */
 
-    /* Execute the method, no parameters */
+	/* Execute the method, no parameters */
 
-    Status = AcpiUtEvaluateObject (
-        Node, METHOD_NAME__CRS, ACPI_BTYPE_BUFFER, &ObjDesc);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_ut_evaluate_object (
+		node, METHOD_NAME__CRS, ACPI_BTYPE_BUFFER, &obj_desc);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    /*
-     * Make the call to create a resource linked list from the
-     * byte stream buffer that comes back from the _CRS method
-     * execution.
-     */
-    Status = AcpiRsCreateResourceList (ObjDesc, RetBuffer);
+	/*
+	 * Make the call to create a resource linked list from the
+	 * byte stream buffer that comes back from the _CRS method
+	 * execution.
+	 */
+	status = acpi_rs_create_resource_list (obj_desc, ret_buffer);
 
-    /* On exit, we must delete the object returned by evaluateObject */
+	/* On exit, we must delete the object returned by evaluateObject */
 
-    AcpiUtRemoveReference (ObjDesc);
-    return_ACPI_STATUS (Status);
+	acpi_ut_remove_reference (obj_desc);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiRsGetPrsMethodData
+ * FUNCTION:    acpi_rs_get_prs_method_data
  *
- * PARAMETERS:  Node            - Device node
- *              RetBuffer       - Pointer to a buffer structure for the
+ * PARAMETERS:  node            - Device node
+ *              ret_buffer      - Pointer to a buffer structure for the
  *                                results
  *
  * RETURN:      Status
@@ -734,49 +581,48 @@ AcpiRsGetCrsMethodData (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiRsGetPrsMethodData (
-    ACPI_NAMESPACE_NODE     *Node,
-    ACPI_BUFFER             *RetBuffer)
+acpi_status
+acpi_rs_get_prs_method_data (
+	struct acpi_namespace_node      *node,
+	struct acpi_buffer              *ret_buffer)
 {
-    ACPI_OPERAND_OBJECT     *ObjDesc;
-    ACPI_STATUS             Status;
+	union acpi_operand_object       *obj_desc;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE (RsGetPrsMethodData);
+	ACPI_FUNCTION_TRACE (rs_get_prs_method_data);
 
 
-    /* Parameters guaranteed valid by caller */
+	/* Parameters guaranteed valid by caller */
 
-    /* Execute the method, no parameters */
+	/* Execute the method, no parameters */
 
-    Status = AcpiUtEvaluateObject (
-        Node, METHOD_NAME__PRS, ACPI_BTYPE_BUFFER, &ObjDesc);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_ut_evaluate_object (
+		node, METHOD_NAME__PRS, ACPI_BTYPE_BUFFER, &obj_desc);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    /*
-     * Make the call to create a resource linked list from the
-     * byte stream buffer that comes back from the _CRS method
-     * execution.
-     */
-    Status = AcpiRsCreateResourceList (ObjDesc, RetBuffer);
+	/*
+	 * Make the call to create a resource linked list from the
+	 * byte stream buffer that comes back from the _CRS method
+	 * execution.
+	 */
+	status = acpi_rs_create_resource_list (obj_desc, ret_buffer);
 
-    /* On exit, we must delete the object returned by evaluateObject */
+	/* On exit, we must delete the object returned by evaluateObject */
 
-    AcpiUtRemoveReference (ObjDesc);
-    return_ACPI_STATUS (Status);
+	acpi_ut_remove_reference (obj_desc);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiRsGetAeiMethodData
+ * FUNCTION:    acpi_rs_get_aei_method_data
  *
- * PARAMETERS:  Node            - Device node
- *              RetBuffer       - Pointer to a buffer structure for the
+ * PARAMETERS:  node            - Device node
+ *              ret_buffer      - Pointer to a buffer structure for the
  *                                results
  *
  * RETURN:      Status
@@ -789,50 +635,49 @@ AcpiRsGetPrsMethodData (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiRsGetAeiMethodData (
-    ACPI_NAMESPACE_NODE     *Node,
-    ACPI_BUFFER             *RetBuffer)
+acpi_status
+acpi_rs_get_aei_method_data (
+	struct acpi_namespace_node      *node,
+	struct acpi_buffer              *ret_buffer)
 {
-    ACPI_OPERAND_OBJECT     *ObjDesc;
-    ACPI_STATUS             Status;
+	union acpi_operand_object       *obj_desc;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE (RsGetAeiMethodData);
+	ACPI_FUNCTION_TRACE (rs_get_aei_method_data);
 
 
-    /* Parameters guaranteed valid by caller */
+	/* Parameters guaranteed valid by caller */
 
-    /* Execute the method, no parameters */
+	/* Execute the method, no parameters */
 
-    Status = AcpiUtEvaluateObject (
-        Node, METHOD_NAME__AEI, ACPI_BTYPE_BUFFER, &ObjDesc);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_ut_evaluate_object (
+		node, METHOD_NAME__AEI, ACPI_BTYPE_BUFFER, &obj_desc);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    /*
-     * Make the call to create a resource linked list from the
-     * byte stream buffer that comes back from the _CRS method
-     * execution.
-     */
-    Status = AcpiRsCreateResourceList (ObjDesc, RetBuffer);
+	/*
+	 * Make the call to create a resource linked list from the
+	 * byte stream buffer that comes back from the _CRS method
+	 * execution.
+	 */
+	status = acpi_rs_create_resource_list (obj_desc, ret_buffer);
 
-    /* On exit, we must delete the object returned by evaluateObject */
+	/* On exit, we must delete the object returned by evaluateObject */
 
-    AcpiUtRemoveReference (ObjDesc);
-    return_ACPI_STATUS (Status);
+	acpi_ut_remove_reference (obj_desc);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiRsGetMethodData
+ * FUNCTION:    acpi_rs_get_method_data
  *
- * PARAMETERS:  Handle          - Handle to the containing object
- *              Path            - Path to method, relative to Handle
- *              RetBuffer       - Pointer to a buffer structure for the
+ * PARAMETERS:  handle          - Handle to the containing object
+ *              path            - Path to method, relative to Handle
+ *              ret_buffer      - Pointer to a buffer structure for the
  *                                results
  *
  * RETURN:      Status
@@ -845,51 +690,50 @@ AcpiRsGetAeiMethodData (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiRsGetMethodData (
-    ACPI_HANDLE             Handle,
-    const char              *Path,
-    ACPI_BUFFER             *RetBuffer)
+acpi_status
+acpi_rs_get_method_data (
+	acpi_handle                     handle,
+	const char                      *path,
+	struct acpi_buffer              *ret_buffer)
 {
-    ACPI_OPERAND_OBJECT     *ObjDesc;
-    ACPI_STATUS             Status;
+	union acpi_operand_object       *obj_desc;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE (RsGetMethodData);
+	ACPI_FUNCTION_TRACE (rs_get_method_data);
 
 
-    /* Parameters guaranteed valid by caller */
+	/* Parameters guaranteed valid by caller */
 
-    /* Execute the method, no parameters */
+	/* Execute the method, no parameters */
 
-    Status = AcpiUtEvaluateObject (
-        ACPI_CAST_PTR (ACPI_NAMESPACE_NODE, Handle),
-        Path, ACPI_BTYPE_BUFFER, &ObjDesc);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_ut_evaluate_object (
+		ACPI_CAST_PTR (struct acpi_namespace_node, handle),
+		path, ACPI_BTYPE_BUFFER, &obj_desc);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    /*
-     * Make the call to create a resource linked list from the
-     * byte stream buffer that comes back from the method
-     * execution.
-     */
-    Status = AcpiRsCreateResourceList (ObjDesc, RetBuffer);
+	/*
+	 * Make the call to create a resource linked list from the
+	 * byte stream buffer that comes back from the method
+	 * execution.
+	 */
+	status = acpi_rs_create_resource_list (obj_desc, ret_buffer);
 
-    /* On exit, we must delete the object returned by EvaluateObject */
+	/* On exit, we must delete the object returned by evaluate_object */
 
-    AcpiUtRemoveReference (ObjDesc);
-    return_ACPI_STATUS (Status);
+	acpi_ut_remove_reference (obj_desc);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiRsSetSrsMethodData
+ * FUNCTION:    acpi_rs_set_srs_method_data
  *
- * PARAMETERS:  Node            - Device node
- *              InBuffer        - Pointer to a buffer structure of the
+ * PARAMETERS:  node            - Device node
+ *              in_buffer       - Pointer to a buffer structure of the
  *                                parameter
  *
  * RETURN:      Status
@@ -904,75 +748,72 @@ AcpiRsGetMethodData (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiRsSetSrsMethodData (
-    ACPI_NAMESPACE_NODE     *Node,
-    ACPI_BUFFER             *InBuffer)
+acpi_status
+acpi_rs_set_srs_method_data (
+	struct acpi_namespace_node      *node,
+	struct acpi_buffer              *in_buffer)
 {
-    ACPI_EVALUATE_INFO      *Info;
-    ACPI_OPERAND_OBJECT     *Args[2];
-    ACPI_STATUS             Status;
-    ACPI_BUFFER             Buffer;
+	struct acpi_evaluate_info       *info;
+	union acpi_operand_object       *args[2];
+	acpi_status                     status;
+	struct acpi_buffer              buffer;
 
 
-    ACPI_FUNCTION_TRACE (RsSetSrsMethodData);
+	ACPI_FUNCTION_TRACE (rs_set_srs_method_data);
 
 
-    /* Allocate and initialize the evaluation information block */
+	/* Allocate and initialize the evaluation information block */
 
-    Info = ACPI_ALLOCATE_ZEROED (sizeof (ACPI_EVALUATE_INFO));
-    if (!Info)
-    {
-        return_ACPI_STATUS (AE_NO_MEMORY);
-    }
+	info = ACPI_ALLOCATE_ZEROED (sizeof (struct acpi_evaluate_info));
+	if (!info) {
+		return_ACPI_STATUS (AE_NO_MEMORY);
+	}
 
-    Info->PrefixNode = Node;
-    Info->RelativePathname = METHOD_NAME__SRS;
-    Info->Parameters = Args;
-    Info->Flags = ACPI_IGNORE_RETURN_VALUE;
+	info->prefix_node = node;
+	info->relative_pathname = METHOD_NAME__SRS;
+	info->parameters = args;
+	info->flags = ACPI_IGNORE_RETURN_VALUE;
 
-    /*
-     * The InBuffer parameter will point to a linked list of
-     * resource parameters. It needs to be formatted into a
-     * byte stream to be sent in as an input parameter to _SRS
-     *
-     * Convert the linked list into a byte stream
-     */
-    Buffer.Length = ACPI_ALLOCATE_LOCAL_BUFFER;
-    Status = AcpiRsCreateAmlResources (InBuffer, &Buffer);
-    if (ACPI_FAILURE (Status))
-    {
-        goto Cleanup;
-    }
+	/*
+	 * The in_buffer parameter will point to a linked list of
+	 * resource parameters. It needs to be formatted into a
+	 * byte stream to be sent in as an input parameter to _SRS
+	 *
+	 * Convert the linked list into a byte stream
+	 */
+	buffer.length = ACPI_ALLOCATE_LOCAL_BUFFER;
+	status = acpi_rs_create_aml_resources (in_buffer, &buffer);
+	if (ACPI_FAILURE (status)) {
+		goto cleanup;
+	}
 
-    /* Create and initialize the method parameter object */
+	/* Create and initialize the method parameter object */
 
-    Args[0] = AcpiUtCreateInternalObject (ACPI_TYPE_BUFFER);
-    if (!Args[0])
-    {
-        /*
-         * Must free the buffer allocated above (otherwise it is freed
-         * later)
-         */
-        ACPI_FREE (Buffer.Pointer);
-        Status = AE_NO_MEMORY;
-        goto Cleanup;
-    }
+	args[0] = acpi_ut_create_internal_object (ACPI_TYPE_BUFFER);
+	if (!args[0]) {
+		/*
+		 * Must free the buffer allocated above (otherwise it is freed
+		 * later)
+		 */
+		ACPI_FREE (buffer.pointer);
+		status = AE_NO_MEMORY;
+		goto cleanup;
+	}
 
-    Args[0]->Buffer.Length  = (UINT32) Buffer.Length;
-    Args[0]->Buffer.Pointer = Buffer.Pointer;
-    Args[0]->Common.Flags   = AOPOBJ_DATA_VALID;
-    Args[1] = NULL;
+	args[0]->buffer.length  = (u32) buffer.length;
+	args[0]->buffer.pointer = buffer.pointer;
+	args[0]->common.flags   = AOPOBJ_DATA_VALID;
+	args[1] = NULL;
 
-    /* Execute the method, no return value is expected */
+	/* Execute the method, no return value is expected */
 
-    Status = AcpiNsEvaluate (Info);
+	status = acpi_ns_evaluate (info);
 
-    /* Clean up and return the status from AcpiNsEvaluate */
+	/* Clean up and return the status from acpi_ns_evaluate */
 
-    AcpiUtRemoveReference (Args[0]);
+	acpi_ut_remove_reference (args[0]);
 
-Cleanup:
-    ACPI_FREE (Info);
-    return_ACPI_STATUS (Status);
+cleanup:
+	ACPI_FREE (info);
+	return_ACPI_STATUS (status);
 }

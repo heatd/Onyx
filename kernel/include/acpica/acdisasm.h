@@ -1,153 +1,12 @@
+/* SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0 */
 /******************************************************************************
  *
  * Name: acdisasm.h - AML disassembler
  *
+ * Copyright (C) 2000 - 2022, Intel Corp.
+ *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #ifndef __ACDISASM_H__
 #define __ACDISASM_H__
@@ -159,7 +18,7 @@
 #define BLOCK_PAREN             1
 #define BLOCK_BRACE             2
 #define BLOCK_COMMA_LIST        4
-#define ACPI_DEFAULT_RESNAME    *(UINT32 *) "__RD"
+#define ACPI_DEFAULT_RESNAME    *(u32 *) "__RD"
 
 /*
  * Raw table data header. Used by disassembler and data table compiler.
@@ -168,14 +27,13 @@
 #define ACPI_RAW_TABLE_DATA_HEADER      "Raw Table Data"
 
 
-typedef struct acpi_dmtable_info
+struct acpi_dmtable_info
 {
-    UINT8                       Opcode;
-    UINT16                      Offset;
-    char                        *Name;
-    UINT8                       Flags;
-
-} ACPI_DMTABLE_INFO;
+	u8                                  opcode;
+	u16                                 offset;
+	char                                *name;
+	u8                                  flags;
+};
 
 /* Values for Flags field above */
 
@@ -193,1145 +51,1258 @@ typedef struct acpi_dmtable_info
  */
 typedef enum
 {
-    /* Simple Data Types */
+	/* Simple Data Types */
 
-    ACPI_DMT_FLAG0          = 0,
-    ACPI_DMT_FLAG1          = 1,
-    ACPI_DMT_FLAG2          = 2,
-    ACPI_DMT_FLAG3          = 3,
-    ACPI_DMT_FLAG4          = 4,
-    ACPI_DMT_FLAG5          = 5,
-    ACPI_DMT_FLAG6          = 6,
-    ACPI_DMT_FLAG7          = 7,
-    ACPI_DMT_FLAGS0,
-    ACPI_DMT_FLAGS1,
-    ACPI_DMT_FLAGS2,
-    ACPI_DMT_FLAGS4,
-    ACPI_DMT_FLAGS4_0,
-    ACPI_DMT_FLAGS4_4,
-    ACPI_DMT_FLAGS4_8,
-    ACPI_DMT_FLAGS4_12,
-    ACPI_DMT_FLAGS16_16,
-    ACPI_DMT_UINT8,
-    ACPI_DMT_UINT16,
-    ACPI_DMT_UINT24,
-    ACPI_DMT_UINT32,
-    ACPI_DMT_UINT40,
-    ACPI_DMT_UINT48,
-    ACPI_DMT_UINT56,
-    ACPI_DMT_UINT64,
-    ACPI_DMT_BUF7,
-    ACPI_DMT_BUF10,
-    ACPI_DMT_BUF12,
-    ACPI_DMT_BUF16,
-    ACPI_DMT_BUF128,
-    ACPI_DMT_SIG,
-    ACPI_DMT_STRING,
-    ACPI_DMT_NAME4,
-    ACPI_DMT_NAME6,
-    ACPI_DMT_NAME8,
+	ACPI_DMT_FLAG0          = 0,
+	ACPI_DMT_FLAG1          = 1,
+	ACPI_DMT_FLAG2          = 2,
+	ACPI_DMT_FLAG3          = 3,
+	ACPI_DMT_FLAG4          = 4,
+	ACPI_DMT_FLAG5          = 5,
+	ACPI_DMT_FLAG6          = 6,
+	ACPI_DMT_FLAG7          = 7,
+	ACPI_DMT_FLAGS0,
+	ACPI_DMT_FLAGS1,
+	ACPI_DMT_FLAGS2,
+	ACPI_DMT_FLAGS8_2,
+	ACPI_DMT_FLAGS4,
+	ACPI_DMT_FLAGS4_0,
+	ACPI_DMT_FLAGS4_4,
+	ACPI_DMT_FLAGS4_8,
+	ACPI_DMT_FLAGS4_12,
+	ACPI_DMT_FLAGS16_16,
+	ACPI_DMT_UINT8,
+	ACPI_DMT_UINT16,
+	ACPI_DMT_UINT24,
+	ACPI_DMT_UINT32,
+	ACPI_DMT_UINT40,
+	ACPI_DMT_UINT48,
+	ACPI_DMT_UINT56,
+	ACPI_DMT_UINT64,
+	ACPI_DMT_BUF7,
+	ACPI_DMT_BUF10,
+	ACPI_DMT_BUF12,
+	ACPI_DMT_BUF16,
+	ACPI_DMT_BUF18,
+	ACPI_DMT_BUF128,
+	ACPI_DMT_SIG,
+	ACPI_DMT_STRING,
+	ACPI_DMT_NAME4,
+	ACPI_DMT_NAME6,
+	ACPI_DMT_NAME8,
 
-    /* Types that are decoded to strings and miscellaneous */
+	/* Types that are decoded to strings and miscellaneous */
 
-    ACPI_DMT_ACCWIDTH,
-    ACPI_DMT_CHKSUM,
-    ACPI_DMT_GAS,
-    ACPI_DMT_SPACEID,
-    ACPI_DMT_UNICODE,
-    ACPI_DMT_UUID,
+	ACPI_DMT_ACCWIDTH,
+	ACPI_DMT_CHKSUM,
+	ACPI_DMT_GAS,
+	ACPI_DMT_SPACEID,
+	ACPI_DMT_UNICODE,
+	ACPI_DMT_UUID,
 
-    /* Types used only for the Data Table Compiler */
+	/* Types used only for the Data Table Compiler */
 
-    ACPI_DMT_BUFFER,
-    ACPI_DMT_RAW_BUFFER,  /* Large, multiple line buffer */
-    ACPI_DMT_DEVICE_PATH,
-    ACPI_DMT_LABEL,
-    ACPI_DMT_PCI_PATH,
+	ACPI_DMT_BUFFER,
+	ACPI_DMT_RAW_BUFFER,  /* Large, multiple line buffer */
+	ACPI_DMT_DEVICE_PATH,
+	ACPI_DMT_LABEL,
+	ACPI_DMT_PCI_PATH,
 
-    /* Types that are specific to particular ACPI tables */
+	/* Types that are specific to particular ACPI tables */
 
-    ACPI_DMT_ASF,
-    ACPI_DMT_CEDT,
-    ACPI_DMT_DMAR,
-    ACPI_DMT_DMAR_SCOPE,
-    ACPI_DMT_EINJACT,
-    ACPI_DMT_EINJINST,
-    ACPI_DMT_ERSTACT,
-    ACPI_DMT_ERSTINST,
-    ACPI_DMT_FADTPM,
-    ACPI_DMT_GTDT,
-    ACPI_DMT_HEST,
-    ACPI_DMT_HESTNTFY,
-    ACPI_DMT_HESTNTYP,
-    ACPI_DMT_HMAT,
-    ACPI_DMT_IORTMEM,
-    ACPI_DMT_IVRS,
-    ACPI_DMT_LPIT,
-    ACPI_DMT_MADT,
-    ACPI_DMT_NFIT,
-    ACPI_DMT_PCCT,
-    ACPI_DMT_PHAT,
-    ACPI_DMT_PMTT,
-    ACPI_DMT_PMTT_VENDOR,
-    ACPI_DMT_PPTT,
-    ACPI_DMT_SDEI,
-    ACPI_DMT_SDEV,
-    ACPI_DMT_SLIC,
-    ACPI_DMT_SRAT,
-    ACPI_DMT_TPM2,
-    ACPI_DMT_VIOT,
+	ACPI_DMT_AEST,
+	ACPI_DMT_AEST_CACHE,
+	ACPI_DMT_AEST_GIC,
+	ACPI_DMT_AEST_RES,
+	ACPI_DMT_AEST_XFACE,
+	ACPI_DMT_AEST_XRUPT,
+	ACPI_DMT_AGDI,
+	ACPI_DMT_ASF,
+	ACPI_DMT_CDAT,
+	ACPI_DMT_CEDT,
+	ACPI_DMT_DMAR,
+	ACPI_DMT_DMAR_SCOPE,
+	ACPI_DMT_EINJACT,
+	ACPI_DMT_EINJINST,
+	ACPI_DMT_ERSTACT,
+	ACPI_DMT_ERSTINST,
+	ACPI_DMT_FADTPM,
+	ACPI_DMT_GTDT,
+	ACPI_DMT_HEST,
+	ACPI_DMT_HESTNTFY,
+	ACPI_DMT_HESTNTYP,
+	ACPI_DMT_HMAT,
+	ACPI_DMT_IORTMEM,
+	ACPI_DMT_IVRS,
+	ACPI_DMT_IVRS_DE,
+	ACPI_DMT_IVRS_UNTERMINATED_STRING,
+	ACPI_DMT_LPIT,
+	ACPI_DMT_MADT,
+	ACPI_DMT_NFIT,
+	ACPI_DMT_NHLT1,
+	ACPI_DMT_NHLT1a,
+	ACPI_DMT_NHLT1b,
+	ACPI_DMT_NHLT1c,
+	ACPI_DMT_NHLT1d,
+	ACPI_DMT_NHLT1e,
+	ACPI_DMT_NHLT1f,
+	ACPI_DMT_PCCT,
+	ACPI_DMT_PHAT,
+	ACPI_DMT_PMTT,
+	ACPI_DMT_PMTT_VENDOR,
+	ACPI_DMT_PPTT,
+	ACPI_DMT_RGRT,
+	ACPI_DMT_SDEI,
+	ACPI_DMT_SDEV,
+	ACPI_DMT_SLIC,
+	ACPI_DMT_SRAT,
+	ACPI_DMT_TPM2,
+	ACPI_DMT_VIOT,
+	ACPI_DMT_WPBT_UNICODE,
 
-    /* Special opcodes */
+	/* Special opcodes */
 
-    ACPI_DMT_EXTRA_TEXT,
-    ACPI_DMT_EXIT
+	ACPI_DMT_EXTRA_TEXT,
+	ACPI_DMT_EXIT
 
 } ACPI_ENTRY_TYPES;
 
 typedef
-void (*ACPI_DMTABLE_HANDLER) (
-    ACPI_TABLE_HEADER       *Table);
+void (*acpi_dmtable_handler) (
+	struct acpi_table_header        *table);
 
 typedef
-ACPI_STATUS (*ACPI_CMTABLE_HANDLER) (
-    void                    **PFieldList);
+acpi_status (*acpi_cmtable_handler) (
+	void                            **pfield_list);
 
-typedef struct acpi_dmtable_data
+struct acpi_dmtable_data
 {
-    char                    *Signature;
-    ACPI_DMTABLE_INFO       *TableInfo;
-    ACPI_DMTABLE_HANDLER    TableHandler;
-    ACPI_CMTABLE_HANDLER    CmTableHandler;
-    const unsigned char     *Template;
+	char                            *signature;
+	struct acpi_dmtable_info        *table_info;
+	acpi_dmtable_handler            table_handler;
+	acpi_cmtable_handler            cm_table_handler;
+	const unsigned char     *template;
+};
 
-} ACPI_DMTABLE_DATA;
 
-
-typedef struct acpi_op_walk_info
+struct acpi_op_walk_info
 {
-    ACPI_WALK_STATE         *WalkState;
-    ACPI_PARSE_OBJECT       *MappingOp;
-    UINT8                   *PreviousAml;
-    UINT8                   *StartAml;
-    UINT32                  Level;
-    UINT32                  LastLevel;
-    UINT32                  Count;
-    UINT32                  BitOffset;
-    UINT32                  Flags;
-    UINT32                  AmlOffset;
-
-} ACPI_OP_WALK_INFO;
+	struct acpi_walk_state          *walk_state;
+	union acpi_parse_object         *mapping_op;
+	u8                              *previous_aml;
+	u8                              *start_aml;
+	u32                             level;
+	u32                             last_level;
+	u32                             count;
+	u32                             bit_offset;
+	u32                             flags;
+	u32                             aml_offset;
+};
 
 /*
  * TBD - another copy of this is in asltypes.h, fix
  */
 #ifndef ASL_WALK_CALLBACK_DEFINED
 typedef
-ACPI_STATUS (*ASL_WALK_CALLBACK) (
-    ACPI_PARSE_OBJECT           *Op,
-    UINT32                      Level,
-    void                        *Context);
+acpi_status (*asl_walk_callback) (
+	union acpi_parse_object             *op,
+	u32                                 level,
+	void                                *context);
 #define ASL_WALK_CALLBACK_DEFINED
 #endif
 
 typedef
-void (*ACPI_RESOURCE_HANDLER) (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+void (*acpi_resource_handler) (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
-typedef struct acpi_resource_tag
+struct acpi_resource_tag
 {
-    UINT32                  BitIndex;
-    char                    *Tag;
-
-} ACPI_RESOURCE_TAG;
+	u32                             bit_index;
+	char                            *tag;
+};
 
 /* Strings used for decoding flags to ASL keywords */
 
-extern const char               *AcpiGbl_WordDecode[];
-extern const char               *AcpiGbl_IrqDecode[];
-extern const char               *AcpiGbl_LockRule[];
-extern const char               *AcpiGbl_AccessTypes[];
-extern const char               *AcpiGbl_UpdateRules[];
-extern const char               *AcpiGbl_MatchOps[];
+extern const char                       *acpi_gbl_word_decode[];
+extern const char                       *acpi_gbl_irq_decode[];
+extern const char                       *acpi_gbl_lock_rule[];
+extern const char                       *acpi_gbl_access_types[];
+extern const char                       *acpi_gbl_update_rules[];
+extern const char                       *acpi_gbl_match_ops[];
 
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoAsf0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoAsf1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoAsf1a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoAsf2[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoAsf2a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoAsf3[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoAsf4[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoAsfHdr[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoBoot[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoBert[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoBgrt[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoCedtHdr[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoCedt0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoCpep[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoCpep0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoCsrt0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoCsrt1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoCsrt2[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoCsrt2a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoDbg2[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoDbg2Device[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoDbg2Addr[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoDbg2Size[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoDbg2Name[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoDbg2OemData[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoDbgp[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoDmar[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoDmarHdr[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoDmarScope[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoDmar0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoDmar1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoDmar2[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoDmar3[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoDmar4[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoDrtm[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoDrtm0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoDrtm0a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoDrtm1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoDrtm1a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoDrtm2[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoEcdt[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoEinj[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoEinj0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoErst[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoErst0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoFacs[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoFadt1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoFadt2[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoFadt3[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoFadt5[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoFadt6[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoFpdt[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoFpdtHdr[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoFpdt0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoFpdt1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoGas[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoGtdt[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoGtdtHdr[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoGtdtEl2[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoGtdt0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoGtdt0a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoGtdt1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoHeader[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoHest[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoHest0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoHest1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoHest2[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoHest6[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoHest7[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoHest8[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoHest9[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoHest10[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoHest11[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoHestNotify[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoHestBank[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoHpet[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoLpitHdr[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoLpit0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoLpit1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoHmat[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoHmat0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoHmat1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoHmat1a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoHmat1b[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoHmat1c[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoHmat2[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoHmat2a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoHmatHdr[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIort[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIort0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIort0a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIort1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIort1a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIort2[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIort3[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIort3a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIort3b[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIort3c[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIort4[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIort5[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIort6[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIort6a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIortAcc[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIortHdr[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIortHdr3[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIortMap[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIortPad[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIvrs[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIvrs0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIvrs01[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIvrs1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIvrs4[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIvrs8a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIvrs8b[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIvrs8c[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIvrsHid[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIvrsHid1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoIvrsHdr[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMadt[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMadt0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMadt1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMadt2[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMadt3[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMadt4[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMadt5[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMadt6[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMadt7[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMadt8[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMadt9[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMadt10[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMadt11[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMadt12[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMadt13[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMadt14[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMadt15[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMadt16[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMadtHdr[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMcfg[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMcfg0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMchi[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMpst[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMpst0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMpst0A[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMpst0B[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMpst1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMpst2[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMsct[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoMsct0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoNfit[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoNfitHdr[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoNfit0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoNfit1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoNfit2[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoNfit2a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoNfit3[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoNfit3a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoNfit4[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoNfit5[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoNfit6[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoNfit6a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoNfit7[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPdtt[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPhatHdr[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPhat0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPhat0a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPhat1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPhat1a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPhat1b[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPmtt[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPmtt0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPmtt1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPmtt2[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPmttVendor[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPmttHdr[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPcct[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPcctHdr[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPcct0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPcct1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPcct2[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPcct3[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPcct4[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPcct5[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPdtt0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPptt0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPptt0a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPptt1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPptt1a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPptt2[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoPpttHdr[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoRasf[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoRsdp1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoRsdp2[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoS3pt[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoS3ptHdr[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoS3pt0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoS3pt1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSbst[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSdei[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSdev[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSdevHdr[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSdev0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSdev0a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSdev0b[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSdevSecCompHdr[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSdevSecCompId[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSdevSecCompMem[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSdev1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSdev1a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSdev1b[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSlic[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSlit[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSpcr[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSpmi[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSrat[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSratHdr[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSrat0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSrat1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSrat2[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSrat3[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSrat4[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoSrat5[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoStao[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoStaoStr[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoTcpaHdr[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoTcpaClient[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoTcpaServer[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoTpm2[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoTpm2a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoTpm211[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoTpm23[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoTpm23a[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoUefi[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoViot[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoViotHeader[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoViot1[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoViot2[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoViot3[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoViot4[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoWaet[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoWdat[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoWdat0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoWddt[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoWdrt[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoWpbt[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoWpbt0[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoWsmt[];
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoXenv[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_aest_hdr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_aest_proc_error[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_aest_cache_rsrc[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_aest_tlb_rsrc[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_aest_gen_rsrc[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_aest_mem_error[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_aest_smmu_error[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_aest_vendor_error[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_aest_gic_error[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_aest_xface[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_aest_xrupt[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_agdi[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_apmt_node[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_asf0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_asf1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_asf1a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_asf2[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_asf2a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_asf3[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_asf4[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_asf_hdr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_bdat[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_boot[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_bert[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_bgrt[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_ccel[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_cdat_table_hdr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_cdat_header[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_cdat0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_cdat1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_cdat2[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_cdat3[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_cdat4[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_cdat5[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_cdat_entries[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_cedt_hdr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_cedt0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_cedt1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_cedt1_te[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_cpep[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_cpep0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_csrt0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_csrt1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_csrt2[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_csrt2a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_dbg2[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_dbg2_device[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_dbg2_addr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_dbg2_size[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_dbg2_name[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_dbg2_oem_data[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_dbgp[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_dmar[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_dmar_hdr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_dmar_scope[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_dmar0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_dmar1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_dmar2[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_dmar3[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_dmar4[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_dmar5[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_drtm[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_drtm0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_drtm0a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_drtm1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_drtm1a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_drtm2[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_ecdt[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_einj[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_einj0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_erst[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_erst0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_facs[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_fadt1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_fadt2[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_fadt3[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_fadt5[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_fadt6[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_fpdt[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_fpdt_hdr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_fpdt0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_fpdt1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_gas[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_gtdt[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_gtdt_hdr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_gtdt_el2[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_gtdt0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_gtdt0a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_gtdt1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_header[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_hest[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_hest0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_hest1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_hest2[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_hest6[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_hest7[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_hest8[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_hest9[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_hest10[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_hest11[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_hest_notify[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_hest_bank[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_hpet[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_lpit_hdr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_lpit0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_lpit1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_hmat[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_hmat0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_hmat1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_hmat1a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_hmat1b[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_hmat1c[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_hmat2[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_hmat2a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_hmat_hdr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_iort[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_iort0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_iort0a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_iort1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_iort1a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_iort2[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_iort3[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_iort3a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_iort3b[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_iort3c[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_iort4[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_iort5[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_iort6[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_iort6a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_iort_acc[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_iort_hdr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_iort_hdr3[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_iort_map[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_iort_pad[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_ivrs[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_ivrs_hware1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_ivrs_hware23[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_ivrs_memory[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_ivrs4[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_ivrs8a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_ivrs8b[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_ivrs8c[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_ivrs_cid_string[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_ivrs_cid_integer[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_ivrs_hid[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_ivrs_uid_string[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_ivrs_uid_integer[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_ivrs_hid_string[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_ivrs_hid_integer[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_madt[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_madt0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_madt1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_madt2[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_madt3[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_madt4[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_madt5[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_madt6[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_madt7[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_madt8[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_madt9[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_madt10[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_madt11[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_madt12[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_madt13[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_madt14[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_madt15[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_madt16[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_madt17[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_madt_hdr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_mcfg[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_mcfg0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_mchi[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_mpst[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_mpst0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_mpst0_a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_mpst0_b[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_mpst1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_mpst2[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_msct[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_msct0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nfit[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nfit_hdr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nfit0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nfit1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nfit2[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nfit2a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nfit3[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nfit3a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nfit4[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nfit5[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nfit6[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nfit6a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nfit7[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nhlt[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nhlt0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nhlt1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nhlt2[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nhlt3[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nhlt3a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nhlt4[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nhlt5[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nhlt5a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nhlt5b[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nhlt5c[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nhlt6[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nhlt6a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nhlt6b[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nhlt7[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nhlt7a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nhlt7b[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_nhlt9[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_phat_hdr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_phat0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_phat0a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_phat1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_phat1a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_phat1b[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_pmtt[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_pmtt0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_pmtt1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_pmtt2[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_pmtt_vendor[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_pmtt_hdr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_pcct[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_pcct_hdr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_pcct0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_pcct1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_pcct2[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_pcct3[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_pcct4[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_pcct5[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_pdtt[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_pdtt0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_pptt0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_pptt0a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_pptt1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_pptt1a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_pptt2[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_pptt_hdr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_prmt_hdr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_prmt_module[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_prmt_handler[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_rasf[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_rgrt[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_rgrt0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_rsdp1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_rsdp2[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_s3pt[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_s3pt_hdr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_s3pt0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_s3pt1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_sbst[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_sdei[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_sdev[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_sdev_hdr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_sdev0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_sdev0a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_sdev0b[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_sdev_sec_comp_hdr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_sdev_sec_comp_id[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_sdev_sec_comp_mem[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_sdev1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_sdev1a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_sdev1b[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_slic[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_slit[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_spcr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_spmi[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_srat[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_srat_hdr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_srat0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_srat1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_srat2[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_srat3[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_srat4[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_srat5[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_srat6[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_stao[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_stao_str[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_svkl[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_svkl0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_tcpa_hdr[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_tcpa_client[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_tcpa_server[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_tdel[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_tpm2[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_tpm2a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_tpm211[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_tpm23[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_tpm23a[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_uefi[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_viot[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_viot_header[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_viot1[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_viot2[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_viot3[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_viot4[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_waet[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_wdat[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_wdat0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_wddt[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_wdrt[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_wpbt[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_wpbt0[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_wsmt[];
+extern struct acpi_dmtable_info         acpi_dm_table_info_xenv[];
 
-extern ACPI_DMTABLE_INFO        AcpiDmTableInfoGeneric[][2];
+extern struct acpi_dmtable_info         acpi_dm_table_info_generic[][2];
 
 /*
  * dmtable and ahtable
  */
-extern const ACPI_DMTABLE_DATA  AcpiDmTableData[];
-extern const AH_TABLE           AcpiGbl_SupportedTables[];
+extern const struct acpi_dmtable_data   acpi_dm_table_data[];
+extern const struct ah_table            acpi_gbl_supported_tables[];
 
-UINT8
-AcpiDmGenerateChecksum (
-    void                    *Table,
-    UINT32                  Length,
-    UINT8                   OriginalChecksum);
+u8
+acpi_dm_generate_checksum (
+	void                            *table,
+	u32                             length,
+	u8                              original_checksum);
 
-const ACPI_DMTABLE_DATA *
-AcpiDmGetTableData (
-    char                    *Signature);
-
-void
-AcpiDmDumpDataTable (
-    ACPI_TABLE_HEADER       *Table);
-
-ACPI_STATUS
-AcpiDmDumpTable (
-    UINT32                  TableLength,
-    UINT32                  TableOffset,
-    void                    *Table,
-    UINT32                  SubtableLength,
-    ACPI_DMTABLE_INFO        *Info);
+const struct acpi_dmtable_data *
+acpi_dm_get_table_data (
+	char                            *signature);
 
 void
-AcpiDmLineHeader (
-    UINT32                  Offset,
-    UINT32                  ByteLength,
-    char                    *Name);
+acpi_dm_dump_data_table (
+	struct acpi_table_header        *table);
+
+acpi_status
+acpi_dm_dump_table (
+	u32                             table_length,
+	u32                             table_offset,
+	void                            *table,
+	u32                             subtable_length,
+	struct acpi_dmtable_info         *info);
 
 void
-AcpiDmLineHeader2 (
-    UINT32                  Offset,
-    UINT32                  ByteLength,
-    char                    *Name,
-    UINT32                  Value);
+acpi_dm_line_header (
+	u32                             offset,
+	u32                             byte_length,
+	char                            *name);
+
+void
+acpi_dm_line_header2 (
+	u32                             offset,
+	u32                             byte_length,
+	char                            *name,
+	u32                             value);
 
 
 /*
  * dmtbdump
  */
 void
-AcpiDmDumpBuffer (
-    void                    *Table,
-    UINT32                  BufferOffset,
-    UINT32                  Length,
-    UINT32                  AbsoluteOffset,
-    char                    *Header);
+acpi_dm_dump_buffer (
+	void                            *table,
+	u32                             buffer_offset,
+	u32                             length,
+	u32                             absolute_offset,
+	char                            *header);
 
 void
-AcpiDmDumpUnicode (
-    void                    *Table,
-    UINT32                  BufferOffset,
-    UINT32                  ByteLength);
+acpi_dm_dump_unicode (
+	void                            *table,
+	u32                             buffer_offset,
+	u32                             byte_length);
 
 void
-AcpiDmDumpAsf (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_aest (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpCedt (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_apmt (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpCpep (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_asf (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpCsrt (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_ccel (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpDbg2 (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_cdat (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpDmar (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_cedt (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpDrtm (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_cpep (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpEinj (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_csrt (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpErst (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_dbg2 (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpFadt (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_dmar (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpFpdt (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_drtm (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpGtdt (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_einj (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpHest (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_erst (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpHmat (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_fadt (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpIort (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_fpdt (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpIvrs (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_gtdt (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpLpit (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_hest (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpMadt (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_hmat (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpMcfg (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_iort (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpMpst (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_ivrs (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpMsct (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_lpit (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpNfit (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_madt (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpPcct (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_mcfg (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpPdtt (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_mpst (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpPhat (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_msct (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpPmtt (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_nfit (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpPptt (
-    ACPI_TABLE_HEADER       *Table);
-
-UINT32
-AcpiDmDumpRsdp (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_nhlt (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpRsdt (
-    ACPI_TABLE_HEADER       *Table);
-
-UINT32
-AcpiDmDumpS3pt (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_pcct (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpSdev (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_pdtt (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpSlic (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_phat (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpSlit (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_pmtt (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpSrat (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_pptt (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpStao (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_prmt (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpTcpa (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_rgrt (
+	struct acpi_table_header        *table);
+
+u32
+acpi_dm_dump_rsdp (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpTpm2 (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_rsdt (
+	struct acpi_table_header        *table);
+
+u32
+acpi_dm_dump_s3pt (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpViot (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_sdev (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpWdat (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_slic (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpWpbt (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_slit (
+	struct acpi_table_header        *table);
 
 void
-AcpiDmDumpXsdt (
-    ACPI_TABLE_HEADER       *Table);
+acpi_dm_dump_srat (
+	struct acpi_table_header        *table);
+
+void
+acpi_dm_dump_stao (
+	struct acpi_table_header        *table);
+
+void
+acpi_dm_dump_svkl (
+	struct acpi_table_header        *table);
+
+void
+acpi_dm_dump_tcpa (
+	struct acpi_table_header        *table);
+
+void
+acpi_dm_dump_tdel (
+	struct acpi_table_header        *table);
+
+void
+acpi_dm_dump_tpm2 (
+	struct acpi_table_header        *table);
+
+void
+acpi_dm_dump_viot (
+	struct acpi_table_header        *table);
+
+void
+acpi_dm_dump_wdat (
+	struct acpi_table_header        *table);
+
+void
+acpi_dm_dump_wpbt (
+	struct acpi_table_header        *table);
+
+void
+acpi_dm_dump_xsdt (
+	struct acpi_table_header        *table);
 
 
 /*
  * dmwalk
  */
 void
-AcpiDmDisassemble (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Origin,
-    UINT32                  NumOpcodes);
+acpi_dm_disassemble (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *origin,
+	u32                             num_opcodes);
 
 void
-AcpiDmWalkParseTree (
-    ACPI_PARSE_OBJECT       *Op,
-    ASL_WALK_CALLBACK       DescendingCallback,
-    ASL_WALK_CALLBACK       AscendingCallback,
-    void                    *Context);
+acpi_dm_walk_parse_tree (
+	union acpi_parse_object         *op,
+	asl_walk_callback               descending_callback,
+	asl_walk_callback               ascending_callback,
+	void                            *context);
 
 
 /*
  * dmopcode
  */
 void
-AcpiDmDisassembleOneOp (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_OP_WALK_INFO       *Info,
-    ACPI_PARSE_OBJECT       *Op);
+acpi_dm_disassemble_one_op (
+	struct acpi_walk_state          *walk_state,
+	struct acpi_op_walk_info        *info,
+	union acpi_parse_object         *op);
 
-UINT32
-AcpiDmListType (
-    ACPI_PARSE_OBJECT       *Op);
-
-void
-AcpiDmMethodFlags (
-    ACPI_PARSE_OBJECT       *Op);
+u32
+acpi_dm_list_type (
+	union acpi_parse_object         *op);
 
 void
-AcpiDmDisplayTargetPathname (
-    ACPI_PARSE_OBJECT       *Op);
+acpi_dm_method_flags (
+	union acpi_parse_object         *op);
 
 void
-AcpiDmNotifyDescription (
-    ACPI_PARSE_OBJECT       *Op);
+acpi_dm_display_target_pathname (
+	union acpi_parse_object         *op);
 
 void
-AcpiDmPredefinedDescription (
-    ACPI_PARSE_OBJECT       *Op);
+acpi_dm_notify_description (
+	union acpi_parse_object         *op);
 
 void
-AcpiDmFieldPredefinedDescription (
-    ACPI_PARSE_OBJECT       *Op);
+acpi_dm_predefined_description (
+	union acpi_parse_object         *op);
 
 void
-AcpiDmFieldFlags (
-    ACPI_PARSE_OBJECT       *Op);
+acpi_dm_field_predefined_description (
+	union acpi_parse_object         *op);
 
 void
-AcpiDmAddressSpace (
-    UINT8                   SpaceId);
+acpi_dm_field_flags (
+	union acpi_parse_object         *op);
 
 void
-AcpiDmRegionFlags (
-    ACPI_PARSE_OBJECT       *Op);
+acpi_dm_address_space (
+	u8                              space_id);
 
 void
-AcpiDmMatchOp (
-    ACPI_PARSE_OBJECT       *Op);
+acpi_dm_region_flags (
+	union acpi_parse_object         *op);
+
+void
+acpi_dm_match_op (
+	union acpi_parse_object         *op);
 
 
 /*
  * dmnames
  */
-UINT32
-AcpiDmDumpName (
-    UINT32                  Name);
+u32
+acpi_dm_dump_name (
+	u32                             name);
 
-ACPI_STATUS
-AcpiPsDisplayObjectPathname (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Op);
+acpi_status
+acpi_ps_display_object_pathname (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op);
 
 void
-AcpiDmNamestring (
-    char                    *Name);
+acpi_dm_namestring (
+	char                            *name);
 
 
 /*
  * dmbuffer
  */
 void
-AcpiDmDisasmByteList (
-    UINT32                  Level,
-    UINT8                   *ByteData,
-    UINT32                  ByteCount);
+acpi_dm_disasm_byte_list (
+	u32                             level,
+	u8                              *byte_data,
+	u32                             byte_count);
 
 void
-AcpiDmByteList (
-    ACPI_OP_WALK_INFO       *Info,
-    ACPI_PARSE_OBJECT       *Op);
+acpi_dm_byte_list (
+	struct acpi_op_walk_info        *info,
+	union acpi_parse_object         *op);
 
 void
-AcpiDmCheckForHardwareId (
-    ACPI_PARSE_OBJECT       *Op);
+acpi_dm_check_for_hardware_id (
+	union acpi_parse_object         *op);
 
 void
-AcpiDmDecompressEisaId (
-    UINT32                  EncodedId);
+acpi_dm_decompress_eisa_id (
+	u32                             encoded_id);
 
-BOOLEAN
-AcpiDmIsUuidBuffer (
-    ACPI_PARSE_OBJECT       *Op);
+u8
+acpi_dm_is_uuid_buffer (
+	union acpi_parse_object         *op);
 
-BOOLEAN
-AcpiDmIsUnicodeBuffer (
-    ACPI_PARSE_OBJECT       *Op);
+u8
+acpi_dm_is_unicode_buffer (
+	union acpi_parse_object         *op);
 
-BOOLEAN
-AcpiDmIsStringBuffer (
-    ACPI_PARSE_OBJECT       *Op);
+u8
+acpi_dm_is_string_buffer (
+	union acpi_parse_object         *op);
 
-BOOLEAN
-AcpiDmIsPldBuffer (
-    ACPI_PARSE_OBJECT       *Op);
+u8
+acpi_dm_is_pld_buffer (
+	union acpi_parse_object         *op);
 
 
 /*
  * dmdeferred
  */
-ACPI_STATUS
-AcpiDmParseDeferredOps (
-    ACPI_PARSE_OBJECT       *Root);
+acpi_status
+acpi_dm_parse_deferred_ops (
+	union acpi_parse_object         *root);
 
 
 /*
  * dmextern
  */
-ACPI_STATUS
-AcpiDmAddToExternalFileList (
-    char                    *PathList);
+acpi_status
+acpi_dm_add_to_external_file_list (
+	char                            *path_list);
 
 void
-AcpiDmClearExternalFileList (
-    void);
+acpi_dm_clear_external_file_list (
+	void);
 
 void
-AcpiDmAddOpToExternalList (
-    ACPI_PARSE_OBJECT       *Op,
-    char                    *Path,
-    UINT8                   Type,
-    UINT32                  Value,
-    UINT16                  Flags);
+acpi_dm_add_op_to_external_list (
+	union acpi_parse_object         *op,
+	char                            *path,
+	u8                              type,
+	u32                             value,
+	u16                             flags);
 
 void
-AcpiDmCreateSubobjectForExternal (
-    UINT8                   Type,
-    ACPI_NAMESPACE_NODE     **Node,
-    UINT32                  Value);
+acpi_dm_create_subobject_for_external (
+	u8                              type,
+	struct acpi_namespace_node      **node,
+	u32                             value);
 
 void
-AcpiDmAddNodeToExternalList (
-    ACPI_NAMESPACE_NODE     *Node,
-    UINT8                   Type,
-    UINT32                  Value,
-    UINT16                  Flags);
+acpi_dm_add_node_to_external_list (
+	struct acpi_namespace_node      *node,
+	u8                              type,
+	u32                             value,
+	u16                             flags);
 
 void
-AcpiDmAddExternalListToNamespace (
-    void);
+acpi_dm_add_external_list_to_namespace (
+	void);
 
 void
-AcpiDmAddOneExternalToNamespace (
-    char                    *Path,
-    UINT8                   Type,
-    UINT32                  Value);
+acpi_dm_add_one_external_to_namespace (
+	char                            *path,
+	u8                              type,
+	u32                             value);
 
-UINT32
-AcpiDmGetUnresolvedExternalMethodCount (
-    void);
-
-void
-AcpiDmClearExternalList (
-    void);
+u32
+acpi_dm_get_unresolved_external_method_count (
+	void);
 
 void
-AcpiDmEmitExternals (
-    void);
+acpi_dm_clear_external_list (
+	void);
 
 void
-AcpiDmEmitExternal (
-    ACPI_PARSE_OBJECT       *NameOp,
-    ACPI_PARSE_OBJECT       *TypeOp);
+acpi_dm_emit_externals (
+	void);
 
 void
-AcpiDmUnresolvedWarning (
-    UINT8                   Type);
+acpi_dm_emit_external (
+	union acpi_parse_object         *name_op,
+	union acpi_parse_object         *type_op);
 
 void
-AcpiDmGetExternalsFromFile (
-    void);
+acpi_dm_unresolved_warning (
+	u8                              type);
 
 void
-AcpiDmMarkExternalConflict (
-    ACPI_NAMESPACE_NODE     *Node);
+acpi_dm_get_externals_from_file (
+	void);
+
+void
+acpi_dm_mark_external_conflict (
+	struct acpi_namespace_node      *node);
 
 
 /*
  * dmresrc
  */
 void
-AcpiDmDumpInteger8 (
-    UINT8                   Value,
-    const char              *Name);
+acpi_dm_dump_integer8 (
+	u8                              value,
+	const char                      *name);
 
 void
-AcpiDmDumpInteger16 (
-    UINT16                  Value,
-    const char              *Name);
+acpi_dm_dump_integer16 (
+	u16                             value,
+	const char                      *name);
 
 void
-AcpiDmDumpInteger32 (
-    UINT32                  Value,
-    const char              *Name);
+acpi_dm_dump_integer32 (
+	u32                             value,
+	const char                      *name);
 
 void
-AcpiDmDumpInteger64 (
-    UINT64                  Value,
-    const char              *Name);
+acpi_dm_dump_integer64 (
+	u64                             value,
+	const char                      *name);
 
 void
-AcpiDmResourceTemplate (
-    ACPI_OP_WALK_INFO       *Info,
-    ACPI_PARSE_OBJECT       *Op,
-    UINT8                   *ByteData,
-    UINT32                  ByteCount);
+acpi_dm_resource_template (
+	struct acpi_op_walk_info        *info,
+	union acpi_parse_object         *op,
+	u8                              *byte_data,
+	u32                             byte_count);
 
-ACPI_STATUS
-AcpiDmIsResourceTemplate (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Op);
-
-void
-AcpiDmBitList (
-    UINT16                  Mask);
+acpi_status
+acpi_dm_is_resource_template (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op);
 
 void
-AcpiDmDescriptorName (
-    void);
+acpi_dm_bit_list (
+	u16                             mask);
+
+void
+acpi_dm_descriptor_name (
+	void);
 
 
 /*
  * dmresrcl
  */
 void
-AcpiDmWordDescriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_word_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmDwordDescriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_dword_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmExtendedDescriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_extended_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmQwordDescriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_qword_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmMemory24Descriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_memory24_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmMemory32Descriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_memory32_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmFixedMemory32Descriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_fixed_memory32_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmGenericRegisterDescriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_generic_register_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmInterruptDescriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_interrupt_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmVendorLargeDescriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_vendor_large_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmGpioDescriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_gpio_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmPinFunctionDescriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_pin_function_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmPinConfigDescriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_pin_config_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmPinGroupDescriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_pin_group_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmPinGroupFunctionDescriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_pin_group_function_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmPinGroupConfigDescriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_pin_group_config_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmSerialBusDescriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_serial_bus_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmVendorCommon (
-    const char              *Name,
-    UINT8                   *ByteData,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_vendor_common (
+	const char                      *name,
+	u8                              *byte_data,
+	u32                             length,
+	u32                             level);
 
 
 /*
  * dmresrcs
  */
 void
-AcpiDmIrqDescriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_irq_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmDmaDescriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_dma_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmFixedDmaDescriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_fixed_dma_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmIoDescriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_io_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmFixedIoDescriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_fixed_io_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmStartDependentDescriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_start_dependent_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmEndDependentDescriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_end_dependent_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 void
-AcpiDmVendorSmallDescriptor (
-    ACPI_OP_WALK_INFO       *Info,
-    AML_RESOURCE            *Resource,
-    UINT32                  Length,
-    UINT32                  Level);
+acpi_dm_vendor_small_descriptor (
+	struct acpi_op_walk_info        *info,
+	union aml_resource              *resource,
+	u32                             length,
+	u32                             level);
 
 
 /*
  * dmutils
  */
 void
-AcpiDmDecodeAttribute (
-    UINT8                   Attribute);
+acpi_dm_decode_attribute (
+	u8                              attribute);
 
 void
-AcpiDmIndent (
-    UINT32                  Level);
+acpi_dm_indent (
+	u32                             level);
 
-BOOLEAN
-AcpiDmCommaIfListMember (
-    ACPI_PARSE_OBJECT       *Op);
+u8
+acpi_dm_comma_if_list_member (
+	union acpi_parse_object         *op);
 
 void
-AcpiDmCommaIfFieldMember (
-    ACPI_PARSE_OBJECT       *Op);
+acpi_dm_comma_if_field_member (
+	union acpi_parse_object         *op);
 
 
 /*
  * dmrestag
  */
 void
-AcpiDmFindResources (
-    ACPI_PARSE_OBJECT       *Root);
+acpi_dm_find_resources (
+	union acpi_parse_object         *root);
 
 void
-AcpiDmCheckResourceReference (
-    ACPI_PARSE_OBJECT       *Op,
-    ACPI_WALK_STATE         *WalkState);
+acpi_dm_check_resource_reference (
+	union acpi_parse_object         *op,
+	struct acpi_walk_state          *walk_state);
 
 
 /*
  * dmcstyle
  */
-BOOLEAN
-AcpiDmCheckForSymbolicOpcode (
-    ACPI_PARSE_OBJECT       *Op,
-    ACPI_OP_WALK_INFO       *Info);
+u8
+acpi_dm_check_for_symbolic_opcode (
+	union acpi_parse_object         *op,
+	struct acpi_op_walk_info        *info);
 
 void
-AcpiDmCloseOperator (
-    ACPI_PARSE_OBJECT       *Op);
+acpi_dm_close_operator (
+	union acpi_parse_object         *op);
 
 
 /*
  * dmtables
  */
-ACPI_STATUS
-AcpiDmProcessSwitch (
-    ACPI_PARSE_OBJECT       *Op);
+acpi_status
+acpi_dm_process_switch (
+	union acpi_parse_object         *op);
 
 void
-AcpiDmClearTempList(
-    void);
+acpi_dm_clear_temp_list(
+	void);
 
 /*
  * dmtables
  */
 void
-AdDisassemblerHeader (
-    char                    *Filename,
-    UINT8                   TableType);
+ad_disassembler_header (
+	char                            *filename,
+	u8                              table_type);
 
 #define ACPI_IS_AML_TABLE   0
 #define ACPI_IS_DATA_TABLE  1
@@ -1340,40 +1311,40 @@ AdDisassemblerHeader (
 /*
  * adisasm
  */
-ACPI_STATUS
-AdAmlDisassemble (
-    BOOLEAN                 OutToFile,
-    char                    *Filename,
-    char                    *Prefix,
-    char                    **OutFilename);
+acpi_status
+ad_aml_disassemble (
+	u8                              out_to_file,
+	char                            *filename,
+	char                            *prefix,
+	char                            **out_filename);
 
-ACPI_STATUS
-AdGetLocalTables (
-    void);
+acpi_status
+ad_get_local_tables (
+	void);
 
-ACPI_STATUS
-AdParseTable (
-    ACPI_TABLE_HEADER       *Table,
-    ACPI_OWNER_ID           *OwnerId,
-    BOOLEAN                 LoadTable,
-    BOOLEAN                 External);
+acpi_status
+ad_parse_table (
+	struct acpi_table_header        *table,
+	acpi_owner_id                   *owner_id,
+	u8                              load_table,
+	u8                              external);
 
-ACPI_STATUS
-AdDisplayTables (
-    char                    *Filename,
-    ACPI_TABLE_HEADER       *Table);
+acpi_status
+ad_display_tables (
+	char                            *filename,
+	struct acpi_table_header        *table);
 
-ACPI_STATUS
-AdDisplayStatistics (
-    void);
+acpi_status
+ad_display_statistics (
+	void);
 
 
 /*
  * dmwalk
  */
-UINT32
-AcpiDmBlockType (
-    ACPI_PARSE_OBJECT       *Op);
+u32
+acpi_dm_block_type (
+	union acpi_parse_object         *op);
 
 
 #endif  /* __ACDISASM_H__ */

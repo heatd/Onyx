@@ -1,153 +1,12 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /******************************************************************************
  *
  * Module Name: tbdata - Table manager data structure functions
  *
+ * Copyright (C) 2000 - 2022, Intel Corp.
+ *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #include "acpi.h"
 #include "accommon.h"
@@ -156,27 +15,27 @@
 #include "acevents.h"
 
 #define _COMPONENT          ACPI_TABLES
-        ACPI_MODULE_NAME    ("tbdata")
+	 ACPI_MODULE_NAME    ("tbdata")
 
 /* Local prototypes */
 
-static ACPI_STATUS
-AcpiTbCheckDuplication (
-    ACPI_TABLE_DESC         *TableDesc,
-    UINT32                  *TableIndex);
+static acpi_status
+acpi_tb_check_duplication (
+	struct acpi_table_desc          *table_desc,
+	u32                             *table_index);
 
-static BOOLEAN
-AcpiTbCompareTables (
-    ACPI_TABLE_DESC         *TableDesc,
-    UINT32                  TableIndex);
+static u8
+acpi_tb_compare_tables (
+	struct acpi_table_desc          *table_desc,
+	u32                             table_index);
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiTbCompareTables
+ * FUNCTION:    acpi_tb_compare_tables
  *
- * PARAMETERS:  TableDesc           - Table 1 descriptor to be compared
- *              TableIndex          - Index of table 2 to be compared
+ * PARAMETERS:  table_desc          - Table 1 descriptor to be compared
+ *              table_index         - Index of table 2 to be compared
  *
  * RETURN:      TRUE if both tables are identical.
  *
@@ -185,48 +44,47 @@ AcpiTbCompareTables (
  *
  ******************************************************************************/
 
-static BOOLEAN
-AcpiTbCompareTables (
-    ACPI_TABLE_DESC         *TableDesc,
-    UINT32                  TableIndex)
+static u8
+acpi_tb_compare_tables (
+	struct acpi_table_desc          *table_desc,
+	u32                             table_index)
 {
-    ACPI_STATUS             Status = AE_OK;
-    BOOLEAN                 IsIdentical;
-    ACPI_TABLE_HEADER       *Table;
-    UINT32                  TableLength;
-    UINT8                   TableFlags;
+	acpi_status                     status = AE_OK;
+	u8                              is_identical;
+	struct acpi_table_header        *table;
+	u32                             table_length;
+	u8                              table_flags;
 
 
-    Status = AcpiTbAcquireTable (&AcpiGbl_RootTableList.Tables[TableIndex],
-        &Table, &TableLength, &TableFlags);
-    if (ACPI_FAILURE (Status))
-    {
-        return (FALSE);
-    }
+	status = acpi_tb_acquire_table (&acpi_gbl_root_table_list.tables[table_index],
+		&table, &table_length, &table_flags);
+	if (ACPI_FAILURE (status)) {
+		return (FALSE);
+	}
 
-    /*
-     * Check for a table match on the entire table length,
-     * not just the header.
-     */
-    IsIdentical = (BOOLEAN)((TableDesc->Length != TableLength ||
-        memcmp (TableDesc->Pointer, Table, TableLength)) ?
-        FALSE : TRUE);
+	/*
+	 * Check for a table match on the entire table length,
+	 * not just the header.
+	 */
+	is_identical = (u8)((table_desc->length != table_length ||
+		memcmp (table_desc->pointer, table, table_length)) ?
+		FALSE : TRUE);
 
-    /* Release the acquired table */
+	/* Release the acquired table */
 
-    AcpiTbReleaseTable (Table, TableLength, TableFlags);
-    return (IsIdentical);
+	acpi_tb_release_table (table, table_length, table_flags);
+	return (is_identical);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiTbInitTableDescriptor
+ * FUNCTION:    acpi_tb_init_table_descriptor
  *
- * PARAMETERS:  TableDesc               - Table descriptor
- *              Address                 - Physical address of the table
- *              Flags                   - Allocation flags of the table
- *              Table                   - Pointer to the table
+ * PARAMETERS:  table_desc              - Table descriptor
+ *              address                 - Physical address of the table
+ *              flags                   - Allocation flags of the table
+ *              table                   - Pointer to the table
  *
  * RETURN:      None
  *
@@ -235,130 +93,141 @@ AcpiTbCompareTables (
  ******************************************************************************/
 
 void
-AcpiTbInitTableDescriptor (
-    ACPI_TABLE_DESC         *TableDesc,
-    ACPI_PHYSICAL_ADDRESS   Address,
-    UINT8                   Flags,
-    ACPI_TABLE_HEADER       *Table)
+acpi_tb_init_table_descriptor (
+	struct acpi_table_desc          *table_desc,
+	acpi_physical_address           address,
+	u8                              flags,
+	struct acpi_table_header        *table)
 {
 
-    /*
-     * Initialize the table descriptor. Set the pointer to NULL, since the
-     * table is not fully mapped at this time.
-     */
-    memset (TableDesc, 0, sizeof (ACPI_TABLE_DESC));
-    TableDesc->Address = Address;
-    TableDesc->Length = Table->Length;
-    TableDesc->Flags = Flags;
-    ACPI_MOVE_32_TO_32 (TableDesc->Signature.Ascii, Table->Signature);
+	/*
+	 * Initialize the table descriptor. Set the pointer to NULL for external
+	 * tables, since the table is not fully mapped at this time.
+	 */
+	memset (table_desc, 0, sizeof (struct acpi_table_desc));
+	table_desc->address = address;
+	table_desc->length = table->length;
+	table_desc->flags = flags;
+	ACPI_MOVE_32_TO_32 (table_desc->signature.ascii, table->signature);
+
+	switch (table_desc->flags & ACPI_TABLE_ORIGIN_MASK) {
+	case ACPI_TABLE_ORIGIN_INTERNAL_VIRTUAL:
+	case ACPI_TABLE_ORIGIN_EXTERNAL_VIRTUAL:
+
+		table_desc->pointer = table;
+		break;
+
+	case ACPI_TABLE_ORIGIN_INTERNAL_PHYSICAL:
+	default:
+
+		break;
+	}
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiTbAcquireTable
+ * FUNCTION:    acpi_tb_acquire_table
  *
- * PARAMETERS:  TableDesc           - Table descriptor
- *              TablePtr            - Where table is returned
- *              TableLength         - Where table length is returned
- *              TableFlags          - Where table allocation flags are returned
+ * PARAMETERS:  table_desc          - Table descriptor
+ *              table_ptr           - Where table is returned
+ *              table_length        - Where table length is returned
+ *              table_flags         - Where table allocation flags are returned
  *
  * RETURN:      Status
  *
  * DESCRIPTION: Acquire an ACPI table. It can be used for tables not
- *              maintained in the AcpiGbl_RootTableList.
+ *              maintained in the acpi_gbl_root_table_list.
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiTbAcquireTable (
-    ACPI_TABLE_DESC         *TableDesc,
-    ACPI_TABLE_HEADER       **TablePtr,
-    UINT32                  *TableLength,
-    UINT8                   *TableFlags)
+acpi_status
+acpi_tb_acquire_table (
+	struct acpi_table_desc          *table_desc,
+	struct acpi_table_header        **table_ptr,
+	u32                             *table_length,
+	u8                              *table_flags)
 {
-    ACPI_TABLE_HEADER       *Table = NULL;
+	struct acpi_table_header        *table = NULL;
 
 
-    switch (TableDesc->Flags & ACPI_TABLE_ORIGIN_MASK)
-    {
-    case ACPI_TABLE_ORIGIN_INTERNAL_PHYSICAL:
+	switch (table_desc->flags & ACPI_TABLE_ORIGIN_MASK) {
+	case ACPI_TABLE_ORIGIN_INTERNAL_PHYSICAL:
 
-        Table = AcpiOsMapMemory (TableDesc->Address, TableDesc->Length);
-        break;
+		table = acpi_os_map_memory (table_desc->address, table_desc->length);
+		break;
 
-    case ACPI_TABLE_ORIGIN_INTERNAL_VIRTUAL:
-    case ACPI_TABLE_ORIGIN_EXTERNAL_VIRTUAL:
+	case ACPI_TABLE_ORIGIN_INTERNAL_VIRTUAL:
+	case ACPI_TABLE_ORIGIN_EXTERNAL_VIRTUAL:
 
-        Table = ACPI_CAST_PTR (ACPI_TABLE_HEADER,
-            ACPI_PHYSADDR_TO_PTR (TableDesc->Address));
-        break;
+		table = table_desc->pointer;
+		break;
 
-    default:
+	default:
 
-        break;
-    }
+		break;
+	}
 
-    /* Table is not valid yet */
+	/* Table is not valid yet */
 
-    if (!Table)
-    {
-        return (AE_NO_MEMORY);
-    }
+	if (!table) {
+		return (AE_NO_MEMORY);
+	}
 
-    /* Fill the return values */
+	/* Fill the return values */
 
-    *TablePtr = Table;
-    *TableLength = TableDesc->Length;
-    *TableFlags = TableDesc->Flags;
-    return (AE_OK);
+	*table_ptr = table;
+	*table_length = table_desc->length;
+	*table_flags = table_desc->flags;
+	return (AE_OK);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiTbReleaseTable
+ * FUNCTION:    acpi_tb_release_table
  *
- * PARAMETERS:  Table               - Pointer for the table
- *              TableLength         - Length for the table
- *              TableFlags          - Allocation flags for the table
+ * PARAMETERS:  table               - Pointer for the table
+ *              table_length        - Length for the table
+ *              table_flags         - Allocation flags for the table
  *
  * RETURN:      None
  *
- * DESCRIPTION: Release a table. The inverse of AcpiTbAcquireTable().
+ * DESCRIPTION: Release a table. The inverse of acpi_tb_acquire_table().
  *
  ******************************************************************************/
 
 void
-AcpiTbReleaseTable (
-    ACPI_TABLE_HEADER       *Table,
-    UINT32                  TableLength,
-    UINT8                   TableFlags)
+acpi_tb_release_table (
+	struct acpi_table_header        *table,
+	u32                             table_length,
+	u8                              table_flags)
 {
 
-    switch (TableFlags & ACPI_TABLE_ORIGIN_MASK)
-    {
-    case ACPI_TABLE_ORIGIN_INTERNAL_PHYSICAL:
+	switch (table_flags & ACPI_TABLE_ORIGIN_MASK) {
+	case ACPI_TABLE_ORIGIN_INTERNAL_PHYSICAL:
 
-        AcpiOsUnmapMemory (Table, TableLength);
-        break;
+		acpi_os_unmap_memory (table, table_length);
+		break;
 
-    case ACPI_TABLE_ORIGIN_INTERNAL_VIRTUAL:
-    case ACPI_TABLE_ORIGIN_EXTERNAL_VIRTUAL:
-    default:
+	case ACPI_TABLE_ORIGIN_INTERNAL_VIRTUAL:
+	case ACPI_TABLE_ORIGIN_EXTERNAL_VIRTUAL:
+	default:
 
-        break;
-    }
+		break;
+	}
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiTbAcquireTempTable
+ * FUNCTION:    acpi_tb_acquire_temp_table
  *
- * PARAMETERS:  TableDesc           - Table descriptor to be acquired
- *              Address             - Address of the table
- *              Flags               - Allocation flags of the table
+ * PARAMETERS:  table_desc          - Table descriptor to be acquired
+ *              address             - Address of the table
+ *              flags               - Allocation flags of the table
+ *              table               - Pointer to the table (required for virtual
+ *                                    origins, optional for physical)
  *
  * RETURN:      Status
  *
@@ -369,86 +238,88 @@ AcpiTbReleaseTable (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiTbAcquireTempTable (
-    ACPI_TABLE_DESC         *TableDesc,
-    ACPI_PHYSICAL_ADDRESS   Address,
-    UINT8                   Flags)
+acpi_status
+acpi_tb_acquire_temp_table (
+	struct acpi_table_desc          *table_desc,
+	acpi_physical_address           address,
+	u8                              flags,
+	struct acpi_table_header        *table)
 {
-    ACPI_TABLE_HEADER       *TableHeader;
+	u8                              mapped_table = FALSE;
 
 
-    switch (Flags & ACPI_TABLE_ORIGIN_MASK)
-    {
-    case ACPI_TABLE_ORIGIN_INTERNAL_PHYSICAL:
+	switch (flags & ACPI_TABLE_ORIGIN_MASK) {
+	case ACPI_TABLE_ORIGIN_INTERNAL_PHYSICAL:
 
-        /* Get the length of the full table from the header */
+		/* Get the length of the full table from the header */
 
-        TableHeader = AcpiOsMapMemory (Address, sizeof (ACPI_TABLE_HEADER));
-        if (!TableHeader)
-        {
-            return (AE_NO_MEMORY);
-        }
+		if (!table) {
+			table = acpi_os_map_memory (address, sizeof (struct acpi_table_header));
+			if (!table) {
+				return (AE_NO_MEMORY);
+			}
 
-        AcpiTbInitTableDescriptor (TableDesc, Address, Flags, TableHeader);
-        AcpiOsUnmapMemory (TableHeader, sizeof (ACPI_TABLE_HEADER));
-        return (AE_OK);
+			mapped_table = TRUE;
+		}
 
-    case ACPI_TABLE_ORIGIN_INTERNAL_VIRTUAL:
-    case ACPI_TABLE_ORIGIN_EXTERNAL_VIRTUAL:
+		break;
 
-        TableHeader = ACPI_CAST_PTR (ACPI_TABLE_HEADER,
-            ACPI_PHYSADDR_TO_PTR (Address));
-        if (!TableHeader)
-        {
-            return (AE_NO_MEMORY);
-        }
+	case ACPI_TABLE_ORIGIN_INTERNAL_VIRTUAL:
+	case ACPI_TABLE_ORIGIN_EXTERNAL_VIRTUAL:
 
-        AcpiTbInitTableDescriptor (TableDesc, Address, Flags, TableHeader);
-        return (AE_OK);
+		if (!table) {
+			return (AE_BAD_PARAMETER);
+		}
 
-    default:
+		break;
 
-        break;
-    }
+	default:
 
-    /* Table is not valid yet */
+		/* Table is not valid yet */
 
-    return (AE_NO_MEMORY);
+		return (AE_NO_MEMORY);
+	}
+
+	acpi_tb_init_table_descriptor (table_desc, address, flags, table);
+	if (mapped_table) {
+		acpi_os_unmap_memory (table, sizeof (struct acpi_table_header));
+	}
+
+	return (AE_OK);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiTbReleaseTempTable
+ * FUNCTION:    acpi_tb_release_temp_table
  *
- * PARAMETERS:  TableDesc           - Table descriptor to be released
+ * PARAMETERS:  table_desc          - Table descriptor to be released
  *
  * RETURN:      Status
  *
- * DESCRIPTION: The inverse of AcpiTbAcquireTempTable().
+ * DESCRIPTION: The inverse of acpi_tb_acquire_temp_table().
  *
  *****************************************************************************/
 
 void
-AcpiTbReleaseTempTable (
-    ACPI_TABLE_DESC         *TableDesc)
+acpi_tb_release_temp_table (
+	struct acpi_table_desc          *table_desc)
 {
 
-    /*
-     * Note that the .Address is maintained by the callers of
-     * AcpiTbAcquireTempTable(), thus do not invoke AcpiTbUninstallTable()
-     * where .Address will be freed.
-     */
-    AcpiTbInvalidateTable (TableDesc);
+	/*
+	 * Note that the .Address is maintained by the callers of
+	 * acpi_tb_acquire_temp_table(), thus do not invoke acpi_tb_uninstall_table()
+	 * where .Address will be freed.
+	 */
+	acpi_tb_invalidate_table (table_desc);
 }
 
 
 /******************************************************************************
  *
- * FUNCTION:    AcpiTbValidateTable
+ * FUNCTION:    acpi_tb_validate_table
  *
- * PARAMETERS:  TableDesc           - Table descriptor
+ * PARAMETERS:  table_desc          - Table descriptor
  *
  * RETURN:      Status
  *
@@ -457,73 +328,82 @@ AcpiTbReleaseTempTable (
  *
  *****************************************************************************/
 
-ACPI_STATUS
-AcpiTbValidateTable (
-    ACPI_TABLE_DESC         *TableDesc)
+acpi_status
+acpi_tb_validate_table (
+	struct acpi_table_desc          *table_desc)
 {
-    ACPI_STATUS             Status = AE_OK;
+	acpi_status                     status = AE_OK;
 
 
-    ACPI_FUNCTION_TRACE (TbValidateTable);
+	ACPI_FUNCTION_TRACE (tb_validate_table);
 
 
-    /* Validate the table if necessary */
+	/* Validate the table if necessary */
 
-    if (!TableDesc->Pointer)
-    {
-        Status = AcpiTbAcquireTable (TableDesc, &TableDesc->Pointer,
-            &TableDesc->Length, &TableDesc->Flags);
-        if (!TableDesc->Pointer)
-        {
-            Status = AE_NO_MEMORY;
-        }
-    }
+	if (!table_desc->pointer) {
+		status = acpi_tb_acquire_table (table_desc, &table_desc->pointer,
+			&table_desc->length, &table_desc->flags);
+		if (!table_desc->pointer) {
+			status = AE_NO_MEMORY;
+		}
+	}
 
-    return_ACPI_STATUS (Status);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiTbInvalidateTable
+ * FUNCTION:    acpi_tb_invalidate_table
  *
- * PARAMETERS:  TableDesc           - Table descriptor
+ * PARAMETERS:  table_desc          - Table descriptor
  *
  * RETURN:      None
  *
  * DESCRIPTION: Invalidate one internal ACPI table, this is the inverse of
- *              AcpiTbValidateTable().
+ *              acpi_tb_validate_table().
  *
  ******************************************************************************/
 
 void
-AcpiTbInvalidateTable (
-    ACPI_TABLE_DESC         *TableDesc)
+acpi_tb_invalidate_table (
+	struct acpi_table_desc          *table_desc)
 {
 
-    ACPI_FUNCTION_TRACE (TbInvalidateTable);
+	ACPI_FUNCTION_TRACE (tb_invalidate_table);
 
 
-    /* Table must be validated */
+	/* Table must be validated */
 
-    if (!TableDesc->Pointer)
-    {
-        return_VOID;
-    }
+	if (!table_desc->pointer) {
+		return_VOID;
+	}
 
-    AcpiTbReleaseTable (TableDesc->Pointer, TableDesc->Length,
-        TableDesc->Flags);
-    TableDesc->Pointer = NULL;
+	acpi_tb_release_table (table_desc->pointer, table_desc->length,
+		table_desc->flags);
 
-    return_VOID;
+	switch (table_desc->flags & ACPI_TABLE_ORIGIN_MASK) {
+	case ACPI_TABLE_ORIGIN_INTERNAL_PHYSICAL:
+
+		table_desc->pointer = NULL;
+		break;
+
+	case ACPI_TABLE_ORIGIN_INTERNAL_VIRTUAL:
+	case ACPI_TABLE_ORIGIN_EXTERNAL_VIRTUAL:
+	default:
+
+		break;
+	}
+
+	return_VOID;
 }
 
 
 /******************************************************************************
  *
- * FUNCTION:    AcpiTbValidateTempTable
+ * FUNCTION:    acpi_tb_validate_temp_table
  *
- * PARAMETERS:  TableDesc           - Table descriptor
+ * PARAMETERS:  table_desc          - Table descriptor
  *
  * RETURN:      Status
  *
@@ -532,35 +412,34 @@ AcpiTbInvalidateTable (
  *
  *****************************************************************************/
 
-ACPI_STATUS
-AcpiTbValidateTempTable (
-    ACPI_TABLE_DESC         *TableDesc)
+acpi_status
+acpi_tb_validate_temp_table (
+	struct acpi_table_desc          *table_desc)
 {
 
-    if (!TableDesc->Pointer && !AcpiGbl_EnableTableValidation)
-    {
-        /*
-         * Only validates the header of the table.
-         * Note that Length contains the size of the mapping after invoking
-         * this work around, this value is required by
-         * AcpiTbReleaseTempTable().
-         * We can do this because in AcpiInitTableDescriptor(), the Length
-         * field of the installed descriptor is filled with the actual
-         * table length obtaining from the table header.
-         */
-        TableDesc->Length = sizeof (ACPI_TABLE_HEADER);
-    }
+	if (!table_desc->pointer && !acpi_gbl_enable_table_validation) {
+		/*
+		 * Only validates the header of the table.
+		 * Note that Length contains the size of the mapping after invoking
+		 * this work around, this value is required by
+		 * acpi_tb_release_temp_table().
+		 * We can do this because in acpi_init_table_descriptor(), the Length
+		 * field of the installed descriptor is filled with the actual
+		 * table length obtaining from the table header.
+		 */
+		table_desc->length = sizeof (struct acpi_table_header);
+	}
 
-    return (AcpiTbValidateTable (TableDesc));
+	return (acpi_tb_validate_table (table_desc));
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiTbCheckDuplication
+ * FUNCTION:    acpi_tb_check_duplication
  *
- * PARAMETERS:  TableDesc           - Table descriptor
- *              TableIndex          - Where the table index is returned
+ * PARAMETERS:  table_desc          - Table descriptor
+ *              table_index         - Where the table index is returned
  *
  * RETURN:      Status
  *
@@ -571,78 +450,75 @@ AcpiTbValidateTempTable (
  *
  ******************************************************************************/
 
-static ACPI_STATUS
-AcpiTbCheckDuplication (
-    ACPI_TABLE_DESC         *TableDesc,
-    UINT32                  *TableIndex)
+static acpi_status
+acpi_tb_check_duplication (
+	struct acpi_table_desc          *table_desc,
+	u32                             *table_index)
 {
-    UINT32                  i;
+	u32                             i;
 
 
-    ACPI_FUNCTION_TRACE (TbCheckDuplication);
+	ACPI_FUNCTION_TRACE (tb_check_duplication);
 
 
-    /* Check if table is already registered */
+	/* Check if table is already registered */
 
-    for (i = 0; i < AcpiGbl_RootTableList.CurrentTableCount; ++i)
-    {
-        /* Do not compare with unverified tables */
+	for (i = 0; i < acpi_gbl_root_table_list.current_table_count; ++i) {
 
-        if (!(AcpiGbl_RootTableList.Tables[i].Flags & ACPI_TABLE_IS_VERIFIED))
-        {
-            continue;
-        }
+		/* Do not compare with unverified tables */
 
-        /*
-         * Check for a table match on the entire table length,
-         * not just the header.
-         */
-        if (!AcpiTbCompareTables (TableDesc, i))
-        {
-            continue;
-        }
+		if (!(acpi_gbl_root_table_list.tables[i].flags & ACPI_TABLE_IS_VERIFIED)) {
+			continue;
+		}
 
-        /*
-         * Note: the current mechanism does not unregister a table if it is
-         * dynamically unloaded. The related namespace entries are deleted,
-         * but the table remains in the root table list.
-         *
-         * The assumption here is that the number of different tables that
-         * will be loaded is actually small, and there is minimal overhead
-         * in just keeping the table in case it is needed again.
-         *
-         * If this assumption changes in the future (perhaps on large
-         * machines with many table load/unload operations), tables will
-         * need to be unregistered when they are unloaded, and slots in the
-         * root table list should be reused when empty.
-         */
-        if (AcpiGbl_RootTableList.Tables[i].Flags &
-            ACPI_TABLE_IS_LOADED)
-        {
-            /* Table is still loaded, this is an error */
+		/*
+		 * Check for a table match on the entire table length,
+		 * not just the header.
+		 */
+		if (!acpi_tb_compare_tables (table_desc, i)) {
+			continue;
+		}
 
-            return_ACPI_STATUS (AE_ALREADY_EXISTS);
-        }
-        else
-        {
-            *TableIndex = i;
-            return_ACPI_STATUS (AE_CTRL_TERMINATE);
-        }
-    }
+		/*
+		 * Note: the current mechanism does not unregister a table if it is
+		 * dynamically unloaded. The related namespace entries are deleted,
+		 * but the table remains in the root table list.
+		 *
+		 * The assumption here is that the number of different tables that
+		 * will be loaded is actually small, and there is minimal overhead
+		 * in just keeping the table in case it is needed again.
+		 *
+		 * If this assumption changes in the future (perhaps on large
+		 * machines with many table load/unload operations), tables will
+		 * need to be unregistered when they are unloaded, and slots in the
+		 * root table list should be reused when empty.
+		 */
+		if (acpi_gbl_root_table_list.tables[i].flags &
+			ACPI_TABLE_IS_LOADED) {
 
-    /* Indicate no duplication to the caller */
+			/* Table is still loaded, this is an error */
 
-    return_ACPI_STATUS (AE_OK);
+			return_ACPI_STATUS (AE_ALREADY_EXISTS);
+		}
+		else {
+			*table_index = i;
+			return_ACPI_STATUS (AE_CTRL_TERMINATE);
+		}
+	}
+
+	/* Indicate no duplication to the caller */
+
+	return_ACPI_STATUS (AE_OK);
 }
 
 
 /******************************************************************************
  *
- * FUNCTION:    AcpiTbVerifyTempTable
+ * FUNCTION:    acpi_tb_verify_temp_table
  *
- * PARAMETERS:  TableDesc           - Table descriptor
- *              Signature           - Table signature to verify
- *              TableIndex          - Where the table index is returned
+ * PARAMETERS:  table_desc          - Table descriptor
+ *              signature           - Table signature to verify
+ *              table_index         - Where the table index is returned
  *
  * RETURN:      Status
  *
@@ -653,90 +529,84 @@ AcpiTbCheckDuplication (
  *
  *****************************************************************************/
 
-ACPI_STATUS
-AcpiTbVerifyTempTable (
-    ACPI_TABLE_DESC         *TableDesc,
-    char                    *Signature,
-    UINT32                  *TableIndex)
+acpi_status
+acpi_tb_verify_temp_table (
+	struct acpi_table_desc          *table_desc,
+	char                            *signature,
+	u32                             *table_index)
 {
-    ACPI_STATUS             Status = AE_OK;
+	acpi_status                     status = AE_OK;
 
 
-    ACPI_FUNCTION_TRACE (TbVerifyTempTable);
+	ACPI_FUNCTION_TRACE (tb_verify_temp_table);
 
 
-    /* Validate the table */
+	/* Validate the table */
 
-    Status = AcpiTbValidateTempTable (TableDesc);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (AE_NO_MEMORY);
-    }
+	status = acpi_tb_validate_temp_table (table_desc);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (AE_NO_MEMORY);
+	}
 
-    /* If a particular signature is expected (DSDT/FACS), it must match */
+	/* If a particular signature is expected (DSDT/FACS), it must match */
 
-    if (Signature &&
-        !ACPI_COMPARE_NAMESEG (&TableDesc->Signature, Signature))
-    {
-        ACPI_BIOS_ERROR ((AE_INFO,
-            "Invalid signature 0x%X for ACPI table, expected [%s]",
-            TableDesc->Signature.Integer, Signature));
-        Status = AE_BAD_SIGNATURE;
-        goto InvalidateAndExit;
-    }
+	if (signature &&
+		!ACPI_COMPARE_NAMESEG (&table_desc->signature, signature)) {
+		ACPI_BIOS_ERROR ((AE_INFO,
+			"Invalid signature 0x%X for ACPI table, expected [%s]",
+			table_desc->signature.integer, signature));
+		status = AE_BAD_SIGNATURE;
+		goto invalidate_and_exit;
+	}
 
-    if (AcpiGbl_EnableTableValidation)
-    {
-        /* Verify the checksum */
+	if (acpi_gbl_enable_table_validation) {
 
-        Status = AcpiTbVerifyChecksum (TableDesc->Pointer, TableDesc->Length);
-        if (ACPI_FAILURE (Status))
-        {
-            ACPI_EXCEPTION ((AE_INFO, AE_NO_MEMORY,
-                "%4.4s 0x%8.8X%8.8X"
-                " Attempted table install failed",
-                AcpiUtValidNameseg (TableDesc->Signature.Ascii) ?
-                    TableDesc->Signature.Ascii : "????",
-                ACPI_FORMAT_UINT64 (TableDesc->Address)));
+		/* Verify the checksum */
 
-            goto InvalidateAndExit;
-        }
+		status = acpi_ut_verify_checksum (table_desc->pointer, table_desc->length);
+		if (ACPI_FAILURE (status)) {
+			ACPI_EXCEPTION ((AE_INFO, AE_NO_MEMORY,
+				"%4.4s 0x%8.8X%8.8X"
+				" Attempted table install failed",
+				acpi_ut_valid_nameseg (table_desc->signature.ascii) ?
+					table_desc->signature.ascii : "????",
+				ACPI_FORMAT_UINT64 (table_desc->address)));
 
-        /* Avoid duplications */
+			goto invalidate_and_exit;
+		}
 
-        if (TableIndex)
-        {
-            Status = AcpiTbCheckDuplication (TableDesc, TableIndex);
-            if (ACPI_FAILURE (Status))
-            {
-                if (Status != AE_CTRL_TERMINATE)
-                {
-                    ACPI_EXCEPTION ((AE_INFO, Status,
-                        "%4.4s 0x%8.8X%8.8X"
-                        " Table is already loaded",
-                        AcpiUtValidNameseg (TableDesc->Signature.Ascii) ?
-                            TableDesc->Signature.Ascii : "????",
-                        ACPI_FORMAT_UINT64 (TableDesc->Address)));
-                }
+		/* Avoid duplications */
 
-                goto InvalidateAndExit;
-            }
-        }
+		if (table_index) {
+			status = acpi_tb_check_duplication (table_desc, table_index);
+			if (ACPI_FAILURE (status)) {
+				if (status != AE_CTRL_TERMINATE) {
+					ACPI_EXCEPTION ((AE_INFO, status,
+						"%4.4s 0x%8.8X%8.8X"
+						" Table is already loaded",
+						acpi_ut_valid_nameseg (table_desc->signature.ascii) ?
+							table_desc->signature.ascii : "????",
+						ACPI_FORMAT_UINT64 (table_desc->address)));
+				}
 
-        TableDesc->Flags |= ACPI_TABLE_IS_VERIFIED;
-    }
+				goto invalidate_and_exit;
+			}
+		}
 
-    return_ACPI_STATUS (Status);
+		table_desc->flags |= ACPI_TABLE_IS_VERIFIED;
+	}
 
-InvalidateAndExit:
-    AcpiTbInvalidateTable (TableDesc);
-    return_ACPI_STATUS (Status);
+	return_ACPI_STATUS (status);
+
+invalidate_and_exit:
+	acpi_tb_invalidate_table (table_desc);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiTbResizeRootTableList
+ * FUNCTION:    acpi_tb_resize_root_table_list
  *
  * PARAMETERS:  None
  *
@@ -746,84 +616,76 @@ InvalidateAndExit:
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiTbResizeRootTableList (
-    void)
+acpi_status
+acpi_tb_resize_root_table_list (
+	void)
 {
-    ACPI_TABLE_DESC         *Tables;
-    UINT32                  TableCount;
-    UINT32                  CurrentTableCount, MaxTableCount;
-    UINT32                  i;
+	struct acpi_table_desc          *tables;
+	u32                             table_count;
+	u32                             current_table_count, max_table_count;
+	u32                             i;
 
 
-    ACPI_FUNCTION_TRACE (TbResizeRootTableList);
+	ACPI_FUNCTION_TRACE (tb_resize_root_table_list);
 
 
-    /* AllowResize flag is a parameter to AcpiInitializeTables */
+	/* allow_resize flag is a parameter to acpi_initialize_tables */
 
-    if (!(AcpiGbl_RootTableList.Flags & ACPI_ROOT_ALLOW_RESIZE))
-    {
-        ACPI_ERROR ((AE_INFO, "Resize of Root Table Array is not allowed"));
-        return_ACPI_STATUS (AE_SUPPORT);
-    }
+	if (!(acpi_gbl_root_table_list.flags & ACPI_ROOT_ALLOW_RESIZE)) {
+		ACPI_ERROR ((AE_INFO, "Resize of Root Table Array is not allowed"));
+		return_ACPI_STATUS (AE_SUPPORT);
+	}
 
-    /* Increase the Table Array size */
+	/* Increase the Table Array size */
 
-    if (AcpiGbl_RootTableList.Flags & ACPI_ROOT_ORIGIN_ALLOCATED)
-    {
-        TableCount = AcpiGbl_RootTableList.MaxTableCount;
-    }
-    else
-    {
-        TableCount = AcpiGbl_RootTableList.CurrentTableCount;
-    }
+	if (acpi_gbl_root_table_list.flags & ACPI_ROOT_ORIGIN_ALLOCATED) {
+		table_count = acpi_gbl_root_table_list.max_table_count;
+	}
+	else {
+		table_count = acpi_gbl_root_table_list.current_table_count;
+	}
 
-    MaxTableCount = TableCount + ACPI_ROOT_TABLE_SIZE_INCREMENT;
-    Tables = ACPI_ALLOCATE_ZEROED (
-        ((ACPI_SIZE) MaxTableCount) * sizeof (ACPI_TABLE_DESC));
-    if (!Tables)
-    {
-        ACPI_ERROR ((AE_INFO, "Could not allocate new root table array"));
-        return_ACPI_STATUS (AE_NO_MEMORY);
-    }
+	max_table_count = table_count + ACPI_ROOT_TABLE_SIZE_INCREMENT;
+	tables = ACPI_ALLOCATE_ZEROED (
+		((acpi_size) max_table_count) * sizeof (struct acpi_table_desc));
+	if (!tables) {
+		ACPI_ERROR ((AE_INFO, "Could not allocate new root table array"));
+		return_ACPI_STATUS (AE_NO_MEMORY);
+	}
 
-    /* Copy and free the previous table array */
+	/* Copy and free the previous table array */
 
-    CurrentTableCount = 0;
-    if (AcpiGbl_RootTableList.Tables)
-    {
-        for (i = 0; i < TableCount; i++)
-        {
-            if (AcpiGbl_RootTableList.Tables[i].Address)
-            {
-                memcpy (Tables + CurrentTableCount,
-                    AcpiGbl_RootTableList.Tables + i,
-                    sizeof (ACPI_TABLE_DESC));
-                CurrentTableCount++;
-            }
-        }
+	current_table_count = 0;
+	if (acpi_gbl_root_table_list.tables) {
+		for (i = 0; i < table_count; i++) {
+			if (acpi_gbl_root_table_list.tables[i].address) {
+				memcpy (tables + current_table_count,
+					acpi_gbl_root_table_list.tables + i,
+					sizeof (struct acpi_table_desc));
+				current_table_count++;
+			}
+		}
 
-        if (AcpiGbl_RootTableList.Flags & ACPI_ROOT_ORIGIN_ALLOCATED)
-        {
-            ACPI_FREE (AcpiGbl_RootTableList.Tables);
-        }
-    }
+		if (acpi_gbl_root_table_list.flags & ACPI_ROOT_ORIGIN_ALLOCATED) {
+			ACPI_FREE (acpi_gbl_root_table_list.tables);
+		}
+	}
 
-    AcpiGbl_RootTableList.Tables = Tables;
-    AcpiGbl_RootTableList.MaxTableCount = MaxTableCount;
-    AcpiGbl_RootTableList.CurrentTableCount = CurrentTableCount;
-    AcpiGbl_RootTableList.Flags |= ACPI_ROOT_ORIGIN_ALLOCATED;
+	acpi_gbl_root_table_list.tables = tables;
+	acpi_gbl_root_table_list.max_table_count = max_table_count;
+	acpi_gbl_root_table_list.current_table_count = current_table_count;
+	acpi_gbl_root_table_list.flags |= ACPI_ROOT_ORIGIN_ALLOCATED;
 
-    return_ACPI_STATUS (AE_OK);
+	return_ACPI_STATUS (AE_OK);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiTbGetNextTableDescriptor
+ * FUNCTION:    acpi_tb_get_next_table_descriptor
  *
- * PARAMETERS:  TableIndex          - Where table index is returned
- *              TableDesc           - Where table descriptor is returned
+ * PARAMETERS:  table_index         - Where table index is returned
+ *              table_desc          - Where table descriptor is returned
  *
  * RETURN:      Status and table index/descriptor.
  *
@@ -831,46 +693,42 @@ AcpiTbResizeRootTableList (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiTbGetNextTableDescriptor (
-    UINT32                  *TableIndex,
-    ACPI_TABLE_DESC         **TableDesc)
+acpi_status
+acpi_tb_get_next_table_descriptor (
+	u32                             *table_index,
+	struct acpi_table_desc          **table_desc)
 {
-    ACPI_STATUS             Status;
-    UINT32                  i;
+	acpi_status                     status;
+	u32                             i;
 
 
-    /* Ensure that there is room for the table in the Root Table List */
+	/* Ensure that there is room for the table in the Root Table List */
 
-    if (AcpiGbl_RootTableList.CurrentTableCount >=
-        AcpiGbl_RootTableList.MaxTableCount)
-    {
-        Status = AcpiTbResizeRootTableList();
-        if (ACPI_FAILURE (Status))
-        {
-            return (Status);
-        }
-    }
+	if (acpi_gbl_root_table_list.current_table_count >=
+		acpi_gbl_root_table_list.max_table_count) {
+		status = acpi_tb_resize_root_table_list();
+		if (ACPI_FAILURE (status)) {
+			return (status);
+		}
+	}
 
-    i = AcpiGbl_RootTableList.CurrentTableCount;
-    AcpiGbl_RootTableList.CurrentTableCount++;
+	i = acpi_gbl_root_table_list.current_table_count;
+	acpi_gbl_root_table_list.current_table_count++;
 
-    if (TableIndex)
-    {
-        *TableIndex = i;
-    }
-    if (TableDesc)
-    {
-        *TableDesc = &AcpiGbl_RootTableList.Tables[i];
-    }
+	if (table_index) {
+		*table_index = i;
+	}
+	if (table_desc) {
+		*table_desc = &acpi_gbl_root_table_list.tables[i];
+	}
 
-    return (AE_OK);
+	return (AE_OK);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiTbTerminate
+ * FUNCTION:    acpi_tb_terminate
  *
  * PARAMETERS:  None
  *
@@ -881,49 +739,47 @@ AcpiTbGetNextTableDescriptor (
  ******************************************************************************/
 
 void
-AcpiTbTerminate (
-    void)
+acpi_tb_terminate (
+	void)
 {
-    UINT32                  i;
+	u32                             i;
 
 
-    ACPI_FUNCTION_TRACE (TbTerminate);
+	ACPI_FUNCTION_TRACE (tb_terminate);
 
 
-    (void) AcpiUtAcquireMutex (ACPI_MTX_TABLES);
+	(void) acpi_ut_acquire_mutex (ACPI_MTX_TABLES);
 
-    /* Delete the individual tables */
+	/* Delete the individual tables */
 
-    for (i = 0; i < AcpiGbl_RootTableList.CurrentTableCount; i++)
-    {
-        AcpiTbUninstallTable (&AcpiGbl_RootTableList.Tables[i]);
-    }
+	for (i = 0; i < acpi_gbl_root_table_list.current_table_count; i++) {
+		acpi_tb_uninstall_table (&acpi_gbl_root_table_list.tables[i]);
+	}
 
-    /*
-     * Delete the root table array if allocated locally. Array cannot be
-     * mapped, so we don't need to check for that flag.
-     */
-    if (AcpiGbl_RootTableList.Flags & ACPI_ROOT_ORIGIN_ALLOCATED)
-    {
-        ACPI_FREE (AcpiGbl_RootTableList.Tables);
-    }
+	/*
+	 * Delete the root table array if allocated locally. Array cannot be
+	 * mapped, so we don't need to check for that flag.
+	 */
+	if (acpi_gbl_root_table_list.flags & ACPI_ROOT_ORIGIN_ALLOCATED) {
+		ACPI_FREE (acpi_gbl_root_table_list.tables);
+	}
 
-    AcpiGbl_RootTableList.Tables = NULL;
-    AcpiGbl_RootTableList.Flags = 0;
-    AcpiGbl_RootTableList.CurrentTableCount = 0;
+	acpi_gbl_root_table_list.tables = NULL;
+	acpi_gbl_root_table_list.flags = 0;
+	acpi_gbl_root_table_list.current_table_count = 0;
 
-    ACPI_DEBUG_PRINT ((ACPI_DB_INFO, "ACPI Tables freed\n"));
+	ACPI_DEBUG_PRINT ((ACPI_DB_INFO, "ACPI Tables freed\n"));
 
-    (void) AcpiUtReleaseMutex (ACPI_MTX_TABLES);
-    return_VOID;
+	(void) acpi_ut_release_mutex (ACPI_MTX_TABLES);
+	return_VOID;
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiTbDeleteNamespaceByOwner
+ * FUNCTION:    acpi_tb_delete_namespace_by_owner
  *
- * PARAMETERS:  TableIndex          - Table index
+ * PARAMETERS:  table_index         - Table index
  *
  * RETURN:      Status
  *
@@ -931,196 +787,190 @@ AcpiTbTerminate (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiTbDeleteNamespaceByOwner (
-    UINT32                  TableIndex)
+acpi_status
+acpi_tb_delete_namespace_by_owner (
+	u32                             table_index)
 {
-    ACPI_OWNER_ID           OwnerId;
-    ACPI_STATUS             Status;
+	acpi_owner_id                   owner_id;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE (TbDeleteNamespaceByOwner);
+	ACPI_FUNCTION_TRACE (tb_delete_namespace_by_owner);
 
 
-    Status = AcpiUtAcquireMutex (ACPI_MTX_TABLES);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_ut_acquire_mutex (ACPI_MTX_TABLES);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    if (TableIndex >= AcpiGbl_RootTableList.CurrentTableCount)
-    {
-        /* The table index does not exist */
+	if (table_index >= acpi_gbl_root_table_list.current_table_count) {
 
-        (void) AcpiUtReleaseMutex (ACPI_MTX_TABLES);
-        return_ACPI_STATUS (AE_NOT_EXIST);
-    }
+		/* The table index does not exist */
 
-    /* Get the owner ID for this table, used to delete namespace nodes */
+		(void) acpi_ut_release_mutex (ACPI_MTX_TABLES);
+		return_ACPI_STATUS (AE_NOT_EXIST);
+	}
 
-    OwnerId = AcpiGbl_RootTableList.Tables[TableIndex].OwnerId;
-    (void) AcpiUtReleaseMutex (ACPI_MTX_TABLES);
+	/* Get the owner ID for this table, used to delete namespace nodes */
 
-    /*
-     * Need to acquire the namespace writer lock to prevent interference
-     * with any concurrent namespace walks. The interpreter must be
-     * released during the deletion since the acquisition of the deletion
-     * lock may block, and also since the execution of a namespace walk
-     * must be allowed to use the interpreter.
-     */
-    Status = AcpiUtAcquireWriteLock (&AcpiGbl_NamespaceRwLock);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	owner_id = acpi_gbl_root_table_list.tables[table_index].owner_id;
+	(void) acpi_ut_release_mutex (ACPI_MTX_TABLES);
 
-    AcpiNsDeleteNamespaceByOwner (OwnerId);
-    AcpiUtReleaseWriteLock (&AcpiGbl_NamespaceRwLock);
-    return_ACPI_STATUS (Status);
+	/*
+	 * Need to acquire the namespace writer lock to prevent interference
+	 * with any concurrent namespace walks. The interpreter must be
+	 * released during the deletion since the acquisition of the deletion
+	 * lock may block, and also since the execution of a namespace walk
+	 * must be allowed to use the interpreter.
+	 */
+	status = acpi_ut_acquire_write_lock (&acpi_gbl_namespace_rw_lock);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
+
+	acpi_ns_delete_namespace_by_owner (owner_id);
+	acpi_ut_release_write_lock (&acpi_gbl_namespace_rw_lock);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiTbAllocateOwnerId
+ * FUNCTION:    acpi_tb_allocate_owner_id
  *
- * PARAMETERS:  TableIndex          - Table index
+ * PARAMETERS:  table_index         - Table index
  *
  * RETURN:      Status
  *
- * DESCRIPTION: Allocates OwnerId in TableDesc
+ * DESCRIPTION: Allocates owner_id in table_desc
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiTbAllocateOwnerId (
-    UINT32                  TableIndex)
+acpi_status
+acpi_tb_allocate_owner_id (
+	u32                             table_index)
 {
-    ACPI_STATUS             Status = AE_BAD_PARAMETER;
+	acpi_status                     status = AE_BAD_PARAMETER;
 
 
-    ACPI_FUNCTION_TRACE (TbAllocateOwnerId);
+	ACPI_FUNCTION_TRACE (tb_allocate_owner_id);
 
 
-    (void) AcpiUtAcquireMutex (ACPI_MTX_TABLES);
-    if (TableIndex < AcpiGbl_RootTableList.CurrentTableCount)
-    {
-        Status = AcpiUtAllocateOwnerId (
-            &(AcpiGbl_RootTableList.Tables[TableIndex].OwnerId));
-    }
+	(void) acpi_ut_acquire_mutex (ACPI_MTX_TABLES);
+	if (table_index < acpi_gbl_root_table_list.current_table_count) {
+		status = acpi_ut_allocate_owner_id (
+			&(acpi_gbl_root_table_list.tables[table_index].owner_id));
+	}
 
-    (void) AcpiUtReleaseMutex (ACPI_MTX_TABLES);
-    return_ACPI_STATUS (Status);
+	(void) acpi_ut_release_mutex (ACPI_MTX_TABLES);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiTbReleaseOwnerId
+ * FUNCTION:    acpi_tb_release_owner_id
  *
- * PARAMETERS:  TableIndex          - Table index
+ * PARAMETERS:  table_index         - Table index
  *
  * RETURN:      Status
  *
- * DESCRIPTION: Releases OwnerId in TableDesc
+ * DESCRIPTION: Releases owner_id in table_desc
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiTbReleaseOwnerId (
-    UINT32                  TableIndex)
+acpi_status
+acpi_tb_release_owner_id (
+	u32                             table_index)
 {
-    ACPI_STATUS             Status = AE_BAD_PARAMETER;
+	acpi_status                     status = AE_BAD_PARAMETER;
 
 
-    ACPI_FUNCTION_TRACE (TbReleaseOwnerId);
+	ACPI_FUNCTION_TRACE (tb_release_owner_id);
 
 
-    (void) AcpiUtAcquireMutex (ACPI_MTX_TABLES);
-    if (TableIndex < AcpiGbl_RootTableList.CurrentTableCount)
-    {
-        AcpiUtReleaseOwnerId (
-            &(AcpiGbl_RootTableList.Tables[TableIndex].OwnerId));
-        Status = AE_OK;
-    }
+	(void) acpi_ut_acquire_mutex (ACPI_MTX_TABLES);
+	if (table_index < acpi_gbl_root_table_list.current_table_count) {
+		acpi_ut_release_owner_id (
+			&(acpi_gbl_root_table_list.tables[table_index].owner_id));
+		status = AE_OK;
+	}
 
-    (void) AcpiUtReleaseMutex (ACPI_MTX_TABLES);
-    return_ACPI_STATUS (Status);
+	(void) acpi_ut_release_mutex (ACPI_MTX_TABLES);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiTbGetOwnerId
+ * FUNCTION:    acpi_tb_get_owner_id
  *
- * PARAMETERS:  TableIndex          - Table index
- *              OwnerId             - Where the table OwnerId is returned
+ * PARAMETERS:  table_index         - Table index
+ *              owner_id            - Where the table owner_id is returned
  *
  * RETURN:      Status
  *
- * DESCRIPTION: returns OwnerId for the ACPI table
+ * DESCRIPTION: returns owner_id for the ACPI table
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiTbGetOwnerId (
-    UINT32                  TableIndex,
-    ACPI_OWNER_ID           *OwnerId)
+acpi_status
+acpi_tb_get_owner_id (
+	u32                             table_index,
+	acpi_owner_id                   *owner_id)
 {
-    ACPI_STATUS             Status = AE_BAD_PARAMETER;
+	acpi_status                     status = AE_BAD_PARAMETER;
 
 
-    ACPI_FUNCTION_TRACE (TbGetOwnerId);
+	ACPI_FUNCTION_TRACE (tb_get_owner_id);
 
 
-    (void) AcpiUtAcquireMutex (ACPI_MTX_TABLES);
-    if (TableIndex < AcpiGbl_RootTableList.CurrentTableCount)
-    {
-        *OwnerId = AcpiGbl_RootTableList.Tables[TableIndex].OwnerId;
-        Status = AE_OK;
-    }
+	(void) acpi_ut_acquire_mutex (ACPI_MTX_TABLES);
+	if (table_index < acpi_gbl_root_table_list.current_table_count) {
+		*owner_id = acpi_gbl_root_table_list.tables[table_index].owner_id;
+		status = AE_OK;
+	}
 
-    (void) AcpiUtReleaseMutex (ACPI_MTX_TABLES);
-    return_ACPI_STATUS (Status);
+	(void) acpi_ut_release_mutex (ACPI_MTX_TABLES);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiTbIsTableLoaded
+ * FUNCTION:    acpi_tb_is_table_loaded
  *
- * PARAMETERS:  TableIndex          - Index into the root table
+ * PARAMETERS:  table_index         - Index into the root table
  *
  * RETURN:      Table Loaded Flag
  *
  ******************************************************************************/
 
-BOOLEAN
-AcpiTbIsTableLoaded (
-    UINT32                  TableIndex)
+u8
+acpi_tb_is_table_loaded (
+	u32                             table_index)
 {
-    BOOLEAN                 IsLoaded = FALSE;
+	u8                              is_loaded = FALSE;
 
 
-    (void) AcpiUtAcquireMutex (ACPI_MTX_TABLES);
-    if (TableIndex < AcpiGbl_RootTableList.CurrentTableCount)
-    {
-        IsLoaded = (BOOLEAN)
-            (AcpiGbl_RootTableList.Tables[TableIndex].Flags &
-            ACPI_TABLE_IS_LOADED);
-    }
+	(void) acpi_ut_acquire_mutex (ACPI_MTX_TABLES);
+	if (table_index < acpi_gbl_root_table_list.current_table_count) {
+		is_loaded = (u8)
+			(acpi_gbl_root_table_list.tables[table_index].flags &
+			ACPI_TABLE_IS_LOADED);
+	}
 
-    (void) AcpiUtReleaseMutex (ACPI_MTX_TABLES);
-    return (IsLoaded);
+	(void) acpi_ut_release_mutex (ACPI_MTX_TABLES);
+	return (is_loaded);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiTbSetTableLoadedFlag
+ * FUNCTION:    acpi_tb_set_table_loaded_flag
  *
- * PARAMETERS:  TableIndex          - Table index
- *              IsLoaded            - TRUE if table is loaded, FALSE otherwise
+ * PARAMETERS:  table_index         - Table index
+ *              is_loaded           - TRUE if table is loaded, FALSE otherwise
  *
  * RETURN:      None
  *
@@ -1129,36 +979,33 @@ AcpiTbIsTableLoaded (
  ******************************************************************************/
 
 void
-AcpiTbSetTableLoadedFlag (
-    UINT32                  TableIndex,
-    BOOLEAN                 IsLoaded)
+acpi_tb_set_table_loaded_flag (
+	u32                             table_index,
+	u8                              is_loaded)
 {
 
-    (void) AcpiUtAcquireMutex (ACPI_MTX_TABLES);
-    if (TableIndex < AcpiGbl_RootTableList.CurrentTableCount)
-    {
-        if (IsLoaded)
-        {
-            AcpiGbl_RootTableList.Tables[TableIndex].Flags |=
-                ACPI_TABLE_IS_LOADED;
-        }
-        else
-        {
-            AcpiGbl_RootTableList.Tables[TableIndex].Flags &=
-                ~ACPI_TABLE_IS_LOADED;
-        }
-    }
+	(void) acpi_ut_acquire_mutex (ACPI_MTX_TABLES);
+	if (table_index < acpi_gbl_root_table_list.current_table_count) {
+		if (is_loaded) {
+			acpi_gbl_root_table_list.tables[table_index].flags |=
+				ACPI_TABLE_IS_LOADED;
+		}
+		else {
+			acpi_gbl_root_table_list.tables[table_index].flags &=
+				~ACPI_TABLE_IS_LOADED;
+		}
+	}
 
-    (void) AcpiUtReleaseMutex (ACPI_MTX_TABLES);
+	(void) acpi_ut_release_mutex (ACPI_MTX_TABLES);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiTbLoadTable
+ * FUNCTION:    acpi_tb_load_table
  *
- * PARAMETERS:  TableIndex              - Table index
- *              ParentNode              - Where table index is returned
+ * PARAMETERS:  table_index             - Table index
+ *              parent_node             - Where table index is returned
  *
  * RETURN:      Status
  *
@@ -1166,61 +1013,61 @@ AcpiTbSetTableLoadedFlag (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiTbLoadTable (
-    UINT32                  TableIndex,
-    ACPI_NAMESPACE_NODE     *ParentNode)
+acpi_status
+acpi_tb_load_table (
+	u32                             table_index,
+	struct acpi_namespace_node      *parent_node)
 {
-    ACPI_TABLE_HEADER       *Table;
-    ACPI_STATUS             Status;
-    ACPI_OWNER_ID           OwnerId;
+	struct acpi_table_header        *table;
+	acpi_status                     status;
+	acpi_owner_id                   owner_id;
 
 
-    ACPI_FUNCTION_TRACE (TbLoadTable);
+	ACPI_FUNCTION_TRACE (tb_load_table);
 
 
-    /*
-     * Note: Now table is "INSTALLED", it must be validated before
-     * using.
-     */
-    Status = AcpiGetTableByIndex (TableIndex, &Table);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	/*
+	 * Note: Now table is "INSTALLED", it must be validated before
+	 * using.
+	 */
+	status = acpi_get_table_by_index (table_index, &table);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    Status = AcpiNsLoadTable (TableIndex, ParentNode);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_ns_load_table (table_index, parent_node);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    /*
-     * Update GPEs for any new _Lxx/_Exx methods. Ignore errors. The host is
-     * responsible for discovering any new wake GPEs by running _PRW methods
-     * that may have been loaded by this table.
-     */
-    Status = AcpiTbGetOwnerId (TableIndex, &OwnerId);
-    if (ACPI_SUCCESS (Status))
-    {
-        AcpiEvUpdateGpes (OwnerId);
-    }
+	/*
+	 * Update GPEs for any new _Lxx/_Exx methods. Ignore errors. The host is
+	 * responsible for discovering any new wake GPEs by running _PRW methods
+	 * that may have been loaded by this table.
+	 */
+	status = acpi_tb_get_owner_id (table_index, &owner_id);
+	if (ACPI_SUCCESS (status)) {
+		acpi_ev_update_gpes (owner_id);
+	}
 
-    /* Invoke table handler */
+	/* Invoke table handler */
 
-    AcpiTbNotifyTable (ACPI_TABLE_EVENT_LOAD, Table);
-    return_ACPI_STATUS (Status);
+	acpi_tb_notify_table (ACPI_TABLE_EVENT_LOAD, table);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiTbInstallAndLoadTable
+ * FUNCTION:    acpi_tb_install_and_load_table
  *
- * PARAMETERS:  Address                 - Physical address of the table
- *              Flags                   - Allocation flags of the table
- *              Override                - Whether override should be performed
- *              TableIndex              - Where table index is returned
+ * PARAMETERS:  address                 - Physical address of the table
+ *              flags                   - Allocation flags of the table
+ *              table                   - Pointer to the table (required for
+ *                                        virtual origins, optional for
+ *                                        physical)
+ *              override                - Whether override should be performed
+ *              table_index             - Where table index is returned
  *
  * RETURN:      Status
  *
@@ -1228,42 +1075,42 @@ AcpiTbLoadTable (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiTbInstallAndLoadTable (
-    ACPI_PHYSICAL_ADDRESS   Address,
-    UINT8                   Flags,
-    BOOLEAN                 Override,
-    UINT32                  *TableIndex)
+acpi_status
+acpi_tb_install_and_load_table (
+	acpi_physical_address           address,
+	u8                              flags,
+	struct acpi_table_header        *table,
+	u8                              override,
+	u32                             *table_index)
 {
-    ACPI_STATUS             Status;
-    UINT32                  i;
+	acpi_status                     status;
+	u32                             i;
 
 
-    ACPI_FUNCTION_TRACE (TbInstallAndLoadTable);
+	ACPI_FUNCTION_TRACE (tb_install_and_load_table);
 
 
-    /* Install the table and load it into the namespace */
+	/* Install the table and load it into the namespace */
 
-    Status = AcpiTbInstallStandardTable (Address, Flags, TRUE,
-        Override, &i);
-    if (ACPI_FAILURE (Status))
-    {
-        goto Exit;
-    }
+	status = acpi_tb_install_standard_table (address, flags, table, TRUE,
+		override, &i);
+	if (ACPI_FAILURE (status)) {
+		goto exit;
+	}
 
-    Status = AcpiTbLoadTable (i, AcpiGbl_RootNode);
+	status = acpi_tb_load_table (i, acpi_gbl_root_node);
 
-Exit:
-    *TableIndex = i;
-    return_ACPI_STATUS (Status);
+exit:
+	*table_index = i;
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiTbUnloadTable
+ * FUNCTION:    acpi_tb_unload_table
  *
- * PARAMETERS:  TableIndex              - Table index
+ * PARAMETERS:  table_index             - Table index
  *
  * RETURN:      Status
  *
@@ -1271,52 +1118,49 @@ Exit:
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiTbUnloadTable (
-    UINT32                  TableIndex)
+acpi_status
+acpi_tb_unload_table (
+	u32                             table_index)
 {
-    ACPI_STATUS             Status = AE_OK;
-    ACPI_TABLE_HEADER       *Table;
+	acpi_status                     status = AE_OK;
+	struct acpi_table_header        *table;
 
 
-    ACPI_FUNCTION_TRACE (TbUnloadTable);
+	ACPI_FUNCTION_TRACE (tb_unload_table);
 
 
-    /* Ensure the table is still loaded */
+	/* Ensure the table is still loaded */
 
-    if (!AcpiTbIsTableLoaded (TableIndex))
-    {
-        return_ACPI_STATUS (AE_NOT_EXIST);
-    }
+	if (!acpi_tb_is_table_loaded (table_index)) {
+		return_ACPI_STATUS (AE_NOT_EXIST);
+	}
 
-    /* Invoke table handler */
+	/* Invoke table handler */
 
-    Status = AcpiGetTableByIndex (TableIndex, &Table);
-    if (ACPI_SUCCESS (Status))
-    {
-        AcpiTbNotifyTable (ACPI_TABLE_EVENT_UNLOAD, Table);
-    }
+	status = acpi_get_table_by_index (table_index, &table);
+	if (ACPI_SUCCESS (status)) {
+		acpi_tb_notify_table (ACPI_TABLE_EVENT_UNLOAD, table);
+	}
 
-    /* Delete the portion of the namespace owned by this table */
+	/* Delete the portion of the namespace owned by this table */
 
-    Status = AcpiTbDeleteNamespaceByOwner (TableIndex);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_tb_delete_namespace_by_owner (table_index);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    (void) AcpiTbReleaseOwnerId (TableIndex);
-    AcpiTbSetTableLoadedFlag (TableIndex, FALSE);
-    return_ACPI_STATUS (Status);
+	(void) acpi_tb_release_owner_id (table_index);
+	acpi_tb_set_table_loaded_flag (table_index, FALSE);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiTbNotifyTable
+ * FUNCTION:    acpi_tb_notify_table
  *
- * PARAMETERS:  Event               - Table event
- *              Table               - Validated table pointer
+ * PARAMETERS:  event               - Table event
+ *              table               - Validated table pointer
  *
  * RETURN:      None
  *
@@ -1325,15 +1169,14 @@ AcpiTbUnloadTable (
  ******************************************************************************/
 
 void
-AcpiTbNotifyTable (
-    UINT32                          Event,
-    void                            *Table)
+acpi_tb_notify_table (
+	u32                                     event,
+	void                                    *table)
 {
-    /* Invoke table handler if present */
+	/* Invoke table handler if present */
 
-    if (AcpiGbl_TableHandler)
-    {
-        (void) AcpiGbl_TableHandler (Event, Table,
-            AcpiGbl_TableHandlerContext);
-    }
+	if (acpi_gbl_table_handler) {
+		(void) acpi_gbl_table_handler (event, table,
+			acpi_gbl_table_handler_context);
+	}
 }

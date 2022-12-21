@@ -1,176 +1,33 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /*******************************************************************************
  *
  * Module Name: utmath - Integer math support routines
  *
  ******************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #include "acpi.h"
 #include "accommon.h"
 
 
 #define _COMPONENT          ACPI_UTILITIES
-        ACPI_MODULE_NAME    ("utmath")
+	 ACPI_MODULE_NAME    ("utmath")
 
 /* Structures used only for 64-bit divide */
 
 typedef struct uint64_struct
 {
-    UINT32                          Lo;
-    UINT32                          Hi;
+	u32                                     lo;
+	u32                                     hi;
 
-} UINT64_STRUCT;
+} uint64_struct;
 
 typedef union uint64_overlay
 {
-    UINT64                          Full;
-    UINT64_STRUCT                   Part;
+	u64                                     full;
+	struct uint64_struct                    part;
 
-} UINT64_OVERLAY;
+} uint64_overlay;
 
 /*
  * Optional support for 64-bit double-precision integer multiply and shift.
@@ -182,234 +39,226 @@ typedef union uint64_overlay
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtShortMultiply
+ * FUNCTION:    acpi_ut_short_multiply
  *
- * PARAMETERS:  Multiplicand        - 64-bit multiplicand
- *              Multiplier          - 32-bit multiplier
- *              OutProduct          - Pointer to where the product is returned
+ * PARAMETERS:  multiplicand        - 64-bit multiplicand
+ *              multiplier          - 32-bit multiplier
+ *              out_product         - Pointer to where the product is returned
  *
  * DESCRIPTION: Perform a short multiply.
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiUtShortMultiply (
-    UINT64                  Multiplicand,
-    UINT32                  Multiplier,
-    UINT64                  *OutProduct)
+acpi_status
+acpi_ut_short_multiply (
+	u64                             multiplicand,
+	u32                             multiplier,
+	u64                             *out_product)
 {
-    UINT64_OVERLAY          MultiplicandOvl;
-    UINT64_OVERLAY          Product;
-    UINT32                  Carry32;
+	union uint64_overlay            multiplicand_ovl;
+	union uint64_overlay            product;
+	u32                             carry32;
 
 
-    ACPI_FUNCTION_TRACE (UtShortMultiply);
+	ACPI_FUNCTION_TRACE (ut_short_multiply);
 
 
-    MultiplicandOvl.Full = Multiplicand;
+	multiplicand_ovl.full = multiplicand;
 
-    /*
-     * The Product is 64 bits, the carry is always 32 bits,
-     * and is generated by the second multiply.
-     */
-    ACPI_MUL_64_BY_32 (0, MultiplicandOvl.Part.Hi, Multiplier,
-        Product.Part.Hi, Carry32);
+	/*
+	 * The Product is 64 bits, the carry is always 32 bits,
+	 * and is generated by the second multiply.
+	 */
+	ACPI_MUL_64_BY_32 (0, multiplicand_ovl.part.hi, multiplier,
+		product.part.hi, carry32);
 
-    ACPI_MUL_64_BY_32 (0, MultiplicandOvl.Part.Lo, Multiplier,
-        Product.Part.Lo, Carry32);
+	ACPI_MUL_64_BY_32 (0, multiplicand_ovl.part.lo, multiplier,
+		product.part.lo, carry32);
 
-    Product.Part.Hi += Carry32;
+	product.part.hi += carry32;
 
-    /* Return only what was requested */
+	/* Return only what was requested */
 
-    if (OutProduct)
-    {
-        *OutProduct = Product.Full;
-    }
+	if (out_product) {
+		*out_product = product.full;
+	}
 
-    return_ACPI_STATUS (AE_OK);
+	return_ACPI_STATUS (AE_OK);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtShortShiftLeft
+ * FUNCTION:    acpi_ut_short_shift_left
  *
- * PARAMETERS:  Operand             - 64-bit shift operand
- *              Count               - 32-bit shift count
- *              OutResult           - Pointer to where the result is returned
+ * PARAMETERS:  operand             - 64-bit shift operand
+ *              count               - 32-bit shift count
+ *              out_result          - Pointer to where the result is returned
  *
  * DESCRIPTION: Perform a short left shift.
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiUtShortShiftLeft (
-    UINT64                  Operand,
-    UINT32                  Count,
-    UINT64                  *OutResult)
+acpi_status
+acpi_ut_short_shift_left (
+	u64                             operand,
+	u32                             count,
+	u64                             *out_result)
 {
-    UINT64_OVERLAY          OperandOvl;
+	union uint64_overlay            operand_ovl;
 
 
-    ACPI_FUNCTION_TRACE (UtShortShiftLeft);
+	ACPI_FUNCTION_TRACE (ut_short_shift_left);
 
 
-    OperandOvl.Full = Operand;
+	operand_ovl.full = operand;
 
-    if ((Count & 63) >= 32)
-    {
-        OperandOvl.Part.Hi = OperandOvl.Part.Lo;
-        OperandOvl.Part.Lo = 0;
-        Count = (Count & 63) - 32;
-    }
-    ACPI_SHIFT_LEFT_64_BY_32 (OperandOvl.Part.Hi,
-        OperandOvl.Part.Lo, Count);
+	if ((count & 63) >= 32) {
+		operand_ovl.part.hi = operand_ovl.part.lo;
+		operand_ovl.part.lo = 0;
+		count = (count & 63) - 32;
+	}
+	ACPI_SHIFT_LEFT_64_BY_32 (operand_ovl.part.hi,
+		operand_ovl.part.lo, count);
 
-    /* Return only what was requested */
+	/* Return only what was requested */
 
-    if (OutResult)
-    {
-        *OutResult = OperandOvl.Full;
-    }
+	if (out_result) {
+		*out_result = operand_ovl.full;
+	}
 
-    return_ACPI_STATUS (AE_OK);
+	return_ACPI_STATUS (AE_OK);
 }
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtShortShiftRight
+ * FUNCTION:    acpi_ut_short_shift_right
  *
- * PARAMETERS:  Operand             - 64-bit shift operand
- *              Count               - 32-bit shift count
- *              OutResult           - Pointer to where the result is returned
+ * PARAMETERS:  operand             - 64-bit shift operand
+ *              count               - 32-bit shift count
+ *              out_result          - Pointer to where the result is returned
  *
  * DESCRIPTION: Perform a short right shift.
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiUtShortShiftRight (
-    UINT64                  Operand,
-    UINT32                  Count,
-    UINT64                  *OutResult)
+acpi_status
+acpi_ut_short_shift_right (
+	u64                             operand,
+	u32                             count,
+	u64                             *out_result)
 {
-    UINT64_OVERLAY          OperandOvl;
+	union uint64_overlay            operand_ovl;
 
 
-    ACPI_FUNCTION_TRACE (UtShortShiftRight);
+	ACPI_FUNCTION_TRACE (ut_short_shift_right);
 
 
-    OperandOvl.Full = Operand;
+	operand_ovl.full = operand;
 
-    if ((Count & 63) >= 32)
-    {
-        OperandOvl.Part.Lo = OperandOvl.Part.Hi;
-        OperandOvl.Part.Hi = 0;
-        Count = (Count & 63) - 32;
-    }
-    ACPI_SHIFT_RIGHT_64_BY_32 (OperandOvl.Part.Hi,
-        OperandOvl.Part.Lo, Count);
+	if ((count & 63) >= 32) {
+		operand_ovl.part.lo = operand_ovl.part.hi;
+		operand_ovl.part.hi = 0;
+		count = (count & 63) - 32;
+	}
+	ACPI_SHIFT_RIGHT_64_BY_32 (operand_ovl.part.hi,
+		operand_ovl.part.lo, count);
 
-    /* Return only what was requested */
+	/* Return only what was requested */
 
-    if (OutResult)
-    {
-        *OutResult = OperandOvl.Full;
-    }
+	if (out_result) {
+		*out_result = operand_ovl.full;
+	}
 
-    return_ACPI_STATUS (AE_OK);
+	return_ACPI_STATUS (AE_OK);
 }
 #else
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtShortMultiply
+ * FUNCTION:    acpi_ut_short_multiply
  *
  * PARAMETERS:  See function headers above
  *
- * DESCRIPTION: Native version of the UtShortMultiply function.
+ * DESCRIPTION: Native version of the ut_short_multiply function.
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiUtShortMultiply (
-    UINT64                  Multiplicand,
-    UINT32                  Multiplier,
-    UINT64                  *OutProduct)
+acpi_status
+acpi_ut_short_multiply (
+	u64                             multiplicand,
+	u32                             multiplier,
+	u64                             *out_product)
 {
 
-    ACPI_FUNCTION_TRACE (UtShortMultiply);
+	ACPI_FUNCTION_TRACE (ut_short_multiply);
 
 
-    /* Return only what was requested */
+	/* Return only what was requested */
 
-    if (OutProduct)
-    {
-        *OutProduct = Multiplicand * Multiplier;
-    }
+	if (out_product) {
+		*out_product = multiplicand * multiplier;
+	}
 
-    return_ACPI_STATUS (AE_OK);
+	return_ACPI_STATUS (AE_OK);
 }
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtShortShiftLeft
+ * FUNCTION:    acpi_ut_short_shift_left
  *
  * PARAMETERS:  See function headers above
  *
- * DESCRIPTION: Native version of the UtShortShiftLeft function.
+ * DESCRIPTION: Native version of the ut_short_shift_left function.
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiUtShortShiftLeft (
-    UINT64                  Operand,
-    UINT32                  Count,
-    UINT64                  *OutResult)
+acpi_status
+acpi_ut_short_shift_left (
+	u64                             operand,
+	u32                             count,
+	u64                             *out_result)
 {
 
-    ACPI_FUNCTION_TRACE (UtShortShiftLeft);
+	ACPI_FUNCTION_TRACE (ut_short_shift_left);
 
 
-    /* Return only what was requested */
+	/* Return only what was requested */
 
-    if (OutResult)
-    {
-        *OutResult = Operand << Count;
-    }
+	if (out_result) {
+		*out_result = operand << count;
+	}
 
-    return_ACPI_STATUS (AE_OK);
+	return_ACPI_STATUS (AE_OK);
 }
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtShortShiftRight
+ * FUNCTION:    acpi_ut_short_shift_right
  *
  * PARAMETERS:  See function headers above
  *
- * DESCRIPTION: Native version of the UtShortShiftRight function.
+ * DESCRIPTION: Native version of the ut_short_shift_right function.
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiUtShortShiftRight (
-    UINT64                  Operand,
-    UINT32                  Count,
-    UINT64                  *OutResult)
+acpi_status
+acpi_ut_short_shift_right (
+	u64                             operand,
+	u32                             count,
+	u64                             *out_result)
 {
 
-    ACPI_FUNCTION_TRACE (UtShortShiftRight);
+	ACPI_FUNCTION_TRACE (ut_short_shift_right);
 
 
-    /* Return only what was requested */
+	/* Return only what was requested */
 
-    if (OutResult)
-    {
-        *OutResult = Operand >> Count;
-    }
+	if (out_result) {
+		*out_result = operand >> count;
+	}
 
-    return_ACPI_STATUS (AE_OK);
+	return_ACPI_STATUS (AE_OK);
 }
 #endif
 
@@ -426,12 +275,12 @@ AcpiUtShortShiftRight (
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtShortDivide
+ * FUNCTION:    acpi_ut_short_divide
  *
- * PARAMETERS:  Dividend            - 64-bit dividend
- *              Divisor             - 32-bit divisor
- *              OutQuotient         - Pointer to where the quotient is returned
- *              OutRemainder        - Pointer to where the remainder is returned
+ * PARAMETERS:  dividend            - 64-bit dividend
+ *              divisor             - 32-bit divisor
+ *              out_quotient        - Pointer to where the quotient is returned
+ *              out_remainder       - Pointer to where the remainder is returned
  *
  * RETURN:      Status (Checks for divide-by-zero)
  *
@@ -441,64 +290,61 @@ AcpiUtShortShiftRight (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiUtShortDivide (
-    UINT64                  Dividend,
-    UINT32                  Divisor,
-    UINT64                  *OutQuotient,
-    UINT32                  *OutRemainder)
+acpi_status
+acpi_ut_short_divide (
+	u64                             dividend,
+	u32                             divisor,
+	u64                             *out_quotient,
+	u32                             *out_remainder)
 {
-    UINT64_OVERLAY          DividendOvl;
-    UINT64_OVERLAY          Quotient;
-    UINT32                  Remainder32;
+	union uint64_overlay            dividend_ovl;
+	union uint64_overlay            quotient;
+	u32                             remainder32;
 
 
-    ACPI_FUNCTION_TRACE (UtShortDivide);
+	ACPI_FUNCTION_TRACE (ut_short_divide);
 
 
-    /* Always check for a zero divisor */
+	/* Always check for a zero divisor */
 
-    if (Divisor == 0)
-    {
-        ACPI_ERROR ((AE_INFO, "Divide by zero"));
-        return_ACPI_STATUS (AE_AML_DIVIDE_BY_ZERO);
-    }
+	if (divisor == 0) {
+		ACPI_ERROR ((AE_INFO, "Divide by zero"));
+		return_ACPI_STATUS (AE_AML_DIVIDE_BY_ZERO);
+	}
 
-    DividendOvl.Full = Dividend;
+	dividend_ovl.full = dividend;
 
-    /*
-     * The quotient is 64 bits, the remainder is always 32 bits,
-     * and is generated by the second divide.
-     */
-    ACPI_DIV_64_BY_32 (0, DividendOvl.Part.Hi, Divisor,
-        Quotient.Part.Hi, Remainder32);
+	/*
+	 * The quotient is 64 bits, the remainder is always 32 bits,
+	 * and is generated by the second divide.
+	 */
+	ACPI_DIV_64_BY_32 (0, dividend_ovl.part.hi, divisor,
+		quotient.part.hi, remainder32);
 
-    ACPI_DIV_64_BY_32 (Remainder32, DividendOvl.Part.Lo, Divisor,
-        Quotient.Part.Lo, Remainder32);
+	ACPI_DIV_64_BY_32 (remainder32, dividend_ovl.part.lo, divisor,
+		quotient.part.lo, remainder32);
 
-    /* Return only what was requested */
+	/* Return only what was requested */
 
-    if (OutQuotient)
-    {
-        *OutQuotient = Quotient.Full;
-    }
-    if (OutRemainder)
-    {
-        *OutRemainder = Remainder32;
-    }
+	if (out_quotient) {
+		*out_quotient = quotient.full;
+	}
+	if (out_remainder) {
+		*out_remainder = remainder32;
+	}
 
-    return_ACPI_STATUS (AE_OK);
+	return_ACPI_STATUS (AE_OK);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtDivide
+ * FUNCTION:    acpi_ut_divide
  *
- * PARAMETERS:  InDividend          - Dividend
- *              InDivisor           - Divisor
- *              OutQuotient         - Pointer to where the quotient is returned
- *              OutRemainder        - Pointer to where the remainder is returned
+ * PARAMETERS:  in_dividend         - Dividend
+ *              in_divisor          - Divisor
+ *              out_quotient        - Pointer to where the quotient is returned
+ *              out_remainder       - Pointer to where the remainder is returned
  *
  * RETURN:      Status (Checks for divide-by-zero)
  *
@@ -506,147 +352,135 @@ AcpiUtShortDivide (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiUtDivide (
-    UINT64                  InDividend,
-    UINT64                  InDivisor,
-    UINT64                  *OutQuotient,
-    UINT64                  *OutRemainder)
+acpi_status
+acpi_ut_divide (
+	u64                             in_dividend,
+	u64                             in_divisor,
+	u64                             *out_quotient,
+	u64                             *out_remainder)
 {
-    UINT64_OVERLAY          Dividend;
-    UINT64_OVERLAY          Divisor;
-    UINT64_OVERLAY          Quotient;
-    UINT64_OVERLAY          Remainder;
-    UINT64_OVERLAY          NormalizedDividend;
-    UINT64_OVERLAY          NormalizedDivisor;
-    UINT32                  Partial1;
-    UINT64_OVERLAY          Partial2;
-    UINT64_OVERLAY          Partial3;
+	union uint64_overlay            dividend;
+	union uint64_overlay            divisor;
+	union uint64_overlay            quotient;
+	union uint64_overlay            remainder;
+	union uint64_overlay            normalized_dividend;
+	union uint64_overlay            normalized_divisor;
+	u32                             partial1;
+	union uint64_overlay            partial2;
+	union uint64_overlay            partial3;
 
 
-    ACPI_FUNCTION_TRACE (UtDivide);
+	ACPI_FUNCTION_TRACE (ut_divide);
 
 
-    /* Always check for a zero divisor */
+	/* Always check for a zero divisor */
 
-    if (InDivisor == 0)
-    {
-        ACPI_ERROR ((AE_INFO, "Divide by zero"));
-        return_ACPI_STATUS (AE_AML_DIVIDE_BY_ZERO);
-    }
+	if (in_divisor == 0) {
+		ACPI_ERROR ((AE_INFO, "Divide by zero"));
+		return_ACPI_STATUS (AE_AML_DIVIDE_BY_ZERO);
+	}
 
-    Divisor.Full  = InDivisor;
-    Dividend.Full = InDividend;
-    if (Divisor.Part.Hi == 0)
-    {
-        /*
-         * 1) Simplest case is where the divisor is 32 bits, we can
-         * just do two divides
-         */
-        Remainder.Part.Hi = 0;
+	divisor.full  = in_divisor;
+	dividend.full = in_dividend;
+	if (divisor.part.hi == 0) {
+		/*
+		 * 1) Simplest case is where the divisor is 32 bits, we can
+		 * just do two divides
+		 */
+		remainder.part.hi = 0;
 
-        /*
-         * The quotient is 64 bits, the remainder is always 32 bits,
-         * and is generated by the second divide.
-         */
-        ACPI_DIV_64_BY_32 (0, Dividend.Part.Hi, Divisor.Part.Lo,
-            Quotient.Part.Hi, Partial1);
+		/*
+		 * The quotient is 64 bits, the remainder is always 32 bits,
+		 * and is generated by the second divide.
+		 */
+		ACPI_DIV_64_BY_32 (0, dividend.part.hi, divisor.part.lo,
+			quotient.part.hi, partial1);
 
-        ACPI_DIV_64_BY_32 (Partial1, Dividend.Part.Lo, Divisor.Part.Lo,
-            Quotient.Part.Lo, Remainder.Part.Lo);
-    }
+		ACPI_DIV_64_BY_32 (partial1, dividend.part.lo, divisor.part.lo,
+			quotient.part.lo, remainder.part.lo);
+	}
 
-    else
-    {
-        /*
-         * 2) The general case where the divisor is a full 64 bits
-         * is more difficult
-         */
-        Quotient.Part.Hi   = 0;
-        NormalizedDividend = Dividend;
-        NormalizedDivisor  = Divisor;
+	else {
+		/*
+		 * 2) The general case where the divisor is a full 64 bits
+		 * is more difficult
+		 */
+		quotient.part.hi   = 0;
+		normalized_dividend = dividend;
+		normalized_divisor = divisor;
 
-        /* Normalize the operands (shift until the divisor is < 32 bits) */
+		/* Normalize the operands (shift until the divisor is < 32 bits) */
 
-        do
-        {
-            ACPI_SHIFT_RIGHT_64 (
-                NormalizedDivisor.Part.Hi, NormalizedDivisor.Part.Lo);
-            ACPI_SHIFT_RIGHT_64 (
-                NormalizedDividend.Part.Hi, NormalizedDividend.Part.Lo);
+		do {
+			ACPI_SHIFT_RIGHT_64 (
+				normalized_divisor.part.hi, normalized_divisor.part.lo);
+			ACPI_SHIFT_RIGHT_64 (
+				normalized_dividend.part.hi, normalized_dividend.part.lo);
 
-        } while (NormalizedDivisor.Part.Hi != 0);
+		} while (normalized_divisor.part.hi != 0);
 
-        /* Partial divide */
+		/* Partial divide */
 
-        ACPI_DIV_64_BY_32 (
-            NormalizedDividend.Part.Hi, NormalizedDividend.Part.Lo,
-            NormalizedDivisor.Part.Lo, Quotient.Part.Lo, Partial1);
+		ACPI_DIV_64_BY_32 (
+			normalized_dividend.part.hi, normalized_dividend.part.lo,
+			normalized_divisor.part.lo, quotient.part.lo, partial1);
 
-        /*
-         * The quotient is always 32 bits, and simply requires
-         * adjustment. The 64-bit remainder must be generated.
-         */
-        Partial1 = Quotient.Part.Lo * Divisor.Part.Hi;
-        Partial2.Full = (UINT64) Quotient.Part.Lo * Divisor.Part.Lo;
-        Partial3.Full = (UINT64) Partial2.Part.Hi + Partial1;
+		/*
+		 * The quotient is always 32 bits, and simply requires
+		 * adjustment. The 64-bit remainder must be generated.
+		 */
+		partial1 = quotient.part.lo * divisor.part.hi;
+		partial2.full = (u64) quotient.part.lo * divisor.part.lo;
+		partial3.full = (u64) partial2.part.hi + partial1;
 
-        Remainder.Part.Hi = Partial3.Part.Lo;
-        Remainder.Part.Lo = Partial2.Part.Lo;
+		remainder.part.hi = partial3.part.lo;
+		remainder.part.lo = partial2.part.lo;
 
-        if (Partial3.Part.Hi == 0)
-        {
-            if (Partial3.Part.Lo >= Dividend.Part.Hi)
-            {
-                if (Partial3.Part.Lo == Dividend.Part.Hi)
-                {
-                    if (Partial2.Part.Lo > Dividend.Part.Lo)
-                    {
-                        Quotient.Part.Lo--;
-                        Remainder.Full -= Divisor.Full;
-                    }
-                }
-                else
-                {
-                    Quotient.Part.Lo--;
-                    Remainder.Full -= Divisor.Full;
-                }
-            }
+		if (partial3.part.hi == 0) {
+			if (partial3.part.lo >= dividend.part.hi) {
+				if (partial3.part.lo == dividend.part.hi) {
+					if (partial2.part.lo > dividend.part.lo) {
+						quotient.part.lo--;
+						remainder.full -= divisor.full;
+					}
+				}
+				else {
+					quotient.part.lo--;
+					remainder.full -= divisor.full;
+				}
+			}
 
-            Remainder.Full = Remainder.Full - Dividend.Full;
-            Remainder.Part.Hi = (UINT32) -((INT32) Remainder.Part.Hi);
-            Remainder.Part.Lo = (UINT32) -((INT32) Remainder.Part.Lo);
+			remainder.full = remainder.full - dividend.full;
+			remainder.part.hi = (u32) -((s32) remainder.part.hi);
+			remainder.part.lo = (u32) -((s32) remainder.part.lo);
 
-            if (Remainder.Part.Lo)
-            {
-                Remainder.Part.Hi--;
-            }
-        }
-    }
+			if (remainder.part.lo) {
+				remainder.part.hi--;
+			}
+		}
+	}
 
-    /* Return only what was requested */
+	/* Return only what was requested */
 
-    if (OutQuotient)
-    {
-        *OutQuotient = Quotient.Full;
-    }
-    if (OutRemainder)
-    {
-        *OutRemainder = Remainder.Full;
-    }
+	if (out_quotient) {
+		*out_quotient = quotient.full;
+	}
+	if (out_remainder) {
+		*out_remainder = remainder.full;
+	}
 
-    return_ACPI_STATUS (AE_OK);
+	return_ACPI_STATUS (AE_OK);
 }
 
 #else
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtShortDivide, AcpiUtDivide
+ * FUNCTION:    acpi_ut_short_divide, acpi_ut_divide
  *
  * PARAMETERS:  See function headers above
  *
- * DESCRIPTION: Native versions of the UtDivide functions. Use these if either
+ * DESCRIPTION: Native versions of the ut_divide functions. Use these if either
  *              1) The target is a 64-bit platform and therefore 64-bit
  *                 integer math is supported directly by the machine.
  *              2) The target is a 32-bit or 16-bit platform, and the
@@ -655,70 +489,64 @@ AcpiUtDivide (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiUtShortDivide (
-    UINT64                  InDividend,
-    UINT32                  Divisor,
-    UINT64                  *OutQuotient,
-    UINT32                  *OutRemainder)
+acpi_status
+acpi_ut_short_divide (
+	u64                             in_dividend,
+	u32                             divisor,
+	u64                             *out_quotient,
+	u32                             *out_remainder)
 {
 
-    ACPI_FUNCTION_TRACE (UtShortDivide);
+	ACPI_FUNCTION_TRACE (ut_short_divide);
 
 
-    /* Always check for a zero divisor */
+	/* Always check for a zero divisor */
 
-    if (Divisor == 0)
-    {
-        ACPI_ERROR ((AE_INFO, "Divide by zero"));
-        return_ACPI_STATUS (AE_AML_DIVIDE_BY_ZERO);
-    }
+	if (divisor == 0) {
+		ACPI_ERROR ((AE_INFO, "Divide by zero"));
+		return_ACPI_STATUS (AE_AML_DIVIDE_BY_ZERO);
+	}
 
-    /* Return only what was requested */
+	/* Return only what was requested */
 
-    if (OutQuotient)
-    {
-        *OutQuotient = InDividend / Divisor;
-    }
-    if (OutRemainder)
-    {
-        *OutRemainder = (UINT32) (InDividend % Divisor);
-    }
+	if (out_quotient) {
+		*out_quotient = in_dividend / divisor;
+	}
+	if (out_remainder) {
+		*out_remainder = (u32) (in_dividend % divisor);
+	}
 
-    return_ACPI_STATUS (AE_OK);
+	return_ACPI_STATUS (AE_OK);
 }
 
-ACPI_STATUS
-AcpiUtDivide (
-    UINT64                  InDividend,
-    UINT64                  InDivisor,
-    UINT64                  *OutQuotient,
-    UINT64                  *OutRemainder)
+acpi_status
+acpi_ut_divide (
+	u64                             in_dividend,
+	u64                             in_divisor,
+	u64                             *out_quotient,
+	u64                             *out_remainder)
 {
-    ACPI_FUNCTION_TRACE (UtDivide);
+	ACPI_FUNCTION_TRACE (ut_divide);
 
 
-    /* Always check for a zero divisor */
+	/* Always check for a zero divisor */
 
-    if (InDivisor == 0)
-    {
-        ACPI_ERROR ((AE_INFO, "Divide by zero"));
-        return_ACPI_STATUS (AE_AML_DIVIDE_BY_ZERO);
-    }
+	if (in_divisor == 0) {
+		ACPI_ERROR ((AE_INFO, "Divide by zero"));
+		return_ACPI_STATUS (AE_AML_DIVIDE_BY_ZERO);
+	}
 
 
-    /* Return only what was requested */
+	/* Return only what was requested */
 
-    if (OutQuotient)
-    {
-        *OutQuotient = InDividend / InDivisor;
-    }
-    if (OutRemainder)
-    {
-        *OutRemainder = InDividend % InDivisor;
-    }
+	if (out_quotient) {
+		*out_quotient = in_dividend / in_divisor;
+	}
+	if (out_remainder) {
+		*out_remainder = in_dividend % in_divisor;
+	}
 
-    return_ACPI_STATUS (AE_OK);
+	return_ACPI_STATUS (AE_OK);
 }
 
 #endif

@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2021 Pedro Falcato
+ * Copyright (c) 2021 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #ifndef _PCI_INTERNAL_PCI_ROOT_H
 #define _PCI_INTERNAL_PCI_ROOT_H
@@ -35,7 +37,7 @@ public:
         return segment_;
     }
 
-    void route_irqs(ACPI_HANDLE bus_object);
+    void route_irqs(acpi_handle bus_object);
 };
 
 } // namespace pci

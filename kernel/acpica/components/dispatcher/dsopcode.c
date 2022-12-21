@@ -1,153 +1,12 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /******************************************************************************
  *
  * Module Name: dsopcode - Dispatcher support for regions and fields
  *
+ * Copyright (C) 2000 - 2022, Intel Corp.
+ *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #include "acpi.h"
 #include "accommon.h"
@@ -160,59 +19,59 @@
 #include "actables.h"
 
 #define _COMPONENT          ACPI_DISPATCHER
-        ACPI_MODULE_NAME    ("dsopcode")
+	 ACPI_MODULE_NAME    ("dsopcode")
 
 /* Local prototypes */
 
-static ACPI_STATUS
-AcpiDsInitBufferField (
-    UINT16                  AmlOpcode,
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_OPERAND_OBJECT     *BufferDesc,
-    ACPI_OPERAND_OBJECT     *OffsetDesc,
-    ACPI_OPERAND_OBJECT     *LengthDesc,
-    ACPI_OPERAND_OBJECT     *ResultDesc);
+static acpi_status
+acpi_ds_init_buffer_field (
+	u16                             aml_opcode,
+	union acpi_operand_object       *obj_desc,
+	union acpi_operand_object       *buffer_desc,
+	union acpi_operand_object       *offset_desc,
+	union acpi_operand_object       *length_desc,
+	union acpi_operand_object       *result_desc);
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiDsInitializeRegion
+ * FUNCTION:    acpi_ds_initialize_region
  *
- * PARAMETERS:  ObjHandle       - Region namespace node
+ * PARAMETERS:  obj_handle      - Region namespace node
  *
  * RETURN:      Status
  *
- * DESCRIPTION: Front end to EvInitializeRegion
+ * DESCRIPTION: Front end to ev_initialize_region
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiDsInitializeRegion (
-    ACPI_HANDLE             ObjHandle)
+acpi_status
+acpi_ds_initialize_region (
+	acpi_handle                     obj_handle)
 {
-    ACPI_OPERAND_OBJECT     *ObjDesc;
-    ACPI_STATUS             Status;
+	union acpi_operand_object       *obj_desc;
+	acpi_status                     status;
 
 
-    ObjDesc = AcpiNsGetAttachedObject (ObjHandle);
+	obj_desc = acpi_ns_get_attached_object (obj_handle);
 
-    /* Namespace is NOT locked */
+	/* Namespace is NOT locked */
 
-    Status = AcpiEvInitializeRegion (ObjDesc);
-    return (Status);
+	status = acpi_ev_initialize_region (obj_desc);
+	return (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiDsInitBufferField
+ * FUNCTION:    acpi_ds_init_buffer_field
  *
- * PARAMETERS:  AmlOpcode       - CreateXxxField
- *              ObjDesc         - BufferField object
- *              BufferDesc      - Host Buffer
- *              OffsetDesc      - Offset into buffer
- *              LengthDesc      - Length of field (CREATE_FIELD_OP only)
- *              ResultDesc      - Where to store the result
+ * PARAMETERS:  aml_opcode      - create_xxx_field
+ *              obj_desc        - buffer_field object
+ *              buffer_desc     - Host Buffer
+ *              offset_desc     - Offset into buffer
+ *              length_desc     - Length of field (CREATE_FIELD_OP only)
+ *              result_desc     - Where to store the result
  *
  * RETURN:      Status
  *
@@ -220,518 +79,496 @@ AcpiDsInitializeRegion (
  *
  ******************************************************************************/
 
-static ACPI_STATUS
-AcpiDsInitBufferField (
-    UINT16                  AmlOpcode,
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_OPERAND_OBJECT     *BufferDesc,
-    ACPI_OPERAND_OBJECT     *OffsetDesc,
-    ACPI_OPERAND_OBJECT     *LengthDesc,
-    ACPI_OPERAND_OBJECT     *ResultDesc)
+static acpi_status
+acpi_ds_init_buffer_field (
+	u16                             aml_opcode,
+	union acpi_operand_object       *obj_desc,
+	union acpi_operand_object       *buffer_desc,
+	union acpi_operand_object       *offset_desc,
+	union acpi_operand_object       *length_desc,
+	union acpi_operand_object       *result_desc)
 {
-    UINT32                  Offset;
-    UINT32                  BitOffset;
-    UINT32                  BitCount;
-    UINT8                   FieldFlags;
-    ACPI_STATUS             Status;
+	u32                             offset;
+	u32                             bit_offset;
+	u32                             bit_count;
+	u8                              field_flags;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE_PTR (DsInitBufferField, ObjDesc);
+	ACPI_FUNCTION_TRACE_PTR (ds_init_buffer_field, obj_desc);
 
 
-    /* Host object must be a Buffer */
+	/* Host object must be a Buffer */
 
-    if (BufferDesc->Common.Type != ACPI_TYPE_BUFFER)
-    {
-        ACPI_ERROR ((AE_INFO,
-            "Target of Create Field is not a Buffer object - %s",
-            AcpiUtGetObjectTypeName (BufferDesc)));
+	if (buffer_desc->common.type != ACPI_TYPE_BUFFER) {
+		ACPI_ERROR ((AE_INFO,
+			"Target of Create Field is not a Buffer object - %s",
+			acpi_ut_get_object_type_name (buffer_desc)));
 
-        Status = AE_AML_OPERAND_TYPE;
-        goto Cleanup;
-    }
+		status = AE_AML_OPERAND_TYPE;
+		goto cleanup;
+	}
 
-    /*
-     * The last parameter to all of these opcodes (ResultDesc) started
-     * out as a NameString, and should therefore now be a NS node
-     * after resolution in AcpiExResolveOperands().
-     */
-    if (ACPI_GET_DESCRIPTOR_TYPE (ResultDesc) != ACPI_DESC_TYPE_NAMED)
-    {
-        ACPI_ERROR ((AE_INFO,
-            "(%s) destination not a NS Node [%s]",
-            AcpiPsGetOpcodeName (AmlOpcode),
-            AcpiUtGetDescriptorName (ResultDesc)));
+	/*
+	 * The last parameter to all of these opcodes (result_desc) started
+	 * out as a name_string, and should therefore now be a NS node
+	 * after resolution in acpi_ex_resolve_operands().
+	 */
+	if (ACPI_GET_DESCRIPTOR_TYPE (result_desc) != ACPI_DESC_TYPE_NAMED) {
+		ACPI_ERROR ((AE_INFO,
+			"(%s) destination not a NS Node [%s]",
+			acpi_ps_get_opcode_name (aml_opcode),
+			acpi_ut_get_descriptor_name (result_desc)));
 
-        Status = AE_AML_OPERAND_TYPE;
-        goto Cleanup;
-    }
+		status = AE_AML_OPERAND_TYPE;
+		goto cleanup;
+	}
 
-    Offset = (UINT32) OffsetDesc->Integer.Value;
+	offset = (u32) offset_desc->integer.value;
 
-    /*
-     * Setup the Bit offsets and counts, according to the opcode
-     */
-    switch (AmlOpcode)
-    {
-    case AML_CREATE_FIELD_OP:
+	/*
+	 * Setup the Bit offsets and counts, according to the opcode
+	 */
+	switch (aml_opcode) {
+	case AML_CREATE_FIELD_OP:
 
-        /* Offset is in bits, count is in bits */
+		/* Offset is in bits, count is in bits */
 
-        FieldFlags = AML_FIELD_ACCESS_BYTE;
-        BitOffset  = Offset;
-        BitCount   = (UINT32) LengthDesc->Integer.Value;
+		field_flags = AML_FIELD_ACCESS_BYTE;
+		bit_offset = offset;
+		bit_count  = (u32) length_desc->integer.value;
 
-        /* Must have a valid (>0) bit count */
+		/* Must have a valid (>0) bit count */
 
-        if (BitCount == 0)
-        {
-            ACPI_BIOS_ERROR ((AE_INFO,
-                "Attempt to CreateField of length zero"));
-            Status = AE_AML_OPERAND_VALUE;
-            goto Cleanup;
-        }
-        break;
+		if (bit_count == 0) {
+			ACPI_BIOS_ERROR ((AE_INFO,
+				"Attempt to CreateField of length zero"));
+			status = AE_AML_OPERAND_VALUE;
+			goto cleanup;
+		}
+		break;
 
-    case AML_CREATE_BIT_FIELD_OP:
+	case AML_CREATE_BIT_FIELD_OP:
 
-        /* Offset is in bits, Field is one bit */
+		/* Offset is in bits, Field is one bit */
 
-        BitOffset  = Offset;
-        BitCount   = 1;
-        FieldFlags = AML_FIELD_ACCESS_BYTE;
-        break;
+		bit_offset = offset;
+		bit_count  = 1;
+		field_flags = AML_FIELD_ACCESS_BYTE;
+		break;
 
-    case AML_CREATE_BYTE_FIELD_OP:
+	case AML_CREATE_BYTE_FIELD_OP:
 
-        /* Offset is in bytes, field is one byte */
+		/* Offset is in bytes, field is one byte */
 
-        BitOffset  = 8 * Offset;
-        BitCount   = 8;
-        FieldFlags = AML_FIELD_ACCESS_BYTE;
-        break;
+		bit_offset = 8 * offset;
+		bit_count  = 8;
+		field_flags = AML_FIELD_ACCESS_BYTE;
+		break;
 
-    case AML_CREATE_WORD_FIELD_OP:
+	case AML_CREATE_WORD_FIELD_OP:
 
-        /* Offset is in bytes, field is one word */
+		/* Offset is in bytes, field is one word */
 
-        BitOffset  = 8 * Offset;
-        BitCount   = 16;
-        FieldFlags = AML_FIELD_ACCESS_WORD;
-        break;
+		bit_offset = 8 * offset;
+		bit_count  = 16;
+		field_flags = AML_FIELD_ACCESS_WORD;
+		break;
 
-    case AML_CREATE_DWORD_FIELD_OP:
+	case AML_CREATE_DWORD_FIELD_OP:
 
-        /* Offset is in bytes, field is one dword */
+		/* Offset is in bytes, field is one dword */
 
-        BitOffset  = 8 * Offset;
-        BitCount   = 32;
-        FieldFlags = AML_FIELD_ACCESS_DWORD;
-        break;
+		bit_offset = 8 * offset;
+		bit_count  = 32;
+		field_flags = AML_FIELD_ACCESS_DWORD;
+		break;
 
-    case AML_CREATE_QWORD_FIELD_OP:
+	case AML_CREATE_QWORD_FIELD_OP:
 
-        /* Offset is in bytes, field is one qword */
+		/* Offset is in bytes, field is one qword */
 
-        BitOffset  = 8 * Offset;
-        BitCount   = 64;
-        FieldFlags = AML_FIELD_ACCESS_QWORD;
-        break;
+		bit_offset = 8 * offset;
+		bit_count  = 64;
+		field_flags = AML_FIELD_ACCESS_QWORD;
+		break;
 
-    default:
+	default:
 
-        ACPI_ERROR ((AE_INFO,
-            "Unknown field creation opcode 0x%02X",
-            AmlOpcode));
-        Status = AE_AML_BAD_OPCODE;
-        goto Cleanup;
-    }
+		ACPI_ERROR ((AE_INFO,
+			"Unknown field creation opcode 0x%02X",
+			aml_opcode));
+		status = AE_AML_BAD_OPCODE;
+		goto cleanup;
+	}
 
-    /* Entire field must fit within the current length of the buffer */
+	/* Entire field must fit within the current length of the buffer */
 
-    if ((BitOffset + BitCount) >
-        (8 * (UINT32) BufferDesc->Buffer.Length))
-    {
-        Status = AE_AML_BUFFER_LIMIT;
-        ACPI_BIOS_EXCEPTION ((AE_INFO, Status,
-            "Field [%4.4s] at bit offset/length %u/%u "
-            "exceeds size of target Buffer (%u bits)",
-            AcpiUtGetNodeName (ResultDesc), BitOffset, BitCount,
-            8 * (UINT32) BufferDesc->Buffer.Length));
-        goto Cleanup;
-    }
+	if ((bit_offset + bit_count) >
+		(8 * (u32) buffer_desc->buffer.length)) {
+		status = AE_AML_BUFFER_LIMIT;
+		ACPI_BIOS_EXCEPTION ((AE_INFO, status,
+			"Field [%4.4s] at bit offset/length %u/%u "
+			"exceeds size of target Buffer (%u bits)",
+			acpi_ut_get_node_name (result_desc), bit_offset, bit_count,
+			8 * (u32) buffer_desc->buffer.length));
+		goto cleanup;
+	}
 
-    /*
-     * Initialize areas of the field object that are common to all fields
-     * For FieldFlags, use LOCK_RULE = 0 (NO_LOCK),
-     * UPDATE_RULE = 0 (UPDATE_PRESERVE)
-     */
-    Status = AcpiExPrepCommonFieldObject (
-        ObjDesc, FieldFlags, 0, BitOffset, BitCount);
-    if (ACPI_FAILURE (Status))
-    {
-        goto Cleanup;
-    }
+	/*
+	 * Initialize areas of the field object that are common to all fields
+	 * For field_flags, use LOCK_RULE = 0 (NO_LOCK),
+	 * UPDATE_RULE = 0 (UPDATE_PRESERVE)
+	 */
+	status = acpi_ex_prep_common_field_object (
+		obj_desc, field_flags, 0, bit_offset, bit_count);
+	if (ACPI_FAILURE (status)) {
+		goto cleanup;
+	}
 
-    ObjDesc->BufferField.BufferObj = BufferDesc;
-    ObjDesc->BufferField.IsCreateField = AmlOpcode == AML_CREATE_FIELD_OP;
+	obj_desc->buffer_field.buffer_obj = buffer_desc;
+	obj_desc->buffer_field.is_create_field = aml_opcode == AML_CREATE_FIELD_OP;
 
-    /* Reference count for BufferDesc inherits ObjDesc count */
+	/* Reference count for buffer_desc inherits obj_desc count */
 
-    BufferDesc->Common.ReferenceCount = (UINT16)
-        (BufferDesc->Common.ReferenceCount + ObjDesc->Common.ReferenceCount);
+	buffer_desc->common.reference_count = (u16)
+		(buffer_desc->common.reference_count + obj_desc->common.reference_count);
 
 
-Cleanup:
+cleanup:
 
-    /* Always delete the operands */
+	/* Always delete the operands */
 
-    AcpiUtRemoveReference (OffsetDesc);
-    AcpiUtRemoveReference (BufferDesc);
+	acpi_ut_remove_reference (offset_desc);
+	acpi_ut_remove_reference (buffer_desc);
 
-    if (AmlOpcode == AML_CREATE_FIELD_OP)
-    {
-        AcpiUtRemoveReference (LengthDesc);
-    }
+	if (aml_opcode == AML_CREATE_FIELD_OP) {
+		acpi_ut_remove_reference (length_desc);
+	}
 
-    /* On failure, delete the result descriptor */
+	/* On failure, delete the result descriptor */
 
-    if (ACPI_FAILURE (Status))
-    {
-        AcpiUtRemoveReference (ResultDesc);     /* Result descriptor */
-    }
-    else
-    {
-        /* Now the address and length are valid for this BufferField */
+	if (ACPI_FAILURE (status)) {
+		acpi_ut_remove_reference (result_desc); /* Result descriptor */
+	}
+	else {
+		/* Now the address and length are valid for this buffer_field */
 
-        ObjDesc->BufferField.Flags |= AOPOBJ_DATA_VALID;
-    }
+		obj_desc->buffer_field.flags |= AOPOBJ_DATA_VALID;
+	}
 
-    return_ACPI_STATUS (Status);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiDsEvalBufferFieldOperands
+ * FUNCTION:    acpi_ds_eval_buffer_field_operands
  *
- * PARAMETERS:  WalkState       - Current walk
- *              Op              - A valid BufferField Op object
+ * PARAMETERS:  walk_state      - Current walk
+ *              op              - A valid buffer_field Op object
  *
  * RETURN:      Status
  *
- * DESCRIPTION: Get BufferField Buffer and Index
- *              Called from AcpiDsExecEndOp during BufferField parse tree walk
+ * DESCRIPTION: Get buffer_field Buffer and Index
+ *              Called from acpi_ds_exec_end_op during buffer_field parse tree walk
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiDsEvalBufferFieldOperands (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Op)
+acpi_status
+acpi_ds_eval_buffer_field_operands (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op)
 {
-    ACPI_STATUS             Status;
-    ACPI_OPERAND_OBJECT     *ObjDesc;
-    ACPI_NAMESPACE_NODE     *Node;
-    ACPI_PARSE_OBJECT       *NextOp;
+	acpi_status                     status;
+	union acpi_operand_object       *obj_desc;
+	struct acpi_namespace_node      *node;
+	union acpi_parse_object         *next_op;
 
 
-    ACPI_FUNCTION_TRACE_PTR (DsEvalBufferFieldOperands, Op);
+	ACPI_FUNCTION_TRACE_PTR (ds_eval_buffer_field_operands, op);
 
 
-    /*
-     * This is where we evaluate the address and length fields of the
-     * CreateXxxField declaration
-     */
-    Node =  Op->Common.Node;
+	/*
+	 * This is where we evaluate the address and length fields of the
+	 * create_xxx_field declaration
+	 */
+	node =  op->common.node;
 
-    /* NextOp points to the op that holds the Buffer */
+	/* next_op points to the op that holds the Buffer */
 
-    NextOp = Op->Common.Value.Arg;
+	next_op = op->common.value.arg;
 
-    /* Evaluate/create the address and length operands */
+	/* Evaluate/create the address and length operands */
 
-    Status = AcpiDsCreateOperands (WalkState, NextOp);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_ds_create_operands (walk_state, next_op);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    ObjDesc = AcpiNsGetAttachedObject (Node);
-    if (!ObjDesc)
-    {
-        return_ACPI_STATUS (AE_NOT_EXIST);
-    }
+	obj_desc = acpi_ns_get_attached_object (node);
+	if (!obj_desc) {
+		return_ACPI_STATUS (AE_NOT_EXIST);
+	}
 
-    /* Resolve the operands */
+	/* Resolve the operands */
 
-    Status = AcpiExResolveOperands (
-        Op->Common.AmlOpcode, ACPI_WALK_OPERANDS, WalkState);
-    if (ACPI_FAILURE (Status))
-    {
-        ACPI_ERROR ((AE_INFO, "(%s) bad operand(s), status 0x%X",
-            AcpiPsGetOpcodeName (Op->Common.AmlOpcode), Status));
+	status = acpi_ex_resolve_operands (
+		op->common.aml_opcode, ACPI_WALK_OPERANDS, walk_state);
+	if (ACPI_FAILURE (status)) {
+		ACPI_ERROR ((AE_INFO, "(%s) bad operand(s), status 0x%X",
+			acpi_ps_get_opcode_name (op->common.aml_opcode), status));
 
-        return_ACPI_STATUS (Status);
-    }
+		return_ACPI_STATUS (status);
+	}
 
-    /* Initialize the Buffer Field */
+	/* Initialize the Buffer Field */
 
-    if (Op->Common.AmlOpcode == AML_CREATE_FIELD_OP)
-    {
-        /* NOTE: Slightly different operands for this opcode */
+	if (op->common.aml_opcode == AML_CREATE_FIELD_OP) {
 
-        Status = AcpiDsInitBufferField (Op->Common.AmlOpcode, ObjDesc,
-            WalkState->Operands[0], WalkState->Operands[1],
-            WalkState->Operands[2], WalkState->Operands[3]);
-    }
-    else
-    {
-        /* All other, CreateXxxField opcodes */
+		/* NOTE: Slightly different operands for this opcode */
 
-        Status = AcpiDsInitBufferField (Op->Common.AmlOpcode, ObjDesc,
-            WalkState->Operands[0], WalkState->Operands[1],
-            NULL, WalkState->Operands[2]);
-    }
+		status = acpi_ds_init_buffer_field (op->common.aml_opcode, obj_desc,
+			walk_state->operands[0], walk_state->operands[1],
+			walk_state->operands[2], walk_state->operands[3]);
+	}
+	else {
+		/* All other, create_xxx_field opcodes */
 
-    return_ACPI_STATUS (Status);
+		status = acpi_ds_init_buffer_field (op->common.aml_opcode, obj_desc,
+			walk_state->operands[0], walk_state->operands[1],
+			NULL, walk_state->operands[2]);
+	}
+
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiDsEvalRegionOperands
+ * FUNCTION:    acpi_ds_eval_region_operands
  *
- * PARAMETERS:  WalkState       - Current walk
- *              Op              - A valid region Op object
+ * PARAMETERS:  walk_state      - Current walk
+ *              op              - A valid region Op object
  *
  * RETURN:      Status
  *
  * DESCRIPTION: Get region address and length
- *              Called from AcpiDsExecEndOp during OpRegion parse tree walk
+ *              Called from acpi_ds_exec_end_op during op_region parse tree walk
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiDsEvalRegionOperands (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Op)
+acpi_status
+acpi_ds_eval_region_operands (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op)
 {
-    ACPI_STATUS             Status;
-    ACPI_OPERAND_OBJECT     *ObjDesc;
-    ACPI_OPERAND_OBJECT     *OperandDesc;
-    ACPI_NAMESPACE_NODE     *Node;
-    ACPI_PARSE_OBJECT       *NextOp;
-    ACPI_ADR_SPACE_TYPE     SpaceId;
+	acpi_status                     status;
+	union acpi_operand_object       *obj_desc;
+	union acpi_operand_object       *operand_desc;
+	struct acpi_namespace_node      *node;
+	union acpi_parse_object         *next_op;
+	acpi_adr_space_type             space_id;
 
 
-    ACPI_FUNCTION_TRACE_PTR (DsEvalRegionOperands, Op);
+	ACPI_FUNCTION_TRACE_PTR (ds_eval_region_operands, op);
 
 
-    /*
-     * This is where we evaluate the address and length fields of the
-     * OpRegion declaration
-     */
-    Node = Op->Common.Node;
+	/*
+	 * This is where we evaluate the address and length fields of the
+	 * op_region declaration
+	 */
+	node = op->common.node;
 
-    /* NextOp points to the op that holds the SpaceID */
+	/* next_op points to the op that holds the space_ID */
 
-    NextOp = Op->Common.Value.Arg;
-    SpaceId = (ACPI_ADR_SPACE_TYPE) NextOp->Common.Value.Integer;
+	next_op = op->common.value.arg;
+	space_id = (acpi_adr_space_type) next_op->common.value.integer;
 
-    /* NextOp points to address op */
+	/* next_op points to address op */
 
-    NextOp = NextOp->Common.Next;
+	next_op = next_op->common.next;
 
-    /* Evaluate/create the address and length operands */
+	/* Evaluate/create the address and length operands */
 
-    Status = AcpiDsCreateOperands (WalkState, NextOp);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_ds_create_operands (walk_state, next_op);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    /* Resolve the length and address operands to numbers */
+	/* Resolve the length and address operands to numbers */
 
-    Status = AcpiExResolveOperands (
-        Op->Common.AmlOpcode, ACPI_WALK_OPERANDS, WalkState);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_ex_resolve_operands (
+		op->common.aml_opcode, ACPI_WALK_OPERANDS, walk_state);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    ObjDesc = AcpiNsGetAttachedObject (Node);
-    if (!ObjDesc)
-    {
-        return_ACPI_STATUS (AE_NOT_EXIST);
-    }
+	obj_desc = acpi_ns_get_attached_object (node);
+	if (!obj_desc) {
+		return_ACPI_STATUS (AE_NOT_EXIST);
+	}
 
-    /*
-     * Get the length operand and save it
-     * (at Top of stack)
-     */
-    OperandDesc = WalkState->Operands[WalkState->NumOperands - 1];
+	/*
+	 * Get the length operand and save it
+	 * (at Top of stack)
+	 */
+	operand_desc = walk_state->operands[walk_state->num_operands - 1];
 
-    ObjDesc->Region.Length = (UINT32) OperandDesc->Integer.Value;
-    AcpiUtRemoveReference (OperandDesc);
+	obj_desc->region.length = (u32) operand_desc->integer.value;
+	acpi_ut_remove_reference (operand_desc);
 
-    /* A zero-length operation region is unusable. Just warn */
+	/* A zero-length operation region is unusable. Just warn */
 
-    if (!ObjDesc->Region.Length && (SpaceId < ACPI_NUM_PREDEFINED_REGIONS))
-    {
-        ACPI_WARNING ((AE_INFO,
-            "Operation Region [%4.4s] has zero length (SpaceId %X)",
-            Node->Name.Ascii, SpaceId));
-    }
+	if (!obj_desc->region.length && (space_id < ACPI_NUM_PREDEFINED_REGIONS)) {
+		ACPI_WARNING ((AE_INFO,
+			"Operation Region [%4.4s] has zero length (SpaceId %X)",
+			node->name.ascii, space_id));
+	}
 
-    /*
-     * Get the address and save it
-     * (at top of stack - 1)
-     */
-    OperandDesc = WalkState->Operands[WalkState->NumOperands - 2];
+	/*
+	 * Get the address and save it
+	 * (at top of stack - 1)
+	 */
+	operand_desc = walk_state->operands[walk_state->num_operands - 2];
 
-    ObjDesc->Region.Address = (ACPI_PHYSICAL_ADDRESS)
-        OperandDesc->Integer.Value;
-    AcpiUtRemoveReference (OperandDesc);
+	obj_desc->region.address = (acpi_physical_address)
+		operand_desc->integer.value;
+	acpi_ut_remove_reference (operand_desc);
 
-    ACPI_DEBUG_PRINT ((ACPI_DB_EXEC, "RgnObj %p Addr %8.8X%8.8X Len %X\n",
-        ObjDesc, ACPI_FORMAT_UINT64 (ObjDesc->Region.Address),
-        ObjDesc->Region.Length));
+	ACPI_DEBUG_PRINT ((ACPI_DB_EXEC, "RgnObj %p Addr %8.8X%8.8X Len %X\n",
+		obj_desc, ACPI_FORMAT_UINT64 (obj_desc->region.address),
+		obj_desc->region.length));
 
-    Status = AcpiUtAddAddressRange (ObjDesc->Region.SpaceId,
-        ObjDesc->Region.Address, ObjDesc->Region.Length, Node);
+	status = acpi_ut_add_address_range (obj_desc->region.space_id,
+		obj_desc->region.address, obj_desc->region.length, node);
 
-    /* Now the address and length are valid for this opregion */
+	/* Now the address and length are valid for this opregion */
 
-    ObjDesc->Region.Flags |= AOPOBJ_DATA_VALID;
-    return_ACPI_STATUS (Status);
+	obj_desc->region.flags |= AOPOBJ_DATA_VALID;
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiDsEvalTableRegionOperands
+ * FUNCTION:    acpi_ds_eval_table_region_operands
  *
- * PARAMETERS:  WalkState       - Current walk
- *              Op              - A valid region Op object
+ * PARAMETERS:  walk_state      - Current walk
+ *              op              - A valid region Op object
  *
  * RETURN:      Status
  *
  * DESCRIPTION: Get region address and length.
- *              Called from AcpiDsExecEndOp during DataTableRegion parse
+ *              Called from acpi_ds_exec_end_op during data_table_region parse
  *              tree walk.
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiDsEvalTableRegionOperands (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Op)
+acpi_status
+acpi_ds_eval_table_region_operands (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op)
 {
-    ACPI_STATUS             Status;
-    ACPI_OPERAND_OBJECT     *ObjDesc;
-    ACPI_OPERAND_OBJECT     **Operand;
-    ACPI_NAMESPACE_NODE     *Node;
-    ACPI_PARSE_OBJECT       *NextOp;
-    ACPI_TABLE_HEADER       *Table;
-    UINT32                  TableIndex;
+	acpi_status                     status;
+	union acpi_operand_object       *obj_desc;
+	union acpi_operand_object       **operand;
+	struct acpi_namespace_node      *node;
+	union acpi_parse_object         *next_op;
+	struct acpi_table_header        *table;
+	u32                             table_index;
 
 
-    ACPI_FUNCTION_TRACE_PTR (DsEvalTableRegionOperands, Op);
+	ACPI_FUNCTION_TRACE_PTR (ds_eval_table_region_operands, op);
 
 
-    /*
-     * This is where we evaluate the Signature string, OemId string,
-     * and OemTableId string of the Data Table Region declaration
-     */
-    Node =  Op->Common.Node;
+	/*
+	 * This is where we evaluate the Signature string, oem_id string,
+	 * and oem_table_id string of the Data Table Region declaration
+	 */
+	node =  op->common.node;
 
-    /* NextOp points to Signature string op */
+	/* next_op points to Signature string op */
 
-    NextOp = Op->Common.Value.Arg;
+	next_op = op->common.value.arg;
 
-    /*
-     * Evaluate/create the Signature string, OemId string,
-     * and OemTableId string operands
-     */
-    Status = AcpiDsCreateOperands (WalkState, NextOp);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	/*
+	 * Evaluate/create the Signature string, oem_id string,
+	 * and oem_table_id string operands
+	 */
+	status = acpi_ds_create_operands (walk_state, next_op);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    Operand = &WalkState->Operands[0];
+	operand = &walk_state->operands[0];
 
-    /*
-     * Resolve the Signature string, OemId string,
-     * and OemTableId string operands
-     */
-    Status = AcpiExResolveOperands (
-        Op->Common.AmlOpcode, ACPI_WALK_OPERANDS, WalkState);
-    if (ACPI_FAILURE (Status))
-    {
-        goto Cleanup;
-    }
+	/*
+	 * Resolve the Signature string, oem_id string,
+	 * and oem_table_id string operands
+	 */
+	status = acpi_ex_resolve_operands (
+		op->common.aml_opcode, ACPI_WALK_OPERANDS, walk_state);
+	if (ACPI_FAILURE (status)) {
+		goto cleanup;
+	}
 
-    /* Find the ACPI table */
+	/* Find the ACPI table */
 
-    Status = AcpiTbFindTable (
-        Operand[0]->String.Pointer,
-        Operand[1]->String.Pointer,
-        Operand[2]->String.Pointer, &TableIndex);
-    if (ACPI_FAILURE (Status))
-    {
-        if (Status == AE_NOT_FOUND)
-        {
-            ACPI_ERROR ((AE_INFO,
-                "ACPI Table [%4.4s] OEM:(%s, %s) not found in RSDT/XSDT",
-                Operand[0]->String.Pointer,
-                Operand[1]->String.Pointer,
-                Operand[2]->String.Pointer));
-        }
-        goto Cleanup;
-    }
+	status = acpi_tb_find_table (
+		operand[0]->string.pointer,
+		operand[1]->string.pointer,
+		operand[2]->string.pointer, &table_index);
+	if (ACPI_FAILURE (status)) {
+		if (status == AE_NOT_FOUND) {
+			ACPI_ERROR ((AE_INFO,
+				"ACPI Table [%4.4s] OEM:(%s, %s) not found in RSDT/XSDT",
+				operand[0]->string.pointer,
+				operand[1]->string.pointer,
+				operand[2]->string.pointer));
+		}
+		goto cleanup;
+	}
 
-    Status = AcpiGetTableByIndex (TableIndex, &Table);
-    if (ACPI_FAILURE (Status))
-    {
-        goto Cleanup;
-    }
+	status = acpi_get_table_by_index (table_index, &table);
+	if (ACPI_FAILURE (status)) {
+		goto cleanup;
+	}
 
-    ObjDesc = AcpiNsGetAttachedObject (Node);
-    if (!ObjDesc)
-    {
-        Status = AE_NOT_EXIST;
-        goto Cleanup;
-    }
+	obj_desc = acpi_ns_get_attached_object (node);
+	if (!obj_desc) {
+		status = AE_NOT_EXIST;
+		goto cleanup;
+	}
 
-    ObjDesc->Region.Address = ACPI_PTR_TO_PHYSADDR (Table);
-    ObjDesc->Region.Length = Table->Length;
+	obj_desc->region.address = ACPI_PTR_TO_PHYSADDR (table);
+	obj_desc->region.length = table->length;
+	obj_desc->region.pointer = table;
 
-    ACPI_DEBUG_PRINT ((ACPI_DB_EXEC, "RgnObj %p Addr %8.8X%8.8X Len %X\n",
-        ObjDesc, ACPI_FORMAT_UINT64 (ObjDesc->Region.Address),
-        ObjDesc->Region.Length));
+	ACPI_DEBUG_PRINT ((ACPI_DB_EXEC, "RgnObj %p Addr %8.8X%8.8X Len %X\n",
+		obj_desc, ACPI_FORMAT_UINT64 (obj_desc->region.address),
+		obj_desc->region.length));
 
-    /* Now the address and length are valid for this opregion */
+	/* Now the address and length are valid for this opregion */
 
-    ObjDesc->Region.Flags |= AOPOBJ_DATA_VALID;
+	obj_desc->region.flags |= AOPOBJ_DATA_VALID;
 
-Cleanup:
-    AcpiUtRemoveReference (Operand[0]);
-    AcpiUtRemoveReference (Operand[1]);
-    AcpiUtRemoveReference (Operand[2]);
+cleanup:
+	acpi_ut_remove_reference (operand[0]);
+	acpi_ut_remove_reference (operand[1]);
+	acpi_ut_remove_reference (operand[2]);
 
-    return_ACPI_STATUS (Status);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiDsEvalDataObjectOperands
+ * FUNCTION:    acpi_ds_eval_data_object_operands
  *
- * PARAMETERS:  WalkState       - Current walk
- *              Op              - A valid DataObject Op object
- *              ObjDesc         - DataObject
+ * PARAMETERS:  walk_state      - Current walk
+ *              op              - A valid data_object Op object
+ *              obj_desc        - data_object
  *
  * RETURN:      Status
  *
@@ -740,210 +577,199 @@ Cleanup:
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiDsEvalDataObjectOperands (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Op,
-    ACPI_OPERAND_OBJECT     *ObjDesc)
+acpi_status
+acpi_ds_eval_data_object_operands (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op,
+	union acpi_operand_object       *obj_desc)
 {
-    ACPI_STATUS             Status;
-    ACPI_OPERAND_OBJECT     *ArgDesc;
-    UINT32                  Length;
+	acpi_status                     status;
+	union acpi_operand_object       *arg_desc;
+	u32                             length;
 
 
-    ACPI_FUNCTION_TRACE (DsEvalDataObjectOperands);
+	ACPI_FUNCTION_TRACE (ds_eval_data_object_operands);
 
 
-    /* The first operand (for all of these data objects) is the length */
+	/* The first operand (for all of these data objects) is the length */
 
-    /*
-     * Set proper index into operand stack for AcpiDsObjStackPush
-     * invoked inside AcpiDsCreateOperand.
-     */
-    WalkState->OperandIndex = WalkState->NumOperands;
+	/*
+	 * Set proper index into operand stack for acpi_ds_obj_stack_push
+	 * invoked inside acpi_ds_create_operand.
+	 */
+	walk_state->operand_index = walk_state->num_operands;
 
-    /* Ignore if child is not valid */
+	/* Ignore if child is not valid */
 
-    if (!Op->Common.Value.Arg)
-    {
-        ACPI_ERROR ((AE_INFO,
-            "Missing child while evaluating opcode %4.4X, Op %p",
-            Op->Common.AmlOpcode, Op));
-        return_ACPI_STATUS (AE_OK);
-    }
+	if (!op->common.value.arg) {
+		ACPI_ERROR ((AE_INFO,
+			"Missing child while evaluating opcode %4.4X, Op %p",
+			op->common.aml_opcode, op));
+		return_ACPI_STATUS (AE_OK);
+	}
 
-    Status = AcpiDsCreateOperand (WalkState, Op->Common.Value.Arg, 1);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_ds_create_operand (walk_state, op->common.value.arg, 1);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    Status = AcpiExResolveOperands (WalkState->Opcode,
-        &(WalkState->Operands [WalkState->NumOperands -1]),
-        WalkState);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_ex_resolve_operands (walk_state->opcode,
+		&(walk_state->operands [walk_state->num_operands -1]),
+		walk_state);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    /* Extract length operand */
+	/* Extract length operand */
 
-    ArgDesc = WalkState->Operands [WalkState->NumOperands - 1];
-    Length = (UINT32) ArgDesc->Integer.Value;
+	arg_desc = walk_state->operands [walk_state->num_operands - 1];
+	length = (u32) arg_desc->integer.value;
 
-    /* Cleanup for length operand */
+	/* Cleanup for length operand */
 
-    Status = AcpiDsObjStackPop (1, WalkState);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_ds_obj_stack_pop (1, walk_state);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    AcpiUtRemoveReference (ArgDesc);
+	acpi_ut_remove_reference (arg_desc);
 
-    /*
-     * Create the actual data object
-     */
-    switch (Op->Common.AmlOpcode)
-    {
-    case AML_BUFFER_OP:
+	/*
+	 * Create the actual data object
+	 */
+	switch (op->common.aml_opcode) {
+	case AML_BUFFER_OP:
 
-        Status = AcpiDsBuildInternalBufferObj (
-            WalkState, Op, Length, &ObjDesc);
-        break;
+		status = acpi_ds_build_internal_buffer_obj (
+			walk_state, op, length, &obj_desc);
+		break;
 
-    case AML_PACKAGE_OP:
-    case AML_VARIABLE_PACKAGE_OP:
+	case AML_PACKAGE_OP:
+	case AML_VARIABLE_PACKAGE_OP:
 
-        Status = AcpiDsBuildInternalPackageObj (
-            WalkState, Op, Length, &ObjDesc);
-        break;
+		status = acpi_ds_build_internal_package_obj (
+			walk_state, op, length, &obj_desc);
+		break;
 
-    default:
+	default:
 
-        return_ACPI_STATUS (AE_AML_BAD_OPCODE);
-    }
+		return_ACPI_STATUS (AE_AML_BAD_OPCODE);
+	}
 
-    if (ACPI_SUCCESS (Status))
-    {
-        /*
-         * Return the object in the WalkState, unless the parent is a package -
-         * in this case, the return object will be stored in the parse tree
-         * for the package.
-         */
-        if ((!Op->Common.Parent) ||
-            ((Op->Common.Parent->Common.AmlOpcode != AML_PACKAGE_OP) &&
-             (Op->Common.Parent->Common.AmlOpcode != AML_VARIABLE_PACKAGE_OP) &&
-             (Op->Common.Parent->Common.AmlOpcode != AML_NAME_OP)))
-        {
-            WalkState->ResultObj = ObjDesc;
-        }
-    }
+	if (ACPI_SUCCESS (status)) {
+		/*
+		 * Return the object in the walk_state, unless the parent is a package -
+		 * in this case, the return object will be stored in the parse tree
+		 * for the package.
+		 */
+		if ((!op->common.parent) ||
+			((op->common.parent->common.aml_opcode != AML_PACKAGE_OP) &&
+			 (op->common.parent->common.aml_opcode != AML_VARIABLE_PACKAGE_OP) &&
+			 (op->common.parent->common.aml_opcode != AML_NAME_OP))) {
+			walk_state->result_obj = obj_desc;
+		}
+	}
 
-    return_ACPI_STATUS (Status);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiDsEvalBankFieldOperands
+ * FUNCTION:    acpi_ds_eval_bank_field_operands
  *
- * PARAMETERS:  WalkState       - Current walk
- *              Op              - A valid BankField Op object
+ * PARAMETERS:  walk_state      - Current walk
+ *              op              - A valid bank_field Op object
  *
  * RETURN:      Status
  *
- * DESCRIPTION: Get BankField BankValue
- *              Called from AcpiDsExecEndOp during BankField parse tree walk
+ * DESCRIPTION: Get bank_field bank_value
+ *              Called from acpi_ds_exec_end_op during bank_field parse tree walk
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiDsEvalBankFieldOperands (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Op)
+acpi_status
+acpi_ds_eval_bank_field_operands (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op)
 {
-    ACPI_STATUS             Status;
-    ACPI_OPERAND_OBJECT     *ObjDesc;
-    ACPI_OPERAND_OBJECT     *OperandDesc;
-    ACPI_NAMESPACE_NODE     *Node;
-    ACPI_PARSE_OBJECT       *NextOp;
-    ACPI_PARSE_OBJECT       *Arg;
+	acpi_status                     status;
+	union acpi_operand_object       *obj_desc;
+	union acpi_operand_object       *operand_desc;
+	struct acpi_namespace_node      *node;
+	union acpi_parse_object         *next_op;
+	union acpi_parse_object         *arg;
 
 
-    ACPI_FUNCTION_TRACE_PTR (DsEvalBankFieldOperands, Op);
+	ACPI_FUNCTION_TRACE_PTR (ds_eval_bank_field_operands, op);
 
 
-    /*
-     * This is where we evaluate the BankValue field of the
-     * BankField declaration
-     */
+	/*
+	 * This is where we evaluate the bank_value field of the
+	 * bank_field declaration
+	 */
 
-    /* NextOp points to the op that holds the Region */
+	/* next_op points to the op that holds the Region */
 
-    NextOp = Op->Common.Value.Arg;
+	next_op = op->common.value.arg;
 
-    /* NextOp points to the op that holds the Bank Register */
+	/* next_op points to the op that holds the Bank Register */
 
-    NextOp = NextOp->Common.Next;
+	next_op = next_op->common.next;
 
-    /* NextOp points to the op that holds the Bank Value */
+	/* next_op points to the op that holds the Bank Value */
 
-    NextOp = NextOp->Common.Next;
+	next_op = next_op->common.next;
 
-    /*
-     * Set proper index into operand stack for AcpiDsObjStackPush
-     * invoked inside AcpiDsCreateOperand.
-     *
-     * We use WalkState->Operands[0] to store the evaluated BankValue
-     */
-    WalkState->OperandIndex = 0;
+	/*
+	 * Set proper index into operand stack for acpi_ds_obj_stack_push
+	 * invoked inside acpi_ds_create_operand.
+	 *
+	 * We use walk_state->Operands[0] to store the evaluated bank_value
+	 */
+	walk_state->operand_index = 0;
 
-    Status = AcpiDsCreateOperand (WalkState, NextOp, 0);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_ds_create_operand (walk_state, next_op, 0);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    Status = AcpiExResolveToValue (&WalkState->Operands[0], WalkState);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_ex_resolve_to_value (&walk_state->operands[0], walk_state);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    ACPI_DUMP_OPERANDS (ACPI_WALK_OPERANDS,
-        AcpiPsGetOpcodeName (Op->Common.AmlOpcode), 1);
-    /*
-     * Get the BankValue operand and save it
-     * (at Top of stack)
-     */
-    OperandDesc = WalkState->Operands[0];
+	ACPI_DUMP_OPERANDS (ACPI_WALK_OPERANDS,
+		acpi_ps_get_opcode_name (op->common.aml_opcode), 1);
+	/*
+	 * Get the bank_value operand and save it
+	 * (at Top of stack)
+	 */
+	operand_desc = walk_state->operands[0];
 
-    /* Arg points to the start Bank Field */
+	/* Arg points to the start Bank Field */
 
-    Arg = AcpiPsGetArg (Op, 4);
-    while (Arg)
-    {
-        /* Ignore OFFSET and ACCESSAS terms here */
+	arg = acpi_ps_get_arg (op, 4);
+	while (arg) {
 
-        if (Arg->Common.AmlOpcode == AML_INT_NAMEDFIELD_OP)
-        {
-            Node = Arg->Common.Node;
+		/* Ignore OFFSET and ACCESSAS terms here */
 
-            ObjDesc = AcpiNsGetAttachedObject (Node);
-            if (!ObjDesc)
-            {
-                return_ACPI_STATUS (AE_NOT_EXIST);
-            }
+		if (arg->common.aml_opcode == AML_INT_NAMEDFIELD_OP) {
+			node = arg->common.node;
 
-            ObjDesc->BankField.Value = (UINT32) OperandDesc->Integer.Value;
-        }
+			obj_desc = acpi_ns_get_attached_object (node);
+			if (!obj_desc) {
+				return_ACPI_STATUS (AE_NOT_EXIST);
+			}
 
-        /* Move to next field in the list */
+			obj_desc->bank_field.value = (u32) operand_desc->integer.value;
+		}
 
-        Arg = Arg->Common.Next;
-    }
+		/* Move to next field in the list */
 
-    AcpiUtRemoveReference (OperandDesc);
-    return_ACPI_STATUS (Status);
+		arg = arg->common.next;
+	}
+
+	acpi_ut_remove_reference (operand_desc);
+	return_ACPI_STATUS (status);
 }

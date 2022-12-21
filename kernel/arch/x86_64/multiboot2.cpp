@@ -67,7 +67,7 @@
 static struct multiboot_tag_module *initrd_tag = NULL;
 struct multiboot_tag_elf_sections *secs;
 struct multiboot_tag_mmap *mmap_tag = NULL;
-ACPI_TABLE_RSDP grub2_rsdp = {};
+acpi_table_rsdp grub2_rsdp = {};
 bool grub2_rsdp_valid = false;
 
 uintptr_t get_rdsp_from_grub(void)
@@ -235,13 +235,13 @@ extern "C" void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
             }
             case MULTIBOOT_TAG_TYPE_ACPI_NEW: {
                 struct multiboot_tag_new_acpi *acpi = (struct multiboot_tag_new_acpi *) vtag;
-                memcpy(&grub2_rsdp, &acpi->rsdp, sizeof(ACPI_TABLE_RSDP));
+                memcpy(&grub2_rsdp, &acpi->rsdp, sizeof(acpi_table_rsdp));
                 grub2_rsdp_valid = true;
                 break;
             }
             case MULTIBOOT_TAG_TYPE_ACPI_OLD: {
                 struct multiboot_tag_old_acpi *acpi = (struct multiboot_tag_old_acpi *) vtag;
-                memcpy(&grub2_rsdp, &acpi->rsdp, sizeof(ACPI_TABLE_RSDP));
+                memcpy(&grub2_rsdp, &acpi->rsdp, sizeof(acpi_table_rsdp));
                 grub2_rsdp_valid = true;
                 break;
             }

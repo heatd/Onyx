@@ -1,167 +1,26 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /******************************************************************************
  *
  * Module Name: pswalk - Parser routines to walk parsed op tree(s)
  *
+ * Copyright (C) 2000 - 2022, Intel Corp.
+ *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #include "acpi.h"
 #include "accommon.h"
 #include "acparser.h"
 
 #define _COMPONENT          ACPI_PARSER
-        ACPI_MODULE_NAME    ("pswalk")
+	 ACPI_MODULE_NAME    ("pswalk")
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiPsDeleteParseTree
+ * FUNCTION:    acpi_ps_delete_parse_tree
  *
- * PARAMETERS:  SubtreeRoot         - Root of tree (or subtree) to delete
+ * PARAMETERS:  subtree_root        - Root of tree (or subtree) to delete
  *
  * RETURN:      None
  *
@@ -172,83 +31,77 @@
 #include "amlcode.h"
 
 void
-AcpiPsDeleteParseTree (
-    ACPI_PARSE_OBJECT       *SubtreeRoot)
+acpi_ps_delete_parse_tree (
+	union acpi_parse_object         *subtree_root)
 {
-    ACPI_PARSE_OBJECT       *Op = SubtreeRoot;
-    ACPI_PARSE_OBJECT       *Next = NULL;
-    ACPI_PARSE_OBJECT       *Parent = NULL;
-    UINT32                  Level = 0;
+	union acpi_parse_object         *op = subtree_root;
+	union acpi_parse_object         *next = NULL;
+	union acpi_parse_object         *parent = NULL;
+	u32                             level = 0;
 
 
-    ACPI_FUNCTION_TRACE_PTR (PsDeleteParseTree, SubtreeRoot);
+	ACPI_FUNCTION_TRACE_PTR (ps_delete_parse_tree, subtree_root);
 
-    ACPI_DEBUG_PRINT ((ACPI_DB_PARSE_TREES,
-        " root %p\n", SubtreeRoot));
+	ACPI_DEBUG_PRINT ((ACPI_DB_PARSE_TREES,
+		" root %p\n", subtree_root));
 
-    /* Visit all nodes in the subtree */
+	/* Visit all nodes in the subtree */
 
-    while (Op)
-    {
-        if (Op != Parent)
-        {
-            /* This is the descending case */
+	while (op) {
+		if (op != parent) {
 
-            if (ACPI_IS_DEBUG_ENABLED (ACPI_LV_PARSE_TREES, _COMPONENT))
-            {
-                /* This debug option will print the entire parse tree */
+			/* This is the descending case */
 
-                AcpiOsPrintf ("        %*.s%s %p", (Level * 4), " ",
-                    AcpiPsGetOpcodeName (Op->Common.AmlOpcode), Op);
+			if (ACPI_IS_DEBUG_ENABLED (ACPI_LV_PARSE_TREES, _COMPONENT)) {
 
-                if (Op->Named.AmlOpcode == AML_INT_NAMEPATH_OP)
-                {
-                    AcpiOsPrintf ("    %4.4s", Op->Common.Value.String);
-                }
-                if (Op->Named.AmlOpcode == AML_STRING_OP)
-                {
-                    AcpiOsPrintf ("    %s", Op->Common.Value.String);
-                }
-                AcpiOsPrintf ("\n");
-            }
+				/* This debug option will print the entire parse tree */
 
-            /* Look for an argument or child of the current op */
+				acpi_os_printf ("      %*.s%s %p", (level * 4), " ",
+					acpi_ps_get_opcode_name (op->common.aml_opcode), op);
 
-            Next = AcpiPsGetArg (Op, 0);
-            if (Next)
-            {
-                /* Still going downward in tree (Op is not completed yet) */
+				if (op->named.aml_opcode == AML_INT_NAMEPATH_OP) {
+					acpi_os_printf ("  %4.4s", op->common.value.string);
+				}
+				if (op->named.aml_opcode == AML_STRING_OP) {
+					acpi_os_printf ("  %s", op->common.value.string);
+				}
+				acpi_os_printf ("\n");
+			}
 
-                Op = Next;
-                Level++;
-                continue;
-            }
-        }
+			/* Look for an argument or child of the current op */
 
-        /* No more children, this Op is complete. */
+			next = acpi_ps_get_arg (op, 0);
+			if (next) {
 
-        Next = Op->Common.Next;
-        Parent = Op->Common.Parent;
+				/* Still going downward in tree (Op is not completed yet) */
 
-        AcpiPsFreeOp (Op);
+				op = next;
+				level++;
+				continue;
+			}
+		}
 
-        /* If we are back to the starting point, the walk is complete. */
+		/* No more children, this Op is complete. */
 
-        if (Op == SubtreeRoot)
-        {
-            return_VOID;
-        }
+		next = op->common.next;
+		parent = op->common.parent;
 
-        if (Next)
-        {
-            Op = Next;
-        }
-        else
-        {
-            Level--;
-            Op = Parent;
-        }
-    }
+		acpi_ps_free_op (op);
 
-    return_VOID;
+		/* If we are back to the starting point, the walk is complete. */
+
+		if (op == subtree_root) {
+			return_VOID;
+		}
+
+		if (next) {
+			op = next;
+		}
+		else {
+			level--;
+			op = parent;
+		}
+	}
+
+	return_VOID;
 }

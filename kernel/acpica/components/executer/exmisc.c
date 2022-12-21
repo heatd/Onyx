@@ -1,154 +1,12 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /******************************************************************************
  *
  * Module Name: exmisc - ACPI AML (p-code) execution - specific opcodes
  *
- *****************************************************************************/
-
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
-
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
+ * Copyright (C) 2000 - 2022, Intel Corp.
  *
  *****************************************************************************/
+
 
 #include "acpi.h"
 #include "accommon.h"
@@ -157,112 +15,108 @@
 
 
 #define _COMPONENT          ACPI_EXECUTER
-        ACPI_MODULE_NAME    ("exmisc")
+	 ACPI_MODULE_NAME    ("exmisc")
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExGetObjectReference
+ * FUNCTION:    acpi_ex_get_object_reference
  *
- * PARAMETERS:  ObjDesc             - Create a reference to this object
- *              ReturnDesc          - Where to store the reference
- *              WalkState           - Current state
+ * PARAMETERS:  obj_desc            - Create a reference to this object
+ *              return_desc         - Where to store the reference
+ *              walk_state          - Current state
  *
  * RETURN:      Status
  *
  * DESCRIPTION: Obtain and return a "reference" to the target object
- *              Common code for the RefOfOp and the CondRefOfOp.
+ *              Common code for the ref_of_op and the cond_ref_of_op.
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiExGetObjectReference (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_OPERAND_OBJECT     **ReturnDesc,
-    ACPI_WALK_STATE         *WalkState)
+acpi_status
+acpi_ex_get_object_reference (
+	union acpi_operand_object       *obj_desc,
+	union acpi_operand_object       **return_desc,
+	struct acpi_walk_state          *walk_state)
 {
-    ACPI_OPERAND_OBJECT     *ReferenceObj;
-    ACPI_OPERAND_OBJECT     *ReferencedObj;
+	union acpi_operand_object       *reference_obj;
+	union acpi_operand_object       *referenced_obj;
 
 
-    ACPI_FUNCTION_TRACE_PTR (ExGetObjectReference, ObjDesc);
+	ACPI_FUNCTION_TRACE_PTR (ex_get_object_reference, obj_desc);
 
 
-    *ReturnDesc = NULL;
+	*return_desc = NULL;
 
-    switch (ACPI_GET_DESCRIPTOR_TYPE (ObjDesc))
-    {
-    case ACPI_DESC_TYPE_OPERAND:
+	switch (ACPI_GET_DESCRIPTOR_TYPE (obj_desc)) {
+	case ACPI_DESC_TYPE_OPERAND:
 
-        if (ObjDesc->Common.Type != ACPI_TYPE_LOCAL_REFERENCE)
-        {
-            return_ACPI_STATUS (AE_AML_OPERAND_TYPE);
-        }
+		if (obj_desc->common.type != ACPI_TYPE_LOCAL_REFERENCE) {
+			return_ACPI_STATUS (AE_AML_OPERAND_TYPE);
+		}
 
-        /*
-         * Must be a reference to a Local or Arg
-         */
-        switch (ObjDesc->Reference.Class)
-        {
-        case ACPI_REFCLASS_LOCAL:
-        case ACPI_REFCLASS_ARG:
-        case ACPI_REFCLASS_DEBUG:
+		/*
+		 * Must be a reference to a Local or Arg
+		 */
+		switch (obj_desc->reference.class) {
+		case ACPI_REFCLASS_LOCAL:
+		case ACPI_REFCLASS_ARG:
+		case ACPI_REFCLASS_DEBUG:
 
-            /* The referenced object is the pseudo-node for the local/arg */
+			/* The referenced object is the pseudo-node for the local/arg */
 
-            ReferencedObj = ObjDesc->Reference.Object;
-            break;
+			referenced_obj = obj_desc->reference.object;
+			break;
 
-        default:
+		default:
 
-            ACPI_ERROR ((AE_INFO, "Invalid Reference Class 0x%2.2X",
-                ObjDesc->Reference.Class));
-            return_ACPI_STATUS (AE_AML_OPERAND_TYPE);
-        }
-        break;
+			ACPI_ERROR ((AE_INFO, "Invalid Reference Class 0x%2.2X",
+				obj_desc->reference.class));
+			return_ACPI_STATUS (AE_AML_OPERAND_TYPE);
+		}
+		break;
 
-    case ACPI_DESC_TYPE_NAMED:
-        /*
-         * A named reference that has already been resolved to a Node
-         */
-        ReferencedObj = ObjDesc;
-        break;
+	case ACPI_DESC_TYPE_NAMED:
+		/*
+		 * A named reference that has already been resolved to a Node
+		 */
+		referenced_obj = obj_desc;
+		break;
 
-    default:
+	default:
 
-        ACPI_ERROR ((AE_INFO, "Invalid descriptor type 0x%X",
-            ACPI_GET_DESCRIPTOR_TYPE (ObjDesc)));
-        return_ACPI_STATUS (AE_TYPE);
-    }
+		ACPI_ERROR ((AE_INFO, "Invalid descriptor type 0x%X",
+			ACPI_GET_DESCRIPTOR_TYPE (obj_desc)));
+		return_ACPI_STATUS (AE_TYPE);
+	}
 
 
-    /* Create a new reference object */
+	/* Create a new reference object */
 
-    ReferenceObj = AcpiUtCreateInternalObject (ACPI_TYPE_LOCAL_REFERENCE);
-    if (!ReferenceObj)
-    {
-        return_ACPI_STATUS (AE_NO_MEMORY);
-    }
+	reference_obj = acpi_ut_create_internal_object (ACPI_TYPE_LOCAL_REFERENCE);
+	if (!reference_obj) {
+		return_ACPI_STATUS (AE_NO_MEMORY);
+	}
 
-    ReferenceObj->Reference.Class = ACPI_REFCLASS_REFOF;
-    ReferenceObj->Reference.Object = ReferencedObj;
-    *ReturnDesc = ReferenceObj;
+	reference_obj->reference.class = ACPI_REFCLASS_REFOF;
+	reference_obj->reference.object = referenced_obj;
+	*return_desc = reference_obj;
 
-    ACPI_DEBUG_PRINT ((ACPI_DB_EXEC,
-        "Object %p Type [%s], returning Reference %p\n",
-        ObjDesc, AcpiUtGetObjectTypeName (ObjDesc), *ReturnDesc));
+	ACPI_DEBUG_PRINT ((ACPI_DB_EXEC,
+		"Object %p Type [%s], returning Reference %p\n",
+		obj_desc, acpi_ut_get_object_type_name (obj_desc), *return_desc));
 
-    return_ACPI_STATUS (AE_OK);
+	return_ACPI_STATUS (AE_OK);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExDoMathOp
+ * FUNCTION:    acpi_ex_do_math_op
  *
- * PARAMETERS:  Opcode              - AML opcode
- *              Integer0            - Integer operand #0
- *              Integer1            - Integer operand #1
+ * PARAMETERS:  opcode              - AML opcode
+ *              integer0            - Integer operand #0
+ *              integer1            - Integer operand #1
  *
  * RETURN:      Integer result of the operation
  *
@@ -272,89 +126,86 @@ AcpiExGetObjectReference (
  *
  ******************************************************************************/
 
-UINT64
-AcpiExDoMathOp (
-    UINT16                  Opcode,
-    UINT64                  Integer0,
-    UINT64                  Integer1)
+u64
+acpi_ex_do_math_op (
+	u16                             opcode,
+	u64                             integer0,
+	u64                             integer1)
 {
 
-    ACPI_FUNCTION_ENTRY ();
+	ACPI_FUNCTION_ENTRY ();
 
 
-    switch (Opcode)
-    {
-    case AML_ADD_OP:                /* Add (Integer0, Integer1, Result) */
+	switch (opcode) {
+	case AML_ADD_OP:                /* Add (Integer0, Integer1, Result) */
 
-        return (Integer0 + Integer1);
+		return (integer0 + integer1);
 
-    case AML_BIT_AND_OP:            /* And (Integer0, Integer1, Result) */
+	case AML_BIT_AND_OP:            /* And (Integer0, Integer1, Result) */
 
-        return (Integer0 & Integer1);
+		return (integer0 & integer1);
 
-    case AML_BIT_NAND_OP:           /* NAnd (Integer0, Integer1, Result) */
+	case AML_BIT_NAND_OP:           /* NAnd (Integer0, Integer1, Result) */
 
-        return (~(Integer0 & Integer1));
+		return (~(integer0 & integer1));
 
-    case AML_BIT_OR_OP:             /* Or (Integer0, Integer1, Result) */
+	case AML_BIT_OR_OP:             /* Or (Integer0, Integer1, Result) */
 
-        return (Integer0 | Integer1);
+		return (integer0 | integer1);
 
-    case AML_BIT_NOR_OP:            /* NOr (Integer0, Integer1, Result) */
+	case AML_BIT_NOR_OP:            /* NOr (Integer0, Integer1, Result) */
 
-        return (~(Integer0 | Integer1));
+		return (~(integer0 | integer1));
 
-    case AML_BIT_XOR_OP:            /* XOr (Integer0, Integer1, Result) */
+	case AML_BIT_XOR_OP:            /* XOr (Integer0, Integer1, Result) */
 
-        return (Integer0 ^ Integer1);
+		return (integer0 ^ integer1);
 
-    case AML_MULTIPLY_OP:           /* Multiply (Integer0, Integer1, Result) */
+	case AML_MULTIPLY_OP:           /* Multiply (Integer0, Integer1, Result) */
 
-        return (Integer0 * Integer1);
+		return (integer0 * integer1);
 
-    case AML_SHIFT_LEFT_OP:         /* ShiftLeft (Operand, ShiftCount, Result)*/
+	case AML_SHIFT_LEFT_OP:         /* shift_left (Operand, shift_count, Result)*/
 
-        /*
-         * We need to check if the shiftcount is larger than the integer bit
-         * width since the behavior of this is not well-defined in the C language.
-         */
-        if (Integer1 >= AcpiGbl_IntegerBitWidth)
-        {
-            return (0);
-        }
-        return (Integer0 << Integer1);
+		/*
+		 * We need to check if the shiftcount is larger than the integer bit
+		 * width since the behavior of this is not well-defined in the C language.
+		 */
+		if (integer1 >= acpi_gbl_integer_bit_width) {
+			return (0);
+		}
+		return (integer0 << integer1);
 
-    case AML_SHIFT_RIGHT_OP:        /* ShiftRight (Operand, ShiftCount, Result) */
+	case AML_SHIFT_RIGHT_OP:        /* shift_right (Operand, shift_count, Result) */
 
-        /*
-         * We need to check if the shiftcount is larger than the integer bit
-         * width since the behavior of this is not well-defined in the C language.
-         */
-        if (Integer1 >= AcpiGbl_IntegerBitWidth)
-        {
-            return (0);
-        }
-        return (Integer0 >> Integer1);
+		/*
+		 * We need to check if the shiftcount is larger than the integer bit
+		 * width since the behavior of this is not well-defined in the C language.
+		 */
+		if (integer1 >= acpi_gbl_integer_bit_width) {
+			return (0);
+		}
+		return (integer0 >> integer1);
 
-    case AML_SUBTRACT_OP:           /* Subtract (Integer0, Integer1, Result) */
+	case AML_SUBTRACT_OP:           /* Subtract (Integer0, Integer1, Result) */
 
-        return (Integer0 - Integer1);
+		return (integer0 - integer1);
 
-    default:
+	default:
 
-        return (0);
-    }
+		return (0);
+	}
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExDoLogicalNumericOp
+ * FUNCTION:    acpi_ex_do_logical_numeric_op
  *
- * PARAMETERS:  Opcode              - AML opcode
- *              Integer0            - Integer operand #0
- *              Integer1            - Integer operand #1
- *              LogicalResult       - TRUE/FALSE result of the operation
+ * PARAMETERS:  opcode              - AML opcode
+ *              integer0            - Integer operand #0
+ *              integer1            - Integer operand #1
+ *              logical_result      - TRUE/FALSE result of the operation
  *
  * RETURN:      Status
  *
@@ -367,61 +218,58 @@ AcpiExDoMathOp (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiExDoLogicalNumericOp (
-    UINT16                  Opcode,
-    UINT64                  Integer0,
-    UINT64                  Integer1,
-    BOOLEAN                 *LogicalResult)
+acpi_status
+acpi_ex_do_logical_numeric_op (
+	u16                             opcode,
+	u64                             integer0,
+	u64                             integer1,
+	u8                              *logical_result)
 {
-    ACPI_STATUS             Status = AE_OK;
-    BOOLEAN                 LocalResult = FALSE;
+	acpi_status                     status = AE_OK;
+	u8                              local_result = FALSE;
 
 
-    ACPI_FUNCTION_TRACE (ExDoLogicalNumericOp);
+	ACPI_FUNCTION_TRACE (ex_do_logical_numeric_op);
 
 
-    switch (Opcode)
-    {
-    case AML_LOGICAL_AND_OP:        /* LAnd (Integer0, Integer1) */
+	switch (opcode) {
+	case AML_LOGICAL_AND_OP:        /* LAnd (Integer0, Integer1) */
 
-        if (Integer0 && Integer1)
-        {
-            LocalResult = TRUE;
-        }
-        break;
+		if (integer0 && integer1) {
+			local_result = TRUE;
+		}
+		break;
 
-    case AML_LOGICAL_OR_OP:         /* LOr (Integer0, Integer1) */
+	case AML_LOGICAL_OR_OP:         /* LOr (Integer0, Integer1) */
 
-        if (Integer0 || Integer1)
-        {
-            LocalResult = TRUE;
-        }
-        break;
+		if (integer0 || integer1) {
+			local_result = TRUE;
+		}
+		break;
 
-    default:
+	default:
 
-        ACPI_ERROR ((AE_INFO,
-            "Invalid numeric logical opcode: %X", Opcode));
-        Status = AE_AML_INTERNAL;
-        break;
-    }
+		ACPI_ERROR ((AE_INFO,
+			"Invalid numeric logical opcode: %X", opcode));
+		status = AE_AML_INTERNAL;
+		break;
+	}
 
-    /* Return the logical result and status */
+	/* Return the logical result and status */
 
-    *LogicalResult = LocalResult;
-    return_ACPI_STATUS (Status);
+	*logical_result = local_result;
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExDoLogicalOp
+ * FUNCTION:    acpi_ex_do_logical_op
  *
- * PARAMETERS:  Opcode              - AML opcode
- *              Operand0            - operand #0
- *              Operand1            - operand #1
- *              LogicalResult       - TRUE/FALSE result of the operation
+ * PARAMETERS:  opcode              - AML opcode
+ *              operand0            - operand #0
+ *              operand1            - operand #1
+ *              logical_result      - TRUE/FALSE result of the operation
  *
  * RETURN:      Status
  *
@@ -440,204 +288,188 @@ AcpiExDoLogicalNumericOp (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiExDoLogicalOp (
-    UINT16                  Opcode,
-    ACPI_OPERAND_OBJECT     *Operand0,
-    ACPI_OPERAND_OBJECT     *Operand1,
-    BOOLEAN                 *LogicalResult)
+acpi_status
+acpi_ex_do_logical_op (
+	u16                             opcode,
+	union acpi_operand_object       *operand0,
+	union acpi_operand_object       *operand1,
+	u8                              *logical_result)
 {
-    ACPI_OPERAND_OBJECT     *LocalOperand1 = Operand1;
-    UINT64                  Integer0;
-    UINT64                  Integer1;
-    UINT32                  Length0;
-    UINT32                  Length1;
-    ACPI_STATUS             Status = AE_OK;
-    BOOLEAN                 LocalResult = FALSE;
-    int                     Compare;
+	union acpi_operand_object       *local_operand1 = operand1;
+	u64                             integer0;
+	u64                             integer1;
+	u32                             length0;
+	u32                             length1;
+	acpi_status                     status = AE_OK;
+	u8                              local_result = FALSE;
+	int                             compare;
 
 
-    ACPI_FUNCTION_TRACE (ExDoLogicalOp);
+	ACPI_FUNCTION_TRACE (ex_do_logical_op);
 
 
-    /*
-     * Convert the second operand if necessary. The first operand
-     * determines the type of the second operand, (See the Data Types
-     * section of the ACPI 3.0+ specification.)  Both object types are
-     * guaranteed to be either Integer/String/Buffer by the operand
-     * resolution mechanism.
-     */
-    switch (Operand0->Common.Type)
-    {
-    case ACPI_TYPE_INTEGER:
+	/*
+	 * Convert the second operand if necessary. The first operand
+	 * determines the type of the second operand, (See the Data Types
+	 * section of the ACPI 3.0+ specification.)  Both object types are
+	 * guaranteed to be either Integer/String/Buffer by the operand
+	 * resolution mechanism.
+	 */
+	switch (operand0->common.type) {
+	case ACPI_TYPE_INTEGER:
 
-        Status = AcpiExConvertToInteger (Operand1, &LocalOperand1,
-            ACPI_IMPLICIT_CONVERSION);
-        break;
+		status = acpi_ex_convert_to_integer (operand1, &local_operand1,
+			ACPI_IMPLICIT_CONVERSION);
+		break;
 
-    case ACPI_TYPE_STRING:
+	case ACPI_TYPE_STRING:
 
-        Status = AcpiExConvertToString (
-            Operand1, &LocalOperand1, ACPI_IMPLICIT_CONVERT_HEX);
-        break;
+		status = acpi_ex_convert_to_string (
+			operand1, &local_operand1, ACPI_IMPLICIT_CONVERT_HEX);
+		break;
 
-    case ACPI_TYPE_BUFFER:
+	case ACPI_TYPE_BUFFER:
 
-        Status = AcpiExConvertToBuffer (Operand1, &LocalOperand1);
-        break;
+		status = acpi_ex_convert_to_buffer (operand1, &local_operand1);
+		break;
 
-    default:
+	default:
 
-        ACPI_ERROR ((AE_INFO,
-            "Invalid object type for logical operator: %X",
-            Operand0->Common.Type));
-        Status = AE_AML_INTERNAL;
-        break;
-    }
+		ACPI_ERROR ((AE_INFO,
+			"Invalid object type for logical operator: %X",
+			operand0->common.type));
+		status = AE_AML_INTERNAL;
+		break;
+	}
 
-    if (ACPI_FAILURE (Status))
-    {
-        goto Cleanup;
-    }
+	if (ACPI_FAILURE (status)) {
+		goto cleanup;
+	}
 
-    /*
-     * Two cases: 1) Both Integers, 2) Both Strings or Buffers
-     */
-    if (Operand0->Common.Type == ACPI_TYPE_INTEGER)
-    {
-        /*
-         * 1) Both operands are of type integer
-         *    Note: LocalOperand1 may have changed above
-         */
-        Integer0 = Operand0->Integer.Value;
-        Integer1 = LocalOperand1->Integer.Value;
+	/*
+	 * Two cases: 1) Both Integers, 2) Both Strings or Buffers
+	 */
+	if (operand0->common.type == ACPI_TYPE_INTEGER) {
+		/*
+		 * 1) Both operands are of type integer
+		 *    Note: local_operand1 may have changed above
+		 */
+		integer0 = operand0->integer.value;
+		integer1 = local_operand1->integer.value;
 
-        switch (Opcode)
-        {
-        case AML_LOGICAL_EQUAL_OP:          /* LEqual (Operand0, Operand1) */
+		switch (opcode) {
+		case AML_LOGICAL_EQUAL_OP:          /* LEqual (Operand0, Operand1) */
 
-            if (Integer0 == Integer1)
-            {
-                LocalResult = TRUE;
-            }
-            break;
+			if (integer0 == integer1) {
+				local_result = TRUE;
+			}
+			break;
 
-        case AML_LOGICAL_GREATER_OP:        /* LGreater (Operand0, Operand1) */
+		case AML_LOGICAL_GREATER_OP:        /* LGreater (Operand0, Operand1) */
 
-            if (Integer0 > Integer1)
-            {
-                LocalResult = TRUE;
-            }
-            break;
+			if (integer0 > integer1) {
+				local_result = TRUE;
+			}
+			break;
 
-        case AML_LOGICAL_LESS_OP:           /* LLess (Operand0, Operand1) */
+		case AML_LOGICAL_LESS_OP:           /* LLess (Operand0, Operand1) */
 
-            if (Integer0 < Integer1)
-            {
-                LocalResult = TRUE;
-            }
-            break;
+			if (integer0 < integer1) {
+				local_result = TRUE;
+			}
+			break;
 
-        default:
+		default:
 
-            ACPI_ERROR ((AE_INFO,
-                "Invalid comparison opcode: %X", Opcode));
-            Status = AE_AML_INTERNAL;
-            break;
-        }
-    }
-    else
-    {
-        /*
-         * 2) Both operands are Strings or both are Buffers
-         *    Note: Code below takes advantage of common Buffer/String
-         *          object fields. LocalOperand1 may have changed above. Use
-         *          memcmp to handle nulls in buffers.
-         */
-        Length0 = Operand0->Buffer.Length;
-        Length1 = LocalOperand1->Buffer.Length;
+			ACPI_ERROR ((AE_INFO,
+				"Invalid comparison opcode: %X", opcode));
+			status = AE_AML_INTERNAL;
+			break;
+		}
+	}
+	else {
+		/*
+		 * 2) Both operands are Strings or both are Buffers
+		 *    Note: Code below takes advantage of common Buffer/String
+		 *          object fields. local_operand1 may have changed above. Use
+		 *          memcmp to handle nulls in buffers.
+		 */
+		length0 = operand0->buffer.length;
+		length1 = local_operand1->buffer.length;
 
-        /* Lexicographic compare: compare the data bytes */
+		/* Lexicographic compare: compare the data bytes */
 
-        Compare = memcmp (Operand0->Buffer.Pointer,
-            LocalOperand1->Buffer.Pointer,
-            (Length0 > Length1) ? Length1 : Length0);
+		compare = memcmp (operand0->buffer.pointer,
+			local_operand1->buffer.pointer,
+			(length0 > length1) ? length1 : length0);
 
-        switch (Opcode)
-        {
-        case AML_LOGICAL_EQUAL_OP:      /* LEqual (Operand0, Operand1) */
+		switch (opcode) {
+		case AML_LOGICAL_EQUAL_OP:      /* LEqual (Operand0, Operand1) */
 
-            /* Length and all bytes must be equal */
+			/* Length and all bytes must be equal */
 
-            if ((Length0 == Length1) &&
-                (Compare == 0))
-            {
-                /* Length and all bytes match ==> TRUE */
+			if ((length0 == length1) &&
+				(compare == 0)) {
 
-                LocalResult = TRUE;
-            }
-            break;
+				/* Length and all bytes match ==> TRUE */
 
-        case AML_LOGICAL_GREATER_OP:    /* LGreater (Operand0, Operand1) */
+				local_result = TRUE;
+			}
+			break;
 
-            if (Compare > 0)
-            {
-                LocalResult = TRUE;
-                goto Cleanup;   /* TRUE */
-            }
-            if (Compare < 0)
-            {
-                goto Cleanup;   /* FALSE */
-            }
+		case AML_LOGICAL_GREATER_OP:    /* LGreater (Operand0, Operand1) */
 
-            /* Bytes match (to shortest length), compare lengths */
+			if (compare > 0) {
+				local_result = TRUE;
+				goto cleanup;   /* TRUE */
+			}
+			if (compare < 0) {
+				goto cleanup;   /* FALSE */
+			}
 
-            if (Length0 > Length1)
-            {
-                LocalResult = TRUE;
-            }
-            break;
+			/* Bytes match (to shortest length), compare lengths */
 
-        case AML_LOGICAL_LESS_OP:       /* LLess (Operand0, Operand1) */
+			if (length0 > length1) {
+				local_result = TRUE;
+			}
+			break;
 
-            if (Compare > 0)
-            {
-                goto Cleanup;   /* FALSE */
-            }
-            if (Compare < 0)
-            {
-                LocalResult = TRUE;
-                goto Cleanup;   /* TRUE */
-            }
+		case AML_LOGICAL_LESS_OP:       /* LLess (Operand0, Operand1) */
 
-            /* Bytes match (to shortest length), compare lengths */
+			if (compare > 0) {
+				goto cleanup;   /* FALSE */
+			}
+			if (compare < 0) {
+				local_result = TRUE;
+				goto cleanup;   /* TRUE */
+			}
 
-            if (Length0 < Length1)
-            {
-                LocalResult = TRUE;
-            }
-            break;
+			/* Bytes match (to shortest length), compare lengths */
 
-        default:
+			if (length0 < length1) {
+				local_result = TRUE;
+			}
+			break;
 
-            ACPI_ERROR ((AE_INFO,
-                "Invalid comparison opcode: %X", Opcode));
-            Status = AE_AML_INTERNAL;
-            break;
-        }
-    }
+		default:
 
-Cleanup:
+			ACPI_ERROR ((AE_INFO,
+				"Invalid comparison opcode: %X", opcode));
+			status = AE_AML_INTERNAL;
+			break;
+		}
+	}
 
-    /* New object was created if implicit conversion performed - delete */
+cleanup:
 
-    if (LocalOperand1 != Operand1)
-    {
-        AcpiUtRemoveReference (LocalOperand1);
-    }
+	/* New object was created if implicit conversion performed - delete */
 
-    /* Return the logical result and status */
+	if (local_operand1 != operand1) {
+		acpi_ut_remove_reference (local_operand1);
+	}
 
-    *LogicalResult = LocalResult;
-    return_ACPI_STATUS (Status);
+	/* Return the logical result and status */
+
+	*logical_result = local_result;
+	return_ACPI_STATUS (status);
 }

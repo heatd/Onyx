@@ -1,153 +1,12 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /******************************************************************************
  *
  * Module Name: nsparse - namespace interface to AML parser
  *
+ * Copyright (C) 2000 - 2022, Intel Corp.
+ *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #include "acpi.h"
 #include "accommon.h"
@@ -159,15 +18,15 @@
 
 
 #define _COMPONENT          ACPI_NAMESPACE
-        ACPI_MODULE_NAME    ("nsparse")
+	 ACPI_MODULE_NAME    ("nsparse")
 
 
 /*******************************************************************************
  *
- * FUNCTION:    NsExecuteTable
+ * FUNCTION:    ns_execute_table
  *
- * PARAMETERS:  TableDesc       - An ACPI table descriptor for table to parse
- *              StartNode       - Where to enter the table into the namespace
+ * PARAMETERS:  table_desc      - An ACPI table descriptor for table to parse
+ *              start_node      - Where to enter the table into the namespace
  *
  * RETURN:      Status
  *
@@ -185,112 +44,105 @@
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiNsExecuteTable (
-    UINT32                  TableIndex,
-    ACPI_NAMESPACE_NODE     *StartNode)
+acpi_status
+acpi_ns_execute_table (
+	u32                             table_index,
+	struct acpi_namespace_node      *start_node)
 {
-    ACPI_STATUS             Status;
-    ACPI_TABLE_HEADER       *Table;
-    ACPI_OWNER_ID           OwnerId;
-    ACPI_EVALUATE_INFO      *Info = NULL;
-    UINT32                  AmlLength;
-    UINT8                   *AmlStart;
-    ACPI_OPERAND_OBJECT     *MethodObj = NULL;
+	acpi_status                     status;
+	struct acpi_table_header        *table;
+	acpi_owner_id                   owner_id;
+	struct acpi_evaluate_info       *info = NULL;
+	u32                             aml_length;
+	u8                              *aml_start;
+	union acpi_operand_object       *method_obj = NULL;
 
 
-    ACPI_FUNCTION_TRACE (NsExecuteTable);
+	ACPI_FUNCTION_TRACE (ns_execute_table);
 
 
-    Status = AcpiGetTableByIndex (TableIndex, &Table);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_get_table_by_index (table_index, &table);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    /* Table must consist of at least a complete header */
+	/* Table must consist of at least a complete header */
 
-    if (Table->Length < sizeof (ACPI_TABLE_HEADER))
-    {
-        return_ACPI_STATUS (AE_BAD_HEADER);
-    }
+	if (table->length < sizeof (struct acpi_table_header)) {
+		return_ACPI_STATUS (AE_BAD_HEADER);
+	}
 
-    AmlStart = (UINT8 *) Table + sizeof (ACPI_TABLE_HEADER);
-    AmlLength = Table->Length - sizeof (ACPI_TABLE_HEADER);
+	aml_start = (u8 *) table + sizeof (struct acpi_table_header);
+	aml_length = table->length - sizeof (struct acpi_table_header);
 
-    Status = AcpiTbGetOwnerId (TableIndex, &OwnerId);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_tb_get_owner_id (table_index, &owner_id);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    /* Create, initialize, and link a new temporary method object */
+	/* Create, initialize, and link a new temporary method object */
 
-    MethodObj = AcpiUtCreateInternalObject (ACPI_TYPE_METHOD);
-    if (!MethodObj)
-    {
-        return_ACPI_STATUS (AE_NO_MEMORY);
-    }
+	method_obj = acpi_ut_create_internal_object (ACPI_TYPE_METHOD);
+	if (!method_obj) {
+		return_ACPI_STATUS (AE_NO_MEMORY);
+	}
 
-    /* Allocate the evaluation information block */
+	/* Allocate the evaluation information block */
 
-    Info = ACPI_ALLOCATE_ZEROED (sizeof (ACPI_EVALUATE_INFO));
-    if (!Info)
-    {
-        Status = AE_NO_MEMORY;
-        goto Cleanup;
-    }
+	info = ACPI_ALLOCATE_ZEROED (sizeof (struct acpi_evaluate_info));
+	if (!info) {
+		status = AE_NO_MEMORY;
+		goto cleanup;
+	}
 
-    ACPI_DEBUG_PRINT_RAW ((ACPI_DB_PARSE,
-        "%s: Create table pseudo-method for [%4.4s] @%p, method %p\n",
-        ACPI_GET_FUNCTION_NAME, Table->Signature, Table, MethodObj));
+	ACPI_DEBUG_PRINT_RAW ((ACPI_DB_PARSE,
+		"%s: Create table pseudo-method for [%4.4s] @%p, method %p\n",
+		ACPI_GET_FUNCTION_NAME, table->signature, table, method_obj));
 
-    MethodObj->Method.AmlStart = AmlStart;
-    MethodObj->Method.AmlLength = AmlLength;
-    MethodObj->Method.OwnerId = OwnerId;
-    MethodObj->Method.InfoFlags |= ACPI_METHOD_MODULE_LEVEL;
+	method_obj->method.aml_start = aml_start;
+	method_obj->method.aml_length = aml_length;
+	method_obj->method.owner_id = owner_id;
+	method_obj->method.info_flags |= ACPI_METHOD_MODULE_LEVEL;
 
-    Info->PassNumber = ACPI_IMODE_EXECUTE;
-    Info->Node = StartNode;
-    Info->ObjDesc = MethodObj;
-    Info->NodeFlags = Info->Node->Flags;
-    Info->FullPathname = AcpiNsGetNormalizedPathname (Info->Node, TRUE);
-    if (!Info->FullPathname)
-    {
-        Status = AE_NO_MEMORY;
-        goto Cleanup;
-    }
+	info->pass_number = ACPI_IMODE_EXECUTE;
+	info->node = start_node;
+	info->obj_desc = method_obj;
+	info->node_flags = info->node->flags;
+	info->full_pathname = acpi_ns_get_normalized_pathname (info->node, TRUE);
+	if (!info->full_pathname) {
+		status = AE_NO_MEMORY;
+		goto cleanup;
+	}
 
-    /* Optional object evaluation log */
+	/* Optional object evaluation log */
 
-    ACPI_DEBUG_PRINT_RAW ((ACPI_DB_EVALUATION,
-        "%-26s:  (Definition Block level)\n", "Module-level evaluation"));
+	ACPI_DEBUG_PRINT_RAW ((ACPI_DB_EVALUATION,
+		"%-26s:  (Definition Block level)\n", "Module-level evaluation"));
 
-    Status = AcpiPsExecuteTable (Info);
+	status = acpi_ps_execute_table (info);
 
-    /* Optional object evaluation log */
+	/* Optional object evaluation log */
 
-    ACPI_DEBUG_PRINT_RAW ((ACPI_DB_EVALUATION,
-        "%-26s:  (Definition Block level)\n", "Module-level complete"));
+	ACPI_DEBUG_PRINT_RAW ((ACPI_DB_EVALUATION,
+		"%-26s:  (Definition Block level)\n", "Module-level complete"));
 
-Cleanup:
-    if (Info)
-    {
-        ACPI_FREE (Info->FullPathname);
-        Info->FullPathname = NULL;
-    }
-    ACPI_FREE (Info);
-    AcpiUtRemoveReference (MethodObj);
-    return_ACPI_STATUS (Status);
+cleanup:
+	if (info) {
+		ACPI_FREE (info->full_pathname);
+		info->full_pathname = NULL;
+	}
+	ACPI_FREE (info);
+	acpi_ut_remove_reference (method_obj);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    NsOneCompleteParse
+ * FUNCTION:    ns_one_complete_parse
  *
- * PARAMETERS:  PassNumber              - 1 or 2
- *              TableDesc               - The table to be parsed.
+ * PARAMETERS:  pass_number             - 1 or 2
+ *              table_desc              - The table to be parsed.
  *
  * RETURN:      Status
  *
@@ -298,112 +150,103 @@ Cleanup:
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiNsOneCompleteParse (
-    UINT32                  PassNumber,
-    UINT32                  TableIndex,
-    ACPI_NAMESPACE_NODE     *StartNode)
+acpi_status
+acpi_ns_one_complete_parse (
+	u32                             pass_number,
+	u32                             table_index,
+	struct acpi_namespace_node      *start_node)
 {
-    ACPI_PARSE_OBJECT       *ParseRoot;
-    ACPI_STATUS             Status;
-    UINT32                  AmlLength;
-    UINT8                   *AmlStart;
-    ACPI_WALK_STATE         *WalkState;
-    ACPI_TABLE_HEADER       *Table;
-    ACPI_OWNER_ID           OwnerId;
+	union acpi_parse_object         *parse_root;
+	acpi_status                     status;
+	u32                             aml_length;
+	u8                              *aml_start;
+	struct acpi_walk_state          *walk_state;
+	struct acpi_table_header        *table;
+	acpi_owner_id                   owner_id;
 
 
-    ACPI_FUNCTION_TRACE (NsOneCompleteParse);
+	ACPI_FUNCTION_TRACE (ns_one_complete_parse);
 
 
-    Status = AcpiGetTableByIndex (TableIndex, &Table);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_get_table_by_index (table_index, &table);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    /* Table must consist of at least a complete header */
+	/* Table must consist of at least a complete header */
 
-    if (Table->Length < sizeof (ACPI_TABLE_HEADER))
-    {
-        return_ACPI_STATUS (AE_BAD_HEADER);
-    }
+	if (table->length < sizeof (struct acpi_table_header)) {
+		return_ACPI_STATUS (AE_BAD_HEADER);
+	}
 
-    AmlStart = (UINT8 *) Table + sizeof (ACPI_TABLE_HEADER);
-    AmlLength = Table->Length - sizeof (ACPI_TABLE_HEADER);
+	aml_start = (u8 *) table + sizeof (struct acpi_table_header);
+	aml_length = table->length - sizeof (struct acpi_table_header);
 
-    Status = AcpiTbGetOwnerId (TableIndex, &OwnerId);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_tb_get_owner_id (table_index, &owner_id);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    /* Create and init a Root Node */
+	/* Create and init a Root Node */
 
-    ParseRoot = AcpiPsCreateScopeOp (AmlStart);
-    if (!ParseRoot)
-    {
-        return_ACPI_STATUS (AE_NO_MEMORY);
-    }
+	parse_root = acpi_ps_create_scope_op (aml_start);
+	if (!parse_root) {
+		return_ACPI_STATUS (AE_NO_MEMORY);
+	}
 
-    /* Create and initialize a new walk state */
+	/* Create and initialize a new walk state */
 
-    WalkState = AcpiDsCreateWalkState (OwnerId, NULL, NULL, NULL);
-    if (!WalkState)
-    {
-        AcpiPsFreeOp (ParseRoot);
-        return_ACPI_STATUS (AE_NO_MEMORY);
-    }
+	walk_state = acpi_ds_create_walk_state (owner_id, NULL, NULL, NULL);
+	if (!walk_state) {
+		acpi_ps_free_op (parse_root);
+		return_ACPI_STATUS (AE_NO_MEMORY);
+	}
 
-    Status = AcpiDsInitAmlWalk (WalkState, ParseRoot, NULL,
-        AmlStart, AmlLength, NULL, (UINT8) PassNumber);
-    if (ACPI_FAILURE (Status))
-    {
-        AcpiDsDeleteWalkState (WalkState);
-        goto Cleanup;
-    }
+	status = acpi_ds_init_aml_walk (walk_state, parse_root, NULL,
+		aml_start, aml_length, NULL, (u8) pass_number);
+	if (ACPI_FAILURE (status)) {
+		acpi_ds_delete_walk_state (walk_state);
+		goto cleanup;
+	}
 
-    /* Found OSDT table, enable the namespace override feature */
+	/* Found OSDT table, enable the namespace override feature */
 
-    if (ACPI_COMPARE_NAMESEG (Table->Signature, ACPI_SIG_OSDT) &&
-        PassNumber == ACPI_IMODE_LOAD_PASS1)
-    {
-        WalkState->NamespaceOverride = TRUE;
-    }
+	if (ACPI_COMPARE_NAMESEG (table->signature, ACPI_SIG_OSDT) &&
+		pass_number == ACPI_IMODE_LOAD_PASS1) {
+		walk_state->namespace_override = TRUE;
+	}
 
-    /* StartNode is the default location to load the table  */
+	/* start_node is the default location to load the table */
 
-    if (StartNode && StartNode != AcpiGbl_RootNode)
-    {
-        Status = AcpiDsScopeStackPush (
-            StartNode, ACPI_TYPE_METHOD, WalkState);
-        if (ACPI_FAILURE (Status))
-        {
-            AcpiDsDeleteWalkState (WalkState);
-            goto Cleanup;
-        }
-    }
+	if (start_node && start_node != acpi_gbl_root_node) {
+		status = acpi_ds_scope_stack_push (
+			start_node, ACPI_TYPE_METHOD, walk_state);
+		if (ACPI_FAILURE (status)) {
+			acpi_ds_delete_walk_state (walk_state);
+			goto cleanup;
+		}
+	}
 
-    /* Parse the AML */
+	/* Parse the AML */
 
-    ACPI_DEBUG_PRINT ((ACPI_DB_PARSE,
-        "*PARSE* pass %u parse\n", PassNumber));
-    AcpiExEnterInterpreter ();
-    Status = AcpiPsParseAml (WalkState);
-    AcpiExExitInterpreter ();
+	ACPI_DEBUG_PRINT ((ACPI_DB_PARSE,
+		"*PARSE* pass %u parse\n", pass_number));
+	acpi_ex_enter_interpreter ();
+	status = acpi_ps_parse_aml (walk_state);
+	acpi_ex_exit_interpreter ();
 
-Cleanup:
-    AcpiPsDeleteParseTree (ParseRoot);
-    return_ACPI_STATUS (Status);
+cleanup:
+	acpi_ps_delete_parse_tree (parse_root);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiNsParseTable
+ * FUNCTION:    acpi_ns_parse_table
  *
- * PARAMETERS:  TableDesc       - An ACPI table descriptor for table to parse
- *              StartNode       - Where to enter the table into the namespace
+ * PARAMETERS:  table_desc      - An ACPI table descriptor for table to parse
+ *              start_node      - Where to enter the table into the namespace
  *
  * RETURN:      Status
  *
@@ -411,29 +254,29 @@ Cleanup:
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiNsParseTable (
-    UINT32                  TableIndex,
-    ACPI_NAMESPACE_NODE     *StartNode)
+acpi_status
+acpi_ns_parse_table (
+	u32                             table_index,
+	struct acpi_namespace_node      *start_node)
 {
-    ACPI_STATUS             Status;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE (NsParseTable);
+	ACPI_FUNCTION_TRACE (ns_parse_table);
 
 
-    /*
-     * Executes the AML table as one large control method.
-     * The point of this is to execute any module-level code in-place
-     * as the table is parsed. Some AML code depends on this behavior.
-     *
-     * Note: This causes the table to only have a single-pass parse.
-     * However, this is compatible with other ACPI implementations.
-     */
-    ACPI_DEBUG_PRINT_RAW ((ACPI_DB_PARSE,
-        "%s: **** Start table execution pass\n", ACPI_GET_FUNCTION_NAME));
+	/*
+	 * Executes the AML table as one large control method.
+	 * The point of this is to execute any module-level code in-place
+	 * as the table is parsed. Some AML code depends on this behavior.
+	 *
+	 * Note: This causes the table to only have a single-pass parse.
+	 * However, this is compatible with other ACPI implementations.
+	 */
+	ACPI_DEBUG_PRINT_RAW ((ACPI_DB_PARSE,
+		"%s: **** Start table execution pass\n", ACPI_GET_FUNCTION_NAME));
 
-    Status = AcpiNsExecuteTable (TableIndex, StartNode);
+	status = acpi_ns_execute_table (table_index, start_node);
 
-    return_ACPI_STATUS (Status);
+	return_ACPI_STATUS (status);
 }

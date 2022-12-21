@@ -195,7 +195,7 @@ cul::vector<unique_ptr<pci_root>> pci_roots;
 
 #ifdef CONFIG_ACPI
 
-int init_root_bus(uint16_t segment, uint8_t bus_nr, ACPI_HANDLE bus_object)
+int init_root_bus(uint16_t segment, uint8_t bus_nr, acpi_handle bus_object)
 {
     if (pci_roots.size() != 0 && !pcie_is_enabled())
     {
@@ -221,7 +221,7 @@ int init_root_bus(uint16_t segment, uint8_t bus_nr, ACPI_HANDLE bus_object)
     return 0;
 }
 
-void pci_root::route_irqs(ACPI_HANDLE bus_object)
+void pci_root::route_irqs(acpi_handle bus_object)
 {
     // The root complex must have a valid routing table
     if (auto st = route_bus_irqs(bus_object); ACPI_FAILURE(st))
@@ -232,18 +232,18 @@ void pci_root::route_irqs(ACPI_HANDLE bus_object)
 
     // Try to find all buses under the root complex and get their IRQ routing tables
     // since, annoyingly, each table only handles a single bus.
-    ACPI_HANDLE handle = nullptr;
-    while (AcpiGetNextObject(ACPI_TYPE_DEVICE, bus_object, handle, &handle) == AE_OK)
+    acpi_handle handle = nullptr;
+    while (acpi_get_next_object(ACPI_TYPE_DEVICE, bus_object, handle, &handle) == AE_OK)
     {
         // TODO: This whole routing logic doesn't work for devices behind PCI-PCI bridges
         // Investigate.
 
-        ACPI_DEVICE_INFO *info;
-        if (AcpiGetObjectInfo(handle, &info) != AE_OK)
+        acpi_device_info *info;
+        if (acpi_get_object_info(handle, &info) != AE_OK)
             continue;
 
-        uint8_t bridge_device = (uint8_t) (info->Address >> 16);
-        uint8_t bridge_func = (uint8_t) (info->Address & 0xff);
+        uint8_t bridge_device = (uint8_t) (info->address >> 16);
+        uint8_t bridge_func = (uint8_t) (info->address & 0xff);
 
         auto dev = find_device(bridge_device, bridge_func);
         if (!dev)

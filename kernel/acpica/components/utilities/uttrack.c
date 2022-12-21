@@ -1,153 +1,12 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /******************************************************************************
  *
  * Module Name: uttrack - Memory allocation tracking routines (debug only)
  *
+ * Copyright (C) 2000 - 2022, Intel Corp.
+ *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 /*
  * These procedures are used for tracking memory leaks in the subsystem, and
@@ -155,9 +14,9 @@
  *
  * Each memory allocation is tracked via a doubly linked list. Each
  * element contains the caller's component, module name, function name, and
- * line number. AcpiUtAllocate and AcpiUtAllocateZeroed call
- * AcpiUtTrackAllocation to add an element to the list; deletion
- * occurs in the body of AcpiUtFree.
+ * line number. acpi_ut_allocate and acpi_ut_allocate_zeroed call
+ * acpi_ut_track_allocation to add an element to the list; deletion
+ * occurs in the body of acpi_ut_free.
  */
 
 #include "acpi.h"
@@ -166,39 +25,39 @@
 #ifdef ACPI_DBG_TRACK_ALLOCATIONS
 
 #define _COMPONENT          ACPI_UTILITIES
-        ACPI_MODULE_NAME    ("uttrack")
+	 ACPI_MODULE_NAME    ("uttrack")
 
 
 /* Local prototypes */
 
-static ACPI_DEBUG_MEM_BLOCK *
-AcpiUtFindAllocation (
-    ACPI_DEBUG_MEM_BLOCK    *Allocation);
+static struct acpi_debug_mem_block *
+acpi_ut_find_allocation (
+	struct acpi_debug_mem_block     *allocation);
 
-static ACPI_STATUS
-AcpiUtTrackAllocation (
-    ACPI_DEBUG_MEM_BLOCK    *Address,
-    ACPI_SIZE               Size,
-    UINT8                   AllocType,
-    UINT32                  Component,
-    const char              *Module,
-    UINT32                  Line);
+static acpi_status
+acpi_ut_track_allocation (
+	struct acpi_debug_mem_block     *address,
+	acpi_size                       size,
+	u8                              alloc_type,
+	u32                             component,
+	const char                      *module,
+	u32                             line);
 
-static ACPI_STATUS
-AcpiUtRemoveAllocation (
-    ACPI_DEBUG_MEM_BLOCK    *Address,
-    UINT32                  Component,
-    const char              *Module,
-    UINT32                  Line);
+static acpi_status
+acpi_ut_remove_allocation (
+	struct acpi_debug_mem_block     *address,
+	u32                             component,
+	const char                      *module,
+	u32                             line);
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtCreateList
+ * FUNCTION:    acpi_ut_create_list
  *
- * PARAMETERS:  CacheName       - Ascii name for the cache
- *              ObjectSize      - Size of each cached object
- *              ReturnCache     - Where the new cache object is returned
+ * PARAMETERS:  cache_name      - Ascii name for the cache
+ *              object_size     - Size of each cached object
+ *              return_cache    - Where the new cache object is returned
  *
  * RETURN:      Status
  *
@@ -206,37 +65,36 @@ AcpiUtRemoveAllocation (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiUtCreateList (
-    const char              *ListName,
-    UINT16                  ObjectSize,
-    ACPI_MEMORY_LIST        **ReturnCache)
+acpi_status
+acpi_ut_create_list (
+	const char                      *list_name,
+	u16                             object_size,
+	struct acpi_memory_list         **return_cache)
 {
-    ACPI_MEMORY_LIST        *Cache;
+	struct acpi_memory_list         *cache;
 
 
-    Cache = AcpiOsAllocateZeroed (sizeof (ACPI_MEMORY_LIST));
-    if (!Cache)
-    {
-        return (AE_NO_MEMORY);
-    }
+	cache = acpi_os_allocate_zeroed (sizeof (struct acpi_memory_list));
+	if (!cache) {
+		return (AE_NO_MEMORY);
+	}
 
-    Cache->ListName = ListName;
-    Cache->ObjectSize = ObjectSize;
+	cache->list_name = list_name;
+	cache->object_size = object_size;
 
-    *ReturnCache = Cache;
-    return (AE_OK);
+	*return_cache = cache;
+	return (AE_OK);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtAllocateAndTrack
+ * FUNCTION:    acpi_ut_allocate_and_track
  *
- * PARAMETERS:  Size                - Size of the allocation
- *              Component           - Component type of caller
- *              Module              - Source file name of caller
- *              Line                - Line number of caller
+ * PARAMETERS:  size                - Size of the allocation
+ *              component           - Component type of caller
+ *              module              - Source file name of caller
+ *              line                - Line number of caller
  *
  * RETURN:      Address of the allocated memory on success, NULL on failure.
  *
@@ -245,67 +103,64 @@ AcpiUtCreateList (
  ******************************************************************************/
 
 void *
-AcpiUtAllocateAndTrack (
-    ACPI_SIZE               Size,
-    UINT32                  Component,
-    const char              *Module,
-    UINT32                  Line)
+acpi_ut_allocate_and_track (
+	acpi_size                       size,
+	u32                             component,
+	const char                      *module,
+	u32                             line)
 {
-    ACPI_DEBUG_MEM_BLOCK    *Allocation;
-    ACPI_STATUS             Status;
+	struct acpi_debug_mem_block     *allocation;
+	acpi_status                     status;
 
 
-    /* Check for an inadvertent size of zero bytes */
+	/* Check for an inadvertent size of zero bytes */
 
-    if (!Size)
-    {
-        ACPI_WARNING ((Module, Line,
-            "Attempt to allocate zero bytes, allocating 1 byte"));
-        Size = 1;
-    }
+	if (!size) {
+		ACPI_WARNING ((module, line,
+			"Attempt to allocate zero bytes, allocating 1 byte"));
+		size = 1;
+	}
 
-    Allocation = AcpiOsAllocate (Size + sizeof (ACPI_DEBUG_MEM_HEADER));
-    if (!Allocation)
-    {
-        /* Report allocation error */
+	allocation = acpi_os_allocate (size + sizeof (struct acpi_debug_mem_header));
+	if (!allocation) {
 
-        ACPI_WARNING ((Module, Line,
-            "Could not allocate size %u", (UINT32) Size));
+		/* Report allocation error */
 
-        return (NULL);
-    }
+		ACPI_WARNING ((module, line,
+			"Could not allocate size %u", (u32) size));
 
-    Status = AcpiUtTrackAllocation (
-        Allocation, Size, ACPI_MEM_MALLOC, Component, Module, Line);
-    if (ACPI_FAILURE (Status))
-    {
-        AcpiOsFree (Allocation);
-        return (NULL);
-    }
+		return (NULL);
+	}
 
-    AcpiGbl_GlobalList->TotalAllocated++;
-    AcpiGbl_GlobalList->TotalSize += (UINT32) Size;
-    AcpiGbl_GlobalList->CurrentTotalSize += (UINT32) Size;
+	status = acpi_ut_track_allocation (
+		allocation, size, ACPI_MEM_MALLOC, component, module, line);
+	if (ACPI_FAILURE (status)) {
+		acpi_os_free (allocation);
+		return (NULL);
+	}
 
-    if (AcpiGbl_GlobalList->CurrentTotalSize >
-        AcpiGbl_GlobalList->MaxOccupied)
-    {
-        AcpiGbl_GlobalList->MaxOccupied =
-            AcpiGbl_GlobalList->CurrentTotalSize;
-    }
+	acpi_gbl_global_list->total_allocated++;
+	acpi_gbl_global_list->total_size += (u32) size;
+	acpi_gbl_global_list->current_total_size += (u32) size;
 
-    return ((void *) &Allocation->UserSpace);
+	if (acpi_gbl_global_list->current_total_size >
+		acpi_gbl_global_list->max_occupied) {
+		acpi_gbl_global_list->max_occupied =
+			acpi_gbl_global_list->current_total_size;
+	}
+
+	return ((void *) &allocation->user_space);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtAllocateZeroedAndTrack
+ * FUNCTION:    acpi_ut_allocate_zeroed_and_track
  *
- * PARAMETERS:  Size                - Size of the allocation
- *              Component           - Component type of caller
- *              Module              - Source file name of caller
- *              Line                - Line number of caller
+ * PARAMETERS:  size                - Size of the allocation
+ *              component           - Component type of caller
+ *              module              - Source file name of caller
+ *              line                - Line number of caller
  *
  * RETURN:      Address of the allocated memory on success, NULL on failure.
  *
@@ -314,67 +169,64 @@ AcpiUtAllocateAndTrack (
  ******************************************************************************/
 
 void *
-AcpiUtAllocateZeroedAndTrack (
-    ACPI_SIZE               Size,
-    UINT32                  Component,
-    const char              *Module,
-    UINT32                  Line)
+acpi_ut_allocate_zeroed_and_track (
+	acpi_size                       size,
+	u32                             component,
+	const char                      *module,
+	u32                             line)
 {
-    ACPI_DEBUG_MEM_BLOCK    *Allocation;
-    ACPI_STATUS             Status;
+	struct acpi_debug_mem_block     *allocation;
+	acpi_status                     status;
 
 
-    /* Check for an inadvertent size of zero bytes */
+	/* Check for an inadvertent size of zero bytes */
 
-    if (!Size)
-    {
-        ACPI_WARNING ((Module, Line,
-            "Attempt to allocate zero bytes, allocating 1 byte"));
-        Size = 1;
-    }
+	if (!size) {
+		ACPI_WARNING ((module, line,
+			"Attempt to allocate zero bytes, allocating 1 byte"));
+		size = 1;
+	}
 
-    Allocation = AcpiOsAllocateZeroed (
-        Size + sizeof (ACPI_DEBUG_MEM_HEADER));
-    if (!Allocation)
-    {
-        /* Report allocation error */
+	allocation = acpi_os_allocate_zeroed (
+		size + sizeof (struct acpi_debug_mem_header));
+	if (!allocation) {
 
-        ACPI_ERROR ((Module, Line,
-            "Could not allocate size %u", (UINT32) Size));
-        return (NULL);
-    }
+		/* Report allocation error */
 
-    Status = AcpiUtTrackAllocation (Allocation, Size,
-        ACPI_MEM_CALLOC, Component, Module, Line);
-    if (ACPI_FAILURE (Status))
-    {
-        AcpiOsFree (Allocation);
-        return (NULL);
-    }
+		ACPI_ERROR ((module, line,
+			"Could not allocate size %u", (u32) size));
+		return (NULL);
+	}
 
-    AcpiGbl_GlobalList->TotalAllocated++;
-    AcpiGbl_GlobalList->TotalSize += (UINT32) Size;
-    AcpiGbl_GlobalList->CurrentTotalSize += (UINT32) Size;
+	status = acpi_ut_track_allocation (allocation, size,
+		ACPI_MEM_CALLOC, component, module, line);
+	if (ACPI_FAILURE (status)) {
+		acpi_os_free (allocation);
+		return (NULL);
+	}
 
-    if (AcpiGbl_GlobalList->CurrentTotalSize >
-        AcpiGbl_GlobalList->MaxOccupied)
-    {
-        AcpiGbl_GlobalList->MaxOccupied =
-            AcpiGbl_GlobalList->CurrentTotalSize;
-    }
+	acpi_gbl_global_list->total_allocated++;
+	acpi_gbl_global_list->total_size += (u32) size;
+	acpi_gbl_global_list->current_total_size += (u32) size;
 
-    return ((void *) &Allocation->UserSpace);
+	if (acpi_gbl_global_list->current_total_size >
+		acpi_gbl_global_list->max_occupied) {
+		acpi_gbl_global_list->max_occupied =
+			acpi_gbl_global_list->current_total_size;
+	}
+
+	return ((void *) &allocation->user_space);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtFreeAndTrack
+ * FUNCTION:    acpi_ut_free_and_track
  *
- * PARAMETERS:  Allocation          - Address of the memory to deallocate
- *              Component           - Component type of caller
- *              Module              - Source file name of caller
- *              Line                - Line number of caller
+ * PARAMETERS:  allocation          - Address of the memory to deallocate
+ *              component           - Component type of caller
+ *              module              - Source file name of caller
+ *              line                - Line number of caller
  *
  * RETURN:      None
  *
@@ -383,51 +235,49 @@ AcpiUtAllocateZeroedAndTrack (
  ******************************************************************************/
 
 void
-AcpiUtFreeAndTrack (
-    void                    *Allocation,
-    UINT32                  Component,
-    const char              *Module,
-    UINT32                  Line)
+acpi_ut_free_and_track (
+	void                            *allocation,
+	u32                             component,
+	const char                      *module,
+	u32                             line)
 {
-    ACPI_DEBUG_MEM_BLOCK    *DebugBlock;
-    ACPI_STATUS             Status;
+	struct acpi_debug_mem_block     *debug_block;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE_PTR (UtFree, Allocation);
+	ACPI_FUNCTION_TRACE_PTR (ut_free, allocation);
 
 
-    if (NULL == Allocation)
-    {
-        ACPI_ERROR ((Module, Line,
-            "Attempt to delete a NULL address"));
+	if (NULL == allocation) {
+		ACPI_ERROR ((module, line,
+			"Attempt to delete a NULL address"));
 
-        return_VOID;
-    }
+		return_VOID;
+	}
 
-    DebugBlock = ACPI_CAST_PTR (ACPI_DEBUG_MEM_BLOCK,
-        (((char *) Allocation) - sizeof (ACPI_DEBUG_MEM_HEADER)));
+	debug_block = ACPI_CAST_PTR (struct acpi_debug_mem_block,
+		(((char *) allocation) - sizeof (struct acpi_debug_mem_header)));
 
-    AcpiGbl_GlobalList->TotalFreed++;
-    AcpiGbl_GlobalList->CurrentTotalSize -= DebugBlock->Size;
+	acpi_gbl_global_list->total_freed++;
+	acpi_gbl_global_list->current_total_size -= debug_block->size;
 
-    Status = AcpiUtRemoveAllocation (DebugBlock, Component, Module, Line);
-    if (ACPI_FAILURE (Status))
-    {
-        ACPI_EXCEPTION ((AE_INFO, Status, "Could not free memory"));
-    }
+	status = acpi_ut_remove_allocation (debug_block, component, module, line);
+	if (ACPI_FAILURE (status)) {
+		ACPI_EXCEPTION ((AE_INFO, status, "Could not free memory"));
+	}
 
-    AcpiOsFree (DebugBlock);
-    ACPI_DEBUG_PRINT ((ACPI_DB_ALLOCATIONS, "%p freed (block %p)\n",
-        Allocation, DebugBlock));
-    return_VOID;
+	acpi_os_free (debug_block);
+	ACPI_DEBUG_PRINT ((ACPI_DB_ALLOCATIONS, "%p freed (block %p)\n",
+		allocation, debug_block));
+	return_VOID;
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtFindAllocation
+ * FUNCTION:    acpi_ut_find_allocation
  *
- * PARAMETERS:  Allocation              - Address of allocated memory
+ * PARAMETERS:  allocation              - Address of allocated memory
  *
  * RETURN:      Three cases:
  *              1) List is empty, NULL is returned.
@@ -450,57 +300,54 @@ AcpiUtFreeAndTrack (
  *
  ******************************************************************************/
 
-static ACPI_DEBUG_MEM_BLOCK *
-AcpiUtFindAllocation (
-    ACPI_DEBUG_MEM_BLOCK    *Allocation)
+static struct acpi_debug_mem_block *
+acpi_ut_find_allocation (
+	struct acpi_debug_mem_block     *allocation)
 {
-    ACPI_DEBUG_MEM_BLOCK    *Element;
+	struct acpi_debug_mem_block     *element;
 
 
-    Element = AcpiGbl_GlobalList->ListHead;
-    if (!Element)
-    {
-        return (NULL);
-    }
+	element = acpi_gbl_global_list->list_head;
+	if (!element) {
+		return (NULL);
+	}
 
-    /*
-     * Search for the address.
-     *
-     * Note: List is ordered by larger-to-smaller addresses, on the
-     * assumption that a new allocation usually has a larger address
-     * than previous allocations.
-     */
-    while (Element > Allocation)
-    {
-        /* Check for end-of-list */
+	/*
+	 * Search for the address.
+	 *
+	 * Note: List is ordered by larger-to-smaller addresses, on the
+	 * assumption that a new allocation usually has a larger address
+	 * than previous allocations.
+	 */
+	while (element > allocation) {
 
-        if (!Element->Next)
-        {
-            return (Element);
-        }
+		/* Check for end-of-list */
 
-        Element = Element->Next;
-    }
+		if (!element->next) {
+			return (element);
+		}
 
-    if (Element == Allocation)
-    {
-        return (Element);
-    }
+		element = element->next;
+	}
 
-    return (Element->Previous);
+	if (element == allocation) {
+		return (element);
+	}
+
+	return (element->previous);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtTrackAllocation
+ * FUNCTION:    acpi_ut_track_allocation
  *
- * PARAMETERS:  Allocation          - Address of allocated memory
- *              Size                - Size of the allocation
- *              AllocType           - MEM_MALLOC or MEM_CALLOC
- *              Component           - Component type of caller
- *              Module              - Source file name of caller
- *              Line                - Line number of caller
+ * PARAMETERS:  allocation          - Address of allocated memory
+ *              size                - Size of the allocation
+ *              alloc_type          - MEM_MALLOC or MEM_CALLOC
+ *              component           - Component type of caller
+ *              module              - Source file name of caller
+ *              line                - Line number of caller
  *
  * RETURN:      Status
  *
@@ -508,102 +355,96 @@ AcpiUtFindAllocation (
  *
  ******************************************************************************/
 
-static ACPI_STATUS
-AcpiUtTrackAllocation (
-    ACPI_DEBUG_MEM_BLOCK    *Allocation,
-    ACPI_SIZE               Size,
-    UINT8                   AllocType,
-    UINT32                  Component,
-    const char              *Module,
-    UINT32                  Line)
+static acpi_status
+acpi_ut_track_allocation (
+	struct acpi_debug_mem_block     *allocation,
+	acpi_size                       size,
+	u8                              alloc_type,
+	u32                             component,
+	const char                      *module,
+	u32                             line)
 {
-    ACPI_MEMORY_LIST        *MemList;
-    ACPI_DEBUG_MEM_BLOCK    *Element;
-    ACPI_STATUS             Status = AE_OK;
+	struct acpi_memory_list         *mem_list;
+	struct acpi_debug_mem_block     *element;
+	acpi_status                     status = AE_OK;
 
 
-    ACPI_FUNCTION_TRACE_PTR (UtTrackAllocation, Allocation);
+	ACPI_FUNCTION_TRACE_PTR (ut_track_allocation, allocation);
 
 
-    if (AcpiGbl_DisableMemTracking)
-    {
-        return_ACPI_STATUS (AE_OK);
-    }
+	if (acpi_gbl_disable_mem_tracking) {
+		return_ACPI_STATUS (AE_OK);
+	}
 
-    MemList = AcpiGbl_GlobalList;
-    Status = AcpiUtAcquireMutex (ACPI_MTX_MEMORY);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	mem_list = acpi_gbl_global_list;
+	status = acpi_ut_acquire_mutex (ACPI_MTX_MEMORY);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    /*
-     * Search the global list for this address to make sure it is not
-     * already present. This will catch several kinds of problems.
-     */
-    Element = AcpiUtFindAllocation (Allocation);
-    if (Element == Allocation)
-    {
-        ACPI_ERROR ((AE_INFO,
-            "UtTrackAllocation: Allocation (%p) already present in global list!",
-            Allocation));
-        goto UnlockAndExit;
-    }
+	/*
+	 * Search the global list for this address to make sure it is not
+	 * already present. This will catch several kinds of problems.
+	 */
+	element = acpi_ut_find_allocation (allocation);
+	if (element == allocation) {
+		ACPI_ERROR ((AE_INFO,
+			"UtTrackAllocation: Allocation (%p) already present in global list!",
+			allocation));
+		goto unlock_and_exit;
+	}
 
-    /* Fill in the instance data */
+	/* Fill in the instance data */
 
-    Allocation->Size = (UINT32) Size;
-    Allocation->AllocType = AllocType;
-    Allocation->Component = Component;
-    Allocation->Line = Line;
+	allocation->size = (u32) size;
+	allocation->alloc_type = alloc_type;
+	allocation->component = component;
+	allocation->line = line;
 
-    AcpiUtSafeStrncpy (Allocation->Module, (char *) Module, ACPI_MAX_MODULE_NAME);
+	acpi_ut_safe_strncpy (allocation->module, (char *) module, ACPI_MAX_MODULE_NAME);
 
-    if (!Element)
-    {
-        /* Insert at list head */
+	if (!element) {
 
-        if (MemList->ListHead)
-        {
-            ((ACPI_DEBUG_MEM_BLOCK *)(MemList->ListHead))->Previous =
-                Allocation;
-        }
+		/* Insert at list head */
 
-        Allocation->Next = MemList->ListHead;
-        Allocation->Previous = NULL;
+		if (mem_list->list_head) {
+			((struct acpi_debug_mem_block *)(mem_list->list_head))->previous =
+				allocation;
+		}
 
-        MemList->ListHead = Allocation;
-    }
-    else
-    {
-        /* Insert after element */
+		allocation->next = mem_list->list_head;
+		allocation->previous = NULL;
 
-        Allocation->Next = Element->Next;
-        Allocation->Previous = Element;
+		mem_list->list_head = allocation;
+	}
+	else {
+		/* Insert after element */
 
-        if (Element->Next)
-        {
-            (Element->Next)->Previous = Allocation;
-        }
+		allocation->next = element->next;
+		allocation->previous = element;
 
-        Element->Next = Allocation;
-    }
+		if (element->next) {
+			(element->next)->previous = allocation;
+		}
+
+		element->next = allocation;
+	}
 
 
-UnlockAndExit:
-    Status = AcpiUtReleaseMutex (ACPI_MTX_MEMORY);
-    return_ACPI_STATUS (Status);
+unlock_and_exit:
+	status = acpi_ut_release_mutex (ACPI_MTX_MEMORY);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtRemoveAllocation
+ * FUNCTION:    acpi_ut_remove_allocation
  *
- * PARAMETERS:  Allocation          - Address of allocated memory
- *              Component           - Component type of caller
- *              Module              - Source file name of caller
- *              Line                - Line number of caller
+ * PARAMETERS:  allocation          - Address of allocated memory
+ *              component           - Component type of caller
+ *              module              - Source file name of caller
+ *              line                - Line number of caller
  *
  * RETURN:      Status
  *
@@ -611,73 +452,68 @@ UnlockAndExit:
  *
  ******************************************************************************/
 
-static ACPI_STATUS
-AcpiUtRemoveAllocation (
-    ACPI_DEBUG_MEM_BLOCK    *Allocation,
-    UINT32                  Component,
-    const char              *Module,
-    UINT32                  Line)
+static acpi_status
+acpi_ut_remove_allocation (
+	struct acpi_debug_mem_block     *allocation,
+	u32                             component,
+	const char                      *module,
+	u32                             line)
 {
-    ACPI_MEMORY_LIST        *MemList;
-    ACPI_STATUS             Status;
+	struct acpi_memory_list         *mem_list;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_NAME (UtRemoveAllocation);
+	ACPI_FUNCTION_NAME (ut_remove_allocation);
 
 
-    if (AcpiGbl_DisableMemTracking)
-    {
-        return (AE_OK);
-    }
+	if (acpi_gbl_disable_mem_tracking) {
+		return (AE_OK);
+	}
 
-    MemList = AcpiGbl_GlobalList;
-    if (NULL == MemList->ListHead)
-    {
-        /* No allocations! */
+	mem_list = acpi_gbl_global_list;
+	if (NULL == mem_list->list_head) {
 
-        ACPI_ERROR ((Module, Line,
-            "Empty allocation list, nothing to free!"));
+		/* No allocations! */
 
-        return (AE_OK);
-    }
+		ACPI_ERROR ((module, line,
+			"Empty allocation list, nothing to free!"));
 
-    Status = AcpiUtAcquireMutex (ACPI_MTX_MEMORY);
-    if (ACPI_FAILURE (Status))
-    {
-        return (Status);
-    }
+		return (AE_OK);
+	}
 
-    /* Unlink */
+	status = acpi_ut_acquire_mutex (ACPI_MTX_MEMORY);
+	if (ACPI_FAILURE (status)) {
+		return (status);
+	}
 
-    if (Allocation->Previous)
-    {
-        (Allocation->Previous)->Next = Allocation->Next;
-    }
-    else
-    {
-        MemList->ListHead = Allocation->Next;
-    }
+	/* Unlink */
 
-    if (Allocation->Next)
-    {
-        (Allocation->Next)->Previous = Allocation->Previous;
-    }
+	if (allocation->previous) {
+		(allocation->previous)->next = allocation->next;
+	}
+	else {
+		mem_list->list_head = allocation->next;
+	}
 
-    ACPI_DEBUG_PRINT ((ACPI_DB_ALLOCATIONS, "Freeing %p, size 0%X\n",
-        &Allocation->UserSpace, Allocation->Size));
+	if (allocation->next) {
+		(allocation->next)->previous = allocation->previous;
+	}
 
-    /* Mark the segment as deleted */
+	ACPI_DEBUG_PRINT ((ACPI_DB_ALLOCATIONS, "Freeing %p, size 0%X\n",
+		&allocation->user_space, allocation->size));
 
-    memset (&Allocation->UserSpace, 0xEA, Allocation->Size);
+	/* Mark the segment as deleted */
 
-    Status = AcpiUtReleaseMutex (ACPI_MTX_MEMORY);
-    return (Status);
+	memset (&allocation->user_space, 0xEA, allocation->size);
+
+	status = acpi_ut_release_mutex (ACPI_MTX_MEMORY);
+	return (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtDumpAllocationInfo
+ * FUNCTION:    acpi_ut_dump_allocation_info
  *
  * PARAMETERS:  None
  *
@@ -688,59 +524,59 @@ AcpiUtRemoveAllocation (
  ******************************************************************************/
 
 void
-AcpiUtDumpAllocationInfo (
-    void)
+acpi_ut_dump_allocation_info (
+	void)
 {
 /*
-    ACPI_MEMORY_LIST        *MemList;
+	struct acpi_memory_list         *mem_list;
 */
 
-    ACPI_FUNCTION_TRACE (UtDumpAllocationInfo);
+	ACPI_FUNCTION_TRACE (ut_dump_allocation_info);
 
 /*
-    ACPI_DEBUG_PRINT (TRACE_ALLOCATIONS | TRACE_TABLES,
-        ("%30s: %4d (%3d Kb)\n", "Current allocations",
-        MemList->CurrentCount,
-        ROUND_UP_TO_1K (MemList->CurrentSize)));
+	ACPI_DEBUG_PRINT (TRACE_ALLOCATIONS | TRACE_TABLES,
+		("%30s: %4d (%3d Kb)\n", "Current allocations",
+		mem_list->current_count,
+		ROUND_UP_TO_1K (mem_list->current_size)));
 
-    ACPI_DEBUG_PRINT (TRACE_ALLOCATIONS | TRACE_TABLES,
-        ("%30s: %4d (%3d Kb)\n", "Max concurrent allocations",
-        MemList->MaxConcurrentCount,
-        ROUND_UP_TO_1K (MemList->MaxConcurrentSize)));
-
-
-    ACPI_DEBUG_PRINT (TRACE_ALLOCATIONS | TRACE_TABLES,
-        ("%30s: %4d (%3d Kb)\n", "Total (all) internal objects",
-        RunningObjectCount,
-        ROUND_UP_TO_1K (RunningObjectSize)));
-
-    ACPI_DEBUG_PRINT (TRACE_ALLOCATIONS | TRACE_TABLES,
-        ("%30s: %4d (%3d Kb)\n", "Total (all) allocations",
-        RunningAllocCount,
-        ROUND_UP_TO_1K (RunningAllocSize)));
+	ACPI_DEBUG_PRINT (TRACE_ALLOCATIONS | TRACE_TABLES,
+		("%30s: %4d (%3d Kb)\n", "Max concurrent allocations",
+		mem_list->max_concurrent_count,
+		ROUND_UP_TO_1K (mem_list->max_concurrent_size)));
 
 
-    ACPI_DEBUG_PRINT (TRACE_ALLOCATIONS | TRACE_TABLES,
-        ("%30s: %4d (%3d Kb)\n", "Current Nodes",
-        AcpiGbl_CurrentNodeCount,
-        ROUND_UP_TO_1K (AcpiGbl_CurrentNodeSize)));
+	ACPI_DEBUG_PRINT (TRACE_ALLOCATIONS | TRACE_TABLES,
+		("%30s: %4d (%3d Kb)\n", "Total (all) internal objects",
+		running_object_count,
+		ROUND_UP_TO_1K (running_object_size)));
 
-    ACPI_DEBUG_PRINT (TRACE_ALLOCATIONS | TRACE_TABLES,
-        ("%30s: %4d (%3d Kb)\n", "Max Nodes",
-        AcpiGbl_MaxConcurrentNodeCount,
-        ROUND_UP_TO_1K ((AcpiGbl_MaxConcurrentNodeCount *
-            sizeof (ACPI_NAMESPACE_NODE)))));
+	ACPI_DEBUG_PRINT (TRACE_ALLOCATIONS | TRACE_TABLES,
+		("%30s: %4d (%3d Kb)\n", "Total (all) allocations",
+		running_alloc_count,
+		ROUND_UP_TO_1K (running_alloc_size)));
+
+
+	ACPI_DEBUG_PRINT (TRACE_ALLOCATIONS | TRACE_TABLES,
+		("%30s: %4d (%3d Kb)\n", "Current Nodes",
+		acpi_gbl_current_node_count,
+		ROUND_UP_TO_1K (acpi_gbl_current_node_size)));
+
+	ACPI_DEBUG_PRINT (TRACE_ALLOCATIONS | TRACE_TABLES,
+		("%30s: %4d (%3d Kb)\n", "Max Nodes",
+		acpi_gbl_max_concurrent_node_count,
+		ROUND_UP_TO_1K ((acpi_gbl_max_concurrent_node_count *
+			sizeof (struct acpi_namespace_node)))));
 */
-    return_VOID;
+	return_VOID;
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtDumpAllocations
+ * FUNCTION:    acpi_ut_dump_allocations
  *
- * PARAMETERS:  Component           - Component(s) to dump info for.
- *              Module              - Module to dump info for. NULL means all.
+ * PARAMETERS:  component           - Component(s) to dump info for.
+ *              module              - Module to dump info for. NULL means all.
  *
  * RETURN:      None
  *
@@ -749,161 +585,145 @@ AcpiUtDumpAllocationInfo (
  ******************************************************************************/
 
 void
-AcpiUtDumpAllocations (
-    UINT32                  Component,
-    const char              *Module)
+acpi_ut_dump_allocations (
+	u32                             component,
+	const char                      *module)
 {
-    ACPI_DEBUG_MEM_BLOCK    *Element;
-    ACPI_DESCRIPTOR         *Descriptor;
-    UINT32                  NumOutstanding = 0;
-    UINT8                   DescriptorType;
+	struct acpi_debug_mem_block     *element;
+	union acpi_descriptor           *descriptor;
+	u32                             num_outstanding = 0;
+	u8                              descriptor_type;
 
 
-    ACPI_FUNCTION_TRACE (UtDumpAllocations);
+	ACPI_FUNCTION_TRACE (ut_dump_allocations);
 
 
-    if (AcpiGbl_DisableMemTracking)
-    {
-        return_VOID;
-    }
+	if (acpi_gbl_disable_mem_tracking) {
+		return_VOID;
+	}
 
-    /*
-     * Walk the allocation list.
-     */
-    if (ACPI_FAILURE (AcpiUtAcquireMutex (ACPI_MTX_MEMORY)))
-    {
-        return_VOID;
-    }
+	/*
+	 * Walk the allocation list.
+	 */
+	if (ACPI_FAILURE (acpi_ut_acquire_mutex (ACPI_MTX_MEMORY))) {
+		return_VOID;
+	}
 
-    if (!AcpiGbl_GlobalList)
-    {
-        goto Exit;
-    }
+	if (!acpi_gbl_global_list) {
+		goto exit;
+	}
 
-    Element = AcpiGbl_GlobalList->ListHead;
-    while (Element)
-    {
-        if ((Element->Component & Component) &&
-            ((Module == NULL) || (0 == strcmp (Module, Element->Module))))
-        {
-            Descriptor = ACPI_CAST_PTR (
-                ACPI_DESCRIPTOR, &Element->UserSpace);
+	element = acpi_gbl_global_list->list_head;
+	while (element) {
+		if ((element->component & component) &&
+			((module == NULL) || (0 == strcmp (module, element->module)))) {
+			descriptor = ACPI_CAST_PTR (
+				union acpi_descriptor, &element->user_space);
 
-            if (Element->Size < sizeof (ACPI_COMMON_DESCRIPTOR))
-            {
-                AcpiOsPrintf ("%p Length 0x%04X %9.9s-%4.4u "
-                    "[Not a Descriptor - too small]\n",
-                    Descriptor, Element->Size, Element->Module,
-                    Element->Line);
-            }
-            else
-            {
-                /* Ignore allocated objects that are in a cache */
+			if (element->size < sizeof (struct acpi_common_descriptor)) {
+				acpi_os_printf ("%p Length 0x%04X %9.9s-%4.4u "
+					"[Not a Descriptor - too small]\n",
+					descriptor, element->size, element->module,
+					element->line);
+			}
+			else {
+				/* Ignore allocated objects that are in a cache */
 
-                if (ACPI_GET_DESCRIPTOR_TYPE (Descriptor) !=
-                    ACPI_DESC_TYPE_CACHED)
-                {
-                    AcpiOsPrintf ("%p Length 0x%04X %9.9s-%4.4u [%s] ",
-                        Descriptor, Element->Size, Element->Module,
-                        Element->Line, AcpiUtGetDescriptorName (Descriptor));
+				if (ACPI_GET_DESCRIPTOR_TYPE (descriptor) !=
+					ACPI_DESC_TYPE_CACHED) {
+					acpi_os_printf ("%p Length 0x%04X %9.9s-%4.4u [%s] ",
+						descriptor, element->size, element->module,
+						element->line, acpi_ut_get_descriptor_name (descriptor));
 
-                    /* Optional object hex dump */
+					/* Optional object hex dump */
 
-                    if (AcpiGbl_VerboseLeakDump)
-                    {
-                        AcpiOsPrintf ("\n");
-                        AcpiUtDumpBuffer ((UINT8 *) Descriptor, Element->Size,
-                            DB_BYTE_DISPLAY, 0);
-                    }
+					if (acpi_gbl_verbose_leak_dump) {
+						acpi_os_printf ("\n");
+						acpi_ut_dump_buffer ((u8 *) descriptor, element->size,
+							DB_BYTE_DISPLAY, 0);
+					}
 
-                    /* Validate the descriptor type using Type field and length */
+					/* Validate the descriptor type using Type field and length */
 
-                    DescriptorType = 0; /* Not a valid descriptor type */
+					descriptor_type = 0; /* Not a valid descriptor type */
 
-                    switch (ACPI_GET_DESCRIPTOR_TYPE (Descriptor))
-                    {
-                    case ACPI_DESC_TYPE_OPERAND:
+					switch (ACPI_GET_DESCRIPTOR_TYPE (descriptor)) {
+					case ACPI_DESC_TYPE_OPERAND:
 
-                        if (Element->Size == sizeof (ACPI_OPERAND_OBJECT))
-                        {
-                            DescriptorType = ACPI_DESC_TYPE_OPERAND;
-                        }
-                        break;
+						if (element->size == sizeof (union acpi_operand_object)) {
+							descriptor_type = ACPI_DESC_TYPE_OPERAND;
+						}
+						break;
 
-                    case ACPI_DESC_TYPE_PARSER:
+					case ACPI_DESC_TYPE_PARSER:
 
-                        if (Element->Size == sizeof (ACPI_PARSE_OBJECT))
-                        {
-                            DescriptorType = ACPI_DESC_TYPE_PARSER;
-                        }
-                        break;
+						if (element->size == sizeof (union acpi_parse_object)) {
+							descriptor_type = ACPI_DESC_TYPE_PARSER;
+						}
+						break;
 
-                    case ACPI_DESC_TYPE_NAMED:
+					case ACPI_DESC_TYPE_NAMED:
 
-                        if (Element->Size == sizeof (ACPI_NAMESPACE_NODE))
-                        {
-                            DescriptorType = ACPI_DESC_TYPE_NAMED;
-                        }
-                        break;
+						if (element->size == sizeof (struct acpi_namespace_node)) {
+							descriptor_type = ACPI_DESC_TYPE_NAMED;
+						}
+						break;
 
-                    default:
+					default:
 
-                        break;
-                    }
+						break;
+					}
 
-                    /* Display additional info for the major descriptor types */
+					/* Display additional info for the major descriptor types */
 
-                    switch (DescriptorType)
-                    {
-                    case ACPI_DESC_TYPE_OPERAND:
+					switch (descriptor_type) {
+					case ACPI_DESC_TYPE_OPERAND:
 
-                        AcpiOsPrintf ("%12.12s  RefCount 0x%04X\n",
-                            AcpiUtGetTypeName (Descriptor->Object.Common.Type),
-                            Descriptor->Object.Common.ReferenceCount);
-                        break;
+						acpi_os_printf ("%12.12s RefCount 0x%04X\n",
+							acpi_ut_get_type_name (descriptor->object.common.type),
+							descriptor->object.common.reference_count);
+						break;
 
-                    case ACPI_DESC_TYPE_PARSER:
+					case ACPI_DESC_TYPE_PARSER:
 
-                        AcpiOsPrintf ("AmlOpcode 0x%04X\n",
-                            Descriptor->Op.Asl.AmlOpcode);
-                        break;
+						acpi_os_printf ("AmlOpcode 0x%04X\n",
+							descriptor->op.asl.aml_opcode);
+						break;
 
-                    case ACPI_DESC_TYPE_NAMED:
+					case ACPI_DESC_TYPE_NAMED:
 
-                        AcpiOsPrintf ("%4.4s\n",
-                            AcpiUtGetNodeName (&Descriptor->Node));
-                        break;
+						acpi_os_printf ("%4.4s\n",
+							acpi_ut_get_node_name (&descriptor->node));
+						break;
 
-                    default:
+					default:
 
-                        AcpiOsPrintf ( "\n");
-                        break;
-                    }
-                }
-            }
+						acpi_os_printf ( "\n");
+						break;
+					}
+				}
+			}
 
-            NumOutstanding++;
-        }
+			num_outstanding++;
+		}
 
-        Element = Element->Next;
-    }
+		element = element->next;
+	}
 
-Exit:
-    (void) AcpiUtReleaseMutex (ACPI_MTX_MEMORY);
+exit:
+	(void) acpi_ut_release_mutex (ACPI_MTX_MEMORY);
 
-    /* Print summary */
+	/* Print summary */
 
-    if (!NumOutstanding)
-    {
-        ACPI_INFO (("No outstanding allocations"));
-    }
-    else
-    {
-        ACPI_ERROR ((AE_INFO, "%u (0x%X) Outstanding cache allocations",
-            NumOutstanding, NumOutstanding));
-    }
+	if (!num_outstanding) {
+		ACPI_INFO (("No outstanding allocations"));
+	}
+	else {
+		ACPI_ERROR ((AE_INFO, "%u (0x%X) Outstanding cache allocations",
+			num_outstanding, num_outstanding));
+	}
 
-    return_VOID;
+	return_VOID;
 }
 
 #endif  /* ACPI_DBG_TRACK_ALLOCATIONS */

@@ -1,160 +1,17 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /*******************************************************************************
  *
  * Module Name: hwpci - Obtain PCI bus, device, and function numbers
  *
  ******************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #include "acpi.h"
 #include "accommon.h"
 
 
 #define _COMPONENT          ACPI_NAMESPACE
-        ACPI_MODULE_NAME    ("hwpci")
+	 ACPI_MODULE_NAME    ("hwpci")
 
 
 /* PCI configuration space values */
@@ -171,47 +28,47 @@
 
 typedef struct acpi_pci_device
 {
-    ACPI_HANDLE             Device;
-    struct acpi_pci_device  *Next;
+	acpi_handle                     device;
+	struct acpi_pci_device  *next;
 
-} ACPI_PCI_DEVICE;
+} acpi_pci_device;
 
 
 /* Local prototypes */
 
-static ACPI_STATUS
-AcpiHwBuildPciList (
-    ACPI_HANDLE             RootPciDevice,
-    ACPI_HANDLE             PciRegion,
-    ACPI_PCI_DEVICE         **ReturnListHead);
+static acpi_status
+acpi_hw_build_pci_list (
+	acpi_handle                     root_pci_device,
+	acpi_handle                     pci_region,
+	struct acpi_pci_device          **return_list_head);
 
-static ACPI_STATUS
-AcpiHwProcessPciList (
-    ACPI_PCI_ID             *PciId,
-    ACPI_PCI_DEVICE         *ListHead);
+static acpi_status
+acpi_hw_process_pci_list (
+	struct acpi_pci_id              *pci_id,
+	struct acpi_pci_device          *list_head);
 
 static void
-AcpiHwDeletePciList (
-    ACPI_PCI_DEVICE         *ListHead);
+acpi_hw_delete_pci_list (
+	struct acpi_pci_device          *list_head);
 
-static ACPI_STATUS
-AcpiHwGetPciDeviceInfo (
-    ACPI_PCI_ID             *PciId,
-    ACPI_HANDLE             PciDevice,
-    UINT16                  *BusNumber,
-    BOOLEAN                 *IsBridge);
+static acpi_status
+acpi_hw_get_pci_device_info (
+	struct acpi_pci_id              *pci_id,
+	acpi_handle                     pci_device,
+	u16                             *bus_number,
+	u8                              *is_bridge);
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiHwDerivePciId
+ * FUNCTION:    acpi_hw_derive_pci_id
  *
- * PARAMETERS:  PciId               - Initial values for the PCI ID. May be
+ * PARAMETERS:  pci_id              - Initial values for the PCI ID. May be
  *                                    modified by this function.
- *              RootPciDevice       - A handle to a PCI device object. This
+ *              root_pci_device     - A handle to a PCI device object. This
  *                                    object must be a PCI Root Bridge having a
  *                                    _HID value of either PNP0A03 or PNP0A08
- *              PciRegion           - A handle to a PCI configuration space
+ *              pci_region          - A handle to a PCI configuration space
  *                                    Operation Region being initialized
  *
  * RETURN:      Status
@@ -224,70 +81,69 @@ AcpiHwGetPciDeviceInfo (
  *              depending on the bus topology discovered during system
  *              initialization. This function is invoked during configuration
  *              of a PCI_Config Operation Region in order to (possibly) update
- *              the Bus/Device/Function numbers in the PciId with the actual
+ *              the Bus/Device/Function numbers in the pci_id with the actual
  *              values as determined by the hardware and operating system
  *              configuration.
  *
- *              The PciId parameter is initially populated during the Operation
+ *              The pci_id parameter is initially populated during the Operation
  *              Region initialization. This function is then called, and is
  *              will make any necessary modifications to the Bus, Device, or
  *              Function number PCI ID subfields as appropriate for the
  *              current hardware and OS configuration.
  *
- * NOTE:        Created 08/2010. Replaces the previous OSL AcpiOsDerivePciId
+ * NOTE:        Created 08/2010. Replaces the previous OSL acpi_os_derive_pci_id
  *              interface since this feature is OS-independent. This module
  *              specifically avoids any use of recursion by building a local
  *              temporary device list.
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiHwDerivePciId (
-    ACPI_PCI_ID             *PciId,
-    ACPI_HANDLE             RootPciDevice,
-    ACPI_HANDLE             PciRegion)
+acpi_status
+acpi_hw_derive_pci_id (
+	struct acpi_pci_id              *pci_id,
+	acpi_handle                     root_pci_device,
+	acpi_handle                     pci_region)
 {
-    ACPI_STATUS             Status;
-    ACPI_PCI_DEVICE         *ListHead;
+	acpi_status                     status;
+	struct acpi_pci_device          *list_head;
 
 
-    ACPI_FUNCTION_TRACE (HwDerivePciId);
+	ACPI_FUNCTION_TRACE (hw_derive_pci_id);
 
 
-    if (!PciId)
-    {
-        return_ACPI_STATUS (AE_BAD_PARAMETER);
-    }
+	if (!pci_id) {
+		return_ACPI_STATUS (AE_BAD_PARAMETER);
+	}
 
-    /* Build a list of PCI devices, from PciRegion up to RootPciDevice */
+	/* Build a list of PCI devices, from pci_region up to root_pci_device */
 
-    Status = AcpiHwBuildPciList (RootPciDevice, PciRegion, &ListHead);
-    if (ACPI_SUCCESS (Status))
-    {
-        /* Walk the list, updating the PCI device/function/bus numbers */
+	status = acpi_hw_build_pci_list (root_pci_device, pci_region, &list_head);
+	if (ACPI_SUCCESS (status)) {
 
-        Status = AcpiHwProcessPciList (PciId, ListHead);
+		/* Walk the list, updating the PCI device/function/bus numbers */
 
-        /* Delete the list */
+		status = acpi_hw_process_pci_list (pci_id, list_head);
 
-        AcpiHwDeletePciList (ListHead);
-    }
+		/* Delete the list */
 
-    return_ACPI_STATUS (Status);
+		acpi_hw_delete_pci_list (list_head);
+	}
+
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiHwBuildPciList
+ * FUNCTION:    acpi_hw_build_pci_list
  *
- * PARAMETERS:  RootPciDevice       - A handle to a PCI device object. This
+ * PARAMETERS:  root_pci_device     - A handle to a PCI device object. This
  *                                    object is guaranteed to be a PCI Root
  *                                    Bridge having a _HID value of either
  *                                    PNP0A03 or PNP0A08
- *              PciRegion           - A handle to the PCI configuration space
+ *              pci_region          - A handle to the PCI configuration space
  *                                    Operation Region
- *              ReturnListHead      - Where the PCI device list is returned
+ *              return_list_head    - Where the PCI device list is returned
  *
  * RETURN:      Status
  *
@@ -296,71 +152,69 @@ AcpiHwDerivePciId (
  *
  ******************************************************************************/
 
-static ACPI_STATUS
-AcpiHwBuildPciList (
-    ACPI_HANDLE             RootPciDevice,
-    ACPI_HANDLE             PciRegion,
-    ACPI_PCI_DEVICE         **ReturnListHead)
+static acpi_status
+acpi_hw_build_pci_list (
+	acpi_handle                     root_pci_device,
+	acpi_handle                     pci_region,
+	struct acpi_pci_device          **return_list_head)
 {
-    ACPI_HANDLE             CurrentDevice;
-    ACPI_HANDLE             ParentDevice;
-    ACPI_STATUS             Status;
-    ACPI_PCI_DEVICE         *ListElement;
+	acpi_handle                     current_device;
+	acpi_handle                     parent_device;
+	acpi_status                     status;
+	struct acpi_pci_device          *list_element;
 
 
-    /*
-     * Ascend namespace branch until the RootPciDevice is reached, building
-     * a list of device nodes. Loop will exit when either the PCI device is
-     * found, or the root of the namespace is reached.
-     */
-    *ReturnListHead = NULL;
-    CurrentDevice = PciRegion;
-    while (1)
-    {
-        Status = AcpiGetParent (CurrentDevice, &ParentDevice);
-        if (ACPI_FAILURE (Status))
-        {
-            /* Must delete the list before exit */
+	/*
+	 * Ascend namespace branch until the root_pci_device is reached, building
+	 * a list of device nodes. Loop will exit when either the PCI device is
+	 * found, or the root of the namespace is reached.
+	 */
+	*return_list_head = NULL;
+	current_device = pci_region;
+	while (1) {
+		status = acpi_get_parent (current_device, &parent_device);
+		if (ACPI_FAILURE (status)) {
 
-            AcpiHwDeletePciList (*ReturnListHead);
-            return (Status);
-        }
+			/* Must delete the list before exit */
 
-        /* Finished when we reach the PCI root device (PNP0A03 or PNP0A08) */
+			acpi_hw_delete_pci_list (*return_list_head);
+			return (status);
+		}
 
-        if (ParentDevice == RootPciDevice)
-        {
-            return (AE_OK);
-        }
+		/* Finished when we reach the PCI root device (PNP0A03 or PNP0A08) */
 
-        ListElement = ACPI_ALLOCATE (sizeof (ACPI_PCI_DEVICE));
-        if (!ListElement)
-        {
-            /* Must delete the list before exit */
+		if (parent_device == root_pci_device) {
+			return (AE_OK);
+		}
 
-            AcpiHwDeletePciList (*ReturnListHead);
-            return (AE_NO_MEMORY);
-        }
+		list_element = ACPI_ALLOCATE (sizeof (struct acpi_pci_device));
+		if (!list_element) {
 
-        /* Put new element at the head of the list */
+			/* Must delete the list before exit */
 
-        ListElement->Next = *ReturnListHead;
-        ListElement->Device = ParentDevice;
-        *ReturnListHead = ListElement;
+			acpi_hw_delete_pci_list (*return_list_head);
+			return (AE_NO_MEMORY);
+		}
 
-        CurrentDevice = ParentDevice;
-    }
+		/* Put new element at the head of the list */
+
+		list_element->next = *return_list_head;
+		list_element->device = parent_device;
+		*return_list_head = list_element;
+
+		current_device = parent_device;
+	}
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiHwProcessPciList
+ * FUNCTION:    acpi_hw_process_pci_list
  *
- * PARAMETERS:  PciId               - Initial values for the PCI ID. May be
+ * PARAMETERS:  pci_id              - Initial values for the PCI ID. May be
  *                                    modified by this function.
- *              ListHead            - Device list created by
- *                                    AcpiHwBuildPciList
+ *              list_head           - Device list created by
+ *                                    acpi_hw_build_pci_list
  *
  * RETURN:      Status
  *
@@ -370,62 +224,60 @@ AcpiHwBuildPciList (
  *
  ******************************************************************************/
 
-static ACPI_STATUS
-AcpiHwProcessPciList (
-    ACPI_PCI_ID             *PciId,
-    ACPI_PCI_DEVICE         *ListHead)
+static acpi_status
+acpi_hw_process_pci_list (
+	struct acpi_pci_id              *pci_id,
+	struct acpi_pci_device          *list_head)
 {
-    ACPI_STATUS             Status = AE_OK;
-    ACPI_PCI_DEVICE         *Info;
-    UINT16                  BusNumber;
-    BOOLEAN                 IsBridge = TRUE;
+	acpi_status                     status = AE_OK;
+	struct acpi_pci_device          *info;
+	u16                             bus_number;
+	u8                              is_bridge = TRUE;
 
 
-    ACPI_FUNCTION_NAME (HwProcessPciList);
+	ACPI_FUNCTION_NAME (hw_process_pci_list);
 
 
-    ACPI_DEBUG_PRINT ((ACPI_DB_OPREGION,
-        "Input PciId:  Seg %4.4X Bus %4.4X Dev %4.4X Func %4.4X\n",
-        PciId->Segment, PciId->Bus, PciId->Device, PciId->Function));
+	ACPI_DEBUG_PRINT ((ACPI_DB_OPREGION,
+		"Input PciId:  Seg %4.4X Bus %4.4X Dev %4.4X Func %4.4X\n",
+		pci_id->segment, pci_id->bus, pci_id->device, pci_id->function));
 
-    BusNumber = PciId->Bus;
+	bus_number = pci_id->bus;
 
-    /*
-     * Descend down the namespace tree, collecting PCI device, function,
-     * and bus numbers. BusNumber is only important for PCI bridges.
-     * Algorithm: As we descend the tree, use the last valid PCI device,
-     * function, and bus numbers that are discovered, and assign them
-     * to the PCI ID for the target device.
-     */
-    Info = ListHead;
-    while (Info)
-    {
-        Status = AcpiHwGetPciDeviceInfo (PciId, Info->Device,
-            &BusNumber, &IsBridge);
-        if (ACPI_FAILURE (Status))
-        {
-            return (Status);
-        }
+	/*
+	 * Descend down the namespace tree, collecting PCI device, function,
+	 * and bus numbers. bus_number is only important for PCI bridges.
+	 * Algorithm: As we descend the tree, use the last valid PCI device,
+	 * function, and bus numbers that are discovered, and assign them
+	 * to the PCI ID for the target device.
+	 */
+	info = list_head;
+	while (info) {
+		status = acpi_hw_get_pci_device_info (pci_id, info->device,
+			&bus_number, &is_bridge);
+		if (ACPI_FAILURE (status)) {
+			return (status);
+		}
 
-        Info = Info->Next;
-    }
+		info = info->next;
+	}
 
-    ACPI_DEBUG_PRINT ((ACPI_DB_OPREGION,
-        "Output PciId: Seg %4.4X Bus %4.4X Dev %4.4X Func %4.4X "
-        "Status %X BusNumber %X IsBridge %X\n",
-        PciId->Segment, PciId->Bus, PciId->Device, PciId->Function,
-        Status, BusNumber, IsBridge));
+	ACPI_DEBUG_PRINT ((ACPI_DB_OPREGION,
+		"Output PciId: Seg %4.4X Bus %4.4X Dev %4.4X Func %4.4X "
+		"Status %X BusNumber %X IsBridge %X\n",
+		pci_id->segment, pci_id->bus, pci_id->device, pci_id->function,
+		status, bus_number, is_bridge));
 
-    return (AE_OK);
+	return (AE_OK);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiHwDeletePciList
+ * FUNCTION:    acpi_hw_delete_pci_list
  *
- * PARAMETERS:  ListHead            - Device list created by
- *                                    AcpiHwBuildPciList
+ * PARAMETERS:  list_head           - Device list created by
+ *                                    acpi_hw_build_pci_list
  *
  * RETURN:      None
  *
@@ -434,32 +286,31 @@ AcpiHwProcessPciList (
  ******************************************************************************/
 
 static void
-AcpiHwDeletePciList (
-    ACPI_PCI_DEVICE         *ListHead)
+acpi_hw_delete_pci_list (
+	struct acpi_pci_device          *list_head)
 {
-    ACPI_PCI_DEVICE         *Next;
-    ACPI_PCI_DEVICE         *Previous;
+	struct acpi_pci_device          *next;
+	struct acpi_pci_device          *previous;
 
 
-    Next = ListHead;
-    while (Next)
-    {
-        Previous = Next;
-        Next = Previous->Next;
-        ACPI_FREE (Previous);
-    }
+	next = list_head;
+	while (next) {
+		previous = next;
+		next = previous->next;
+		ACPI_FREE (previous);
+	}
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiHwGetPciDeviceInfo
+ * FUNCTION:    acpi_hw_get_pci_device_info
  *
- * PARAMETERS:  PciId               - Initial values for the PCI ID. May be
+ * PARAMETERS:  pci_id              - Initial values for the PCI ID. May be
  *                                    modified by this function.
- *              PciDevice           - Handle for the PCI device object
- *              BusNumber           - Where a PCI bridge bus number is returned
- *              IsBridge            - Return value, indicates if this PCI
+ *              pci_device          - Handle for the PCI device object
+ *              bus_number          - Where a PCI bridge bus number is returned
+ *              is_bridge           - Return value, indicates if this PCI
  *                                    device is a PCI bridge
  *
  * RETURN:      Status
@@ -471,101 +322,93 @@ AcpiHwDeletePciList (
  *
  ******************************************************************************/
 
-static ACPI_STATUS
-AcpiHwGetPciDeviceInfo (
-    ACPI_PCI_ID             *PciId,
-    ACPI_HANDLE             PciDevice,
-    UINT16                  *BusNumber,
-    BOOLEAN                 *IsBridge)
+static acpi_status
+acpi_hw_get_pci_device_info (
+	struct acpi_pci_id              *pci_id,
+	acpi_handle                     pci_device,
+	u16                             *bus_number,
+	u8                              *is_bridge)
 {
-    ACPI_STATUS             Status;
-    ACPI_OBJECT_TYPE        ObjectType;
-    UINT64                  ReturnValue;
-    UINT64                  PciValue;
+	acpi_status                     status;
+	acpi_object_type                object_type;
+	u64                             return_value;
+	u64                             pci_value;
 
 
-    /* We only care about objects of type Device */
+	/* We only care about objects of type Device */
 
-    Status = AcpiGetType (PciDevice, &ObjectType);
-    if (ACPI_FAILURE (Status))
-    {
-        return (Status);
-    }
+	status = acpi_get_type (pci_device, &object_type);
+	if (ACPI_FAILURE (status)) {
+		return (status);
+	}
 
-    if (ObjectType != ACPI_TYPE_DEVICE)
-    {
-        return (AE_OK);
-    }
+	if (object_type != ACPI_TYPE_DEVICE) {
+		return (AE_OK);
+	}
 
-    /* We need an _ADR. Ignore device if not present */
+	/* We need an _ADR. Ignore device if not present */
 
-    Status = AcpiUtEvaluateNumericObject (METHOD_NAME__ADR,
-        PciDevice, &ReturnValue);
-    if (ACPI_FAILURE (Status))
-    {
-        return (AE_OK);
-    }
+	status = acpi_ut_evaluate_numeric_object (METHOD_NAME__ADR,
+		pci_device, &return_value);
+	if (ACPI_FAILURE (status)) {
+		return (AE_OK);
+	}
 
-    /*
-     * From _ADR, get the PCI Device and Function and
-     * update the PCI ID.
-     */
-    PciId->Device = ACPI_HIWORD (ACPI_LODWORD (ReturnValue));
-    PciId->Function = ACPI_LOWORD (ACPI_LODWORD (ReturnValue));
+	/*
+	 * From _ADR, get the PCI Device and Function and
+	 * update the PCI ID.
+	 */
+	pci_id->device = ACPI_HIWORD (ACPI_LODWORD (return_value));
+	pci_id->function = ACPI_LOWORD (ACPI_LODWORD (return_value));
 
-    /*
-     * If the previous device was a bridge, use the previous
-     * device bus number
-     */
-    if (*IsBridge)
-    {
-        PciId->Bus = *BusNumber;
-    }
+	/*
+	 * If the previous device was a bridge, use the previous
+	 * device bus number
+	 */
+	if (*is_bridge) {
+		pci_id->bus = *bus_number;
+	}
 
-    /*
-     * Get the bus numbers from PCI Config space:
-     *
-     * First, get the PCI HeaderType
-     */
-    *IsBridge = FALSE;
-    Status = AcpiOsReadPciConfiguration (PciId,
-        PCI_CFG_HEADER_TYPE_REG, &PciValue, 8);
-    if (ACPI_FAILURE (Status))
-    {
-        return (Status);
-    }
+	/*
+	 * Get the bus numbers from PCI Config space:
+	 *
+	 * First, get the PCI header_type
+	 */
+	*is_bridge = FALSE;
+	status = acpi_os_read_pci_configuration (pci_id,
+		PCI_CFG_HEADER_TYPE_REG, &pci_value, 8);
+	if (ACPI_FAILURE (status)) {
+		return (status);
+	}
 
-    /* We only care about bridges (1=PciBridge, 2=CardBusBridge) */
+	/* We only care about bridges (1=pci_bridge, 2=card_bus_bridge) */
 
-    PciValue &= PCI_HEADER_TYPE_MASK;
+	pci_value &= PCI_HEADER_TYPE_MASK;
 
-    if ((PciValue != PCI_TYPE_BRIDGE) &&
-        (PciValue != PCI_TYPE_CARDBUS_BRIDGE))
-    {
-        return (AE_OK);
-    }
+	if ((pci_value != PCI_TYPE_BRIDGE) &&
+		(pci_value != PCI_TYPE_CARDBUS_BRIDGE)) {
+		return (AE_OK);
+	}
 
-    /* Bridge: Get the Primary BusNumber */
+	/* Bridge: Get the Primary bus_number */
 
-    Status = AcpiOsReadPciConfiguration (PciId,
-        PCI_CFG_PRIMARY_BUS_NUMBER_REG, &PciValue, 8);
-    if (ACPI_FAILURE (Status))
-    {
-        return (Status);
-    }
+	status = acpi_os_read_pci_configuration (pci_id,
+		PCI_CFG_PRIMARY_BUS_NUMBER_REG, &pci_value, 8);
+	if (ACPI_FAILURE (status)) {
+		return (status);
+	}
 
-    *IsBridge = TRUE;
-    PciId->Bus = (UINT16) PciValue;
+	*is_bridge = TRUE;
+	pci_id->bus = (u16) pci_value;
 
-    /* Bridge: Get the Secondary BusNumber */
+	/* Bridge: Get the Secondary bus_number */
 
-    Status = AcpiOsReadPciConfiguration (PciId,
-        PCI_CFG_SECONDARY_BUS_NUMBER_REG, &PciValue, 8);
-    if (ACPI_FAILURE (Status))
-    {
-        return (Status);
-    }
+	status = acpi_os_read_pci_configuration (pci_id,
+		PCI_CFG_SECONDARY_BUS_NUMBER_REG, &pci_value, 8);
+	if (ACPI_FAILURE (status)) {
+		return (status);
+	}
 
-    *BusNumber = (UINT16) PciValue;
-    return (AE_OK);
+	*bus_number = (u16) pci_value;
+	return (AE_OK);
 }

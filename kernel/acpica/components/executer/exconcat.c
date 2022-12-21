@@ -1,154 +1,12 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /******************************************************************************
  *
  * Module Name: exconcat - Concatenate-type AML operators
  *
- *****************************************************************************/
-
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
-
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
+ * Copyright (C) 2000 - 2022, Intel Corp.
  *
  *****************************************************************************/
+
 
 #include "acpi.h"
 #include "accommon.h"
@@ -157,24 +15,24 @@
 
 
 #define _COMPONENT          ACPI_EXECUTER
-        ACPI_MODULE_NAME    ("exconcat")
+	 ACPI_MODULE_NAME    ("exconcat")
 
 /* Local Prototypes */
 
-static ACPI_STATUS
-AcpiExConvertToObjectTypeString (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_OPERAND_OBJECT     **ResultDesc);
+static acpi_status
+acpi_ex_convert_to_object_type_string (
+	union acpi_operand_object       *obj_desc,
+	union acpi_operand_object       **result_desc);
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExDoConcatenate
+ * FUNCTION:    acpi_ex_do_concatenate
  *
- * PARAMETERS:  Operand0            - First source object
- *              Operand1            - Second source object
- *              ActualReturnDesc    - Where to place the return object
- *              WalkState           - Current walk state
+ * PARAMETERS:  operand0            - First source object
+ *              operand1            - Second source object
+ *              actual_return_desc  - Where to place the return object
+ *              walk_state          - Current walk state
  *
  * RETURN:      Status
  *
@@ -190,258 +48,244 @@ AcpiExConvertToObjectTypeString (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiExDoConcatenate (
-    ACPI_OPERAND_OBJECT     *Operand0,
-    ACPI_OPERAND_OBJECT     *Operand1,
-    ACPI_OPERAND_OBJECT     **ActualReturnDesc,
-    ACPI_WALK_STATE         *WalkState)
+acpi_status
+acpi_ex_do_concatenate (
+	union acpi_operand_object       *operand0,
+	union acpi_operand_object       *operand1,
+	union acpi_operand_object       **actual_return_desc,
+	struct acpi_walk_state          *walk_state)
 {
-    ACPI_OPERAND_OBJECT     *LocalOperand0 = Operand0;
-    ACPI_OPERAND_OBJECT     *LocalOperand1 = Operand1;
-    ACPI_OPERAND_OBJECT     *TempOperand1 = NULL;
-    ACPI_OPERAND_OBJECT     *ReturnDesc;
-    char                    *Buffer;
-    ACPI_OBJECT_TYPE        Operand0Type;
-    ACPI_OBJECT_TYPE        Operand1Type;
-    ACPI_STATUS             Status;
+	union acpi_operand_object       *local_operand0 = operand0;
+	union acpi_operand_object       *local_operand1 = operand1;
+	union acpi_operand_object       *temp_operand1 = NULL;
+	union acpi_operand_object       *return_desc;
+	char                            *buffer;
+	acpi_object_type                operand0_type;
+	acpi_object_type                operand1_type;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE (ExDoConcatenate);
+	ACPI_FUNCTION_TRACE (ex_do_concatenate);
 
 
-    /* Operand 0 preprocessing */
+	/* Operand 0 preprocessing */
 
-    switch (Operand0->Common.Type)
-    {
-    case ACPI_TYPE_INTEGER:
-    case ACPI_TYPE_STRING:
-    case ACPI_TYPE_BUFFER:
+	switch (operand0->common.type) {
+	case ACPI_TYPE_INTEGER:
+	case ACPI_TYPE_STRING:
+	case ACPI_TYPE_BUFFER:
 
-        Operand0Type = Operand0->Common.Type;
-        break;
+		operand0_type = operand0->common.type;
+		break;
 
-    default:
+	default:
 
-        /* For all other types, get the "object type" string */
+		/* For all other types, get the "object type" string */
 
-        Status = AcpiExConvertToObjectTypeString (
-            Operand0, &LocalOperand0);
-        if (ACPI_FAILURE (Status))
-        {
-            goto Cleanup;
-        }
+		status = acpi_ex_convert_to_object_type_string (
+			operand0, &local_operand0);
+		if (ACPI_FAILURE (status)) {
+			goto cleanup;
+		}
 
-        Operand0Type = ACPI_TYPE_STRING;
-        break;
-    }
+		operand0_type = ACPI_TYPE_STRING;
+		break;
+	}
 
-    /* Operand 1 preprocessing */
+	/* Operand 1 preprocessing */
 
-    switch (Operand1->Common.Type)
-    {
-    case ACPI_TYPE_INTEGER:
-    case ACPI_TYPE_STRING:
-    case ACPI_TYPE_BUFFER:
+	switch (operand1->common.type) {
+	case ACPI_TYPE_INTEGER:
+	case ACPI_TYPE_STRING:
+	case ACPI_TYPE_BUFFER:
 
-        Operand1Type = Operand1->Common.Type;
-        break;
+		operand1_type = operand1->common.type;
+		break;
 
-    default:
+	default:
 
-        /* For all other types, get the "object type" string */
+		/* For all other types, get the "object type" string */
 
-        Status = AcpiExConvertToObjectTypeString (
-            Operand1, &LocalOperand1);
-        if (ACPI_FAILURE (Status))
-        {
-            goto Cleanup;
-        }
+		status = acpi_ex_convert_to_object_type_string (
+			operand1, &local_operand1);
+		if (ACPI_FAILURE (status)) {
+			goto cleanup;
+		}
 
-        Operand1Type = ACPI_TYPE_STRING;
-        break;
-    }
+		operand1_type = ACPI_TYPE_STRING;
+		break;
+	}
 
-    /*
-     * Convert the second operand if necessary. The first operand (0)
-     * determines the type of the second operand (1) (See the Data Types
-     * section of the ACPI specification). Both object types are
-     * guaranteed to be either Integer/String/Buffer by the operand
-     * resolution mechanism.
-     */
-    switch (Operand0Type)
-    {
-    case ACPI_TYPE_INTEGER:
+	/*
+	 * Convert the second operand if necessary. The first operand (0)
+	 * determines the type of the second operand (1) (See the Data Types
+	 * section of the ACPI specification). Both object types are
+	 * guaranteed to be either Integer/String/Buffer by the operand
+	 * resolution mechanism.
+	 */
+	switch (operand0_type) {
+	case ACPI_TYPE_INTEGER:
 
-        Status = AcpiExConvertToInteger (LocalOperand1, &TempOperand1,
-            ACPI_IMPLICIT_CONVERSION);
-        break;
+		status = acpi_ex_convert_to_integer (local_operand1, &temp_operand1,
+			ACPI_IMPLICIT_CONVERSION);
+		break;
 
-    case ACPI_TYPE_BUFFER:
+	case ACPI_TYPE_BUFFER:
 
-        Status = AcpiExConvertToBuffer (LocalOperand1, &TempOperand1);
-        break;
+		status = acpi_ex_convert_to_buffer (local_operand1, &temp_operand1);
+		break;
 
-    case ACPI_TYPE_STRING:
+	case ACPI_TYPE_STRING:
 
-        switch (Operand1Type)
-        {
-        case ACPI_TYPE_INTEGER:
-        case ACPI_TYPE_STRING:
-        case ACPI_TYPE_BUFFER:
+		switch (operand1_type) {
+		case ACPI_TYPE_INTEGER:
+		case ACPI_TYPE_STRING:
+		case ACPI_TYPE_BUFFER:
 
-            /* Other types have already been converted to string */
+			/* Other types have already been converted to string */
 
-            Status = AcpiExConvertToString (
-                LocalOperand1, &TempOperand1, ACPI_IMPLICIT_CONVERT_HEX);
-            break;
+			status = acpi_ex_convert_to_string (
+				local_operand1, &temp_operand1, ACPI_IMPLICIT_CONVERT_HEX);
+			break;
 
-        default:
+		default:
 
-            Status = AE_OK;
-            break;
-        }
-        break;
+			status = AE_OK;
+			break;
+		}
+		break;
 
-    default:
+	default:
 
-        ACPI_ERROR ((AE_INFO, "Invalid object type: 0x%X",
-            Operand0->Common.Type));
-        Status = AE_AML_INTERNAL;
-    }
+		ACPI_ERROR ((AE_INFO, "Invalid object type: 0x%X",
+			operand0->common.type));
+		status = AE_AML_INTERNAL;
+	}
 
-    if (ACPI_FAILURE (Status))
-    {
-        goto Cleanup;
-    }
+	if (ACPI_FAILURE (status)) {
+		goto cleanup;
+	}
 
-    /* Take care with any newly created operand objects */
+	/* Take care with any newly created operand objects */
 
-    if ((LocalOperand1 != Operand1) &&
-        (LocalOperand1 != TempOperand1))
-    {
-        AcpiUtRemoveReference (LocalOperand1);
-    }
+	if ((local_operand1 != operand1) &&
+		(local_operand1 != temp_operand1)) {
+		acpi_ut_remove_reference (local_operand1);
+	}
 
-    LocalOperand1 = TempOperand1;
+	local_operand1 = temp_operand1;
 
-    /*
-     * Both operands are now known to be the same object type
-     * (Both are Integer, String, or Buffer), and we can now perform
-     * the concatenation.
-     *
-     * There are three cases to handle, as per the ACPI spec:
-     *
-     * 1) Two Integers concatenated to produce a new Buffer
-     * 2) Two Strings concatenated to produce a new String
-     * 3) Two Buffers concatenated to produce a new Buffer
-     */
-    switch (Operand0Type)
-    {
-    case ACPI_TYPE_INTEGER:
+	/*
+	 * Both operands are now known to be the same object type
+	 * (Both are Integer, String, or Buffer), and we can now perform
+	 * the concatenation.
+	 *
+	 * There are three cases to handle, as per the ACPI spec:
+	 *
+	 * 1) Two Integers concatenated to produce a new Buffer
+	 * 2) Two Strings concatenated to produce a new String
+	 * 3) Two Buffers concatenated to produce a new Buffer
+	 */
+	switch (operand0_type) {
+	case ACPI_TYPE_INTEGER:
 
-        /* Result of two Integers is a Buffer */
-        /* Need enough buffer space for two integers */
+		/* Result of two Integers is a Buffer */
+		/* Need enough buffer space for two integers */
 
-        ReturnDesc = AcpiUtCreateBufferObject (
-            (ACPI_SIZE) ACPI_MUL_2 (AcpiGbl_IntegerByteWidth));
-        if (!ReturnDesc)
-        {
-            Status = AE_NO_MEMORY;
-            goto Cleanup;
-        }
+		return_desc = acpi_ut_create_buffer_object (
+			(acpi_size) ACPI_MUL_2 (acpi_gbl_integer_byte_width));
+		if (!return_desc) {
+			status = AE_NO_MEMORY;
+			goto cleanup;
+		}
 
-        Buffer = (char *) ReturnDesc->Buffer.Pointer;
+		buffer = (char *) return_desc->buffer.pointer;
 
-        /* Copy the first integer, LSB first */
+		/* Copy the first integer, LSB first */
 
-        memcpy (Buffer, &Operand0->Integer.Value,
-            AcpiGbl_IntegerByteWidth);
+		memcpy (buffer, &operand0->integer.value,
+			acpi_gbl_integer_byte_width);
 
-        /* Copy the second integer (LSB first) after the first */
+		/* Copy the second integer (LSB first) after the first */
 
-        memcpy (Buffer + AcpiGbl_IntegerByteWidth,
-            &LocalOperand1->Integer.Value, AcpiGbl_IntegerByteWidth);
-        break;
+		memcpy (buffer + acpi_gbl_integer_byte_width,
+			&local_operand1->integer.value, acpi_gbl_integer_byte_width);
+		break;
 
-    case ACPI_TYPE_STRING:
+	case ACPI_TYPE_STRING:
 
-        /* Result of two Strings is a String */
+		/* Result of two Strings is a String */
 
-        ReturnDesc = AcpiUtCreateStringObject (
-            ((ACPI_SIZE) LocalOperand0->String.Length +
-            LocalOperand1->String.Length));
-        if (!ReturnDesc)
-        {
-            Status = AE_NO_MEMORY;
-            goto Cleanup;
-        }
+		return_desc = acpi_ut_create_string_object (
+			((acpi_size) local_operand0->string.length +
+			local_operand1->string.length));
+		if (!return_desc) {
+			status = AE_NO_MEMORY;
+			goto cleanup;
+		}
 
-        Buffer = ReturnDesc->String.Pointer;
+		buffer = return_desc->string.pointer;
 
-        /* Concatenate the strings */
+		/* Concatenate the strings */
 
-        strcpy (Buffer, LocalOperand0->String.Pointer);
-        strcat (Buffer, LocalOperand1->String.Pointer);
-        break;
+		strcpy (buffer, local_operand0->string.pointer);
+		strcat (buffer, local_operand1->string.pointer);
+		break;
 
-    case ACPI_TYPE_BUFFER:
+	case ACPI_TYPE_BUFFER:
 
-        /* Result of two Buffers is a Buffer */
+		/* Result of two Buffers is a Buffer */
 
-        ReturnDesc = AcpiUtCreateBufferObject (
-            ((ACPI_SIZE) Operand0->Buffer.Length +
-            LocalOperand1->Buffer.Length));
-        if (!ReturnDesc)
-        {
-            Status = AE_NO_MEMORY;
-            goto Cleanup;
-        }
+		return_desc = acpi_ut_create_buffer_object (
+			((acpi_size) operand0->buffer.length +
+			local_operand1->buffer.length));
+		if (!return_desc) {
+			status = AE_NO_MEMORY;
+			goto cleanup;
+		}
 
-        Buffer = (char *) ReturnDesc->Buffer.Pointer;
+		buffer = (char *) return_desc->buffer.pointer;
 
-        /* Concatenate the buffers */
+		/* Concatenate the buffers */
 
-        memcpy (Buffer, Operand0->Buffer.Pointer,
-            Operand0->Buffer.Length);
-        memcpy (Buffer + Operand0->Buffer.Length,
-            LocalOperand1->Buffer.Pointer,
-            LocalOperand1->Buffer.Length);
-        break;
+		memcpy (buffer, operand0->buffer.pointer,
+			operand0->buffer.length);
+		memcpy (buffer + operand0->buffer.length,
+			local_operand1->buffer.pointer,
+			local_operand1->buffer.length);
+		break;
 
-    default:
+	default:
 
-        /* Invalid object type, should not happen here */
+		/* Invalid object type, should not happen here */
 
-        ACPI_ERROR ((AE_INFO, "Invalid object type: 0x%X",
-            Operand0->Common.Type));
-        Status = AE_AML_INTERNAL;
-        goto Cleanup;
-    }
+		ACPI_ERROR ((AE_INFO, "Invalid object type: 0x%X",
+			operand0->common.type));
+		status = AE_AML_INTERNAL;
+		goto cleanup;
+	}
 
-    *ActualReturnDesc = ReturnDesc;
+	*actual_return_desc = return_desc;
 
-Cleanup:
-    if (LocalOperand0 != Operand0)
-    {
-        AcpiUtRemoveReference (LocalOperand0);
-    }
+cleanup:
+	if (local_operand0 != operand0) {
+		acpi_ut_remove_reference (local_operand0);
+	}
 
-    if (LocalOperand1 != Operand1)
-    {
-        AcpiUtRemoveReference (LocalOperand1);
-    }
+	if (local_operand1 != operand1) {
+		acpi_ut_remove_reference (local_operand1);
+	}
 
-    return_ACPI_STATUS (Status);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExConvertToObjectTypeString
+ * FUNCTION:    acpi_ex_convert_to_object_type_string
  *
- * PARAMETERS:  ObjDesc             - Object to be converted
- *              ReturnDesc          - Where to place the return object
+ * PARAMETERS:  obj_desc            - Object to be converted
+ *              return_desc         - Where to place the return object
  *
  * RETURN:      Status
  *
@@ -451,41 +295,40 @@ Cleanup:
  *
  ******************************************************************************/
 
-static ACPI_STATUS
-AcpiExConvertToObjectTypeString (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_OPERAND_OBJECT     **ResultDesc)
+static acpi_status
+acpi_ex_convert_to_object_type_string (
+	union acpi_operand_object       *obj_desc,
+	union acpi_operand_object       **result_desc)
 {
-    ACPI_OPERAND_OBJECT     *ReturnDesc;
-    const char              *TypeString;
+	union acpi_operand_object       *return_desc;
+	const char                      *type_string;
 
 
-    TypeString = AcpiUtGetTypeName (ObjDesc->Common.Type);
+	type_string = acpi_ut_get_type_name (obj_desc->common.type);
 
-    ReturnDesc = AcpiUtCreateStringObject (
-        ((ACPI_SIZE) strlen (TypeString) + 9)); /* 9 For "[ Object]" */
-    if (!ReturnDesc)
-    {
-        return (AE_NO_MEMORY);
-    }
+	return_desc = acpi_ut_create_string_object (
+		((acpi_size) strlen (type_string) + 9)); /* 9 For "[ Object]" */
+	if (!return_desc) {
+		return (AE_NO_MEMORY);
+	}
 
-    strcpy (ReturnDesc->String.Pointer, "[");
-    strcat (ReturnDesc->String.Pointer, TypeString);
-    strcat (ReturnDesc->String.Pointer, " Object]");
+	strcpy (return_desc->string.pointer, "[");
+	strcat (return_desc->string.pointer, type_string);
+	strcat (return_desc->string.pointer, " Object]");
 
-    *ResultDesc = ReturnDesc;
-    return (AE_OK);
+	*result_desc = return_desc;
+	return (AE_OK);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExConcatTemplate
+ * FUNCTION:    acpi_ex_concat_template
  *
- * PARAMETERS:  Operand0            - First source object
- *              Operand1            - Second source object
- *              ActualReturnDesc    - Where to place the return object
- *              WalkState           - Current walk state
+ * PARAMETERS:  operand0            - First source object
+ *              operand1            - Second source object
+ *              actual_return_desc  - Where to place the return object
+ *              walk_state          - Current walk state
  *
  * RETURN:      Status
  *
@@ -493,78 +336,75 @@ AcpiExConvertToObjectTypeString (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiExConcatTemplate (
-    ACPI_OPERAND_OBJECT     *Operand0,
-    ACPI_OPERAND_OBJECT     *Operand1,
-    ACPI_OPERAND_OBJECT     **ActualReturnDesc,
-    ACPI_WALK_STATE         *WalkState)
+acpi_status
+acpi_ex_concat_template (
+	union acpi_operand_object       *operand0,
+	union acpi_operand_object       *operand1,
+	union acpi_operand_object       **actual_return_desc,
+	struct acpi_walk_state          *walk_state)
 {
-    ACPI_STATUS             Status;
-    ACPI_OPERAND_OBJECT     *ReturnDesc;
-    UINT8                   *NewBuf;
-    UINT8                   *EndTag;
-    ACPI_SIZE               Length0;
-    ACPI_SIZE               Length1;
-    ACPI_SIZE               NewLength;
+	acpi_status                     status;
+	union acpi_operand_object       *return_desc;
+	u8                              *new_buf;
+	u8                              *end_tag;
+	acpi_size                       length0;
+	acpi_size                       length1;
+	acpi_size                       new_length;
 
 
-    ACPI_FUNCTION_TRACE (ExConcatTemplate);
+	ACPI_FUNCTION_TRACE (ex_concat_template);
 
 
-    /*
-     * Find the EndTag descriptor in each resource template.
-     * Note1: returned pointers point TO the EndTag, not past it.
-     * Note2: zero-length buffers are allowed; treated like one EndTag
-     */
+	/*
+	 * Find the end_tag descriptor in each resource template.
+	 * Note1: returned pointers point TO the end_tag, not past it.
+	 * Note2: zero-length buffers are allowed; treated like one end_tag
+	 */
 
-    /* Get the length of the first resource template */
+	/* Get the length of the first resource template */
 
-    Status = AcpiUtGetResourceEndTag (Operand0, &EndTag);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_ut_get_resource_end_tag (operand0, &end_tag);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    Length0 = ACPI_PTR_DIFF (EndTag, Operand0->Buffer.Pointer);
+	length0 = ACPI_PTR_DIFF (end_tag, operand0->buffer.pointer);
 
-    /* Get the length of the second resource template */
+	/* Get the length of the second resource template */
 
-    Status = AcpiUtGetResourceEndTag (Operand1, &EndTag);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_ut_get_resource_end_tag (operand1, &end_tag);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    Length1 = ACPI_PTR_DIFF (EndTag, Operand1->Buffer.Pointer);
+	length1 = ACPI_PTR_DIFF (end_tag, operand1->buffer.pointer);
 
-    /* Combine both lengths, minimum size will be 2 for EndTag */
+	/* Combine both lengths, minimum size will be 2 for end_tag */
 
-    NewLength = Length0 + Length1 + sizeof (AML_RESOURCE_END_TAG);
+	new_length = length0 + length1 + sizeof (struct aml_resource_end_tag);
 
-    /* Create a new buffer object for the result (with one EndTag) */
+	/* Create a new buffer object for the result (with one end_tag) */
 
-    ReturnDesc = AcpiUtCreateBufferObject (NewLength);
-    if (!ReturnDesc)
-    {
-        return_ACPI_STATUS (AE_NO_MEMORY);
-    }
+	return_desc = acpi_ut_create_buffer_object (new_length);
+	if (!return_desc) {
+		return_ACPI_STATUS (AE_NO_MEMORY);
+	}
 
-    /*
-     * Copy the templates to the new buffer, 0 first, then 1 follows. One
-     * EndTag descriptor is copied from Operand1.
-     */
-    NewBuf = ReturnDesc->Buffer.Pointer;
-    memcpy (NewBuf, Operand0->Buffer.Pointer, Length0);
-    memcpy (NewBuf + Length0, Operand1->Buffer.Pointer, Length1);
+	/*
+	 * Copy the templates to the new buffer, 0 first, then 1 follows. One
+	 * end_tag descriptor is copied from Operand1.
+	 */
+	new_buf = return_desc->buffer.pointer;
+	memcpy (new_buf, operand0->buffer.pointer, length0);
+	memcpy (new_buf + length0, operand1->buffer.pointer, length1);
 
-    /* Insert EndTag and set the checksum to zero, means "ignore checksum" */
+	/* Insert end_tag and set the checksum to zero, means "ignore checksum" */
 
-    NewBuf[NewLength - 1] = 0;
-    NewBuf[NewLength - 2] = ACPI_RESOURCE_NAME_END_TAG | 1;
+	new_buf[new_length - 1] = 0;
+	new_buf[new_length - 2] = ACPI_RESOURCE_NAME_END_TAG | 1;
 
-    /* Return the completed resource template */
+	/* Return the completed resource template */
 
-    *ActualReturnDesc = ReturnDesc;
-    return_ACPI_STATUS (AE_OK);
+	*actual_return_desc = return_desc;
+	return_ACPI_STATUS (AE_OK);
 }

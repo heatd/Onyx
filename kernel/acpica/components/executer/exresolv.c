@@ -1,153 +1,12 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /******************************************************************************
  *
  * Module Name: exresolv - AML Interpreter object resolution
  *
+ * Copyright (C) 2000 - 2022, Intel Corp.
+ *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #include "acpi.h"
 #include "accommon.h"
@@ -158,24 +17,24 @@
 
 
 #define _COMPONENT          ACPI_EXECUTER
-        ACPI_MODULE_NAME    ("exresolv")
+	 ACPI_MODULE_NAME    ("exresolv")
 
 /* Local prototypes */
 
-static ACPI_STATUS
-AcpiExResolveObjectToValue (
-    ACPI_OPERAND_OBJECT     **StackPtr,
-    ACPI_WALK_STATE         *WalkState);
+static acpi_status
+acpi_ex_resolve_object_to_value (
+	union acpi_operand_object       **stack_ptr,
+	struct acpi_walk_state          *walk_state);
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExResolveToValue
+ * FUNCTION:    acpi_ex_resolve_to_value
  *
- * PARAMETERS:  **StackPtr          - Points to entry on ObjStack, which can
- *                                    be either an (ACPI_OPERAND_OBJECT *)
- *                                    or an ACPI_HANDLE.
- *              WalkState           - Current method state
+ * PARAMETERS:  **stack_ptr         - Points to entry on obj_stack, which can
+ *                                    be either an (union acpi_operand_object *)
+ *                                    or an acpi_handle.
+ *              walk_state          - Current method state
  *
  * RETURN:      Status
  *
@@ -183,69 +42,63 @@ AcpiExResolveObjectToValue (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiExResolveToValue (
-    ACPI_OPERAND_OBJECT     **StackPtr,
-    ACPI_WALK_STATE         *WalkState)
+acpi_status
+acpi_ex_resolve_to_value (
+	union acpi_operand_object       **stack_ptr,
+	struct acpi_walk_state          *walk_state)
 {
-    ACPI_STATUS             Status;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE_PTR (ExResolveToValue, StackPtr);
+	ACPI_FUNCTION_TRACE_PTR (ex_resolve_to_value, stack_ptr);
 
 
-    if (!StackPtr || !*StackPtr)
-    {
-        ACPI_ERROR ((AE_INFO, "Internal - null pointer"));
-        return_ACPI_STATUS (AE_AML_NO_OPERAND);
-    }
+	if (!stack_ptr || !*stack_ptr) {
+		ACPI_ERROR ((AE_INFO, "Internal - null pointer"));
+		return_ACPI_STATUS (AE_AML_NO_OPERAND);
+	}
 
-    /*
-     * The entity pointed to by the StackPtr can be either
-     * 1) A valid ACPI_OPERAND_OBJECT, or
-     * 2) A ACPI_NAMESPACE_NODE (NamedObj)
-     */
-    if (ACPI_GET_DESCRIPTOR_TYPE (*StackPtr) == ACPI_DESC_TYPE_OPERAND)
-    {
-        Status = AcpiExResolveObjectToValue (StackPtr, WalkState);
-        if (ACPI_FAILURE (Status))
-        {
-            return_ACPI_STATUS (Status);
-        }
+	/*
+	 * The entity pointed to by the stack_ptr can be either
+	 * 1) A valid union acpi_operand_object, or
+	 * 2) A struct acpi_namespace_node (named_obj)
+	 */
+	if (ACPI_GET_DESCRIPTOR_TYPE (*stack_ptr) == ACPI_DESC_TYPE_OPERAND) {
+		status = acpi_ex_resolve_object_to_value (stack_ptr, walk_state);
+		if (ACPI_FAILURE (status)) {
+			return_ACPI_STATUS (status);
+		}
 
-        if (!*StackPtr)
-        {
-            ACPI_ERROR ((AE_INFO, "Internal - null pointer"));
-            return_ACPI_STATUS (AE_AML_NO_OPERAND);
-        }
-    }
+		if (!*stack_ptr) {
+			ACPI_ERROR ((AE_INFO, "Internal - null pointer"));
+			return_ACPI_STATUS (AE_AML_NO_OPERAND);
+		}
+	}
 
-    /*
-     * Object on the stack may have changed if AcpiExResolveObjectToValue()
-     * was called (i.e., we can't use an _else_ here.)
-     */
-    if (ACPI_GET_DESCRIPTOR_TYPE (*StackPtr) == ACPI_DESC_TYPE_NAMED)
-    {
-        Status = AcpiExResolveNodeToValue (
-            ACPI_CAST_INDIRECT_PTR (ACPI_NAMESPACE_NODE, StackPtr),
-            WalkState);
-        if (ACPI_FAILURE (Status))
-        {
-            return_ACPI_STATUS (Status);
-        }
-    }
+	/*
+	 * Object on the stack may have changed if acpi_ex_resolve_object_to_value()
+	 * was called (i.e., we can't use an _else_ here.)
+	 */
+	if (ACPI_GET_DESCRIPTOR_TYPE (*stack_ptr) == ACPI_DESC_TYPE_NAMED) {
+		status = acpi_ex_resolve_node_to_value (
+			ACPI_CAST_INDIRECT_PTR (struct acpi_namespace_node, stack_ptr),
+			walk_state);
+		if (ACPI_FAILURE (status)) {
+			return_ACPI_STATUS (status);
+		}
+	}
 
-    ACPI_DEBUG_PRINT ((ACPI_DB_EXEC, "Resolved object %p\n", *StackPtr));
-    return_ACPI_STATUS (AE_OK);
+	ACPI_DEBUG_PRINT ((ACPI_DB_EXEC, "Resolved object %p\n", *stack_ptr));
+	return_ACPI_STATUS (AE_OK);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExResolveObjectToValue
+ * FUNCTION:    acpi_ex_resolve_object_to_value
  *
- * PARAMETERS:  StackPtr        - Pointer to an internal object
- *              WalkState       - Current method state
+ * PARAMETERS:  stack_ptr       - Pointer to an internal object
+ *              walk_state      - Current method state
  *
  * RETURN:      Status
  *
@@ -254,198 +107,190 @@ AcpiExResolveToValue (
  *
  ******************************************************************************/
 
-static ACPI_STATUS
-AcpiExResolveObjectToValue (
-    ACPI_OPERAND_OBJECT     **StackPtr,
-    ACPI_WALK_STATE         *WalkState)
+static acpi_status
+acpi_ex_resolve_object_to_value (
+	union acpi_operand_object       **stack_ptr,
+	struct acpi_walk_state          *walk_state)
 {
-    ACPI_STATUS             Status = AE_OK;
-    ACPI_OPERAND_OBJECT     *StackDesc;
-    ACPI_OPERAND_OBJECT     *ObjDesc = NULL;
-    UINT8                   RefType;
+	acpi_status                     status = AE_OK;
+	union acpi_operand_object       *stack_desc;
+	union acpi_operand_object       *obj_desc = NULL;
+	u8                              ref_type;
 
 
-    ACPI_FUNCTION_TRACE (ExResolveObjectToValue);
+	ACPI_FUNCTION_TRACE (ex_resolve_object_to_value);
 
 
-    StackDesc = *StackPtr;
+	stack_desc = *stack_ptr;
 
-    /* This is an object of type ACPI_OPERAND_OBJECT */
+	/* This is an object of type union acpi_operand_object */
 
-    switch (StackDesc->Common.Type)
-    {
-    case ACPI_TYPE_LOCAL_REFERENCE:
+	switch (stack_desc->common.type) {
+	case ACPI_TYPE_LOCAL_REFERENCE:
 
-        RefType = StackDesc->Reference.Class;
+		ref_type = stack_desc->reference.class;
 
-        switch (RefType)
-        {
-        case ACPI_REFCLASS_LOCAL:
-        case ACPI_REFCLASS_ARG:
-            /*
-             * Get the local from the method's state info
-             * Note: this increments the local's object reference count
-             */
-            Status = AcpiDsMethodDataGetValue (RefType,
-                StackDesc->Reference.Value, WalkState, &ObjDesc);
-            if (ACPI_FAILURE (Status))
-            {
-                return_ACPI_STATUS (Status);
-            }
+		switch (ref_type) {
+		case ACPI_REFCLASS_LOCAL:
+		case ACPI_REFCLASS_ARG:
+			/*
+			 * Get the local from the method's state info
+			 * Note: this increments the local's object reference count
+			 */
+			status = acpi_ds_method_data_get_value (ref_type,
+				stack_desc->reference.value, walk_state, &obj_desc);
+			if (ACPI_FAILURE (status)) {
+				return_ACPI_STATUS (status);
+			}
 
-            ACPI_DEBUG_PRINT ((ACPI_DB_EXEC, "[Arg/Local %X] ValueObj is %p\n",
-                StackDesc->Reference.Value, ObjDesc));
+			ACPI_DEBUG_PRINT ((ACPI_DB_EXEC, "[Arg/Local %X] ValueObj is %p\n",
+				stack_desc->reference.value, obj_desc));
 
-            /*
-             * Now we can delete the original Reference Object and
-             * replace it with the resolved value
-             */
-            AcpiUtRemoveReference (StackDesc);
-            *StackPtr = ObjDesc;
-            break;
+			/*
+			 * Now we can delete the original Reference Object and
+			 * replace it with the resolved value
+			 */
+			acpi_ut_remove_reference (stack_desc);
+			*stack_ptr = obj_desc;
+			break;
 
-        case ACPI_REFCLASS_INDEX:
+		case ACPI_REFCLASS_INDEX:
 
-            switch (StackDesc->Reference.TargetType)
-            {
-            case ACPI_TYPE_BUFFER_FIELD:
+			switch (stack_desc->reference.target_type) {
+			case ACPI_TYPE_BUFFER_FIELD:
 
-                /* Just return - do not dereference */
-                break;
+				/* Just return - do not dereference */
+				break;
 
-            case ACPI_TYPE_PACKAGE:
+			case ACPI_TYPE_PACKAGE:
 
-                /* If method call or CopyObject - do not dereference */
+				/* If method call or copy_object - do not dereference */
 
-                if ((WalkState->Opcode == AML_INT_METHODCALL_OP) ||
-                    (WalkState->Opcode == AML_COPY_OBJECT_OP))
-                {
-                    break;
-                }
+				if ((walk_state->opcode == AML_INT_METHODCALL_OP) ||
+					(walk_state->opcode == AML_COPY_OBJECT_OP)) {
+					break;
+				}
 
-                /* Otherwise, dereference the PackageIndex to a package element */
+				/* Otherwise, dereference the package_index to a package element */
 
-                ObjDesc = *StackDesc->Reference.Where;
-                if (ObjDesc)
-                {
-                    /*
-                     * Valid object descriptor, copy pointer to return value
-                     * (i.e., dereference the package index)
-                     * Delete the ref object, increment the returned object
-                     */
-                    AcpiUtAddReference (ObjDesc);
-                    *StackPtr = ObjDesc;
-                }
-                else
-                {
-                    /*
-                     * A NULL object descriptor means an uninitialized element of
-                     * the package, can't dereference it
-                     */
-                    ACPI_ERROR ((AE_INFO,
-                        "Attempt to dereference an Index to "
-                        "NULL package element Idx=%p",
-                        StackDesc));
-                    Status = AE_AML_UNINITIALIZED_ELEMENT;
-                }
-                break;
+				obj_desc = *stack_desc->reference.where;
+				if (obj_desc) {
+					/*
+					 * Valid object descriptor, copy pointer to return value
+					 * (i.e., dereference the package index)
+					 * Delete the ref object, increment the returned object
+					 */
+					acpi_ut_add_reference (obj_desc);
+					*stack_ptr = obj_desc;
+				}
+				else {
+					/*
+					 * A NULL object descriptor means an uninitialized element of
+					 * the package, can't dereference it
+					 */
+					ACPI_ERROR ((AE_INFO,
+						"Attempt to dereference an Index to "
+						"NULL package element Idx=%p",
+						stack_desc));
+					status = AE_AML_UNINITIALIZED_ELEMENT;
+				}
+				break;
 
-            default:
+			default:
 
-                /* Invalid reference object */
+				/* Invalid reference object */
 
-                ACPI_ERROR ((AE_INFO,
-                    "Unknown TargetType 0x%X in Index/Reference object %p",
-                    StackDesc->Reference.TargetType, StackDesc));
-                Status = AE_AML_INTERNAL;
-                break;
-            }
-            break;
+				ACPI_ERROR ((AE_INFO,
+					"Unknown TargetType 0x%X in Index/Reference object %p",
+					stack_desc->reference.target_type, stack_desc));
+				status = AE_AML_INTERNAL;
+				break;
+			}
+			break;
 
-        case ACPI_REFCLASS_REFOF:
-        case ACPI_REFCLASS_DEBUG:
-        case ACPI_REFCLASS_TABLE:
+		case ACPI_REFCLASS_REFOF:
+		case ACPI_REFCLASS_DEBUG:
+		case ACPI_REFCLASS_TABLE:
 
-            /* Just leave the object as-is, do not dereference */
+			/* Just leave the object as-is, do not dereference */
 
-            break;
+			break;
 
-        case ACPI_REFCLASS_NAME:   /* Reference to a named object */
+		case ACPI_REFCLASS_NAME:   /* Reference to a named object */
 
-            /* Dereference the name */
+			/* Dereference the name */
 
-            if ((StackDesc->Reference.Node->Type == ACPI_TYPE_DEVICE) ||
-                (StackDesc->Reference.Node->Type == ACPI_TYPE_THERMAL))
-            {
-                /* These node types do not have 'real' subobjects */
+			if ((stack_desc->reference.node->type == ACPI_TYPE_DEVICE) ||
+				(stack_desc->reference.node->type == ACPI_TYPE_THERMAL)) {
 
-                *StackPtr = (void *) StackDesc->Reference.Node;
-            }
-            else
-            {
-                /* Get the object pointed to by the namespace node */
+				/* These node types do not have 'real' subobjects */
 
-                *StackPtr = (StackDesc->Reference.Node)->Object;
-                AcpiUtAddReference (*StackPtr);
-            }
+				*stack_ptr = (void *) stack_desc->reference.node;
+			}
+			else {
+				/* Get the object pointed to by the namespace node */
 
-            AcpiUtRemoveReference (StackDesc);
-            break;
+				*stack_ptr = (stack_desc->reference.node)->object;
+				acpi_ut_add_reference (*stack_ptr);
+			}
 
-        default:
+			acpi_ut_remove_reference (stack_desc);
+			break;
 
-            ACPI_ERROR ((AE_INFO,
-                "Unknown Reference type 0x%X in %p",
-                RefType, StackDesc));
-            Status = AE_AML_INTERNAL;
-            break;
-        }
-        break;
+		default:
 
-    case ACPI_TYPE_BUFFER:
+			ACPI_ERROR ((AE_INFO,
+				"Unknown Reference type 0x%X in %p",
+				ref_type, stack_desc));
+			status = AE_AML_INTERNAL;
+			break;
+		}
+		break;
 
-        Status = AcpiDsGetBufferArguments (StackDesc);
-        break;
+	case ACPI_TYPE_BUFFER:
 
-    case ACPI_TYPE_PACKAGE:
+		status = acpi_ds_get_buffer_arguments (stack_desc);
+		break;
 
-        Status = AcpiDsGetPackageArguments (StackDesc);
-        break;
+	case ACPI_TYPE_PACKAGE:
 
-    case ACPI_TYPE_BUFFER_FIELD:
-    case ACPI_TYPE_LOCAL_REGION_FIELD:
-    case ACPI_TYPE_LOCAL_BANK_FIELD:
-    case ACPI_TYPE_LOCAL_INDEX_FIELD:
+		status = acpi_ds_get_package_arguments (stack_desc);
+		break;
 
-        ACPI_DEBUG_PRINT ((ACPI_DB_EXEC,
-            "FieldRead SourceDesc=%p Type=%X\n",
-            StackDesc, StackDesc->Common.Type));
+	case ACPI_TYPE_BUFFER_FIELD:
+	case ACPI_TYPE_LOCAL_REGION_FIELD:
+	case ACPI_TYPE_LOCAL_BANK_FIELD:
+	case ACPI_TYPE_LOCAL_INDEX_FIELD:
 
-        Status = AcpiExReadDataFromField (WalkState, StackDesc, &ObjDesc);
+		ACPI_DEBUG_PRINT ((ACPI_DB_EXEC,
+			"FieldRead SourceDesc=%p Type=%X\n",
+			stack_desc, stack_desc->common.type));
 
-        /* Remove a reference to the original operand, then override */
+		status = acpi_ex_read_data_from_field (walk_state, stack_desc, &obj_desc);
 
-        AcpiUtRemoveReference (*StackPtr);
-        *StackPtr = (void *) ObjDesc;
-        break;
+		/* Remove a reference to the original operand, then override */
 
-    default:
+		acpi_ut_remove_reference (*stack_ptr);
+		*stack_ptr = (void *) obj_desc;
+		break;
 
-        break;
-    }
+	default:
 
-    return_ACPI_STATUS (Status);
+		break;
+	}
+
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExResolveMultiple
+ * FUNCTION:    acpi_ex_resolve_multiple
  *
- * PARAMETERS:  WalkState           - Current state (contains AML opcode)
- *              Operand             - Starting point for resolution
- *              ReturnType          - Where the object type is returned
- *              ReturnDesc          - Where the resolved object is returned
+ * PARAMETERS:  walk_state          - Current state (contains AML opcode)
+ *              operand             - Starting point for resolution
+ *              return_type         - Where the object type is returned
+ *              return_desc         - Where the resolved object is returned
  *
  * RETURN:      Status
  *
@@ -454,248 +299,230 @@ AcpiExResolveObjectToValue (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiExResolveMultiple (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_OPERAND_OBJECT     *Operand,
-    ACPI_OBJECT_TYPE        *ReturnType,
-    ACPI_OPERAND_OBJECT     **ReturnDesc)
+acpi_status
+acpi_ex_resolve_multiple (
+	struct acpi_walk_state          *walk_state,
+	union acpi_operand_object       *operand,
+	acpi_object_type                *return_type,
+	union acpi_operand_object       **return_desc)
 {
-    ACPI_OPERAND_OBJECT     *ObjDesc = ACPI_CAST_PTR (void, Operand);
-    ACPI_NAMESPACE_NODE     *Node = ACPI_CAST_PTR (ACPI_NAMESPACE_NODE, Operand);
-    ACPI_OBJECT_TYPE        Type;
-    ACPI_STATUS             Status;
+	union acpi_operand_object       *obj_desc = ACPI_CAST_PTR (void, operand);
+	struct acpi_namespace_node      *node = ACPI_CAST_PTR (struct acpi_namespace_node, operand);
+	acpi_object_type                type;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE (AcpiExResolveMultiple);
+	ACPI_FUNCTION_TRACE (acpi_ex_resolve_multiple);
 
 
-    /* Operand can be either a namespace node or an operand descriptor */
+	/* Operand can be either a namespace node or an operand descriptor */
 
-    switch (ACPI_GET_DESCRIPTOR_TYPE (ObjDesc))
-    {
-    case ACPI_DESC_TYPE_OPERAND:
+	switch (ACPI_GET_DESCRIPTOR_TYPE (obj_desc)) {
+	case ACPI_DESC_TYPE_OPERAND:
 
-        Type = ObjDesc->Common.Type;
-        break;
+		type = obj_desc->common.type;
+		break;
 
-    case ACPI_DESC_TYPE_NAMED:
+	case ACPI_DESC_TYPE_NAMED:
 
-        Type = ((ACPI_NAMESPACE_NODE *) ObjDesc)->Type;
-        ObjDesc = AcpiNsGetAttachedObject (Node);
+		type = ((struct acpi_namespace_node *) obj_desc)->type;
+		obj_desc = acpi_ns_get_attached_object (node);
 
-        /* If we had an Alias node, use the attached object for type info */
+		/* If we had an Alias node, use the attached object for type info */
 
-        if (Type == ACPI_TYPE_LOCAL_ALIAS)
-        {
-            Type = ((ACPI_NAMESPACE_NODE *) ObjDesc)->Type;
-            ObjDesc = AcpiNsGetAttachedObject (
-                (ACPI_NAMESPACE_NODE *) ObjDesc);
-        }
+		if (type == ACPI_TYPE_LOCAL_ALIAS) {
+			type = ((struct acpi_namespace_node *) obj_desc)->type;
+			obj_desc = acpi_ns_get_attached_object (
+				(struct acpi_namespace_node *) obj_desc);
+		}
 
-        switch (Type)
-        {
-        case ACPI_TYPE_DEVICE:
-        case ACPI_TYPE_THERMAL:
+		switch (type) {
+		case ACPI_TYPE_DEVICE:
+		case ACPI_TYPE_THERMAL:
 
-            /* These types have no attached subobject */
-            break;
+			/* These types have no attached subobject */
+			break;
 
-        default:
+		default:
 
-            /* All other types require a subobject */
+			/* All other types require a subobject */
 
-            if (!ObjDesc)
-            {
-                ACPI_ERROR ((AE_INFO,
-                    "[%4.4s] Node is unresolved or uninitialized",
-                    AcpiUtGetNodeName (Node)));
-                return_ACPI_STATUS (AE_AML_UNINITIALIZED_NODE);
-            }
-            break;
-        }
-        break;
+			if (!obj_desc) {
+				ACPI_ERROR ((AE_INFO,
+					"[%4.4s] Node is unresolved or uninitialized",
+					acpi_ut_get_node_name (node)));
+				return_ACPI_STATUS (AE_AML_UNINITIALIZED_NODE);
+			}
+			break;
+		}
+		break;
 
-    default:
-        return_ACPI_STATUS (AE_AML_OPERAND_TYPE);
-    }
+	default:
+		return_ACPI_STATUS (AE_AML_OPERAND_TYPE);
+	}
 
-    /* If type is anything other than a reference, we are done */
+	/* If type is anything other than a reference, we are done */
 
-    if (Type != ACPI_TYPE_LOCAL_REFERENCE)
-    {
-        goto Exit;
-    }
+	if (type != ACPI_TYPE_LOCAL_REFERENCE) {
+		goto exit;
+	}
 
-    /*
-     * For reference objects created via the RefOf, Index, or Load/LoadTable
-     * operators, we need to get to the base object (as per the ACPI
-     * specification of the ObjectType and SizeOf operators). This means
-     * traversing the list of possibly many nested references.
-     */
-    while (ObjDesc->Common.Type == ACPI_TYPE_LOCAL_REFERENCE)
-    {
-        switch (ObjDesc->Reference.Class)
-        {
-        case ACPI_REFCLASS_REFOF:
-        case ACPI_REFCLASS_NAME:
+	/*
+	 * For reference objects created via the ref_of, Index, or Load/load_table
+	 * operators, we need to get to the base object (as per the ACPI
+	 * specification of the object_type and size_of operators). This means
+	 * traversing the list of possibly many nested references.
+	 */
+	while (obj_desc->common.type == ACPI_TYPE_LOCAL_REFERENCE) {
+		switch (obj_desc->reference.class) {
+		case ACPI_REFCLASS_REFOF:
+		case ACPI_REFCLASS_NAME:
 
-            /* Dereference the reference pointer */
+			/* Dereference the reference pointer */
 
-            if (ObjDesc->Reference.Class == ACPI_REFCLASS_REFOF)
-            {
-                Node = ObjDesc->Reference.Object;
-            }
-            else /* AML_INT_NAMEPATH_OP */
-            {
-                Node = ObjDesc->Reference.Node;
-            }
+			if (obj_desc->reference.class == ACPI_REFCLASS_REFOF) {
+				node = obj_desc->reference.object;
+			}
+			else /* AML_INT_NAMEPATH_OP */
+			{
+				node = obj_desc->reference.node;
+			}
 
-            /* All "References" point to a NS node */
+			/* All "References" point to a NS node */
 
-            if (ACPI_GET_DESCRIPTOR_TYPE (Node) != ACPI_DESC_TYPE_NAMED)
-            {
-                ACPI_ERROR ((AE_INFO,
-                    "Not a namespace node %p [%s]",
-                    Node, AcpiUtGetDescriptorName (Node)));
-                return_ACPI_STATUS (AE_AML_INTERNAL);
-            }
+			if (ACPI_GET_DESCRIPTOR_TYPE (node) != ACPI_DESC_TYPE_NAMED) {
+				ACPI_ERROR ((AE_INFO,
+					"Not a namespace node %p [%s]",
+					node, acpi_ut_get_descriptor_name (node)));
+				return_ACPI_STATUS (AE_AML_INTERNAL);
+			}
 
-            /* Get the attached object */
+			/* Get the attached object */
 
-            ObjDesc = AcpiNsGetAttachedObject (Node);
-            if (!ObjDesc)
-            {
-                /* No object, use the NS node type */
+			obj_desc = acpi_ns_get_attached_object (node);
+			if (!obj_desc) {
 
-                Type = AcpiNsGetType (Node);
-                goto Exit;
-            }
+				/* No object, use the NS node type */
 
-            /* Check for circular references */
+				type = acpi_ns_get_type (node);
+				goto exit;
+			}
 
-            if (ObjDesc == Operand)
-            {
-                return_ACPI_STATUS (AE_AML_CIRCULAR_REFERENCE);
-            }
-            break;
+			/* Check for circular references */
 
-        case ACPI_REFCLASS_INDEX:
+			if (obj_desc == operand) {
+				return_ACPI_STATUS (AE_AML_CIRCULAR_REFERENCE);
+			}
+			break;
 
-            /* Get the type of this reference (index into another object) */
+		case ACPI_REFCLASS_INDEX:
 
-            Type = ObjDesc->Reference.TargetType;
-            if (Type != ACPI_TYPE_PACKAGE)
-            {
-                goto Exit;
-            }
+			/* Get the type of this reference (index into another object) */
 
-            /*
-             * The main object is a package, we want to get the type
-             * of the individual package element that is referenced by
-             * the index.
-             *
-             * This could of course in turn be another reference object.
-             */
-            ObjDesc = *(ObjDesc->Reference.Where);
-            if (!ObjDesc)
-            {
-                /* NULL package elements are allowed */
+			type = obj_desc->reference.target_type;
+			if (type != ACPI_TYPE_PACKAGE) {
+				goto exit;
+			}
 
-                Type = 0; /* Uninitialized */
-                goto Exit;
-            }
-            break;
+			/*
+			 * The main object is a package, we want to get the type
+			 * of the individual package element that is referenced by
+			 * the index.
+			 *
+			 * This could of course in turn be another reference object.
+			 */
+			obj_desc = *(obj_desc->reference.where);
+			if (!obj_desc) {
 
-        case ACPI_REFCLASS_TABLE:
+				/* NULL package elements are allowed */
 
-            Type = ACPI_TYPE_DDB_HANDLE;
-            goto Exit;
+				type = 0; /* Uninitialized */
+				goto exit;
+			}
+			break;
 
-        case ACPI_REFCLASS_LOCAL:
-        case ACPI_REFCLASS_ARG:
+		case ACPI_REFCLASS_TABLE:
 
-            if (ReturnDesc)
-            {
-                Status = AcpiDsMethodDataGetValue (ObjDesc->Reference.Class,
-                    ObjDesc->Reference.Value, WalkState, &ObjDesc);
-                if (ACPI_FAILURE (Status))
-                {
-                    return_ACPI_STATUS (Status);
-                }
-                AcpiUtRemoveReference (ObjDesc);
-            }
-            else
-            {
-                Status = AcpiDsMethodDataGetNode (ObjDesc->Reference.Class,
-                    ObjDesc->Reference.Value, WalkState, &Node);
-                if (ACPI_FAILURE (Status))
-                {
-                    return_ACPI_STATUS (Status);
-                }
+			type = ACPI_TYPE_DDB_HANDLE;
+			goto exit;
 
-                ObjDesc = AcpiNsGetAttachedObject (Node);
-                if (!ObjDesc)
-                {
-                    Type = ACPI_TYPE_ANY;
-                    goto Exit;
-                }
-            }
-            break;
+		case ACPI_REFCLASS_LOCAL:
+		case ACPI_REFCLASS_ARG:
 
-        case ACPI_REFCLASS_DEBUG:
+			if (return_desc) {
+				status = acpi_ds_method_data_get_value (obj_desc->reference.class,
+					obj_desc->reference.value, walk_state, &obj_desc);
+				if (ACPI_FAILURE (status)) {
+					return_ACPI_STATUS (status);
+				}
+				acpi_ut_remove_reference (obj_desc);
+			}
+			else {
+				status = acpi_ds_method_data_get_node (obj_desc->reference.class,
+					obj_desc->reference.value, walk_state, &node);
+				if (ACPI_FAILURE (status)) {
+					return_ACPI_STATUS (status);
+				}
 
-            /* The Debug Object is of type "DebugObject" */
+				obj_desc = acpi_ns_get_attached_object (node);
+				if (!obj_desc) {
+					type = ACPI_TYPE_ANY;
+					goto exit;
+				}
+			}
+			break;
 
-            Type = ACPI_TYPE_DEBUG_OBJECT;
-            goto Exit;
+		case ACPI_REFCLASS_DEBUG:
 
-        default:
+			/* The Debug Object is of type "DebugObject" */
 
-            ACPI_ERROR ((AE_INFO,
-                "Unknown Reference Class 0x%2.2X",
-                ObjDesc->Reference.Class));
-            return_ACPI_STATUS (AE_AML_INTERNAL);
-        }
-    }
+			type = ACPI_TYPE_DEBUG_OBJECT;
+			goto exit;
 
-    /*
-     * Now we are guaranteed to have an object that has not been created
-     * via the RefOf or Index operators.
-     */
-    Type = ObjDesc->Common.Type;
+		default:
+
+			ACPI_ERROR ((AE_INFO,
+				"Unknown Reference Class 0x%2.2X",
+				obj_desc->reference.class));
+			return_ACPI_STATUS (AE_AML_INTERNAL);
+		}
+	}
+
+	/*
+	 * Now we are guaranteed to have an object that has not been created
+	 * via the ref_of or Index operators.
+	 */
+	type = obj_desc->common.type;
 
 
-Exit:
-    /* Convert internal types to external types */
+exit:
+	/* Convert internal types to external types */
 
-    switch (Type)
-    {
-    case ACPI_TYPE_LOCAL_REGION_FIELD:
-    case ACPI_TYPE_LOCAL_BANK_FIELD:
-    case ACPI_TYPE_LOCAL_INDEX_FIELD:
+	switch (type) {
+	case ACPI_TYPE_LOCAL_REGION_FIELD:
+	case ACPI_TYPE_LOCAL_BANK_FIELD:
+	case ACPI_TYPE_LOCAL_INDEX_FIELD:
 
-        Type = ACPI_TYPE_FIELD_UNIT;
-        break;
+		type = ACPI_TYPE_FIELD_UNIT;
+		break;
 
-    case ACPI_TYPE_LOCAL_SCOPE:
+	case ACPI_TYPE_LOCAL_SCOPE:
 
-        /* Per ACPI Specification, Scope is untyped */
+		/* Per ACPI Specification, Scope is untyped */
 
-        Type = ACPI_TYPE_ANY;
-        break;
+		type = ACPI_TYPE_ANY;
+		break;
 
-    default:
+	default:
 
-        /* No change to Type required */
+		/* No change to Type required */
 
-        break;
-    }
+		break;
+	}
 
-    *ReturnType = Type;
-    if (ReturnDesc)
-    {
-        *ReturnDesc = ObjDesc;
-    }
-    return_ACPI_STATUS (AE_OK);
+	*return_type = type;
+	if (return_desc) {
+		*return_desc = obj_desc;
+	}
+	return_ACPI_STATUS (AE_OK);
 }

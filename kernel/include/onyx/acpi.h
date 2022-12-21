@@ -17,7 +17,7 @@
 
 struct acpi_processor
 {
-    ACPI_HANDLE object;
+    acpi_handle object;
 #ifdef __x86_64__
     uint32_t apic_id;
 #endif
@@ -25,12 +25,12 @@ struct acpi_processor
 
 struct acpi_device : public device
 {
-    ACPI_HANDLE object;
-    ACPI_DEVICE_INFO *info;
-    ACPI_RESOURCE *resources;
+    acpi_handle object;
+    acpi_device_info *info;
+    acpi_resource *resources;
 
-    acpi_device(const char *name, struct bus *b, device *parent, ACPI_HANDLE obj,
-                ACPI_DEVICE_INFO *info, ACPI_RESOURCE *rsrc)
+    acpi_device(const char *name, struct bus *b, device *parent, acpi_handle obj,
+                acpi_device_info *info, acpi_resource *rsrc)
         : device{name, b, parent}, object{obj}, info{info}, resources{rsrc}
     {
     }
@@ -68,14 +68,14 @@ unsigned int acpi_suspend(void);
 
 void acpi_bus_register_driver(struct driver *driver);
 
-ACPI_RESOURCE *acpi_get_resource(struct acpi_device *device, uint32_t type, unsigned int index);
+acpi_resource *acpi_get_resource(struct acpi_device *device, uint32_t type, unsigned int index);
 
 extern struct clocksource acpi_timer_source;
 
 namespace acpi
 {
 
-using find_root_pci_bus_t = int (*)(uint16_t seg, uint8_t nbus, ACPI_HANDLE bus);
+using find_root_pci_bus_t = int (*)(uint16_t seg, uint8_t nbus, acpi_handle bus);
 int find_root_pci_buses(find_root_pci_bus_t callback);
 int route_irqs(bus *bus);
 bool is_enabled();

@@ -1,153 +1,12 @@
+/* SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0 */
 /******************************************************************************
  *
  * Name: actbl.h - Basic ACPI Table Definitions
  *
+ * Copyright (C) 2000 - 2022, Intel Corp.
+ *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #ifndef __ACTBL_H__
 #define __ACTBL_H__
@@ -211,19 +70,18 @@
  *
  ******************************************************************************/
 
-typedef struct acpi_table_header
+struct acpi_table_header
 {
-    char                    Signature[ACPI_NAMESEG_SIZE];       /* ASCII table signature */
-    UINT32                  Length;                             /* Length of table in bytes, including this header */
-    UINT8                   Revision;                           /* ACPI Specification minor version number */
-    UINT8                   Checksum;                           /* To make sum of entire table == 0 */
-    char                    OemId[ACPI_OEM_ID_SIZE];            /* ASCII OEM identification */
-    char                    OemTableId[ACPI_OEM_TABLE_ID_SIZE]; /* ASCII OEM table identification */
-    UINT32                  OemRevision;                        /* OEM revision number */
-    char                    AslCompilerId[ACPI_NAMESEG_SIZE];   /* ASCII ASL compiler vendor ID */
-    UINT32                  AslCompilerRevision;                /* ASL compiler version */
-
-} ACPI_TABLE_HEADER;
+	char                            signature[ACPI_NAMESEG_SIZE];       /* ASCII table signature */
+	u32                             length;                             /* Length of table in bytes, including this header */
+	u8                              revision;                           /* ACPI Specification minor version number */
+	u8                              checksum;                           /* To make sum of entire table == 0 */
+	char                            oem_id[ACPI_OEM_ID_SIZE];           /* ASCII OEM identification */
+	char                            oem_table_id[ACPI_OEM_TABLE_ID_SIZE]; /* ASCII OEM table identification */
+	u32                             oem_revision;                       /* OEM revision number */
+	char                            asl_compiler_id[ACPI_NAMESEG_SIZE]; /* ASCII ASL compiler vendor ID */
+	u32                             asl_compiler_revision;              /* ASL compiler version */
+};
 
 
 /*******************************************************************************
@@ -236,15 +94,14 @@ typedef struct acpi_table_header
  *
  ******************************************************************************/
 
-typedef struct acpi_generic_address
+struct acpi_generic_address
 {
-    UINT8                   SpaceId;                /* Address space where struct or register exists */
-    UINT8                   BitWidth;               /* Size in bits of given register */
-    UINT8                   BitOffset;              /* Bit offset within the register */
-    UINT8                   AccessWidth;            /* Minimum Access size (ACPI 3.0) */
-    UINT64                  Address;                /* 64-bit address of struct or register */
-
-} ACPI_GENERIC_ADDRESS;
+	u8                              space_id;               /* Address space where struct or register exists */
+	u8                              bit_width;              /* Size in bits of given register */
+	u8                              bit_offset;             /* Bit offset within the register */
+	u8                              access_width;           /* Minimum Access size (ACPI 3.0) */
+	u64                             address;                /* 64-bit address of struct or register */
+};
 
 
 /*******************************************************************************
@@ -254,42 +111,39 @@ typedef struct acpi_generic_address
  *
  ******************************************************************************/
 
-typedef struct acpi_table_rsdp
+struct acpi_table_rsdp
 {
-    char                    Signature[8];               /* ACPI signature, contains "RSD PTR " */
-    UINT8                   Checksum;                   /* ACPI 1.0 checksum */
-    char                    OemId[ACPI_OEM_ID_SIZE];    /* OEM identification */
-    UINT8                   Revision;                   /* Must be (0) for ACPI 1.0 or (2) for ACPI 2.0+ */
-    UINT32                  RsdtPhysicalAddress;        /* 32-bit physical address of the RSDT */
-    UINT32                  Length;                     /* Table length in bytes, including header (ACPI 2.0+) */
-    UINT64                  XsdtPhysicalAddress;        /* 64-bit physical address of the XSDT (ACPI 2.0+) */
-    UINT8                   ExtendedChecksum;           /* Checksum of entire table (ACPI 2.0+) */
-    UINT8                   Reserved[3];                /* Reserved, must be zero */
-
-} ACPI_TABLE_RSDP;
+	char                            signature[8];               /* ACPI signature, contains "RSD PTR " */
+	u8                              checksum;                   /* ACPI 1.0 checksum */
+	char                            oem_id[ACPI_OEM_ID_SIZE];   /* OEM identification */
+	u8                              revision;                   /* Must be (0) for ACPI 1.0 or (2) for ACPI 2.0+ */
+	u32                             rsdt_physical_address;      /* 32-bit physical address of the RSDT */
+	u32                             length;                     /* Table length in bytes, including header (ACPI 2.0+) */
+	u64                             xsdt_physical_address;      /* 64-bit physical address of the XSDT (ACPI 2.0+) */
+	u8                              extended_checksum;          /* Checksum of entire table (ACPI 2.0+) */
+	u8                              reserved[3];                /* Reserved, must be zero */
+};
 
 /* Standalone struct for the ACPI 1.0 RSDP */
 
-typedef struct acpi_rsdp_common
+struct acpi_rsdp_common
 {
-    char                    Signature[8];
-    UINT8                   Checksum;
-    char                    OemId[ACPI_OEM_ID_SIZE];
-    UINT8                   Revision;
-    UINT32                  RsdtPhysicalAddress;
-
-} ACPI_RSDP_COMMON;
+	char                            signature[8];
+	u8                              checksum;
+	char                            oem_id[ACPI_OEM_ID_SIZE];
+	u8                              revision;
+	u32                             rsdt_physical_address;
+};
 
 /* Standalone struct for the extended part of the RSDP (ACPI 2.0+) */
 
-typedef struct acpi_rsdp_extension
+struct acpi_rsdp_extension
 {
-    UINT32                  Length;
-    UINT64                  XsdtPhysicalAddress;
-    UINT8                   ExtendedChecksum;
-    UINT8                   Reserved[3];
-
-} ACPI_RSDP_EXTENSION;
+	u32                             length;
+	u64                             xsdt_physical_address;
+	u8                              extended_checksum;
+	u8                              reserved[3];
+};
 
 
 /*******************************************************************************
@@ -299,22 +153,20 @@ typedef struct acpi_rsdp_extension
  *
  ******************************************************************************/
 
-typedef struct acpi_table_rsdt
+struct acpi_table_rsdt
 {
-    ACPI_TABLE_HEADER       Header;                 /* Common ACPI table header */
-    UINT32                  TableOffsetEntry[1];    /* Array of pointers to ACPI tables */
+	struct acpi_table_header        header;                 /* Common ACPI table header */
+	u32                             table_offset_entry[1];  /* Array of pointers to ACPI tables */
+};
 
-} ACPI_TABLE_RSDT;
-
-typedef struct acpi_table_xsdt
+struct acpi_table_xsdt
 {
-    ACPI_TABLE_HEADER       Header;                 /* Common ACPI table header */
-    UINT64                  TableOffsetEntry[1];    /* Array of pointers to ACPI tables */
+	struct acpi_table_header        header;                 /* Common ACPI table header */
+	u64                             table_offset_entry[1];  /* Array of pointers to ACPI tables */
+};
 
-} ACPI_TABLE_XSDT;
-
-#define ACPI_RSDT_ENTRY_SIZE        (sizeof (UINT32))
-#define ACPI_XSDT_ENTRY_SIZE        (sizeof (UINT64))
+#define ACPI_RSDT_ENTRY_SIZE        (sizeof (u32))
+#define ACPI_XSDT_ENTRY_SIZE        (sizeof (u64))
 
 
 /*******************************************************************************
@@ -323,23 +175,22 @@ typedef struct acpi_table_xsdt
  *
  ******************************************************************************/
 
-typedef struct acpi_table_facs
+struct acpi_table_facs
 {
-    char                    Signature[4];           /* ASCII table signature */
-    UINT32                  Length;                 /* Length of structure, in bytes */
-    UINT32                  HardwareSignature;      /* Hardware configuration signature */
-    UINT32                  FirmwareWakingVector;   /* 32-bit physical address of the Firmware Waking Vector */
-    UINT32                  GlobalLock;             /* Global Lock for shared hardware resources */
-    UINT32                  Flags;
-    UINT64                  XFirmwareWakingVector;  /* 64-bit version of the Firmware Waking Vector (ACPI 2.0+) */
-    UINT8                   Version;                /* Version of this table (ACPI 2.0+) */
-    UINT8                   Reserved[3];            /* Reserved, must be zero */
-    UINT32                  OspmFlags;              /* Flags to be set by OSPM (ACPI 4.0) */
-    UINT8                   Reserved1[24];          /* Reserved, must be zero */
+	char                            signature[4];           /* ASCII table signature */
+	u32                             length;                 /* Length of structure, in bytes */
+	u32                             hardware_signature;     /* Hardware configuration signature */
+	u32                             firmware_waking_vector; /* 32-bit physical address of the Firmware Waking Vector */
+	u32                             global_lock;            /* Global Lock for shared hardware resources */
+	u32                             flags;
+	u64                             xfirmware_waking_vector; /* 64-bit version of the Firmware Waking Vector (ACPI 2.0+) */
+	u8                              version;                /* Version of this table (ACPI 2.0+) */
+	u8                              reserved[3];            /* Reserved, must be zero */
+	u32                             ospm_flags;             /* Flags to be set by OSPM (ACPI 4.0) */
+	u8                              reserved1[24];          /* Reserved, must be zero */
+};
 
-} ACPI_TABLE_FACS;
-
-/* Masks for GlobalLock flag field above */
+/* Masks for global_lock flag field above */
 
 #define ACPI_GLOCK_PENDING          (1)             /* 00: Pending global lock ownership */
 #define ACPI_GLOCK_OWNED            (1<<1)          /* 01: Global lock is owned */
@@ -349,7 +200,7 @@ typedef struct acpi_table_facs
 #define ACPI_FACS_S4_BIOS_PRESENT   (1)             /* 00: S4BIOS support is present */
 #define ACPI_FACS_64BIT_WAKE        (1<<1)          /* 01: 64-bit wake vector supported (ACPI 4.0) */
 
-/* Masks for OspmFlags field above */
+/* Masks for ospm_flags field above */
 
 #define ACPI_FACS_64BIT_ENVIRONMENT (1)             /* 00: 64-bit wake environment is required (ACPI 4.0) */
 
@@ -363,66 +214,65 @@ typedef struct acpi_table_facs
 
 /* Fields common to all versions of the FADT */
 
-typedef struct acpi_table_fadt
+struct acpi_table_fadt
 {
-    ACPI_TABLE_HEADER       Header;             /* Common ACPI table header */
-    UINT32                  Facs;               /* 32-bit physical address of FACS */
-    UINT32                  Dsdt;               /* 32-bit physical address of DSDT */
-    UINT8                   Model;              /* System Interrupt Model (ACPI 1.0) - not used in ACPI 2.0+ */
-    UINT8                   PreferredProfile;   /* Conveys preferred power management profile to OSPM. */
-    UINT16                  SciInterrupt;       /* System vector of SCI interrupt */
-    UINT32                  SmiCommand;         /* 32-bit Port address of SMI command port */
-    UINT8                   AcpiEnable;         /* Value to write to SMI_CMD to enable ACPI */
-    UINT8                   AcpiDisable;        /* Value to write to SMI_CMD to disable ACPI */
-    UINT8                   S4BiosRequest;      /* Value to write to SMI_CMD to enter S4BIOS state */
-    UINT8                   PstateControl;      /* Processor performance state control*/
-    UINT32                  Pm1aEventBlock;     /* 32-bit port address of Power Mgt 1a Event Reg Blk */
-    UINT32                  Pm1bEventBlock;     /* 32-bit port address of Power Mgt 1b Event Reg Blk */
-    UINT32                  Pm1aControlBlock;   /* 32-bit port address of Power Mgt 1a Control Reg Blk */
-    UINT32                  Pm1bControlBlock;   /* 32-bit port address of Power Mgt 1b Control Reg Blk */
-    UINT32                  Pm2ControlBlock;    /* 32-bit port address of Power Mgt 2 Control Reg Blk */
-    UINT32                  PmTimerBlock;       /* 32-bit port address of Power Mgt Timer Ctrl Reg Blk */
-    UINT32                  Gpe0Block;          /* 32-bit port address of General Purpose Event 0 Reg Blk */
-    UINT32                  Gpe1Block;          /* 32-bit port address of General Purpose Event 1 Reg Blk */
-    UINT8                   Pm1EventLength;     /* Byte Length of ports at Pm1xEventBlock */
-    UINT8                   Pm1ControlLength;   /* Byte Length of ports at Pm1xControlBlock */
-    UINT8                   Pm2ControlLength;   /* Byte Length of ports at Pm2ControlBlock */
-    UINT8                   PmTimerLength;      /* Byte Length of ports at PmTimerBlock */
-    UINT8                   Gpe0BlockLength;    /* Byte Length of ports at Gpe0Block */
-    UINT8                   Gpe1BlockLength;    /* Byte Length of ports at Gpe1Block */
-    UINT8                   Gpe1Base;           /* Offset in GPE number space where GPE1 events start */
-    UINT8                   CstControl;         /* Support for the _CST object and C-States change notification */
-    UINT16                  C2Latency;          /* Worst case HW latency to enter/exit C2 state */
-    UINT16                  C3Latency;          /* Worst case HW latency to enter/exit C3 state */
-    UINT16                  FlushSize;          /* Processor memory cache line width, in bytes */
-    UINT16                  FlushStride;        /* Number of flush strides that need to be read */
-    UINT8                   DutyOffset;         /* Processor duty cycle index in processor P_CNT reg */
-    UINT8                   DutyWidth;          /* Processor duty cycle value bit width in P_CNT register */
-    UINT8                   DayAlarm;           /* Index to day-of-month alarm in RTC CMOS RAM */
-    UINT8                   MonthAlarm;         /* Index to month-of-year alarm in RTC CMOS RAM */
-    UINT8                   Century;            /* Index to century in RTC CMOS RAM */
-    UINT16                  BootFlags;          /* IA-PC Boot Architecture Flags (see below for individual flags) */
-    UINT8                   Reserved;           /* Reserved, must be zero */
-    UINT32                  Flags;              /* Miscellaneous flag bits (see below for individual flags) */
-    ACPI_GENERIC_ADDRESS    ResetRegister;      /* 64-bit address of the Reset register */
-    UINT8                   ResetValue;         /* Value to write to the ResetRegister port to reset the system */
-    UINT16                  ArmBootFlags;       /* ARM-Specific Boot Flags (see below for individual flags) (ACPI 5.1) */
-    UINT8                   MinorRevision;      /* FADT Minor Revision (ACPI 5.1) */
-    UINT64                  XFacs;              /* 64-bit physical address of FACS */
-    UINT64                  XDsdt;              /* 64-bit physical address of DSDT */
-    ACPI_GENERIC_ADDRESS    XPm1aEventBlock;    /* 64-bit Extended Power Mgt 1a Event Reg Blk address */
-    ACPI_GENERIC_ADDRESS    XPm1bEventBlock;    /* 64-bit Extended Power Mgt 1b Event Reg Blk address */
-    ACPI_GENERIC_ADDRESS    XPm1aControlBlock;  /* 64-bit Extended Power Mgt 1a Control Reg Blk address */
-    ACPI_GENERIC_ADDRESS    XPm1bControlBlock;  /* 64-bit Extended Power Mgt 1b Control Reg Blk address */
-    ACPI_GENERIC_ADDRESS    XPm2ControlBlock;   /* 64-bit Extended Power Mgt 2 Control Reg Blk address */
-    ACPI_GENERIC_ADDRESS    XPmTimerBlock;      /* 64-bit Extended Power Mgt Timer Ctrl Reg Blk address */
-    ACPI_GENERIC_ADDRESS    XGpe0Block;         /* 64-bit Extended General Purpose Event 0 Reg Blk address */
-    ACPI_GENERIC_ADDRESS    XGpe1Block;         /* 64-bit Extended General Purpose Event 1 Reg Blk address */
-    ACPI_GENERIC_ADDRESS    SleepControl;       /* 64-bit Sleep Control register (ACPI 5.0) */
-    ACPI_GENERIC_ADDRESS    SleepStatus;        /* 64-bit Sleep Status register (ACPI 5.0) */
-    UINT64                  HypervisorId;       /* Hypervisor Vendor ID (ACPI 6.0) */
-
-} ACPI_TABLE_FADT;
+	struct acpi_table_header        header;             /* Common ACPI table header */
+	u32                             facs;               /* 32-bit physical address of FACS */
+	u32                             dsdt;               /* 32-bit physical address of DSDT */
+	u8                              model;              /* System Interrupt Model (ACPI 1.0) - not used in ACPI 2.0+ */
+	u8                              preferred_profile;  /* Conveys preferred power management profile to OSPM. */
+	u16                             sci_interrupt;      /* System vector of SCI interrupt */
+	u32                             smi_command;        /* 32-bit Port address of SMI command port */
+	u8                              acpi_enable;        /* Value to write to SMI_CMD to enable ACPI */
+	u8                              acpi_disable;       /* Value to write to SMI_CMD to disable ACPI */
+	u8                              s4_bios_request;    /* Value to write to SMI_CMD to enter S4BIOS state */
+	u8                              pstate_control;     /* Processor performance state control*/
+	u32                             pm1a_event_block;   /* 32-bit port address of Power Mgt 1a Event Reg Blk */
+	u32                             pm1b_event_block;   /* 32-bit port address of Power Mgt 1b Event Reg Blk */
+	u32                             pm1a_control_block; /* 32-bit port address of Power Mgt 1a Control Reg Blk */
+	u32                             pm1b_control_block; /* 32-bit port address of Power Mgt 1b Control Reg Blk */
+	u32                             pm2_control_block;  /* 32-bit port address of Power Mgt 2 Control Reg Blk */
+	u32                             pm_timer_block;     /* 32-bit port address of Power Mgt Timer Ctrl Reg Blk */
+	u32                             gpe0_block;         /* 32-bit port address of General Purpose Event 0 Reg Blk */
+	u32                             gpe1_block;         /* 32-bit port address of General Purpose Event 1 Reg Blk */
+	u8                              pm1_event_length;   /* Byte Length of ports at pm1x_event_block */
+	u8                              pm1_control_length; /* Byte Length of ports at pm1x_control_block */
+	u8                              pm2_control_length; /* Byte Length of ports at pm2_control_block */
+	u8                              pm_timer_length;    /* Byte Length of ports at pm_timer_block */
+	u8                              gpe0_block_length;  /* Byte Length of ports at gpe0_block */
+	u8                              gpe1_block_length;  /* Byte Length of ports at gpe1_block */
+	u8                              gpe1_base;          /* Offset in GPE number space where GPE1 events start */
+	u8                              cst_control;        /* Support for the _CST object and C-States change notification */
+	u16                             c2_latency;         /* Worst case HW latency to enter/exit C2 state */
+	u16                             c3_latency;         /* Worst case HW latency to enter/exit C3 state */
+	u16                             flush_size;         /* Processor memory cache line width, in bytes */
+	u16                             flush_stride;       /* Number of flush strides that need to be read */
+	u8                              duty_offset;        /* Processor duty cycle index in processor P_CNT reg */
+	u8                              duty_width;         /* Processor duty cycle value bit width in P_CNT register */
+	u8                              day_alarm;          /* Index to day-of-month alarm in RTC CMOS RAM */
+	u8                              month_alarm;        /* Index to month-of-year alarm in RTC CMOS RAM */
+	u8                              century;            /* Index to century in RTC CMOS RAM */
+	u16                             boot_flags;         /* IA-PC Boot Architecture Flags (see below for individual flags) */
+	u8                              reserved;           /* Reserved, must be zero */
+	u32                             flags;              /* Miscellaneous flag bits (see below for individual flags) */
+	struct acpi_generic_address     reset_register;     /* 64-bit address of the Reset register */
+	u8                              reset_value;        /* Value to write to the reset_register port to reset the system */
+	u16                             arm_boot_flags;     /* ARM-Specific Boot Flags (see below for individual flags) (ACPI 5.1) */
+	u8                              minor_revision;     /* FADT Minor Revision (ACPI 5.1) */
+	u64                             Xfacs;              /* 64-bit physical address of FACS */
+	u64                             Xdsdt;              /* 64-bit physical address of DSDT */
+	struct acpi_generic_address     xpm1a_event_block;  /* 64-bit Extended Power Mgt 1a Event Reg Blk address */
+	struct acpi_generic_address     xpm1b_event_block;  /* 64-bit Extended Power Mgt 1b Event Reg Blk address */
+	struct acpi_generic_address     xpm1a_control_block; /* 64-bit Extended Power Mgt 1a Control Reg Blk address */
+	struct acpi_generic_address     xpm1b_control_block; /* 64-bit Extended Power Mgt 1b Control Reg Blk address */
+	struct acpi_generic_address     xpm2_control_block; /* 64-bit Extended Power Mgt 2 Control Reg Blk address */
+	struct acpi_generic_address     xpm_timer_block;    /* 64-bit Extended Power Mgt Timer Ctrl Reg Blk address */
+	struct acpi_generic_address     xgpe0_block;        /* 64-bit Extended General Purpose Event 0 Reg Blk address */
+	struct acpi_generic_address     xgpe1_block;        /* 64-bit Extended General Purpose Event 1 Reg Blk address */
+	struct acpi_generic_address     sleep_control;      /* 64-bit Sleep Control register (ACPI 5.0) */
+	struct acpi_generic_address     sleep_status;       /* 64-bit Sleep Status register (ACPI 5.0) */
+	u64                             hypervisor_id;      /* Hypervisor Vendor ID (ACPI 6.0) */
+};
 
 
 /* Masks for FADT IA-PC Boot Architecture Flags (boot_flags) [Vx]=Introduced in this FADT revision */
@@ -465,22 +315,22 @@ typedef struct acpi_table_fadt
 #define ACPI_FADT_LOW_POWER_S0      (1<<21)     /* 21: [V5] S0 power savings are equal or better than S3 (ACPI 5.0) */
 
 
-/* Values for PreferredProfile (Preferred Power Management Profiles) */
+/* Values for preferred_profile (Preferred Power Management Profiles) */
 
-enum AcpiPreferredPmProfiles
+enum acpi_preferred_pm_profiles
 {
-    PM_UNSPECIFIED          = 0,
-    PM_DESKTOP              = 1,
-    PM_MOBILE               = 2,
-    PM_WORKSTATION          = 3,
-    PM_ENTERPRISE_SERVER    = 4,
-    PM_SOHO_SERVER          = 5,
-    PM_APPLIANCE_PC         = 6,
-    PM_PERFORMANCE_SERVER   = 7,
-    PM_TABLET               = 8
+	PM_UNSPECIFIED          = 0,
+	PM_DESKTOP              = 1,
+	PM_MOBILE               = 2,
+	PM_WORKSTATION          = 3,
+	PM_ENTERPRISE_SERVER    = 4,
+	PM_SOHO_SERVER          = 5,
+	PM_APPLIANCE_PC         = 6,
+	PM_PERFORMANCE_SERVER   = 7,
+	PM_TABLET               = 8
 };
 
-/* Values for SleepStatus and SleepControl registers (V5+ FADT) */
+/* Values for sleep_status and sleep_control registers (V5+ FADT) */
 
 #define ACPI_X_WAKE_STATUS          0x80
 #define ACPI_X_SLEEP_TYPE_MASK      0x1C
@@ -496,31 +346,29 @@ enum AcpiPreferredPmProfiles
 /*
  * Internal table-related structures
  */
-typedef union acpi_name_union
+union acpi_name_union
 {
-    UINT32                          Integer;
-    char                            Ascii[4];
-
-} ACPI_NAME_UNION;
+	u32                                     integer;
+	char                                    ascii[4];
+};
 
 
 /* Internal ACPI Table Descriptor. One per ACPI table. */
 
-typedef struct acpi_table_desc
+struct acpi_table_desc
 {
-    ACPI_PHYSICAL_ADDRESS           Address;
-    ACPI_TABLE_HEADER               *Pointer;
-    UINT32                          Length;     /* Length fixed at 32 bits (fixed in table header) */
-    ACPI_NAME_UNION                 Signature;
-    ACPI_OWNER_ID                   OwnerId;
-    UINT8                           Flags;
-    UINT16                          ValidationCount;
-
-} ACPI_TABLE_DESC;
+	acpi_physical_address                   address;
+	struct acpi_table_header                *pointer;
+	u32                                     length;     /* Length fixed at 32 bits (fixed in table header) */
+	union acpi_name_union                   signature;
+	acpi_owner_id                           owner_id;
+	u8                                      flags;
+	u16                                     validation_count;
+};
 
 /*
- * Maximum value of the ValidationCount field in ACPI_TABLE_DESC.
- * When reached, ValidationCount cannot be changed any more and the table will
+ * Maximum value of the validation_count field in struct acpi_table_desc.
+ * When reached, validation_count cannot be changed any more and the table will
  * be permanently regarded as validated.
  *
  * This is to prevent situations in which unbalanced table get/put operations
@@ -551,7 +399,7 @@ typedef struct acpi_table_desc
 
 /* Macros used to generate offsets to specific table fields */
 
-#define ACPI_FADT_OFFSET(f)             (UINT16) ACPI_OFFSET (ACPI_TABLE_FADT, f)
+#define ACPI_FADT_OFFSET(f)             (u16) ACPI_OFFSET (struct acpi_table_fadt, f)
 
 /*
  * Sizes of the various flavors of FADT. We need to look closely
@@ -568,11 +416,11 @@ typedef struct acpi_table_desc
  *     FADT V5 size: 0x10C
  *     FADT V6 size: 0x114
  */
-#define ACPI_FADT_V1_SIZE       (UINT32) (ACPI_FADT_OFFSET (Flags) + 4)
-#define ACPI_FADT_V2_SIZE       (UINT32) (ACPI_FADT_OFFSET (MinorRevision) + 1)
-#define ACPI_FADT_V3_SIZE       (UINT32) (ACPI_FADT_OFFSET (SleepControl))
-#define ACPI_FADT_V5_SIZE       (UINT32) (ACPI_FADT_OFFSET (HypervisorId))
-#define ACPI_FADT_V6_SIZE       (UINT32) (sizeof (ACPI_TABLE_FADT))
+#define ACPI_FADT_V1_SIZE       (u32) (ACPI_FADT_OFFSET (flags) + 4)
+#define ACPI_FADT_V2_SIZE       (u32) (ACPI_FADT_OFFSET (minor_revision) + 1)
+#define ACPI_FADT_V3_SIZE       (u32) (ACPI_FADT_OFFSET (sleep_control))
+#define ACPI_FADT_V5_SIZE       (u32) (ACPI_FADT_OFFSET (hypervisor_id))
+#define ACPI_FADT_V6_SIZE       (u32) (sizeof (struct acpi_table_fadt))
 
 #define ACPI_FADT_CONFORMANCE   "ACPI 6.1 (FADT version 6)"
 

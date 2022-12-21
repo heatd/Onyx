@@ -1,168 +1,27 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /******************************************************************************
  *
  * Name: hwesleep.c - ACPI Hardware Sleep/Wake Support functions for the
  *                    extended FADT-V5 sleep registers.
  *
+ * Copyright (C) 2000 - 2022, Intel Corp.
+ *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #include "acpi.h"
 #include "accommon.h"
 
 #define _COMPONENT          ACPI_HARDWARE
-        ACPI_MODULE_NAME    ("hwesleep")
+	 ACPI_MODULE_NAME    ("hwesleep")
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiHwExecuteSleepMethod
+ * FUNCTION:    acpi_hw_execute_sleep_method
  *
- * PARAMETERS:  MethodPathname      - Pathname of method to execute
- *              IntegerArgument     - Argument to pass to the method
+ * PARAMETERS:  method_pathname     - Pathname of method to execute
+ *              integer_argument    - Argument to pass to the method
  *
  * RETURN:      None
  *
@@ -172,41 +31,40 @@
  ******************************************************************************/
 
 void
-AcpiHwExecuteSleepMethod (
-    char                    *MethodPathname,
-    UINT32                  IntegerArgument)
+acpi_hw_execute_sleep_method (
+	char                            *method_pathname,
+	u32                             integer_argument)
 {
-    ACPI_OBJECT_LIST        ArgList;
-    ACPI_OBJECT             Arg;
-    ACPI_STATUS             Status;
+	struct acpi_object_list         arg_list;
+	union acpi_object               arg;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE (HwExecuteSleepMethod);
+	ACPI_FUNCTION_TRACE (hw_execute_sleep_method);
 
 
-    /* One argument, IntegerArgument; No return value expected */
+	/* One argument, integer_argument; No return value expected */
 
-    ArgList.Count = 1;
-    ArgList.Pointer = &Arg;
-    Arg.Type = ACPI_TYPE_INTEGER;
-    Arg.Integer.Value = (UINT64) IntegerArgument;
+	arg_list.count = 1;
+	arg_list.pointer = &arg;
+	arg.type = ACPI_TYPE_INTEGER;
+	arg.integer.value = (u64) integer_argument;
 
-    Status = AcpiEvaluateObject (NULL, MethodPathname, &ArgList, NULL);
-    if (ACPI_FAILURE (Status) && Status != AE_NOT_FOUND)
-    {
-        ACPI_EXCEPTION ((AE_INFO, Status, "While executing method %s",
-            MethodPathname));
-    }
+	status = acpi_evaluate_object (NULL, method_pathname, &arg_list, NULL);
+	if (ACPI_FAILURE (status) && status != AE_NOT_FOUND) {
+		ACPI_EXCEPTION ((AE_INFO, status, "While executing method %s",
+			method_pathname));
+	}
 
-    return_VOID;
+	return_VOID;
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiHwExtendedSleep
+ * FUNCTION:    acpi_hw_extended_sleep
  *
- * PARAMETERS:  SleepState          - Which sleep state to enter
+ * PARAMETERS:  sleep_state         - Which sleep state to enter
  *
  * RETURN:      Status
  *
@@ -216,90 +74,85 @@ AcpiHwExecuteSleepMethod (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiHwExtendedSleep (
-    UINT8                   SleepState)
+acpi_status
+acpi_hw_extended_sleep (
+	u8                              sleep_state)
 {
-    ACPI_STATUS             Status;
-    UINT8                   SleepControl;
-    UINT64                  SleepStatus;
+	acpi_status                     status;
+	u8                              sleep_control;
+	u64                             sleep_status;
 
 
-    ACPI_FUNCTION_TRACE (HwExtendedSleep);
+	ACPI_FUNCTION_TRACE (hw_extended_sleep);
 
 
-    /* Extended sleep registers must be valid */
+	/* Extended sleep registers must be valid */
 
-    if (!AcpiGbl_FADT.SleepControl.Address ||
-        !AcpiGbl_FADT.SleepStatus.Address)
-    {
-        return_ACPI_STATUS (AE_NOT_EXIST);
-    }
+	if (!acpi_gbl_FADT.sleep_control.address ||
+		!acpi_gbl_FADT.sleep_status.address) {
+		return_ACPI_STATUS (AE_NOT_EXIST);
+	}
 
-    /* Clear wake status (WAK_STS) */
+	/* Clear wake status (WAK_STS) */
 
-    Status = AcpiWrite ((UINT64) ACPI_X_WAKE_STATUS,
-        &AcpiGbl_FADT.SleepStatus);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_write ((u64) ACPI_X_WAKE_STATUS,
+		&acpi_gbl_FADT.sleep_status);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    AcpiGbl_SystemAwakeAndRunning = FALSE;
+	acpi_gbl_system_awake_and_running = FALSE;
 
-    /*
-     * Set the SLP_TYP and SLP_EN bits.
-     *
-     * Note: We only use the first value returned by the \_Sx method
-     * (AcpiGbl_SleepTypeA) - As per ACPI specification.
-     */
-    ACPI_DEBUG_PRINT ((ACPI_DB_INIT,
-        "Entering sleep state [S%u]\n", SleepState));
+	/*
+	 * Set the SLP_TYP and SLP_EN bits.
+	 *
+	 * Note: We only use the first value returned by the \_Sx method
+	 * (acpi_gbl_sleep_type_a) - As per ACPI specification.
+	 */
+	ACPI_DEBUG_PRINT ((ACPI_DB_INIT,
+		"Entering sleep state [S%u]\n", sleep_state));
 
-    SleepControl = ((AcpiGbl_SleepTypeA << ACPI_X_SLEEP_TYPE_POSITION) &
-        ACPI_X_SLEEP_TYPE_MASK) | ACPI_X_SLEEP_ENABLE;
+	sleep_control = ((acpi_gbl_sleep_type_a << ACPI_X_SLEEP_TYPE_POSITION) &
+		ACPI_X_SLEEP_TYPE_MASK) | ACPI_X_SLEEP_ENABLE;
 
-    /* Flush caches, as per ACPI specification */
+	/* Flush caches, as per ACPI specification */
 
-    ACPI_FLUSH_CPU_CACHE ();
+	if (sleep_state < ACPI_STATE_S4) {
+		ACPI_FLUSH_CPU_CACHE ();
+	}
 
-    Status = AcpiOsEnterSleep (SleepState, SleepControl, 0);
-    if (Status == AE_CTRL_TERMINATE)
-    {
-        return_ACPI_STATUS (AE_OK);
-    }
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_os_enter_sleep (sleep_state, sleep_control, 0);
+	if (status == AE_CTRL_TERMINATE) {
+		return_ACPI_STATUS (AE_OK);
+	}
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    Status = AcpiWrite ((UINT64) SleepControl, &AcpiGbl_FADT.SleepControl);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_write ((u64) sleep_control, &acpi_gbl_FADT.sleep_control);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    /* Wait for transition back to Working State */
+	/* Wait for transition back to Working State */
 
-    do
-    {
-        Status = AcpiRead (&SleepStatus, &AcpiGbl_FADT.SleepStatus);
-        if (ACPI_FAILURE (Status))
-        {
-            return_ACPI_STATUS (Status);
-        }
+	do {
+		status = acpi_read (&sleep_status, &acpi_gbl_FADT.sleep_status);
+		if (ACPI_FAILURE (status)) {
+			return_ACPI_STATUS (status);
+		}
 
-    } while (!(((UINT8) SleepStatus) & ACPI_X_WAKE_STATUS));
+	} while (!(((u8) sleep_status) & ACPI_X_WAKE_STATUS));
 
-    return_ACPI_STATUS (AE_OK);
+	return_ACPI_STATUS (AE_OK);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiHwExtendedWakePrep
+ * FUNCTION:    acpi_hw_extended_wake_prep
  *
- * PARAMETERS:  SleepState          - Which sleep state we just exited
+ * PARAMETERS:  sleep_state         - Which sleep state we just exited
  *
  * RETURN:      Status
  *
@@ -308,37 +161,33 @@ AcpiHwExtendedSleep (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiHwExtendedWakePrep (
-    UINT8                   SleepState)
+acpi_status
+acpi_hw_extended_wake_prep (
+	u8                              sleep_state)
 {
-    ACPI_STATUS             Status;
-    UINT8                   SleepTypeValue;
+	u8                              sleep_type_value;
 
 
-    ACPI_FUNCTION_TRACE (HwExtendedWakePrep);
+	ACPI_FUNCTION_TRACE (hw_extended_wake_prep);
 
 
-    Status = AcpiGetSleepTypeData (ACPI_STATE_S0,
-        &AcpiGbl_SleepTypeA, &AcpiGbl_SleepTypeB);
-    if (ACPI_SUCCESS (Status))
-    {
-        SleepTypeValue = ((AcpiGbl_SleepTypeA << ACPI_X_SLEEP_TYPE_POSITION) &
-            ACPI_X_SLEEP_TYPE_MASK);
+	if (acpi_gbl_sleep_type_AS0 != ACPI_SLEEP_TYPE_INVALID) {
+		sleep_type_value = ((acpi_gbl_sleep_type_AS0 << ACPI_X_SLEEP_TYPE_POSITION) &
+			ACPI_X_SLEEP_TYPE_MASK);
 
-        (void) AcpiWrite ((UINT64) (SleepTypeValue | ACPI_X_SLEEP_ENABLE),
-            &AcpiGbl_FADT.SleepControl);
-    }
+		(void) acpi_write ((u64) (sleep_type_value | ACPI_X_SLEEP_ENABLE),
+			&acpi_gbl_FADT.sleep_control);
+	}
 
-    return_ACPI_STATUS (AE_OK);
+	return_ACPI_STATUS (AE_OK);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiHwExtendedWake
+ * FUNCTION:    acpi_hw_extended_wake
  *
- * PARAMETERS:  SleepState          - Which sleep state we just exited
+ * PARAMETERS:  sleep_state         - Which sleep state we just exited
  *
  * RETURN:      Status
  *
@@ -347,30 +196,30 @@ AcpiHwExtendedWakePrep (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiHwExtendedWake (
-    UINT8                   SleepState)
+acpi_status
+acpi_hw_extended_wake (
+	u8                              sleep_state)
 {
-    ACPI_FUNCTION_TRACE (HwExtendedWake);
+	ACPI_FUNCTION_TRACE (hw_extended_wake);
 
 
-    /* Ensure EnterSleepStatePrep -> EnterSleepState ordering */
+	/* Ensure enter_sleep_state_prep -> enter_sleep_state ordering */
 
-    AcpiGbl_SleepTypeA = ACPI_SLEEP_TYPE_INVALID;
+	acpi_gbl_sleep_type_a = ACPI_SLEEP_TYPE_INVALID;
 
-    /* Execute the wake methods */
+	/* Execute the wake methods */
 
-    AcpiHwExecuteSleepMethod (METHOD_PATHNAME__SST, ACPI_SST_WAKING);
-    AcpiHwExecuteSleepMethod (METHOD_PATHNAME__WAK, SleepState);
+	acpi_hw_execute_sleep_method (METHOD_PATHNAME__SST, ACPI_SST_WAKING);
+	acpi_hw_execute_sleep_method (METHOD_PATHNAME__WAK, sleep_state);
 
-    /*
-     * Some BIOS code assumes that WAK_STS will be cleared on resume
-     * and use it to determine whether the system is rebooting or
-     * resuming. Clear WAK_STS for compatibility.
-     */
-    (void) AcpiWrite ((UINT64) ACPI_X_WAKE_STATUS, &AcpiGbl_FADT.SleepStatus);
-    AcpiGbl_SystemAwakeAndRunning = TRUE;
+	/*
+	 * Some BIOS code assumes that WAK_STS will be cleared on resume
+	 * and use it to determine whether the system is rebooting or
+	 * resuming. Clear WAK_STS for compatibility.
+	 */
+	(void) acpi_write ((u64) ACPI_X_WAKE_STATUS, &acpi_gbl_FADT.sleep_status);
+	acpi_gbl_system_awake_and_running = TRUE;
 
-    AcpiHwExecuteSleepMethod (METHOD_PATHNAME__SST, ACPI_SST_WORKING);
-    return_ACPI_STATUS (AE_OK);
+	acpi_hw_execute_sleep_method (METHOD_PATHNAME__SST, ACPI_SST_WORKING);
+	return_ACPI_STATUS (AE_OK);
 }

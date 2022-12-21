@@ -42,7 +42,7 @@ extern "C" int do_machine_reboot(unsigned int flags)
         {
             case REBOOT_STRATEGY_ACPI: {
 #ifdef CONFIG_ACPI
-                AcpiReset();
+                acpi_reset();
 #endif
                 strategy++;
                 break;

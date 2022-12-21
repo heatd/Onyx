@@ -1,153 +1,12 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /******************************************************************************
  *
  * Module Name: exutils - interpreter/scanner utilities
  *
+ * Copyright (C) 2000 - 2022, Intel Corp.
+ *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 /*
  * DEFINE_AML_GLOBALS is tested in amlcode.h
@@ -171,19 +30,19 @@
 #include "amlcode.h"
 
 #define _COMPONENT          ACPI_EXECUTER
-        ACPI_MODULE_NAME    ("exutils")
+	 ACPI_MODULE_NAME    ("exutils")
 
 /* Local prototypes */
 
-static UINT32
-AcpiExDigitsNeeded (
-    UINT64                  Value,
-    UINT32                  Base);
+static u32
+acpi_ex_digits_needed (
+	u64                             value,
+	u32                             base);
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExEnterInterpreter
+ * FUNCTION:    acpi_ex_enter_interpreter
  *
  * PARAMETERS:  None
  *
@@ -191,38 +50,36 @@ AcpiExDigitsNeeded (
  *
  * DESCRIPTION: Enter the interpreter execution region. Failure to enter
  *              the interpreter region is a fatal system error. Used in
- *              conjunction with ExitInterpreter.
+ *              conjunction with exit_interpreter.
  *
  ******************************************************************************/
 
 void
-AcpiExEnterInterpreter (
-    void)
+acpi_ex_enter_interpreter (
+	void)
 {
-    ACPI_STATUS             Status;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE (ExEnterInterpreter);
+	ACPI_FUNCTION_TRACE (ex_enter_interpreter);
 
 
-    Status = AcpiUtAcquireMutex (ACPI_MTX_INTERPRETER);
-    if (ACPI_FAILURE (Status))
-    {
-        ACPI_ERROR ((AE_INFO, "Could not acquire AML Interpreter mutex"));
-    }
-    Status = AcpiUtAcquireMutex (ACPI_MTX_NAMESPACE);
-    if (ACPI_FAILURE (Status))
-    {
-        ACPI_ERROR ((AE_INFO, "Could not acquire AML Namespace mutex"));
-    }
+	status = acpi_ut_acquire_mutex (ACPI_MTX_INTERPRETER);
+	if (ACPI_FAILURE (status)) {
+		ACPI_ERROR ((AE_INFO, "Could not acquire AML Interpreter mutex"));
+	}
+	status = acpi_ut_acquire_mutex (ACPI_MTX_NAMESPACE);
+	if (ACPI_FAILURE (status)) {
+		ACPI_ERROR ((AE_INFO, "Could not acquire AML Namespace mutex"));
+	}
 
-    return_VOID;
+	return_VOID;
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExExitInterpreter
+ * FUNCTION:    acpi_ex_exit_interpreter
  *
  * PARAMETERS:  None
  *
@@ -244,35 +101,33 @@ AcpiExEnterInterpreter (
  ******************************************************************************/
 
 void
-AcpiExExitInterpreter (
-    void)
+acpi_ex_exit_interpreter (
+	void)
 {
-    ACPI_STATUS             Status;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE (ExExitInterpreter);
+	ACPI_FUNCTION_TRACE (ex_exit_interpreter);
 
 
-    Status = AcpiUtReleaseMutex (ACPI_MTX_NAMESPACE);
-    if (ACPI_FAILURE (Status))
-    {
-        ACPI_ERROR ((AE_INFO, "Could not release AML Namespace mutex"));
-    }
-    Status = AcpiUtReleaseMutex (ACPI_MTX_INTERPRETER);
-    if (ACPI_FAILURE (Status))
-    {
-        ACPI_ERROR ((AE_INFO, "Could not release AML Interpreter mutex"));
-    }
+	status = acpi_ut_release_mutex (ACPI_MTX_NAMESPACE);
+	if (ACPI_FAILURE (status)) {
+		ACPI_ERROR ((AE_INFO, "Could not release AML Namespace mutex"));
+	}
+	status = acpi_ut_release_mutex (ACPI_MTX_INTERPRETER);
+	if (ACPI_FAILURE (status)) {
+		ACPI_ERROR ((AE_INFO, "Could not release AML Interpreter mutex"));
+	}
 
-    return_VOID;
+	return_VOID;
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExTruncateFor32bitTable
+ * FUNCTION:    acpi_ex_truncate_for32bit_table
  *
- * PARAMETERS:  ObjDesc         - Object to be truncated
+ * PARAMETERS:  obj_desc        - Object to be truncated
  *
  * RETURN:      TRUE if a truncation was performed, FALSE otherwise.
  *
@@ -281,46 +136,44 @@ AcpiExExitInterpreter (
  *
  ******************************************************************************/
 
-BOOLEAN
-AcpiExTruncateFor32bitTable (
-    ACPI_OPERAND_OBJECT     *ObjDesc)
+u8
+acpi_ex_truncate_for32bit_table (
+	union acpi_operand_object       *obj_desc)
 {
 
-    ACPI_FUNCTION_ENTRY ();
+	ACPI_FUNCTION_ENTRY ();
 
 
-    /*
-     * Object must be a valid number and we must be executing
-     * a control method. Object could be NS node for AML_INT_NAMEPATH_OP.
-     */
-    if ((!ObjDesc) ||
-        (ACPI_GET_DESCRIPTOR_TYPE (ObjDesc) != ACPI_DESC_TYPE_OPERAND) ||
-        (ObjDesc->Common.Type != ACPI_TYPE_INTEGER))
-    {
-        return (FALSE);
-    }
+	/*
+	 * Object must be a valid number and we must be executing
+	 * a control method. Object could be NS node for AML_INT_NAMEPATH_OP.
+	 */
+	if ((!obj_desc) ||
+		(ACPI_GET_DESCRIPTOR_TYPE (obj_desc) != ACPI_DESC_TYPE_OPERAND) ||
+		(obj_desc->common.type != ACPI_TYPE_INTEGER)) {
+		return (FALSE);
+	}
 
-    if ((AcpiGbl_IntegerByteWidth == 4) &&
-        (ObjDesc->Integer.Value > (UINT64) ACPI_UINT32_MAX))
-    {
-        /*
-         * We are executing in a 32-bit ACPI table. Truncate
-         * the value to 32 bits by zeroing out the upper 32-bit field
-         */
-        ObjDesc->Integer.Value &= (UINT64) ACPI_UINT32_MAX;
-        return (TRUE);
-    }
+	if ((acpi_gbl_integer_byte_width == 4) &&
+		(obj_desc->integer.value > (u64) ACPI_UINT32_MAX)) {
+		/*
+		 * We are executing in a 32-bit ACPI table. Truncate
+		 * the value to 32 bits by zeroing out the upper 32-bit field
+		 */
+		obj_desc->integer.value &= (u64) ACPI_UINT32_MAX;
+		return (TRUE);
+	}
 
-    return (FALSE);
+	return (FALSE);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExAcquireGlobalLock
+ * FUNCTION:    acpi_ex_acquire_global_lock
  *
- * PARAMETERS:  FieldFlags            - Flags with Lock rule:
- *                                      AlwaysLock or NeverLock
+ * PARAMETERS:  field_flags           - Flags with Lock rule:
+ *                                      always_lock or never_lock
  *
  * RETURN:      None
  *
@@ -330,43 +183,41 @@ AcpiExTruncateFor32bitTable (
  ******************************************************************************/
 
 void
-AcpiExAcquireGlobalLock (
-    UINT32                  FieldFlags)
+acpi_ex_acquire_global_lock (
+	u32                             field_flags)
 {
-    ACPI_STATUS             Status;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE (ExAcquireGlobalLock);
+	ACPI_FUNCTION_TRACE (ex_acquire_global_lock);
 
 
-    /* Only use the lock if the AlwaysLock bit is set */
+	/* Only use the lock if the always_lock bit is set */
 
-    if (!(FieldFlags & AML_FIELD_LOCK_RULE_MASK))
-    {
-        return_VOID;
-    }
+	if (!(field_flags & AML_FIELD_LOCK_RULE_MASK)) {
+		return_VOID;
+	}
 
-    /* Attempt to get the global lock, wait forever */
+	/* Attempt to get the global lock, wait forever */
 
-    Status = AcpiExAcquireMutexObject (ACPI_WAIT_FOREVER,
-        AcpiGbl_GlobalLockMutex, AcpiOsGetThreadId ());
+	status = acpi_ex_acquire_mutex_object (ACPI_WAIT_FOREVER,
+		acpi_gbl_global_lock_mutex, acpi_os_get_thread_id ());
 
-    if (ACPI_FAILURE (Status))
-    {
-        ACPI_EXCEPTION ((AE_INFO, Status,
-            "Could not acquire Global Lock"));
-    }
+	if (ACPI_FAILURE (status)) {
+		ACPI_EXCEPTION ((AE_INFO, status,
+			"Could not acquire Global Lock"));
+	}
 
-    return_VOID;
+	return_VOID;
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExReleaseGlobalLock
+ * FUNCTION:    acpi_ex_release_global_lock
  *
- * PARAMETERS:  FieldFlags            - Flags with Lock rule:
- *                                      AlwaysLock or NeverLock
+ * PARAMETERS:  field_flags           - Flags with Lock rule:
+ *                                      always_lock or never_lock
  *
  * RETURN:      None
  *
@@ -375,43 +226,42 @@ AcpiExAcquireGlobalLock (
  ******************************************************************************/
 
 void
-AcpiExReleaseGlobalLock (
-    UINT32                  FieldFlags)
+acpi_ex_release_global_lock (
+	u32                             field_flags)
 {
-    ACPI_STATUS             Status;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE (ExReleaseGlobalLock);
+	ACPI_FUNCTION_TRACE (ex_release_global_lock);
 
 
-    /* Only use the lock if the AlwaysLock bit is set */
+	/* Only use the lock if the always_lock bit is set */
 
-    if (!(FieldFlags & AML_FIELD_LOCK_RULE_MASK))
-    {
-        return_VOID;
-    }
+	if (!(field_flags & AML_FIELD_LOCK_RULE_MASK)) {
+		return_VOID;
+	}
 
-    /* Release the global lock */
+	/* Release the global lock */
 
-    Status = AcpiExReleaseMutexObject (AcpiGbl_GlobalLockMutex);
-    if (ACPI_FAILURE (Status))
-    {
-        /* Report the error, but there isn't much else we can do */
+	status = acpi_ex_release_mutex_object (acpi_gbl_global_lock_mutex);
+	if (ACPI_FAILURE (status)) {
 
-        ACPI_EXCEPTION ((AE_INFO, Status,
-            "Could not release Global Lock"));
-    }
+		/* Report the error, but there isn't much else we can do */
 
-    return_VOID;
+		ACPI_EXCEPTION ((AE_INFO, status,
+			"Could not release Global Lock"));
+	}
+
+	return_VOID;
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExDigitsNeeded
+ * FUNCTION:    acpi_ex_digits_needed
  *
- * PARAMETERS:  Value           - Value to be represented
- *              Base            - Base of representation
+ * PARAMETERS:  value           - Value to be represented
+ *              base            - Base of representation
  *
  * RETURN:      The number of digits.
  *
@@ -420,46 +270,44 @@ AcpiExReleaseGlobalLock (
  *
  ******************************************************************************/
 
-static UINT32
-AcpiExDigitsNeeded (
-    UINT64                  Value,
-    UINT32                  Base)
+static u32
+acpi_ex_digits_needed (
+	u64                             value,
+	u32                             base)
 {
-    UINT32                  NumDigits;
-    UINT64                  CurrentValue;
+	u32                             num_digits;
+	u64                             current_value;
 
 
-    ACPI_FUNCTION_TRACE (ExDigitsNeeded);
+	ACPI_FUNCTION_TRACE (ex_digits_needed);
 
 
-    /* UINT64 is unsigned, so we don't worry about a '-' prefix */
+	/* u64 is unsigned, so we don't worry about a '-' prefix */
 
-    if (Value == 0)
-    {
-        return_UINT32 (1);
-    }
+	if (value == 0) {
+		return_UINT32 (1);
+	}
 
-    CurrentValue = Value;
-    NumDigits = 0;
+	current_value = value;
+	num_digits = 0;
 
-    /* Count the digits in the requested base */
+	/* Count the digits in the requested base */
 
-    while (CurrentValue)
-    {
-        (void) AcpiUtShortDivide (CurrentValue, Base, &CurrentValue, NULL);
-        NumDigits++;
-    }
+	while (current_value) {
+		(void) acpi_ut_short_divide (current_value, base, &current_value, NULL);
+		num_digits++;
+	}
 
-    return_UINT32 (NumDigits);
+	return_UINT32 (num_digits);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExEisaIdToString
+ * FUNCTION:    acpi_ex_eisa_id_to_string
  *
- * PARAMETERS:  OutString       - Where to put the converted string (8 bytes)
- *              CompressedId    - EISAID to be converted
+ * PARAMETERS:  out_string      - Where to put the converted string (8 bytes)
+ *              compressed_id   - EISAID to be converted
  *
  * RETURN:      None
  *
@@ -471,53 +319,52 @@ AcpiExDigitsNeeded (
  ******************************************************************************/
 
 void
-AcpiExEisaIdToString (
-    char                    *OutString,
-    UINT64                  CompressedId)
+acpi_ex_eisa_id_to_string (
+	char                            *out_string,
+	u64                             compressed_id)
 {
-    UINT32                  SwappedId;
+	u32                             swapped_id;
 
 
-    ACPI_FUNCTION_ENTRY ();
+	ACPI_FUNCTION_ENTRY ();
 
 
-    /* The EISAID should be a 32-bit integer */
+	/* The EISAID should be a 32-bit integer */
 
-    if (CompressedId > ACPI_UINT32_MAX)
-    {
-        ACPI_WARNING ((AE_INFO,
-            "Expected EISAID is larger than 32 bits: "
-            "0x%8.8X%8.8X, truncating",
-            ACPI_FORMAT_UINT64 (CompressedId)));
-    }
+	if (compressed_id > ACPI_UINT32_MAX) {
+		ACPI_WARNING ((AE_INFO,
+			"Expected EISAID is larger than 32 bits: "
+			"0x%8.8X%8.8X, truncating",
+			ACPI_FORMAT_UINT64 (compressed_id)));
+	}
 
-    /* Swap ID to big-endian to get contiguous bits */
+	/* Swap ID to big-endian to get contiguous bits */
 
-    SwappedId = AcpiUtDwordByteSwap ((UINT32) CompressedId);
+	swapped_id = acpi_ut_dword_byte_swap ((u32) compressed_id);
 
-    /* First 3 bytes are uppercase letters. Next 4 bytes are hexadecimal */
+	/* First 3 bytes are uppercase letters. Next 4 bytes are hexadecimal */
 
-    OutString[0] = (char) (0x40 + (((unsigned long) SwappedId >> 26) & 0x1F));
-    OutString[1] = (char) (0x40 + ((SwappedId >> 21) & 0x1F));
-    OutString[2] = (char) (0x40 + ((SwappedId >> 16) & 0x1F));
-    OutString[3] = AcpiUtHexToAsciiChar ((UINT64) SwappedId, 12);
-    OutString[4] = AcpiUtHexToAsciiChar ((UINT64) SwappedId, 8);
-    OutString[5] = AcpiUtHexToAsciiChar ((UINT64) SwappedId, 4);
-    OutString[6] = AcpiUtHexToAsciiChar ((UINT64) SwappedId, 0);
-    OutString[7] = 0;
+	out_string[0] = (char) (0x40 + (((unsigned long) swapped_id >> 26) & 0x1F));
+	out_string[1] = (char) (0x40 + ((swapped_id >> 21) & 0x1F));
+	out_string[2] = (char) (0x40 + ((swapped_id >> 16) & 0x1F));
+	out_string[3] = acpi_ut_hex_to_ascii_char ((u64) swapped_id, 12);
+	out_string[4] = acpi_ut_hex_to_ascii_char ((u64) swapped_id, 8);
+	out_string[5] = acpi_ut_hex_to_ascii_char ((u64) swapped_id, 4);
+	out_string[6] = acpi_ut_hex_to_ascii_char ((u64) swapped_id, 0);
+	out_string[7] = 0;
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExIntegerToString
+ * FUNCTION:    acpi_ex_integer_to_string
  *
- * PARAMETERS:  OutString       - Where to put the converted string. At least
+ * PARAMETERS:  out_string      - Where to put the converted string. At least
  *                                21 bytes are needed to hold the largest
  *                                possible 64-bit integer.
- *              Value           - Value to be converted
+ *              value           - Value to be converted
  *
- * RETURN:      Converted string in OutString
+ * RETURN:      Converted string in out_string
  *
  * DESCRIPTION: Convert a 64-bit integer to decimal string representation.
  *              Assumes string buffer is large enough to hold the string. The
@@ -526,37 +373,36 @@ AcpiExEisaIdToString (
  ******************************************************************************/
 
 void
-AcpiExIntegerToString (
-    char                    *OutString,
-    UINT64                  Value)
+acpi_ex_integer_to_string (
+	char                            *out_string,
+	u64                             value)
 {
-    UINT32                  Count;
-    UINT32                  DigitsNeeded;
-    UINT32                  Remainder;
+	u32                             count;
+	u32                             digits_needed;
+	u32                             remainder;
 
 
-    ACPI_FUNCTION_ENTRY ();
+	ACPI_FUNCTION_ENTRY ();
 
 
-    DigitsNeeded = AcpiExDigitsNeeded (Value, 10);
-    OutString[DigitsNeeded] = 0;
+	digits_needed = acpi_ex_digits_needed (value, 10);
+	out_string[digits_needed] = 0;
 
-    for (Count = DigitsNeeded; Count > 0; Count--)
-    {
-        (void) AcpiUtShortDivide (Value, 10, &Value, &Remainder);
-        OutString[Count-1] = (char) ('0' + Remainder);\
-    }
+	for (count = digits_needed; count > 0; count--) {
+		(void) acpi_ut_short_divide (value, 10, &value, &remainder);
+		out_string[count-1] = (char) ('0' + remainder);\
+	}
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExPciClsToString
+ * FUNCTION:    acpi_ex_pci_cls_to_string
  *
- * PARAMETERS:  OutString       - Where to put the converted string (7 bytes)
- *              ClassCode       - PCI class code to be converted (3 bytes)
+ * PARAMETERS:  out_string      - Where to put the converted string (7 bytes)
+ *              class_code      - PCI class code to be converted (3 bytes)
  *
- * RETURN:      Converted string in OutString
+ * RETURN:      Converted string in out_string
  *
  * DESCRIPTION: Convert 3-bytes PCI class code to string representation.
  *              Return buffer must be large enough to hold the string. The
@@ -566,50 +412,49 @@ AcpiExIntegerToString (
  ******************************************************************************/
 
 void
-AcpiExPciClsToString (
-    char                    *OutString,
-    UINT8                   ClassCode[3])
+acpi_ex_pci_cls_to_string (
+	char                            *out_string,
+	u8                              class_code[3])
 {
 
-    ACPI_FUNCTION_ENTRY ();
+	ACPI_FUNCTION_ENTRY ();
 
 
-    /* All 3 bytes are hexadecimal */
+	/* All 3 bytes are hexadecimal */
 
-    OutString[0] = AcpiUtHexToAsciiChar ((UINT64) ClassCode[0], 4);
-    OutString[1] = AcpiUtHexToAsciiChar ((UINT64) ClassCode[0], 0);
-    OutString[2] = AcpiUtHexToAsciiChar ((UINT64) ClassCode[1], 4);
-    OutString[3] = AcpiUtHexToAsciiChar ((UINT64) ClassCode[1], 0);
-    OutString[4] = AcpiUtHexToAsciiChar ((UINT64) ClassCode[2], 4);
-    OutString[5] = AcpiUtHexToAsciiChar ((UINT64) ClassCode[2], 0);
-    OutString[6] = 0;
+	out_string[0] = acpi_ut_hex_to_ascii_char ((u64) class_code[0], 4);
+	out_string[1] = acpi_ut_hex_to_ascii_char ((u64) class_code[0], 0);
+	out_string[2] = acpi_ut_hex_to_ascii_char ((u64) class_code[1], 4);
+	out_string[3] = acpi_ut_hex_to_ascii_char ((u64) class_code[1], 0);
+	out_string[4] = acpi_ut_hex_to_ascii_char ((u64) class_code[2], 4);
+	out_string[5] = acpi_ut_hex_to_ascii_char ((u64) class_code[2], 0);
+	out_string[6] = 0;
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiIsValidSpaceId
+ * FUNCTION:    acpi_is_valid_space_id
  *
- * PARAMETERS:  SpaceId             - ID to be validated
+ * PARAMETERS:  space_id            - ID to be validated
  *
- * RETURN:      TRUE if SpaceId is a valid/supported ID.
+ * RETURN:      TRUE if space_id is a valid/supported ID.
  *
- * DESCRIPTION: Validate an operation region SpaceID.
+ * DESCRIPTION: Validate an operation region space_ID.
  *
  ******************************************************************************/
 
-BOOLEAN
-AcpiIsValidSpaceId (
-    UINT8                   SpaceId)
+u8
+acpi_is_valid_space_id (
+	u8                              space_id)
 {
 
-    if ((SpaceId >= ACPI_NUM_PREDEFINED_REGIONS) &&
-        (SpaceId < ACPI_USER_REGION_BEGIN) &&
-        (SpaceId != ACPI_ADR_SPACE_DATA_TABLE) &&
-        (SpaceId != ACPI_ADR_SPACE_FIXED_HARDWARE))
-    {
-        return (FALSE);
-    }
+	if ((space_id >= ACPI_NUM_PREDEFINED_REGIONS) &&
+		(space_id < ACPI_USER_REGION_BEGIN) &&
+		(space_id != ACPI_ADR_SPACE_DATA_TABLE) &&
+		(space_id != ACPI_ADR_SPACE_FIXED_HARDWARE)) {
+		return (FALSE);
+	}
 
-    return (TRUE);
+	return (TRUE);
 }

@@ -16,6 +16,7 @@ acpica/components/utilities/utosi.o \
 acpica/components/utilities/utresrc.o \
 acpica/components/utilities/utobject.o \
 acpica/components/utilities/utglobal.o \
+acpica/components/utilities/utcksum.o \
 acpica/components/utilities/utmisc.o \
 acpica/components/utilities/utstate.o \
 acpica/components/utilities/utstring.o \

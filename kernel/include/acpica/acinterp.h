@@ -1,165 +1,24 @@
+/* SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0 */
 /******************************************************************************
  *
  * Name: acinterp.h - Interpreter subcomponent prototypes and defines
  *
+ * Copyright (C) 2000 - 2022, Intel Corp.
+ *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #ifndef __ACINTERP_H__
 #define __ACINTERP_H__
 
 
-#define ACPI_WALK_OPERANDS          (&(WalkState->Operands [WalkState->NumOperands -1]))
+#define ACPI_WALK_OPERANDS          (&(walk_state->operands [walk_state->num_operands -1]))
 
 /* Macros for tables used for debug output */
 
-#define ACPI_EXD_OFFSET(f)          (UINT8) ACPI_OFFSET (ACPI_OPERAND_OBJECT,f)
-#define ACPI_EXD_NSOFFSET(f)        (UINT8) ACPI_OFFSET (ACPI_NAMESPACE_NODE,f)
-#define ACPI_EXD_TABLE_SIZE(name)   (sizeof(name) / sizeof (ACPI_EXDUMP_INFO))
+#define ACPI_EXD_OFFSET(f)          (u8) ACPI_OFFSET (union acpi_operand_object,f)
+#define ACPI_EXD_NSOFFSET(f)        (u8) ACPI_OFFSET (struct acpi_namespace_node,f)
+#define ACPI_EXD_TABLE_SIZE(name)   (sizeof(name) / sizeof (struct acpi_exdump_info))
 
 /*
  * If possible, pack the following structures to byte alignment, since we
@@ -175,11 +34,11 @@
 
 typedef const struct acpi_exdump_info
 {
-    UINT8                   Opcode;
-    UINT8                   Offset;
-    const char              *Name;
+	u8                              opcode;
+	u8                              offset;
+	const char                      *name;
 
-} ACPI_EXDUMP_INFO;
+} acpi_exdump_info;
 
 /* Values for the Opcode field above */
 
@@ -210,22 +69,22 @@ typedef const struct acpi_exdump_info
 /*
  * exconvrt - object conversion
  */
-ACPI_STATUS
-AcpiExConvertToInteger (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_OPERAND_OBJECT     **ResultDesc,
-    UINT32                  ImplicitConversion);
+acpi_status
+acpi_ex_convert_to_integer (
+	union acpi_operand_object       *obj_desc,
+	union acpi_operand_object       **result_desc,
+	u32                             implicit_conversion);
 
-ACPI_STATUS
-AcpiExConvertToBuffer (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_OPERAND_OBJECT     **ResultDesc);
+acpi_status
+acpi_ex_convert_to_buffer (
+	union acpi_operand_object       *obj_desc,
+	union acpi_operand_object       **result_desc);
 
-ACPI_STATUS
-AcpiExConvertToString (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_OPERAND_OBJECT     **ResultDesc,
-    UINT32                  Type);
+acpi_status
+acpi_ex_convert_to_string (
+	union acpi_operand_object       *obj_desc,
+	union acpi_operand_object       **result_desc,
+	u32                             type);
 
 /* Types for ->String conversion */
 
@@ -234,659 +93,659 @@ AcpiExConvertToString (
 #define ACPI_IMPLICIT_CONVERT_HEX       0x00000002
 #define ACPI_EXPLICIT_CONVERT_DECIMAL   0x00000003
 
-ACPI_STATUS
-AcpiExConvertToTargetType (
-    ACPI_OBJECT_TYPE        DestinationType,
-    ACPI_OPERAND_OBJECT     *SourceDesc,
-    ACPI_OPERAND_OBJECT     **ResultDesc,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_convert_to_target_type (
+	acpi_object_type                destination_type,
+	union acpi_operand_object       *source_desc,
+	union acpi_operand_object       **result_desc,
+	struct acpi_walk_state          *walk_state);
 
 
 /*
  * exdebug - AML debug object
  */
 void
-AcpiExDoDebugObject (
-    ACPI_OPERAND_OBJECT     *SourceDesc,
-    UINT32                  Level,
-    UINT32                  Index);
+acpi_ex_do_debug_object (
+	union acpi_operand_object       *source_desc,
+	u32                             level,
+	u32                             index);
 
 void
-AcpiExStartTraceMethod (
-    ACPI_NAMESPACE_NODE     *MethodNode,
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_WALK_STATE         *WalkState);
+acpi_ex_start_trace_method (
+	struct acpi_namespace_node      *method_node,
+	union acpi_operand_object       *obj_desc,
+	struct acpi_walk_state          *walk_state);
 
 void
-AcpiExStopTraceMethod (
-    ACPI_NAMESPACE_NODE     *MethodNode,
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_WALK_STATE         *WalkState);
+acpi_ex_stop_trace_method (
+	struct acpi_namespace_node      *method_node,
+	union acpi_operand_object       *obj_desc,
+	struct acpi_walk_state          *walk_state);
 
 void
-AcpiExStartTraceOpcode (
-    ACPI_PARSE_OBJECT       *Op,
-    ACPI_WALK_STATE         *WalkState);
+acpi_ex_start_trace_opcode (
+	union acpi_parse_object         *op,
+	struct acpi_walk_state          *walk_state);
 
 void
-AcpiExStopTraceOpcode (
-    ACPI_PARSE_OBJECT       *Op,
-    ACPI_WALK_STATE         *WalkState);
+acpi_ex_stop_trace_opcode (
+	union acpi_parse_object         *op,
+	struct acpi_walk_state          *walk_state);
 
 void
-AcpiExTracePoint (
-    ACPI_TRACE_EVENT_TYPE   Type,
-    BOOLEAN                 Begin,
-    UINT8                   *Aml,
-    char                    *Pathname);
+acpi_ex_trace_point (
+	acpi_trace_event_type           type,
+	u8                              begin,
+	u8                              *aml,
+	char                            *pathname);
 
 
 /*
  * exfield - ACPI AML (p-code) execution - field manipulation
  */
-ACPI_STATUS
-AcpiExGetProtocolBufferLength (
-    UINT32                  ProtocolId,
-    UINT32                  *ReturnLength);
+acpi_status
+acpi_ex_get_protocol_buffer_length (
+	u32                             protocol_id,
+	u32                             *return_length);
 
-ACPI_STATUS
-AcpiExCommonBufferSetup (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    UINT32                  BufferLength,
-    UINT32                  *DatumCount);
+acpi_status
+acpi_ex_common_buffer_setup (
+	union acpi_operand_object       *obj_desc,
+	u32                             buffer_length,
+	u32                             *datum_count);
 
-ACPI_STATUS
-AcpiExWriteWithUpdateRule (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    UINT64                  Mask,
-    UINT64                  FieldValue,
-    UINT32                  FieldDatumByteOffset);
-
-void
-AcpiExGetBufferDatum(
-    UINT64                  *Datum,
-    void                    *Buffer,
-    UINT32                  BufferLength,
-    UINT32                  ByteGranularity,
-    UINT32                  BufferOffset);
+acpi_status
+acpi_ex_write_with_update_rule (
+	union acpi_operand_object       *obj_desc,
+	u64                             mask,
+	u64                             field_value,
+	u32                             field_datum_byte_offset);
 
 void
-AcpiExSetBufferDatum (
-    UINT64                  MergedDatum,
-    void                    *Buffer,
-    UINT32                  BufferLength,
-    UINT32                  ByteGranularity,
-    UINT32                  BufferOffset);
+acpi_ex_get_buffer_datum(
+	u64                             *datum,
+	void                            *buffer,
+	u32                             buffer_length,
+	u32                             byte_granularity,
+	u32                             buffer_offset);
 
-ACPI_STATUS
-AcpiExReadDataFromField (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_OPERAND_OBJECT     **RetBufferDesc);
+void
+acpi_ex_set_buffer_datum (
+	u64                             merged_datum,
+	void                            *buffer,
+	u32                             buffer_length,
+	u32                             byte_granularity,
+	u32                             buffer_offset);
 
-ACPI_STATUS
-AcpiExWriteDataToField (
-    ACPI_OPERAND_OBJECT     *SourceDesc,
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_OPERAND_OBJECT     **ResultDesc);
+acpi_status
+acpi_ex_read_data_from_field (
+	struct acpi_walk_state          *walk_state,
+	union acpi_operand_object       *obj_desc,
+	union acpi_operand_object       **ret_buffer_desc);
+
+acpi_status
+acpi_ex_write_data_to_field (
+	union acpi_operand_object       *source_desc,
+	union acpi_operand_object       *obj_desc,
+	union acpi_operand_object       **result_desc);
 
 
 /*
  * exfldio - low level field I/O
  */
-ACPI_STATUS
-AcpiExExtractFromField (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    void                    *Buffer,
-    UINT32                  BufferLength);
+acpi_status
+acpi_ex_extract_from_field (
+	union acpi_operand_object       *obj_desc,
+	void                            *buffer,
+	u32                             buffer_length);
 
-ACPI_STATUS
-AcpiExInsertIntoField (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    void                    *Buffer,
-    UINT32                  BufferLength);
+acpi_status
+acpi_ex_insert_into_field (
+	union acpi_operand_object       *obj_desc,
+	void                            *buffer,
+	u32                             buffer_length);
 
-ACPI_STATUS
-AcpiExAccessRegion (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    UINT32                  FieldDatumByteOffset,
-    UINT64                  *Value,
-    UINT32                  ReadWrite);
+acpi_status
+acpi_ex_access_region (
+	union acpi_operand_object       *obj_desc,
+	u32                             field_datum_byte_offset,
+	u64                             *value,
+	u32                             read_write);
 
 
 /*
  * exmisc - misc support routines
  */
-ACPI_STATUS
-AcpiExGetObjectReference (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_OPERAND_OBJECT     **ReturnDesc,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_get_object_reference (
+	union acpi_operand_object       *obj_desc,
+	union acpi_operand_object       **return_desc,
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiExConcatTemplate (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_OPERAND_OBJECT     *ObjDesc2,
-    ACPI_OPERAND_OBJECT     **ActualReturnDesc,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_concat_template (
+	union acpi_operand_object       *obj_desc,
+	union acpi_operand_object       *obj_desc2,
+	union acpi_operand_object       **actual_return_desc,
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiExDoConcatenate (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_OPERAND_OBJECT     *ObjDesc2,
-    ACPI_OPERAND_OBJECT     **ActualReturnDesc,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_do_concatenate (
+	union acpi_operand_object       *obj_desc,
+	union acpi_operand_object       *obj_desc2,
+	union acpi_operand_object       **actual_return_desc,
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiExDoLogicalNumericOp (
-    UINT16                  Opcode,
-    UINT64                  Integer0,
-    UINT64                  Integer1,
-    BOOLEAN                 *LogicalResult);
+acpi_status
+acpi_ex_do_logical_numeric_op (
+	u16                             opcode,
+	u64                             integer0,
+	u64                             integer1,
+	u8                              *logical_result);
 
-ACPI_STATUS
-AcpiExDoLogicalOp (
-    UINT16                  Opcode,
-    ACPI_OPERAND_OBJECT     *Operand0,
-    ACPI_OPERAND_OBJECT     *Operand1,
-    BOOLEAN                 *LogicalResult);
+acpi_status
+acpi_ex_do_logical_op (
+	u16                             opcode,
+	union acpi_operand_object       *operand0,
+	union acpi_operand_object       *operand1,
+	u8                              *logical_result);
 
-UINT64
-AcpiExDoMathOp (
-    UINT16                  Opcode,
-    UINT64                  Operand0,
-    UINT64                  Operand1);
+u64
+acpi_ex_do_math_op (
+	u16                             opcode,
+	u64                             operand0,
+	u64                             operand1);
 
-ACPI_STATUS
-AcpiExCreateMutex (
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_create_mutex (
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiExCreateProcessor (
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_create_processor (
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiExCreatePowerResource (
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_create_power_resource (
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiExCreateRegion (
-    UINT8                   *AmlStart,
-    UINT32                  AmlLength,
-    UINT8                   RegionSpace,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_create_region (
+	u8                              *aml_start,
+	u32                             aml_length,
+	u8                              region_space,
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiExCreateEvent (
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_create_event (
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiExCreateAlias (
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_create_alias (
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiExCreateMethod (
-    UINT8                   *AmlStart,
-    UINT32                  AmlLength,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_create_method (
+	u8                              *aml_start,
+	u32                             aml_length,
+	struct acpi_walk_state          *walk_state);
 
 
 /*
  * exconfig - dynamic table load/unload
  */
-ACPI_STATUS
-AcpiExLoadOp (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_OPERAND_OBJECT     *Target,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_load_op (
+	union acpi_operand_object       *obj_desc,
+	union acpi_operand_object       *target,
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiExLoadTableOp (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_OPERAND_OBJECT     **ReturnDesc);
+acpi_status
+acpi_ex_load_table_op (
+	struct acpi_walk_state          *walk_state,
+	union acpi_operand_object       **return_desc);
 
-ACPI_STATUS
-AcpiExUnloadTable (
-    ACPI_OPERAND_OBJECT     *DdbHandle);
+acpi_status
+acpi_ex_unload_table (
+	union acpi_operand_object       *ddb_handle);
 
 
 /*
  * exmutex - mutex support
  */
-ACPI_STATUS
-AcpiExAcquireMutex (
-    ACPI_OPERAND_OBJECT     *TimeDesc,
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_acquire_mutex (
+	union acpi_operand_object       *time_desc,
+	union acpi_operand_object       *obj_desc,
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiExAcquireMutexObject (
-    UINT16                  Timeout,
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_THREAD_ID          ThreadId);
+acpi_status
+acpi_ex_acquire_mutex_object (
+	u16                             timeout,
+	union acpi_operand_object       *obj_desc,
+	acpi_thread_id                  thread_id);
 
-ACPI_STATUS
-AcpiExReleaseMutex (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_release_mutex (
+	union acpi_operand_object       *obj_desc,
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiExReleaseMutexObject (
-    ACPI_OPERAND_OBJECT     *ObjDesc);
-
-void
-AcpiExReleaseAllMutexes (
-    ACPI_THREAD_STATE       *Thread);
+acpi_status
+acpi_ex_release_mutex_object (
+	union acpi_operand_object       *obj_desc);
 
 void
-AcpiExUnlinkMutex (
-    ACPI_OPERAND_OBJECT     *ObjDesc);
+acpi_ex_release_all_mutexes (
+	struct acpi_thread_state        *thread);
+
+void
+acpi_ex_unlink_mutex (
+	union acpi_operand_object       *obj_desc);
 
 
 /*
  * exprep - ACPI AML execution - prep utilities
  */
-ACPI_STATUS
-AcpiExPrepCommonFieldObject (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    UINT8                   FieldFlags,
-    UINT8                   FieldAttribute,
-    UINT32                  FieldBitPosition,
-    UINT32                  FieldBitLength);
+acpi_status
+acpi_ex_prep_common_field_object (
+	union acpi_operand_object       *obj_desc,
+	u8                              field_flags,
+	u8                              field_attribute,
+	u32                             field_bit_position,
+	u32                             field_bit_length);
 
-ACPI_STATUS
-AcpiExPrepFieldValue (
-    ACPI_CREATE_FIELD_INFO  *Info);
+acpi_status
+acpi_ex_prep_field_value (
+	struct acpi_create_field_info   *info);
 
 
 /*
- * exserial - FieldUnit support for serial address spaces
+ * exserial - field_unit support for serial address spaces
  */
-ACPI_STATUS
-AcpiExReadSerialBus (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_OPERAND_OBJECT     **ReturnBuffer);
+acpi_status
+acpi_ex_read_serial_bus (
+	union acpi_operand_object       *obj_desc,
+	union acpi_operand_object       **return_buffer);
 
-ACPI_STATUS
-AcpiExWriteSerialBus (
-    ACPI_OPERAND_OBJECT     *SourceDesc,
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_OPERAND_OBJECT     **ReturnBuffer);
+acpi_status
+acpi_ex_write_serial_bus (
+	union acpi_operand_object       *source_desc,
+	union acpi_operand_object       *obj_desc,
+	union acpi_operand_object       **return_buffer);
 
-ACPI_STATUS
-AcpiExReadGpio (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    void                    *Buffer);
+acpi_status
+acpi_ex_read_gpio (
+	union acpi_operand_object       *obj_desc,
+	void                            *buffer);
 
-ACPI_STATUS
-AcpiExWriteGpio (
-    ACPI_OPERAND_OBJECT     *SourceDesc,
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_OPERAND_OBJECT     **ReturnBuffer);
+acpi_status
+acpi_ex_write_gpio (
+	union acpi_operand_object       *source_desc,
+	union acpi_operand_object       *obj_desc,
+	union acpi_operand_object       **return_buffer);
 
 
 /*
  * exsystem - Interface to OS services
  */
-ACPI_STATUS
-AcpiExSystemDoNotifyOp (
-    ACPI_OPERAND_OBJECT     *Value,
-    ACPI_OPERAND_OBJECT     *ObjDesc);
+acpi_status
+acpi_ex_system_do_notify_op (
+	union acpi_operand_object       *value,
+	union acpi_operand_object       *obj_desc);
 
-ACPI_STATUS
-AcpiExSystemDoSleep(
-    UINT64                  Time);
+acpi_status
+acpi_ex_system_do_sleep(
+	u64                             time);
 
-ACPI_STATUS
-AcpiExSystemDoStall (
-    UINT32                  Time);
+acpi_status
+acpi_ex_system_do_stall (
+	u32                             time);
 
-ACPI_STATUS
-AcpiExSystemSignalEvent(
-    ACPI_OPERAND_OBJECT     *ObjDesc);
+acpi_status
+acpi_ex_system_signal_event(
+	union acpi_operand_object       *obj_desc);
 
-ACPI_STATUS
-AcpiExSystemWaitEvent(
-    ACPI_OPERAND_OBJECT     *Time,
-    ACPI_OPERAND_OBJECT     *ObjDesc);
+acpi_status
+acpi_ex_system_wait_event(
+	union acpi_operand_object       *time,
+	union acpi_operand_object       *obj_desc);
 
-ACPI_STATUS
-AcpiExSystemResetEvent(
-    ACPI_OPERAND_OBJECT     *ObjDesc);
+acpi_status
+acpi_ex_system_reset_event(
+	union acpi_operand_object       *obj_desc);
 
-ACPI_STATUS
-AcpiExSystemWaitSemaphore (
-    ACPI_SEMAPHORE          Semaphore,
-    UINT16                  Timeout);
+acpi_status
+acpi_ex_system_wait_semaphore (
+	acpi_semaphore                  semaphore,
+	u16                             timeout);
 
-ACPI_STATUS
-AcpiExSystemWaitMutex (
-    ACPI_MUTEX              Mutex,
-    UINT16                  Timeout);
+acpi_status
+acpi_ex_system_wait_mutex (
+	acpi_mutex                      mutex,
+	u16                             timeout);
 
 /*
  * exoparg1 - ACPI AML execution, 1 operand
  */
-ACPI_STATUS
-AcpiExOpcode_0A_0T_1R (
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_opcode_0A_0T_1R (
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiExOpcode_1A_0T_0R (
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_opcode_1A_0T_0R (
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiExOpcode_1A_0T_1R (
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_opcode_1A_0T_1R (
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiExOpcode_1A_1T_1R (
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_opcode_1A_1T_1R (
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiExOpcode_1A_1T_0R (
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_opcode_1A_1T_0R (
+	struct acpi_walk_state          *walk_state);
 
 /*
  * exoparg2 - ACPI AML execution, 2 operands
  */
-ACPI_STATUS
-AcpiExOpcode_2A_0T_0R (
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_opcode_2A_0T_0R (
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiExOpcode_2A_0T_1R (
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_opcode_2A_0T_1R (
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiExOpcode_2A_1T_1R (
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_opcode_2A_1T_1R (
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiExOpcode_2A_2T_1R (
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_opcode_2A_2T_1R (
+	struct acpi_walk_state          *walk_state);
 
 
 /*
  * exoparg3 - ACPI AML execution, 3 operands
  */
-ACPI_STATUS
-AcpiExOpcode_3A_0T_0R (
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_opcode_3A_0T_0R (
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiExOpcode_3A_1T_1R (
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_opcode_3A_1T_1R (
+	struct acpi_walk_state          *walk_state);
 
 
 /*
  * exoparg6 - ACPI AML execution, 6 operands
  */
-ACPI_STATUS
-AcpiExOpcode_6A_0T_1R (
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_opcode_6A_0T_1R (
+	struct acpi_walk_state          *walk_state);
 
 
 /*
  * exresolv - Object resolution and get value functions
  */
-ACPI_STATUS
-AcpiExResolveToValue (
-    ACPI_OPERAND_OBJECT     **StackPtr,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_resolve_to_value (
+	union acpi_operand_object       **stack_ptr,
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiExResolveMultiple (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_OPERAND_OBJECT     *Operand,
-    ACPI_OBJECT_TYPE        *ReturnType,
-    ACPI_OPERAND_OBJECT     **ReturnDesc);
+acpi_status
+acpi_ex_resolve_multiple (
+	struct acpi_walk_state          *walk_state,
+	union acpi_operand_object       *operand,
+	acpi_object_type                *return_type,
+	union acpi_operand_object       **return_desc);
 
 
 /*
  * exresnte - resolve namespace node
  */
-ACPI_STATUS
-AcpiExResolveNodeToValue (
-    ACPI_NAMESPACE_NODE     **StackPtr,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_resolve_node_to_value (
+	struct acpi_namespace_node      **stack_ptr,
+	struct acpi_walk_state          *walk_state);
 
 
 /*
  * exresop - resolve operand to value
  */
-ACPI_STATUS
-AcpiExResolveOperands (
-    UINT16                  Opcode,
-    ACPI_OPERAND_OBJECT     **StackPtr,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_resolve_operands (
+	u16                             opcode,
+	union acpi_operand_object       **stack_ptr,
+	struct acpi_walk_state          *walk_state);
 
 
 /*
  * exdump - Interpreter debug output routines
  */
 void
-AcpiExDumpOperand (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    UINT32                  Depth);
+acpi_ex_dump_operand (
+	union acpi_operand_object       *obj_desc,
+	u32                             depth);
 
 void
-AcpiExDumpOperands (
-    ACPI_OPERAND_OBJECT     **Operands,
-    const char              *OpcodeName,
-    UINT32                  NumOpcodes);
+acpi_ex_dump_operands (
+	union acpi_operand_object       **operands,
+	const char                      *opcode_name,
+	u32                             num_opcodes);
 
 void
-AcpiExDumpObjectDescriptor (
-    ACPI_OPERAND_OBJECT     *Object,
-    UINT32                  Flags);
+acpi_ex_dump_object_descriptor (
+	union acpi_operand_object       *object,
+	u32                             flags);
 
 void
-AcpiExDumpNamespaceNode (
-    ACPI_NAMESPACE_NODE     *Node,
-    UINT32                  Flags);
+acpi_ex_dump_namespace_node (
+	struct acpi_namespace_node      *node,
+	u32                             flags);
 
 
 /*
  * exnames - AML namestring support
  */
-ACPI_STATUS
-AcpiExGetNameString (
-    ACPI_OBJECT_TYPE        DataType,
-    UINT8                   *InAmlAddress,
-    char                    **OutNameString,
-    UINT32                  *OutNameLength);
+acpi_status
+acpi_ex_get_name_string (
+	acpi_object_type                data_type,
+	u8                              *in_aml_address,
+	char                            **out_name_string,
+	u32                             *out_name_length);
 
 
 /*
  * exstore - Object store support
  */
-ACPI_STATUS
-AcpiExStore (
-    ACPI_OPERAND_OBJECT     *ValDesc,
-    ACPI_OPERAND_OBJECT     *DestDesc,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_store (
+	union acpi_operand_object       *val_desc,
+	union acpi_operand_object       *dest_desc,
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiExStoreObjectToNode (
-    ACPI_OPERAND_OBJECT     *SourceDesc,
-    ACPI_NAMESPACE_NODE     *Node,
-    ACPI_WALK_STATE         *WalkState,
-    UINT8                   ImplicitConversion);
+acpi_status
+acpi_ex_store_object_to_node (
+	union acpi_operand_object       *source_desc,
+	struct acpi_namespace_node      *node,
+	struct acpi_walk_state          *walk_state,
+	u8                              implicit_conversion);
 
 
 /*
  * exstoren - resolve/store object
  */
-ACPI_STATUS
-AcpiExResolveObject (
-    ACPI_OPERAND_OBJECT     **SourceDescPtr,
-    ACPI_OBJECT_TYPE        TargetType,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_resolve_object (
+	union acpi_operand_object       **source_desc_ptr,
+	acpi_object_type                target_type,
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiExStoreObjectToObject (
-    ACPI_OPERAND_OBJECT     *SourceDesc,
-    ACPI_OPERAND_OBJECT     *DestDesc,
-    ACPI_OPERAND_OBJECT     **NewDesc,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ex_store_object_to_object (
+	union acpi_operand_object       *source_desc,
+	union acpi_operand_object       *dest_desc,
+	union acpi_operand_object       **new_desc,
+	struct acpi_walk_state          *walk_state);
 
 
 /*
  * exstorob - store object - buffer/string
  */
-ACPI_STATUS
-AcpiExStoreBufferToBuffer (
-    ACPI_OPERAND_OBJECT     *SourceDesc,
-    ACPI_OPERAND_OBJECT     *TargetDesc);
+acpi_status
+acpi_ex_store_buffer_to_buffer (
+	union acpi_operand_object       *source_desc,
+	union acpi_operand_object       *target_desc);
 
-ACPI_STATUS
-AcpiExStoreStringToString (
-    ACPI_OPERAND_OBJECT     *SourceDesc,
-    ACPI_OPERAND_OBJECT     *TargetDesc);
+acpi_status
+acpi_ex_store_string_to_string (
+	union acpi_operand_object       *source_desc,
+	union acpi_operand_object       *target_desc);
 
 
 /*
  * excopy - object copy
  */
-ACPI_STATUS
-AcpiExCopyIntegerToIndexField (
-    ACPI_OPERAND_OBJECT     *SourceDesc,
-    ACPI_OPERAND_OBJECT     *TargetDesc);
+acpi_status
+acpi_ex_copy_integer_to_index_field (
+	union acpi_operand_object       *source_desc,
+	union acpi_operand_object       *target_desc);
 
-ACPI_STATUS
-AcpiExCopyIntegerToBankField (
-    ACPI_OPERAND_OBJECT     *SourceDesc,
-    ACPI_OPERAND_OBJECT     *TargetDesc);
+acpi_status
+acpi_ex_copy_integer_to_bank_field (
+	union acpi_operand_object       *source_desc,
+	union acpi_operand_object       *target_desc);
 
-ACPI_STATUS
-AcpiExCopyDataToNamedField (
-    ACPI_OPERAND_OBJECT     *SourceDesc,
-    ACPI_NAMESPACE_NODE     *Node);
+acpi_status
+acpi_ex_copy_data_to_named_field (
+	union acpi_operand_object       *source_desc,
+	struct acpi_namespace_node      *node);
 
-ACPI_STATUS
-AcpiExCopyIntegerToBufferField (
-    ACPI_OPERAND_OBJECT     *SourceDesc,
-    ACPI_OPERAND_OBJECT     *TargetDesc);
+acpi_status
+acpi_ex_copy_integer_to_buffer_field (
+	union acpi_operand_object       *source_desc,
+	union acpi_operand_object       *target_desc);
 
 
 /*
  * exutils - interpreter/scanner utilities
  */
 void
-AcpiExEnterInterpreter (
-    void);
+acpi_ex_enter_interpreter (
+	void);
 
 void
-AcpiExExitInterpreter (
-    void);
+acpi_ex_exit_interpreter (
+	void);
 
-BOOLEAN
-AcpiExTruncateFor32bitTable (
-    ACPI_OPERAND_OBJECT     *ObjDesc);
-
-void
-AcpiExAcquireGlobalLock (
-    UINT32                  Rule);
+u8
+acpi_ex_truncate_for32bit_table (
+	union acpi_operand_object       *obj_desc);
 
 void
-AcpiExReleaseGlobalLock (
-    UINT32                  Rule);
+acpi_ex_acquire_global_lock (
+	u32                             rule);
 
 void
-AcpiExEisaIdToString (
-    char                    *Dest,
-    UINT64                  CompressedId);
+acpi_ex_release_global_lock (
+	u32                             rule);
 
 void
-AcpiExIntegerToString (
-    char                    *Dest,
-    UINT64                  Value);
+acpi_ex_eisa_id_to_string (
+	char                            *dest,
+	u64                             compressed_id);
 
 void
-AcpiExPciClsToString (
-    char                    *Dest,
-    UINT8                   ClassCode[3]);
+acpi_ex_integer_to_string (
+	char                            *dest,
+	u64                             value);
 
-BOOLEAN
-AcpiIsValidSpaceId (
-    UINT8                   SpaceId);
+void
+acpi_ex_pci_cls_to_string (
+	char                            *dest,
+	u8                              class_code[3]);
+
+u8
+acpi_is_valid_space_id (
+	u8                              space_id);
 
 
 /*
- * exregion - default OpRegion handlers
+ * exregion - default op_region handlers
  */
-ACPI_STATUS
-AcpiExSystemMemorySpaceHandler (
-    UINT32                  Function,
-    ACPI_PHYSICAL_ADDRESS   Address,
-    UINT32                  BitWidth,
-    UINT64                  *Value,
-    void                    *HandlerContext,
-    void                    *RegionContext);
+acpi_status
+acpi_ex_system_memory_space_handler (
+	u32                             function,
+	acpi_physical_address           address,
+	u32                             bit_width,
+	u64                             *value,
+	void                            *handler_context,
+	void                            *region_context);
 
-ACPI_STATUS
-AcpiExSystemIoSpaceHandler (
-    UINT32                  Function,
-    ACPI_PHYSICAL_ADDRESS   Address,
-    UINT32                  BitWidth,
-    UINT64                  *Value,
-    void                    *HandlerContext,
-    void                    *RegionContext);
+acpi_status
+acpi_ex_system_io_space_handler (
+	u32                             function,
+	acpi_physical_address           address,
+	u32                             bit_width,
+	u64                             *value,
+	void                            *handler_context,
+	void                            *region_context);
 
-ACPI_STATUS
-AcpiExPciConfigSpaceHandler (
-    UINT32                  Function,
-    ACPI_PHYSICAL_ADDRESS   Address,
-    UINT32                  BitWidth,
-    UINT64                  *Value,
-    void                    *HandlerContext,
-    void                    *RegionContext);
+acpi_status
+acpi_ex_pci_config_space_handler (
+	u32                             function,
+	acpi_physical_address           address,
+	u32                             bit_width,
+	u64                             *value,
+	void                            *handler_context,
+	void                            *region_context);
 
-ACPI_STATUS
-AcpiExCmosSpaceHandler (
-    UINT32                  Function,
-    ACPI_PHYSICAL_ADDRESS   Address,
-    UINT32                  BitWidth,
-    UINT64                  *Value,
-    void                    *HandlerContext,
-    void                    *RegionContext);
+acpi_status
+acpi_ex_cmos_space_handler (
+	u32                             function,
+	acpi_physical_address           address,
+	u32                             bit_width,
+	u64                             *value,
+	void                            *handler_context,
+	void                            *region_context);
 
-ACPI_STATUS
-AcpiExPciBarSpaceHandler (
-    UINT32                  Function,
-    ACPI_PHYSICAL_ADDRESS   Address,
-    UINT32                  BitWidth,
-    UINT64                  *Value,
-    void                    *HandlerContext,
-    void                    *RegionContext);
+acpi_status
+acpi_ex_pci_bar_space_handler (
+	u32                             function,
+	acpi_physical_address           address,
+	u32                             bit_width,
+	u64                             *value,
+	void                            *handler_context,
+	void                            *region_context);
 
-ACPI_STATUS
-AcpiExEmbeddedControllerSpaceHandler (
-    UINT32                  Function,
-    ACPI_PHYSICAL_ADDRESS   Address,
-    UINT32                  BitWidth,
-    UINT64                  *Value,
-    void                    *HandlerContext,
-    void                    *RegionContext);
+acpi_status
+acpi_ex_embedded_controller_space_handler (
+	u32                             function,
+	acpi_physical_address           address,
+	u32                             bit_width,
+	u64                             *value,
+	void                            *handler_context,
+	void                            *region_context);
 
-ACPI_STATUS
-AcpiExSmBusSpaceHandler (
-    UINT32                  Function,
-    ACPI_PHYSICAL_ADDRESS   Address,
-    UINT32                  BitWidth,
-    UINT64                  *Value,
-    void                    *HandlerContext,
-    void                    *RegionContext);
+acpi_status
+acpi_ex_sm_bus_space_handler (
+	u32                             function,
+	acpi_physical_address           address,
+	u32                             bit_width,
+	u64                             *value,
+	void                            *handler_context,
+	void                            *region_context);
 
 
-ACPI_STATUS
-AcpiExDataTableSpaceHandler (
-    UINT32                  Function,
-    ACPI_PHYSICAL_ADDRESS   Address,
-    UINT32                  BitWidth,
-    UINT64                  *Value,
-    void                    *HandlerContext,
-    void                    *RegionContext);
+acpi_status
+acpi_ex_data_table_space_handler (
+	u32                             function,
+	acpi_physical_address           address,
+	u32                             bit_width,
+	u64                             *value,
+	void                            *handler_context,
+	void                            *region_context);
 
 #endif /* __INTERP_H__ */

@@ -1,154 +1,13 @@
+/* SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0 */
 /******************************************************************************
  *
  * Name: acclib.h -- C library support. Prototypes for the (optional) local
  *                   implementations of required C library functions.
  *
+ * Copyright (C) 2000 - 2022, Intel Corp.
+ *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #ifndef _ACCLIB_H
 #define _ACCLIB_H
@@ -158,9 +17,9 @@
  * Prototypes and macros for local implementations of C library functions
  */
 
-/* is* functions. The AcpiGbl_Ctypes array is defined in utclib.c */
+/* is* functions. The acpi_gbl_Ctypes array is defined in utclib.c */
 
-extern const UINT8 AcpiGbl_Ctypes[];
+extern const u8 acpi_gbl_ctypes[];
 
 #define _ACPI_XA     0x00    /* extra alphabetic - not supported */
 #define _ACPI_XS     0x40    /* extra space */
@@ -173,13 +32,13 @@ extern const UINT8 AcpiGbl_Ctypes[];
 #define _ACPI_UP     0x01    /* 'A'-'Z' */
 #define _ACPI_XD     0x80    /* '0'-'9', 'A'-'F', 'a'-'f' */
 
-#define isdigit(c)  (AcpiGbl_Ctypes[(unsigned char)(c)] & (_ACPI_DI))
-#define isspace(c)  (AcpiGbl_Ctypes[(unsigned char)(c)] & (_ACPI_SP))
-#define isxdigit(c) (AcpiGbl_Ctypes[(unsigned char)(c)] & (_ACPI_XD))
-#define isupper(c)  (AcpiGbl_Ctypes[(unsigned char)(c)] & (_ACPI_UP))
-#define islower(c)  (AcpiGbl_Ctypes[(unsigned char)(c)] & (_ACPI_LO))
-#define isprint(c)  (AcpiGbl_Ctypes[(unsigned char)(c)] & (_ACPI_LO | _ACPI_UP | _ACPI_DI | _ACPI_XS | _ACPI_PU))
-#define isalpha(c)  (AcpiGbl_Ctypes[(unsigned char)(c)] & (_ACPI_LO | _ACPI_UP))
+#define isdigit(c)  (acpi_gbl_ctypes[(unsigned char)(c)] & (_ACPI_DI))
+#define isspace(c)  (acpi_gbl_ctypes[(unsigned char)(c)] & (_ACPI_SP))
+#define isxdigit(c) (acpi_gbl_ctypes[(unsigned char)(c)] & (_ACPI_XD))
+#define isupper(c)  (acpi_gbl_ctypes[(unsigned char)(c)] & (_ACPI_UP))
+#define islower(c)  (acpi_gbl_ctypes[(unsigned char)(c)] & (_ACPI_LO))
+#define isprint(c)  (acpi_gbl_ctypes[(unsigned char)(c)] & (_ACPI_LO | _ACPI_UP | _ACPI_DI | _ACPI_XS | _ACPI_PU))
+#define isalpha(c)  (acpi_gbl_ctypes[(unsigned char)(c)] & (_ACPI_LO | _ACPI_UP))
 
 /* Error code */
 
@@ -203,140 +62,140 @@ extern const UINT8 AcpiGbl_Ctypes[];
 
 char *
 strcat (
-    char                    *DstString,
-    const char              *SrcString);
+	char                            *dst_string,
+	const char                      *src_string);
 
 char *
 strchr (
-    const char              *String,
-    int                     ch);
+	const char                      *string,
+	int                             ch);
 
 char *
 strpbrk (
-    const char              *String,
-    const char              *Delimiters);
+	const char                      *string,
+	const char                      *delimiters);
 
 char *
 strtok (
-    char                    *String,
-    const char              *Delimiters);
+	char                            *string,
+	const char                      *delimiters);
 
 char *
 strcpy (
-    char                    *DstString,
-    const char              *SrcString);
+	char                            *dst_string,
+	const char                      *src_string);
 
 int
 strcmp (
-    const char              *String1,
-    const char              *String2);
+	const char                      *string1,
+	const char                      *string2);
 
-ACPI_SIZE
+acpi_size
 strlen (
-    const char              *String);
+	const char                      *string);
 
 char *
 strncat (
-    char                    *DstString,
-    const char              *SrcString,
-    ACPI_SIZE               Count);
+	char                            *dst_string,
+	const char                      *src_string,
+	acpi_size                       count);
 
 int
 strncmp (
-    const char              *String1,
-    const char              *String2,
-    ACPI_SIZE               Count);
+	const char                      *string1,
+	const char                      *string2,
+	acpi_size                       count);
 
 char *
 strncpy (
-    char                    *DstString,
-    const char              *SrcString,
-    ACPI_SIZE               Count);
+	char                            *dst_string,
+	const char                      *src_string,
+	acpi_size                       count);
 
 char *
 strstr (
-    char                    *String1,
-    char                    *String2);
+	char                            *string1,
+	char                            *string2);
 
 
 /* Conversion */
 
-UINT32
+u32
 strtoul (
-    const char              *String,
-    char                    **Terminator,
-    UINT32                  Base);
+	const char                      *string,
+	char                            **terminator,
+	u32                             base);
 
 
 /* Memory */
 
 int
 memcmp (
-    void                    *Buffer1,
-    void                    *Buffer2,
-    ACPI_SIZE               Count);
+	void                            *buffer1,
+	void                            *buffer2,
+	acpi_size                       count);
 
 void *
 memcpy (
-    void                    *Dest,
-    const void              *Src,
-    ACPI_SIZE               Count);
+	void                            *dest,
+	const void                      *src,
+	acpi_size                       count);
 
 void *
 memmove (
-    void                    *Dest,
-    const void              *Src,
-    ACPI_SIZE               Count);
+	void                            *dest,
+	const void                      *src,
+	acpi_size                       count);
 
 void *
 memset (
-    void                    *Dest,
-    int                     Value,
-    ACPI_SIZE               Count);
+	void                            *dest,
+	int                             value,
+	acpi_size                       count);
 
 
 /* upper/lower case */
 
 int
 tolower (
-    int                     c);
+	int                             c);
 
 int
 toupper (
-    int                     c);
+	int                             c);
 
 /*
  * utprint - printf/vprintf output functions
  */
 const char *
-AcpiUtScanNumber (
-    const char              *String,
-    UINT64                  *NumberPtr);
+acpi_ut_scan_number (
+	const char                      *string,
+	u64                             *number_ptr);
 
 const char *
-AcpiUtPrintNumber (
-    char                    *String,
-    UINT64                  Number);
+acpi_ut_print_number (
+	char                            *string,
+	u64                             number);
 
 int
 vsnprintf (
-    char                    *String,
-    ACPI_SIZE               Size,
-    const char              *Format,
-    va_list                 Args);
+	char                            *string,
+	acpi_size                       size,
+	const char                      *format,
+	va_list                 args);
 
 int
 snprintf (
-    char                    *String,
-    ACPI_SIZE               Size,
-    const char              *Format,
-    ...);
+	char                            *string,
+	acpi_size                       size,
+	const char                      *format,
+	...);
 
 int
 sprintf (
-    char                    *String,
-    const char              *Format,
-    ...);
+	char                            *string,
+	const char                      *format,
+	...);
 
 #ifdef ACPI_APPLICATION
 #define SEEK_SET            0
@@ -359,73 +218,73 @@ extern int errno;
 
 int
 vprintf (
-    const char              *Format,
-    va_list                 Args);
+	const char                      *format,
+	va_list                 args);
 
 int
 printf (
-    const char              *Format,
-    ...);
+	const char                      *format,
+	...);
 
 int
 vfprintf (
-    FILE                    *File,
-    const char              *Format,
-    va_list                 Args);
+	FILE                            *file,
+	const char                      *format,
+	va_list                 args);
 
 int
 fprintf (
-    FILE                    *File,
-    const char              *Format,
-    ...);
+	FILE                            *file,
+	const char                      *format,
+	...);
 
 FILE *
 fopen (
-    const char              *Path,
-    const char              *Modes);
+	const char                      *path,
+	const char                      *modes);
 
 void
 fclose (
-    FILE                    *File);
+	FILE                            *file);
 
 int
 fread (
-    void                    *Buffer,
-    ACPI_SIZE               Size,
-    ACPI_SIZE               Count,
-    FILE                    *File);
+	void                            *buffer,
+	acpi_size                       size,
+	acpi_size                       count,
+	FILE                            *file);
 
 int
 fwrite (
-    void                    *Buffer,
-    ACPI_SIZE               Size,
-    ACPI_SIZE               Count,
-    FILE                    *File);
+	void                            *buffer,
+	acpi_size                       size,
+	acpi_size                       count,
+	FILE                            *file);
 
 int
 fseek (
-    FILE                    *File,
-    long                    Offset,
-    int                     From);
+	FILE                            *file,
+	long                    offset,
+	int                             from);
 
 long
 ftell (
-    FILE                    *File);
+	FILE                            *file);
 
 int
 fgetc (
-    FILE                    *File);
+	FILE                            *file);
 
 int
 fputc (
-    FILE                    *File,
-    char                    c);
+	FILE                            *file,
+	char                            c);
 
 char *
 fgets (
-    char                    *s,
-    ACPI_SIZE               Size,
-    FILE                    *File);
+	char                            *s,
+	acpi_size                       size,
+	FILE                            *file);
 #endif
 
 #endif /* _ACCLIB_H */

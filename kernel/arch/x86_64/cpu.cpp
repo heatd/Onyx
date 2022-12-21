@@ -43,7 +43,7 @@
 static cpu_t cpu;
 
 static unsigned int booted_cpus = 1;
-extern ACPI_TABLE_MADT *madt;
+extern acpi_table_madt *madt;
 extern volatile uint32_t *bsp_lapic;
 volatile unsigned int initialized_cpus = 0;
 extern volatile uint64_t boot_ticks;

@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2021 Pedro Falcato
+ * Copyright (c) 2021 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #ifndef _PCI_INTERNAL_PCI_BUS_H
 #define _PCI_INTERNAL_PCI_BUS_H
@@ -43,7 +45,7 @@ public:
 
     void discover();
 
-    ACPI_STATUS route_bus_irqs(ACPI_HANDLE bus_object);
+    acpi_status route_bus_irqs(acpi_handle bus_object);
 
     uint8_t get_bus_nr() const
     {

@@ -1,153 +1,10 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /*******************************************************************************
  *
  * Module Name: utstring - Common functions for strings and characters
  *
  ******************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #include "acpi.h"
 #include "accommon.h"
@@ -155,15 +12,15 @@
 
 
 #define _COMPONENT          ACPI_UTILITIES
-        ACPI_MODULE_NAME    ("utstring")
+	 ACPI_MODULE_NAME    ("utstring")
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtPrintString
+ * FUNCTION:    acpi_ut_print_string
  *
- * PARAMETERS:  String          - Null terminated ASCII string
- *              MaxLength       - Maximum output length. Used to constrain the
+ * PARAMETERS:  string          - Null terminated ASCII string
+ *              max_length      - Maximum output length. Used to constrain the
  *                                length of strings during debug output only.
  *
  * RETURN:      None
@@ -174,102 +31,99 @@
  ******************************************************************************/
 
 void
-AcpiUtPrintString (
-    char                    *String,
-    UINT16                  MaxLength)
+acpi_ut_print_string (
+	char                            *string,
+	u16                             max_length)
 {
-    UINT32                  i;
+	u32                             i;
 
 
-    if (!String)
-    {
-        AcpiOsPrintf ("<\"NULL STRING PTR\">");
-        return;
-    }
+	if (!string) {
+		acpi_os_printf ("<\"NULL STRING PTR\">");
+		return;
+	}
 
-    AcpiOsPrintf ("\"");
-    for (i = 0; (i < MaxLength) && String[i]; i++)
-    {
-        /* Escape sequences */
+	acpi_os_printf ("\"");
+	for (i = 0; (i < max_length) && string[i]; i++) {
 
-        switch (String[i])
-        {
-        case 0x07:
+		/* Escape sequences */
 
-            AcpiOsPrintf ("\\a");       /* BELL */
-            break;
+		switch (string[i]) {
+		case 0x07:
 
-        case 0x08:
+			acpi_os_printf ("\\a");     /* BELL */
+			break;
 
-            AcpiOsPrintf ("\\b");       /* BACKSPACE */
-            break;
+		case 0x08:
 
-        case 0x0C:
+			acpi_os_printf ("\\b");     /* BACKSPACE */
+			break;
 
-            AcpiOsPrintf ("\\f");       /* FORMFEED */
-            break;
+		case 0x0C:
 
-        case 0x0A:
+			acpi_os_printf ("\\f");     /* FORMFEED */
+			break;
 
-            AcpiOsPrintf ("\\n");       /* LINEFEED */
-            break;
+		case 0x0A:
 
-        case 0x0D:
+			acpi_os_printf ("\\n");     /* LINEFEED */
+			break;
 
-            AcpiOsPrintf ("\\r");       /* CARRIAGE RETURN*/
-            break;
+		case 0x0D:
 
-        case 0x09:
+			acpi_os_printf ("\\r");     /* CARRIAGE RETURN*/
+			break;
 
-            AcpiOsPrintf ("\\t");       /* HORIZONTAL TAB */
-            break;
+		case 0x09:
 
-        case 0x0B:
+			acpi_os_printf ("\\t");     /* HORIZONTAL TAB */
+			break;
 
-            AcpiOsPrintf ("\\v");       /* VERTICAL TAB */
-            break;
+		case 0x0B:
 
-        case '\'':                      /* Single Quote */
-        case '\"':                      /* Double Quote */
-        case '\\':                      /* Backslash */
+			acpi_os_printf ("\\v");     /* VERTICAL TAB */
+			break;
 
-            AcpiOsPrintf ("\\%c", (int) String[i]);
-            break;
+		case '\'':                      /* Single Quote */
+		case '\"':                      /* Double Quote */
+		case '\\':                      /* Backslash */
 
-        default:
+			acpi_os_printf ("\\%c", (int) string[i]);
+			break;
 
-            /* Check for printable character or hex escape */
+		default:
 
-            if (isprint ((int) String[i]))
-            {
-                /* This is a normal character */
+			/* Check for printable character or hex escape */
 
-                AcpiOsPrintf ("%c", (int) String[i]);
-            }
-            else
-            {
-                /* All others will be Hex escapes */
+			if (isprint ((int) string[i]))
+			{
+				/* This is a normal character */
 
-                AcpiOsPrintf ("\\x%2.2X", (INT32) String[i]);
-            }
-            break;
-        }
-    }
+				acpi_os_printf ("%c", (int) string[i]);
+			}
+			else
+			{
+				/* All others will be Hex escapes */
 
-    AcpiOsPrintf ("\"");
+				acpi_os_printf ("\\x%2.2X", (s32) string[i]);
+			}
+			break;
+		}
+	}
 
-    if (i == MaxLength && String[i])
-    {
-        AcpiOsPrintf ("...");
-    }
+	acpi_os_printf ("\"");
+
+	if (i == max_length && string[i]) {
+		acpi_os_printf ("...");
+	}
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiUtRepairName
+ * FUNCTION:    acpi_ut_repair_name
  *
- * PARAMETERS:  Name            - The ACPI name to be repaired
+ * PARAMETERS:  name            - The ACPI name to be repaired
  *
  * RETURN:      Repaired version of the name
  *
@@ -288,72 +142,67 @@ AcpiUtPrintString (
  ******************************************************************************/
 
 void
-AcpiUtRepairName (
-    char                    *Name)
+acpi_ut_repair_name (
+	char                            *name)
 {
-    UINT32                  i;
-    BOOLEAN                 FoundBadChar = FALSE;
-    UINT32                  OriginalName;
+	u32                             i;
+	u8                              found_bad_char = FALSE;
+	u32                             original_name;
 
 
-    ACPI_FUNCTION_NAME (UtRepairName);
+	ACPI_FUNCTION_NAME (ut_repair_name);
 
 
-    /*
-     * Special case for the root node. This can happen if we get an
-     * error during the execution of module-level code.
-     */
-    if (ACPI_COMPARE_NAMESEG (Name, ACPI_ROOT_PATHNAME))
-    {
-        return;
-    }
+	/*
+	 * Special case for the root node. This can happen if we get an
+	 * error during the execution of module-level code.
+	 */
+	if (ACPI_COMPARE_NAMESEG (name, ACPI_ROOT_PATHNAME)) {
+		return;
+	}
 
-    ACPI_COPY_NAMESEG (&OriginalName, Name);
+	ACPI_COPY_NAMESEG (&original_name, &name[0]);
 
-    /* Check each character in the name */
+	/* Check each character in the name */
 
-    for (i = 0; i < ACPI_NAMESEG_SIZE; i++)
-    {
-        if (AcpiUtValidNameChar (Name[i], i))
-        {
-            continue;
-        }
+	for (i = 0; i < ACPI_NAMESEG_SIZE; i++) {
+		if (acpi_ut_valid_name_char (name[i], i)) {
+			continue;
+		}
 
-        /*
-         * Replace a bad character with something printable, yet technically
-         * still invalid. This prevents any collisions with existing "good"
-         * names in the namespace.
-         */
-        Name[i] = '*';
-        FoundBadChar = TRUE;
-    }
+		/*
+		 * Replace a bad character with something printable, yet technically
+		 * "odd". This prevents any collisions with existing "good"
+		 * names in the namespace.
+		 */
+		name[i] = '_';
+		found_bad_char = TRUE;
+	}
 
-    if (FoundBadChar)
-    {
-        /* Report warning only if in strict mode or debug mode */
+	if (found_bad_char) {
 
-        if (!AcpiGbl_EnableInterpreterSlack)
-        {
-            ACPI_WARNING ((AE_INFO,
-                "Invalid character(s) in name (0x%.8X), repaired: [%4.4s]",
-                OriginalName, Name));
-        }
-        else
-        {
-            ACPI_DEBUG_PRINT ((ACPI_DB_INFO,
-                "Invalid character(s) in name (0x%.8X), repaired: [%4.4s]",
-                OriginalName, Name));
-        }
-    }
+		/* Report warning only if in strict mode or debug mode */
+
+		if (!acpi_gbl_enable_interpreter_slack) {
+			ACPI_WARNING ((AE_INFO,
+				"Invalid character(s) in name (0x%.8X) %p, repaired: [%4.4s]",
+				original_name, name, &name[0]));
+		}
+		else {
+			ACPI_DEBUG_PRINT ((ACPI_DB_INFO,
+				"Invalid character(s) in name (0x%.8X), repaired: [%4.4s]",
+				original_name, name));
+		}
+	}
 }
 
 
 #if defined ACPI_ASL_COMPILER || defined ACPI_EXEC_APP
 /*******************************************************************************
  *
- * FUNCTION:    UtConvertBackslashes
+ * FUNCTION:    ut_convert_backslashes
  *
- * PARAMETERS:  Pathname        - File pathname string to be converted
+ * PARAMETERS:  pathname        - File pathname string to be converted
  *
  * RETURN:      Modifies the input Pathname
  *
@@ -363,23 +212,20 @@ AcpiUtRepairName (
  ******************************************************************************/
 
 void
-UtConvertBackslashes (
-    char                    *Pathname)
+ut_convert_backslashes (
+	char                            *pathname)
 {
 
-    if (!Pathname)
-    {
-        return;
-    }
+	if (!pathname) {
+		return;
+	}
 
-    while (*Pathname)
-    {
-        if (*Pathname == '\\')
-        {
-            *Pathname = '/';
-        }
+	while (*pathname) {
+		if (*pathname == '\\') {
+			*pathname = '/';
+		}
 
-        Pathname++;
-    }
+		pathname++;
+	}
 }
 #endif

@@ -1,153 +1,12 @@
+/* SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0 */
 /******************************************************************************
  *
  * Name: acdispat.h - dispatcher (parser to interpreter interface)
  *
+ * Copyright (C) 2000 - 2022, Intel Corp.
+ *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #ifndef _ACDISPAT_H_
 #define _ACDISPAT_H_
@@ -160,440 +19,440 @@
 /*
  * dsargs - execution of dynamic arguments for static objects
  */
-ACPI_STATUS
-AcpiDsGetBufferFieldArguments (
-    ACPI_OPERAND_OBJECT     *ObjDesc);
+acpi_status
+acpi_ds_get_buffer_field_arguments (
+	union acpi_operand_object       *obj_desc);
 
-ACPI_STATUS
-AcpiDsGetBankFieldArguments (
-    ACPI_OPERAND_OBJECT     *ObjDesc);
+acpi_status
+acpi_ds_get_bank_field_arguments (
+	union acpi_operand_object       *obj_desc);
 
-ACPI_STATUS
-AcpiDsGetRegionArguments (
-    ACPI_OPERAND_OBJECT     *RgnDesc);
+acpi_status
+acpi_ds_get_region_arguments (
+	union acpi_operand_object       *rgn_desc);
 
-ACPI_STATUS
-AcpiDsGetBufferArguments (
-    ACPI_OPERAND_OBJECT     *ObjDesc);
+acpi_status
+acpi_ds_get_buffer_arguments (
+	union acpi_operand_object       *obj_desc);
 
-ACPI_STATUS
-AcpiDsGetPackageArguments (
-    ACPI_OPERAND_OBJECT     *ObjDesc);
+acpi_status
+acpi_ds_get_package_arguments (
+	union acpi_operand_object       *obj_desc);
 
 
 /*
  * dscontrol - support for execution control opcodes
  */
-ACPI_STATUS
-AcpiDsExecBeginControlOp (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Op);
+acpi_status
+acpi_ds_exec_begin_control_op (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op);
 
-ACPI_STATUS
-AcpiDsExecEndControlOp (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Op);
+acpi_status
+acpi_ds_exec_end_control_op (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op);
 
 
 /*
  * dsopcode - support for late operand evaluation
  */
-ACPI_STATUS
-AcpiDsEvalBufferFieldOperands (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Op);
+acpi_status
+acpi_ds_eval_buffer_field_operands (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op);
 
-ACPI_STATUS
-AcpiDsEvalRegionOperands (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Op);
+acpi_status
+acpi_ds_eval_region_operands (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op);
 
-ACPI_STATUS
-AcpiDsEvalTableRegionOperands (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Op);
+acpi_status
+acpi_ds_eval_table_region_operands (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op);
 
-ACPI_STATUS
-AcpiDsEvalDataObjectOperands (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Op,
-    ACPI_OPERAND_OBJECT     *ObjDesc);
+acpi_status
+acpi_ds_eval_data_object_operands (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op,
+	union acpi_operand_object       *obj_desc);
 
-ACPI_STATUS
-AcpiDsEvalBankFieldOperands (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Op);
+acpi_status
+acpi_ds_eval_bank_field_operands (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op);
 
-ACPI_STATUS
-AcpiDsInitializeRegion (
-    ACPI_HANDLE             ObjHandle);
+acpi_status
+acpi_ds_initialize_region (
+	acpi_handle                     obj_handle);
 
 
 /*
  * dsexec - Parser/Interpreter interface, method execution callbacks
  */
-ACPI_STATUS
-AcpiDsGetPredicateValue (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_OPERAND_OBJECT     *ResultObj);
+acpi_status
+acpi_ds_get_predicate_value (
+	struct acpi_walk_state          *walk_state,
+	union acpi_operand_object       *result_obj);
 
-ACPI_STATUS
-AcpiDsExecBeginOp (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       **OutOp);
+acpi_status
+acpi_ds_exec_begin_op (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         **out_op);
 
-ACPI_STATUS
-AcpiDsExecEndOp (
-    ACPI_WALK_STATE         *State);
+acpi_status
+acpi_ds_exec_end_op (
+	struct acpi_walk_state          *state);
 
 
 /*
  * dsfield - Parser/Interpreter interface for AML fields
  */
-ACPI_STATUS
-AcpiDsCreateField (
-    ACPI_PARSE_OBJECT       *Op,
-    ACPI_NAMESPACE_NODE     *RegionNode,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ds_create_field (
+	union acpi_parse_object         *op,
+	struct acpi_namespace_node      *region_node,
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiDsCreateBankField (
-    ACPI_PARSE_OBJECT       *Op,
-    ACPI_NAMESPACE_NODE     *RegionNode,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ds_create_bank_field (
+	union acpi_parse_object         *op,
+	struct acpi_namespace_node      *region_node,
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiDsCreateIndexField (
-    ACPI_PARSE_OBJECT       *Op,
-    ACPI_NAMESPACE_NODE     *RegionNode,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ds_create_index_field (
+	union acpi_parse_object         *op,
+	struct acpi_namespace_node      *region_node,
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiDsCreateBufferField (
-    ACPI_PARSE_OBJECT       *Op,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ds_create_buffer_field (
+	union acpi_parse_object         *op,
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiDsInitFieldObjects (
-    ACPI_PARSE_OBJECT       *Op,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ds_init_field_objects (
+	union acpi_parse_object         *op,
+	struct acpi_walk_state          *walk_state);
 
 
 /*
  * dsload - Parser/Interpreter interface
  */
-ACPI_STATUS
-AcpiDsInitCallbacks (
-    ACPI_WALK_STATE         *WalkState,
-    UINT32                  PassNumber);
+acpi_status
+acpi_ds_init_callbacks (
+	struct acpi_walk_state          *walk_state,
+	u32                             pass_number);
 
 /* dsload - pass 1 namespace load callbacks */
 
-ACPI_STATUS
-AcpiDsLoad1BeginOp (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       **OutOp);
+acpi_status
+acpi_ds_load1_begin_op (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         **out_op);
 
-ACPI_STATUS
-AcpiDsLoad1EndOp (
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ds_load1_end_op (
+	struct acpi_walk_state          *walk_state);
 
 
 /* dsload - pass 2 namespace load callbacks */
 
-ACPI_STATUS
-AcpiDsLoad2BeginOp (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       **OutOp);
+acpi_status
+acpi_ds_load2_begin_op (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         **out_op);
 
-ACPI_STATUS
-AcpiDsLoad2EndOp (
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ds_load2_end_op (
+	struct acpi_walk_state          *walk_state);
 
 
 /*
  * dsmthdat - method data (locals/args)
  */
-ACPI_STATUS
-AcpiDsStoreObjectToLocal (
-    UINT8                   Type,
-    UINT32                  Index,
-    ACPI_OPERAND_OBJECT     *SrcDesc,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ds_store_object_to_local (
+	u8                              type,
+	u32                             index,
+	union acpi_operand_object       *src_desc,
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiDsMethodDataGetEntry (
-    UINT16                  Opcode,
-    UINT32                  Index,
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_OPERAND_OBJECT     ***Node);
-
-void
-AcpiDsMethodDataDeleteAll (
-    ACPI_WALK_STATE         *WalkState);
-
-BOOLEAN
-AcpiDsIsMethodValue (
-    ACPI_OPERAND_OBJECT     *ObjDesc);
-
-ACPI_STATUS
-AcpiDsMethodDataGetValue (
-    UINT8                   Type,
-    UINT32                  Index,
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_OPERAND_OBJECT     **DestDesc);
-
-ACPI_STATUS
-AcpiDsMethodDataInitArgs (
-    ACPI_OPERAND_OBJECT     **Params,
-    UINT32                  MaxParamCount,
-    ACPI_WALK_STATE         *WalkState);
-
-ACPI_STATUS
-AcpiDsMethodDataGetNode (
-    UINT8                   Type,
-    UINT32                  Index,
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_NAMESPACE_NODE     **Node);
+acpi_status
+acpi_ds_method_data_get_entry (
+	u16                             opcode,
+	u32                             index,
+	struct acpi_walk_state          *walk_state,
+	union acpi_operand_object       ***node);
 
 void
-AcpiDsMethodDataInit (
-    ACPI_WALK_STATE         *WalkState);
+acpi_ds_method_data_delete_all (
+	struct acpi_walk_state          *walk_state);
+
+u8
+acpi_ds_is_method_value (
+	union acpi_operand_object       *obj_desc);
+
+acpi_status
+acpi_ds_method_data_get_value (
+	u8                              type,
+	u32                             index,
+	struct acpi_walk_state          *walk_state,
+	union acpi_operand_object       **dest_desc);
+
+acpi_status
+acpi_ds_method_data_init_args (
+	union acpi_operand_object       **params,
+	u32                             max_param_count,
+	struct acpi_walk_state          *walk_state);
+
+acpi_status
+acpi_ds_method_data_get_node (
+	u8                              type,
+	u32                             index,
+	struct acpi_walk_state          *walk_state,
+	struct acpi_namespace_node      **node);
+
+void
+acpi_ds_method_data_init (
+	struct acpi_walk_state          *walk_state);
 
 
 /*
  * dsmethod - Parser/Interpreter interface - control method parsing
  */
-ACPI_STATUS
-AcpiDsAutoSerializeMethod (
-    ACPI_NAMESPACE_NODE     *Node,
-    ACPI_OPERAND_OBJECT     *ObjDesc);
+acpi_status
+acpi_ds_auto_serialize_method (
+	struct acpi_namespace_node      *node,
+	union acpi_operand_object       *obj_desc);
 
-ACPI_STATUS
-AcpiDsCallControlMethod (
-    ACPI_THREAD_STATE       *Thread,
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Op);
+acpi_status
+acpi_ds_call_control_method (
+	struct acpi_thread_state        *thread,
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op);
 
-ACPI_STATUS
-AcpiDsRestartControlMethod (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_OPERAND_OBJECT     *ReturnDesc);
+acpi_status
+acpi_ds_restart_control_method (
+	struct acpi_walk_state          *walk_state,
+	union acpi_operand_object       *return_desc);
 
 void
-AcpiDsTerminateControlMethod (
-    ACPI_OPERAND_OBJECT     *MethodDesc,
-    ACPI_WALK_STATE         *WalkState);
+acpi_ds_terminate_control_method (
+	union acpi_operand_object       *method_desc,
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiDsBeginMethodExecution (
-    ACPI_NAMESPACE_NODE     *MethodNode,
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ds_begin_method_execution (
+	struct acpi_namespace_node      *method_node,
+	union acpi_operand_object       *obj_desc,
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiDsMethodError (
-    ACPI_STATUS             Status,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ds_method_error (
+	acpi_status                     status,
+	struct acpi_walk_state          *walk_state);
 
 /*
  * dsinit
  */
-ACPI_STATUS
-AcpiDsInitializeObjects (
-    UINT32                  TableIndex,
-    ACPI_NAMESPACE_NODE     *StartNode);
+acpi_status
+acpi_ds_initialize_objects (
+	u32                             table_index,
+	struct acpi_namespace_node      *start_node);
 
 
 /*
  * dsobject - Parser/Interpreter interface - object initialization and conversion
  */
-ACPI_STATUS
-AcpiDsBuildInternalObject (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Op,
-    ACPI_OPERAND_OBJECT     **ObjDescPtr);
+acpi_status
+acpi_ds_build_internal_object (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op,
+	union acpi_operand_object       **obj_desc_ptr);
 
-ACPI_STATUS
-AcpiDsBuildInternalBufferObj (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Op,
-    UINT32                  BufferLength,
-    ACPI_OPERAND_OBJECT     **ObjDescPtr);
+acpi_status
+acpi_ds_build_internal_buffer_obj (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op,
+	u32                             buffer_length,
+	union acpi_operand_object       **obj_desc_ptr);
 
-ACPI_STATUS
-AcpiDsBuildInternalPackageObj (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *op,
-    UINT32                  PackageLength,
-    ACPI_OPERAND_OBJECT     **ObjDesc);
+acpi_status
+acpi_ds_build_internal_package_obj (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op,
+	u32                             package_length,
+	union acpi_operand_object       **obj_desc);
 
-ACPI_STATUS
-AcpiDsInitObjectFromOp (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Op,
-    UINT16                  Opcode,
-    ACPI_OPERAND_OBJECT     **ObjDesc);
+acpi_status
+acpi_ds_init_object_from_op (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op,
+	u16                             opcode,
+	union acpi_operand_object       **obj_desc);
 
-ACPI_STATUS
-AcpiDsCreateNode (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_NAMESPACE_NODE     *Node,
-    ACPI_PARSE_OBJECT       *Op);
+acpi_status
+acpi_ds_create_node (
+	struct acpi_walk_state          *walk_state,
+	struct acpi_namespace_node      *node,
+	union acpi_parse_object         *op);
 
 
 /*
  * dspkginit - Package object initialization
  */
-ACPI_STATUS
-AcpiDsInitPackageElement (
-    UINT8                   ObjectType,
-    ACPI_OPERAND_OBJECT     *SourceObject,
-    ACPI_GENERIC_STATE      *State,
-    void                    *Context);
+acpi_status
+acpi_ds_init_package_element (
+	u8                              object_type,
+	union acpi_operand_object       *source_object,
+	union acpi_generic_state        *state,
+	void                            *context);
 
 
 /*
  * dsutils - Parser/Interpreter interface utility routines
  */
 void
-AcpiDsClearImplicitReturn (
-    ACPI_WALK_STATE         *WalkState);
+acpi_ds_clear_implicit_return (
+	struct acpi_walk_state          *walk_state);
 
-BOOLEAN
-AcpiDsDoImplicitReturn (
-    ACPI_OPERAND_OBJECT     *ReturnDesc,
-    ACPI_WALK_STATE         *WalkState,
-    BOOLEAN                 AddReference);
+u8
+acpi_ds_do_implicit_return (
+	union acpi_operand_object       *return_desc,
+	struct acpi_walk_state          *walk_state,
+	u8                              add_reference);
 
-BOOLEAN
-AcpiDsIsResultUsed (
-    ACPI_PARSE_OBJECT       *Op,
-    ACPI_WALK_STATE         *WalkState);
-
-void
-AcpiDsDeleteResultIfNotUsed (
-    ACPI_PARSE_OBJECT       *Op,
-    ACPI_OPERAND_OBJECT     *ResultObj,
-    ACPI_WALK_STATE         *WalkState);
-
-ACPI_STATUS
-AcpiDsCreateOperand (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Arg,
-    UINT32                  ArgsRemaining);
-
-ACPI_STATUS
-AcpiDsCreateOperands (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *FirstArg);
-
-ACPI_STATUS
-AcpiDsResolveOperands (
-    ACPI_WALK_STATE         *WalkState);
+u8
+acpi_ds_is_result_used (
+	union acpi_parse_object         *op,
+	struct acpi_walk_state          *walk_state);
 
 void
-AcpiDsClearOperands (
-    ACPI_WALK_STATE         *WalkState);
+acpi_ds_delete_result_if_not_used (
+	union acpi_parse_object         *op,
+	union acpi_operand_object       *result_obj,
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiDsEvaluateNamePath (
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ds_create_operand (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *arg,
+	u32                             args_remaining);
+
+acpi_status
+acpi_ds_create_operands (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *first_arg);
+
+acpi_status
+acpi_ds_resolve_operands (
+	struct acpi_walk_state          *walk_state);
+
+void
+acpi_ds_clear_operands (
+	struct acpi_walk_state          *walk_state);
+
+acpi_status
+acpi_ds_evaluate_name_path (
+	struct acpi_walk_state          *walk_state);
 
 
 /*
  * dswscope - Scope Stack manipulation
  */
-ACPI_STATUS
-AcpiDsScopeStackPush (
-    ACPI_NAMESPACE_NODE     *Node,
-    ACPI_OBJECT_TYPE        Type,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ds_scope_stack_push (
+	struct acpi_namespace_node      *node,
+	acpi_object_type                type,
+	struct acpi_walk_state          *walk_state);
 
 
-ACPI_STATUS
-AcpiDsScopeStackPop (
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ds_scope_stack_pop (
+	struct acpi_walk_state          *walk_state);
 
 void
-AcpiDsScopeStackClear (
-    ACPI_WALK_STATE         *WalkState);
+acpi_ds_scope_stack_clear (
+	struct acpi_walk_state          *walk_state);
 
 
 /*
  * dswstate - parser WALK_STATE management routines
  */
-ACPI_STATUS
-AcpiDsObjStackPush (
-    void                    *Object,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ds_obj_stack_push (
+	void                            *object,
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiDsObjStackPop (
-    UINT32                  PopCount,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ds_obj_stack_pop (
+	u32                             pop_count,
+	struct acpi_walk_state          *walk_state);
 
-ACPI_WALK_STATE *
-AcpiDsCreateWalkState (
-    ACPI_OWNER_ID           OwnerId,
-    ACPI_PARSE_OBJECT       *Origin,
-    ACPI_OPERAND_OBJECT     *MthDesc,
-    ACPI_THREAD_STATE       *Thread);
+struct acpi_walk_state *
+acpi_ds_create_walk_state (
+	acpi_owner_id                   owner_id,
+	union acpi_parse_object         *origin,
+	union acpi_operand_object       *mth_desc,
+	struct acpi_thread_state        *thread);
 
-ACPI_STATUS
-AcpiDsInitAmlWalk (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Op,
-    ACPI_NAMESPACE_NODE     *MethodNode,
-    UINT8                   *AmlStart,
-    UINT32                  AmlLength,
-    ACPI_EVALUATE_INFO      *Info,
-    UINT8                   PassNumber);
-
-void
-AcpiDsObjStackPopAndDelete (
-    UINT32                  PopCount,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ds_init_aml_walk (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op,
+	struct acpi_namespace_node      *method_node,
+	u8                              *aml_start,
+	u32                             aml_length,
+	struct acpi_evaluate_info       *info,
+	u8                              pass_number);
 
 void
-AcpiDsDeleteWalkState (
-    ACPI_WALK_STATE         *WalkState);
-
-ACPI_WALK_STATE *
-AcpiDsPopWalkState (
-    ACPI_THREAD_STATE       *Thread);
+acpi_ds_obj_stack_pop_and_delete (
+	u32                             pop_count,
+	struct acpi_walk_state          *walk_state);
 
 void
-AcpiDsPushWalkState (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_THREAD_STATE       *Thread);
+acpi_ds_delete_walk_state (
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiDsResultStackClear (
-    ACPI_WALK_STATE         *WalkState);
+struct acpi_walk_state *
+acpi_ds_pop_walk_state (
+	struct acpi_thread_state        *thread);
 
-ACPI_WALK_STATE *
-AcpiDsGetCurrentWalkState (
-    ACPI_THREAD_STATE       *Thread);
+void
+acpi_ds_push_walk_state (
+	struct acpi_walk_state          *walk_state,
+	struct acpi_thread_state        *thread);
 
-ACPI_STATUS
-AcpiDsResultPop (
-    ACPI_OPERAND_OBJECT     **Object,
-    ACPI_WALK_STATE         *WalkState);
+acpi_status
+acpi_ds_result_stack_clear (
+	struct acpi_walk_state          *walk_state);
 
-ACPI_STATUS
-AcpiDsResultPush (
-    ACPI_OPERAND_OBJECT     *Object,
-    ACPI_WALK_STATE         *WalkState);
+struct acpi_walk_state *
+acpi_ds_get_current_walk_state (
+	struct acpi_thread_state        *thread);
+
+acpi_status
+acpi_ds_result_pop (
+	union acpi_operand_object       **object,
+	struct acpi_walk_state          *walk_state);
+
+acpi_status
+acpi_ds_result_push (
+	union acpi_operand_object       *object,
+	struct acpi_walk_state          *walk_state);
 
 
 /*
  * dsdebug - parser debugging routines
  */
 void
-AcpiDsDumpMethodStack (
-    ACPI_STATUS             Status,
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Op);
+acpi_ds_dump_method_stack (
+	acpi_status                     status,
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op);
 
 #endif /* _ACDISPAT_H_ */

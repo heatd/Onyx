@@ -6,16 +6,16 @@
 
 #ifndef _ACONYX_
 #define _ACONYX_
-#include <stdint.h>
 #include <stdarg.h>
+#include <stdint.h>
 
 // TODO: Handle this being different
-#define ACPI_MACHINE_WIDTH	64
+#define ACPI_MACHINE_WIDTH 64
 
-#define COMPILER_DEPENDENT_INT64        int64_t
-#define COMPILER_DEPENDENT_UINT64       uint64_t
+#define COMPILER_DEPENDENT_INT64  int64_t
+#define COMPILER_DEPENDENT_UINT64 uint64_t
 
-#define ACPI_UINTPTR_T      uintptr_t
+#define ACPI_UINTPTR_T uintptr_t
 
 #define ACPI_USE_DO_WHILE_0
 
@@ -27,10 +27,10 @@ struct mutex;
 struct semaphore;
 struct spinlock;
 
-#define ACPI_MUTEX_TYPE             ACPI_OSL_MUTEX
-#define ACPI_MUTEX                  struct mutex *
-#define ACPI_SPINLOCK 				struct spinlock*
-#define ACPI_SEMAPHORE              struct semaphore*
+#define ACPI_MUTEX_TYPE ACPI_OSL_MUTEX
+#define acpi_mutex      struct mutex*
+#define acpi_spinlock   struct spinlock*
+#define acpi_semaphore  struct semaphore*
 
 #define ACPI_USE_SYSTEM_CLIBRARY
 #undef ACPI_USE_STANDARD_HEADERS
@@ -40,8 +40,8 @@ struct spinlock;
 
 struct slab_cache;
 #undef ACPI_USE_LOCAL_CACHE
-#define ACPI_CACHE_T struct slab_cache
-//#undef ACPI_USE_NATIVE_DIVIDE
+#define acpi_cache_t struct slab_cache
+// #undef ACPI_USE_NATIVE_DIVIDE
 
 #include "acgcc.h"
 

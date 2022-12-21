@@ -1,153 +1,12 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /******************************************************************************
  *
- * Module Name: exserial - FieldUnit support for serial address spaces
+ * Module Name: exserial - field_unit support for serial address spaces
+ *
+ * Copyright (C) 2000 - 2022, Intel Corp.
  *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #include "acpi.h"
 #include "accommon.h"
@@ -157,15 +16,15 @@
 
 
 #define _COMPONENT          ACPI_EXECUTER
-        ACPI_MODULE_NAME    ("exserial")
+	 ACPI_MODULE_NAME    ("exserial")
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExReadGpio
+ * FUNCTION:    acpi_ex_read_gpio
  *
- * PARAMETERS:  ObjDesc             - The named field to read
- *              Buffer              - Where the return data is returned
+ * PARAMETERS:  obj_desc            - The named field to read
+ *              buffer              - Where the return data is returned
  *
  * RETURN:      Status
  *
@@ -174,49 +33,49 @@
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiExReadGpio (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    void                    *Buffer)
+acpi_status
+acpi_ex_read_gpio (
+	union acpi_operand_object       *obj_desc,
+	void                            *buffer)
 {
-    ACPI_STATUS             Status;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE_PTR (ExReadGpio, ObjDesc);
+	ACPI_FUNCTION_TRACE_PTR (ex_read_gpio, obj_desc);
 
 
-    /*
-     * For GPIO (GeneralPurposeIo), the Address will be the bit offset
-     * from the previous Connection() operator, making it effectively a
-     * pin number index. The BitLength is the length of the field, which
-     * is thus the number of pins.
-     */
-    ACPI_DEBUG_PRINT ((ACPI_DB_BFIELD,
-        "GPIO FieldRead [FROM]:  Pin %u Bits %u\n",
-        ObjDesc->Field.PinNumberIndex, ObjDesc->Field.BitLength));
+	/*
+	 * For GPIO (general_purpose_io), the Address will be the bit offset
+	 * from the previous Connection() operator, making it effectively a
+	 * pin number index. The bit_length is the length of the field, which
+	 * is thus the number of pins.
+	 */
+	ACPI_DEBUG_PRINT ((ACPI_DB_BFIELD,
+		"GPIO FieldRead [FROM]:  Pin %u Bits %u\n",
+		obj_desc->field.pin_number_index, obj_desc->field.bit_length));
 
-    /* Lock entire transaction if requested */
+	/* Lock entire transaction if requested */
 
-    AcpiExAcquireGlobalLock (ObjDesc->CommonField.FieldFlags);
+	acpi_ex_acquire_global_lock (obj_desc->common_field.field_flags);
 
-    /* Perform the read */
+	/* Perform the read */
 
-    Status = AcpiExAccessRegion (
-        ObjDesc, 0, (UINT64 *) Buffer, ACPI_READ);
+	status = acpi_ex_access_region (
+		obj_desc, 0, (u64 *) buffer, ACPI_READ);
 
-    AcpiExReleaseGlobalLock (ObjDesc->CommonField.FieldFlags);
-    return_ACPI_STATUS (Status);
+	acpi_ex_release_global_lock (obj_desc->common_field.field_flags);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExWriteGpio
+ * FUNCTION:    acpi_ex_write_gpio
  *
- * PARAMETERS:  SourceDesc          - Contains data to write. Expect to be
+ * PARAMETERS:  source_desc         - Contains data to write. Expect to be
  *                                    an Integer object.
- *              ObjDesc             - The named field
- *              ResultDesc          - Where the return value is returned, if any
+ *              obj_desc            - The named field
+ *              result_desc         - Where the return value is returned, if any
  *
  * RETURN:      Status
  *
@@ -225,59 +84,58 @@ AcpiExReadGpio (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiExWriteGpio (
-    ACPI_OPERAND_OBJECT     *SourceDesc,
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_OPERAND_OBJECT     **ReturnBuffer)
+acpi_status
+acpi_ex_write_gpio (
+	union acpi_operand_object       *source_desc,
+	union acpi_operand_object       *obj_desc,
+	union acpi_operand_object       **return_buffer)
 {
-    ACPI_STATUS             Status;
-    void                    *Buffer;
+	acpi_status                     status;
+	void                            *buffer;
 
 
-    ACPI_FUNCTION_TRACE_PTR (ExWriteGpio, ObjDesc);
+	ACPI_FUNCTION_TRACE_PTR (ex_write_gpio, obj_desc);
 
 
-    /*
-     * For GPIO (GeneralPurposeIo), we will bypass the entire field
-     * mechanism and handoff the bit address and bit width directly to
-     * the handler. The Address will be the bit offset
-     * from the previous Connection() operator, making it effectively a
-     * pin number index. The BitLength is the length of the field, which
-     * is thus the number of pins.
-     */
-    if (SourceDesc->Common.Type != ACPI_TYPE_INTEGER)
-    {
-        return_ACPI_STATUS (AE_AML_OPERAND_TYPE);
-    }
+	/*
+	 * For GPIO (general_purpose_io), we will bypass the entire field
+	 * mechanism and handoff the bit address and bit width directly to
+	 * the handler. The Address will be the bit offset
+	 * from the previous Connection() operator, making it effectively a
+	 * pin number index. The bit_length is the length of the field, which
+	 * is thus the number of pins.
+	 */
+	if (source_desc->common.type != ACPI_TYPE_INTEGER) {
+		return_ACPI_STATUS (AE_AML_OPERAND_TYPE);
+	}
 
-    ACPI_DEBUG_PRINT ((ACPI_DB_BFIELD,
-        "GPIO FieldWrite [FROM]: (%s:%X), Value %.8X  [TO]: Pin %u Bits %u\n",
-        AcpiUtGetTypeName (SourceDesc->Common.Type),
-        SourceDesc->Common.Type, (UINT32) SourceDesc->Integer.Value,
-        ObjDesc->Field.PinNumberIndex, ObjDesc->Field.BitLength));
+	ACPI_DEBUG_PRINT ((ACPI_DB_BFIELD,
+		"GPIO FieldWrite [FROM]: (%s:%X), Value %.8X  [TO]: Pin %u Bits %u\n",
+		acpi_ut_get_type_name (source_desc->common.type),
+		source_desc->common.type, (u32) source_desc->integer.value,
+		obj_desc->field.pin_number_index, obj_desc->field.bit_length));
 
-    Buffer = &SourceDesc->Integer.Value;
+	buffer = &source_desc->integer.value;
 
-    /* Lock entire transaction if requested */
+	/* Lock entire transaction if requested */
 
-    AcpiExAcquireGlobalLock (ObjDesc->CommonField.FieldFlags);
+	acpi_ex_acquire_global_lock (obj_desc->common_field.field_flags);
 
-    /* Perform the write */
+	/* Perform the write */
 
-    Status = AcpiExAccessRegion (
-        ObjDesc, 0, (UINT64 *) Buffer, ACPI_WRITE);
-    AcpiExReleaseGlobalLock (ObjDesc->CommonField.FieldFlags);
-    return_ACPI_STATUS (Status);
+	status = acpi_ex_access_region (
+		obj_desc, 0, (u64 *) buffer, ACPI_WRITE);
+	acpi_ex_release_global_lock (obj_desc->common_field.field_flags);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExReadSerialBus
+ * FUNCTION:    acpi_ex_read_serial_bus
  *
- * PARAMETERS:  ObjDesc             - The named field to read
- *              ReturnBuffer        - Where the return value is returned, if any
+ * PARAMETERS:  obj_desc            - The named field to read
+ *              return_buffer       - Where the return value is returned, if any
  *
  * RETURN:      Status
  *
@@ -286,107 +144,109 @@ AcpiExWriteGpio (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiExReadSerialBus (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_OPERAND_OBJECT     **ReturnBuffer)
+acpi_status
+acpi_ex_read_serial_bus (
+	union acpi_operand_object       *obj_desc,
+	union acpi_operand_object       **return_buffer)
 {
-    ACPI_STATUS             Status;
-    UINT32                  BufferLength;
-    ACPI_OPERAND_OBJECT     *BufferDesc;
-    UINT32                  Function;
-    UINT16                  AccessorType;
+	acpi_status                     status;
+	u32                             buffer_length;
+	union acpi_operand_object       *buffer_desc;
+	u32                             function;
+	u16                             accessor_type;
 
 
-    ACPI_FUNCTION_TRACE_PTR (ExReadSerialBus, ObjDesc);
+	ACPI_FUNCTION_TRACE_PTR (ex_read_serial_bus, obj_desc);
 
 
-    /*
-     * This is an SMBus, GSBus or IPMI read. We must create a buffer to
-     * hold the data and then directly access the region handler.
-     *
-     * Note: SMBus and GSBus protocol value is passed in upper 16-bits
-     * of Function
-     *
-     * Common buffer format:
-     *     Status;    (Byte 0 of the data buffer)
-     *     Length;    (Byte 1 of the data buffer)
-     *     Data[x-1]: (Bytes 2-x of the arbitrary length data buffer)
-     */
-    switch (ObjDesc->Field.RegionObj->Region.SpaceId)
-    {
-    case ACPI_ADR_SPACE_SMBUS:
+	/*
+	 * This is an SMBus, GSBus or IPMI read. We must create a buffer to
+	 * hold the data and then directly access the region handler.
+	 *
+	 * Note: SMBus and GSBus protocol value is passed in upper 16-bits
+	 * of Function
+	 *
+	 * Common buffer format:
+	 *     Status;    (Byte 0 of the data buffer)
+	 *     Length;    (Byte 1 of the data buffer)
+	 *     Data[x-1]: (Bytes 2-x of the arbitrary length data buffer)
+	 */
+	switch (obj_desc->field.region_obj->region.space_id) {
+	case ACPI_ADR_SPACE_SMBUS:
 
-        BufferLength = ACPI_SMBUS_BUFFER_SIZE;
-        Function = ACPI_READ | (ObjDesc->Field.Attribute << 16);
-        break;
+		buffer_length = ACPI_SMBUS_BUFFER_SIZE;
+		function = ACPI_READ | (obj_desc->field.attribute << 16);
+		break;
 
-    case ACPI_ADR_SPACE_IPMI:
+	case ACPI_ADR_SPACE_IPMI:
 
-        BufferLength = ACPI_IPMI_BUFFER_SIZE;
-        Function = ACPI_READ;
-        break;
+		buffer_length = ACPI_IPMI_BUFFER_SIZE;
+		function = ACPI_READ;
+		break;
 
-    case ACPI_ADR_SPACE_GSBUS:
+	case ACPI_ADR_SPACE_GSBUS:
 
-        AccessorType = ObjDesc->Field.Attribute;
-        if (AccessorType == AML_FIELD_ATTRIB_RAW_PROCESS_BYTES)
-        {
-            ACPI_ERROR ((AE_INFO,
-                "Invalid direct read using bidirectional write-then-read protocol"));
+		accessor_type = obj_desc->field.attribute;
+		if (accessor_type == AML_FIELD_ATTRIB_RAW_PROCESS_BYTES) {
+			ACPI_ERROR ((AE_INFO,
+				"Invalid direct read using bidirectional write-then-read protocol"));
 
-            return_ACPI_STATUS (AE_AML_PROTOCOL);
-        }
+			return_ACPI_STATUS (AE_AML_PROTOCOL);
+		}
 
-        Status = AcpiExGetProtocolBufferLength (AccessorType, &BufferLength);
-        if (ACPI_FAILURE (Status))
-        {
-            ACPI_ERROR ((AE_INFO,
-                "Invalid protocol ID for GSBus: 0x%4.4X", AccessorType));
+		status = acpi_ex_get_protocol_buffer_length (accessor_type, &buffer_length);
+		if (ACPI_FAILURE (status)) {
+			ACPI_ERROR ((AE_INFO,
+				"Invalid protocol ID for GSBus: 0x%4.4X", accessor_type));
 
-            return_ACPI_STATUS (Status);
-        }
+			return_ACPI_STATUS (status);
+		}
 
-        /* Add header length to get the full size of the buffer */
+		/* Add header length to get the full size of the buffer */
 
-        BufferLength += ACPI_SERIAL_HEADER_SIZE;
-        Function = ACPI_READ | (AccessorType << 16);
-        break;
+		buffer_length += ACPI_SERIAL_HEADER_SIZE;
+		function = ACPI_READ | (accessor_type << 16);
+		break;
 
-    default:
-        return_ACPI_STATUS (AE_AML_INVALID_SPACE_ID);
-    }
+	case ACPI_ADR_SPACE_PLATFORM_RT:
 
-    /* Create the local transfer buffer that is returned to the caller */
+		buffer_length = ACPI_PRM_INPUT_BUFFER_SIZE;
+		function = ACPI_READ;
+		break;
 
-    BufferDesc = AcpiUtCreateBufferObject (BufferLength);
-    if (!BufferDesc)
-    {
-        return_ACPI_STATUS (AE_NO_MEMORY);
-    }
+	default:
+		return_ACPI_STATUS (AE_AML_INVALID_SPACE_ID);
+	}
 
-    /* Lock entire transaction if requested */
+	/* Create the local transfer buffer that is returned to the caller */
 
-    AcpiExAcquireGlobalLock (ObjDesc->CommonField.FieldFlags);
+	buffer_desc = acpi_ut_create_buffer_object (buffer_length);
+	if (!buffer_desc) {
+		return_ACPI_STATUS (AE_NO_MEMORY);
+	}
 
-    /* Call the region handler for the write-then-read */
+	/* Lock entire transaction if requested */
 
-    Status = AcpiExAccessRegion (ObjDesc, 0,
-        ACPI_CAST_PTR (UINT64, BufferDesc->Buffer.Pointer), Function);
-    AcpiExReleaseGlobalLock (ObjDesc->CommonField.FieldFlags);
+	acpi_ex_acquire_global_lock (obj_desc->common_field.field_flags);
 
-    *ReturnBuffer = BufferDesc;
-    return_ACPI_STATUS (Status);
+	/* Call the region handler for the write-then-read */
+
+	status = acpi_ex_access_region (obj_desc, 0,
+		ACPI_CAST_PTR (u64, buffer_desc->buffer.pointer), function);
+	acpi_ex_release_global_lock (obj_desc->common_field.field_flags);
+
+	*return_buffer = buffer_desc;
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExWriteSerialBus
+ * FUNCTION:    acpi_ex_write_serial_bus
  *
- * PARAMETERS:  SourceDesc          - Contains data to write
- *              ObjDesc             - The named field
- *              ReturnBuffer        - Where the return value is returned, if any
+ * PARAMETERS:  source_desc         - Contains data to write
+ *              obj_desc            - The named field
+ *              return_buffer       - Where the return value is returned, if any
  *
  * RETURN:      Status
  *
@@ -395,114 +255,122 @@ AcpiExReadSerialBus (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiExWriteSerialBus (
-    ACPI_OPERAND_OBJECT     *SourceDesc,
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_OPERAND_OBJECT     **ReturnBuffer)
+acpi_status
+acpi_ex_write_serial_bus (
+	union acpi_operand_object       *source_desc,
+	union acpi_operand_object       *obj_desc,
+	union acpi_operand_object       **return_buffer)
 {
-    ACPI_STATUS             Status;
-    UINT32                  BufferLength;
-    UINT32                  DataLength;
-    void                    *Buffer;
-    ACPI_OPERAND_OBJECT     *BufferDesc;
-    UINT32                  Function;
-    UINT16                  AccessorType;
+	acpi_status                     status;
+	u32                             buffer_length;
+	u32                             data_length;
+	void                            *buffer;
+	union acpi_operand_object       *buffer_desc;
+	u32                             function;
+	u16                             accessor_type;
 
 
-    ACPI_FUNCTION_TRACE_PTR (ExWriteSerialBus, ObjDesc);
+	ACPI_FUNCTION_TRACE_PTR (ex_write_serial_bus, obj_desc);
 
 
-    /*
-     * This is an SMBus, GSBus or IPMI write. We will bypass the entire
-     * field mechanism and handoff the buffer directly to the handler.
-     * For these address spaces, the buffer is bidirectional; on a
-     * write, return data is returned in the same buffer.
-     *
-     * Source must be a buffer of sufficient size, these are fixed size:
-     * ACPI_SMBUS_BUFFER_SIZE, or ACPI_IPMI_BUFFER_SIZE.
-     *
-     * Note: SMBus and GSBus protocol type is passed in upper 16-bits
-     * of Function
-     *
-     * Common buffer format:
-     *     Status;    (Byte 0 of the data buffer)
-     *     Length;    (Byte 1 of the data buffer)
-     *     Data[x-1]: (Bytes 2-x of the arbitrary length data buffer)
-     */
-    if (SourceDesc->Common.Type != ACPI_TYPE_BUFFER)
-    {
-        ACPI_ERROR ((AE_INFO,
-            "SMBus/IPMI/GenericSerialBus write requires "
-            "Buffer, found type %s",
-            AcpiUtGetObjectTypeName (SourceDesc)));
+	/*
+	 * This is an SMBus, GSBus or IPMI write. We will bypass the entire
+	 * field mechanism and handoff the buffer directly to the handler.
+	 * For these address spaces, the buffer is bidirectional; on a
+	 * write, return data is returned in the same buffer.
+	 *
+	 * Source must be a buffer of sufficient size, these are fixed size:
+	 * ACPI_SMBUS_BUFFER_SIZE, or ACPI_IPMI_BUFFER_SIZE.
+	 *
+	 * Note: SMBus and GSBus protocol type is passed in upper 16-bits
+	 * of Function
+	 *
+	 * Common buffer format:
+	 *     Status;    (Byte 0 of the data buffer)
+	 *     Length;    (Byte 1 of the data buffer)
+	 *     Data[x-1]: (Bytes 2-x of the arbitrary length data buffer)
+	 */
+	if (source_desc->common.type != ACPI_TYPE_BUFFER) {
+		ACPI_ERROR ((AE_INFO,
+			"SMBus/IPMI/GenericSerialBus write requires "
+			"Buffer, found type %s",
+			acpi_ut_get_object_type_name (source_desc)));
 
-        return_ACPI_STATUS (AE_AML_OPERAND_TYPE);
-    }
+		return_ACPI_STATUS (AE_AML_OPERAND_TYPE);
+	}
 
-    switch (ObjDesc->Field.RegionObj->Region.SpaceId)
-    {
-    case ACPI_ADR_SPACE_SMBUS:
+	switch (obj_desc->field.region_obj->region.space_id) {
+	case ACPI_ADR_SPACE_SMBUS:
 
-        BufferLength = ACPI_SMBUS_BUFFER_SIZE;
-        Function = ACPI_WRITE | (ObjDesc->Field.Attribute << 16);
-        break;
+		buffer_length = ACPI_SMBUS_BUFFER_SIZE;
+		function = ACPI_WRITE | (obj_desc->field.attribute << 16);
+		break;
 
-    case ACPI_ADR_SPACE_IPMI:
+	case ACPI_ADR_SPACE_IPMI:
 
-        BufferLength = ACPI_IPMI_BUFFER_SIZE;
-        Function = ACPI_WRITE;
-        break;
+		buffer_length = ACPI_IPMI_BUFFER_SIZE;
+		function = ACPI_WRITE;
+		break;
 
-    case ACPI_ADR_SPACE_GSBUS:
+	case ACPI_ADR_SPACE_GSBUS:
 
-        AccessorType = ObjDesc->Field.Attribute;
-        Status = AcpiExGetProtocolBufferLength (AccessorType, &BufferLength);
-        if (ACPI_FAILURE (Status))
-        {
-            ACPI_ERROR ((AE_INFO,
-                "Invalid protocol ID for GSBus: 0x%4.4X", AccessorType));
+		accessor_type = obj_desc->field.attribute;
+		status = acpi_ex_get_protocol_buffer_length (accessor_type, &buffer_length);
+		if (ACPI_FAILURE (status)) {
+			ACPI_ERROR ((AE_INFO,
+				"Invalid protocol ID for GSBus: 0x%4.4X", accessor_type));
 
-            return_ACPI_STATUS (Status);
-        }
+			return_ACPI_STATUS (status);
+		}
 
-        /* Add header length to get the full size of the buffer */
+		/* Add header length to get the full size of the buffer */
 
-        BufferLength += ACPI_SERIAL_HEADER_SIZE;
-        Function = ACPI_WRITE | (AccessorType << 16);
-        break;
+		buffer_length += ACPI_SERIAL_HEADER_SIZE;
+		function = ACPI_WRITE | (accessor_type << 16);
+		break;
 
-    default:
-        return_ACPI_STATUS (AE_AML_INVALID_SPACE_ID);
-    }
+	case ACPI_ADR_SPACE_PLATFORM_RT:
 
-    /* Create the transfer/bidirectional/return buffer */
+		buffer_length = ACPI_PRM_INPUT_BUFFER_SIZE;
+		function = ACPI_WRITE;
+		break;
 
-    BufferDesc = AcpiUtCreateBufferObject (BufferLength);
-    if (!BufferDesc)
-    {
-        return_ACPI_STATUS (AE_NO_MEMORY);
-    }
+	case ACPI_ADR_SPACE_FIXED_HARDWARE:
 
-    /* Copy the input buffer data to the transfer buffer */
+		buffer_length = ACPI_FFH_INPUT_BUFFER_SIZE;
+		function = ACPI_WRITE;
+		break;
 
-    Buffer = BufferDesc->Buffer.Pointer;
-    DataLength = (BufferLength < SourceDesc->Buffer.Length ?
-        BufferLength : SourceDesc->Buffer.Length);
-    memcpy (Buffer, SourceDesc->Buffer.Pointer, DataLength);
+	default:
+		return_ACPI_STATUS (AE_AML_INVALID_SPACE_ID);
+	}
 
-    /* Lock entire transaction if requested */
+	/* Create the transfer/bidirectional/return buffer */
 
-    AcpiExAcquireGlobalLock (ObjDesc->CommonField.FieldFlags);
+	buffer_desc = acpi_ut_create_buffer_object (buffer_length);
+	if (!buffer_desc) {
+		return_ACPI_STATUS (AE_NO_MEMORY);
+	}
 
-    /*
-     * Perform the write (returns status and perhaps data in the
-     * same buffer)
-     */
-    Status = AcpiExAccessRegion (
-        ObjDesc, 0, (UINT64 *) Buffer, Function);
-    AcpiExReleaseGlobalLock (ObjDesc->CommonField.FieldFlags);
+	/* Copy the input buffer data to the transfer buffer */
 
-    *ReturnBuffer = BufferDesc;
-    return_ACPI_STATUS (Status);
+	buffer = buffer_desc->buffer.pointer;
+	data_length = (buffer_length < source_desc->buffer.length ?
+		buffer_length : source_desc->buffer.length);
+	memcpy (buffer, source_desc->buffer.pointer, data_length);
+
+	/* Lock entire transaction if requested */
+
+	acpi_ex_acquire_global_lock (obj_desc->common_field.field_flags);
+
+	/*
+	 * Perform the write (returns status and perhaps data in the
+	 * same buffer)
+	 */
+	status = acpi_ex_access_region (
+		obj_desc, 0, (u64 *) buffer, function);
+	acpi_ex_release_global_lock (obj_desc->common_field.field_flags);
+
+	*return_buffer = buffer_desc;
+	return_ACPI_STATUS (status);
 }

@@ -60,18 +60,18 @@ void boot(unsigned int cpu)
 
 extern "C" void smp_parse_cpus(void *__madt)
 {
-    ACPI_TABLE_MADT *madt = static_cast<ACPI_TABLE_MADT *>(__madt);
+    acpi_table_madt *madt = static_cast<acpi_table_madt *>(__madt);
     unsigned int nr_cpus = 0;
-    auto first = (ACPI_SUBTABLE_HEADER *) (madt + 1);
-    for (ACPI_SUBTABLE_HEADER *i = first;
-         i < (ACPI_SUBTABLE_HEADER *) ((char *) madt + madt->Header.Length);
-         i = (ACPI_SUBTABLE_HEADER *) ((uint64_t) i + (uint64_t) i->Length))
+    auto first = (acpi_subtable_header *) (madt + 1);
+    for (acpi_subtable_header *i = first;
+         i < (acpi_subtable_header *) ((char *) madt + madt->header.length);
+         i = (acpi_subtable_header *) ((uint64_t) i + (uint64_t) i->length))
     {
-        if (i->Type == ACPI_MADT_TYPE_LOCAL_APIC)
+        if (i->type == ACPI_MADT_TYPE_LOCAL_APIC)
         {
-            ACPI_MADT_LOCAL_APIC *la = (ACPI_MADT_LOCAL_APIC *) i;
+            acpi_madt_local_apic *la = (acpi_madt_local_apic *) i;
 
-            assert(smp::lapic_ids.push_back(la->Id) != false);
+            assert(smp::lapic_ids.push_back(la->id) != false);
             nr_cpus++;
         }
     }

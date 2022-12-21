@@ -1,155 +1,14 @@
+/* SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0 */
 /******************************************************************************
  *
  * Name: acpiosxf.h - All interfaces to the OS Services Layer (OSL). These
  *                    interfaces must be implemented by OSL to interface the
  *                    ACPI components to the host operating system.
  *
+ * Copyright (C) 2000 - 2022, Intel Corp.
+ *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #ifndef __ACPIOSXF_H__
 #define __ACPIOSXF_H__
@@ -158,145 +17,144 @@
 #include "actypes.h"
 
 
-/* Types for AcpiOsExecute */
+/* Types for acpi_os_execute */
 
 typedef enum
 {
-    OSL_GLOBAL_LOCK_HANDLER,
-    OSL_NOTIFY_HANDLER,
-    OSL_GPE_HANDLER,
-    OSL_DEBUGGER_MAIN_THREAD,
-    OSL_DEBUGGER_EXEC_THREAD,
-    OSL_EC_POLL_HANDLER,
-    OSL_EC_BURST_HANDLER
+	OSL_GLOBAL_LOCK_HANDLER,
+	OSL_NOTIFY_HANDLER,
+	OSL_GPE_HANDLER,
+	OSL_DEBUGGER_MAIN_THREAD,
+	OSL_DEBUGGER_EXEC_THREAD,
+	OSL_EC_POLL_HANDLER,
+	OSL_EC_BURST_HANDLER
 
-} ACPI_EXECUTE_TYPE;
+} acpi_execute_type;
 
-#define ACPI_NO_UNIT_LIMIT          ((UINT32) -1)
+#define ACPI_NO_UNIT_LIMIT          ((u32) -1)
 #define ACPI_MUTEX_SEM              1
 
 
-/* Functions for AcpiOsSignal */
+/* Functions for acpi_os_signal */
 
 #define ACPI_SIGNAL_FATAL           0
 #define ACPI_SIGNAL_BREAKPOINT      1
 
-typedef struct acpi_signal_fatal_info
+struct acpi_signal_fatal_info
 {
-    UINT32                  Type;
-    UINT32                  Code;
-    UINT32                  Argument;
-
-} ACPI_SIGNAL_FATAL_INFO;
+	u32                             type;
+	u32                             code;
+	u32                             argument;
+};
 
 
 /*
  * OSL Initialization and shutdown primitives
  */
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsInitialize
-ACPI_STATUS
-AcpiOsInitialize (
-    void);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_initialize
+acpi_status
+acpi_os_initialize (
+	void);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsTerminate
-ACPI_STATUS
-AcpiOsTerminate (
-    void);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_terminate
+acpi_status
+acpi_os_terminate (
+	void);
 #endif
 
 
 /*
  * ACPI Table interfaces
  */
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsGetRootPointer
-ACPI_PHYSICAL_ADDRESS
-AcpiOsGetRootPointer (
-    void);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_get_root_pointer
+acpi_physical_address
+acpi_os_get_root_pointer (
+	void);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsPredefinedOverride
-ACPI_STATUS
-AcpiOsPredefinedOverride (
-    const ACPI_PREDEFINED_NAMES *InitVal,
-    ACPI_STRING                 *NewVal);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_predefined_override
+acpi_status
+acpi_os_predefined_override (
+	const struct acpi_predefined_names *init_val,
+	acpi_string                         *new_val);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsTableOverride
-ACPI_STATUS
-AcpiOsTableOverride (
-    ACPI_TABLE_HEADER       *ExistingTable,
-    ACPI_TABLE_HEADER       **NewTable);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_table_override
+acpi_status
+acpi_os_table_override (
+	struct acpi_table_header        *existing_table,
+	struct acpi_table_header        **new_table);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsPhysicalTableOverride
-ACPI_STATUS
-AcpiOsPhysicalTableOverride (
-    ACPI_TABLE_HEADER       *ExistingTable,
-    ACPI_PHYSICAL_ADDRESS   *NewAddress,
-    UINT32                  *NewTableLength);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_physical_table_override
+acpi_status
+acpi_os_physical_table_override (
+	struct acpi_table_header        *existing_table,
+	acpi_physical_address           *new_address,
+	u32                             *new_table_length);
 #endif
 
 
 /*
  * Spinlock primitives
  */
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsCreateLock
-ACPI_STATUS
-AcpiOsCreateLock (
-    ACPI_SPINLOCK           *OutHandle);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_create_lock
+acpi_status
+acpi_os_create_lock (
+	acpi_spinlock                   *out_handle);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsDeleteLock
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_delete_lock
 void
-AcpiOsDeleteLock (
-    ACPI_SPINLOCK           Handle);
+acpi_os_delete_lock (
+	acpi_spinlock                   handle);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsAcquireLock
-ACPI_CPU_FLAGS
-AcpiOsAcquireLock (
-    ACPI_SPINLOCK           Handle);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_acquire_lock
+acpi_cpu_flags
+acpi_os_acquire_lock (
+	acpi_spinlock                   handle);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsReleaseLock
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_release_lock
 void
-AcpiOsReleaseLock (
-    ACPI_SPINLOCK           Handle,
-    ACPI_CPU_FLAGS          Flags);
+acpi_os_release_lock (
+	acpi_spinlock                   handle,
+	acpi_cpu_flags                  flags);
 #endif
 
 
 /*
  * Semaphore primitives
  */
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsCreateSemaphore
-ACPI_STATUS
-AcpiOsCreateSemaphore (
-    UINT32                  MaxUnits,
-    UINT32                  InitialUnits,
-    ACPI_SEMAPHORE          *OutHandle);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_create_semaphore
+acpi_status
+acpi_os_create_semaphore (
+	u32                             max_units,
+	u32                             initial_units,
+	acpi_semaphore                  *out_handle);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsDeleteSemaphore
-ACPI_STATUS
-AcpiOsDeleteSemaphore (
-    ACPI_SEMAPHORE          Handle);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_delete_semaphore
+acpi_status
+acpi_os_delete_semaphore (
+	acpi_semaphore                  handle);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsWaitSemaphore
-ACPI_STATUS
-AcpiOsWaitSemaphore (
-    ACPI_SEMAPHORE          Handle,
-    UINT32                  Units,
-    UINT16                  Timeout);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_wait_semaphore
+acpi_status
+acpi_os_wait_semaphore (
+	acpi_semaphore                  handle,
+	u32                             units,
+	u16                             timeout);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsSignalSemaphore
-ACPI_STATUS
-AcpiOsSignalSemaphore (
-    ACPI_SEMAPHORE          Handle,
-    UINT32                  Units);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_signal_semaphore
+acpi_status
+acpi_os_signal_semaphore (
+	acpi_semaphore                  handle,
+	u32                             units);
 #endif
 
 
@@ -306,29 +164,29 @@ AcpiOsSignalSemaphore (
  */
 #if (ACPI_MUTEX_TYPE != ACPI_BINARY_SEMAPHORE)
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsCreateMutex
-ACPI_STATUS
-AcpiOsCreateMutex (
-    ACPI_MUTEX              *OutHandle);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_create_mutex
+acpi_status
+acpi_os_create_mutex (
+	acpi_mutex                      *out_handle);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsDeleteMutex
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_delete_mutex
 void
-AcpiOsDeleteMutex (
-    ACPI_MUTEX              Handle);
+acpi_os_delete_mutex (
+	acpi_mutex                      handle);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsAcquireMutex
-ACPI_STATUS
-AcpiOsAcquireMutex (
-    ACPI_MUTEX              Handle,
-    UINT16                  Timeout);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_acquire_mutex
+acpi_status
+acpi_os_acquire_mutex (
+	acpi_mutex                      handle,
+	u16                             timeout);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsReleaseMutex
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_release_mutex
 void
-AcpiOsReleaseMutex (
-    ACPI_MUTEX              Handle);
+acpi_os_release_mutex (
+	acpi_mutex                      handle);
 #endif
 
 #endif
@@ -337,176 +195,176 @@ AcpiOsReleaseMutex (
 /*
  * Memory allocation and mapping
  */
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsAllocate
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_allocate
 void *
-AcpiOsAllocate (
-    ACPI_SIZE               Size);
+acpi_os_allocate (
+	acpi_size                       size);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsAllocateZeroed
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_allocate_zeroed
 void *
-AcpiOsAllocateZeroed (
-    ACPI_SIZE               Size);
+acpi_os_allocate_zeroed (
+	acpi_size                       size);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsFree
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_free
 void
-AcpiOsFree (
-    void *                  Memory);
+acpi_os_free (
+	void *                          memory);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsMapMemory
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_map_memory
 void *
-AcpiOsMapMemory (
-    ACPI_PHYSICAL_ADDRESS   Where,
-    ACPI_SIZE               Length);
+acpi_os_map_memory (
+	acpi_physical_address           where,
+	acpi_size                       length);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsUnmapMemory
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_unmap_memory
 void
-AcpiOsUnmapMemory (
-    void                    *LogicalAddress,
-    ACPI_SIZE               Size);
+acpi_os_unmap_memory (
+	void                            *logical_address,
+	acpi_size                       size);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsGetPhysicalAddress
-ACPI_STATUS
-AcpiOsGetPhysicalAddress (
-    void                    *LogicalAddress,
-    ACPI_PHYSICAL_ADDRESS   *PhysicalAddress);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_get_physical_address
+acpi_status
+acpi_os_get_physical_address (
+	void                            *logical_address,
+	acpi_physical_address           *physical_address);
 #endif
 
 
 /*
  * Memory/Object Cache
  */
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsCreateCache
-ACPI_STATUS
-AcpiOsCreateCache (
-    char                    *CacheName,
-    UINT16                  ObjectSize,
-    UINT16                  MaxDepth,
-    ACPI_CACHE_T            **ReturnCache);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_create_cache
+acpi_status
+acpi_os_create_cache (
+	char                            *cache_name,
+	u16                             object_size,
+	u16                             max_depth,
+	acpi_cache_t                    **return_cache);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsDeleteCache
-ACPI_STATUS
-AcpiOsDeleteCache (
-    ACPI_CACHE_T            *Cache);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_delete_cache
+acpi_status
+acpi_os_delete_cache (
+	acpi_cache_t                    *cache);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsPurgeCache
-ACPI_STATUS
-AcpiOsPurgeCache (
-    ACPI_CACHE_T            *Cache);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_purge_cache
+acpi_status
+acpi_os_purge_cache (
+	acpi_cache_t                    *cache);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsAcquireObject
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_acquire_object
 void *
-AcpiOsAcquireObject (
-    ACPI_CACHE_T            *Cache);
+acpi_os_acquire_object (
+	acpi_cache_t                    *cache);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsReleaseObject
-ACPI_STATUS
-AcpiOsReleaseObject (
-    ACPI_CACHE_T            *Cache,
-    void                    *Object);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_release_object
+acpi_status
+acpi_os_release_object (
+	acpi_cache_t                    *cache,
+	void                            *object);
 #endif
 
 
 /*
  * Interrupt handlers
  */
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsInstallInterruptHandler
-ACPI_STATUS
-AcpiOsInstallInterruptHandler (
-    UINT32                  InterruptNumber,
-    ACPI_OSD_HANDLER        ServiceRoutine,
-    void                    *Context);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_install_interrupt_handler
+acpi_status
+acpi_os_install_interrupt_handler (
+	u32                             interrupt_number,
+	acpi_osd_handler                service_routine,
+	void                            *context);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsRemoveInterruptHandler
-ACPI_STATUS
-AcpiOsRemoveInterruptHandler (
-    UINT32                  InterruptNumber,
-    ACPI_OSD_HANDLER        ServiceRoutine);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_remove_interrupt_handler
+acpi_status
+acpi_os_remove_interrupt_handler (
+	u32                             interrupt_number,
+	acpi_osd_handler                service_routine);
 #endif
 
 
 /*
  * Threads and Scheduling
  */
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsGetThreadId
-ACPI_THREAD_ID
-AcpiOsGetThreadId (
-    void);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_get_thread_id
+acpi_thread_id
+acpi_os_get_thread_id (
+	void);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsExecute
-ACPI_STATUS
-AcpiOsExecute (
-    ACPI_EXECUTE_TYPE       Type,
-    ACPI_OSD_EXEC_CALLBACK  Function,
-    void                    *Context);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_execute
+acpi_status
+acpi_os_execute (
+	acpi_execute_type               type,
+	acpi_osd_exec_callback          function,
+	void                            *context);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsWaitEventsComplete
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_wait_events_complete
 void
-AcpiOsWaitEventsComplete (
-    void);
+acpi_os_wait_events_complete (
+	void);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsSleep
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_sleep
 void
-AcpiOsSleep (
-    UINT64                  Milliseconds);
+acpi_os_sleep (
+	u64                             milliseconds);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsStall
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_stall
 void
-AcpiOsStall (
-    UINT32                  Microseconds);
+acpi_os_stall (
+	u32                             microseconds);
 #endif
 
 
 /*
  * Platform and hardware-independent I/O interfaces
  */
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsReadPort
-ACPI_STATUS
-AcpiOsReadPort (
-    ACPI_IO_ADDRESS         Address,
-    UINT32                  *Value,
-    UINT32                  Width);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_read_port
+acpi_status
+acpi_os_read_port (
+	acpi_io_address                 address,
+	u32                             *value,
+	u32                             width);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsWritePort
-ACPI_STATUS
-AcpiOsWritePort (
-    ACPI_IO_ADDRESS         Address,
-    UINT32                  Value,
-    UINT32                  Width);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_write_port
+acpi_status
+acpi_os_write_port (
+	acpi_io_address                 address,
+	u32                             value,
+	u32                             width);
 #endif
 
 
 /*
  * Platform and hardware-independent physical memory interfaces
  */
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsReadMemory
-ACPI_STATUS
-AcpiOsReadMemory (
-    ACPI_PHYSICAL_ADDRESS   Address,
-    UINT64                  *Value,
-    UINT32                  Width);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_read_memory
+acpi_status
+acpi_os_read_memory (
+	acpi_physical_address           address,
+	u64                             *value,
+	u32                             width);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsWriteMemory
-ACPI_STATUS
-AcpiOsWriteMemory (
-    ACPI_PHYSICAL_ADDRESS   Address,
-    UINT64                  Value,
-    UINT32                  Width);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_write_memory
+acpi_status
+acpi_os_write_memory (
+	acpi_physical_address           address,
+	u64                             value,
+	u32                             width);
 #endif
 
 
@@ -515,190 +373,190 @@ AcpiOsWriteMemory (
  * Note: Can't use "Register" as a parameter, changed to "Reg" --
  * certain compilers complain.
  */
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsReadPciConfiguration
-ACPI_STATUS
-AcpiOsReadPciConfiguration (
-    ACPI_PCI_ID             *PciId,
-    UINT32                  Reg,
-    UINT64                  *Value,
-    UINT32                  Width);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_read_pci_configuration
+acpi_status
+acpi_os_read_pci_configuration (
+	struct acpi_pci_id              *pci_id,
+	u32                             reg,
+	u64                             *value,
+	u32                             width);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsWritePciConfiguration
-ACPI_STATUS
-AcpiOsWritePciConfiguration (
-    ACPI_PCI_ID             *PciId,
-    UINT32                  Reg,
-    UINT64                  Value,
-    UINT32                  Width);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_write_pci_configuration
+acpi_status
+acpi_os_write_pci_configuration (
+	struct acpi_pci_id              *pci_id,
+	u32                             reg,
+	u64                             value,
+	u32                             width);
 #endif
 
 
 /*
  * Miscellaneous
  */
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsReadable
-BOOLEAN
-AcpiOsReadable (
-    void                    *Pointer,
-    ACPI_SIZE               Length);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_readable
+u8
+acpi_os_readable (
+	void                            *pointer,
+	acpi_size                       length);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsWritable
-BOOLEAN
-AcpiOsWritable (
-    void                    *Pointer,
-    ACPI_SIZE               Length);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_writable
+u8
+acpi_os_writable (
+	void                            *pointer,
+	acpi_size                       length);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsGetTimer
-UINT64
-AcpiOsGetTimer (
-    void);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_get_timer
+u64
+acpi_os_get_timer (
+	void);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsSignal
-ACPI_STATUS
-AcpiOsSignal (
-    UINT32                  Function,
-    void                    *Info);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_signal
+acpi_status
+acpi_os_signal (
+	u32                             function,
+	void                            *info);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsEnterSleep
-ACPI_STATUS
-AcpiOsEnterSleep (
-    UINT8                   SleepState,
-    UINT32                  RegaValue,
-    UINT32                  RegbValue);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_enter_sleep
+acpi_status
+acpi_os_enter_sleep (
+	u8                              sleep_state,
+	u32                             rega_value,
+	u32                             regb_value);
 #endif
 
 
 /*
  * Debug print routines
  */
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsPrintf
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_printf
 ACPI_PRINTF_LIKE (1)
 void ACPI_INTERNAL_VAR_XFACE
-AcpiOsPrintf (
-    const char              *Format,
-    ...);
+acpi_os_printf (
+	const char                      *format,
+	...);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsVprintf
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_vprintf
 void
-AcpiOsVprintf (
-    const char              *Format,
-    va_list                 Args);
+acpi_os_vprintf (
+	const char                      *format,
+	va_list                 args);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsRedirectOutput
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_redirect_output
 void
-AcpiOsRedirectOutput (
-    void                    *Destination);
+acpi_os_redirect_output (
+	void                            *destination);
 #endif
 
 
 /*
  * Debug IO
  */
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsGetLine
-ACPI_STATUS
-AcpiOsGetLine (
-    char                    *Buffer,
-    UINT32                  BufferLength,
-    UINT32                  *BytesRead);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_get_line
+acpi_status
+acpi_os_get_line (
+	char                            *buffer,
+	u32                             buffer_length,
+	u32                             *bytes_read);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsInitializeDebugger
-ACPI_STATUS
-AcpiOsInitializeDebugger (
-    void);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_initialize_debugger
+acpi_status
+acpi_os_initialize_debugger (
+	void);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsTerminateDebugger
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_terminate_debugger
 void
-AcpiOsTerminateDebugger (
-    void);
+acpi_os_terminate_debugger (
+	void);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsWaitCommandReady
-ACPI_STATUS
-AcpiOsWaitCommandReady (
-    void);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_wait_command_ready
+acpi_status
+acpi_os_wait_command_ready (
+	void);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsNotifyCommandComplete
-ACPI_STATUS
-AcpiOsNotifyCommandComplete (
-    void);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_notify_command_complete
+acpi_status
+acpi_os_notify_command_complete (
+	void);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsTracePoint
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_trace_point
 void
-AcpiOsTracePoint (
-    ACPI_TRACE_EVENT_TYPE   Type,
-    BOOLEAN                 Begin,
-    UINT8                   *Aml,
-    char                    *Pathname);
+acpi_os_trace_point (
+	acpi_trace_event_type           type,
+	u8                              begin,
+	u8                              *aml,
+	char                            *pathname);
 #endif
 
 
 /*
  * Obtain ACPI table(s)
  */
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsGetTableByName
-ACPI_STATUS
-AcpiOsGetTableByName (
-    char                    *Signature,
-    UINT32                  Instance,
-    ACPI_TABLE_HEADER       **Table,
-    ACPI_PHYSICAL_ADDRESS   *Address);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_get_table_by_name
+acpi_status
+acpi_os_get_table_by_name (
+	char                            *signature,
+	u32                             instance,
+	struct acpi_table_header        **table,
+	acpi_physical_address           *address);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsGetTableByIndex
-ACPI_STATUS
-AcpiOsGetTableByIndex (
-    UINT32                  Index,
-    ACPI_TABLE_HEADER       **Table,
-    UINT32                  *Instance,
-    ACPI_PHYSICAL_ADDRESS   *Address);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_get_table_by_index
+acpi_status
+acpi_os_get_table_by_index (
+	u32                             index,
+	struct acpi_table_header        **table,
+	u32                             *instance,
+	acpi_physical_address           *address);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsGetTableByAddress
-ACPI_STATUS
-AcpiOsGetTableByAddress (
-    ACPI_PHYSICAL_ADDRESS   Address,
-    ACPI_TABLE_HEADER       **Table);
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_get_table_by_address
+acpi_status
+acpi_os_get_table_by_address (
+	acpi_physical_address           address,
+	struct acpi_table_header        **table);
 #endif
 
 
 /*
  * Directory manipulation
  */
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsOpenDirectory
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_open_directory
 void *
-AcpiOsOpenDirectory (
-    char                    *Pathname,
-    char                    *WildcardSpec,
-    char                    RequestedFileType);
+acpi_os_open_directory (
+	char                            *pathname,
+	char                            *wildcard_spec,
+	char                            requested_file_type);
 #endif
 
-/* RequesteFileType values */
+/* requeste_file_type values */
 
 #define REQUEST_FILE_ONLY                   0
 #define REQUEST_DIR_ONLY                    1
 
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsGetNextFilename
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_get_next_filename
 char *
-AcpiOsGetNextFilename (
-    void                    *DirHandle);
+acpi_os_get_next_filename (
+	void                            *dir_handle);
 #endif
 
-#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_AcpiOsCloseDirectory
+#ifndef ACPI_USE_ALTERNATE_PROTOTYPE_acpi_os_close_directory
 void
-AcpiOsCloseDirectory (
-    void                    *DirHandle);
+acpi_os_close_directory (
+	void                            *dir_handle);
 #endif
 
 

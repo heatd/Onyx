@@ -110,7 +110,7 @@ void lapic_init(void)
 }
 
 volatile char *ioapic_base = NULL;
-ACPI_TABLE_MADT *madt = NULL;
+acpi_table_madt *madt = NULL;
 
 /**
  * @brief Reads an IO APIC register.
@@ -255,11 +255,11 @@ void set_pin_handlers(void)
     x86_reserve_vector(irqs + 22, irq22);
     x86_reserve_vector(irqs + 23, irq23);
     // The MADT's signature is "APIC"
-    ACPI_STATUS st = AcpiGetTable((ACPI_STRING) "APIC", 0, (ACPI_TABLE_HEADER **) &madt);
+    acpi_status st = acpi_get_table((acpi_string) "APIC", 0, (acpi_table_header **) &madt);
     if (ACPI_FAILURE(st))
         panic("Failed to get the MADT");
 
-    ACPI_SUBTABLE_HEADER *first = (ACPI_SUBTABLE_HEADER *) (madt + 1);
+    acpi_subtable_header *first = (acpi_subtable_header *) (madt + 1);
     for (int i = 0; i < 24; i++)
     {
         if (i <= 19)
@@ -281,29 +281,29 @@ void set_pin_handlers(void)
         write_redirection_entry(i, entry | (irqs + i));
     }
 
-    for (ACPI_SUBTABLE_HEADER *i = first;
-         i < (ACPI_SUBTABLE_HEADER *) ((char *) madt + madt->Header.Length);
-         i = (ACPI_SUBTABLE_HEADER *) ((uint64_t) i + (uint64_t) i->Length))
+    for (acpi_subtable_header *i = first;
+         i < (acpi_subtable_header *) ((char *) madt + madt->header.length);
+         i = (acpi_subtable_header *) ((uint64_t) i + (uint64_t) i->length))
     {
-        if (i->Type == ACPI_MADT_TYPE_INTERRUPT_OVERRIDE)
+        if (i->type == ACPI_MADT_TYPE_INTERRUPT_OVERRIDE)
         {
-            ACPI_MADT_INTERRUPT_OVERRIDE *mio = (ACPI_MADT_INTERRUPT_OVERRIDE *) i;
-            INFO("apic", "Interrupt override for GSI %d to %d\n", mio->SourceIrq, mio->GlobalIrq);
-            uint64_t red = read_redirection_entry(mio->GlobalIrq);
-            red |= 32 + mio->GlobalIrq;
-            if ((mio->IntiFlags & ACPI_MADT_POLARITY_MASK) == ACPI_MADT_POLARITY_ACTIVE_LOW)
+            acpi_madt_interrupt_override *mio = (acpi_madt_interrupt_override *) i;
+            INFO("apic", "Interrupt override for GSI %d to %d\n", mio->source_irq, mio->global_irq);
+            uint64_t red = read_redirection_entry(mio->global_irq);
+            red |= 32 + mio->global_irq;
+            if ((mio->inti_flags & ACPI_MADT_POLARITY_MASK) == ACPI_MADT_POLARITY_ACTIVE_LOW)
                 red |= (1 << 13);
             else
                 red &= ~(1 << 13);
 
-            if ((mio->IntiFlags & ACPI_MADT_TRIGGER_LEVEL) == ACPI_MADT_TRIGGER_LEVEL)
+            if ((mio->inti_flags & ACPI_MADT_TRIGGER_LEVEL) == ACPI_MADT_TRIGGER_LEVEL)
                 red |= (1 << 15);
             else
                 red &= ~(1 << 15);
 
-            printf("GSI %d %s:%s\n", mio->GlobalIrq, red & (1 << 13) ? "low" : "high",
+            printf("GSI %d %s:%s\n", mio->global_irq, red & (1 << 13) ? "low" : "high",
                    red & (1 << 15) ? "level" : "edge");
-            write_redirection_entry(mio->GlobalIrq, red);
+            write_redirection_entry(mio->global_irq, red);
         }
     }
 }

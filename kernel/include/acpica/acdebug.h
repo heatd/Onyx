@@ -1,153 +1,12 @@
+/* SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0 */
 /******************************************************************************
  *
  * Name: acdebug.h - ACPI/AML debugger
  *
+ * Copyright (C) 2000 - 2022, Intel Corp.
+ *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #ifndef __ACDEBUG_H__
 #define __ACDEBUG_H__
@@ -162,34 +21,30 @@
 #define ACPI_DEBUG_BUFFER_SIZE      0x4000      /* 16K buffer for return objects */
 #define ACPI_DEBUG_LENGTH_FORMAT    " (%.4X bits, %.3X bytes)"
 
-typedef struct acpi_db_command_info
+struct acpi_db_command_info
 {
-    const char              *Name;          /* Command Name */
-    UINT8                   MinArgs;        /* Minimum arguments required */
+	const char                      *name;          /* Command Name */
+	u8                              min_args;       /* Minimum arguments required */
+};
 
-} ACPI_DB_COMMAND_INFO;
-
-typedef struct acpi_db_command_help
+struct acpi_db_command_help
 {
-    UINT8                   LineCount;      /* Number of help lines */
-    char                    *Invocation;    /* Command Invocation */
-    char                    *Description;   /* Command Description */
+	u8                              line_count;     /* Number of help lines */
+	char                            *invocation;    /* Command Invocation */
+	char                            *description;   /* Command Description */
+};
 
-} ACPI_DB_COMMAND_HELP;
-
-typedef struct acpi_db_argument_info
+struct acpi_db_argument_info
 {
-    const char              *Name;          /* Argument Name */
+	const char                      *name;          /* Argument Name */
+};
 
-} ACPI_DB_ARGUMENT_INFO;
-
-typedef struct acpi_db_execute_walk
+struct acpi_db_execute_walk
 {
-    UINT32                  Count;
-    UINT32                  MaxCount;
-    char                    NameSeg[ACPI_NAMESEG_SIZE + 1];
-
-} ACPI_DB_EXECUTE_WALK;
+	u32                             count;
+	u32                             max_count;
+	char                            name_seg[ACPI_NAMESEG_SIZE + 1];
+};
 
 
 #define PARAM_LIST(pl)                  pl
@@ -203,420 +58,420 @@ typedef struct acpi_db_execute_walk
  * dbxface - external debugger interfaces
  */
 ACPI_DBR_DEPENDENT_RETURN_OK (
-ACPI_STATUS
-AcpiDbSingleStep (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Op,
-    UINT32                  OpType))
+acpi_status
+acpi_db_single_step (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op,
+	u32                             op_type))
 
 ACPI_DBR_DEPENDENT_RETURN_VOID (
 void
-AcpiDbSignalBreakPoint (
-    ACPI_WALK_STATE         *WalkState))
+acpi_db_signal_break_point (
+	struct acpi_walk_state          *walk_state))
 
 
 /*
  * dbcmds - debug commands and output routines
  */
-ACPI_NAMESPACE_NODE *
-AcpiDbConvertToNode (
-    char                    *InString);
+struct acpi_namespace_node *
+acpi_db_convert_to_node (
+	char                            *in_string);
 
 void
-AcpiDbDisplayTableInfo (
-    char                    *TableArg);
+acpi_db_display_table_info (
+	char                            *table_arg);
 
 void
-AcpiDbDisplayTemplate (
-    char                    *BufferArg);
+acpi_db_display_template (
+	char                            *buffer_arg);
 
 void
-AcpiDbUnloadAcpiTable (
-    char                    *Name);
+acpi_db_unload_acpi_table (
+	char                            *name);
 
 void
-AcpiDbSendNotify (
-    char                    *Name,
-    UINT32                  Value);
+acpi_db_send_notify (
+	char                            *name,
+	u32                             value);
 
 void
-AcpiDbDisplayInterfaces (
-    char                    *ActionArg,
-    char                    *InterfaceNameArg);
+acpi_db_display_interfaces (
+	char                            *action_arg,
+	char                            *interface_name_arg);
 
-ACPI_STATUS
-AcpiDbSleep (
-    char                    *ObjectArg);
-
-void
-AcpiDbTrace (
-    char                    *EnableArg,
-    char                    *MethodArg,
-    char                    *OnceArg);
+acpi_status
+acpi_db_sleep (
+	char                            *object_arg);
 
 void
-AcpiDbDisplayLocks (
-    void);
+acpi_db_trace (
+	char                            *enable_arg,
+	char                            *method_arg,
+	char                            *once_arg);
 
 void
-AcpiDbDisplayResources (
-    char                    *ObjectArg);
+acpi_db_display_locks (
+	void);
+
+void
+acpi_db_display_resources (
+	char                            *object_arg);
 
 ACPI_HW_DEPENDENT_RETURN_VOID (
 void
-AcpiDbDisplayGpes (
-    void))
+acpi_db_display_gpes (
+	void))
 
 void
-AcpiDbDisplayHandlers (
-    void);
-
-ACPI_HW_DEPENDENT_RETURN_VOID (
-void
-AcpiDbGenerateGpe (
-    char                    *GpeArg,
-    char                    *BlockArg))
+acpi_db_display_handlers (
+	void);
 
 ACPI_HW_DEPENDENT_RETURN_VOID (
 void
-AcpiDbGenerateSci (
-    void))
+acpi_db_generate_gpe (
+	char                            *gpe_arg,
+	char                            *block_arg))
+
+ACPI_HW_DEPENDENT_RETURN_VOID (
+void
+acpi_db_generate_sci (
+	void))
 
 void
-AcpiDbExecuteTest (
-    char                    *TypeArg);
+acpi_db_execute_test (
+	char                            *type_arg);
 
 
 /*
  * dbconvert - miscellaneous conversion routines
  */
-ACPI_STATUS
-AcpiDbHexCharToValue (
-    int                     HexChar,
-    UINT8                   *ReturnValue);
+acpi_status
+acpi_db_hex_char_to_value (
+	int                             hex_char,
+	u8                              *return_value);
 
-ACPI_STATUS
-AcpiDbConvertToPackage (
-    char                    *String,
-    ACPI_OBJECT             *Object);
+acpi_status
+acpi_db_convert_to_package (
+	char                            *string,
+	union acpi_object               *object);
 
-ACPI_STATUS
-AcpiDbConvertToObject (
-    ACPI_OBJECT_TYPE        Type,
-    char                    *String,
-    ACPI_OBJECT             *Object);
+acpi_status
+acpi_db_convert_to_object (
+	acpi_object_type                type,
+	char                            *string,
+	union acpi_object               *object);
 
-UINT8 *
-AcpiDbEncodePldBuffer (
-    ACPI_PLD_INFO           *PldInfo);
+u8 *
+acpi_db_encode_pld_buffer (
+	struct acpi_pld_info            *pld_info);
 
 void
-AcpiDbDumpPldBuffer (
-    ACPI_OBJECT             *ObjDesc);
+acpi_db_dump_pld_buffer (
+	union acpi_object               *obj_desc);
 
 
 /*
  * dbmethod - control method commands
  */
 void
-AcpiDbSetMethodBreakpoint (
-    char                    *Location,
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Op);
+acpi_db_set_method_breakpoint (
+	char                            *location,
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op);
 
 void
-AcpiDbSetMethodCallBreakpoint (
-    ACPI_PARSE_OBJECT       *Op);
+acpi_db_set_method_call_breakpoint (
+	union acpi_parse_object         *op);
 
 void
-AcpiDbSetMethodData (
-    char                    *TypeArg,
-    char                    *IndexArg,
-    char                    *ValueArg);
+acpi_db_set_method_data (
+	char                            *type_arg,
+	char                            *index_arg,
+	char                            *value_arg);
 
-ACPI_STATUS
-AcpiDbDisassembleMethod (
-    char                    *Name);
-
-void
-AcpiDbDisassembleAml (
-    char                    *Statements,
-    ACPI_PARSE_OBJECT       *Op);
+acpi_status
+acpi_db_disassemble_method (
+	char                            *name);
 
 void
-AcpiDbEvaluatePredefinedNames (
-    void);
+acpi_db_disassemble_aml (
+	char                            *statements,
+	union acpi_parse_object         *op);
 
 void
-AcpiDbEvaluateAll (
-    char                    *NameSeg);
+acpi_db_evaluate_predefined_names (
+	void);
+
+void
+acpi_db_evaluate_all (
+	char                            *name_seg);
 
 
 /*
  * dbnames - namespace commands
  */
 void
-AcpiDbSetScope (
-    char                    *Name);
+acpi_db_set_scope (
+	char                            *name);
 
 void
-AcpiDbDumpNamespace (
-    char                    *StartArg,
-    char                    *DepthArg);
+acpi_db_dump_namespace (
+	char                            *start_arg,
+	char                            *depth_arg);
 
 void
-AcpiDbDumpNamespacePaths (
-    void);
+acpi_db_dump_namespace_paths (
+	void);
 
 void
-AcpiDbDumpNamespaceByOwner (
-    char                    *OwnerArg,
-    char                    *DepthArg);
+acpi_db_dump_namespace_by_owner (
+	char                            *owner_arg,
+	char                            *depth_arg);
 
-ACPI_STATUS
-AcpiDbFindNameInNamespace (
-    char                    *NameArg);
-
-void
-AcpiDbCheckPredefinedNames (
-    void);
-
-ACPI_STATUS
-AcpiDbDisplayObjects (
-    char                    *ObjTypeArg,
-    char                    *DisplayCountArg);
+acpi_status
+acpi_db_find_name_in_namespace (
+	char                            *name_arg);
 
 void
-AcpiDbCheckIntegrity (
-    void);
+acpi_db_check_predefined_names (
+	void);
+
+acpi_status
+acpi_db_display_objects (
+	char                            *obj_type_arg,
+	char                            *display_count_arg);
 
 void
-AcpiDbFindReferences (
-    char                    *ObjectArg);
+acpi_db_check_integrity (
+	void);
 
 void
-AcpiDbGetBusInfo (
-    void);
+acpi_db_find_references (
+	char                            *object_arg);
 
-ACPI_STATUS
-AcpiDbDisplayFields (
-    UINT32                  AddressSpaceId);
+void
+acpi_db_get_bus_info (
+	void);
+
+acpi_status
+acpi_db_display_fields (
+	u32                             address_space_id);
 
 
 /*
  * dbdisply - debug display commands
  */
 void
-AcpiDbDisplayMethodInfo (
-    ACPI_PARSE_OBJECT       *Op);
+acpi_db_display_method_info (
+	union acpi_parse_object         *op);
 
 void
-AcpiDbDecodeAndDisplayObject (
-    char                    *Target,
-    char                    *OutputType);
+acpi_db_decode_and_display_object (
+	char                            *target,
+	char                            *output_type);
 
 ACPI_DBR_DEPENDENT_RETURN_VOID (
 void
-AcpiDbDisplayResultObject (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_WALK_STATE         *WalkState))
+acpi_db_display_result_object (
+	union acpi_operand_object       *obj_desc,
+	struct acpi_walk_state          *walk_state))
 
-ACPI_STATUS
-AcpiDbDisplayAllMethods (
-    char                    *DisplayCountArg);
-
-void
-AcpiDbDisplayArguments (
-    void);
+acpi_status
+acpi_db_display_all_methods (
+	char                            *display_count_arg);
 
 void
-AcpiDbDisplayLocals (
-    void);
+acpi_db_display_arguments (
+	void);
 
 void
-AcpiDbDisplayResults (
-    void);
+acpi_db_display_locals (
+	void);
 
 void
-AcpiDbDisplayCallingTree (
-    void);
+acpi_db_display_results (
+	void);
 
 void
-AcpiDbDisplayObjectType (
-    char                    *ObjectArg);
+acpi_db_display_calling_tree (
+	void);
+
+void
+acpi_db_display_object_type (
+	char                            *object_arg);
 
 ACPI_DBR_DEPENDENT_RETURN_VOID (
 void
-AcpiDbDisplayArgumentObject (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_WALK_STATE         *WalkState))
+acpi_db_display_argument_object (
+	union acpi_operand_object       *obj_desc,
+	struct acpi_walk_state          *walk_state))
 
 
 /*
  * dbexec - debugger control method execution
  */
 void
-AcpiDbExecute (
-    char                    *Name,
-    char                    **Args,
-    ACPI_OBJECT_TYPE        *Types,
-    UINT32                  Flags);
+acpi_db_execute (
+	char                            *name,
+	char                            **args,
+	acpi_object_type                *types,
+	u32                             flags);
 
 void
-AcpiDbCreateExecutionThread (
-    char                    *MethodNameArg,
-    char                    **Arguments,
-    ACPI_OBJECT_TYPE        *Types);
+acpi_db_create_execution_thread (
+	char                            *method_name_arg,
+	char                            **arguments,
+	acpi_object_type                *types);
 
 void
-AcpiDbCreateExecutionThreads (
-    char                    *NumThreadsArg,
-    char                    *NumLoopsArg,
-    char                    *MethodNameArg);
+acpi_db_create_execution_threads (
+	char                            *num_threads_arg,
+	char                            *num_loops_arg,
+	char                            *method_name_arg);
 
 void
-AcpiDbDeleteObjects (
-    UINT32                  Count,
-    ACPI_OBJECT             *Objects);
+acpi_db_delete_objects (
+	u32                             count,
+	union acpi_object               *objects);
 
 #ifdef ACPI_DBG_TRACK_ALLOCATIONS
-UINT32
-AcpiDbGetCacheInfo (
-    ACPI_MEMORY_LIST        *Cache);
+u32
+acpi_db_get_cache_info (
+	struct acpi_memory_list         *cache);
 #endif
 
 
 /*
  * dbfileio - Debugger file I/O commands
  */
-ACPI_OBJECT_TYPE
-AcpiDbMatchArgument (
-    char                    *UserArgument,
-    ACPI_DB_ARGUMENT_INFO   *Arguments);
+acpi_object_type
+acpi_db_match_argument (
+	char                            *user_argument,
+	struct acpi_db_argument_info    *arguments);
 
 void
-AcpiDbCloseDebugFile (
-    void);
+acpi_db_close_debug_file (
+	void);
 
 void
-AcpiDbOpenDebugFile (
-    char                    *Name);
+acpi_db_open_debug_file (
+	char                            *name);
 
-ACPI_STATUS
-AcpiDbLoadAcpiTable (
-    char                    *Filename);
+acpi_status
+acpi_db_load_acpi_table (
+	char                            *filename);
 
-ACPI_STATUS
-AcpiDbLoadTables (
-    ACPI_NEW_TABLE_DESC     *ListHead);
+acpi_status
+acpi_db_load_tables (
+	struct acpi_new_table_desc      *list_head);
 
 
 /*
  * dbhistry - debugger HISTORY command
  */
 void
-AcpiDbAddToHistory (
-    char                    *CommandLine);
+acpi_db_add_to_history (
+	char                            *command_line);
 
 void
-AcpiDbDisplayHistory (
-    void);
+acpi_db_display_history (
+	void);
 
 char *
-AcpiDbGetFromHistory (
-    char                    *CommandNumArg);
+acpi_db_get_from_history (
+	char                            *command_num_arg);
 
 char *
-AcpiDbGetHistoryByIndex (
-    UINT32                  CommanddNum);
+acpi_db_get_history_by_index (
+	u32                             commandd_num);
 
 
 /*
  * dbinput - user front-end to the AML debugger
  */
-ACPI_STATUS
-AcpiDbCommandDispatch (
-    char                    *InputBuffer,
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       *Op);
+acpi_status
+acpi_db_command_dispatch (
+	char                            *input_buffer,
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         *op);
 
 void ACPI_SYSTEM_XFACE
-AcpiDbExecuteThread (
-    void                    *Context);
+acpi_db_execute_thread (
+	void                            *context);
 
-ACPI_STATUS
-AcpiDbUserCommands (
-    void);
+acpi_status
+acpi_db_user_commands (
+	void);
 
 char *
-AcpiDbGetNextToken (
-    char                    *String,
-    char                    **Next,
-    ACPI_OBJECT_TYPE        *ReturnType);
+acpi_db_get_next_token (
+	char                            *string,
+	char                            **next,
+	acpi_object_type                *return_type);
 
 
 /*
  * dbobject
  */
 void
-AcpiDbDecodeInternalObject (
-    ACPI_OPERAND_OBJECT     *ObjDesc);
+acpi_db_decode_internal_object (
+	union acpi_operand_object       *obj_desc);
 
 void
-AcpiDbDisplayInternalObject (
-    ACPI_OPERAND_OBJECT     *ObjDesc,
-    ACPI_WALK_STATE         *WalkState);
+acpi_db_display_internal_object (
+	union acpi_operand_object       *obj_desc,
+	struct acpi_walk_state          *walk_state);
 
 void
-AcpiDbDecodeArguments (
-    ACPI_WALK_STATE         *WalkState);
+acpi_db_decode_arguments (
+	struct acpi_walk_state          *walk_state);
 
 void
-AcpiDbDecodeLocals (
-    ACPI_WALK_STATE         *WalkState);
+acpi_db_decode_locals (
+	struct acpi_walk_state          *walk_state);
 
 void
-AcpiDbDumpMethodInfo (
-    ACPI_STATUS             Status,
-    ACPI_WALK_STATE         *WalkState);
+acpi_db_dump_method_info (
+	acpi_status                     status,
+	struct acpi_walk_state          *walk_state);
 
 
 /*
  * dbstats - Generation and display of ACPI table statistics
  */
 void
-AcpiDbGenerateStatistics (
-    ACPI_PARSE_OBJECT       *Root,
-    BOOLEAN                 IsMethod);
+acpi_db_generate_statistics (
+	union acpi_parse_object         *root,
+	u8                              is_method);
 
-ACPI_STATUS
-AcpiDbDisplayStatistics (
-    char                    *TypeArg);
+acpi_status
+acpi_db_display_statistics (
+	char                            *type_arg);
 
 
 /*
  * dbutils - AML debugger utilities
  */
 void
-AcpiDbSetOutputDestination (
-    UINT32                  Where);
+acpi_db_set_output_destination (
+	u32                             where);
 
 void
-AcpiDbDumpExternalObject (
-    ACPI_OBJECT             *ObjDesc,
-    UINT32                  Level);
+acpi_db_dump_external_object (
+	union acpi_object               *obj_desc,
+	u32                             level);
 
 void
-AcpiDbPrepNamestring (
-    char                    *Name);
+acpi_db_prep_namestring (
+	char                            *name);
 
-ACPI_NAMESPACE_NODE *
-AcpiDbLocalNsLookup (
-    char                    *Name);
+struct acpi_namespace_node *
+acpi_db_local_ns_lookup (
+	char                            *name);
 
 void
-AcpiDbUint32ToHexString (
-    UINT32                  Value,
-    char                    *Buffer);
+acpi_db_uint32_to_hex_string (
+	u32                             value,
+	char                            *buffer);
 
 #endif  /* __ACDEBUG_H__ */

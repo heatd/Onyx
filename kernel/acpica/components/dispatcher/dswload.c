@@ -1,153 +1,12 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /******************************************************************************
  *
  * Module Name: dswload - Dispatcher first pass namespace load callbacks
  *
+ * Copyright (C) 2000 - 2022, Intel Corp.
+ *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #include "acpi.h"
 #include "accommon.h"
@@ -161,15 +20,15 @@
 #endif
 
 #define _COMPONENT          ACPI_DISPATCHER
-        ACPI_MODULE_NAME    ("dswload")
+	 ACPI_MODULE_NAME    ("dswload")
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiDsInitCallbacks
+ * FUNCTION:    acpi_ds_init_callbacks
  *
- * PARAMETERS:  WalkState       - Current state of the parse tree walk
- *              PassNumber      - 1, 2, or 3
+ * PARAMETERS:  walk_state      - Current state of the parse tree walk
+ *              pass_number     - 1, 2, or 3
  *
  * RETURN:      Status
  *
@@ -177,70 +36,69 @@
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiDsInitCallbacks (
-    ACPI_WALK_STATE         *WalkState,
-    UINT32                  PassNumber)
+acpi_status
+acpi_ds_init_callbacks (
+	struct acpi_walk_state          *walk_state,
+	u32                             pass_number)
 {
 
-    switch (PassNumber)
-    {
-    case 0:
+	switch (pass_number) {
+	case 0:
 
-        /* Parse only - caller will setup callbacks */
+		/* Parse only - caller will setup callbacks */
 
-        WalkState->ParseFlags         = ACPI_PARSE_LOAD_PASS1 |
-                                        ACPI_PARSE_DELETE_TREE |
-                                        ACPI_PARSE_DISASSEMBLE;
-        WalkState->DescendingCallback = NULL;
-        WalkState->AscendingCallback  = NULL;
-        break;
+		walk_state->parse_flags       = ACPI_PARSE_LOAD_PASS1 |
+				   ACPI_PARSE_DELETE_TREE |
+				   ACPI_PARSE_DISASSEMBLE;
+		walk_state->descending_callback = NULL;
+		walk_state->ascending_callback = NULL;
+		break;
 
-    case 1:
+	case 1:
 
-        /* Load pass 1 */
+		/* Load pass 1 */
 
-        WalkState->ParseFlags         = ACPI_PARSE_LOAD_PASS1 |
-                                        ACPI_PARSE_DELETE_TREE;
-        WalkState->DescendingCallback = AcpiDsLoad1BeginOp;
-        WalkState->AscendingCallback  = AcpiDsLoad1EndOp;
-        break;
+		walk_state->parse_flags       = ACPI_PARSE_LOAD_PASS1 |
+				   ACPI_PARSE_DELETE_TREE;
+		walk_state->descending_callback = acpi_ds_load1_begin_op;
+		walk_state->ascending_callback = acpi_ds_load1_end_op;
+		break;
 
-    case 2:
+	case 2:
 
-        /* Load pass 2 */
+		/* Load pass 2 */
 
-        WalkState->ParseFlags         = ACPI_PARSE_LOAD_PASS1 |
-                                        ACPI_PARSE_DELETE_TREE;
-        WalkState->DescendingCallback = AcpiDsLoad2BeginOp;
-        WalkState->AscendingCallback  = AcpiDsLoad2EndOp;
-        break;
+		walk_state->parse_flags       = ACPI_PARSE_LOAD_PASS1 |
+				   ACPI_PARSE_DELETE_TREE;
+		walk_state->descending_callback = acpi_ds_load2_begin_op;
+		walk_state->ascending_callback = acpi_ds_load2_end_op;
+		break;
 
-    case 3:
+	case 3:
 
-        /* Execution pass */
+		/* Execution pass */
 
-        WalkState->ParseFlags        |= ACPI_PARSE_EXECUTE  |
-                                        ACPI_PARSE_DELETE_TREE;
-        WalkState->DescendingCallback = AcpiDsExecBeginOp;
-        WalkState->AscendingCallback  = AcpiDsExecEndOp;
-        break;
+		walk_state->parse_flags      |= ACPI_PARSE_EXECUTE  |
+				   ACPI_PARSE_DELETE_TREE;
+		walk_state->descending_callback = acpi_ds_exec_begin_op;
+		walk_state->ascending_callback = acpi_ds_exec_end_op;
+		break;
 
-    default:
+	default:
 
-        return (AE_BAD_PARAMETER);
-    }
+		return (AE_BAD_PARAMETER);
+	}
 
-    return (AE_OK);
+	return (AE_OK);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiDsLoad1BeginOp
+ * FUNCTION:    acpi_ds_load1_begin_op
  *
- * PARAMETERS:  WalkState       - Current state of the parse tree walk
- *              OutOp           - Where to return op if a new one is created
+ * PARAMETERS:  walk_state      - Current state of the parse tree walk
+ *              out_op          - Where to return op if a new one is created
  *
  * RETURN:      Status
  *
@@ -248,297 +106,277 @@ AcpiDsInitCallbacks (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiDsLoad1BeginOp (
-    ACPI_WALK_STATE         *WalkState,
-    ACPI_PARSE_OBJECT       **OutOp)
+acpi_status
+acpi_ds_load1_begin_op (
+	struct acpi_walk_state          *walk_state,
+	union acpi_parse_object         **out_op)
 {
-    ACPI_PARSE_OBJECT       *Op;
-    ACPI_NAMESPACE_NODE     *Node;
-    ACPI_STATUS             Status;
-    ACPI_OBJECT_TYPE        ObjectType;
-    char                    *Path;
-    UINT32                  Flags;
+	union acpi_parse_object         *op;
+	struct acpi_namespace_node      *node;
+	acpi_status                     status;
+	acpi_object_type                object_type;
+	char                            *path;
+	u32                             flags;
 
 
-    ACPI_FUNCTION_TRACE_PTR (DsLoad1BeginOp, WalkState->Op);
+	ACPI_FUNCTION_TRACE_PTR (ds_load1_begin_op, walk_state->op);
 
 
-    Op = WalkState->Op;
-    ACPI_DEBUG_PRINT ((ACPI_DB_DISPATCH, "Op=%p State=%p\n", Op, WalkState));
+	op = walk_state->op;
+	ACPI_DEBUG_PRINT ((ACPI_DB_DISPATCH, "Op=%p State=%p\n", op, walk_state));
 
-    /* We are only interested in opcodes that have an associated name */
+	/* We are only interested in opcodes that have an associated name */
 
-    if (Op)
-    {
-        if (!(WalkState->OpInfo->Flags & AML_NAMED))
-        {
-            *OutOp = Op;
-            return_ACPI_STATUS (AE_OK);
-        }
+	if (op) {
+		if (!(walk_state->op_info->flags & AML_NAMED)) {
+			*out_op = op;
+			return_ACPI_STATUS (AE_OK);
+		}
 
-        /* Check if this object has already been installed in the namespace */
+		/* Check if this object has already been installed in the namespace */
 
-        if (Op->Common.Node)
-        {
-            *OutOp = Op;
-            return_ACPI_STATUS (AE_OK);
-        }
-    }
+		if (op->common.node) {
+			*out_op = op;
+			return_ACPI_STATUS (AE_OK);
+		}
+	}
 
-    Path = AcpiPsGetNextNamestring (&WalkState->ParserState);
+	path = acpi_ps_get_next_namestring (&walk_state->parser_state);
 
-    /* Map the raw opcode into an internal object type */
+	/* Map the raw opcode into an internal object type */
 
-    ObjectType = WalkState->OpInfo->ObjectType;
+	object_type = walk_state->op_info->object_type;
 
-    ACPI_DEBUG_PRINT ((ACPI_DB_DISPATCH,
-        "State=%p Op=%p [%s]\n", WalkState, Op,
-        AcpiUtGetTypeName (ObjectType)));
+	ACPI_DEBUG_PRINT ((ACPI_DB_DISPATCH,
+		"State=%p Op=%p [%s]\n", walk_state, op,
+		acpi_ut_get_type_name (object_type)));
 
-    switch (WalkState->Opcode)
-    {
-    case AML_SCOPE_OP:
-        /*
-         * The target name of the Scope() operator must exist at this point so
-         * that we can actually open the scope to enter new names underneath it.
-         * Allow search-to-root for single namesegs.
-         */
-        Status = AcpiNsLookup (WalkState->ScopeInfo, Path, ObjectType,
-            ACPI_IMODE_EXECUTE, ACPI_NS_SEARCH_PARENT, WalkState, &(Node));
+	switch (walk_state->opcode) {
+	case AML_SCOPE_OP:
+		/*
+		 * The target name of the Scope() operator must exist at this point so
+		 * that we can actually open the scope to enter new names underneath it.
+		 * Allow search-to-root for single namesegs.
+		 */
+		status = acpi_ns_lookup (walk_state->scope_info, path, object_type,
+			ACPI_IMODE_EXECUTE, ACPI_NS_SEARCH_PARENT, walk_state, &(node));
 #ifdef ACPI_ASL_COMPILER
-        if (Status == AE_NOT_FOUND)
-        {
-            /*
-             * Table disassembly:
-             * Target of Scope() not found. Generate an External for it, and
-             * insert the name into the namespace.
-             */
-            AcpiDmAddOpToExternalList (Op, Path, ACPI_TYPE_DEVICE, 0, 0);
-            Status = AcpiNsLookup (WalkState->ScopeInfo, Path, ObjectType,
-               ACPI_IMODE_LOAD_PASS1, ACPI_NS_SEARCH_PARENT,
-               WalkState, &Node);
-        }
+		if (status == AE_NOT_FOUND) {
+			/*
+			 * Table disassembly:
+			 * Target of Scope() not found. Generate an External for it, and
+			 * insert the name into the namespace.
+			 */
+			acpi_dm_add_op_to_external_list (op, path, ACPI_TYPE_DEVICE, 0, 0);
+			status = acpi_ns_lookup (walk_state->scope_info, path, object_type,
+			   ACPI_IMODE_LOAD_PASS1, ACPI_NS_SEARCH_PARENT,
+			   walk_state, &node);
+		}
 #endif
-        if (ACPI_FAILURE (Status))
-        {
-            ACPI_ERROR_NAMESPACE (WalkState->ScopeInfo, Path, Status);
-            return_ACPI_STATUS (Status);
-        }
+		if (ACPI_FAILURE (status)) {
+			ACPI_ERROR_NAMESPACE (walk_state->scope_info, path, status);
+			return_ACPI_STATUS (status);
+		}
 
-        /*
-         * Check to make sure that the target is
-         * one of the opcodes that actually opens a scope
-         */
-        switch (Node->Type)
-        {
-        case ACPI_TYPE_ANY:
-        case ACPI_TYPE_LOCAL_SCOPE:         /* Scope  */
-        case ACPI_TYPE_DEVICE:
-        case ACPI_TYPE_POWER:
-        case ACPI_TYPE_PROCESSOR:
-        case ACPI_TYPE_THERMAL:
+		/*
+		 * Check to make sure that the target is
+		 * one of the opcodes that actually opens a scope
+		 */
+		switch (node->type) {
+		case ACPI_TYPE_ANY:
+		case ACPI_TYPE_LOCAL_SCOPE:         /* Scope  */
+		case ACPI_TYPE_DEVICE:
+		case ACPI_TYPE_POWER:
+		case ACPI_TYPE_PROCESSOR:
+		case ACPI_TYPE_THERMAL:
 
-            /* These are acceptable types */
-            break;
+			/* These are acceptable types */
+			break;
 
-        case ACPI_TYPE_INTEGER:
-        case ACPI_TYPE_STRING:
-        case ACPI_TYPE_BUFFER:
-            /*
-             * These types we will allow, but we will change the type.
-             * This enables some existing code of the form:
-             *
-             *  Name (DEB, 0)
-             *  Scope (DEB) { ... }
-             *
-             * Note: silently change the type here. On the second pass,
-             * we will report a warning
-             */
-            ACPI_DEBUG_PRINT ((ACPI_DB_INFO,
-                "Type override - [%4.4s] had invalid type (%s) "
-                "for Scope operator, changed to type ANY\n",
-                AcpiUtGetNodeName (Node), AcpiUtGetTypeName (Node->Type)));
+		case ACPI_TYPE_INTEGER:
+		case ACPI_TYPE_STRING:
+		case ACPI_TYPE_BUFFER:
+			/*
+			 * These types we will allow, but we will change the type.
+			 * This enables some existing code of the form:
+			 *
+			 *  Name (DEB, 0)
+			 *  Scope (DEB) { ... }
+			 *
+			 * Note: silently change the type here. On the second pass,
+			 * we will report a warning
+			 */
+			ACPI_DEBUG_PRINT ((ACPI_DB_INFO,
+				"Type override - [%4.4s] had invalid type (%s) "
+				"for Scope operator, changed to type ANY\n",
+				acpi_ut_get_node_name (node), acpi_ut_get_type_name (node->type)));
 
-            Node->Type = ACPI_TYPE_ANY;
-            WalkState->ScopeInfo->Common.Value = ACPI_TYPE_ANY;
-            break;
+			node->type = ACPI_TYPE_ANY;
+			walk_state->scope_info->common.value = ACPI_TYPE_ANY;
+			break;
 
-        case ACPI_TYPE_METHOD:
-            /*
-             * Allow scope change to root during execution of module-level
-             * code. Root is typed METHOD during this time.
-             */
-            if ((Node == AcpiGbl_RootNode) &&
-                (WalkState->ParseFlags & ACPI_PARSE_MODULE_LEVEL))
-            {
-                break;
-            }
+		case ACPI_TYPE_METHOD:
+			/*
+			 * Allow scope change to root during execution of module-level
+			 * code. Root is typed METHOD during this time.
+			 */
+			if ((node == acpi_gbl_root_node) &&
+				(walk_state->parse_flags & ACPI_PARSE_MODULE_LEVEL)) {
+				break;
+			}
 
-            ACPI_FALLTHROUGH;
+			ACPI_FALLTHROUGH;
 
-        default:
+		default:
 
-            /* All other types are an error */
+			/* All other types are an error */
 
-            ACPI_ERROR ((AE_INFO,
-                "Invalid type (%s) for target of "
-                "Scope operator [%4.4s] (Cannot override)",
-                AcpiUtGetTypeName (Node->Type), AcpiUtGetNodeName (Node)));
+			ACPI_ERROR ((AE_INFO,
+				"Invalid type (%s) for target of "
+				"Scope operator [%4.4s] (Cannot override)",
+				acpi_ut_get_type_name (node->type), acpi_ut_get_node_name (node)));
 
-            return_ACPI_STATUS (AE_AML_OPERAND_TYPE);
-        }
-        break;
+			return_ACPI_STATUS (AE_AML_OPERAND_TYPE);
+		}
+		break;
 
-    default:
-        /*
-         * For all other named opcodes, we will enter the name into
-         * the namespace.
-         *
-         * Setup the search flags.
-         * Since we are entering a name into the namespace, we do not want to
-         * enable the search-to-root upsearch.
-         *
-         * There are only two conditions where it is acceptable that the name
-         * already exists:
-         *    1) the Scope() operator can reopen a scoping object that was
-         *       previously defined (Scope, Method, Device, etc.)
-         *    2) Whenever we are parsing a deferred opcode (OpRegion, Buffer,
-         *       BufferField, or Package), the name of the object is already
-         *       in the namespace.
-         */
-        if (WalkState->DeferredNode)
-        {
-            /* This name is already in the namespace, get the node */
+	default:
+		/*
+		 * For all other named opcodes, we will enter the name into
+		 * the namespace.
+		 *
+		 * Setup the search flags.
+		 * Since we are entering a name into the namespace, we do not want to
+		 * enable the search-to-root upsearch.
+		 *
+		 * There are only two conditions where it is acceptable that the name
+		 * already exists:
+		 *    1) the Scope() operator can reopen a scoping object that was
+		 *       previously defined (Scope, Method, Device, etc.)
+		 *    2) Whenever we are parsing a deferred opcode (op_region, Buffer,
+		 *       buffer_field, or Package), the name of the object is already
+		 *       in the namespace.
+		 */
+		if (walk_state->deferred_node) {
 
-            Node = WalkState->DeferredNode;
-            Status = AE_OK;
-            break;
-        }
+			/* This name is already in the namespace, get the node */
 
-        /*
-         * If we are executing a method, do not create any namespace objects
-         * during the load phase, only during execution.
-         */
-        if (WalkState->MethodNode)
-        {
-            Node = NULL;
-            Status = AE_OK;
-            break;
-        }
+			node = walk_state->deferred_node;
+			status = AE_OK;
+			break;
+		}
 
-        Flags = ACPI_NS_NO_UPSEARCH;
-        if ((WalkState->Opcode != AML_SCOPE_OP) &&
-            (!(WalkState->ParseFlags & ACPI_PARSE_DEFERRED_OP)))
-        {
-            if (WalkState->NamespaceOverride)
-            {
-                Flags |= ACPI_NS_OVERRIDE_IF_FOUND;
-                ACPI_DEBUG_PRINT ((ACPI_DB_DISPATCH, "[%s] Override allowed\n",
-                    AcpiUtGetTypeName (ObjectType)));
-            }
-            else
-            {
-                Flags |= ACPI_NS_ERROR_IF_FOUND;
-                ACPI_DEBUG_PRINT ((ACPI_DB_DISPATCH, "[%s] Cannot already exist\n",
-                    AcpiUtGetTypeName (ObjectType)));
-            }
-        }
-        else
-        {
-            ACPI_DEBUG_PRINT ((ACPI_DB_DISPATCH,
-                "[%s] Both Find or Create allowed\n",
-                AcpiUtGetTypeName (ObjectType)));
-        }
+		/*
+		 * If we are executing a method, do not create any namespace objects
+		 * during the load phase, only during execution.
+		 */
+		if (walk_state->method_node) {
+			node = NULL;
+			status = AE_OK;
+			break;
+		}
 
-        /*
-         * Enter the named type into the internal namespace. We enter the name
-         * as we go downward in the parse tree. Any necessary subobjects that
-         * involve arguments to the opcode must be created as we go back up the
-         * parse tree later.
-         */
-        Status = AcpiNsLookup (WalkState->ScopeInfo, Path, ObjectType,
-            ACPI_IMODE_LOAD_PASS1, Flags, WalkState, &Node);
-        if (ACPI_FAILURE (Status))
-        {
-            if (Status == AE_ALREADY_EXISTS)
-            {
-                /* The name already exists in this scope */
+		flags = ACPI_NS_NO_UPSEARCH;
+		if ((walk_state->opcode != AML_SCOPE_OP) &&
+			(!(walk_state->parse_flags & ACPI_PARSE_DEFERRED_OP))) {
+			if (walk_state->namespace_override) {
+				flags |= ACPI_NS_OVERRIDE_IF_FOUND;
+				ACPI_DEBUG_PRINT ((ACPI_DB_DISPATCH, "[%s] Override allowed\n",
+					acpi_ut_get_type_name (object_type)));
+			}
+			else {
+				flags |= ACPI_NS_ERROR_IF_FOUND;
+				ACPI_DEBUG_PRINT ((ACPI_DB_DISPATCH, "[%s] Cannot already exist\n",
+					acpi_ut_get_type_name (object_type)));
+			}
+		}
+		else {
+			ACPI_DEBUG_PRINT ((ACPI_DB_DISPATCH,
+				"[%s] Both Find or Create allowed\n",
+				acpi_ut_get_type_name (object_type)));
+		}
 
-                if (Node->Flags & ANOBJ_IS_EXTERNAL)
-                {
-                    /*
-                     * Allow one create on an object or segment that was
-                     * previously declared External
-                     */
-                    Node->Flags &= ~ANOBJ_IS_EXTERNAL;
-                    Node->Type = (UINT8) ObjectType;
+		/*
+		 * Enter the named type into the internal namespace. We enter the name
+		 * as we go downward in the parse tree. Any necessary subobjects that
+		 * involve arguments to the opcode must be created as we go back up the
+		 * parse tree later.
+		 */
+		status = acpi_ns_lookup (walk_state->scope_info, path, object_type,
+			ACPI_IMODE_LOAD_PASS1, flags, walk_state, &node);
+		if (ACPI_FAILURE (status)) {
+			if (status == AE_ALREADY_EXISTS) {
 
-                    /* Just retyped a node, probably will need to open a scope */
+				/* The name already exists in this scope */
 
-                    if (AcpiNsOpensScope (ObjectType))
-                    {
-                        Status = AcpiDsScopeStackPush (
-                            Node, ObjectType, WalkState);
-                        if (ACPI_FAILURE (Status))
-                        {
-                            return_ACPI_STATUS (Status);
-                        }
-                    }
+				if (node->flags & ANOBJ_IS_EXTERNAL) {
+					/*
+					 * Allow one create on an object or segment that was
+					 * previously declared External
+					 */
+					node->flags &= ~ANOBJ_IS_EXTERNAL;
+					node->type = (u8) object_type;
 
-                    Status = AE_OK;
-                }
-            }
+					/* Just retyped a node, probably will need to open a scope */
 
-            if (ACPI_FAILURE (Status))
-            {
-                ACPI_ERROR_NAMESPACE (WalkState->ScopeInfo, Path, Status);
-                return_ACPI_STATUS (Status);
-            }
-        }
-        break;
-    }
+					if (acpi_ns_opens_scope (object_type)) {
+						status = acpi_ds_scope_stack_push (
+							node, object_type, walk_state);
+						if (ACPI_FAILURE (status)) {
+							return_ACPI_STATUS (status);
+						}
+					}
 
-    /* Common exit */
+					status = AE_OK;
+				}
+			}
 
-    if (!Op)
-    {
-        /* Create a new op */
+			if (ACPI_FAILURE (status)) {
+				ACPI_ERROR_NAMESPACE (walk_state->scope_info, path, status);
+				return_ACPI_STATUS (status);
+			}
+		}
+		break;
+	}
 
-        Op = AcpiPsAllocOp (WalkState->Opcode, WalkState->Aml);
-        if (!Op)
-        {
-            return_ACPI_STATUS (AE_NO_MEMORY);
-        }
-    }
+	/* Common exit */
 
-    /* Initialize the op */
+	if (!op) {
+
+		/* Create a new op */
+
+		op = acpi_ps_alloc_op (walk_state->opcode, walk_state->aml);
+		if (!op) {
+			return_ACPI_STATUS (AE_NO_MEMORY);
+		}
+	}
+
+	/* Initialize the op */
 
 #ifdef ACPI_CONSTANT_EVAL_ONLY
-    Op->Named.Path = Path;
+	op->named.path = path;
 #endif
 
-    if (Node)
-    {
-        /*
-         * Put the Node in the "op" object that the parser uses, so we
-         * can get it again quickly when this scope is closed
-         */
-        Op->Common.Node = Node;
-        Op->Named.Name = Node->Name.Integer;
-    }
+	if (node) {
+		/*
+		 * Put the Node in the "op" object that the parser uses, so we
+		 * can get it again quickly when this scope is closed
+		 */
+		op->common.node = node;
+		op->named.name = node->name.integer;
+	}
 
-    AcpiPsAppendArg (AcpiPsGetParentScope (&WalkState->ParserState), Op);
-    *OutOp = Op;
-    return_ACPI_STATUS (Status);
+	acpi_ps_append_arg (acpi_ps_get_parent_scope (&walk_state->parser_state), op);
+	*out_op = op;
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiDsLoad1EndOp
+ * FUNCTION:    acpi_ds_load1_end_op
  *
- * PARAMETERS:  WalkState       - Current state of the parse tree walk
+ * PARAMETERS:  walk_state      - Current state of the parse tree walk
  *
  * RETURN:      Status
  *
@@ -547,207 +385,188 @@ AcpiDsLoad1BeginOp (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiDsLoad1EndOp (
-    ACPI_WALK_STATE         *WalkState)
+acpi_status
+acpi_ds_load1_end_op (
+	struct acpi_walk_state          *walk_state)
 {
-    ACPI_PARSE_OBJECT       *Op;
-    ACPI_OBJECT_TYPE        ObjectType;
-    ACPI_STATUS             Status = AE_OK;
+	union acpi_parse_object         *op;
+	acpi_object_type                object_type;
+	acpi_status                     status = AE_OK;
 #ifdef ACPI_ASL_COMPILER
-    UINT8                   ParamCount;
+	u8                              param_count;
 #endif
 
 
-    ACPI_FUNCTION_TRACE (DsLoad1EndOp);
+	ACPI_FUNCTION_TRACE (ds_load1_end_op);
 
 
-    Op = WalkState->Op;
-    ACPI_DEBUG_PRINT ((ACPI_DB_DISPATCH, "Op=%p State=%p\n", Op, WalkState));
+	op = walk_state->op;
+	ACPI_DEBUG_PRINT ((ACPI_DB_DISPATCH, "Op=%p State=%p\n", op, walk_state));
 
-    /*
-     * Disassembler: handle create field operators here.
-     *
-     * CreateBufferField is a deferred op that is typically processed in load
-     * pass 2. However, disassembly of control method contents walk the parse
-     * tree with ACPI_PARSE_LOAD_PASS1 and AML_CREATE operators are processed
-     * in a later walk. This is a problem when there is a control method that
-     * has the same name as the AML_CREATE object. In this case, any use of the
-     * name segment will be detected as a method call rather than a reference
-     * to a buffer field.
-     *
-     * This earlier creation during disassembly solves this issue by inserting
-     * the named object in the ACPI namespace so that references to this name
-     * would be a name string rather than a method call.
-     */
-    if ((WalkState->ParseFlags & ACPI_PARSE_DISASSEMBLE) &&
-        (WalkState->OpInfo->Flags & AML_CREATE))
-    {
-        Status = AcpiDsCreateBufferField (Op, WalkState);
-        return_ACPI_STATUS (Status);
-    }
+	/*
+	 * Disassembler: handle create field operators here.
+	 *
+	 * create_buffer_field is a deferred op that is typically processed in load
+	 * pass 2. However, disassembly of control method contents walk the parse
+	 * tree with ACPI_PARSE_LOAD_PASS1 and AML_CREATE operators are processed
+	 * in a later walk. This is a problem when there is a control method that
+	 * has the same name as the AML_CREATE object. In this case, any use of the
+	 * name segment will be detected as a method call rather than a reference
+	 * to a buffer field.
+	 *
+	 * This earlier creation during disassembly solves this issue by inserting
+	 * the named object in the ACPI namespace so that references to this name
+	 * would be a name string rather than a method call.
+	 */
+	if ((walk_state->parse_flags & ACPI_PARSE_DISASSEMBLE) &&
+		(walk_state->op_info->flags & AML_CREATE)) {
+		status = acpi_ds_create_buffer_field (op, walk_state);
+		return_ACPI_STATUS (status);
+	}
 
-    /* We are only interested in opcodes that have an associated name */
+	/* We are only interested in opcodes that have an associated name */
 
-    if (!(WalkState->OpInfo->Flags & (AML_NAMED | AML_FIELD)))
-    {
-        return_ACPI_STATUS (AE_OK);
-    }
+	if (!(walk_state->op_info->flags & (AML_NAMED | AML_FIELD))) {
+		return_ACPI_STATUS (AE_OK);
+	}
 
-    /* Get the object type to determine if we should pop the scope */
+	/* Get the object type to determine if we should pop the scope */
 
-    ObjectType = WalkState->OpInfo->ObjectType;
+	object_type = walk_state->op_info->object_type;
 
-    if (WalkState->OpInfo->Flags & AML_FIELD)
-    {
-        /*
-         * If we are executing a method, do not create any namespace objects
-         * during the load phase, only during execution.
-         */
-        if (!WalkState->MethodNode)
-        {
-            if (WalkState->Opcode == AML_FIELD_OP          ||
-                WalkState->Opcode == AML_BANK_FIELD_OP     ||
-                WalkState->Opcode == AML_INDEX_FIELD_OP)
-            {
-                Status = AcpiDsInitFieldObjects (Op, WalkState);
-            }
-        }
-        return_ACPI_STATUS (Status);
-    }
+	if (walk_state->op_info->flags & AML_FIELD) {
+		/*
+		 * If we are executing a method, do not create any namespace objects
+		 * during the load phase, only during execution.
+		 */
+		if (!walk_state->method_node) {
+			if (walk_state->opcode == AML_FIELD_OP         ||
+				walk_state->opcode == AML_BANK_FIELD_OP    ||
+				walk_state->opcode == AML_INDEX_FIELD_OP) {
+				status = acpi_ds_init_field_objects (op, walk_state);
+			}
+		}
+		return_ACPI_STATUS (status);
+	}
 
-    /*
-     * If we are executing a method, do not create any namespace objects
-     * during the load phase, only during execution.
-     */
-    if (!WalkState->MethodNode)
-    {
-        if (Op->Common.AmlOpcode == AML_REGION_OP)
-        {
-            Status = AcpiExCreateRegion (Op->Named.Data, Op->Named.Length,
-                (ACPI_ADR_SPACE_TYPE)
-                    ((Op->Common.Value.Arg)->Common.Value.Integer),
-                WalkState);
-            if (ACPI_FAILURE (Status))
-            {
-                return_ACPI_STATUS (Status);
-            }
-        }
-        else if (Op->Common.AmlOpcode == AML_DATA_REGION_OP)
-        {
-            Status = AcpiExCreateRegion (Op->Named.Data, Op->Named.Length,
-                ACPI_ADR_SPACE_DATA_TABLE, WalkState);
-            if (ACPI_FAILURE (Status))
-            {
-                return_ACPI_STATUS (Status);
-            }
-        }
-    }
+	/*
+	 * If we are executing a method, do not create any namespace objects
+	 * during the load phase, only during execution.
+	 */
+	if (!walk_state->method_node) {
+		if (op->common.aml_opcode == AML_REGION_OP) {
+			status = acpi_ex_create_region (op->named.data, op->named.length,
+				(acpi_adr_space_type)
+					((op->common.value.arg)->common.value.integer),
+				walk_state);
+			if (ACPI_FAILURE (status)) {
+				return_ACPI_STATUS (status);
+			}
+		}
+		else if (op->common.aml_opcode == AML_DATA_REGION_OP) {
+			status = acpi_ex_create_region (op->named.data, op->named.length,
+				ACPI_ADR_SPACE_DATA_TABLE, walk_state);
+			if (ACPI_FAILURE (status)) {
+				return_ACPI_STATUS (status);
+			}
+		}
+	}
 
-    if (Op->Common.AmlOpcode == AML_NAME_OP)
-    {
-        /* For Name opcode, get the object type from the argument */
+	if (op->common.aml_opcode == AML_NAME_OP) {
 
-        if (Op->Common.Value.Arg)
-        {
-            ObjectType = (AcpiPsGetOpcodeInfo (
-                (Op->Common.Value.Arg)->Common.AmlOpcode))->ObjectType;
+		/* For Name opcode, get the object type from the argument */
 
-            /* Set node type if we have a namespace node */
+		if (op->common.value.arg) {
+			object_type = (acpi_ps_get_opcode_info (
+				(op->common.value.arg)->common.aml_opcode))->object_type;
 
-            if (Op->Common.Node)
-            {
-                Op->Common.Node->Type = (UINT8) ObjectType;
-            }
-        }
-    }
+			/* Set node type if we have a namespace node */
+
+			if (op->common.node) {
+				op->common.node->type = (u8) object_type;
+			}
+		}
+	}
 
 #ifdef ACPI_ASL_COMPILER
-    /*
-     * For external opcode, get the object type from the argument and
-     * get the parameter count from the argument's next.
-     */
-    if (AcpiGbl_DisasmFlag &&
-        Op->Common.Node &&
-        Op->Common.AmlOpcode == AML_EXTERNAL_OP)
-    {
-        /*
-         * Note, if this external is not a method
-         * Op->Common.Value.Arg->Common.Next->Common.Value.Integer == 0
-         * Therefore, ParamCount will be 0.
-         */
-        ParamCount = (UINT8) Op->Common.Value.Arg->Common.Next->Common.Value.Integer;
-        ObjectType = (UINT8) Op->Common.Value.Arg->Common.Value.Integer;
-        Op->Common.Node->Flags |= ANOBJ_IS_EXTERNAL;
-        Op->Common.Node->Type = (UINT8) ObjectType;
+	/*
+	 * For external opcode, get the object type from the argument and
+	 * get the parameter count from the argument's next.
+	 */
+	if (acpi_gbl_disasm_flag &&
+		op->common.node &&
+		op->common.aml_opcode == AML_EXTERNAL_OP) {
+		/*
+		 * Note, if this external is not a method
+		 * Op->Common.Value.Arg->Common.Next->Common.Value.Integer == 0
+		 * Therefore, param_count will be 0.
+		 */
+		param_count = (u8) op->common.value.arg->common.next->common.value.integer;
+		object_type = (u8) op->common.value.arg->common.value.integer;
+		op->common.node->flags |= ANOBJ_IS_EXTERNAL;
+		op->common.node->type = (u8) object_type;
 
-        AcpiDmCreateSubobjectForExternal ((UINT8)ObjectType,
-            &Op->Common.Node, ParamCount);
+		acpi_dm_create_subobject_for_external ((u8)object_type,
+			&op->common.node, param_count);
 
-        /*
-         * Add the external to the external list because we may be
-         * emitting code based off of the items within the external list.
-         */
-        AcpiDmAddOpToExternalList (Op, Op->Named.Path, (UINT8)ObjectType, ParamCount,
-           ACPI_EXT_ORIGIN_FROM_OPCODE | ACPI_EXT_RESOLVED_REFERENCE);
-    }
+		/*
+		 * Add the external to the external list because we may be
+		 * emitting code based off of the items within the external list.
+		 */
+		acpi_dm_add_op_to_external_list (op, op->named.path, (u8)object_type, param_count,
+		   ACPI_EXT_ORIGIN_FROM_OPCODE | ACPI_EXT_RESOLVED_REFERENCE);
+	}
 #endif
 
-    /*
-     * If we are executing a method, do not create any namespace objects
-     * during the load phase, only during execution.
-     */
-    if (!WalkState->MethodNode)
-    {
-        if (Op->Common.AmlOpcode == AML_METHOD_OP)
-        {
-            /*
-             * MethodOp PkgLength NameString MethodFlags TermList
-             *
-             * Note: We must create the method node/object pair as soon as we
-             * see the method declaration. This allows later pass1 parsing
-             * of invocations of the method (need to know the number of
-             * arguments.)
-             */
-            ACPI_DEBUG_PRINT ((ACPI_DB_DISPATCH,
-                "LOADING-Method: State=%p Op=%p NamedObj=%p\n",
-                WalkState, Op, Op->Named.Node));
+	/*
+	 * If we are executing a method, do not create any namespace objects
+	 * during the load phase, only during execution.
+	 */
+	if (!walk_state->method_node) {
+		if (op->common.aml_opcode == AML_METHOD_OP) {
+			/*
+			 * method_op pkg_length name_string method_flags term_list
+			 *
+			 * Note: We must create the method node/object pair as soon as we
+			 * see the method declaration. This allows later pass1 parsing
+			 * of invocations of the method (need to know the number of
+			 * arguments.)
+			 */
+			ACPI_DEBUG_PRINT ((ACPI_DB_DISPATCH,
+				"LOADING-Method: State=%p Op=%p NamedObj=%p\n",
+				walk_state, op, op->named.node));
 
-            if (!AcpiNsGetAttachedObject (Op->Named.Node))
-            {
-                WalkState->Operands[0] = ACPI_CAST_PTR (void, Op->Named.Node);
-                WalkState->NumOperands = 1;
+			if (!acpi_ns_get_attached_object (op->named.node)) {
+				walk_state->operands[0] = ACPI_CAST_PTR (void, op->named.node);
+				walk_state->num_operands = 1;
 
-                Status = AcpiDsCreateOperands (
-                    WalkState, Op->Common.Value.Arg);
-                if (ACPI_SUCCESS (Status))
-                {
-                    Status = AcpiExCreateMethod (Op->Named.Data,
-                        Op->Named.Length, WalkState);
-                }
+				status = acpi_ds_create_operands (
+					walk_state, op->common.value.arg);
+				if (ACPI_SUCCESS (status)) {
+					status = acpi_ex_create_method (op->named.data,
+						op->named.length, walk_state);
+				}
 
-                WalkState->Operands[0] = NULL;
-                WalkState->NumOperands = 0;
+				walk_state->operands[0] = NULL;
+				walk_state->num_operands = 0;
 
-                if (ACPI_FAILURE (Status))
-                {
-                    return_ACPI_STATUS (Status);
-                }
-            }
-        }
-    }
+				if (ACPI_FAILURE (status)) {
+					return_ACPI_STATUS (status);
+				}
+			}
+		}
+	}
 
-    /* Pop the scope stack (only if loading a table) */
+	/* Pop the scope stack (only if loading a table) */
 
-    if (!WalkState->MethodNode &&
-        Op->Common.AmlOpcode != AML_EXTERNAL_OP &&
-        AcpiNsOpensScope (ObjectType))
-    {
-        ACPI_DEBUG_PRINT ((ACPI_DB_DISPATCH, "(%s): Popping scope for Op %p\n",
-            AcpiUtGetTypeName (ObjectType), Op));
+	if (!walk_state->method_node &&
+		op->common.aml_opcode != AML_EXTERNAL_OP &&
+		acpi_ns_opens_scope (object_type)) {
+		ACPI_DEBUG_PRINT ((ACPI_DB_DISPATCH, "(%s): Popping scope for Op %p\n",
+			acpi_ut_get_type_name (object_type), op));
 
-        Status = AcpiDsScopeStackPop (WalkState);
-    }
+		status = acpi_ds_scope_stack_pop (walk_state);
+	}
 
-    return_ACPI_STATUS (Status);
+	return_ACPI_STATUS (status);
 }

@@ -1,153 +1,12 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /******************************************************************************
  *
  * Module Name: exstore - AML Interpreter object store support
  *
+ * Copyright (C) 2000 - 2022, Intel Corp.
+ *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #include "acpi.h"
 #include "accommon.h"
@@ -158,177 +17,172 @@
 
 
 #define _COMPONENT          ACPI_EXECUTER
-        ACPI_MODULE_NAME    ("exstore")
+	 ACPI_MODULE_NAME    ("exstore")
 
 /* Local prototypes */
 
-static ACPI_STATUS
-AcpiExStoreObjectToIndex (
-    ACPI_OPERAND_OBJECT     *ValDesc,
-    ACPI_OPERAND_OBJECT     *DestDesc,
-    ACPI_WALK_STATE         *WalkState);
+static acpi_status
+acpi_ex_store_object_to_index (
+	union acpi_operand_object       *val_desc,
+	union acpi_operand_object       *dest_desc,
+	struct acpi_walk_state          *walk_state);
 
-static ACPI_STATUS
-AcpiExStoreDirectToNode (
-    ACPI_OPERAND_OBJECT     *SourceDesc,
-    ACPI_NAMESPACE_NODE     *Node,
-    ACPI_WALK_STATE         *WalkState);
+static acpi_status
+acpi_ex_store_direct_to_node (
+	union acpi_operand_object       *source_desc,
+	struct acpi_namespace_node      *node,
+	struct acpi_walk_state          *walk_state);
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExStore
+ * FUNCTION:    acpi_ex_store
  *
- * PARAMETERS:  *SourceDesc         - Value to be stored
- *              *DestDesc           - Where to store it. Must be an NS node
- *                                    or ACPI_OPERAND_OBJECT of type
+ * PARAMETERS:  *source_desc        - Value to be stored
+ *              *dest_desc          - Where to store it. Must be an NS node
+ *                                    or union acpi_operand_object of type
  *                                    Reference;
- *              WalkState           - Current walk state
+ *              walk_state          - Current walk state
  *
  * RETURN:      Status
  *
- * DESCRIPTION: Store the value described by SourceDesc into the location
- *              described by DestDesc. Called by various interpreter
+ * DESCRIPTION: Store the value described by source_desc into the location
+ *              described by dest_desc. Called by various interpreter
  *              functions to store the result of an operation into
  *              the destination operand -- not just simply the actual "Store"
  *              ASL operator.
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiExStore (
-    ACPI_OPERAND_OBJECT     *SourceDesc,
-    ACPI_OPERAND_OBJECT     *DestDesc,
-    ACPI_WALK_STATE         *WalkState)
+acpi_status
+acpi_ex_store (
+	union acpi_operand_object       *source_desc,
+	union acpi_operand_object       *dest_desc,
+	struct acpi_walk_state          *walk_state)
 {
-    ACPI_STATUS             Status = AE_OK;
-    ACPI_OPERAND_OBJECT     *RefDesc = DestDesc;
+	acpi_status                     status = AE_OK;
+	union acpi_operand_object       *ref_desc = dest_desc;
 
 
-    ACPI_FUNCTION_TRACE_PTR (ExStore, DestDesc);
+	ACPI_FUNCTION_TRACE_PTR (ex_store, dest_desc);
 
 
-    /* Validate parameters */
+	/* Validate parameters */
 
-    if (!SourceDesc || !DestDesc)
-    {
-        ACPI_ERROR ((AE_INFO, "Null parameter"));
-        return_ACPI_STATUS (AE_AML_NO_OPERAND);
-    }
+	if (!source_desc || !dest_desc) {
+		ACPI_ERROR ((AE_INFO, "Null parameter"));
+		return_ACPI_STATUS (AE_AML_NO_OPERAND);
+	}
 
-    /* DestDesc can be either a namespace node or an ACPI object */
+	/* dest_desc can be either a namespace node or an ACPI object */
 
-    if (ACPI_GET_DESCRIPTOR_TYPE (DestDesc) == ACPI_DESC_TYPE_NAMED)
-    {
-        /*
-         * Dest is a namespace node,
-         * Storing an object into a Named node.
-         */
-        Status = AcpiExStoreObjectToNode (SourceDesc,
-            (ACPI_NAMESPACE_NODE *) DestDesc, WalkState,
-            ACPI_IMPLICIT_CONVERSION);
+	if (ACPI_GET_DESCRIPTOR_TYPE (dest_desc) == ACPI_DESC_TYPE_NAMED) {
+		/*
+		 * Dest is a namespace node,
+		 * Storing an object into a Named node.
+		 */
+		status = acpi_ex_store_object_to_node (source_desc,
+			(struct acpi_namespace_node *) dest_desc, walk_state,
+			ACPI_IMPLICIT_CONVERSION);
 
-        return_ACPI_STATUS (Status);
-    }
+		return_ACPI_STATUS (status);
+	}
 
-    /* Destination object must be a Reference or a Constant object */
+	/* Destination object must be a Reference or a Constant object */
 
-    switch (DestDesc->Common.Type)
-    {
-    case ACPI_TYPE_LOCAL_REFERENCE:
+	switch (dest_desc->common.type) {
+	case ACPI_TYPE_LOCAL_REFERENCE:
 
-        break;
+		break;
 
-    case ACPI_TYPE_INTEGER:
+	case ACPI_TYPE_INTEGER:
 
-        /* Allow stores to Constants -- a Noop as per ACPI spec */
+		/* Allow stores to Constants -- a Noop as per ACPI spec */
 
-        if (DestDesc->Common.Flags & AOPOBJ_AML_CONSTANT)
-        {
-            return_ACPI_STATUS (AE_OK);
-        }
+		if (dest_desc->common.flags & AOPOBJ_AML_CONSTANT) {
+			return_ACPI_STATUS (AE_OK);
+		}
 
-        ACPI_FALLTHROUGH;
+		ACPI_FALLTHROUGH;
 
-    default:
+	default:
 
-        /* Destination is not a Reference object */
+		/* Destination is not a Reference object */
 
-        ACPI_ERROR ((AE_INFO,
-            "Target is not a Reference or Constant object - [%s] %p",
-            AcpiUtGetObjectTypeName (DestDesc), DestDesc));
+		ACPI_ERROR ((AE_INFO,
+			"Target is not a Reference or Constant object - [%s] %p",
+			acpi_ut_get_object_type_name (dest_desc), dest_desc));
 
-        return_ACPI_STATUS (AE_AML_OPERAND_TYPE);
-    }
+		return_ACPI_STATUS (AE_AML_OPERAND_TYPE);
+	}
 
-    /*
-     * Examine the Reference class. These cases are handled:
-     *
-     * 1) Store to Name (Change the object associated with a name)
-     * 2) Store to an indexed area of a Buffer or Package
-     * 3) Store to a Method Local or Arg
-     * 4) Store to the debug object
-     */
-    switch (RefDesc->Reference.Class)
-    {
-    case ACPI_REFCLASS_REFOF:
+	/*
+	 * Examine the Reference class. These cases are handled:
+	 *
+	 * 1) Store to Name (Change the object associated with a name)
+	 * 2) Store to an indexed area of a Buffer or Package
+	 * 3) Store to a Method Local or Arg
+	 * 4) Store to the debug object
+	 */
+	switch (ref_desc->reference.class) {
+	case ACPI_REFCLASS_REFOF:
 
-        /* Storing an object into a Name "container" */
+		/* Storing an object into a Name "container" */
 
-        Status = AcpiExStoreObjectToNode (SourceDesc,
-            RefDesc->Reference.Object,
-            WalkState, ACPI_IMPLICIT_CONVERSION);
-        break;
+		status = acpi_ex_store_object_to_node (source_desc,
+			ref_desc->reference.object,
+			walk_state, ACPI_IMPLICIT_CONVERSION);
+		break;
 
-    case ACPI_REFCLASS_INDEX:
+	case ACPI_REFCLASS_INDEX:
 
-        /* Storing to an Index (pointer into a packager or buffer) */
+		/* Storing to an Index (pointer into a packager or buffer) */
 
-        Status = AcpiExStoreObjectToIndex (SourceDesc, RefDesc, WalkState);
-        break;
+		status = acpi_ex_store_object_to_index (source_desc, ref_desc, walk_state);
+		break;
 
-    case ACPI_REFCLASS_LOCAL:
-    case ACPI_REFCLASS_ARG:
+	case ACPI_REFCLASS_LOCAL:
+	case ACPI_REFCLASS_ARG:
 
-        /* Store to a method local/arg  */
+		/* Store to a method local/arg  */
 
-        Status = AcpiDsStoreObjectToLocal (RefDesc->Reference.Class,
-            RefDesc->Reference.Value, SourceDesc, WalkState);
-        break;
+		status = acpi_ds_store_object_to_local (ref_desc->reference.class,
+			ref_desc->reference.value, source_desc, walk_state);
+		break;
 
-    case ACPI_REFCLASS_DEBUG:
-        /*
-         * Storing to the Debug object causes the value stored to be
-         * displayed and otherwise has no effect -- see ACPI Specification
-         */
-        ACPI_DEBUG_PRINT ((ACPI_DB_EXEC,
-            "**** Write to Debug Object: Object %p [%s] ****:\n\n",
-            SourceDesc, AcpiUtGetObjectTypeName (SourceDesc)));
+	case ACPI_REFCLASS_DEBUG:
+		/*
+		 * Storing to the Debug object causes the value stored to be
+		 * displayed and otherwise has no effect -- see ACPI Specification
+		 */
+		ACPI_DEBUG_PRINT ((ACPI_DB_EXEC,
+			"**** Write to Debug Object: Object %p [%s] ****:\n\n",
+			source_desc, acpi_ut_get_object_type_name (source_desc)));
 
-        ACPI_DEBUG_OBJECT (SourceDesc, 0, 0);
-        break;
+		ACPI_DEBUG_OBJECT (source_desc, 0, 0);
+		break;
 
-    default:
+	default:
 
-        ACPI_ERROR ((AE_INFO, "Unknown Reference Class 0x%2.2X",
-            RefDesc->Reference.Class));
-        ACPI_DUMP_ENTRY (RefDesc, ACPI_LV_INFO);
+		ACPI_ERROR ((AE_INFO, "Unknown Reference Class 0x%2.2X",
+			ref_desc->reference.class));
+		ACPI_DUMP_ENTRY (ref_desc, ACPI_LV_INFO);
 
-        Status = AE_AML_INTERNAL;
-        break;
-    }
+		status = AE_AML_INTERNAL;
+		break;
+	}
 
-    return_ACPI_STATUS (Status);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExStoreObjectToIndex
+ * FUNCTION:    acpi_ex_store_object_to_index
  *
- * PARAMETERS:  *SourceDesc             - Value to be stored
- *              *DestDesc               - Named object to receive the value
- *              WalkState               - Current walk state
+ * PARAMETERS:  *source_desc            - Value to be stored
+ *              *dest_desc              - Named object to receive the value
+ *              walk_state              - Current walk state
  *
  * RETURN:      Status
  *
@@ -336,164 +190,157 @@ AcpiExStore (
  *
  ******************************************************************************/
 
-static ACPI_STATUS
-AcpiExStoreObjectToIndex (
-    ACPI_OPERAND_OBJECT     *SourceDesc,
-    ACPI_OPERAND_OBJECT     *IndexDesc,
-    ACPI_WALK_STATE         *WalkState)
+static acpi_status
+acpi_ex_store_object_to_index (
+	union acpi_operand_object       *source_desc,
+	union acpi_operand_object       *index_desc,
+	struct acpi_walk_state          *walk_state)
 {
-    ACPI_STATUS             Status = AE_OK;
-    ACPI_OPERAND_OBJECT     *ObjDesc;
-    ACPI_OPERAND_OBJECT     *NewDesc;
-    UINT8                   Value = 0;
-    UINT32                  i;
+	acpi_status                     status = AE_OK;
+	union acpi_operand_object       *obj_desc;
+	union acpi_operand_object       *new_desc;
+	u8                              value = 0;
+	u32                             i;
 
 
-    ACPI_FUNCTION_TRACE (ExStoreObjectToIndex);
+	ACPI_FUNCTION_TRACE (ex_store_object_to_index);
 
 
-    /*
-     * Destination must be a reference pointer, and
-     * must point to either a buffer or a package
-     */
-    switch (IndexDesc->Reference.TargetType)
-    {
-    case ACPI_TYPE_PACKAGE:
-        /*
-         * Storing to a package element. Copy the object and replace
-         * any existing object with the new object. No implicit
-         * conversion is performed.
-         *
-         * The object at *(IndexDesc->Reference.Where) is the
-         * element within the package that is to be modified.
-         * The parent package object is at IndexDesc->Reference.Object
-         */
-        ObjDesc = *(IndexDesc->Reference.Where);
+	/*
+	 * Destination must be a reference pointer, and
+	 * must point to either a buffer or a package
+	 */
+	switch (index_desc->reference.target_type) {
+	case ACPI_TYPE_PACKAGE:
+		/*
+		 * Storing to a package element. Copy the object and replace
+		 * any existing object with the new object. No implicit
+		 * conversion is performed.
+		 *
+		 * The object at *(index_desc->Reference.Where) is the
+		 * element within the package that is to be modified.
+		 * The parent package object is at index_desc->Reference.Object
+		 */
+		obj_desc = *(index_desc->reference.where);
 
-        if (SourceDesc->Common.Type == ACPI_TYPE_LOCAL_REFERENCE &&
-            SourceDesc->Reference.Class == ACPI_REFCLASS_TABLE)
-        {
-            /* This is a DDBHandle, just add a reference to it */
+		if (source_desc->common.type == ACPI_TYPE_LOCAL_REFERENCE &&
+			source_desc->reference.class == ACPI_REFCLASS_TABLE) {
 
-            AcpiUtAddReference (SourceDesc);
-            NewDesc = SourceDesc;
-        }
-        else
-        {
-            /* Normal object, copy it */
+			/* This is a DDBHandle, just add a reference to it */
 
-            Status = AcpiUtCopyIobjectToIobject (
-                SourceDesc, &NewDesc, WalkState);
-            if (ACPI_FAILURE (Status))
-            {
-                return_ACPI_STATUS (Status);
-            }
-        }
+			acpi_ut_add_reference (source_desc);
+			new_desc = source_desc;
+		}
+		else {
+			/* Normal object, copy it */
 
-        if (ObjDesc)
-        {
-            /* Decrement reference count by the ref count of the parent package */
+			status = acpi_ut_copy_iobject_to_iobject (
+				source_desc, &new_desc, walk_state);
+			if (ACPI_FAILURE (status)) {
+				return_ACPI_STATUS (status);
+			}
+		}
 
-            for (i = 0;
-                 i < ((ACPI_OPERAND_OBJECT *)
-                        IndexDesc->Reference.Object)->Common.ReferenceCount;
-                 i++)
-            {
-                AcpiUtRemoveReference (ObjDesc);
-            }
-        }
+		if (obj_desc) {
 
-        *(IndexDesc->Reference.Where) = NewDesc;
+			/* Decrement reference count by the ref count of the parent package */
 
-        /* Increment ref count by the ref count of the parent package-1 */
+			for (i = 0;
+				 i < ((union acpi_operand_object *)
+						index_desc->reference.object)->common.reference_count;
+				 i++) {
+				acpi_ut_remove_reference (obj_desc);
+			}
+		}
 
-        for (i = 1;
-             i < ((ACPI_OPERAND_OBJECT *)
-                    IndexDesc->Reference.Object)->Common.ReferenceCount;
-             i++)
-        {
-            AcpiUtAddReference (NewDesc);
-        }
+		*(index_desc->reference.where) = new_desc;
 
-        break;
+		/* Increment ref count by the ref count of the parent package-1 */
 
-    case ACPI_TYPE_BUFFER_FIELD:
-        /*
-         * Store into a Buffer or String (not actually a real BufferField)
-         * at a location defined by an Index.
-         *
-         * The first 8-bit element of the source object is written to the
-         * 8-bit Buffer location defined by the Index destination object,
-         * according to the ACPI 2.0 specification.
-         */
+		for (i = 1;
+			 i < ((union acpi_operand_object *)
+					index_desc->reference.object)->common.reference_count;
+			 i++) {
+			acpi_ut_add_reference (new_desc);
+		}
 
-        /*
-         * Make sure the target is a Buffer or String. An error should
-         * not happen here, since the ReferenceObject was constructed
-         * by the INDEX_OP code.
-         */
-        ObjDesc = IndexDesc->Reference.Object;
-        if ((ObjDesc->Common.Type != ACPI_TYPE_BUFFER) &&
-            (ObjDesc->Common.Type != ACPI_TYPE_STRING))
-        {
-            return_ACPI_STATUS (AE_AML_OPERAND_TYPE);
-        }
+		break;
 
-        /*
-         * The assignment of the individual elements will be slightly
-         * different for each source type.
-         */
-        switch (SourceDesc->Common.Type)
-        {
-        case ACPI_TYPE_INTEGER:
+	case ACPI_TYPE_BUFFER_FIELD:
+		/*
+		 * Store into a Buffer or String (not actually a real buffer_field)
+		 * at a location defined by an Index.
+		 *
+		 * The first 8-bit element of the source object is written to the
+		 * 8-bit Buffer location defined by the Index destination object,
+		 * according to the ACPI 2.0 specification.
+		 */
 
-            /* Use the least-significant byte of the integer */
+		/*
+		 * Make sure the target is a Buffer or String. An error should
+		 * not happen here, since the reference_object was constructed
+		 * by the INDEX_OP code.
+		 */
+		obj_desc = index_desc->reference.object;
+		if ((obj_desc->common.type != ACPI_TYPE_BUFFER) &&
+			(obj_desc->common.type != ACPI_TYPE_STRING)) {
+			return_ACPI_STATUS (AE_AML_OPERAND_TYPE);
+		}
 
-            Value = (UINT8) (SourceDesc->Integer.Value);
-            break;
+		/*
+		 * The assignment of the individual elements will be slightly
+		 * different for each source type.
+		 */
+		switch (source_desc->common.type) {
+		case ACPI_TYPE_INTEGER:
 
-        case ACPI_TYPE_BUFFER:
-        case ACPI_TYPE_STRING:
+			/* Use the least-significant byte of the integer */
 
-            /* Note: Takes advantage of common string/buffer fields */
+			value = (u8) (source_desc->integer.value);
+			break;
 
-            Value = SourceDesc->Buffer.Pointer[0];
-            break;
+		case ACPI_TYPE_BUFFER:
+		case ACPI_TYPE_STRING:
 
-        default:
+			/* Note: Takes advantage of common string/buffer fields */
 
-            /* All other types are invalid */
+			value = source_desc->buffer.pointer[0];
+			break;
 
-            ACPI_ERROR ((AE_INFO,
-                "Source must be type [Integer/Buffer/String], found [%s]",
-                AcpiUtGetObjectTypeName (SourceDesc)));
-            return_ACPI_STATUS (AE_AML_OPERAND_TYPE);
-        }
+		default:
 
-        /* Store the source value into the target buffer byte */
+			/* All other types are invalid */
 
-        ObjDesc->Buffer.Pointer[IndexDesc->Reference.Value] = Value;
-        break;
+			ACPI_ERROR ((AE_INFO,
+				"Source must be type [Integer/Buffer/String], found [%s]",
+				acpi_ut_get_object_type_name (source_desc)));
+			return_ACPI_STATUS (AE_AML_OPERAND_TYPE);
+		}
 
-    default:
-        ACPI_ERROR ((AE_INFO,
-            "Target is not of type [Package/BufferField]"));
-        Status = AE_AML_TARGET_TYPE;
-        break;
-    }
+		/* Store the source value into the target buffer byte */
 
-    return_ACPI_STATUS (Status);
+		obj_desc->buffer.pointer[index_desc->reference.value] = value;
+		break;
+
+	default:
+		ACPI_ERROR ((AE_INFO,
+			"Target is not of type [Package/BufferField]"));
+		status = AE_AML_TARGET_TYPE;
+		break;
+	}
+
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExStoreObjectToNode
+ * FUNCTION:    acpi_ex_store_object_to_node
  *
- * PARAMETERS:  SourceDesc              - Value to be stored
- *              Node                    - Named object to receive the value
- *              WalkState               - Current walk state
- *              ImplicitConversion      - Perform implicit conversion (yes/no)
+ * PARAMETERS:  source_desc             - Value to be stored
+ *              node                    - Named object to receive the value
+ *              walk_state              - Current walk state
+ *              implicit_conversion     - Perform implicit conversion (yes/no)
  *
  * RETURN:      Status
  *
@@ -506,209 +353,200 @@ AcpiExStoreObjectToIndex (
  * When storing into an object the data is converted to the
  * target object type then stored in the object. This means
  * that the target object type (for an initialized target) will
- * not be changed by a store operation. A CopyObject can change
+ * not be changed by a store operation. A copy_object can change
  * the target type, however.
  *
- * The ImplicitConversion flag is set to NO/FALSE only when
- * storing to an ArgX -- as per the rules of the ACPI spec.
+ * The implicit_conversion flag is set to NO/FALSE only when
+ * storing to an arg_x -- as per the rules of the ACPI spec.
  *
  * Assumes parameters are already validated.
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiExStoreObjectToNode (
-    ACPI_OPERAND_OBJECT     *SourceDesc,
-    ACPI_NAMESPACE_NODE     *Node,
-    ACPI_WALK_STATE         *WalkState,
-    UINT8                   ImplicitConversion)
+acpi_status
+acpi_ex_store_object_to_node (
+	union acpi_operand_object       *source_desc,
+	struct acpi_namespace_node      *node,
+	struct acpi_walk_state          *walk_state,
+	u8                              implicit_conversion)
 {
-    ACPI_STATUS             Status = AE_OK;
-    ACPI_OPERAND_OBJECT     *TargetDesc;
-    ACPI_OPERAND_OBJECT     *NewDesc;
-    ACPI_OBJECT_TYPE        TargetType;
+	acpi_status                     status = AE_OK;
+	union acpi_operand_object       *target_desc;
+	union acpi_operand_object       *new_desc;
+	acpi_object_type                target_type;
 
 
-    ACPI_FUNCTION_TRACE_PTR (ExStoreObjectToNode, SourceDesc);
+	ACPI_FUNCTION_TRACE_PTR (ex_store_object_to_node, source_desc);
 
 
-    /* Get current type of the node, and object attached to Node */
+	/* Get current type of the node, and object attached to Node */
 
-    TargetType = AcpiNsGetType (Node);
-    TargetDesc = AcpiNsGetAttachedObject (Node);
+	target_type = acpi_ns_get_type (node);
+	target_desc = acpi_ns_get_attached_object (node);
 
-    ACPI_DEBUG_PRINT ((ACPI_DB_EXEC, "Storing %p [%s] to node %p [%s]\n",
-        SourceDesc, AcpiUtGetObjectTypeName (SourceDesc),
-        Node, AcpiUtGetTypeName (TargetType)));
+	ACPI_DEBUG_PRINT ((ACPI_DB_EXEC, "Storing %p [%s] to node %p [%s]\n",
+		source_desc, acpi_ut_get_object_type_name (source_desc),
+		node, acpi_ut_get_type_name (target_type)));
 
-    /* Only limited target types possible for everything except CopyObject */
+	/* Only limited target types possible for everything except copy_object */
 
-    if (WalkState->Opcode != AML_COPY_OBJECT_OP)
-    {
-        /*
-         * Only CopyObject allows all object types to be overwritten. For
-         * TargetRef(s), there are restrictions on the object types that
-         * are allowed.
-         *
-         * Allowable operations/typing for Store:
-         *
-         * 1) Simple Store
-         *      Integer     --> Integer (Named/Local/Arg)
-         *      String      --> String  (Named/Local/Arg)
-         *      Buffer      --> Buffer  (Named/Local/Arg)
-         *      Package     --> Package (Named/Local/Arg)
-         *
-         * 2) Store with implicit conversion
-         *      Integer     --> String or Buffer  (Named)
-         *      String      --> Integer or Buffer (Named)
-         *      Buffer      --> Integer or String (Named)
-         */
-        switch (TargetType)
-        {
-        case ACPI_TYPE_PACKAGE:
-            /*
-             * Here, can only store a package to an existing package.
-             * Storing a package to a Local/Arg is OK, and handled
-             * elsewhere.
-             */
-            if (WalkState->Opcode == AML_STORE_OP)
-            {
-                if (SourceDesc->Common.Type != ACPI_TYPE_PACKAGE)
-                {
-                    ACPI_ERROR ((AE_INFO,
-                        "Cannot assign type [%s] to [Package] "
-                        "(source must be type Pkg)",
-                        AcpiUtGetObjectTypeName (SourceDesc)));
+	if (walk_state->opcode != AML_COPY_OBJECT_OP) {
+		/*
+		 * Only copy_object allows all object types to be overwritten. For
+		 * target_ref(s), there are restrictions on the object types that
+		 * are allowed.
+		 *
+		 * Allowable operations/typing for Store:
+		 *
+		 * 1) Simple Store
+		 *      Integer     --> Integer (Named/Local/Arg)
+		 *      String      --> String  (Named/Local/Arg)
+		 *      Buffer      --> Buffer  (Named/Local/Arg)
+		 *      Package     --> Package (Named/Local/Arg)
+		 *
+		 * 2) Store with implicit conversion
+		 *      Integer     --> String or Buffer  (Named)
+		 *      String      --> Integer or Buffer (Named)
+		 *      Buffer      --> Integer or String (Named)
+		 */
+		switch (target_type) {
+		case ACPI_TYPE_PACKAGE:
+			/*
+			 * Here, can only store a package to an existing package.
+			 * Storing a package to a Local/Arg is OK, and handled
+			 * elsewhere.
+			 */
+			if (walk_state->opcode == AML_STORE_OP) {
+				if (source_desc->common.type != ACPI_TYPE_PACKAGE) {
+					ACPI_ERROR ((AE_INFO,
+						"Cannot assign type [%s] to [Package] "
+						"(source must be type Pkg)",
+						acpi_ut_get_object_type_name (source_desc)));
 
-                    return_ACPI_STATUS (AE_AML_TARGET_TYPE);
-                }
-                break;
-            }
+					return_ACPI_STATUS (AE_AML_TARGET_TYPE);
+				}
+				break;
+			}
 
-            ACPI_FALLTHROUGH;
+			ACPI_FALLTHROUGH;
 
-        case ACPI_TYPE_DEVICE:
-        case ACPI_TYPE_EVENT:
-        case ACPI_TYPE_MUTEX:
-        case ACPI_TYPE_REGION:
-        case ACPI_TYPE_POWER:
-        case ACPI_TYPE_PROCESSOR:
-        case ACPI_TYPE_THERMAL:
+		case ACPI_TYPE_DEVICE:
+		case ACPI_TYPE_EVENT:
+		case ACPI_TYPE_MUTEX:
+		case ACPI_TYPE_REGION:
+		case ACPI_TYPE_POWER:
+		case ACPI_TYPE_PROCESSOR:
+		case ACPI_TYPE_THERMAL:
 
-            ACPI_ERROR ((AE_INFO,
-                "Target must be [Buffer/Integer/String/Reference]"
-                ", found [%s] (%4.4s)",
-                AcpiUtGetTypeName (Node->Type), Node->Name.Ascii));
+			ACPI_ERROR ((AE_INFO,
+				"Target must be [Buffer/Integer/String/Reference]"
+				", found [%s] (%4.4s)",
+				acpi_ut_get_type_name (node->type), node->name.ascii));
 
-            return_ACPI_STATUS (AE_AML_TARGET_TYPE);
+			return_ACPI_STATUS (AE_AML_TARGET_TYPE);
 
-        default:
-            break;
-        }
-    }
+		default:
+			break;
+		}
+	}
 
-    /*
-     * Resolve the source object to an actual value
-     * (If it is a reference object)
-     */
-    Status = AcpiExResolveObject (&SourceDesc, TargetType, WalkState);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	/*
+	 * Resolve the source object to an actual value
+	 * (If it is a reference object)
+	 */
+	status = acpi_ex_resolve_object (&source_desc, target_type, walk_state);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    /* Do the actual store operation */
+	/* Do the actual store operation */
 
-    switch (TargetType)
-    {
-        /*
-         * The simple data types all support implicit source operand
-         * conversion before the store.
-         */
-    case ACPI_TYPE_INTEGER:
-    case ACPI_TYPE_STRING:
-    case ACPI_TYPE_BUFFER:
+	switch (target_type) {
+		/*
+		 * The simple data types all support implicit source operand
+		 * conversion before the store.
+		 */
+	case ACPI_TYPE_INTEGER:
+	case ACPI_TYPE_STRING:
+	case ACPI_TYPE_BUFFER:
 
-        if ((WalkState->Opcode == AML_COPY_OBJECT_OP) ||
-            !ImplicitConversion)
-        {
-            /*
-             * However, CopyObject and Stores to ArgX do not perform
-             * an implicit conversion, as per the ACPI specification.
-             * A direct store is performed instead.
-             */
-            Status = AcpiExStoreDirectToNode (SourceDesc, Node, WalkState);
-            break;
-        }
+		if ((walk_state->opcode == AML_COPY_OBJECT_OP) ||
+			!implicit_conversion) {
+			/*
+			 * However, copy_object and Stores to arg_x do not perform
+			 * an implicit conversion, as per the ACPI specification.
+			 * A direct store is performed instead.
+			 */
+			status = acpi_ex_store_direct_to_node (source_desc, node, walk_state);
+			break;
+		}
 
-        /* Store with implicit source operand conversion support */
+		/* Store with implicit source operand conversion support */
 
-        Status = AcpiExStoreObjectToObject (SourceDesc, TargetDesc,
-            &NewDesc, WalkState);
-        if (ACPI_FAILURE (Status))
-        {
-            return_ACPI_STATUS (Status);
-        }
+		status = acpi_ex_store_object_to_object (source_desc, target_desc,
+			&new_desc, walk_state);
+		if (ACPI_FAILURE (status)) {
+			return_ACPI_STATUS (status);
+		}
 
-        if (NewDesc != TargetDesc)
-        {
-            /*
-             * Store the new NewDesc as the new value of the Name, and set
-             * the Name's type to that of the value being stored in it.
-             * SourceDesc reference count is incremented by AttachObject.
-             *
-             * Note: This may change the type of the node if an explicit
-             * store has been performed such that the node/object type
-             * has been changed.
-             */
-            Status = AcpiNsAttachObject (
-                Node, NewDesc, NewDesc->Common.Type);
+		if (new_desc != target_desc) {
+			/*
+			 * Store the new new_desc as the new value of the Name, and set
+			 * the Name's type to that of the value being stored in it.
+			 * source_desc reference count is incremented by attach_object.
+			 *
+			 * Note: This may change the type of the node if an explicit
+			 * store has been performed such that the node/object type
+			 * has been changed.
+			 */
+			status = acpi_ns_attach_object (
+				node, new_desc, new_desc->common.type);
 
-            ACPI_DEBUG_PRINT ((ACPI_DB_EXEC,
-                "Store type [%s] into [%s] via Convert/Attach\n",
-                AcpiUtGetObjectTypeName (SourceDesc),
-                AcpiUtGetObjectTypeName (NewDesc)));
-        }
-        break;
+			ACPI_DEBUG_PRINT ((ACPI_DB_EXEC,
+				"Store type [%s] into [%s] via Convert/Attach\n",
+				acpi_ut_get_object_type_name (source_desc),
+				acpi_ut_get_object_type_name (new_desc)));
+		}
+		break;
 
-    case ACPI_TYPE_BUFFER_FIELD:
-    case ACPI_TYPE_LOCAL_REGION_FIELD:
-    case ACPI_TYPE_LOCAL_BANK_FIELD:
-    case ACPI_TYPE_LOCAL_INDEX_FIELD:
-        /*
-         * For all fields, always write the source data to the target
-         * field. Any required implicit source operand conversion is
-         * performed in the function below as necessary. Note, field
-         * objects must retain their original type permanently.
-         */
-        Status = AcpiExWriteDataToField (SourceDesc, TargetDesc,
-            &WalkState->ResultObj);
-        break;
+	case ACPI_TYPE_BUFFER_FIELD:
+	case ACPI_TYPE_LOCAL_REGION_FIELD:
+	case ACPI_TYPE_LOCAL_BANK_FIELD:
+	case ACPI_TYPE_LOCAL_INDEX_FIELD:
+		/*
+		 * For all fields, always write the source data to the target
+		 * field. Any required implicit source operand conversion is
+		 * performed in the function below as necessary. Note, field
+		 * objects must retain their original type permanently.
+		 */
+		status = acpi_ex_write_data_to_field (source_desc, target_desc,
+			&walk_state->result_obj);
+		break;
 
-    default:
-        /*
-         * CopyObject operator: No conversions for all other types.
-         * Instead, directly store a copy of the source object.
-         *
-         * This is the ACPI spec-defined behavior for the CopyObject
-         * operator. (Note, for this default case, all normal
-         * Store/Target operations exited above with an error).
-         */
-        Status = AcpiExStoreDirectToNode (SourceDesc, Node, WalkState);
-        break;
-    }
+	default:
+		/*
+		 * copy_object operator: No conversions for all other types.
+		 * Instead, directly store a copy of the source object.
+		 *
+		 * This is the ACPI spec-defined behavior for the copy_object
+		 * operator. (Note, for this default case, all normal
+		 * Store/Target operations exited above with an error).
+		 */
+		status = acpi_ex_store_direct_to_node (source_desc, node, walk_state);
+		break;
+	}
 
-    return_ACPI_STATUS (Status);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExStoreDirectToNode
+ * FUNCTION:    acpi_ex_store_direct_to_node
  *
- * PARAMETERS:  SourceDesc              - Value to be stored
- *              Node                    - Named object to receive the value
- *              WalkState               - Current walk state
+ * PARAMETERS:  source_desc             - Value to be stored
+ *              node                    - Named object to receive the value
+ *              walk_state              - Current walk state
  *
  * RETURN:      Status
  *
@@ -717,36 +555,35 @@ AcpiExStoreObjectToNode (
  *
  ******************************************************************************/
 
-static ACPI_STATUS
-AcpiExStoreDirectToNode (
-    ACPI_OPERAND_OBJECT     *SourceDesc,
-    ACPI_NAMESPACE_NODE     *Node,
-    ACPI_WALK_STATE         *WalkState)
+static acpi_status
+acpi_ex_store_direct_to_node (
+	union acpi_operand_object       *source_desc,
+	struct acpi_namespace_node      *node,
+	struct acpi_walk_state          *walk_state)
 {
-    ACPI_STATUS             Status;
-    ACPI_OPERAND_OBJECT     *NewDesc;
+	acpi_status                     status;
+	union acpi_operand_object       *new_desc;
 
 
-    ACPI_FUNCTION_TRACE (ExStoreDirectToNode);
+	ACPI_FUNCTION_TRACE (ex_store_direct_to_node);
 
 
-    ACPI_DEBUG_PRINT ((ACPI_DB_EXEC,
-        "Storing [%s] (%p) directly into node [%s] (%p)"
-        " with no implicit conversion\n",
-        AcpiUtGetObjectTypeName (SourceDesc), SourceDesc,
-        AcpiUtGetTypeName (Node->Type), Node));
+	ACPI_DEBUG_PRINT ((ACPI_DB_EXEC,
+		"Storing [%s] (%p) directly into node [%s] (%p)"
+		" with no implicit conversion\n",
+		acpi_ut_get_object_type_name (source_desc), source_desc,
+		acpi_ut_get_type_name (node->type), node));
 
-    /* Copy the source object to a new object */
+	/* Copy the source object to a new object */
 
-    Status = AcpiUtCopyIobjectToIobject (SourceDesc, &NewDesc, WalkState);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_ut_copy_iobject_to_iobject (source_desc, &new_desc, walk_state);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    /* Attach the new object to the node */
+	/* Attach the new object to the node */
 
-    Status = AcpiNsAttachObject (Node, NewDesc, NewDesc->Common.Type);
-    AcpiUtRemoveReference (NewDesc);
-    return_ACPI_STATUS (Status);
+	status = acpi_ns_attach_object (node, new_desc, new_desc->common.type);
+	acpi_ut_remove_reference (new_desc);
+	return_ACPI_STATUS (status);
 }

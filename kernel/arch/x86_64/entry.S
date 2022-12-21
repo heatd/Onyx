@@ -215,7 +215,7 @@ syscall_signal_path:
 
 .section .text
 
-.extern AcpiEnterSleepState
+.extern acpi_enter_sleep_state
 .global __enter_sleep_state
 __enter_sleep_state:
 #ifndef CONFIG_ACPI
@@ -227,7 +227,7 @@ __enter_sleep_state:
 	# Make sure to write everything to memory
 	wbinvd
 	# Enter the sleep state via assembly
-	call AcpiEnterSleepState
+	call acpi_enter_sleep_state
 	# In C this would be if(ACPI_FAILURE(st)) goto failure;
 	cmp $0, %rax
 #endif

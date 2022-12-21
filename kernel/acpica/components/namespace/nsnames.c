@@ -1,153 +1,10 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /*******************************************************************************
  *
  * Module Name: nsnames - Name manipulation and search
  *
  ******************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #include "acpi.h"
 #include "accommon.h"
@@ -156,14 +13,14 @@
 
 
 #define _COMPONENT          ACPI_NAMESPACE
-        ACPI_MODULE_NAME    ("nsnames")
+	 ACPI_MODULE_NAME    ("nsnames")
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiNsGetExternalPathname
+ * FUNCTION:    acpi_ns_get_external_pathname
  *
- * PARAMETERS:  Node            - Namespace node whose pathname is needed
+ * PARAMETERS:  node            - Namespace node whose pathname is needed
  *
  * RETURN:      Pointer to storage containing the fully qualified name of
  *              the node, In external format (name segments separated by path
@@ -175,25 +32,25 @@
  ******************************************************************************/
 
 char *
-AcpiNsGetExternalPathname (
-    ACPI_NAMESPACE_NODE     *Node)
+acpi_ns_get_external_pathname (
+	struct acpi_namespace_node      *node)
 {
-    char                    *NameBuffer;
+	char                            *name_buffer;
 
 
-    ACPI_FUNCTION_TRACE_PTR (NsGetExternalPathname, Node);
+	ACPI_FUNCTION_TRACE_PTR (ns_get_external_pathname, node);
 
 
-    NameBuffer = AcpiNsGetNormalizedPathname (Node, FALSE);
-    return_PTR (NameBuffer);
+	name_buffer = acpi_ns_get_normalized_pathname (node, FALSE);
+	return_PTR (name_buffer);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiNsGetPathnameLength
+ * FUNCTION:    acpi_ns_get_pathname_length
  *
- * PARAMETERS:  Node        - Namespace node
+ * PARAMETERS:  node        - Namespace node
  *
  * RETURN:      Length of path, including prefix
  *
@@ -201,35 +58,34 @@ AcpiNsGetExternalPathname (
  *
  ******************************************************************************/
 
-ACPI_SIZE
-AcpiNsGetPathnameLength (
-    ACPI_NAMESPACE_NODE     *Node)
+acpi_size
+acpi_ns_get_pathname_length (
+	struct acpi_namespace_node      *node)
 {
-    ACPI_SIZE               Size;
+	acpi_size                       size;
 
 
-    /* Validate the Node */
+	/* Validate the Node */
 
-    if (ACPI_GET_DESCRIPTOR_TYPE (Node) != ACPI_DESC_TYPE_NAMED)
-    {
-        ACPI_ERROR ((AE_INFO,
-            "Invalid/cached reference target node: %p, descriptor type %d",
-            Node, ACPI_GET_DESCRIPTOR_TYPE (Node)));
-        return (0);
-    }
+	if (ACPI_GET_DESCRIPTOR_TYPE (node) != ACPI_DESC_TYPE_NAMED) {
+		ACPI_ERROR ((AE_INFO,
+			"Invalid/cached reference target node: %p, descriptor type %d",
+			node, ACPI_GET_DESCRIPTOR_TYPE (node)));
+		return (0);
+	}
 
-    Size = AcpiNsBuildNormalizedPath (Node, NULL, 0, FALSE);
-    return (Size);
+	size = acpi_ns_build_normalized_path (node, NULL, 0, FALSE);
+	return (size);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiNsHandleToName
+ * FUNCTION:    acpi_ns_handle_to_name
  *
- * PARAMETERS:  TargetHandle            - Handle of named object whose name is
+ * PARAMETERS:  target_handle           - Handle of named object whose name is
  *                                        to be found
- *              Buffer                  - Where the name is returned
+ *              buffer                  - Where the name is returned
  *
  * RETURN:      Status, Buffer is filled with name if status is AE_OK
  *
@@ -237,52 +93,50 @@ AcpiNsGetPathnameLength (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiNsHandleToName (
-    ACPI_HANDLE             TargetHandle,
-    ACPI_BUFFER             *Buffer)
+acpi_status
+acpi_ns_handle_to_name (
+	acpi_handle                     target_handle,
+	struct acpi_buffer              *buffer)
 {
-    ACPI_STATUS             Status;
-    ACPI_NAMESPACE_NODE     *Node;
-    const char              *NodeName;
+	acpi_status                     status;
+	struct acpi_namespace_node      *node;
+	const char                      *node_name;
 
 
-    ACPI_FUNCTION_TRACE_PTR (NsHandleToName, TargetHandle);
+	ACPI_FUNCTION_TRACE_PTR (ns_handle_to_name, target_handle);
 
 
-    Node = AcpiNsValidateHandle (TargetHandle);
-    if (!Node)
-    {
-        return_ACPI_STATUS (AE_BAD_PARAMETER);
-    }
+	node = acpi_ns_validate_handle (target_handle);
+	if (!node) {
+		return_ACPI_STATUS (AE_BAD_PARAMETER);
+	}
 
-    /* Validate/Allocate/Clear caller buffer */
+	/* Validate/Allocate/Clear caller buffer */
 
-    Status = AcpiUtInitializeBuffer (Buffer, ACPI_PATH_SEGMENT_LENGTH);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_ut_initialize_buffer (buffer, ACPI_PATH_SEGMENT_LENGTH);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    /* Just copy the ACPI name from the Node and zero terminate it */
+	/* Just copy the ACPI name from the Node and zero terminate it */
 
-    NodeName = AcpiUtGetNodeName (Node);
-    ACPI_COPY_NAMESEG (Buffer->Pointer, NodeName);
-    ((char *) Buffer->Pointer) [ACPI_NAMESEG_SIZE] = 0;
+	node_name = acpi_ut_get_node_name (node);
+	ACPI_COPY_NAMESEG (buffer->pointer, node_name);
+	((char *) buffer->pointer) [ACPI_NAMESEG_SIZE] = 0;
 
-    ACPI_DEBUG_PRINT ((ACPI_DB_EXEC, "%4.4s\n", (char *) Buffer->Pointer));
-    return_ACPI_STATUS (AE_OK);
+	ACPI_DEBUG_PRINT ((ACPI_DB_EXEC, "%4.4s\n", (char *) buffer->pointer));
+	return_ACPI_STATUS (AE_OK);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiNsHandleToPathname
+ * FUNCTION:    acpi_ns_handle_to_pathname
  *
- * PARAMETERS:  TargetHandle            - Handle of named object whose name is
+ * PARAMETERS:  target_handle           - Handle of named object whose name is
  *                                        to be found
- *              Buffer                  - Where the pathname is returned
- *              NoTrailing              - Remove trailing '_' for each name
+ *              buffer                  - Where the pathname is returned
+ *              no_trailing             - Remove trailing '_' for each name
  *                                        segment
  *
  * RETURN:      Status, Buffer is filled with pathname if status is AE_OK
@@ -291,61 +145,58 @@ AcpiNsHandleToName (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiNsHandleToPathname (
-    ACPI_HANDLE             TargetHandle,
-    ACPI_BUFFER             *Buffer,
-    BOOLEAN                 NoTrailing)
+acpi_status
+acpi_ns_handle_to_pathname (
+	acpi_handle                     target_handle,
+	struct acpi_buffer              *buffer,
+	u8                              no_trailing)
 {
-    ACPI_STATUS             Status;
-    ACPI_NAMESPACE_NODE     *Node;
-    ACPI_SIZE               RequiredSize;
+	acpi_status                     status;
+	struct acpi_namespace_node      *node;
+	acpi_size                       required_size;
 
 
-    ACPI_FUNCTION_TRACE_PTR (NsHandleToPathname, TargetHandle);
+	ACPI_FUNCTION_TRACE_PTR (ns_handle_to_pathname, target_handle);
 
 
-    Node = AcpiNsValidateHandle (TargetHandle);
-    if (!Node)
-    {
-        return_ACPI_STATUS (AE_BAD_PARAMETER);
-    }
+	node = acpi_ns_validate_handle (target_handle);
+	if (!node) {
+		return_ACPI_STATUS (AE_BAD_PARAMETER);
+	}
 
-    /* Determine size required for the caller buffer */
+	/* Determine size required for the caller buffer */
 
-    RequiredSize = AcpiNsBuildNormalizedPath (Node, NULL, 0, NoTrailing);
-    if (!RequiredSize)
-    {
-        return_ACPI_STATUS (AE_BAD_PARAMETER);
-    }
+	required_size = acpi_ns_build_normalized_path (node, NULL, 0, no_trailing);
+	if (!required_size) {
+		return_ACPI_STATUS (AE_BAD_PARAMETER);
+	}
 
-    /* Validate/Allocate/Clear caller buffer */
+	/* Validate/Allocate/Clear caller buffer */
 
-    Status = AcpiUtInitializeBuffer (Buffer, RequiredSize);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_ut_initialize_buffer (buffer, required_size);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    /* Build the path in the caller buffer */
+	/* Build the path in the caller buffer */
 
-    (void) AcpiNsBuildNormalizedPath (Node, Buffer->Pointer,
-        (UINT32) RequiredSize, NoTrailing);
+	(void) acpi_ns_build_normalized_path (node, buffer->pointer,
+		(u32) required_size, no_trailing);
 
-    ACPI_DEBUG_PRINT ((ACPI_DB_EXEC, "%s [%X]\n",
-        (char *) Buffer->Pointer, (UINT32) RequiredSize));
-    return_ACPI_STATUS (AE_OK);
+	ACPI_DEBUG_PRINT ((ACPI_DB_EXEC, "%s [%X]\n",
+		(char *) buffer->pointer, (u32) required_size));
+	return_ACPI_STATUS (AE_OK);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiNsBuildNormalizedPath
+ * FUNCTION:    acpi_ns_build_normalized_path
  *
- * PARAMETERS:  Node        - Namespace node
- *              FullPath    - Where the path name is returned
- *              PathSize    - Size of returned path name buffer
- *              NoTrailing  - Remove trailing '_' from each name segment
+ * PARAMETERS:  node        - Namespace node
+ *              full_path   - Where the path name is returned
+ *              path_size   - Size of returned path name buffer
+ *              no_trailing - Remove trailing '_' from each name segment
  *
  * RETURN:      Return 1 if the AML path is empty, otherwise returning (length
  *              of pathname + 1) which means the 'FullPath' contains a trailing
@@ -360,106 +211,97 @@ AcpiNsHandleToPathname (
  *
  ******************************************************************************/
 
-UINT32
-AcpiNsBuildNormalizedPath (
-    ACPI_NAMESPACE_NODE     *Node,
-    char                    *FullPath,
-    UINT32                  PathSize,
-    BOOLEAN                 NoTrailing)
+u32
+acpi_ns_build_normalized_path (
+	struct acpi_namespace_node      *node,
+	char                            *full_path,
+	u32                             path_size,
+	u8                              no_trailing)
 {
-    UINT32                  Length = 0, i;
-    char                    Name[ACPI_NAMESEG_SIZE];
-    BOOLEAN                 DoNoTrailing;
-    char                    c, *Left, *Right;
-    ACPI_NAMESPACE_NODE     *NextNode;
+	u32                             length = 0, i;
+	char                            name[ACPI_NAMESEG_SIZE];
+	u8                              do_no_trailing;
+	char                            c, *left, *right;
+	struct acpi_namespace_node      *next_node;
 
 
-    ACPI_FUNCTION_TRACE_PTR (NsBuildNormalizedPath, Node);
+	ACPI_FUNCTION_TRACE_PTR (ns_build_normalized_path, node);
 
 
-#define ACPI_PATH_PUT8(Path, Size, Byte, Length)    \
-    do {                                            \
-        if ((Length) < (Size))                      \
-        {                                           \
-            (Path)[(Length)] = (Byte);              \
-        }                                           \
-        (Length)++;                                 \
-    } while (0)
+#define ACPI_PATH_PUT8(path, size, byte, length)    \
+	do {                                            \
+		if ((length) < (size))                      \
+		{                                           \
+			(path)[(length)] = (byte);              \
+		}                                           \
+		(length)++;                                 \
+	} while (0)
 
-    /*
-     * Make sure the PathSize is correct, so that we don't need to
-     * validate both FullPath and PathSize.
-     */
-    if (!FullPath)
-    {
-        PathSize = 0;
-    }
+	/*
+	 * Make sure the path_size is correct, so that we don't need to
+	 * validate both full_path and path_size.
+	 */
+	if (!full_path) {
+		path_size = 0;
+	}
 
-    if (!Node)
-    {
-        goto BuildTrailingNull;
-    }
+	if (!node) {
+		goto build_trailing_null;
+	}
 
-    NextNode = Node;
-    while (NextNode && NextNode != AcpiGbl_RootNode)
-    {
-        if (NextNode != Node)
-        {
-            ACPI_PATH_PUT8(FullPath, PathSize, AML_DUAL_NAME_PREFIX, Length);
-        }
+	next_node = node;
+	while (next_node && next_node != acpi_gbl_root_node) {
+		if (next_node != node) {
+			ACPI_PATH_PUT8(full_path, path_size, AML_DUAL_NAME_PREFIX, length);
+		}
 
-        ACPI_MOVE_32_TO_32 (Name, &NextNode->Name);
-        DoNoTrailing = NoTrailing;
-        for (i = 0; i < 4; i++)
-        {
-            c = Name[4-i-1];
-            if (DoNoTrailing && c != '_')
-            {
-                DoNoTrailing = FALSE;
-            }
-            if (!DoNoTrailing)
-            {
-                ACPI_PATH_PUT8(FullPath, PathSize, c, Length);
-            }
-        }
+		ACPI_MOVE_32_TO_32 (name, &next_node->name);
+		do_no_trailing = no_trailing;
+		for (i = 0; i < 4; i++) {
+			c = name[4-i-1];
+			if (do_no_trailing && c != '_') {
+				do_no_trailing = FALSE;
+			}
+			if (!do_no_trailing) {
+				ACPI_PATH_PUT8(full_path, path_size, c, length);
+			}
+		}
 
-        NextNode = NextNode->Parent;
-    }
+		next_node = next_node->parent;
+	}
 
-    ACPI_PATH_PUT8(FullPath, PathSize, AML_ROOT_PREFIX, Length);
+	ACPI_PATH_PUT8(full_path, path_size, AML_ROOT_PREFIX, length);
 
-    /* Reverse the path string */
+	/* Reverse the path string */
 
-    if (Length <= PathSize)
-    {
-        Left = FullPath;
-        Right = FullPath+Length - 1;
+	if (length <= path_size) {
+		left = full_path;
+		right = full_path+length - 1;
 
-        while (Left < Right)
-        {
-            c = *Left;
-            *Left++ = *Right;
-            *Right-- = c;
-        }
-    }
+		while (left < right) {
+			c = *left;
+			*left++ = *right;
+			*right-- = c;
+		}
+	}
 
-    /* Append the trailing null */
+	/* Append the trailing null */
 
-BuildTrailingNull:
-    ACPI_PATH_PUT8 (FullPath, PathSize, '\0', Length);
+build_trailing_null:
+	ACPI_PATH_PUT8 (full_path, path_size, '\0', length);
 
 #undef ACPI_PATH_PUT8
 
-    return_UINT32 (Length);
+	return_UINT32 (length);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiNsGetNormalizedPathname
+ * FUNCTION:    acpi_ns_get_normalized_pathname
  *
- * PARAMETERS:  Node            - Namespace node whose pathname is needed
- *              NoTrailing      - Remove trailing '_' from each name segment
+ * PARAMETERS:  node            - Namespace node whose pathname is needed
+ *              no_trailing     - Remove trailing '_' from each name segment
  *
  * RETURN:      Pointer to storage containing the fully qualified name of
  *              the node, In external format (name segments separated by path
@@ -472,135 +314,125 @@ BuildTrailingNull:
  ******************************************************************************/
 
 char *
-AcpiNsGetNormalizedPathname (
-    ACPI_NAMESPACE_NODE     *Node,
-    BOOLEAN                 NoTrailing)
+acpi_ns_get_normalized_pathname (
+	struct acpi_namespace_node      *node,
+	u8                              no_trailing)
 {
-    char                    *NameBuffer;
-    ACPI_SIZE               Size;
+	char                            *name_buffer;
+	acpi_size                       size;
 
 
-    ACPI_FUNCTION_TRACE_PTR (NsGetNormalizedPathname, Node);
+	ACPI_FUNCTION_TRACE_PTR (ns_get_normalized_pathname, node);
 
 
-    /* Calculate required buffer size based on depth below root */
+	/* Calculate required buffer size based on depth below root */
 
-    Size = AcpiNsBuildNormalizedPath (Node, NULL, 0, NoTrailing);
-    if (!Size)
-    {
-        return_PTR (NULL);
-    }
+	size = acpi_ns_build_normalized_path (node, NULL, 0, no_trailing);
+	if (!size) {
+		return_PTR (NULL);
+	}
 
-    /* Allocate a buffer to be returned to caller */
+	/* Allocate a buffer to be returned to caller */
 
-    NameBuffer = ACPI_ALLOCATE_ZEROED (Size);
-    if (!NameBuffer)
-    {
-        ACPI_ERROR ((AE_INFO,
-            "Could not allocate %u bytes", (UINT32) Size));
-        return_PTR (NULL);
-    }
+	name_buffer = ACPI_ALLOCATE_ZEROED (size);
+	if (!name_buffer) {
+		ACPI_ERROR ((AE_INFO,
+			"Could not allocate %u bytes", (u32) size));
+		return_PTR (NULL);
+	}
 
-    /* Build the path in the allocated buffer */
+	/* Build the path in the allocated buffer */
 
-    (void) AcpiNsBuildNormalizedPath (Node, NameBuffer, (UINT32) Size, NoTrailing);
+	(void) acpi_ns_build_normalized_path (node, name_buffer, (u32) size, no_trailing);
 
-    ACPI_DEBUG_PRINT_RAW ((ACPI_DB_NAMES, "%s: Path \"%s\"\n",
-        ACPI_GET_FUNCTION_NAME, NameBuffer));
+	ACPI_DEBUG_PRINT_RAW ((ACPI_DB_NAMES, "%s: Path \"%s\"\n",
+		ACPI_GET_FUNCTION_NAME, name_buffer));
 
-    return_PTR (NameBuffer);
+	return_PTR (name_buffer);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiNsBuildPrefixedPathname
+ * FUNCTION:    acpi_ns_build_prefixed_pathname
  *
- * PARAMETERS:  PrefixScope         - Scope/Path that prefixes the internal path
- *              InternalPath        - Name or path of the namespace node
+ * PARAMETERS:  prefix_scope        - Scope/Path that prefixes the internal path
+ *              internal_path       - Name or path of the namespace node
  *
  * RETURN:      None
  *
  * DESCRIPTION: Construct a fully qualified pathname from a concatenation of:
- *              1) Path associated with the PrefixScope namespace node
+ *              1) Path associated with the prefix_scope namespace node
  *              2) External path representation of the Internal path
  *
  ******************************************************************************/
 
 char *
-AcpiNsBuildPrefixedPathname (
-    ACPI_GENERIC_STATE      *PrefixScope,
-    const char              *InternalPath)
+acpi_ns_build_prefixed_pathname (
+	union acpi_generic_state        *prefix_scope,
+	const char                      *internal_path)
 {
-    ACPI_STATUS             Status;
-    char                    *FullPath = NULL;
-    char                    *ExternalPath = NULL;
-    char                    *PrefixPath = NULL;
-    ACPI_SIZE               PrefixPathLength = 0;
+	acpi_status                     status;
+	char                            *full_path = NULL;
+	char                            *external_path = NULL;
+	char                            *prefix_path = NULL;
+	acpi_size                       prefix_path_length = 0;
 
 
-    /* If there is a prefix, get the pathname to it */
+	/* If there is a prefix, get the pathname to it */
 
-    if (PrefixScope && PrefixScope->Scope.Node)
-    {
-        PrefixPath = AcpiNsGetNormalizedPathname (PrefixScope->Scope.Node, TRUE);
-        if (PrefixPath)
-        {
-            PrefixPathLength = strlen (PrefixPath);
-        }
-    }
+	if (prefix_scope && prefix_scope->scope.node) {
+		prefix_path = acpi_ns_get_normalized_pathname (prefix_scope->scope.node, TRUE);
+		if (prefix_path) {
+			prefix_path_length = strlen (prefix_path);
+		}
+	}
 
-    Status = AcpiNsExternalizeName (ACPI_UINT32_MAX, InternalPath,
-        NULL, &ExternalPath);
-    if (ACPI_FAILURE (Status))
-    {
-        goto Cleanup;
-    }
+	status = acpi_ns_externalize_name (ACPI_UINT32_MAX, internal_path,
+		NULL, &external_path);
+	if (ACPI_FAILURE (status)) {
+		goto cleanup;
+	}
 
-    /* Merge the prefix path and the path. 2 is for one dot and trailing null */
+	/* Merge the prefix path and the path. 2 is for one dot and trailing null */
 
-    FullPath = ACPI_ALLOCATE_ZEROED (
-        PrefixPathLength + strlen (ExternalPath) + 2);
-    if (!FullPath)
-    {
-        goto Cleanup;
-    }
+	full_path = ACPI_ALLOCATE_ZEROED (
+		prefix_path_length + strlen (external_path) + 2);
+	if (!full_path) {
+		goto cleanup;
+	}
 
-    /* Don't merge if the External path is already fully qualified */
+	/* Don't merge if the External path is already fully qualified */
 
-    if (PrefixPath &&
-        (*ExternalPath != '\\') &&
-        (*ExternalPath != '^'))
-    {
-        strcat (FullPath, PrefixPath);
-        if (PrefixPath[1])
-        {
-            strcat (FullPath, ".");
-        }
-    }
+	if (prefix_path &&
+		(*external_path != '\\') &&
+		(*external_path != '^')) {
+		strcat (full_path, prefix_path);
+		if (prefix_path[1]) {
+			strcat (full_path, ".");
+		}
+	}
 
-    AcpiNsNormalizePathname (ExternalPath);
-    strcat (FullPath, ExternalPath);
+	acpi_ns_normalize_pathname (external_path);
+	strcat (full_path, external_path);
 
-Cleanup:
-    if (PrefixPath)
-    {
-        ACPI_FREE (PrefixPath);
-    }
-    if (ExternalPath)
-    {
-        ACPI_FREE (ExternalPath);
-    }
+cleanup:
+	if (prefix_path) {
+		ACPI_FREE (prefix_path);
+	}
+	if (external_path) {
+		ACPI_FREE (external_path);
+	}
 
-    return (FullPath);
+	return (full_path);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiNsNormalizePathname
+ * FUNCTION:    acpi_ns_normalize_pathname
  *
- * PARAMETERS:  OriginalPath        - Path to be normalized, in External format
+ * PARAMETERS:  original_path       - Path to be normalized, in External format
  *
  * RETURN:      The original path is processed in-place
  *
@@ -611,68 +443,63 @@ Cleanup:
  ******************************************************************************/
 
 void
-AcpiNsNormalizePathname (
-    char                    *OriginalPath)
+acpi_ns_normalize_pathname (
+	char                            *original_path)
 {
-    char                    *InputPath = OriginalPath;
-    char                    *NewPathBuffer;
-    char                    *NewPath;
-    UINT32                  i;
+	char                            *input_path = original_path;
+	char                            *new_path_buffer;
+	char                            *new_path;
+	u32                             i;
 
 
-    /* Allocate a temp buffer in which to construct the new path */
+	/* Allocate a temp buffer in which to construct the new path */
 
-    NewPathBuffer = ACPI_ALLOCATE_ZEROED (strlen (InputPath) + 1);
-    NewPath = NewPathBuffer;
-    if (!NewPathBuffer)
-    {
-        return;
-    }
+	new_path_buffer = ACPI_ALLOCATE_ZEROED (strlen (input_path) + 1);
+	new_path = new_path_buffer;
+	if (!new_path_buffer) {
+		return;
+	}
 
-    /* Special characters may appear at the beginning of the path */
+	/* Special characters may appear at the beginning of the path */
 
-    if (*InputPath == '\\')
-    {
-        *NewPath = *InputPath;
-        NewPath++;
-        InputPath++;
-    }
+	if (*input_path == '\\') {
+		*new_path = *input_path;
+		new_path++;
+		input_path++;
+	}
 
-    while (*InputPath == '^')
-    {
-        *NewPath = *InputPath;
-        NewPath++;
-        InputPath++;
-    }
+	while (*input_path == '^') {
+		*new_path = *input_path;
+		new_path++;
+		input_path++;
+	}
 
-    /* Remainder of the path */
+	/* Remainder of the path */
 
-    while (*InputPath)
-    {
-        /* Do one nameseg at a time */
+	while (*input_path) {
 
-        for (i = 0; (i < ACPI_NAMESEG_SIZE) && *InputPath; i++)
-        {
-            if ((i == 0) || (*InputPath != '_')) /* First char is allowed to be underscore */
-            {
-                *NewPath = *InputPath;
-                NewPath++;
-            }
+		/* Do one nameseg at a time */
 
-            InputPath++;
-        }
+		for (i = 0; (i < ACPI_NAMESEG_SIZE) && *input_path; i++) {
+			if ((i == 0) || (*input_path != '_')) /* First char is allowed to be underscore */
+			{
+				*new_path = *input_path;
+				new_path++;
+			}
 
-        /* Dot means that there are more namesegs to come */
+			input_path++;
+		}
 
-        if (*InputPath == '.')
-        {
-            *NewPath = *InputPath;
-            NewPath++;
-            InputPath++;
-        }
-    }
+		/* Dot means that there are more namesegs to come */
 
-    *NewPath = 0;
-    strcpy (OriginalPath, NewPathBuffer);
-    ACPI_FREE (NewPathBuffer);
+		if (*input_path == '.') {
+			*new_path = *input_path;
+			new_path++;
+			input_path++;
+		}
+	}
+
+	*new_path = 0;
+	strcpy (original_path, new_path_buffer);
+	ACPI_FREE (new_path_buffer);
 }

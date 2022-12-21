@@ -32,10 +32,10 @@
 
 #include <onyx/memory.hpp>
 
-int acpi_init_timer(void);
+int acpi_init_timer();
 static bool acpi_enabled = false;
 
-static const ACPI_EXCEPTION_INFO AcpiGbl_ExceptionNames_Env[] = {
+static const acpi_exception_info acpi_gbl_exception_names_env[] = {
     EXCEP_TXT((char *) "AE_OK", (char *) "No error"),
     EXCEP_TXT((char *) "AE_ERROR", (char *) "Unspecified error"),
     EXCEP_TXT((char *) "AE_NO_ACPI_TABLES", (char *) "ACPI tables could not be found"),
@@ -75,11 +75,11 @@ static const ACPI_EXCEPTION_INFO AcpiGbl_ExceptionNames_Env[] = {
               (char *) "The interface is not part of the current subsystem configuration"),
     EXCEP_TXT((char *) "AE_ACCESS", (char *) "Permission denied for the requested operation")};
 
-uint32_t acpi_shutdown(void)
+uint32_t acpi_shutdown()
 {
-    AcpiEnterSleepStatePrep(5);
+    acpi_enter_sleep_state_prep(5);
     irq_save_and_disable();
-    AcpiEnterSleepState(5);
+    acpi_enter_sleep_state(5);
 
     panic("ACPI: Failed to enter sleep state! Panic'ing!");
     return 0;
@@ -87,10 +87,10 @@ uint32_t acpi_shutdown(void)
 
 extern "C" int __enter_sleep_state(uint8_t sleep_state);
 
-unsigned int acpi_suspend(void)
+unsigned int acpi_suspend()
 {
     /* Prepare to enter S3 */
-    ACPI_STATUS st = AcpiEnterSleepStatePrep(2);
+    acpi_status st = acpi_enter_sleep_state_prep(2);
     if (ACPI_FAILURE(st))
         return -EIO;
     irq_save_and_disable();
@@ -110,15 +110,15 @@ struct bus acpi_bus
 
 uint32_t acpi_execute_pic(int value)
 {
-    ACPI_OBJECT arg;
-    ACPI_OBJECT_LIST list;
+    acpi_object arg;
+    acpi_object_list list;
 
-    arg.Type = ACPI_TYPE_INTEGER;
-    arg.Integer.Value = value;
-    list.Count = 1;
-    list.Pointer = &arg;
+    arg.type = ACPI_TYPE_INTEGER;
+    arg.integer.value = value;
+    list.count = 1;
+    list.pointer = &arg;
 
-    return AcpiEvaluateObject(ACPI_ROOT_OBJECT, (char *) "_PIC", &list, nullptr);
+    return acpi_evaluate_object(ACPI_ROOT_OBJECT, (char *) "_PIC", &list, nullptr);
 }
 
 namespace acpi
@@ -129,10 +129,10 @@ bool is_enabled()
     return acpi_enabled;
 }
 
-ACPI_STATUS find_pci_buses(ACPI_HANDLE object, UINT32 nestingLevel, void *context, void **ret)
+acpi_status find_pci_buses(acpi_handle object, u32 nesting_level, void *context, void **ret)
 {
-    ACPI_DEVICE_INFO *devinfo;
-    ACPI_STATUS st = AcpiGetObjectInfo(object, &devinfo);
+    acpi_device_info *devinfo;
+    acpi_status st = acpi_get_object_info(object, &devinfo);
 
     if (ACPI_FAILURE(st))
     {
@@ -140,22 +140,23 @@ ACPI_STATUS find_pci_buses(ACPI_HANDLE object, UINT32 nestingLevel, void *contex
         return AE_ERROR;
     }
 
-    if (devinfo->Flags & ACPI_PCI_ROOT_BRIDGE)
+    if (devinfo->flags & ACPI_PCI_ROOT_BRIDGE)
     {
         find_root_pci_bus_t callback = (find_root_pci_bus_t) context;
-        ACPI_BUFFER buf;
+        acpi_buffer buf;
         uint64_t segment, bus;
-        ACPI_OBJECT val;
-        val.Type = ACPI_TYPE_INTEGER;
-        buf.Pointer = &val;
-        buf.Length = sizeof(val);
+        acpi_object val;
+        val.type = ACPI_TYPE_INTEGER;
+        buf.pointer = &val;
+        buf.length = sizeof(val);
 
-        if (auto st = AcpiEvaluateObject(object, (char *) "_SEG", nullptr, &buf); ACPI_FAILURE(st))
+        if (auto st = acpi_evaluate_object(object, (char *) "_SEG", nullptr, &buf);
+            ACPI_FAILURE(st))
         {
             if (st == AE_NOT_FOUND)
             {
                 // The spec says that if the method isn't found, we assume the segment is 0
-                val.Integer.Value = 0;
+                val.integer.value = 0;
             }
             else
             {
@@ -165,17 +166,18 @@ ACPI_STATUS find_pci_buses(ACPI_HANDLE object, UINT32 nestingLevel, void *contex
             }
         }
 
-        segment = val.Integer.Value;
+        segment = val.integer.value;
 
-        buf.Pointer = &val;
-        buf.Length = sizeof(val);
+        buf.pointer = &val;
+        buf.length = sizeof(val);
 
-        if (auto st = AcpiEvaluateObject(object, (char *) "_BBN", nullptr, &buf); ACPI_FAILURE(st))
+        if (auto st = acpi_evaluate_object(object, (char *) "_BBN", nullptr, &buf);
+            ACPI_FAILURE(st))
         {
             if (st == AE_NOT_FOUND)
             {
                 // Linux seems to assume the bus is 0
-                val.Integer.Value = 0;
+                val.integer.value = 0;
             }
             else
             {
@@ -185,7 +187,7 @@ ACPI_STATUS find_pci_buses(ACPI_HANDLE object, UINT32 nestingLevel, void *contex
             }
         }
 
-        bus = val.Integer.Value;
+        bus = val.integer.value;
 
         // printk("Root bridge %04x:%02x\n", (uint16_t) segment, (uint8_t) bus);
 
@@ -206,11 +208,11 @@ int find_root_pci_buses(find_root_pci_bus_t callback)
         return 0;
 
     void *retval;
-    ACPI_STATUS st = AcpiGetDevices(nullptr, find_pci_buses, (void *) callback, &retval);
+    acpi_status st = acpi_get_devices(nullptr, find_pci_buses, (void *) callback, &retval);
     if (ACPI_FAILURE(st))
     {
         ERROR("acpi", "Error while calling AcpiGetDevices: %s\n",
-              AcpiGbl_ExceptionNames_Env[st].Name);
+              acpi_gbl_exception_names_env[st].name);
         return -EIO;
     }
 
@@ -220,50 +222,50 @@ int find_root_pci_buses(find_root_pci_bus_t callback)
 } // namespace acpi
 
 static uintptr_t rsdp = 0;
-uintptr_t get_rdsp_from_grub(void);
-uint8_t AcpiTbChecksum(uint8_t *buffer, uint32_t len);
+uintptr_t get_rdsp_from_grub();
+uint8_t acpi_tb_checksum(uint8_t *buffer, uint32_t len);
 
-void acpi_find_rsdp(void)
+void acpi_find_rsdp()
 {
 #ifdef __x86_64__
-    if (ACPI_FAILURE(AcpiFindRootPointer(&rsdp)))
+    if (ACPI_FAILURE(acpi_find_root_pointer(&rsdp)))
     {
         rsdp = get_rdsp_from_grub();
     }
 #endif
 }
 
-uintptr_t acpi_get_rsdp(void)
+uintptr_t acpi_get_rsdp()
 {
     return rsdp;
 }
 
-ACPI_RESOURCE *acpi_get_resource(struct acpi_device *device, uint32_t type, unsigned int index)
+acpi_resource *acpi_get_resource(struct acpi_device *device, uint32_t type, unsigned int index)
 {
-    ACPI_RESOURCE *res = device->resources;
+    acpi_resource *res = device->resources;
 
-    for (; res->Type != ACPI_RESOURCE_TYPE_END_TAG; res = ACPI_NEXT_RESOURCE(res))
+    for (; res->type != ACPI_RESOURCE_TYPE_END_TAG; res = ACPI_NEXT_RESOURCE(res))
     {
-        if (res->Type == type && index-- == 0)
+        if (res->type == type && index-- == 0)
             return res;
     }
 
     return nullptr;
 }
 
-ACPI_RESOURCE *acpi_get_resources(ACPI_HANDLE object)
+acpi_resource *acpi_get_resources(acpi_handle object)
 {
-    ACPI_STATUS st = 0;
-    ACPI_BUFFER buf;
-    buf.Length = ACPI_ALLOCATE_BUFFER;
-    buf.Pointer = nullptr;
+    acpi_status st = 0;
+    acpi_buffer buf;
+    buf.length = ACPI_ALLOCATE_BUFFER;
+    buf.pointer = nullptr;
 
-    if (ACPI_FAILURE((st = AcpiGetCurrentResources(object, &buf))))
+    if (ACPI_FAILURE((st = acpi_get_current_resources(object, &buf))))
     {
         return nullptr;
     }
 
-    return (ACPI_RESOURCE *) buf.Pointer;
+    return (acpi_resource *) buf.pointer;
 }
 
 /**
@@ -272,9 +274,9 @@ ACPI_RESOURCE *acpi_get_resources(ACPI_HANDLE object)
  * @param res Pointer to the ACPI resource
  * @return True if supported, else false.
  */
-bool acpi_supports_resource_type(ACPI_RESOURCE *res)
+bool acpi_supports_resource_type(acpi_resource *res)
 {
-    switch (res->Type)
+    switch (res->type)
     {
         // fallthrough
         case ACPI_RESOURCE_TYPE_ADDRESS16:
@@ -304,53 +306,53 @@ bool acpi_supports_resource_type(ACPI_RESOURCE *res)
  * @param acpires Pointer to the ACPI resource
  * @param res     Pointer to the dev_resource to be filled
  */
-void acpi_resource_to_dev_resource(const ACPI_RESOURCE *acpires, dev_resource *res)
+void acpi_resource_to_dev_resource(const acpi_resource *acpires, dev_resource *res)
 {
     // TODO: Collect information for each resource (irq polarity, decode, cacheability, etc)
-    ACPI_RESOURCE_ADDRESS64 res64;
-    switch (acpires->Type)
+    acpi_resource_address64 res64;
+    switch (acpires->type)
     {
         case ACPI_RESOURCE_TYPE_ADDRESS16:
         case ACPI_RESOURCE_TYPE_ADDRESS32:
         case ACPI_RESOURCE_TYPE_ADDRESS64:
-            AcpiResourceToAddress64((ACPI_RESOURCE *) acpires, &res64);
-            res->set_limits(res64.Address.Minimum, res64.Address.Maximum);
-            if (res64.ResourceType == ACPI_MEMORY_RANGE)
+            acpi_resource_to_address64((acpi_resource *) acpires, &res64);
+            res->set_limits(res64.address.minimum, res64.address.maximum);
+            if (res64.resource_type == ACPI_MEMORY_RANGE)
                 res->flags() |= DEV_RESOURCE_FLAG_MEM;
-            else if (res64.ResourceType == ACPI_IO_RANGE)
+            else if (res64.resource_type == ACPI_IO_RANGE)
                 res->flags() |= DEV_RESOURCE_FLAG_IO_PORT;
 
             break;
         case ACPI_RESOURCE_TYPE_EXTENDED_ADDRESS64:
-            res->set_limits(acpires->Data.ExtAddress64.Address.Minimum,
-                            acpires->Data.ExtAddress64.Address.Maximum);
-            if (acpires->Data.ExtAddress64.ResourceType == ACPI_MEMORY_RANGE)
+            res->set_limits(acpires->data.ext_address64.address.minimum,
+                            acpires->data.ext_address64.address.maximum);
+            if (acpires->data.ext_address64.resource_type == ACPI_MEMORY_RANGE)
                 res->flags() |= DEV_RESOURCE_FLAG_MEM;
-            else if (acpires->Data.ExtAddress64.ResourceType == ACPI_IO_RANGE)
+            else if (acpires->data.ext_address64.resource_type == ACPI_IO_RANGE)
                 res->flags() |= DEV_RESOURCE_FLAG_IO_PORT;
             break;
         case ACPI_RESOURCE_TYPE_MEMORY24:
-            res->set_limits(acpires->Data.Memory24.Minimum, acpires->Data.Memory24.Maximum);
+            res->set_limits(acpires->data.memory24.minimum, acpires->data.memory24.maximum);
             res->flags() |= DEV_RESOURCE_FLAG_MEM;
             break;
         case ACPI_RESOURCE_TYPE_MEMORY32:
-            res->set_limits(acpires->Data.Memory32.Minimum, acpires->Data.Memory32.Maximum);
+            res->set_limits(acpires->data.memory32.minimum, acpires->data.memory32.maximum);
             res->flags() |= DEV_RESOURCE_FLAG_MEM;
             break;
         case ACPI_RESOURCE_TYPE_FIXED_MEMORY32:
-            res->set_limits(acpires->Data.FixedMemory32.Address,
-                            acpires->Data.FixedMemory32.Address +
-                                acpires->Data.FixedMemory32.AddressLength - 1);
+            res->set_limits(acpires->data.fixed_memory32.address,
+                            acpires->data.fixed_memory32.address +
+                                acpires->data.fixed_memory32.address_length - 1);
             res->flags() |= DEV_RESOURCE_FLAG_MEM;
             break;
         case ACPI_RESOURCE_TYPE_IO:
-            res->set_limits(acpires->Data.Io.Minimum, acpires->Data.Io.Maximum);
+            res->set_limits(acpires->data.io.minimum, acpires->data.io.maximum);
             res->flags() |= DEV_RESOURCE_FLAG_IO_PORT;
             break;
         case ACPI_RESOURCE_TYPE_FIXED_IO:
-            res->set_limits(acpires->Data.FixedIo.Address, acpires->Data.FixedIo.Address +
-                                                               acpires->Data.FixedIo.AddressLength -
-                                                               1);
+            res->set_limits(acpires->data.fixed_io.address,
+                            acpires->data.fixed_io.address + acpires->data.fixed_io.address_length -
+                                1);
             res->flags() |= DEV_RESOURCE_FLAG_IO_PORT;
             break;
     }
@@ -363,30 +365,30 @@ void acpi_resource_to_dev_resource(const ACPI_RESOURCE *acpires, dev_resource *r
  * @param res     Pointer to the dev_resource to be filled
  * @param index   Index of the interrupt inside the acpi resource
  */
-void acpi_irq_resource_to_dev_resource(const ACPI_RESOURCE *acpires, dev_resource *res,
+void acpi_irq_resource_to_dev_resource(const acpi_resource *acpires, dev_resource *res,
                                        uint8_t index)
 {
     res->flags() |= DEV_RESOURCE_FLAG_IRQ;
-    switch (acpires->Type)
+    switch (acpires->type)
     {
         case ACPI_RESOURCE_TYPE_IRQ:
-            res->set_limits(acpires->Data.Irq.Interrupts[index],
-                            acpires->Data.Irq.Interrupts[index]);
+            res->set_limits(acpires->data.irq.interrupts[index],
+                            acpires->data.irq.interrupts[index]);
             break;
         case ACPI_RESOURCE_TYPE_EXTENDED_IRQ:
-            res->set_limits(acpires->Data.ExtendedIrq.Interrupts[index],
-                            acpires->Data.ExtendedIrq.Interrupts[index]);
+            res->set_limits(acpires->data.extended_irq.interrupts[index],
+                            acpires->data.extended_irq.interrupts[index]);
             break;
     }
 }
 
-ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *context,
+acpi_status acpi_add_device(acpi_handle object, u32 nesting_level, void *context,
                             void **returnvalue)
 {
     bool free_id = false;
-    ACPI_DEVICE_INFO *info;
-    ACPI_STATUS st;
-    st = AcpiGetObjectInfo(object, &info);
+    acpi_device_info *info;
+    acpi_status st;
+    st = acpi_get_object_info(object, &info);
     if (ACPI_FAILURE(st))
     {
         ERROR("acpi", "AcpiGetObjectInfo() Failed\n");
@@ -394,25 +396,25 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
     }
 
     const char *id = nullptr;
-    if (info->Valid & ACPI_VALID_HID)
-        id = info->HardwareId.String;
-    else if (info->Valid & ACPI_VALID_CID && info->CompatibleIdList.Count)
-        id = info->CompatibleIdList.Ids[0].String;
+    if (info->valid & ACPI_VALID_HID)
+        id = info->hardware_id.string;
+    else if (info->valid & ACPI_VALID_CID && info->compatible_id_list.count)
+        id = info->compatible_id_list.ids[0].string;
     else
     {
-        ACPI_BUFFER buf;
-        buf.Length = ACPI_ALLOCATE_BUFFER;
-        buf.Pointer = nullptr;
+        acpi_buffer buf;
+        buf.length = ACPI_ALLOCATE_BUFFER;
+        buf.pointer = nullptr;
 
-        st = AcpiGetName(object, ACPI_FULL_PATHNAME, &buf);
+        st = acpi_get_name(object, ACPI_FULL_PATHNAME, &buf);
         if (ACPI_FAILURE(st))
         {
-            ERROR("acpi", "AcpiGetName() failed: error %x\n", st);
+            ERROR("acpi", "acpi_get_name() failed: error %x\n", st);
             return AE_ERROR;
         }
         free_id = true;
 
-        id = (const char *) buf.Pointer;
+        id = (const char *) buf.pointer;
     }
 
     char *name = (char *) zalloc(PATH_MAX);
@@ -421,7 +423,7 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
 
     snprintf(name, PATH_MAX, "%s", id);
 
-    ACPI_RESOURCE *resources = acpi_get_resources(object);
+    acpi_resource *resources = acpi_get_resources(object);
 
     // TODO: Resource releasing here is sloppy
     auto device = new acpi_device{name, &acpi_bus, nullptr, object, info, resources};
@@ -431,17 +433,17 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
         return AE_ERROR;
     }
 
-    ACPI_RESOURCE *res = device->resources;
+    acpi_resource *res = device->resources;
 
-    for (; res && res->Type != ACPI_RESOURCE_TYPE_END_TAG; res = ACPI_NEXT_RESOURCE(res))
+    for (; res && res->type != ACPI_RESOURCE_TYPE_END_TAG; res = ACPI_NEXT_RESOURCE(res))
     {
         if (!acpi_supports_resource_type(res))
             continue;
 
-        if (res->Type == ACPI_RESOURCE_TYPE_IRQ || res->Type == ACPI_RESOURCE_TYPE_EXTENDED_IRQ)
+        if (res->type == ACPI_RESOURCE_TYPE_IRQ || res->type == ACPI_RESOURCE_TYPE_EXTENDED_IRQ)
         {
-            auto nr = res->Type == ACPI_RESOURCE_TYPE_IRQ ? res->Data.Irq.InterruptCount
-                                                          : res->Data.ExtendedIrq.InterruptCount;
+            auto nr = res->type == ACPI_RESOURCE_TYPE_IRQ ? res->data.irq.interrupt_count
+                                                          : res->data.extended_irq.interrupt_count;
 
             for (uint8_t i = 0; i < nr; i++)
             {
@@ -479,12 +481,12 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
     return AE_OK;
 }
 
-void acpi_enumerate_devices(void)
+void acpi_enumerate_devices()
 {
-    ACPI_STATUS st;
+    acpi_status st;
     /* Walk the namespace for devices */
-    st = AcpiWalkNamespace(ACPI_TYPE_DEVICE, ACPI_ROOT_OBJECT, ACPI_UINT32_MAX, acpi_add_device,
-                           nullptr, nullptr, nullptr);
+    st = acpi_walk_namespace(ACPI_TYPE_DEVICE, ACPI_ROOT_OBJECT, ACPI_UINT32_MAX, acpi_add_device,
+                             nullptr, nullptr, nullptr);
     if (ACPI_FAILURE(st))
     {
         ERROR("acpi", "Failed to walk the namespace\n");
@@ -503,63 +505,63 @@ unsigned int acpi_suspend_event_handler(void *context)
     return acpi_suspend();
 }
 
-ACPI_STATUS acpi_init_power(void)
+acpi_status acpi_init_power()
 {
-    ACPI_STATUS st;
+    acpi_status st;
 
-    if (ACPI_FAILURE((st = AcpiEnableEvent(ACPI_EVENT_POWER_BUTTON, 0))))
+    if (ACPI_FAILURE((st = acpi_enable_event(ACPI_EVENT_POWER_BUTTON, 0))))
         return st;
 
-    if (ACPI_FAILURE((st = AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON,
-                                                        acpi_power_event_handler, nullptr))))
+    if (ACPI_FAILURE((st = acpi_install_fixed_event_handler(ACPI_EVENT_POWER_BUTTON,
+                                                            acpi_power_event_handler, nullptr))))
         return st;
 
-    if (ACPI_FAILURE((st = AcpiInstallFixedEventHandler(ACPI_EVENT_SLEEP_BUTTON,
-                                                        acpi_suspend_event_handler, nullptr))))
+    if (ACPI_FAILURE((st = acpi_install_fixed_event_handler(ACPI_EVENT_SLEEP_BUTTON,
+                                                            acpi_suspend_event_handler, nullptr))))
         return st;
 
     return AE_OK;
 }
 
-void acpi_initialise(void)
+void acpi_initialise()
 {
     acpi_find_rsdp();
 
     // ACPI is not available
     if (!rsdp)
         return;
-    ACPI_STATUS st = AcpiInitializeSubsystem();
+    acpi_status st = acpi_initialize_subsystem();
     if (ACPI_FAILURE(st))
     {
-        printk("Error: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
+        printk("Error: %s\n", acpi_gbl_exception_names_env[st].name);
         panic("ACPI subsystem initialization failed!");
     }
 
-    st = AcpiInitializeTables(nullptr, 32, true);
+    st = acpi_initialize_tables(nullptr, 32, true);
     if (ACPI_FAILURE(st))
     {
-        printk("Error: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
+        printk("Error: %s\n", acpi_gbl_exception_names_env[st].name);
         panic("ACPI table subsystem initialization failed!");
     }
 
-    st = AcpiLoadTables();
+    st = acpi_load_tables();
     if (ACPI_FAILURE(st))
-        panic("AcpiLoadTables failed!");
+        panic("acpi_load_tables failed!");
 
 #ifdef __x86_64__
     ioapic_early_init();
 #endif
 
-    st = AcpiEnableSubsystem(ACPI_FULL_INITIALIZATION);
+    st = acpi_enable_subsystem(ACPI_FULL_INITIALIZATION);
     if (ACPI_FAILURE(st))
     {
-        printk("Error: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
-        panic("AcpiEnableSubsystem failed!");
+        printk("Error: %s\n", acpi_gbl_exception_names_env[st].name);
+        panic("acpi_enable_subsystem failed!");
     }
 
-    st = AcpiInitializeObjects(ACPI_FULL_INITIALIZATION);
+    st = acpi_initialize_objects(ACPI_FULL_INITIALIZATION);
     if (ACPI_FAILURE(st))
-        panic("AcpiInitializeObjects failed!");
+        panic("acpi_initialize_objects failed!");
 
     INFO("acpi", "initialized!\n");
 
@@ -580,33 +582,33 @@ void acpi_initialise(void)
 
 INIT_LEVEL_VERY_EARLY_PLATFORM_ENTRY(acpi_initialise);
 
-uint32_t acpi_get_apic_id_lapic(ACPI_SUBTABLE_HEADER *madt)
+uint32_t acpi_get_apic_id_lapic(acpi_subtable_header *madt)
 {
-    return ((ACPI_MADT_LOCAL_APIC *) madt)->Id;
+    return ((acpi_madt_local_apic *) madt)->id;
 }
 
 static DECLARE_MUTEX(cpu_enum_lock);
 
-static size_t __ndx = 0;
+static size_t ndx = 0;
 
 // TODO: Parts of this are arch specific
 
-ACPI_STATUS acpi_enumerate_per_cpu(ACPI_HANDLE object, UINT32 nestingLevel, void *context,
+acpi_status acpi_enumerate_per_cpu(acpi_handle object, u32 nesting_level, void *context,
                                    void **returnvalue)
 {
-    ACPI_BUFFER buffer = {ACPI_ALLOCATE_BUFFER, nullptr};
-    struct acpi_processor *processor = &((struct acpi_processor *) context)[__ndx++];
+    acpi_buffer buffer = {ACPI_ALLOCATE_BUFFER, nullptr};
+    struct acpi_processor *processor = &((struct acpi_processor *) context)[ndx++];
     uint32_t apic_id = (uint32_t) -1;
     (void) apic_id;
 
     /* _MAT returns a segment of the MADT table */
-    if (ACPI_FAILURE(AcpiEvaluateObject(object, (char *) "_MAT", nullptr, &buffer)))
+    if (ACPI_FAILURE(acpi_evaluate_object(object, (char *) "_MAT", nullptr, &buffer)))
         return AE_ERROR;
     /* Get the APIC ID */
-    ACPI_OBJECT *obj = (ACPI_OBJECT *) buffer.Pointer;
-    ACPI_SUBTABLE_HEADER *madt_table = (ACPI_SUBTABLE_HEADER *) obj->Buffer.Pointer;
+    acpi_object *obj = (acpi_object *) buffer.pointer;
+    acpi_subtable_header *madt_table = (acpi_subtable_header *) obj->buffer.pointer;
 
-    switch (madt_table->Type)
+    switch (madt_table->type)
     {
         case ACPI_MADT_TYPE_LOCAL_APIC:
             apic_id = acpi_get_apic_id_lapic(madt_table);
@@ -619,11 +621,11 @@ ACPI_STATUS acpi_enumerate_per_cpu(ACPI_HANDLE object, UINT32 nestingLevel, void
     processor->apic_id = apic_id;
 #endif
 
-    ACPI_FREE(buffer.Pointer);
+    ACPI_FREE(buffer.pointer);
     return AE_OK;
 }
 
-struct acpi_processor *acpi_enumerate_cpus(void)
+struct acpi_processor *acpi_enumerate_cpus()
 {
     acpi_processor *processors = (acpi_processor *) malloc(sizeof(acpi_processor) * get_nr_cpus());
     if (!processors)
@@ -635,10 +637,10 @@ struct acpi_processor *acpi_enumerate_cpus(void)
 
     mutex_lock(&cpu_enum_lock);
 
-    __ndx = 0;
+    ndx = 0;
     /* Walk the namespace, looking for ACPI PROCESSOR objects */
-    AcpiWalkNamespace(ACPI_TYPE_PROCESSOR, ACPI_ROOT_OBJECT, ACPI_UINT32_MAX,
-                      acpi_enumerate_per_cpu, nullptr, processors, nullptr);
+    acpi_walk_namespace(ACPI_TYPE_PROCESSOR, ACPI_ROOT_OBJECT, ACPI_UINT32_MAX,
+                        acpi_enumerate_per_cpu, nullptr, processors, nullptr);
 
     mutex_unlock(&cpu_enum_lock);
     return processors;
@@ -653,8 +655,8 @@ const char *power_states[] = {"_PS0", "_PS1", "_PS2", "_PS3"};
 
 int acpi_set_device_power_state(struct acpi_device *device, unsigned int power_state)
 {
-    ACPI_STATUS st =
-        AcpiEvaluateObject(device->object, (char *) power_states[power_state], nullptr, nullptr);
+    acpi_status st =
+        acpi_evaluate_object(device->object, (char *) power_states[power_state], nullptr, nullptr);
     if (ACPI_FAILURE(st))
     {
         return 1;
@@ -669,9 +671,9 @@ int acpi_shutdown_device(struct device *dev)
     return acpi_set_device_power_state((struct acpi_device *) dev, ACPI_POWER_STATE_D3);
 }
 
-uint64_t acpi_timer_get_ticks(void);
-hrtime_t acpi_timer_get_elapsed_ns(hrtime_t _old_ticks, hrtime_t _new_ticks);
-hrtime_t acpi_timer_get_ns(void);
+uint64_t acpi_timer_get_ticks();
+hrtime_t acpi_timer_get_elapsed_ns(hrtime_t old_ticks, hrtime_t new_ticks);
+hrtime_t acpi_timer_get_ns();
 
 struct clocksource acpi_timer_source = {.name = "acpi_pm_timer",
                                         .rating = 150,
@@ -682,15 +684,15 @@ struct clocksource acpi_timer_source = {.name = "acpi_pm_timer",
 
 static struct fp_32_64 acpi_timer_ticks_per_ns;
 
-hrtime_t acpi_timer_get_ns(void)
+hrtime_t acpi_timer_get_ns()
 {
     uint32_t t;
     unsigned int res;
     uint32_t max = 0xffffffff;
 
-    AcpiGetTimer(&t);
+    acpi_get_timer(&t);
 
-    AcpiGetTimerResolution(&res);
+    acpi_get_timer_resolution(&res);
 
     if (res == 24)
         max = 0x00ffffff;
@@ -709,10 +711,10 @@ hrtime_t acpi_timer_get_ns(void)
 
 #include <onyx/timer.h>
 
-int acpi_init_timer(void)
+int acpi_init_timer()
 {
     uint32_t ticks;
-    ACPI_STATUS st = AcpiGetTimer(&ticks);
+    acpi_status st = acpi_get_timer(&ticks);
 
     if (ACPI_FAILURE(st))
     {
@@ -726,7 +728,7 @@ int acpi_init_timer(void)
     acpi_timer_source.monotonic_warp = -u64_mul_u32_fp32_64(ticks, acpi_timer_ticks_per_ns);
     acpi_timer_source.last_cycle = ticks;
 
-    AcpiGetTimerResolution(&acpi_timer_source.resolution);
+    acpi_get_timer_resolution(&acpi_timer_source.resolution);
     acpi_timer_source.ticks_per_ns = &acpi_timer_ticks_per_ns;
 
     register_clock_source(&acpi_timer_source);
@@ -738,14 +740,14 @@ int acpi_init_timer(void)
     return 0;
 }
 
-uint64_t acpi_timer_get_ticks(void)
+uint64_t acpi_timer_get_ticks()
 {
     uint32_t ticks;
-    AcpiGetTimer(&ticks);
+    acpi_get_timer(&ticks);
     return ticks;
 }
 
-hrtime_t acpi_timer_get_elapsed_ns(hrtime_t _old_ticks, hrtime_t _new_ticks)
+hrtime_t acpi_timer_get_elapsed_ns(hrtime_t old_ticks_, hrtime_t new_ticks_)
 {
     /* Forced to rewrite this because AcpiGetTimerDuration works with
      * microseconds instead of nanoseconds like we want
@@ -753,8 +755,8 @@ hrtime_t acpi_timer_get_elapsed_ns(hrtime_t _old_ticks, hrtime_t _new_ticks)
     uint32_t delta = 0;
 
     /* Convert these to uint32_t's since the timer's resolution is 32-bit max. */
-    uint32_t old_ticks = (uint32_t) _old_ticks;
-    uint32_t new_ticks = (uint32_t) _new_ticks;
+    uint32_t old_ticks = (uint32_t) old_ticks_;
+    uint32_t new_ticks = (uint32_t) new_ticks_;
 
     if (old_ticks < new_ticks)
     {
@@ -767,7 +769,7 @@ hrtime_t acpi_timer_get_elapsed_ns(hrtime_t _old_ticks, hrtime_t _new_ticks)
     else
     {
         unsigned int res;
-        AcpiGetTimerResolution(&res);
+        acpi_get_timer_resolution(&res);
 
         if (res == 24)
         {
@@ -795,17 +797,17 @@ bool acpi_driver_supports_device(driver *driver, acpi_device *device)
     {
         // Test the hardware id and class id for equality
         auto device_info = device->info;
-        if (device_info->Valid & ACPI_VALID_HID)
+        if (device_info->valid & ACPI_VALID_HID)
         {
-            if (!strcmp(device_info->HardwareId.String, dev_table->devid))
+            if (!strcmp(device_info->hardware_id.string, dev_table->devid))
                 return true;
         }
 
-        if (device_info->Valid & ACPI_VALID_CID)
+        if (device_info->valid & ACPI_VALID_CID)
         {
-            for (unsigned int i = 0; i < device_info->CompatibleIdList.Count; i++)
+            for (unsigned int i = 0; i < device_info->compatible_id_list.count; i++)
             {
-                if (!strcmp(device_info->CompatibleIdList.Ids[i].String, dev_table->devid))
+                if (!strcmp(device_info->compatible_id_list.ids[i].string, dev_table->devid))
                     return true;
             }
         }

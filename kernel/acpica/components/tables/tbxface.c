@@ -1,153 +1,12 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /******************************************************************************
  *
  * Module Name: tbxface - ACPI table-oriented external interfaces
  *
+ * Copyright (C) 2000 - 2022, Intel Corp.
+ *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #define EXPORT_ACPI_INTERFACES
 
@@ -156,47 +15,47 @@
 #include "actables.h"
 
 #define _COMPONENT          ACPI_TABLES
-        ACPI_MODULE_NAME    ("tbxface")
+	 ACPI_MODULE_NAME    ("tbxface")
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiAllocateRootTable
+ * FUNCTION:    acpi_allocate_root_table
  *
- * PARAMETERS:  InitialTableCount   - Size of InitialTableArray, in number of
- *                                    ACPI_TABLE_DESC structures
+ * PARAMETERS:  initial_table_count - Size of initial_table_array, in number of
+ *                                    struct acpi_table_desc structures
  *
  * RETURN:      Status
  *
  * DESCRIPTION: Allocate a root table array. Used by iASL compiler and
- *              AcpiInitializeTables.
+ *              acpi_initialize_tables.
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiAllocateRootTable (
-    UINT32                  InitialTableCount)
+acpi_status
+acpi_allocate_root_table (
+	u32                             initial_table_count)
 {
 
-    AcpiGbl_RootTableList.MaxTableCount = InitialTableCount;
-    AcpiGbl_RootTableList.Flags = ACPI_ROOT_ALLOW_RESIZE;
+	acpi_gbl_root_table_list.max_table_count = initial_table_count;
+	acpi_gbl_root_table_list.flags = ACPI_ROOT_ALLOW_RESIZE;
 
-    return (AcpiTbResizeRootTableList ());
+	return (acpi_tb_resize_root_table_list ());
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiInitializeTables
+ * FUNCTION:    acpi_initialize_tables
  *
- * PARAMETERS:  InitialTableArray   - Pointer to an array of pre-allocated
- *                                    ACPI_TABLE_DESC structures. If NULL, the
+ * PARAMETERS:  initial_table_array - Pointer to an array of pre-allocated
+ *                                    struct acpi_table_desc structures. If NULL, the
  *                                    array is dynamically allocated.
- *              InitialTableCount   - Size of InitialTableArray, in number of
- *                                    ACPI_TABLE_DESC structures
- *              AllowResize         - Flag to tell Table Manager if resize of
+ *              initial_table_count - Size of initial_table_array, in number of
+ *                                    struct acpi_table_desc structures
+ *              allow_resize        - Flag to tell Table Manager if resize of
  *                                    pre-allocated array is allowed. Ignored
- *                                    if InitialTableArray is NULL.
+ *                                    if initial_table_array is NULL.
  *
  * RETURN:      Status
  *
@@ -207,74 +66,69 @@ AcpiAllocateRootTable (
  *              such as the kernel boot sequence where it may not be available.
  *
  *              If the host OS memory managers are initialized, use NULL for
- *              InitialTableArray, and the table will be dynamically allocated.
+ *              initial_table_array, and the table will be dynamically allocated.
  *
  ******************************************************************************/
 
-ACPI_STATUS ACPI_INIT_FUNCTION
-AcpiInitializeTables (
-    ACPI_TABLE_DESC         *InitialTableArray,
-    UINT32                  InitialTableCount,
-    BOOLEAN                 AllowResize)
+acpi_status ACPI_INIT_FUNCTION
+acpi_initialize_tables (
+	struct acpi_table_desc          *initial_table_array,
+	u32                             initial_table_count,
+	u8                              allow_resize)
 {
-    ACPI_PHYSICAL_ADDRESS   RsdpAddress;
-    ACPI_STATUS             Status;
+	acpi_physical_address           rsdp_address;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE (AcpiInitializeTables);
+	ACPI_FUNCTION_TRACE (acpi_initialize_tables);
 
 
-    /*
-     * Setup the Root Table Array and allocate the table array
-     * if requested
-     */
-    if (!InitialTableArray)
-    {
-        Status = AcpiAllocateRootTable (InitialTableCount);
-        if (ACPI_FAILURE (Status))
-        {
-            return_ACPI_STATUS (Status);
-        }
-    }
-    else
-    {
-        /* Root Table Array has been statically allocated by the host */
+	/*
+	 * Setup the Root Table Array and allocate the table array
+	 * if requested
+	 */
+	if (!initial_table_array) {
+		status = acpi_allocate_root_table (initial_table_count);
+		if (ACPI_FAILURE (status)) {
+			return_ACPI_STATUS (status);
+		}
+	}
+	else {
+		/* Root Table Array has been statically allocated by the host */
 
-        memset (InitialTableArray, 0,
-            (ACPI_SIZE) InitialTableCount * sizeof (ACPI_TABLE_DESC));
+		memset (initial_table_array, 0,
+			(acpi_size) initial_table_count * sizeof (struct acpi_table_desc));
 
-        AcpiGbl_RootTableList.Tables = InitialTableArray;
-        AcpiGbl_RootTableList.MaxTableCount = InitialTableCount;
-        AcpiGbl_RootTableList.Flags = ACPI_ROOT_ORIGIN_UNKNOWN;
-        if (AllowResize)
-        {
-            AcpiGbl_RootTableList.Flags |= ACPI_ROOT_ALLOW_RESIZE;
-        }
-    }
+		acpi_gbl_root_table_list.tables = initial_table_array;
+		acpi_gbl_root_table_list.max_table_count = initial_table_count;
+		acpi_gbl_root_table_list.flags = ACPI_ROOT_ORIGIN_UNKNOWN;
+		if (allow_resize) {
+			acpi_gbl_root_table_list.flags |= ACPI_ROOT_ALLOW_RESIZE;
+		}
+	}
 
-    /* Get the address of the RSDP */
+	/* Get the address of the RSDP */
 
-    RsdpAddress = AcpiOsGetRootPointer ();
-    if (!RsdpAddress)
-    {
-        return_ACPI_STATUS (AE_NOT_FOUND);
-    }
+	rsdp_address = acpi_os_get_root_pointer ();
+	if (!rsdp_address) {
+		return_ACPI_STATUS (AE_NOT_FOUND);
+	}
 
-    /*
-     * Get the root table (RSDT or XSDT) and extract all entries to the local
-     * Root Table Array. This array contains the information of the RSDT/XSDT
-     * in a common, more usable format.
-     */
-    Status = AcpiTbParseRootTable (RsdpAddress);
-    return_ACPI_STATUS (Status);
+	/*
+	 * Get the root table (RSDT or XSDT) and extract all entries to the local
+	 * Root Table Array. This array contains the information of the RSDT/XSDT
+	 * in a common, more usable format.
+	 */
+	status = acpi_tb_parse_root_table (rsdp_address);
+	return_ACPI_STATUS (status);
 }
 
-ACPI_EXPORT_SYMBOL_INIT (AcpiInitializeTables)
+ACPI_EXPORT_SYMBOL_INIT (acpi_initialize_tables)
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiReallocateRootTable
+ * FUNCTION:    acpi_reallocate_root_table
  *
  * PARAMETERS:  None
  *
@@ -287,88 +141,81 @@ ACPI_EXPORT_SYMBOL_INIT (AcpiInitializeTables)
  *
  ******************************************************************************/
 
-ACPI_STATUS ACPI_INIT_FUNCTION
-AcpiReallocateRootTable (
-    void)
+acpi_status ACPI_INIT_FUNCTION
+acpi_reallocate_root_table (
+	void)
 {
-    ACPI_STATUS             Status;
-    ACPI_TABLE_DESC         *TableDesc;
-    UINT32                  i, j;
+	acpi_status                     status;
+	struct acpi_table_desc          *table_desc;
+	u32                             i, j;
 
 
-    ACPI_FUNCTION_TRACE (AcpiReallocateRootTable);
+	ACPI_FUNCTION_TRACE (acpi_reallocate_root_table);
 
 
-    /*
-     * If there are tables unverified, it is required to reallocate the
-     * root table list to clean up invalid table entries. Otherwise only
-     * reallocate the root table list if the host provided a static buffer
-     * for the table array in the call to AcpiInitializeTables().
-     */
-    if ((AcpiGbl_RootTableList.Flags & ACPI_ROOT_ORIGIN_ALLOCATED) &&
-        AcpiGbl_EnableTableValidation)
-    {
-        return_ACPI_STATUS (AE_SUPPORT);
-    }
+	/*
+	 * If there are tables unverified, it is required to reallocate the
+	 * root table list to clean up invalid table entries. Otherwise only
+	 * reallocate the root table list if the host provided a static buffer
+	 * for the table array in the call to acpi_initialize_tables().
+	 */
+	if ((acpi_gbl_root_table_list.flags & ACPI_ROOT_ORIGIN_ALLOCATED) &&
+		acpi_gbl_enable_table_validation) {
+		return_ACPI_STATUS (AE_SUPPORT);
+	}
 
-    (void) AcpiUtAcquireMutex (ACPI_MTX_TABLES);
+	(void) acpi_ut_acquire_mutex (ACPI_MTX_TABLES);
 
-    /*
-     * Ensure OS early boot logic, which is required by some hosts. If the
-     * table state is reported to be wrong, developers should fix the
-     * issue by invoking AcpiPutTable() for the reported table during the
-     * early stage.
-     */
-    for (i = 0; i < AcpiGbl_RootTableList.CurrentTableCount; ++i)
-    {
-        TableDesc = &AcpiGbl_RootTableList.Tables[i];
-        if (TableDesc->Pointer)
-        {
-            ACPI_ERROR ((AE_INFO,
-                "Table [%4.4s] is not invalidated during early boot stage",
-                TableDesc->Signature.Ascii));
-        }
-    }
+	/*
+	 * Ensure OS early boot logic, which is required by some hosts. If the
+	 * table state is reported to be wrong, developers should fix the
+	 * issue by invoking acpi_put_table() for the reported table during the
+	 * early stage.
+	 */
+	for (i = 0; i < acpi_gbl_root_table_list.current_table_count; ++i) {
+		table_desc = &acpi_gbl_root_table_list.tables[i];
+		if (table_desc->pointer) {
+			ACPI_ERROR ((AE_INFO,
+				"Table [%4.4s] is not invalidated during early boot stage",
+				table_desc->signature.ascii));
+		}
+	}
 
-    if (!AcpiGbl_EnableTableValidation)
-    {
-        /*
-         * Now it's safe to do full table validation. We can do deferred
-         * table initialization here once the flag is set.
-         */
-        AcpiGbl_EnableTableValidation = TRUE;
-        for (i = 0; i < AcpiGbl_RootTableList.CurrentTableCount; ++i)
-        {
-            TableDesc = &AcpiGbl_RootTableList.Tables[i];
-            if (!(TableDesc->Flags & ACPI_TABLE_IS_VERIFIED))
-            {
-                Status = AcpiTbVerifyTempTable (TableDesc, NULL, &j);
-                if (ACPI_FAILURE (Status))
-                {
-                    AcpiTbUninstallTable (TableDesc);
-                }
-            }
-        }
-    }
+	if (!acpi_gbl_enable_table_validation) {
+		/*
+		 * Now it's safe to do full table validation. We can do deferred
+		 * table initialization here once the flag is set.
+		 */
+		acpi_gbl_enable_table_validation = TRUE;
+		for (i = 0; i < acpi_gbl_root_table_list.current_table_count; ++i) {
+			table_desc = &acpi_gbl_root_table_list.tables[i];
+			if (!(table_desc->flags & ACPI_TABLE_IS_VERIFIED)) {
+				status = acpi_tb_verify_temp_table (table_desc, NULL, &j);
+				if (ACPI_FAILURE (status)) {
+					acpi_tb_uninstall_table (table_desc);
+				}
+			}
+		}
+	}
 
-    AcpiGbl_RootTableList.Flags |= ACPI_ROOT_ALLOW_RESIZE;
-    Status = AcpiTbResizeRootTableList ();
-    AcpiGbl_RootTableList.Flags |= ACPI_ROOT_ORIGIN_ALLOCATED;
+	acpi_gbl_root_table_list.flags |= ACPI_ROOT_ALLOW_RESIZE;
+	status = acpi_tb_resize_root_table_list ();
+	acpi_gbl_root_table_list.flags |= ACPI_ROOT_ORIGIN_ALLOCATED;
 
-    (void) AcpiUtReleaseMutex (ACPI_MTX_TABLES);
-    return_ACPI_STATUS (Status);
+	(void) acpi_ut_release_mutex (ACPI_MTX_TABLES);
+	return_ACPI_STATUS (status);
 }
 
-ACPI_EXPORT_SYMBOL_INIT (AcpiReallocateRootTable)
+ACPI_EXPORT_SYMBOL_INIT (acpi_reallocate_root_table)
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiGetTableHeader
+ * FUNCTION:    acpi_get_table_header
  *
- * PARAMETERS:  Signature           - ACPI signature of needed table
- *              Instance            - Which instance (for SSDTs)
- *              OutTableHeader      - The pointer to the where the table header
+ * PARAMETERS:  signature           - ACPI signature of needed table
+ *              instance            - Which instance (for SSDTs)
+ *              out_table_header    - The pointer to the where the table header
  *                                    is returned
  *
  * RETURN:      Status and a copy of the table header
@@ -379,161 +226,148 @@ ACPI_EXPORT_SYMBOL_INIT (AcpiReallocateRootTable)
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiGetTableHeader (
-    char                    *Signature,
-    UINT32                  Instance,
-    ACPI_TABLE_HEADER       *OutTableHeader)
+acpi_status
+acpi_get_table_header (
+	char                            *signature,
+	u32                             instance,
+	struct acpi_table_header        *out_table_header)
 {
-    UINT32                  i;
-    UINT32                  j;
-    ACPI_TABLE_HEADER       *Header;
+	u32                             i;
+	u32                             j;
+	struct acpi_table_header        *header;
 
 
-    /* Parameter validation */
+	/* Parameter validation */
 
-    if (!Signature || !OutTableHeader)
-    {
-        return (AE_BAD_PARAMETER);
-    }
+	if (!signature || !out_table_header) {
+		return (AE_BAD_PARAMETER);
+	}
 
-    /* Walk the root table list */
+	/* Walk the root table list */
 
-    for (i = 0, j = 0; i < AcpiGbl_RootTableList.CurrentTableCount; i++)
-    {
-        if (!ACPI_COMPARE_NAMESEG (
-                &(AcpiGbl_RootTableList.Tables[i].Signature), Signature))
-        {
-            continue;
-        }
+	for (i = 0, j = 0; i < acpi_gbl_root_table_list.current_table_count; i++) {
+		if (!ACPI_COMPARE_NAMESEG (
+				&(acpi_gbl_root_table_list.tables[i].signature), signature)) {
+			continue;
+		}
 
-        if (++j < Instance)
-        {
-            continue;
-        }
+		if (++j < instance) {
+			continue;
+		}
 
-        if (!AcpiGbl_RootTableList.Tables[i].Pointer)
-        {
-            if ((AcpiGbl_RootTableList.Tables[i].Flags &
-                    ACPI_TABLE_ORIGIN_MASK) ==
-                ACPI_TABLE_ORIGIN_INTERNAL_PHYSICAL)
-            {
-                Header = AcpiOsMapMemory (
-                    AcpiGbl_RootTableList.Tables[i].Address,
-                    sizeof (ACPI_TABLE_HEADER));
-                if (!Header)
-                {
-                    return (AE_NO_MEMORY);
-                }
+		if (!acpi_gbl_root_table_list.tables[i].pointer) {
+			if ((acpi_gbl_root_table_list.tables[i].flags &
+					ACPI_TABLE_ORIGIN_MASK) ==
+				ACPI_TABLE_ORIGIN_INTERNAL_PHYSICAL) {
+				header = acpi_os_map_memory (
+					acpi_gbl_root_table_list.tables[i].address,
+					sizeof (struct acpi_table_header));
+				if (!header) {
+					return (AE_NO_MEMORY);
+				}
 
-                memcpy (OutTableHeader, Header, sizeof (ACPI_TABLE_HEADER));
-                AcpiOsUnmapMemory (Header, sizeof (ACPI_TABLE_HEADER));
-            }
-            else
-            {
-                return (AE_NOT_FOUND);
-            }
-        }
-        else
-        {
-            memcpy (OutTableHeader,
-                AcpiGbl_RootTableList.Tables[i].Pointer,
-                sizeof (ACPI_TABLE_HEADER));
-        }
+				memcpy (out_table_header, header, sizeof (struct acpi_table_header));
+				acpi_os_unmap_memory (header, sizeof (struct acpi_table_header));
+			}
+			else {
+				return (AE_NOT_FOUND);
+			}
+		}
+		else {
+			memcpy (out_table_header,
+				acpi_gbl_root_table_list.tables[i].pointer,
+				sizeof (struct acpi_table_header));
+		}
 
-        return (AE_OK);
-    }
+		return (AE_OK);
+	}
 
-    return (AE_NOT_FOUND);
+	return (AE_NOT_FOUND);
 }
 
-ACPI_EXPORT_SYMBOL (AcpiGetTableHeader)
+ACPI_EXPORT_SYMBOL (acpi_get_table_header)
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiGetTable
+ * FUNCTION:    acpi_get_table
  *
- * PARAMETERS:  Signature           - ACPI signature of needed table
- *              Instance            - Which instance (for SSDTs)
- *              OutTable            - Where the pointer to the table is returned
+ * PARAMETERS:  signature           - ACPI signature of needed table
+ *              instance            - Which instance (for SSDTs)
+ *              out_table           - Where the pointer to the table is returned
  *
  * RETURN:      Status and pointer to the requested table
  *
  * DESCRIPTION: Finds and verifies an ACPI table. Table must be in the
  *              RSDT/XSDT.
- *              Note that an early stage AcpiGetTable() call must be paired
- *              with an early stage AcpiPutTable() call. otherwise the table
+ *              Note that an early stage acpi_get_table() call must be paired
+ *              with an early stage acpi_put_table() call. otherwise the table
  *              pointer mapped by the early stage mapping implementation may be
  *              erroneously unmapped by the late stage unmapping implementation
- *              in an AcpiPutTable() invoked during the late stage.
+ *              in an acpi_put_table() invoked during the late stage.
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiGetTable (
-    char                    *Signature,
-    UINT32                  Instance,
-    ACPI_TABLE_HEADER       **OutTable)
+acpi_status
+acpi_get_table (
+	char                            *signature,
+	u32                             instance,
+	struct acpi_table_header        **out_table)
 {
-    UINT32                  i;
-    UINT32                  j;
-    ACPI_STATUS             Status = AE_NOT_FOUND;
-    ACPI_TABLE_DESC         *TableDesc;
+	u32                             i;
+	u32                             j;
+	acpi_status                     status = AE_NOT_FOUND;
+	struct acpi_table_desc          *table_desc;
 
 
-    /* Parameter validation */
+	/* Parameter validation */
 
-    if (!Signature || !OutTable)
-    {
-        return (AE_BAD_PARAMETER);
-    }
+	if (!signature || !out_table) {
+		return (AE_BAD_PARAMETER);
+	}
 
-    /*
-     * Note that the following line is required by some OSPMs, they only
-     * check if the returned table is NULL instead of the returned status
-     * to determined if this function is succeeded.
-     */
-    *OutTable = NULL;
+	/*
+	 * Note that the following line is required by some OSPMs, they only
+	 * check if the returned table is NULL instead of the returned status
+	 * to determined if this function is succeeded.
+	 */
+	*out_table = NULL;
 
-    (void) AcpiUtAcquireMutex (ACPI_MTX_TABLES);
+	(void) acpi_ut_acquire_mutex (ACPI_MTX_TABLES);
 
-    /* Walk the root table list */
+	/* Walk the root table list */
 
-    for (i = 0, j = 0; i < AcpiGbl_RootTableList.CurrentTableCount; i++)
-    {
-        TableDesc = &AcpiGbl_RootTableList.Tables[i];
+	for (i = 0, j = 0; i < acpi_gbl_root_table_list.current_table_count; i++) {
+		table_desc = &acpi_gbl_root_table_list.tables[i];
 
-        if (!ACPI_COMPARE_NAMESEG (&TableDesc->Signature, Signature))
-        {
-            continue;
-        }
+		if (!ACPI_COMPARE_NAMESEG (&table_desc->signature, signature)) {
+			continue;
+		}
 
-        if (++j < Instance)
-        {
-            continue;
-        }
+		if (++j < instance) {
+			continue;
+		}
 
-        Status = AcpiTbGetTable (TableDesc, OutTable);
-        break;
-    }
+		status = acpi_tb_get_table (table_desc, out_table);
+		break;
+	}
 
-    (void) AcpiUtReleaseMutex (ACPI_MTX_TABLES);
-    return (Status);
+	(void) acpi_ut_release_mutex (ACPI_MTX_TABLES);
+	return (status);
 }
 
-ACPI_EXPORT_SYMBOL (AcpiGetTable)
+ACPI_EXPORT_SYMBOL (acpi_get_table)
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiPutTable
+ * FUNCTION:    acpi_put_table
  *
- * PARAMETERS:  Table               - The pointer to the table
+ * PARAMETERS:  table               - The pointer to the table
  *
  * RETURN:      None
  *
- * DESCRIPTION: Release a table returned by AcpiGetTable() and its clones.
+ * DESCRIPTION: Release a table returned by acpi_get_table() and its clones.
  *              Note that it is not safe if this function was invoked after an
  *              uninstallation happened to the original table descriptor.
  *              Currently there is no OSPMs' requirement to handle such
@@ -542,51 +376,48 @@ ACPI_EXPORT_SYMBOL (AcpiGetTable)
  ******************************************************************************/
 
 void
-AcpiPutTable (
-    ACPI_TABLE_HEADER       *Table)
+acpi_put_table (
+	struct acpi_table_header        *table)
 {
-    UINT32                  i;
-    ACPI_TABLE_DESC         *TableDesc;
+	u32                             i;
+	struct acpi_table_desc          *table_desc;
 
 
-    ACPI_FUNCTION_TRACE (AcpiPutTable);
+	ACPI_FUNCTION_TRACE (acpi_put_table);
 
 
-    if (!Table)
-    {
-        return_VOID;
-    }
+	if (!table) {
+		return_VOID;
+	}
 
-    (void) AcpiUtAcquireMutex (ACPI_MTX_TABLES);
+	(void) acpi_ut_acquire_mutex (ACPI_MTX_TABLES);
 
-    /* Walk the root table list */
+	/* Walk the root table list */
 
-    for (i = 0; i < AcpiGbl_RootTableList.CurrentTableCount; i++)
-    {
-        TableDesc = &AcpiGbl_RootTableList.Tables[i];
+	for (i = 0; i < acpi_gbl_root_table_list.current_table_count; i++) {
+		table_desc = &acpi_gbl_root_table_list.tables[i];
 
-        if (TableDesc->Pointer != Table)
-        {
-            continue;
-        }
+		if (table_desc->pointer != table) {
+			continue;
+		}
 
-        AcpiTbPutTable (TableDesc);
-        break;
-    }
+		acpi_tb_put_table (table_desc);
+		break;
+	}
 
-    (void) AcpiUtReleaseMutex (ACPI_MTX_TABLES);
-    return_VOID;
+	(void) acpi_ut_release_mutex (ACPI_MTX_TABLES);
+	return_VOID;
 }
 
-ACPI_EXPORT_SYMBOL (AcpiPutTable)
+ACPI_EXPORT_SYMBOL (acpi_put_table)
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiGetTableByIndex
+ * FUNCTION:    acpi_get_table_by_index
  *
- * PARAMETERS:  TableIndex          - Table index
- *              OutTable            - Where the pointer to the table is returned
+ * PARAMETERS:  table_index         - Table index
+ *              out_table           - Where the pointer to the table is returned
  *
  * RETURN:      Status and pointer to the requested table
  *
@@ -595,58 +426,56 @@ ACPI_EXPORT_SYMBOL (AcpiPutTable)
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiGetTableByIndex (
-    UINT32                  TableIndex,
-    ACPI_TABLE_HEADER       **OutTable)
+acpi_status
+acpi_get_table_by_index (
+	u32                             table_index,
+	struct acpi_table_header        **out_table)
 {
-    ACPI_STATUS             Status;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE (AcpiGetTableByIndex);
+	ACPI_FUNCTION_TRACE (acpi_get_table_by_index);
 
 
-    /* Parameter validation */
+	/* Parameter validation */
 
-    if (!OutTable)
-    {
-        return_ACPI_STATUS (AE_BAD_PARAMETER);
-    }
+	if (!out_table) {
+		return_ACPI_STATUS (AE_BAD_PARAMETER);
+	}
 
-    /*
-     * Note that the following line is required by some OSPMs, they only
-     * check if the returned table is NULL instead of the returned status
-     * to determined if this function is succeeded.
-     */
-    *OutTable = NULL;
+	/*
+	 * Note that the following line is required by some OSPMs, they only
+	 * check if the returned table is NULL instead of the returned status
+	 * to determined if this function is succeeded.
+	 */
+	*out_table = NULL;
 
-    (void) AcpiUtAcquireMutex (ACPI_MTX_TABLES);
+	(void) acpi_ut_acquire_mutex (ACPI_MTX_TABLES);
 
-    /* Validate index */
+	/* Validate index */
 
-    if (TableIndex >= AcpiGbl_RootTableList.CurrentTableCount)
-    {
-        Status = AE_BAD_PARAMETER;
-        goto UnlockAndExit;
-    }
+	if (table_index >= acpi_gbl_root_table_list.current_table_count) {
+		status = AE_BAD_PARAMETER;
+		goto unlock_and_exit;
+	}
 
-    Status = AcpiTbGetTable (
-        &AcpiGbl_RootTableList.Tables[TableIndex], OutTable);
+	status = acpi_tb_get_table (
+		&acpi_gbl_root_table_list.tables[table_index], out_table);
 
-UnlockAndExit:
-    (void) AcpiUtReleaseMutex (ACPI_MTX_TABLES);
-    return_ACPI_STATUS (Status);
+unlock_and_exit:
+	(void) acpi_ut_release_mutex (ACPI_MTX_TABLES);
+	return_ACPI_STATUS (status);
 }
 
-ACPI_EXPORT_SYMBOL (AcpiGetTableByIndex)
+ACPI_EXPORT_SYMBOL (acpi_get_table_by_index)
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiInstallTableHandler
+ * FUNCTION:    acpi_install_table_handler
  *
- * PARAMETERS:  Handler         - Table event handler
- *              Context         - Value passed to the handler on each event
+ * PARAMETERS:  handler         - Table event handler
+ *              context         - Value passed to the handler on each event
  *
  * RETURN:      Status
  *
@@ -654,54 +483,51 @@ ACPI_EXPORT_SYMBOL (AcpiGetTableByIndex)
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiInstallTableHandler (
-    ACPI_TABLE_HANDLER      Handler,
-    void                    *Context)
+acpi_status
+acpi_install_table_handler (
+	acpi_table_handler              handler,
+	void                            *context)
 {
-    ACPI_STATUS             Status;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE (AcpiInstallTableHandler);
+	ACPI_FUNCTION_TRACE (acpi_install_table_handler);
 
 
-    if (!Handler)
-    {
-        return_ACPI_STATUS (AE_BAD_PARAMETER);
-    }
+	if (!handler) {
+		return_ACPI_STATUS (AE_BAD_PARAMETER);
+	}
 
-    Status = AcpiUtAcquireMutex (ACPI_MTX_EVENTS);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_ut_acquire_mutex (ACPI_MTX_EVENTS);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    /* Don't allow more than one handler */
+	/* Don't allow more than one handler */
 
-    if (AcpiGbl_TableHandler)
-    {
-        Status = AE_ALREADY_EXISTS;
-        goto Cleanup;
-    }
+	if (acpi_gbl_table_handler) {
+		status = AE_ALREADY_EXISTS;
+		goto cleanup;
+	}
 
-    /* Install the handler */
+	/* Install the handler */
 
-    AcpiGbl_TableHandler = Handler;
-    AcpiGbl_TableHandlerContext = Context;
+	acpi_gbl_table_handler = handler;
+	acpi_gbl_table_handler_context = context;
 
-Cleanup:
-    (void) AcpiUtReleaseMutex (ACPI_MTX_EVENTS);
-    return_ACPI_STATUS (Status);
+cleanup:
+	(void) acpi_ut_release_mutex (ACPI_MTX_EVENTS);
+	return_ACPI_STATUS (status);
 }
 
-ACPI_EXPORT_SYMBOL (AcpiInstallTableHandler)
+ACPI_EXPORT_SYMBOL (acpi_install_table_handler)
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiRemoveTableHandler
+ * FUNCTION:    acpi_remove_table_handler
  *
- * PARAMETERS:  Handler         - Table event handler that was installed
+ * PARAMETERS:  handler         - Table event handler that was installed
  *                                previously.
  *
  * RETURN:      Status
@@ -710,38 +536,36 @@ ACPI_EXPORT_SYMBOL (AcpiInstallTableHandler)
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiRemoveTableHandler (
-    ACPI_TABLE_HANDLER      Handler)
+acpi_status
+acpi_remove_table_handler (
+	acpi_table_handler              handler)
 {
-    ACPI_STATUS             Status;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE (AcpiRemoveTableHandler);
+	ACPI_FUNCTION_TRACE (acpi_remove_table_handler);
 
 
-    Status = AcpiUtAcquireMutex (ACPI_MTX_EVENTS);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
+	status = acpi_ut_acquire_mutex (ACPI_MTX_EVENTS);
+	if (ACPI_FAILURE (status)) {
+		return_ACPI_STATUS (status);
+	}
 
-    /* Make sure that the installed handler is the same */
+	/* Make sure that the installed handler is the same */
 
-    if (!Handler ||
-        Handler != AcpiGbl_TableHandler)
-    {
-        Status = AE_BAD_PARAMETER;
-        goto Cleanup;
-    }
+	if (!handler ||
+		handler != acpi_gbl_table_handler) {
+		status = AE_BAD_PARAMETER;
+		goto cleanup;
+	}
 
-    /* Remove the handler */
+	/* Remove the handler */
 
-    AcpiGbl_TableHandler = NULL;
+	acpi_gbl_table_handler = NULL;
 
-Cleanup:
-    (void) AcpiUtReleaseMutex (ACPI_MTX_EVENTS);
-    return_ACPI_STATUS (Status);
+cleanup:
+	(void) acpi_ut_release_mutex (ACPI_MTX_EVENTS);
+	return_ACPI_STATUS (status);
 }
 
-ACPI_EXPORT_SYMBOL (AcpiRemoveTableHandler)
+ACPI_EXPORT_SYMBOL (acpi_remove_table_handler)

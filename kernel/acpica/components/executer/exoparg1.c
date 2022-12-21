@@ -1,153 +1,12 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /******************************************************************************
  *
  * Module Name: exoparg1 - AML execution - opcodes with 1 argument
  *
+ * Copyright (C) 2000 - 2022, Intel Corp.
+ *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #include "acpi.h"
 #include "accommon.h"
@@ -159,7 +18,7 @@
 
 
 #define _COMPONENT          ACPI_EXECUTER
-        ACPI_MODULE_NAME    ("exoparg1")
+	 ACPI_MODULE_NAME    ("exoparg1")
 
 
 /*!
@@ -186,9 +45,9 @@
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExOpcode_0A_0T_1R
+ * FUNCTION:    acpi_ex_opcode_0A_0T_1R
  *
- * PARAMETERS:  WalkState           - Current state (contains AML opcode)
+ * PARAMETERS:  walk_state          - Current state (contains AML opcode)
  *
  * RETURN:      Status
  *
@@ -196,67 +55,63 @@
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiExOpcode_0A_0T_1R (
-    ACPI_WALK_STATE         *WalkState)
+acpi_status
+acpi_ex_opcode_0A_0T_1R (
+	struct acpi_walk_state          *walk_state)
 {
-    ACPI_STATUS             Status = AE_OK;
-    ACPI_OPERAND_OBJECT     *ReturnDesc = NULL;
+	acpi_status                     status = AE_OK;
+	union acpi_operand_object       *return_desc = NULL;
 
 
-    ACPI_FUNCTION_TRACE_STR (ExOpcode_0A_0T_1R,
-        AcpiPsGetOpcodeName (WalkState->Opcode));
+	ACPI_FUNCTION_TRACE_STR (ex_opcode_0A_0T_1R,
+		acpi_ps_get_opcode_name (walk_state->opcode));
 
 
-    /* Examine the AML opcode */
+	/* Examine the AML opcode */
 
-    switch (WalkState->Opcode)
-    {
-    case AML_TIMER_OP:      /*  Timer () */
+	switch (walk_state->opcode) {
+	case AML_TIMER_OP:      /*  Timer () */
 
-        /* Create a return object of type Integer */
+		/* Create a return object of type Integer */
 
-        ReturnDesc = AcpiUtCreateIntegerObject (AcpiOsGetTimer ());
-        if (!ReturnDesc)
-        {
-            Status = AE_NO_MEMORY;
-            goto Cleanup;
-        }
-        break;
+		return_desc = acpi_ut_create_integer_object (acpi_os_get_timer ());
+		if (!return_desc) {
+			status = AE_NO_MEMORY;
+			goto cleanup;
+		}
+		break;
 
-    default:                /*  Unknown opcode  */
+	default:                /*  Unknown opcode  */
 
-        ACPI_ERROR ((AE_INFO, "Unknown AML opcode 0x%X",
-            WalkState->Opcode));
-        Status = AE_AML_BAD_OPCODE;
-        break;
-    }
+		ACPI_ERROR ((AE_INFO, "Unknown AML opcode 0x%X",
+			walk_state->opcode));
+		status = AE_AML_BAD_OPCODE;
+		break;
+	}
 
-Cleanup:
+cleanup:
 
-    /* Delete return object on error */
+	/* Delete return object on error */
 
-    if ((ACPI_FAILURE (Status)) || WalkState->ResultObj)
-    {
-        AcpiUtRemoveReference (ReturnDesc);
-        WalkState->ResultObj = NULL;
-    }
-    else
-    {
-        /* Save the return value */
+	if ((ACPI_FAILURE (status)) || walk_state->result_obj) {
+		acpi_ut_remove_reference (return_desc);
+		walk_state->result_obj = NULL;
+	}
+	else {
+		/* Save the return value */
 
-        WalkState->ResultObj = ReturnDesc;
-    }
+		walk_state->result_obj = return_desc;
+	}
 
-    return_ACPI_STATUS (Status);
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExOpcode_1A_0T_0R
+ * FUNCTION:    acpi_ex_opcode_1A_0T_0R
  *
- * PARAMETERS:  WalkState           - Current state (contains AML opcode)
+ * PARAMETERS:  walk_state          - Current state (contains AML opcode)
  *
  * RETURN:      Status
  *
@@ -265,69 +120,69 @@ Cleanup:
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiExOpcode_1A_0T_0R (
-    ACPI_WALK_STATE         *WalkState)
+acpi_status
+acpi_ex_opcode_1A_0T_0R (
+	struct acpi_walk_state          *walk_state)
 {
-    ACPI_OPERAND_OBJECT     **Operand = &WalkState->Operands[0];
-    ACPI_STATUS             Status = AE_OK;
+	union acpi_operand_object       **operand = &walk_state->operands[0];
+	acpi_status                     status = AE_OK;
 
 
-    ACPI_FUNCTION_TRACE_STR (ExOpcode_1A_0T_0R,
-        AcpiPsGetOpcodeName (WalkState->Opcode));
+	ACPI_FUNCTION_TRACE_STR (ex_opcode_1A_0T_0R,
+		acpi_ps_get_opcode_name (walk_state->opcode));
 
 
-    /* Examine the AML opcode */
+	/* Examine the AML opcode */
 
-    switch (WalkState->Opcode)
-    {
-    case AML_RELEASE_OP:    /*  Release (MutexObject) */
+	switch (walk_state->opcode) {
+	case AML_RELEASE_OP:    /*  Release (mutex_object) */
 
-        Status = AcpiExReleaseMutex (Operand[0], WalkState);
-        break;
+		status = acpi_ex_release_mutex (operand[0], walk_state);
+		break;
 
-    case AML_RESET_OP:      /*  Reset (EventObject) */
+	case AML_RESET_OP:      /*  Reset (event_object) */
 
-        Status = AcpiExSystemResetEvent (Operand[0]);
-        break;
+		status = acpi_ex_system_reset_event (operand[0]);
+		break;
 
-    case AML_SIGNAL_OP:     /*  Signal (EventObject) */
+	case AML_SIGNAL_OP:     /*  Signal (event_object) */
 
-        Status = AcpiExSystemSignalEvent (Operand[0]);
-        break;
+		status = acpi_ex_system_signal_event (operand[0]);
+		break;
 
-    case AML_SLEEP_OP:      /*  Sleep (MsecTime) */
+	case AML_SLEEP_OP:      /*  Sleep (msec_time) */
 
-        Status = AcpiExSystemDoSleep (Operand[0]->Integer.Value);
-        break;
+		status = acpi_ex_system_do_sleep (operand[0]->integer.value);
+		break;
 
-    case AML_STALL_OP:      /*  Stall (UsecTime) */
+	case AML_STALL_OP:      /*  Stall (usec_time) */
 
-        Status = AcpiExSystemDoStall ((UINT32) Operand[0]->Integer.Value);
-        break;
+		status = acpi_ex_system_do_stall ((u32) operand[0]->integer.value);
+		break;
 
-    case AML_UNLOAD_OP:     /*  Unload (Handle) */
+	case AML_UNLOAD_OP:     /*  Unload (Handle) */
 
-        Status = AcpiExUnloadTable (Operand[0]);
-        break;
+		status = acpi_ex_unload_table (operand[0]);
+		break;
 
-    default:                /*  Unknown opcode  */
+	default:                /*  Unknown opcode  */
 
-        ACPI_ERROR ((AE_INFO, "Unknown AML opcode 0x%X",
-            WalkState->Opcode));
-        Status = AE_AML_BAD_OPCODE;
-        break;
-    }
+		ACPI_ERROR ((AE_INFO, "Unknown AML opcode 0x%X",
+			walk_state->opcode));
+		status = AE_AML_BAD_OPCODE;
+		break;
+	}
 
-    return_ACPI_STATUS (Status);
+	return_ACPI_STATUS (status);
 }
 
 
+#ifdef _OBSOLETE_CODE /* Was originally used for Load() operator */
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExOpcode_1A_1T_0R
+ * FUNCTION:    acpi_ex_opcode_1A_1T_0R
  *
- * PARAMETERS:  WalkState           - Current state (contains AML opcode)
+ * PARAMETERS:  walk_state          - Current state (contains AML opcode)
  *
  * RETURN:      Status
  *
@@ -336,391 +191,393 @@ AcpiExOpcode_1A_0T_0R (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiExOpcode_1A_1T_0R (
-    ACPI_WALK_STATE         *WalkState)
+acpi_status
+acpi_ex_opcode_1A_1T_0R (
+	struct acpi_walk_state          *walk_state)
 {
-    ACPI_STATUS             Status = AE_OK;
-    ACPI_OPERAND_OBJECT     **Operand = &WalkState->Operands[0];
+	acpi_status                     status = AE_OK;
+	union acpi_operand_object       **operand = &walk_state->operands[0];
 
 
-    ACPI_FUNCTION_TRACE_STR (ExOpcode_1A_1T_0R,
-        AcpiPsGetOpcodeName (WalkState->Opcode));
+	ACPI_FUNCTION_TRACE_STR (ex_opcode_1A_1T_0R,
+		acpi_ps_get_opcode_name (walk_state->opcode));
 
 
-    /* Examine the AML opcode */
+	/* Examine the AML opcode */
 
-    switch (WalkState->Opcode)
-    {
-    case AML_LOAD_OP:
+	switch (walk_state->opcode) {
+#ifdef _OBSOLETE_CODE
+	case AML_LOAD_OP:
 
-        Status = AcpiExLoadOp (Operand[0], Operand[1], WalkState);
-        break;
+		status = acpi_ex_load_op (operand[0], operand[1], walk_state);
+		break;
+#endif
 
-    default:                        /* Unknown opcode */
+	default:                        /* Unknown opcode */
 
-        ACPI_ERROR ((AE_INFO, "Unknown AML opcode 0x%X",
-            WalkState->Opcode));
-        Status = AE_AML_BAD_OPCODE;
-        goto Cleanup;
-    }
+		ACPI_ERROR ((AE_INFO, "Unknown AML opcode 0x%X",
+			walk_state->opcode));
+		status = AE_AML_BAD_OPCODE;
+		goto cleanup;
+	}
 
 
-Cleanup:
+cleanup:
 
-    return_ACPI_STATUS (Status);
+	return_ACPI_STATUS (status);
 }
-
+#endif
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExOpcode_1A_1T_1R
+ * FUNCTION:    acpi_ex_opcode_1A_1T_1R
  *
- * PARAMETERS:  WalkState           - Current state (contains AML opcode)
+ * PARAMETERS:  walk_state          - Current state (contains AML opcode)
  *
  * RETURN:      Status
  *
  * DESCRIPTION: Execute opcode with one argument, one target, and a
  *              return value.
+ *              January 2022: Added Load operator, with new ACPI 6.4
+ *              semantics.
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiExOpcode_1A_1T_1R (
-    ACPI_WALK_STATE         *WalkState)
+acpi_status
+acpi_ex_opcode_1A_1T_1R (
+	struct acpi_walk_state          *walk_state)
 {
-    ACPI_STATUS             Status = AE_OK;
-    ACPI_OPERAND_OBJECT     **Operand = &WalkState->Operands[0];
-    ACPI_OPERAND_OBJECT     *ReturnDesc = NULL;
-    ACPI_OPERAND_OBJECT     *ReturnDesc2 = NULL;
-    UINT32                  Temp32;
-    UINT32                  i;
-    UINT64                  PowerOfTen;
-    UINT64                  Digit;
-
-
-    ACPI_FUNCTION_TRACE_STR (ExOpcode_1A_1T_1R,
-        AcpiPsGetOpcodeName (WalkState->Opcode));
-
-
-    /* Examine the AML opcode */
+	acpi_status                     status = AE_OK;
+	union acpi_operand_object       **operand = &walk_state->operands[0];
+	union acpi_operand_object       *return_desc = NULL;
+	union acpi_operand_object       *return_desc2 = NULL;
+	u32                             temp32;
+	u32                             i;
+	u64                             power_of_ten;
+	u64                             digit;
 
-    switch (WalkState->Opcode)
-    {
-    case AML_BIT_NOT_OP:
-    case AML_FIND_SET_LEFT_BIT_OP:
-    case AML_FIND_SET_RIGHT_BIT_OP:
-    case AML_FROM_BCD_OP:
-    case AML_TO_BCD_OP:
-    case AML_CONDITIONAL_REF_OF_OP:
 
-        /* Create a return object of type Integer for these opcodes */
+	ACPI_FUNCTION_TRACE_STR (ex_opcode_1A_1T_1R,
+		acpi_ps_get_opcode_name (walk_state->opcode));
 
-        ReturnDesc = AcpiUtCreateInternalObject (ACPI_TYPE_INTEGER);
-        if (!ReturnDesc)
-        {
-            Status = AE_NO_MEMORY;
-            goto Cleanup;
-        }
 
-        switch (WalkState->Opcode)
-        {
-        case AML_BIT_NOT_OP:            /* Not (Operand, Result)  */
+	/* Examine the AML opcode */
 
-            ReturnDesc->Integer.Value = ~Operand[0]->Integer.Value;
-            break;
+	switch (walk_state->opcode) {
+	case AML_BIT_NOT_OP:
+	case AML_FIND_SET_LEFT_BIT_OP:
+	case AML_FIND_SET_RIGHT_BIT_OP:
+	case AML_FROM_BCD_OP:
+	case AML_LOAD_OP:
+	case AML_TO_BCD_OP:
+	case AML_CONDITIONAL_REF_OF_OP:
 
-        case AML_FIND_SET_LEFT_BIT_OP:  /* FindSetLeftBit (Operand, Result) */
+		/* Create a return object of type Integer for these opcodes */
 
-            ReturnDesc->Integer.Value = Operand[0]->Integer.Value;
+		return_desc = acpi_ut_create_internal_object (ACPI_TYPE_INTEGER);
+		if (!return_desc) {
+			status = AE_NO_MEMORY;
+			goto cleanup;
+		}
 
-            /*
-             * Acpi specification describes Integer type as a little
-             * endian unsigned value, so this boundary condition is valid.
-             */
-            for (Temp32 = 0; ReturnDesc->Integer.Value &&
-                    Temp32 < ACPI_INTEGER_BIT_SIZE; ++Temp32)
-            {
-                ReturnDesc->Integer.Value >>= 1;
-            }
+		switch (walk_state->opcode) {
+		case AML_BIT_NOT_OP:            /* Not (Operand, Result)  */
 
-            ReturnDesc->Integer.Value = Temp32;
-            break;
-
-        case AML_FIND_SET_RIGHT_BIT_OP: /* FindSetRightBit (Operand, Result) */
-
-            ReturnDesc->Integer.Value = Operand[0]->Integer.Value;
-
-            /*
-             * The Acpi specification describes Integer type as a little
-             * endian unsigned value, so this boundary condition is valid.
-             */
-            for (Temp32 = 0; ReturnDesc->Integer.Value &&
-                     Temp32 < ACPI_INTEGER_BIT_SIZE; ++Temp32)
-            {
-                ReturnDesc->Integer.Value <<= 1;
-            }
-
-            /* Since the bit position is one-based, subtract from 33 (65) */
-
-            ReturnDesc->Integer.Value =
-                Temp32 == 0 ? 0 : (ACPI_INTEGER_BIT_SIZE + 1) - Temp32;
-            break;
-
-        case AML_FROM_BCD_OP:           /* FromBcd (BCDValue, Result)  */
-            /*
-             * The 64-bit ACPI integer can hold 16 4-bit BCD characters
-             * (if table is 32-bit, integer can hold 8 BCD characters)
-             * Convert each 4-bit BCD value
-             */
-            PowerOfTen = 1;
-            ReturnDesc->Integer.Value = 0;
-            Digit = Operand[0]->Integer.Value;
-
-            /* Convert each BCD digit (each is one nybble wide) */
-
-            for (i = 0; (i < AcpiGbl_IntegerNybbleWidth) && (Digit > 0); i++)
-            {
-                /* Get the least significant 4-bit BCD digit */
-
-                Temp32 = ((UINT32) Digit) & 0xF;
-
-                /* Check the range of the digit */
-
-                if (Temp32 > 9)
-                {
-                    ACPI_ERROR ((AE_INFO,
-                        "BCD digit too large (not decimal): 0x%X",
-                        Temp32));
-
-                    Status = AE_AML_NUMERIC_OVERFLOW;
-                    goto Cleanup;
-                }
-
-                /* Sum the digit into the result with the current power of 10 */
-
-                ReturnDesc->Integer.Value +=
-                    (((UINT64) Temp32) * PowerOfTen);
-
-                /* Shift to next BCD digit */
-
-                Digit >>= 4;
-
-                /* Next power of 10 */
-
-                PowerOfTen *= 10;
-            }
-            break;
-
-        case AML_TO_BCD_OP:             /* ToBcd (Operand, Result)  */
-
-            ReturnDesc->Integer.Value = 0;
-            Digit = Operand[0]->Integer.Value;
-
-            /* Each BCD digit is one nybble wide */
-
-            for (i = 0; (i < AcpiGbl_IntegerNybbleWidth) && (Digit > 0); i++)
-            {
-                (void) AcpiUtShortDivide (Digit, 10, &Digit, &Temp32);
-
-                /*
-                 * Insert the BCD digit that resides in the
-                 * remainder from above
-                 */
-                ReturnDesc->Integer.Value |=
-                    (((UINT64) Temp32) << ACPI_MUL_4 (i));
-            }
-
-            /* Overflow if there is any data left in Digit */
-
-            if (Digit > 0)
-            {
-                ACPI_ERROR ((AE_INFO,
-                    "Integer too large to convert to BCD: 0x%8.8X%8.8X",
-                    ACPI_FORMAT_UINT64 (Operand[0]->Integer.Value)));
-                Status = AE_AML_NUMERIC_OVERFLOW;
-                goto Cleanup;
-            }
-            break;
-
-        case AML_CONDITIONAL_REF_OF_OP:     /* CondRefOf (SourceObject, Result)  */
-            /*
-             * This op is a little strange because the internal return value is
-             * different than the return value stored in the result descriptor
-             * (There are really two return values)
-             */
-            if ((ACPI_NAMESPACE_NODE *) Operand[0] == AcpiGbl_RootNode)
-            {
-                /*
-                 * This means that the object does not exist in the namespace,
-                 * return FALSE
-                 */
-                ReturnDesc->Integer.Value = 0;
-                goto Cleanup;
-            }
-
-            /* Get the object reference, store it, and remove our reference */
-
-            Status = AcpiExGetObjectReference (Operand[0],
-                &ReturnDesc2, WalkState);
-            if (ACPI_FAILURE (Status))
-            {
-                goto Cleanup;
-            }
-
-            Status = AcpiExStore (ReturnDesc2, Operand[1], WalkState);
-            AcpiUtRemoveReference (ReturnDesc2);
-
-            /* The object exists in the namespace, return TRUE */
-
-            ReturnDesc->Integer.Value = ACPI_UINT64_MAX;
-            goto Cleanup;
-
-
-        default:
-
-            /* No other opcodes get here */
-
-            break;
-        }
-        break;
-
-    case AML_STORE_OP:              /* Store (Source, Target) */
-        /*
-         * A store operand is typically a number, string, buffer or lvalue
-         * Be careful about deleting the source object,
-         * since the object itself may have been stored.
-         */
-        Status = AcpiExStore (Operand[0], Operand[1], WalkState);
-        if (ACPI_FAILURE (Status))
-        {
-            return_ACPI_STATUS (Status);
-        }
-
-        /* It is possible that the Store already produced a return object */
-
-        if (!WalkState->ResultObj)
-        {
-            /*
-             * Normally, we would remove a reference on the Operand[0]
-             * parameter; But since it is being used as the internal return
-             * object (meaning we would normally increment it), the two
-             * cancel out, and we simply don't do anything.
-             */
-            WalkState->ResultObj = Operand[0];
-            WalkState->Operands[0] = NULL;  /* Prevent deletion */
-        }
-        return_ACPI_STATUS (Status);
-
-    /*
-     * ACPI 2.0 Opcodes
-     */
-    case AML_COPY_OBJECT_OP:        /* CopyObject (Source, Target) */
+			return_desc->integer.value = ~operand[0]->integer.value;
+			break;
 
-        Status = AcpiUtCopyIobjectToIobject (
-            Operand[0], &ReturnDesc, WalkState);
-        break;
+		case AML_FIND_SET_LEFT_BIT_OP:  /* find_set_left_bit (Operand, Result) */
 
-    case AML_TO_DECIMAL_STRING_OP:  /* ToDecimalString (Data, Result) */
+			return_desc->integer.value = operand[0]->integer.value;
 
-        Status = AcpiExConvertToString (
-            Operand[0], &ReturnDesc, ACPI_EXPLICIT_CONVERT_DECIMAL);
-        if (ReturnDesc == Operand[0])
-        {
-            /* No conversion performed, add ref to handle return value */
+			/*
+			 * Acpi specification describes Integer type as a little
+			 * endian unsigned value, so this boundary condition is valid.
+			 */
+			for (temp32 = 0; return_desc->integer.value &&
+					temp32 < ACPI_INTEGER_BIT_SIZE; ++temp32) {
+				return_desc->integer.value >>= 1;
+			}
 
-            AcpiUtAddReference (ReturnDesc);
-        }
-        break;
+			return_desc->integer.value = temp32;
+			break;
 
-    case AML_TO_HEX_STRING_OP:      /* ToHexString (Data, Result) */
+		case AML_FIND_SET_RIGHT_BIT_OP: /* find_set_right_bit (Operand, Result) */
 
-        Status = AcpiExConvertToString (
-            Operand[0], &ReturnDesc, ACPI_EXPLICIT_CONVERT_HEX);
-        if (ReturnDesc == Operand[0])
-        {
-            /* No conversion performed, add ref to handle return value */
+			return_desc->integer.value = operand[0]->integer.value;
 
-            AcpiUtAddReference (ReturnDesc);
-        }
-        break;
+			/*
+			 * The Acpi specification describes Integer type as a little
+			 * endian unsigned value, so this boundary condition is valid.
+			 */
+			for (temp32 = 0; return_desc->integer.value &&
+					 temp32 < ACPI_INTEGER_BIT_SIZE; ++temp32) {
+				return_desc->integer.value <<= 1;
+			}
 
-    case AML_TO_BUFFER_OP:          /* ToBuffer (Data, Result) */
+			/* Since the bit position is one-based, subtract from 33 (65) */
 
-        Status = AcpiExConvertToBuffer (Operand[0], &ReturnDesc);
-        if (ReturnDesc == Operand[0])
-        {
-            /* No conversion performed, add ref to handle return value */
+			return_desc->integer.value =
+				temp32 == 0 ? 0 : (ACPI_INTEGER_BIT_SIZE + 1) - temp32;
+			break;
 
-            AcpiUtAddReference (ReturnDesc);
-        }
-        break;
+		case AML_FROM_BCD_OP:           /* from_bcd (BCDValue, Result) */
+			/*
+			 * The 64-bit ACPI integer can hold 16 4-bit BCD characters
+			 * (if table is 32-bit, integer can hold 8 BCD characters)
+			 * Convert each 4-bit BCD value
+			 */
+			power_of_ten = 1;
+			return_desc->integer.value = 0;
+			digit = operand[0]->integer.value;
 
-    case AML_TO_INTEGER_OP:         /* ToInteger (Data, Result) */
+			/* Convert each BCD digit (each is one nybble wide) */
 
-        /* Perform "explicit" conversion */
+			for (i = 0; (i < acpi_gbl_integer_nybble_width) && (digit > 0); i++) {
 
-        Status = AcpiExConvertToInteger (Operand[0], &ReturnDesc, 0);
-        if (ReturnDesc == Operand[0])
-        {
-            /* No conversion performed, add ref to handle return value */
+				/* Get the least significant 4-bit BCD digit */
 
-            AcpiUtAddReference (ReturnDesc);
-        }
-        break;
+				temp32 = ((u32) digit) & 0xF;
 
-    case AML_SHIFT_LEFT_BIT_OP:     /* ShiftLeftBit (Source, BitNum)  */
-    case AML_SHIFT_RIGHT_BIT_OP:    /* ShiftRightBit (Source, BitNum) */
+				/* Check the range of the digit */
 
-        /* These are two obsolete opcodes */
+				if (temp32 > 9) {
+					ACPI_ERROR ((AE_INFO,
+						"BCD digit too large (not decimal): 0x%X",
+						temp32));
 
-        ACPI_ERROR ((AE_INFO,
-            "%s is obsolete and not implemented",
-            AcpiPsGetOpcodeName (WalkState->Opcode)));
-        Status = AE_SUPPORT;
-        goto Cleanup;
+					status = AE_AML_NUMERIC_OVERFLOW;
+					goto cleanup;
+				}
 
-    default:                        /* Unknown opcode */
+				/* Sum the digit into the result with the current power of 10 */
 
-        ACPI_ERROR ((AE_INFO, "Unknown AML opcode 0x%X",
-            WalkState->Opcode));
-        Status = AE_AML_BAD_OPCODE;
-        goto Cleanup;
-    }
+				return_desc->integer.value +=
+					(((u64) temp32) * power_of_ten);
 
-    if (ACPI_SUCCESS (Status))
-    {
-        /* Store the return value computed above into the target object */
+				/* Shift to next BCD digit */
 
-        Status = AcpiExStore (ReturnDesc, Operand[1], WalkState);
-    }
+				digit >>= 4;
 
+				/* Next power of 10 */
 
-Cleanup:
+				power_of_ten *= 10;
+			}
+			break;
 
-    /* Delete return object on error */
+		case AML_LOAD_OP:               /* Result1 = Load (Operand[0], Result1) */
 
-    if (ACPI_FAILURE (Status))
-    {
-        AcpiUtRemoveReference (ReturnDesc);
-    }
+			return_desc->integer.value = 0;
+			status = acpi_ex_load_op (operand[0], return_desc, walk_state);
+			if (ACPI_SUCCESS (status)) {
+
+				/* Return -1 (non-zero) indicates success */
+
+				return_desc->integer.value = 0xFFFFFFFFFFFFFFFF;
+			}
+			break;
+
+		case AML_TO_BCD_OP:             /* to_bcd (Operand, Result) */
+
+			return_desc->integer.value = 0;
+			digit = operand[0]->integer.value;
+
+			/* Each BCD digit is one nybble wide */
 
-    /* Save return object on success */
+			for (i = 0; (i < acpi_gbl_integer_nybble_width) && (digit > 0); i++) {
+				(void) acpi_ut_short_divide (digit, 10, &digit, &temp32);
 
-    else if (!WalkState->ResultObj)
-    {
-        WalkState->ResultObj = ReturnDesc;
-    }
+				/*
+				 * Insert the BCD digit that resides in the
+				 * remainder from above
+				 */
+				return_desc->integer.value |=
+					(((u64) temp32) << ACPI_MUL_4 (i));
+			}
 
-    return_ACPI_STATUS (Status);
+			/* Overflow if there is any data left in Digit */
+
+			if (digit > 0) {
+				ACPI_ERROR ((AE_INFO,
+					"Integer too large to convert to BCD: 0x%8.8X%8.8X",
+					ACPI_FORMAT_UINT64 (operand[0]->integer.value)));
+				status = AE_AML_NUMERIC_OVERFLOW;
+				goto cleanup;
+			}
+			break;
+
+		case AML_CONDITIONAL_REF_OF_OP:     /* cond_ref_of (source_object, Result) */
+			/*
+			 * This op is a little strange because the internal return value is
+			 * different than the return value stored in the result descriptor
+			 * (There are really two return values)
+			 */
+			if ((struct acpi_namespace_node *) operand[0] == acpi_gbl_root_node) {
+				/*
+				 * This means that the object does not exist in the namespace,
+				 * return FALSE
+				 */
+				return_desc->integer.value = 0;
+				goto cleanup;
+			}
+
+			/* Get the object reference, store it, and remove our reference */
+
+			status = acpi_ex_get_object_reference (operand[0],
+				&return_desc2, walk_state);
+			if (ACPI_FAILURE (status)) {
+				goto cleanup;
+			}
+
+			status = acpi_ex_store (return_desc2, operand[1], walk_state);
+			acpi_ut_remove_reference (return_desc2);
+
+			/* The object exists in the namespace, return TRUE */
+
+			return_desc->integer.value = ACPI_UINT64_MAX;
+			goto cleanup;
+
+
+		default:
+
+			/* No other opcodes get here */
+
+			break;
+		}
+		break;
+
+	case AML_STORE_OP:              /* Store (Source, Target) */
+		/*
+		 * A store operand is typically a number, string, buffer or lvalue
+		 * Be careful about deleting the source object,
+		 * since the object itself may have been stored.
+		 */
+		status = acpi_ex_store (operand[0], operand[1], walk_state);
+		if (ACPI_FAILURE (status)) {
+			return_ACPI_STATUS (status);
+		}
+
+		/* It is possible that the Store already produced a return object */
+
+		if (!walk_state->result_obj) {
+			/*
+			 * Normally, we would remove a reference on the Operand[0]
+			 * parameter; But since it is being used as the internal return
+			 * object (meaning we would normally increment it), the two
+			 * cancel out, and we simply don't do anything.
+			 */
+			walk_state->result_obj = operand[0];
+			walk_state->operands[0] = NULL; /* Prevent deletion */
+		}
+		return_ACPI_STATUS (status);
+
+	/*
+	 * ACPI 2.0 Opcodes
+	 */
+	case AML_COPY_OBJECT_OP:        /* copy_object (Source, Target) */
+
+		status = acpi_ut_copy_iobject_to_iobject (
+			operand[0], &return_desc, walk_state);
+		break;
+
+	case AML_TO_DECIMAL_STRING_OP:  /* to_decimal_string (Data, Result) */
+
+		status = acpi_ex_convert_to_string (
+			operand[0], &return_desc, ACPI_EXPLICIT_CONVERT_DECIMAL);
+		if (return_desc == operand[0]) {
+
+			/* No conversion performed, add ref to handle return value */
+
+			acpi_ut_add_reference (return_desc);
+		}
+		break;
+
+	case AML_TO_HEX_STRING_OP:      /* to_hex_string (Data, Result) */
+
+		status = acpi_ex_convert_to_string (
+			operand[0], &return_desc, ACPI_EXPLICIT_CONVERT_HEX);
+		if (return_desc == operand[0]) {
+
+			/* No conversion performed, add ref to handle return value */
+
+			acpi_ut_add_reference (return_desc);
+		}
+		break;
+
+	case AML_TO_BUFFER_OP:          /* to_buffer (Data, Result) */
+
+		status = acpi_ex_convert_to_buffer (operand[0], &return_desc);
+		if (return_desc == operand[0]) {
+
+			/* No conversion performed, add ref to handle return value */
+
+			acpi_ut_add_reference (return_desc);
+		}
+		break;
+
+	case AML_TO_INTEGER_OP:         /* to_integer (Data, Result) */
+
+		/* Perform "explicit" conversion */
+
+		status = acpi_ex_convert_to_integer (operand[0], &return_desc, 0);
+		if (return_desc == operand[0]) {
+
+			/* No conversion performed, add ref to handle return value */
+
+			acpi_ut_add_reference (return_desc);
+		}
+		break;
+
+	case AML_SHIFT_LEFT_BIT_OP:     /* shift_left_bit (Source, bit_num) */
+	case AML_SHIFT_RIGHT_BIT_OP:    /* shift_right_bit (Source, bit_num) */
+
+		/* These are two obsolete opcodes */
+
+		ACPI_ERROR ((AE_INFO,
+			"%s is obsolete and not implemented",
+			acpi_ps_get_opcode_name (walk_state->opcode)));
+		status = AE_SUPPORT;
+		goto cleanup;
+
+	default:                        /* Unknown opcode */
+
+		ACPI_ERROR ((AE_INFO, "Unknown AML opcode 0x%X",
+			walk_state->opcode));
+		status = AE_AML_BAD_OPCODE;
+		goto cleanup;
+	}
+
+	if (ACPI_SUCCESS (status)) {
+
+		/* Store the return value computed above into the target object */
+
+		status = acpi_ex_store (return_desc, operand[1], walk_state);
+	}
+
+
+cleanup:
+
+	/* Delete return object on error */
+
+	if (ACPI_FAILURE (status)) {
+		acpi_ut_remove_reference (return_desc);
+	}
+
+	/* Save return object on success */
+
+	else if (!walk_state->result_obj) {
+		walk_state->result_obj = return_desc;
+	}
+
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiExOpcode_1A_0T_1R
+ * FUNCTION:    acpi_ex_opcode_1A_0T_1R
  *
- * PARAMETERS:  WalkState           - Current state (contains AML opcode)
+ * PARAMETERS:  walk_state          - Current state (contains AML opcode)
  *
  * RETURN:      Status
  *
@@ -728,524 +585,487 @@ Cleanup:
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiExOpcode_1A_0T_1R (
-    ACPI_WALK_STATE         *WalkState)
+acpi_status
+acpi_ex_opcode_1A_0T_1R (
+	struct acpi_walk_state          *walk_state)
 {
-    ACPI_OPERAND_OBJECT     **Operand = &WalkState->Operands[0];
-    ACPI_OPERAND_OBJECT     *TempDesc;
-    ACPI_OPERAND_OBJECT     *ReturnDesc = NULL;
-    ACPI_STATUS             Status = AE_OK;
-    UINT32                  Type;
-    UINT64                  Value;
-
-
-    ACPI_FUNCTION_TRACE_STR (ExOpcode_1A_0T_1R,
-        AcpiPsGetOpcodeName (WalkState->Opcode));
-
-
-    /* Examine the AML opcode */
-
-    switch (WalkState->Opcode)
-    {
-    case AML_LOGICAL_NOT_OP:        /* LNot (Operand) */
-
-        ReturnDesc = AcpiUtCreateIntegerObject ((UINT64) 0);
-        if (!ReturnDesc)
-        {
-            Status = AE_NO_MEMORY;
-            goto Cleanup;
-        }
-
-        /*
-         * Set result to ONES (TRUE) if Value == 0. Note:
-         * ReturnDesc->Integer.Value is initially == 0 (FALSE) from above.
-         */
-        if (!Operand[0]->Integer.Value)
-        {
-            ReturnDesc->Integer.Value = ACPI_UINT64_MAX;
-        }
-        break;
-
-    case AML_DECREMENT_OP:          /* Decrement (Operand)  */
-    case AML_INCREMENT_OP:          /* Increment (Operand)  */
-        /*
-         * Create a new integer. Can't just get the base integer and
-         * increment it because it may be an Arg or Field.
-         */
-        ReturnDesc = AcpiUtCreateInternalObject (ACPI_TYPE_INTEGER);
-        if (!ReturnDesc)
-        {
-            Status = AE_NO_MEMORY;
-            goto Cleanup;
-        }
-
-        /*
-         * Since we are expecting a Reference operand, it can be either a
-         * NS Node or an internal object.
-         */
-        TempDesc = Operand[0];
-        if (ACPI_GET_DESCRIPTOR_TYPE (TempDesc) == ACPI_DESC_TYPE_OPERAND)
-        {
-            /* Internal reference object - prevent deletion */
-
-            AcpiUtAddReference (TempDesc);
-        }
-
-        /*
-         * Convert the Reference operand to an Integer (This removes a
-         * reference on the Operand[0] object)
-         *
-         * NOTE:  We use LNOT_OP here in order to force resolution of the
-         * reference operand to an actual integer.
-         */
-        Status = AcpiExResolveOperands (AML_LOGICAL_NOT_OP,
-            &TempDesc, WalkState);
-        if (ACPI_FAILURE (Status))
-        {
-            ACPI_EXCEPTION ((AE_INFO, Status,
-                "While resolving operands for [%s]",
-                AcpiPsGetOpcodeName (WalkState->Opcode)));
-
-            goto Cleanup;
-        }
-
-        /*
-         * TempDesc is now guaranteed to be an Integer object --
-         * Perform the actual increment or decrement
-         */
-        if (WalkState->Opcode == AML_INCREMENT_OP)
-        {
-            ReturnDesc->Integer.Value = TempDesc->Integer.Value + 1;
-        }
-        else
-        {
-            ReturnDesc->Integer.Value = TempDesc->Integer.Value - 1;
-        }
-
-        /* Finished with this Integer object */
-
-        AcpiUtRemoveReference (TempDesc);
-
-        /*
-         * Store the result back (indirectly) through the original
-         * Reference object
-         */
-        Status = AcpiExStore (ReturnDesc, Operand[0], WalkState);
-        break;
-
-    case AML_OBJECT_TYPE_OP:            /* ObjectType (SourceObject) */
-        /*
-         * Note: The operand is not resolved at this point because we want to
-         * get the associated object, not its value. For example, we don't
-         * want to resolve a FieldUnit to its value, we want the actual
-         * FieldUnit object.
-         */
-
-        /* Get the type of the base object */
-
-        Status = AcpiExResolveMultiple (WalkState, Operand[0], &Type, NULL);
-        if (ACPI_FAILURE (Status))
-        {
-            goto Cleanup;
-        }
-
-        /* Allocate a descriptor to hold the type. */
-
-        ReturnDesc = AcpiUtCreateIntegerObject ((UINT64) Type);
-        if (!ReturnDesc)
-        {
-            Status = AE_NO_MEMORY;
-            goto Cleanup;
-        }
-        break;
-
-    case AML_SIZE_OF_OP:            /* SizeOf (SourceObject)  */
-        /*
-         * Note: The operand is not resolved at this point because we want to
-         * get the associated object, not its value.
-         */
-
-        /* Get the base object */
-
-        Status = AcpiExResolveMultiple (
-            WalkState, Operand[0], &Type, &TempDesc);
-        if (ACPI_FAILURE (Status))
-        {
-            goto Cleanup;
-        }
-
-        /*
-         * The type of the base object must be integer, buffer, string, or
-         * package. All others are not supported.
-         *
-         * NOTE: Integer is not specifically supported by the ACPI spec,
-         * but is supported implicitly via implicit operand conversion.
-         * rather than bother with conversion, we just use the byte width
-         * global (4 or 8 bytes).
-         */
-        switch (Type)
-        {
-        case ACPI_TYPE_INTEGER:
-
-            Value = AcpiGbl_IntegerByteWidth;
-            break;
-
-        case ACPI_TYPE_STRING:
-
-            Value = TempDesc->String.Length;
-            break;
-
-        case ACPI_TYPE_BUFFER:
-
-            /* Buffer arguments may not be evaluated at this point */
-
-            Status = AcpiDsGetBufferArguments (TempDesc);
-            Value = TempDesc->Buffer.Length;
-            break;
-
-        case ACPI_TYPE_PACKAGE:
-
-            /* Package arguments may not be evaluated at this point */
-
-            Status = AcpiDsGetPackageArguments (TempDesc);
-            Value = TempDesc->Package.Count;
-            break;
-
-        default:
-
-            ACPI_ERROR ((AE_INFO,
-                "Operand must be Buffer/Integer/String/Package"
-                " - found type %s",
-                AcpiUtGetTypeName (Type)));
-
-            Status = AE_AML_OPERAND_TYPE;
-            goto Cleanup;
-        }
-
-        if (ACPI_FAILURE (Status))
-        {
-            goto Cleanup;
-        }
-
-        /*
-         * Now that we have the size of the object, create a result
-         * object to hold the value
-         */
-        ReturnDesc = AcpiUtCreateIntegerObject (Value);
-        if (!ReturnDesc)
-        {
-            Status = AE_NO_MEMORY;
-            goto Cleanup;
-        }
-        break;
-
-
-    case AML_REF_OF_OP:             /* RefOf (SourceObject) */
-
-        Status = AcpiExGetObjectReference (
-            Operand[0], &ReturnDesc, WalkState);
-        if (ACPI_FAILURE (Status))
-        {
-            goto Cleanup;
-        }
-        break;
-
-
-    case AML_DEREF_OF_OP:           /* DerefOf (ObjReference | String) */
-
-        /* Check for a method local or argument, or standalone String */
-
-        if (ACPI_GET_DESCRIPTOR_TYPE (Operand[0]) == ACPI_DESC_TYPE_NAMED)
-        {
-            TempDesc = AcpiNsGetAttachedObject (
-                (ACPI_NAMESPACE_NODE *) Operand[0]);
-            if (TempDesc &&
-                 ((TempDesc->Common.Type == ACPI_TYPE_STRING) ||
-                  (TempDesc->Common.Type == ACPI_TYPE_LOCAL_REFERENCE)))
-            {
-                Operand[0] = TempDesc;
-                AcpiUtAddReference (TempDesc);
-            }
-            else
-            {
-                Status = AE_AML_OPERAND_TYPE;
-                goto Cleanup;
-            }
-        }
-        else
-        {
-            switch ((Operand[0])->Common.Type)
-            {
-            case ACPI_TYPE_LOCAL_REFERENCE:
-                /*
-                 * This is a DerefOf (LocalX | ArgX)
-                 *
-                 * Must resolve/dereference the local/arg reference first
-                 */
-                switch (Operand[0]->Reference.Class)
-                {
-                case ACPI_REFCLASS_LOCAL:
-                case ACPI_REFCLASS_ARG:
-
-                    /* Set Operand[0] to the value of the local/arg */
-
-                    Status = AcpiDsMethodDataGetValue (
-                        Operand[0]->Reference.Class,
-                        Operand[0]->Reference.Value,
-                        WalkState, &TempDesc);
-                    if (ACPI_FAILURE (Status))
-                    {
-                        goto Cleanup;
-                    }
-
-                    /*
-                     * Delete our reference to the input object and
-                     * point to the object just retrieved
-                     */
-                    AcpiUtRemoveReference (Operand[0]);
-                    Operand[0] = TempDesc;
-                    break;
-
-                case ACPI_REFCLASS_REFOF:
-
-                    /* Get the object to which the reference refers */
-
-                    TempDesc = Operand[0]->Reference.Object;
-                    AcpiUtRemoveReference (Operand[0]);
-                    Operand[0] = TempDesc;
-                    break;
-
-                default:
-
-                    /* Must be an Index op - handled below */
-                    break;
-                }
-                break;
-
-            case ACPI_TYPE_STRING:
-
-                break;
-
-            default:
-
-                Status = AE_AML_OPERAND_TYPE;
-                goto Cleanup;
-            }
-        }
-
-        if (ACPI_GET_DESCRIPTOR_TYPE (Operand[0]) != ACPI_DESC_TYPE_NAMED)
-        {
-            if ((Operand[0])->Common.Type == ACPI_TYPE_STRING)
-            {
-                /*
-                 * This is a DerefOf (String). The string is a reference
-                 * to a named ACPI object.
-                 *
-                 * 1) Find the owning Node
-                 * 2) Dereference the node to an actual object. Could be a
-                 *    Field, so we need to resolve the node to a value.
-                 */
-                Status = AcpiNsGetNodeUnlocked (WalkState->ScopeInfo->Scope.Node,
-                    Operand[0]->String.Pointer,
-                    ACPI_NS_SEARCH_PARENT,
-                    ACPI_CAST_INDIRECT_PTR (
-                        ACPI_NAMESPACE_NODE, &ReturnDesc));
-                if (ACPI_FAILURE (Status))
-                {
-                    goto Cleanup;
-                }
-
-                Status = AcpiExResolveNodeToValue (
-                    ACPI_CAST_INDIRECT_PTR (
-                        ACPI_NAMESPACE_NODE, &ReturnDesc),
-                    WalkState);
-                goto Cleanup;
-            }
-        }
-
-        /* Operand[0] may have changed from the code above */
-
-        if (ACPI_GET_DESCRIPTOR_TYPE (Operand[0]) == ACPI_DESC_TYPE_NAMED)
-        {
-            /*
-             * This is a DerefOf (ObjectReference)
-             * Get the actual object from the Node (This is the dereference).
-             * This case may only happen when a LocalX or ArgX is
-             * dereferenced above, or for references to device and
-             * thermal objects.
-             */
-            switch (((ACPI_NAMESPACE_NODE *) Operand[0])->Type)
-            {
-            case ACPI_TYPE_DEVICE:
-            case ACPI_TYPE_THERMAL:
-
-                /* These types have no node subobject, return the NS node */
-
-                ReturnDesc = Operand[0];
-                break;
-
-            default:
-                /* For most types, get the object attached to the node */
-
-                ReturnDesc = AcpiNsGetAttachedObject (
-                    (ACPI_NAMESPACE_NODE *) Operand[0]);
-                AcpiUtAddReference (ReturnDesc);
-                break;
-            }
-        }
-        else
-        {
-            /*
-             * This must be a reference object produced by either the
-             * Index() or RefOf() operator
-             */
-            switch (Operand[0]->Reference.Class)
-            {
-            case ACPI_REFCLASS_INDEX:
-                /*
-                 * The target type for the Index operator must be
-                 * either a Buffer or a Package
-                 */
-                switch (Operand[0]->Reference.TargetType)
-                {
-                case ACPI_TYPE_BUFFER_FIELD:
-
-                    TempDesc = Operand[0]->Reference.Object;
-
-                    /*
-                     * Create a new object that contains one element of the
-                     * buffer -- the element pointed to by the index.
-                     *
-                     * NOTE: index into a buffer is NOT a pointer to a
-                     * sub-buffer of the main buffer, it is only a pointer to a
-                     * single element (byte) of the buffer!
-                     *
-                     * Since we are returning the value of the buffer at the
-                     * indexed location, we don't need to add an additional
-                     * reference to the buffer itself.
-                     */
-                    ReturnDesc = AcpiUtCreateIntegerObject ((UINT64)
-                        TempDesc->Buffer.Pointer[Operand[0]->Reference.Value]);
-                    if (!ReturnDesc)
-                    {
-                        Status = AE_NO_MEMORY;
-                        goto Cleanup;
-                    }
-                    break;
-
-                case ACPI_TYPE_PACKAGE:
-                    /*
-                     * Return the referenced element of the package. We must
-                     * add another reference to the referenced object, however.
-                     */
-                    ReturnDesc = *(Operand[0]->Reference.Where);
-                    if (!ReturnDesc)
-                    {
-                        /*
-                         * Element is NULL, do not allow the dereference.
-                         * This provides compatibility with other ACPI
-                         * implementations.
-                         */
-                        return_ACPI_STATUS (AE_AML_UNINITIALIZED_ELEMENT);
-                    }
-
-                    AcpiUtAddReference (ReturnDesc);
-                    break;
-
-                default:
-
-                    ACPI_ERROR ((AE_INFO,
-                        "Unknown Index TargetType 0x%X in reference object %p",
-                        Operand[0]->Reference.TargetType, Operand[0]));
-
-                    Status = AE_AML_OPERAND_TYPE;
-                    goto Cleanup;
-                }
-                break;
-
-            case ACPI_REFCLASS_REFOF:
-
-                ReturnDesc = Operand[0]->Reference.Object;
-
-                if (ACPI_GET_DESCRIPTOR_TYPE (ReturnDesc) ==
-                    ACPI_DESC_TYPE_NAMED)
-                {
-                    ReturnDesc = AcpiNsGetAttachedObject (
-                        (ACPI_NAMESPACE_NODE *) ReturnDesc);
-                    if (!ReturnDesc)
-                    {
-                        break;
-                    }
-
-                   /*
-                    * June 2013:
-                    * BufferFields/FieldUnits require additional resolution
-                    */
-                    switch (ReturnDesc->Common.Type)
-                    {
-                    case ACPI_TYPE_BUFFER_FIELD:
-                    case ACPI_TYPE_LOCAL_REGION_FIELD:
-                    case ACPI_TYPE_LOCAL_BANK_FIELD:
-                    case ACPI_TYPE_LOCAL_INDEX_FIELD:
-
-                        Status = AcpiExReadDataFromField (
-                            WalkState, ReturnDesc, &TempDesc);
-                        if (ACPI_FAILURE (Status))
-                        {
-                            goto Cleanup;
-                        }
-
-                        ReturnDesc = TempDesc;
-                        break;
-
-                    default:
-
-                        /* Add another reference to the object */
-
-                        AcpiUtAddReference (ReturnDesc);
-                        break;
-                    }
-                }
-                break;
-
-            default:
-
-                ACPI_ERROR ((AE_INFO,
-                    "Unknown class in reference(%p) - 0x%2.2X",
-                    Operand[0], Operand[0]->Reference.Class));
-
-                Status = AE_TYPE;
-                goto Cleanup;
-            }
-        }
-        break;
-
-    default:
-
-        ACPI_ERROR ((AE_INFO, "Unknown AML opcode 0x%X",
-            WalkState->Opcode));
-
-        Status = AE_AML_BAD_OPCODE;
-        goto Cleanup;
-    }
-
-
-Cleanup:
-
-    /* Delete return object on error */
-
-    if (ACPI_FAILURE (Status))
-    {
-        AcpiUtRemoveReference (ReturnDesc);
-    }
-
-    /* Save return object on success */
-
-    else
-    {
-        WalkState->ResultObj = ReturnDesc;
-    }
-
-    return_ACPI_STATUS (Status);
+	union acpi_operand_object       **operand = &walk_state->operands[0];
+	union acpi_operand_object       *temp_desc;
+	union acpi_operand_object       *return_desc = NULL;
+	acpi_status                     status = AE_OK;
+	u32                             type;
+	u64                             value;
+
+
+	ACPI_FUNCTION_TRACE_STR (ex_opcode_1A_0T_1R,
+		acpi_ps_get_opcode_name (walk_state->opcode));
+
+
+	/* Examine the AML opcode */
+
+	switch (walk_state->opcode) {
+	case AML_LOGICAL_NOT_OP:        /* LNot (Operand) */
+
+		return_desc = acpi_ut_create_integer_object ((u64) 0);
+		if (!return_desc) {
+			status = AE_NO_MEMORY;
+			goto cleanup;
+		}
+
+		/*
+		 * Set result to ONES (TRUE) if Value == 0. Note:
+		 * return_desc->Integer.Value is initially == 0 (FALSE) from above.
+		 */
+		if (!operand[0]->integer.value) {
+			return_desc->integer.value = ACPI_UINT64_MAX;
+		}
+		break;
+
+	case AML_DECREMENT_OP:          /* Decrement (Operand)  */
+	case AML_INCREMENT_OP:          /* Increment (Operand)  */
+		/*
+		 * Create a new integer. Can't just get the base integer and
+		 * increment it because it may be an Arg or Field.
+		 */
+		return_desc = acpi_ut_create_internal_object (ACPI_TYPE_INTEGER);
+		if (!return_desc) {
+			status = AE_NO_MEMORY;
+			goto cleanup;
+		}
+
+		/*
+		 * Since we are expecting a Reference operand, it can be either a
+		 * NS Node or an internal object.
+		 */
+		temp_desc = operand[0];
+		if (ACPI_GET_DESCRIPTOR_TYPE (temp_desc) == ACPI_DESC_TYPE_OPERAND) {
+
+			/* Internal reference object - prevent deletion */
+
+			acpi_ut_add_reference (temp_desc);
+		}
+
+		/*
+		 * Convert the Reference operand to an Integer (This removes a
+		 * reference on the Operand[0] object)
+		 *
+		 * NOTE:  We use LNOT_OP here in order to force resolution of the
+		 * reference operand to an actual integer.
+		 */
+		status = acpi_ex_resolve_operands (AML_LOGICAL_NOT_OP,
+			&temp_desc, walk_state);
+		if (ACPI_FAILURE (status)) {
+			ACPI_EXCEPTION ((AE_INFO, status,
+				"While resolving operands for [%s]",
+				acpi_ps_get_opcode_name (walk_state->opcode)));
+
+			goto cleanup;
+		}
+
+		/*
+		 * temp_desc is now guaranteed to be an Integer object --
+		 * Perform the actual increment or decrement
+		 */
+		if (walk_state->opcode == AML_INCREMENT_OP) {
+			return_desc->integer.value = temp_desc->integer.value + 1;
+		}
+		else {
+			return_desc->integer.value = temp_desc->integer.value - 1;
+		}
+
+		/* Finished with this Integer object */
+
+		acpi_ut_remove_reference (temp_desc);
+
+		/*
+		 * Store the result back (indirectly) through the original
+		 * Reference object
+		 */
+		status = acpi_ex_store (return_desc, operand[0], walk_state);
+		break;
+
+	case AML_OBJECT_TYPE_OP:            /* object_type (source_object) */
+		/*
+		 * Note: The operand is not resolved at this point because we want to
+		 * get the associated object, not its value. For example, we don't
+		 * want to resolve a field_unit to its value, we want the actual
+		 * field_unit object.
+		 */
+
+		/* Get the type of the base object */
+
+		status = acpi_ex_resolve_multiple (walk_state, operand[0], &type, NULL);
+		if (ACPI_FAILURE (status)) {
+			goto cleanup;
+		}
+
+		/* Allocate a descriptor to hold the type. */
+
+		return_desc = acpi_ut_create_integer_object ((u64) type);
+		if (!return_desc) {
+			status = AE_NO_MEMORY;
+			goto cleanup;
+		}
+		break;
+
+	case AML_SIZE_OF_OP:            /* size_of (source_object) */
+		/*
+		 * Note: The operand is not resolved at this point because we want to
+		 * get the associated object, not its value.
+		 */
+
+		/* Get the base object */
+
+		status = acpi_ex_resolve_multiple (
+			walk_state, operand[0], &type, &temp_desc);
+		if (ACPI_FAILURE (status)) {
+			goto cleanup;
+		}
+
+		/*
+		 * The type of the base object must be integer, buffer, string, or
+		 * package. All others are not supported.
+		 *
+		 * NOTE: Integer is not specifically supported by the ACPI spec,
+		 * but is supported implicitly via implicit operand conversion.
+		 * rather than bother with conversion, we just use the byte width
+		 * global (4 or 8 bytes).
+		 */
+		switch (type) {
+		case ACPI_TYPE_INTEGER:
+
+			value = acpi_gbl_integer_byte_width;
+			break;
+
+		case ACPI_TYPE_STRING:
+
+			value = temp_desc->string.length;
+			break;
+
+		case ACPI_TYPE_BUFFER:
+
+			/* Buffer arguments may not be evaluated at this point */
+
+			status = acpi_ds_get_buffer_arguments (temp_desc);
+			value = temp_desc->buffer.length;
+			break;
+
+		case ACPI_TYPE_PACKAGE:
+
+			/* Package arguments may not be evaluated at this point */
+
+			status = acpi_ds_get_package_arguments (temp_desc);
+			value = temp_desc->package.count;
+			break;
+
+		default:
+
+			ACPI_ERROR ((AE_INFO,
+				"Operand must be Buffer/Integer/String/Package"
+				" - found type %s",
+				acpi_ut_get_type_name (type)));
+
+			status = AE_AML_OPERAND_TYPE;
+			goto cleanup;
+		}
+
+		if (ACPI_FAILURE (status)) {
+			goto cleanup;
+		}
+
+		/*
+		 * Now that we have the size of the object, create a result
+		 * object to hold the value
+		 */
+		return_desc = acpi_ut_create_integer_object (value);
+		if (!return_desc) {
+			status = AE_NO_MEMORY;
+			goto cleanup;
+		}
+		break;
+
+
+	case AML_REF_OF_OP:             /* ref_of (source_object) */
+
+		status = acpi_ex_get_object_reference (
+			operand[0], &return_desc, walk_state);
+		if (ACPI_FAILURE (status)) {
+			goto cleanup;
+		}
+		break;
+
+
+	case AML_DEREF_OF_OP:           /* deref_of (obj_reference | String) */
+
+		/* Check for a method local or argument, or standalone String */
+
+		if (ACPI_GET_DESCRIPTOR_TYPE (operand[0]) == ACPI_DESC_TYPE_NAMED) {
+			temp_desc = acpi_ns_get_attached_object (
+				(struct acpi_namespace_node *) operand[0]);
+			if (temp_desc &&
+				 ((temp_desc->common.type == ACPI_TYPE_STRING) ||
+				  (temp_desc->common.type == ACPI_TYPE_LOCAL_REFERENCE))) {
+				operand[0] = temp_desc;
+				acpi_ut_add_reference (temp_desc);
+			}
+			else {
+				status = AE_AML_OPERAND_TYPE;
+				goto cleanup;
+			}
+		}
+		else {
+			switch ((operand[0])->common.type) {
+			case ACPI_TYPE_LOCAL_REFERENCE:
+				/*
+				 * This is a deref_of (local_x | arg_x)
+				 *
+				 * Must resolve/dereference the local/arg reference first
+				 */
+				switch (operand[0]->reference.class) {
+				case ACPI_REFCLASS_LOCAL:
+				case ACPI_REFCLASS_ARG:
+
+					/* Set Operand[0] to the value of the local/arg */
+
+					status = acpi_ds_method_data_get_value (
+						operand[0]->reference.class,
+						operand[0]->reference.value,
+						walk_state, &temp_desc);
+					if (ACPI_FAILURE (status)) {
+						goto cleanup;
+					}
+
+					/*
+					 * Delete our reference to the input object and
+					 * point to the object just retrieved
+					 */
+					acpi_ut_remove_reference (operand[0]);
+					operand[0] = temp_desc;
+					break;
+
+				case ACPI_REFCLASS_REFOF:
+
+					/* Get the object to which the reference refers */
+
+					temp_desc = operand[0]->reference.object;
+					acpi_ut_remove_reference (operand[0]);
+					operand[0] = temp_desc;
+					break;
+
+				default:
+
+					/* Must be an Index op - handled below */
+					break;
+				}
+				break;
+
+			case ACPI_TYPE_STRING:
+
+				break;
+
+			default:
+
+				status = AE_AML_OPERAND_TYPE;
+				goto cleanup;
+			}
+		}
+
+		if (ACPI_GET_DESCRIPTOR_TYPE (operand[0]) != ACPI_DESC_TYPE_NAMED) {
+			if ((operand[0])->common.type == ACPI_TYPE_STRING) {
+				/*
+				 * This is a deref_of (String). The string is a reference
+				 * to a named ACPI object.
+				 *
+				 * 1) Find the owning Node
+				 * 2) Dereference the node to an actual object. Could be a
+				 *    Field, so we need to resolve the node to a value.
+				 */
+				status = acpi_ns_get_node_unlocked (walk_state->scope_info->scope.node,
+					operand[0]->string.pointer,
+					ACPI_NS_SEARCH_PARENT,
+					ACPI_CAST_INDIRECT_PTR (
+						struct acpi_namespace_node, &return_desc));
+				if (ACPI_FAILURE (status)) {
+					goto cleanup;
+				}
+
+				status = acpi_ex_resolve_node_to_value (
+					ACPI_CAST_INDIRECT_PTR (
+						struct acpi_namespace_node, &return_desc),
+					walk_state);
+				goto cleanup;
+			}
+		}
+
+		/* Operand[0] may have changed from the code above */
+
+		if (ACPI_GET_DESCRIPTOR_TYPE (operand[0]) == ACPI_DESC_TYPE_NAMED) {
+			/*
+			 * This is a deref_of (object_reference)
+			 * Get the actual object from the Node (This is the dereference).
+			 * This case may only happen when a local_x or arg_x is
+			 * dereferenced above, or for references to device and
+			 * thermal objects.
+			 */
+			switch (((struct acpi_namespace_node *) operand[0])->type) {
+			case ACPI_TYPE_DEVICE:
+			case ACPI_TYPE_THERMAL:
+
+				/* These types have no node subobject, return the NS node */
+
+				return_desc = operand[0];
+				break;
+
+			default:
+				/* For most types, get the object attached to the node */
+
+				return_desc = acpi_ns_get_attached_object (
+					(struct acpi_namespace_node *) operand[0]);
+				acpi_ut_add_reference (return_desc);
+				break;
+			}
+		}
+		else {
+			/*
+			 * This must be a reference object produced by either the
+			 * Index() or ref_of() operator
+			 */
+			switch (operand[0]->reference.class) {
+			case ACPI_REFCLASS_INDEX:
+				/*
+				 * The target type for the Index operator must be
+				 * either a Buffer or a Package
+				 */
+				switch (operand[0]->reference.target_type) {
+				case ACPI_TYPE_BUFFER_FIELD:
+
+					temp_desc = operand[0]->reference.object;
+
+					/*
+					 * Create a new object that contains one element of the
+					 * buffer -- the element pointed to by the index.
+					 *
+					 * NOTE: index into a buffer is NOT a pointer to a
+					 * sub-buffer of the main buffer, it is only a pointer to a
+					 * single element (byte) of the buffer!
+					 *
+					 * Since we are returning the value of the buffer at the
+					 * indexed location, we don't need to add an additional
+					 * reference to the buffer itself.
+					 */
+					return_desc = acpi_ut_create_integer_object ((u64)
+						temp_desc->buffer.pointer[operand[0]->reference.value]);
+					if (!return_desc) {
+						status = AE_NO_MEMORY;
+						goto cleanup;
+					}
+					break;
+
+				case ACPI_TYPE_PACKAGE:
+					/*
+					 * Return the referenced element of the package. We must
+					 * add another reference to the referenced object, however.
+					 */
+					return_desc = *(operand[0]->reference.where);
+					if (!return_desc) {
+						/*
+						 * Element is NULL, do not allow the dereference.
+						 * This provides compatibility with other ACPI
+						 * implementations.
+						 */
+						return_ACPI_STATUS (AE_AML_UNINITIALIZED_ELEMENT);
+					}
+
+					acpi_ut_add_reference (return_desc);
+					break;
+
+				default:
+
+					ACPI_ERROR ((AE_INFO,
+						"Unknown Index TargetType 0x%X in reference object %p",
+						operand[0]->reference.target_type, operand[0]));
+
+					status = AE_AML_OPERAND_TYPE;
+					goto cleanup;
+				}
+				break;
+
+			case ACPI_REFCLASS_REFOF:
+
+				return_desc = operand[0]->reference.object;
+
+				if (ACPI_GET_DESCRIPTOR_TYPE (return_desc) ==
+					ACPI_DESC_TYPE_NAMED) {
+					return_desc = acpi_ns_get_attached_object (
+						(struct acpi_namespace_node *) return_desc);
+					if (!return_desc) {
+						break;
+					}
+
+				   /*
+					* June 2013:
+					* buffer_fields/field_units require additional resolution
+					*/
+					switch (return_desc->common.type) {
+					case ACPI_TYPE_BUFFER_FIELD:
+					case ACPI_TYPE_LOCAL_REGION_FIELD:
+					case ACPI_TYPE_LOCAL_BANK_FIELD:
+					case ACPI_TYPE_LOCAL_INDEX_FIELD:
+
+						status = acpi_ex_read_data_from_field (
+							walk_state, return_desc, &temp_desc);
+						if (ACPI_FAILURE (status)) {
+							return_ACPI_STATUS (status);
+						}
+
+						return_desc = temp_desc;
+						break;
+
+					default:
+
+						/* Add another reference to the object */
+
+						acpi_ut_add_reference (return_desc);
+						break;
+					}
+				}
+				break;
+
+			default:
+
+				ACPI_ERROR ((AE_INFO,
+					"Unknown class in reference(%p) - 0x%2.2X",
+					operand[0], operand[0]->reference.class));
+
+				status = AE_TYPE;
+				goto cleanup;
+			}
+		}
+		break;
+
+	default:
+
+		ACPI_ERROR ((AE_INFO, "Unknown AML opcode 0x%X",
+			walk_state->opcode));
+
+		status = AE_AML_BAD_OPCODE;
+		goto cleanup;
+	}
+
+
+cleanup:
+
+	/* Delete return object on error */
+
+	if (ACPI_FAILURE (status)) {
+		acpi_ut_remove_reference (return_desc);
+	}
+
+	/* Save return object on success */
+
+	else {
+		walk_state->result_obj = return_desc;
+	}
+
+	return_ACPI_STATUS (status);
 }

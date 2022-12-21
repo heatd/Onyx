@@ -1,154 +1,12 @@
+/* SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0 */
 /******************************************************************************
  *
  * Name: acresrc.h - Resource Manager function prototypes
  *
- *****************************************************************************/
-
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
-
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
+ * Copyright (C) 2000 - 2022, Intel Corp.
  *
  *****************************************************************************/
+
 
 #ifndef __ACRESRC_H__
 #define __ACRESRC_H__
@@ -175,50 +33,50 @@
  */
 typedef const struct acpi_rsconvert_info
 {
-    UINT8                   Opcode;
-    UINT8                   ResourceOffset;
-    UINT8                   AmlOffset;
-    UINT8                   Value;
+	u8                              opcode;
+	u8                              resource_offset;
+	u8                              aml_offset;
+	u8                              value;
 
-} ACPI_RSCONVERT_INFO;
+} acpi_rsconvert_info;
 
 /* Resource conversion opcodes */
 
 typedef enum
 {
-    ACPI_RSC_INITGET        = 0,
-    ACPI_RSC_INITSET,
-    ACPI_RSC_FLAGINIT,
-    ACPI_RSC_1BITFLAG,
-    ACPI_RSC_2BITFLAG,
-    ACPI_RSC_3BITFLAG,
-    ACPI_RSC_6BITFLAG,
-    ACPI_RSC_ADDRESS,
-    ACPI_RSC_BITMASK,
-    ACPI_RSC_BITMASK16,
-    ACPI_RSC_COUNT,
-    ACPI_RSC_COUNT16,
-    ACPI_RSC_COUNT_GPIO_PIN,
-    ACPI_RSC_COUNT_GPIO_RES,
-    ACPI_RSC_COUNT_GPIO_VEN,
-    ACPI_RSC_COUNT_SERIAL_RES,
-    ACPI_RSC_COUNT_SERIAL_VEN,
-    ACPI_RSC_DATA8,
-    ACPI_RSC_EXIT_EQ,
-    ACPI_RSC_EXIT_LE,
-    ACPI_RSC_EXIT_NE,
-    ACPI_RSC_LENGTH,
-    ACPI_RSC_MOVE_GPIO_PIN,
-    ACPI_RSC_MOVE_GPIO_RES,
-    ACPI_RSC_MOVE_SERIAL_RES,
-    ACPI_RSC_MOVE_SERIAL_VEN,
-    ACPI_RSC_MOVE8,
-    ACPI_RSC_MOVE16,
-    ACPI_RSC_MOVE32,
-    ACPI_RSC_MOVE64,
-    ACPI_RSC_SET8,
-    ACPI_RSC_SOURCE,
-    ACPI_RSC_SOURCEX
+	ACPI_RSC_INITGET        = 0,
+	ACPI_RSC_INITSET,
+	ACPI_RSC_FLAGINIT,
+	ACPI_RSC_1BITFLAG,
+	ACPI_RSC_2BITFLAG,
+	ACPI_RSC_3BITFLAG,
+	ACPI_RSC_6BITFLAG,
+	ACPI_RSC_ADDRESS,
+	ACPI_RSC_BITMASK,
+	ACPI_RSC_BITMASK16,
+	ACPI_RSC_COUNT,
+	ACPI_RSC_COUNT16,
+	ACPI_RSC_COUNT_GPIO_PIN,
+	ACPI_RSC_COUNT_GPIO_RES,
+	ACPI_RSC_COUNT_GPIO_VEN,
+	ACPI_RSC_COUNT_SERIAL_RES,
+	ACPI_RSC_COUNT_SERIAL_VEN,
+	ACPI_RSC_DATA8,
+	ACPI_RSC_EXIT_EQ,
+	ACPI_RSC_EXIT_LE,
+	ACPI_RSC_EXIT_NE,
+	ACPI_RSC_LENGTH,
+	ACPI_RSC_MOVE_GPIO_PIN,
+	ACPI_RSC_MOVE_GPIO_RES,
+	ACPI_RSC_MOVE_SERIAL_RES,
+	ACPI_RSC_MOVE_SERIAL_VEN,
+	ACPI_RSC_MOVE8,
+	ACPI_RSC_MOVE16,
+	ACPI_RSC_MOVE32,
+	ACPI_RSC_MOVE64,
+	ACPI_RSC_SET8,
+	ACPI_RSC_SOURCE,
+	ACPI_RSC_SOURCEX
 
 } ACPI_RSCONVERT_OPCODES;
 
@@ -227,10 +85,10 @@ typedef enum
 #define ACPI_RSC_COMPARE_AML_LENGTH     0
 #define ACPI_RSC_COMPARE_VALUE          1
 
-#define ACPI_RSC_TABLE_SIZE(d)          (sizeof (d) / sizeof (ACPI_RSCONVERT_INFO))
+#define ACPI_RSC_TABLE_SIZE(d)          (sizeof (d) / sizeof (struct acpi_rsconvert_info))
 
-#define ACPI_RS_OFFSET(f)               (UINT8) ACPI_OFFSET (ACPI_RESOURCE,f)
-#define AML_OFFSET(f)                   (UINT8) ACPI_OFFSET (AML_RESOURCE,f)
+#define ACPI_RS_OFFSET(f)               (u8) ACPI_OFFSET (struct acpi_resource,f)
+#define AML_OFFSET(f)                   (u8) ACPI_OFFSET (union aml_resource,f)
 
 
 /*
@@ -238,37 +96,37 @@ typedef enum
  */
 typedef const struct acpi_rsdump_info
 {
-    UINT8                   Opcode;
-    UINT8                   Offset;
-    const char              *Name;
-    const char              **Pointer;
+	u8                              opcode;
+	u8                              offset;
+	const char                      *name;
+	const char                      **pointer;
 
-} ACPI_RSDUMP_INFO;
+} acpi_rsdump_info;
 
 /* Values for the Opcode field above */
 
 typedef enum
 {
-    ACPI_RSD_TITLE          = 0,
-    ACPI_RSD_1BITFLAG,
-    ACPI_RSD_2BITFLAG,
-    ACPI_RSD_3BITFLAG,
-    ACPI_RSD_6BITFLAG,
-    ACPI_RSD_ADDRESS,
-    ACPI_RSD_DWORDLIST,
-    ACPI_RSD_LITERAL,
-    ACPI_RSD_LONGLIST,
-    ACPI_RSD_SHORTLIST,
-    ACPI_RSD_SHORTLISTX,
-    ACPI_RSD_SOURCE,
-    ACPI_RSD_STRING,
-    ACPI_RSD_UINT8,
-    ACPI_RSD_UINT16,
-    ACPI_RSD_UINT32,
-    ACPI_RSD_UINT64,
-    ACPI_RSD_WORDLIST,
-    ACPI_RSD_LABEL,
-    ACPI_RSD_SOURCE_LABEL,
+	ACPI_RSD_TITLE          = 0,
+	ACPI_RSD_1BITFLAG,
+	ACPI_RSD_2BITFLAG,
+	ACPI_RSD_3BITFLAG,
+	ACPI_RSD_6BITFLAG,
+	ACPI_RSD_ADDRESS,
+	ACPI_RSD_DWORDLIST,
+	ACPI_RSD_LITERAL,
+	ACPI_RSD_LONGLIST,
+	ACPI_RSD_SHORTLIST,
+	ACPI_RSD_SHORTLISTX,
+	ACPI_RSD_SOURCE,
+	ACPI_RSD_STRING,
+	ACPI_RSD_UINT8,
+	ACPI_RSD_UINT16,
+	ACPI_RSD_UINT32,
+	ACPI_RSD_UINT64,
+	ACPI_RSD_WORDLIST,
+	ACPI_RSD_LABEL,
+	ACPI_RSD_SOURCE_LABEL,
 
 } ACPI_RSDUMP_OPCODES;
 
@@ -279,189 +137,188 @@ typedef enum
 
 /* Resource tables indexed by internal resource type */
 
-extern const UINT8              AcpiGbl_AmlResourceSizes[];
-extern const UINT8              AcpiGbl_AmlResourceSerialBusSizes[];
-extern ACPI_RSCONVERT_INFO      *AcpiGbl_SetResourceDispatch[];
+extern const u8                         acpi_gbl_aml_resource_sizes[];
+extern const u8                         acpi_gbl_aml_resource_serial_bus_sizes[];
+extern struct acpi_rsconvert_info       *acpi_gbl_set_resource_dispatch[];
 
 /* Resource tables indexed by raw AML resource descriptor type */
 
-extern const UINT8              AcpiGbl_ResourceStructSizes[];
-extern const UINT8              AcpiGbl_ResourceStructSerialBusSizes[];
-extern ACPI_RSCONVERT_INFO      *AcpiGbl_GetResourceDispatch[];
+extern const u8                         acpi_gbl_resource_struct_sizes[];
+extern const u8                         acpi_gbl_resource_struct_serial_bus_sizes[];
+extern struct acpi_rsconvert_info       *acpi_gbl_get_resource_dispatch[];
 
-extern ACPI_RSCONVERT_INFO      *AcpiGbl_ConvertResourceSerialBusDispatch[];
+extern struct acpi_rsconvert_info       *acpi_gbl_convert_resource_serial_bus_dispatch[];
 
-typedef struct acpi_vendor_walk_info
+struct acpi_vendor_walk_info
 {
-    ACPI_VENDOR_UUID        *Uuid;
-    ACPI_BUFFER             *Buffer;
-    ACPI_STATUS             Status;
-
-} ACPI_VENDOR_WALK_INFO;
+	struct acpi_vendor_uuid         *uuid;
+	struct acpi_buffer              *buffer;
+	acpi_status                     status;
+};
 
 
 /*
  * rscreate
  */
-ACPI_STATUS
-AcpiRsCreateResourceList (
-    ACPI_OPERAND_OBJECT     *AmlBuffer,
-    ACPI_BUFFER             *OutputBuffer);
+acpi_status
+acpi_rs_create_resource_list (
+	union acpi_operand_object       *aml_buffer,
+	struct acpi_buffer              *output_buffer);
 
-ACPI_STATUS
-AcpiRsCreateAmlResources (
-    ACPI_BUFFER             *ResourceList,
-    ACPI_BUFFER             *OutputBuffer);
+acpi_status
+acpi_rs_create_aml_resources (
+	struct acpi_buffer              *resource_list,
+	struct acpi_buffer              *output_buffer);
 
-ACPI_STATUS
-AcpiRsCreatePciRoutingTable (
-    ACPI_OPERAND_OBJECT     *PackageObject,
-    ACPI_BUFFER             *OutputBuffer);
+acpi_status
+acpi_rs_create_pci_routing_table (
+	union acpi_operand_object       *package_object,
+	struct acpi_buffer              *output_buffer);
 
 
 /*
  * rsutils
  */
-ACPI_STATUS
-AcpiRsGetPrtMethodData (
-    ACPI_NAMESPACE_NODE     *Node,
-    ACPI_BUFFER             *RetBuffer);
+acpi_status
+acpi_rs_get_prt_method_data (
+	struct acpi_namespace_node      *node,
+	struct acpi_buffer              *ret_buffer);
 
-ACPI_STATUS
-AcpiRsGetCrsMethodData (
-    ACPI_NAMESPACE_NODE     *Node,
-    ACPI_BUFFER             *RetBuffer);
+acpi_status
+acpi_rs_get_crs_method_data (
+	struct acpi_namespace_node      *node,
+	struct acpi_buffer              *ret_buffer);
 
-ACPI_STATUS
-AcpiRsGetPrsMethodData (
-    ACPI_NAMESPACE_NODE     *Node,
-    ACPI_BUFFER             *RetBuffer);
+acpi_status
+acpi_rs_get_prs_method_data (
+	struct acpi_namespace_node      *node,
+	struct acpi_buffer              *ret_buffer);
 
-ACPI_STATUS
-AcpiRsGetMethodData (
-    ACPI_HANDLE             Handle,
-    const char              *Path,
-    ACPI_BUFFER             *RetBuffer);
+acpi_status
+acpi_rs_get_method_data (
+	acpi_handle                     handle,
+	const char                      *path,
+	struct acpi_buffer              *ret_buffer);
 
-ACPI_STATUS
-AcpiRsSetSrsMethodData (
-    ACPI_NAMESPACE_NODE     *Node,
-    ACPI_BUFFER             *RetBuffer);
+acpi_status
+acpi_rs_set_srs_method_data (
+	struct acpi_namespace_node      *node,
+	struct acpi_buffer              *ret_buffer);
 
-ACPI_STATUS
-AcpiRsGetAeiMethodData (
-    ACPI_NAMESPACE_NODE     *Node,
-    ACPI_BUFFER             *RetBuffer);
+acpi_status
+acpi_rs_get_aei_method_data (
+	struct acpi_namespace_node      *node,
+	struct acpi_buffer              *ret_buffer);
 
 /*
  * rscalc
  */
-ACPI_STATUS
-AcpiRsGetListLength (
-    UINT8                   *AmlBuffer,
-    UINT32                  AmlBufferLength,
-    ACPI_SIZE               *SizeNeeded);
+acpi_status
+acpi_rs_get_list_length (
+	u8                              *aml_buffer,
+	u32                             aml_buffer_length,
+	acpi_size                       *size_needed);
 
-ACPI_STATUS
-AcpiRsGetAmlLength (
-    ACPI_RESOURCE           *ResourceList,
-    ACPI_SIZE               ResourceListSize,
-    ACPI_SIZE               *SizeNeeded);
+acpi_status
+acpi_rs_get_aml_length (
+	struct acpi_resource            *resource_list,
+	acpi_size                       resource_list_size,
+	acpi_size                       *size_needed);
 
-ACPI_STATUS
-AcpiRsGetPciRoutingTableLength (
-    ACPI_OPERAND_OBJECT     *PackageObject,
-    ACPI_SIZE               *BufferSizeNeeded);
+acpi_status
+acpi_rs_get_pci_routing_table_length (
+	union acpi_operand_object       *package_object,
+	acpi_size                       *buffer_size_needed);
 
-ACPI_STATUS
-AcpiRsConvertAmlToResources (
-    UINT8                   *Aml,
-    UINT32                  Length,
-    UINT32                  Offset,
-    UINT8                   ResourceIndex,
-    void                    **Context);
+acpi_status
+acpi_rs_convert_aml_to_resources (
+	u8                              *aml,
+	u32                             length,
+	u32                             offset,
+	u8                              resource_index,
+	void                            **context);
 
-ACPI_STATUS
-AcpiRsConvertResourcesToAml (
-    ACPI_RESOURCE           *Resource,
-    ACPI_SIZE               AmlSizeNeeded,
-    UINT8                   *OutputBuffer);
+acpi_status
+acpi_rs_convert_resources_to_aml (
+	struct acpi_resource            *resource,
+	acpi_size                       aml_size_needed,
+	u8                              *output_buffer);
 
 
 /*
  * rsaddr
  */
 void
-AcpiRsSetAddressCommon (
-    AML_RESOURCE            *Aml,
-    ACPI_RESOURCE           *Resource);
+acpi_rs_set_address_common (
+	union aml_resource              *aml,
+	struct acpi_resource            *resource);
 
-BOOLEAN
-AcpiRsGetAddressCommon (
-    ACPI_RESOURCE           *Resource,
-    AML_RESOURCE            *Aml);
+u8
+acpi_rs_get_address_common (
+	struct acpi_resource            *resource,
+	union aml_resource              *aml);
 
 
 /*
  * rsmisc
  */
-ACPI_STATUS
-AcpiRsConvertAmlToResource (
-    ACPI_RESOURCE           *Resource,
-    AML_RESOURCE            *Aml,
-    ACPI_RSCONVERT_INFO     *Info);
+acpi_status
+acpi_rs_convert_aml_to_resource (
+	struct acpi_resource            *resource,
+	union aml_resource              *aml,
+	struct acpi_rsconvert_info      *info);
 
-ACPI_STATUS
-AcpiRsConvertResourceToAml (
-    ACPI_RESOURCE           *Resource,
-    AML_RESOURCE            *Aml,
-    ACPI_RSCONVERT_INFO     *Info);
+acpi_status
+acpi_rs_convert_resource_to_aml (
+	struct acpi_resource            *resource,
+	union aml_resource              *aml,
+	struct acpi_rsconvert_info      *info);
 
 
 /*
  * rsutils
  */
 void
-AcpiRsMoveData (
-    void                    *Destination,
-    void                    *Source,
-    UINT16                  ItemCount,
-    UINT8                   MoveType);
+acpi_rs_move_data (
+	void                            *destination,
+	void                            *source,
+	u16                             item_count,
+	u8                              move_type);
 
-UINT8
-AcpiRsDecodeBitmask (
-    UINT16                  Mask,
-    UINT8                   *List);
+u8
+acpi_rs_decode_bitmask (
+	u16                             mask,
+	u8                              *list);
 
-UINT16
-AcpiRsEncodeBitmask (
-    UINT8                   *List,
-    UINT8                   Count);
+u16
+acpi_rs_encode_bitmask (
+	u8                              *list,
+	u8                              count);
 
-ACPI_RS_LENGTH
-AcpiRsGetResourceSource (
-    ACPI_RS_LENGTH          ResourceLength,
-    ACPI_RS_LENGTH          MinimumLength,
-    ACPI_RESOURCE_SOURCE    *ResourceSource,
-    AML_RESOURCE            *Aml,
-    char                    *StringPtr);
+acpi_rs_length
+acpi_rs_get_resource_source (
+	acpi_rs_length                  resource_length,
+	acpi_rs_length                  minimum_length,
+	struct acpi_resource_source     *resource_source,
+	union aml_resource              *aml,
+	char                            *string_ptr);
 
-ACPI_RSDESC_SIZE
-AcpiRsSetResourceSource (
-    AML_RESOURCE            *Aml,
-    ACPI_RS_LENGTH          MinimumLength,
-    ACPI_RESOURCE_SOURCE    *ResourceSource);
-
-void
-AcpiRsSetResourceHeader (
-    UINT8                   DescriptorType,
-    ACPI_RSDESC_SIZE        TotalLength,
-    AML_RESOURCE            *Aml);
+acpi_rsdesc_size
+acpi_rs_set_resource_source (
+	union aml_resource              *aml,
+	acpi_rs_length                  minimum_length,
+	struct acpi_resource_source     *resource_source);
 
 void
-AcpiRsSetResourceLength (
-    ACPI_RSDESC_SIZE        TotalLength,
-    AML_RESOURCE            *Aml);
+acpi_rs_set_resource_header (
+	u8                              descriptor_type,
+	acpi_rsdesc_size                total_length,
+	union aml_resource              *aml);
+
+void
+acpi_rs_set_resource_length (
+	acpi_rsdesc_size                total_length,
+	union aml_resource              *aml);
 
 
 /*
@@ -469,99 +326,99 @@ AcpiRsSetResourceLength (
  */
 #ifdef ACPI_DEBUGGER
 void
-AcpiRsDumpResourceList (
-    ACPI_RESOURCE           *Resource);
+acpi_rs_dump_resource_list (
+	struct acpi_resource            *resource);
 
 void
-AcpiRsDumpIrqList (
-    UINT8                   *RouteTable);
+acpi_rs_dump_irq_list (
+	u8                              *route_table);
 #endif
 
 
 /*
  * Resource conversion tables
  */
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertDma[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertEndDpf[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertIo[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertFixedIo[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertEndTag[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertMemory24[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertGenericReg[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertMemory32[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertFixedMemory32[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertAddress32[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertAddress16[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertExtIrq[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertAddress64[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertExtAddress64[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertGpio[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertFixedDma[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertCsi2SerialBus[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertI2cSerialBus[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertSpiSerialBus[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertUartSerialBus[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertPinFunction[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertPinConfig[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertPinGroup[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertPinGroupFunction[];
-extern ACPI_RSCONVERT_INFO      AcpiRsConvertPinGroupConfig[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_dma[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_end_dpf[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_io[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_fixed_io[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_end_tag[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_memory24[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_generic_reg[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_memory32[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_fixed_memory32[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_address32[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_address16[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_ext_irq[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_address64[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_ext_address64[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_gpio[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_fixed_dma[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_csi2_serial_bus[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_i2c_serial_bus[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_spi_serial_bus[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_uart_serial_bus[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_pin_function[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_pin_config[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_pin_group[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_pin_group_function[];
+extern struct acpi_rsconvert_info       acpi_rs_convert_pin_group_config[];
 
 /* These resources require separate get/set tables */
 
-extern ACPI_RSCONVERT_INFO      AcpiRsGetIrq[];
-extern ACPI_RSCONVERT_INFO      AcpiRsGetStartDpf[];
-extern ACPI_RSCONVERT_INFO      AcpiRsGetVendorSmall[];
-extern ACPI_RSCONVERT_INFO      AcpiRsGetVendorLarge[];
+extern struct acpi_rsconvert_info       acpi_rs_get_irq[];
+extern struct acpi_rsconvert_info       acpi_rs_get_start_dpf[];
+extern struct acpi_rsconvert_info       acpi_rs_get_vendor_small[];
+extern struct acpi_rsconvert_info       acpi_rs_get_vendor_large[];
 
-extern ACPI_RSCONVERT_INFO      AcpiRsSetIrq[];
-extern ACPI_RSCONVERT_INFO      AcpiRsSetStartDpf[];
-extern ACPI_RSCONVERT_INFO      AcpiRsSetVendor[];
+extern struct acpi_rsconvert_info       acpi_rs_set_irq[];
+extern struct acpi_rsconvert_info       acpi_rs_set_start_dpf[];
+extern struct acpi_rsconvert_info       acpi_rs_set_vendor[];
 
 
 #if defined(ACPI_DEBUG_OUTPUT) || defined(ACPI_DEBUGGER)
 /*
  * rsinfo
  */
-extern ACPI_RSDUMP_INFO         *AcpiGbl_DumpResourceDispatch[];
-extern ACPI_RSDUMP_INFO         *AcpiGbl_DumpSerialBusDispatch[];
+extern struct acpi_rsdump_info          *acpi_gbl_dump_resource_dispatch[];
+extern struct acpi_rsdump_info          *acpi_gbl_dump_serial_bus_dispatch[];
 
 /*
  * rsdumpinfo
  */
-extern ACPI_RSDUMP_INFO         AcpiRsDumpIrq[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpPrt[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpDma[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpStartDpf[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpEndDpf[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpIo[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpIoFlags[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpFixedIo[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpVendor[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpEndTag[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpMemory24[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpMemory32[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpMemoryFlags[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpFixedMemory32[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpAddress16[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpAddress32[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpAddress64[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpExtAddress64[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpExtIrq[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpGenericReg[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpGpio[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpPinFunction[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpFixedDma[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpCommonSerialBus[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpCsi2SerialBus[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpI2cSerialBus[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpSpiSerialBus[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpUartSerialBus[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpGeneralFlags[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpPinConfig[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpPinGroup[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpPinGroupFunction[];
-extern ACPI_RSDUMP_INFO         AcpiRsDumpPinGroupConfig[];
+extern struct acpi_rsdump_info          acpi_rs_dump_irq[];
+extern struct acpi_rsdump_info          acpi_rs_dump_prt[];
+extern struct acpi_rsdump_info          acpi_rs_dump_dma[];
+extern struct acpi_rsdump_info          acpi_rs_dump_start_dpf[];
+extern struct acpi_rsdump_info          acpi_rs_dump_end_dpf[];
+extern struct acpi_rsdump_info          acpi_rs_dump_io[];
+extern struct acpi_rsdump_info          acpi_rs_dump_io_flags[];
+extern struct acpi_rsdump_info          acpi_rs_dump_fixed_io[];
+extern struct acpi_rsdump_info          acpi_rs_dump_vendor[];
+extern struct acpi_rsdump_info          acpi_rs_dump_end_tag[];
+extern struct acpi_rsdump_info          acpi_rs_dump_memory24[];
+extern struct acpi_rsdump_info          acpi_rs_dump_memory32[];
+extern struct acpi_rsdump_info          acpi_rs_dump_memory_flags[];
+extern struct acpi_rsdump_info          acpi_rs_dump_fixed_memory32[];
+extern struct acpi_rsdump_info          acpi_rs_dump_address16[];
+extern struct acpi_rsdump_info          acpi_rs_dump_address32[];
+extern struct acpi_rsdump_info          acpi_rs_dump_address64[];
+extern struct acpi_rsdump_info          acpi_rs_dump_ext_address64[];
+extern struct acpi_rsdump_info          acpi_rs_dump_ext_irq[];
+extern struct acpi_rsdump_info          acpi_rs_dump_generic_reg[];
+extern struct acpi_rsdump_info          acpi_rs_dump_gpio[];
+extern struct acpi_rsdump_info          acpi_rs_dump_pin_function[];
+extern struct acpi_rsdump_info          acpi_rs_dump_fixed_dma[];
+extern struct acpi_rsdump_info          acpi_rs_dump_common_serial_bus[];
+extern struct acpi_rsdump_info          acpi_rs_dump_csi2_serial_bus[];
+extern struct acpi_rsdump_info          acpi_rs_dump_i2c_serial_bus[];
+extern struct acpi_rsdump_info          acpi_rs_dump_spi_serial_bus[];
+extern struct acpi_rsdump_info          acpi_rs_dump_uart_serial_bus[];
+extern struct acpi_rsdump_info          acpi_rs_dump_general_flags[];
+extern struct acpi_rsdump_info          acpi_rs_dump_pin_config[];
+extern struct acpi_rsdump_info          acpi_rs_dump_pin_group[];
+extern struct acpi_rsdump_info          acpi_rs_dump_pin_group_function[];
+extern struct acpi_rsdump_info          acpi_rs_dump_pin_group_config[];
 #endif
 
 #endif  /* __ACRESRC_H__ */

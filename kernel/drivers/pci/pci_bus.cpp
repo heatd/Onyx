@@ -108,22 +108,22 @@ void pci_bus::discover()
 
 #ifdef CONFIG_ACPI
 
-ACPI_STATUS pci_bus::route_bus_irqs(ACPI_HANDLE bus_object)
+acpi_status pci_bus::route_bus_irqs(acpi_handle bus_object)
 {
-    ACPI_BUFFER buf;
-    buf.Length = ACPI_ALLOCATE_BUFFER;
+    acpi_buffer buf;
+    buf.length = ACPI_ALLOCATE_BUFFER;
 
     // The gist of this is that we need to get an irq routing table for the root complex, and
     // not so much for the other buses, which may or may not have _PRT methods.
-    if (auto st = AcpiGetIrqRoutingTable(bus_object, &buf); ACPI_FAILURE(st))
+    if (auto st = acpi_get_irq_routing_table(bus_object, &buf); ACPI_FAILURE(st))
     {
         return st;
     }
 
     // This is all documented in ACPI spec 6.13 _PRT
 
-    ACPI_PCI_ROUTING_TABLE *it = (ACPI_PCI_ROUTING_TABLE *) buf.Pointer;
-    for (; it->Length != 0; it = (ACPI_PCI_ROUTING_TABLE *) ACPI_NEXT_RESOURCE(it))
+    acpi_pci_routing_table *it = (acpi_pci_routing_table *) buf.pointer;
+    for (; it->length != 0; it = (acpi_pci_routing_table *) ACPI_NEXT_RESOURCE(it))
     {
         // The format for Address is the same as in _ADR
         // Bits [0...16] -> Function
@@ -131,24 +131,24 @@ ACPI_STATUS pci_bus::route_bus_irqs(ACPI_HANDLE bus_object)
         // It's also specified in 6.13 that Address' function field MUST be 0xffff,
         // which means all functions under $device, so we can safely ignore it and filter
         // for functions with address {$segment, $bus, $device, any}
-        uint8_t devnum = it->Address >> 16;
+        uint8_t devnum = it->address >> 16;
 
-        uint32_t pin = it->Pin;
+        uint32_t pin = it->pin;
         uint32_t gsi = -1;
         bool level = true;
         bool active_high = false;
 
         // If the first byte of the source is 0, the GSI is SourceIndex
-        if (it->Source[0] == 0)
+        if (it->source[0] == 0)
         {
-            gsi = it->SourceIndex;
+            gsi = it->source_index;
         }
         else
         {
             // Else, Source contains the Path of the object we need to evaluate
             // with _CRS in order to get IRQ configuration for the pin.
-            ACPI_HANDLE link_obj;
-            ACPI_STATUS st = AcpiGetHandle(bus_object, it->Source, &link_obj);
+            acpi_handle link_obj;
+            acpi_status st = acpi_get_handle(bus_object, it->source, &link_obj);
 
             if (ACPI_FAILURE(st))
             {
@@ -156,37 +156,37 @@ ACPI_STATUS pci_bus::route_bus_irqs(ACPI_HANDLE bus_object)
                 return st;
             }
 
-            ACPI_BUFFER rbuf;
-            rbuf.Length = ACPI_ALLOCATE_BUFFER;
-            rbuf.Pointer = nullptr;
+            acpi_buffer rbuf;
+            rbuf.length = ACPI_ALLOCATE_BUFFER;
+            rbuf.pointer = nullptr;
 
-            st = AcpiGetCurrentResources(link_obj, &rbuf);
+            st = acpi_get_current_resources(link_obj, &rbuf);
             if (ACPI_FAILURE(st))
             {
                 ERROR("acpi", "Error while calling AcpiGetCurrentResources: %x\n", st);
                 return st;
             }
 
-            for (ACPI_RESOURCE *res = (ACPI_RESOURCE *) rbuf.Pointer;
-                 res->Type != ACPI_RESOURCE_TYPE_END_TAG; res = ACPI_NEXT_RESOURCE(res))
+            for (acpi_resource *res = (acpi_resource *) rbuf.pointer;
+                 res->type != ACPI_RESOURCE_TYPE_END_TAG; res = ACPI_NEXT_RESOURCE(res))
             {
-                if (res->Type == ACPI_RESOURCE_TYPE_IRQ)
+                if (res->type == ACPI_RESOURCE_TYPE_IRQ)
                 {
-                    level = res->Data.Irq.Polarity == 0;
-                    active_high = res->Data.Irq.Triggering == 0;
-                    gsi = res->Data.Irq.Interrupts[it->SourceIndex];
+                    level = res->data.irq.polarity == 0;
+                    active_high = res->data.irq.triggering == 0;
+                    gsi = res->data.irq.interrupts[it->source_index];
                     break;
                 }
-                else if (res->Type == ACPI_RESOURCE_TYPE_EXTENDED_IRQ)
+                else if (res->type == ACPI_RESOURCE_TYPE_EXTENDED_IRQ)
                 {
-                    level = res->Data.ExtendedIrq.Polarity == 0;
-                    active_high = res->Data.ExtendedIrq.Triggering == 0;
-                    gsi = res->Data.ExtendedIrq.Interrupts[it->SourceIndex];
+                    level = res->data.extended_irq.polarity == 0;
+                    active_high = res->data.extended_irq.triggering == 0;
+                    gsi = res->data.extended_irq.interrupts[it->source_index];
                     break;
                 }
             }
 
-            free(rbuf.Pointer);
+            free(rbuf.pointer);
         }
 
         // Find every device that matches the address mentioned above, and set

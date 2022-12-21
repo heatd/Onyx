@@ -1,182 +1,41 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /******************************************************************************
  *
  * Module Name: hwgpe - Low level GPE enable/disable/clear functions
  *
+ * Copyright (C) 2000 - 2022, Intel Corp.
+ *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #include "acpi.h"
 #include "accommon.h"
 #include "acevents.h"
 
 #define _COMPONENT          ACPI_HARDWARE
-        ACPI_MODULE_NAME    ("hwgpe")
+	 ACPI_MODULE_NAME    ("hwgpe")
 
 #if (!ACPI_REDUCED_HARDWARE) /* Entire module */
 
 /* Local prototypes */
 
-static ACPI_STATUS
-AcpiHwEnableWakeupGpeBlock (
-    ACPI_GPE_XRUPT_INFO     *GpeXruptInfo,
-    ACPI_GPE_BLOCK_INFO     *GpeBlock,
-    void                    *Context);
+static acpi_status
+acpi_hw_enable_wakeup_gpe_block (
+	struct acpi_gpe_xrupt_info      *gpe_xrupt_info,
+	struct acpi_gpe_block_info      *gpe_block,
+	void                            *context);
 
-static ACPI_STATUS
-AcpiHwGpeEnableWrite (
-    UINT8                   EnableMask,
-    ACPI_GPE_REGISTER_INFO  *GpeRegisterInfo);
+static acpi_status
+acpi_hw_gpe_enable_write (
+	u8                              enable_mask,
+	struct acpi_gpe_register_info   *gpe_register_info);
 
 
 /******************************************************************************
  *
- * FUNCTION:    AcpiHwGetGpeRegisterBit
+ * FUNCTION:    acpi_hw_get_gpe_register_bit
  *
- * PARAMETERS:  GpeEventInfo        - Info block for the GPE
+ * PARAMETERS:  gpe_event_info      - Info block for the GPE
  *
  * RETURN:      Register mask with a one in the GPE bit position
  *
@@ -185,108 +44,104 @@ AcpiHwGpeEnableWrite (
  *
  ******************************************************************************/
 
-UINT32
-AcpiHwGetGpeRegisterBit (
-    ACPI_GPE_EVENT_INFO     *GpeEventInfo)
+u32
+acpi_hw_get_gpe_register_bit (
+	struct acpi_gpe_event_info      *gpe_event_info)
 {
 
-    return ((UINT32) 1 <<
-        (GpeEventInfo->GpeNumber - GpeEventInfo->RegisterInfo->BaseGpeNumber));
+	return ((u32) 1 <<
+		(gpe_event_info->gpe_number - gpe_event_info->register_info->base_gpe_number));
 }
 
 
 /******************************************************************************
  *
- * FUNCTION:    AcpiHwLowSetGpe
+ * FUNCTION:    acpi_hw_low_set_gpe
  *
- * PARAMETERS:  GpeEventInfo        - Info block for the GPE to be disabled
- *              Action              - Enable or disable
+ * PARAMETERS:  gpe_event_info      - Info block for the GPE to be disabled
+ *              action              - Enable or disable
  *
  * RETURN:      Status
  *
  * DESCRIPTION: Enable or disable a single GPE in the parent enable register.
- *              The EnableMask field of the involved GPE register must be
+ *              The enable_mask field of the involved GPE register must be
  *              updated by the caller if necessary.
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiHwLowSetGpe (
-    ACPI_GPE_EVENT_INFO     *GpeEventInfo,
-    UINT32                  Action)
+acpi_status
+acpi_hw_low_set_gpe (
+	struct acpi_gpe_event_info      *gpe_event_info,
+	u32                             action)
 {
-    ACPI_GPE_REGISTER_INFO  *GpeRegisterInfo;
-    ACPI_STATUS             Status = AE_OK;
-    UINT64                  EnableMask;
-    UINT32                  RegisterBit;
+	struct acpi_gpe_register_info   *gpe_register_info;
+	acpi_status                     status = AE_OK;
+	u64                             enable_mask;
+	u32                             register_bit;
 
 
-    ACPI_FUNCTION_ENTRY ();
+	ACPI_FUNCTION_ENTRY ();
 
 
-    /* Get the info block for the entire GPE register */
+	/* Get the info block for the entire GPE register */
 
-    GpeRegisterInfo = GpeEventInfo->RegisterInfo;
-    if (!GpeRegisterInfo)
-    {
-        return (AE_NOT_EXIST);
-    }
+	gpe_register_info = gpe_event_info->register_info;
+	if (!gpe_register_info) {
+		return (AE_NOT_EXIST);
+	}
 
-    /* Get current value of the enable register that contains this GPE */
+	/* Get current value of the enable register that contains this GPE */
 
-    Status = AcpiHwRead (&EnableMask, &GpeRegisterInfo->EnableAddress);
-    if (ACPI_FAILURE (Status))
-    {
-        return (Status);
-    }
+	status = acpi_hw_read (&enable_mask, &gpe_register_info->enable_address);
+	if (ACPI_FAILURE (status)) {
+		return (status);
+	}
 
-    /* Set or clear just the bit that corresponds to this GPE */
+	/* Set or clear just the bit that corresponds to this GPE */
 
-    RegisterBit = AcpiHwGetGpeRegisterBit (GpeEventInfo);
-    switch (Action)
-    {
-    case ACPI_GPE_CONDITIONAL_ENABLE:
+	register_bit = acpi_hw_get_gpe_register_bit (gpe_event_info);
+	switch (action) {
+	case ACPI_GPE_CONDITIONAL_ENABLE:
 
-        /* Only enable if the corresponding EnableMask bit is set */
+		/* Only enable if the corresponding enable_mask bit is set */
 
-        if (!(RegisterBit & GpeRegisterInfo->EnableMask))
-        {
-            return (AE_BAD_PARAMETER);
-        }
+		if (!(register_bit & gpe_register_info->enable_mask)) {
+			return (AE_BAD_PARAMETER);
+		}
 
-        ACPI_FALLTHROUGH;
+		ACPI_FALLTHROUGH;
 
-    case ACPI_GPE_ENABLE:
+	case ACPI_GPE_ENABLE:
 
-        ACPI_SET_BIT (EnableMask, RegisterBit);
-        break;
+		ACPI_SET_BIT (enable_mask, register_bit);
+		break;
 
-    case ACPI_GPE_DISABLE:
+	case ACPI_GPE_DISABLE:
 
-        ACPI_CLEAR_BIT (EnableMask, RegisterBit);
-        break;
+		ACPI_CLEAR_BIT (enable_mask, register_bit);
+		break;
 
-    default:
+	default:
 
-        ACPI_ERROR ((AE_INFO, "Invalid GPE Action, %u", Action));
-        return (AE_BAD_PARAMETER);
-    }
+		ACPI_ERROR ((AE_INFO, "Invalid GPE Action, %u", action));
+		return (AE_BAD_PARAMETER);
+	}
 
-    if (!(RegisterBit & GpeRegisterInfo->MaskForRun))
-    {
-        /* Write the updated enable mask */
+	if (!(register_bit & gpe_register_info->mask_for_run)) {
 
-        Status = AcpiHwWrite (EnableMask, &GpeRegisterInfo->EnableAddress);
-    }
-    return (Status);
+		/* Write the updated enable mask */
+
+		status = acpi_hw_write (enable_mask, &gpe_register_info->enable_address);
+	}
+	return (status);
 }
 
 
 /******************************************************************************
  *
- * FUNCTION:    AcpiHwClearGpe
+ * FUNCTION:    acpi_hw_clear_gpe
  *
- * PARAMETERS:  GpeEventInfo        - Info block for the GPE to be cleared
+ * PARAMETERS:  gpe_event_info      - Info block for the GPE to be cleared
  *
  * RETURN:      Status
  *
@@ -294,42 +149,41 @@ AcpiHwLowSetGpe (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiHwClearGpe (
-    ACPI_GPE_EVENT_INFO     *GpeEventInfo)
+acpi_status
+acpi_hw_clear_gpe (
+	struct acpi_gpe_event_info      *gpe_event_info)
 {
-    ACPI_GPE_REGISTER_INFO  *GpeRegisterInfo;
-    ACPI_STATUS             Status;
-    UINT32                  RegisterBit;
+	struct acpi_gpe_register_info   *gpe_register_info;
+	acpi_status                     status;
+	u32                             register_bit;
 
 
-    ACPI_FUNCTION_ENTRY ();
+	ACPI_FUNCTION_ENTRY ();
 
-    /* Get the info block for the entire GPE register */
+	/* Get the info block for the entire GPE register */
 
-    GpeRegisterInfo = GpeEventInfo->RegisterInfo;
-    if (!GpeRegisterInfo)
-    {
-        return (AE_NOT_EXIST);
-    }
+	gpe_register_info = gpe_event_info->register_info;
+	if (!gpe_register_info) {
+		return (AE_NOT_EXIST);
+	}
 
-    /*
-     * Write a one to the appropriate bit in the status register to
-     * clear this GPE.
-     */
-    RegisterBit = AcpiHwGetGpeRegisterBit (GpeEventInfo);
+	/*
+	 * Write a one to the appropriate bit in the status register to
+	 * clear this GPE.
+	 */
+	register_bit = acpi_hw_get_gpe_register_bit (gpe_event_info);
 
-    Status = AcpiHwWrite (RegisterBit, &GpeRegisterInfo->StatusAddress);
-    return (Status);
+	status = acpi_hw_write (register_bit, &gpe_register_info->status_address);
+	return (status);
 }
 
 
 /******************************************************************************
  *
- * FUNCTION:    AcpiHwGetGpeStatus
+ * FUNCTION:    acpi_hw_get_gpe_status
  *
- * PARAMETERS:  GpeEventInfo        - Info block for the GPE to queried
- *              EventStatus         - Where the GPE status is returned
+ * PARAMETERS:  gpe_event_info      - Info block for the GPE to queried
+ *              event_status        - Where the GPE status is returned
  *
  * RETURN:      Status
  *
@@ -337,102 +191,93 @@ AcpiHwClearGpe (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiHwGetGpeStatus (
-    ACPI_GPE_EVENT_INFO     *GpeEventInfo,
-    ACPI_EVENT_STATUS       *EventStatus)
+acpi_status
+acpi_hw_get_gpe_status (
+	struct acpi_gpe_event_info      *gpe_event_info,
+	acpi_event_status               *event_status)
 {
-    UINT64                  InByte;
-    UINT32                  RegisterBit;
-    ACPI_GPE_REGISTER_INFO  *GpeRegisterInfo;
-    ACPI_EVENT_STATUS       LocalEventStatus = 0;
-    ACPI_STATUS             Status;
+	u64                             in_byte;
+	u32                             register_bit;
+	struct acpi_gpe_register_info   *gpe_register_info;
+	acpi_event_status               local_event_status = 0;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_ENTRY ();
+	ACPI_FUNCTION_ENTRY ();
 
 
-    if (!EventStatus)
-    {
-        return (AE_BAD_PARAMETER);
-    }
+	if (!event_status) {
+		return (AE_BAD_PARAMETER);
+	}
 
-    /* GPE currently handled? */
+	/* GPE currently handled? */
 
-    if (ACPI_GPE_DISPATCH_TYPE (GpeEventInfo->Flags) !=
-        ACPI_GPE_DISPATCH_NONE)
-    {
-        LocalEventStatus |= ACPI_EVENT_FLAG_HAS_HANDLER;
-    }
+	if (ACPI_GPE_DISPATCH_TYPE (gpe_event_info->flags) !=
+		ACPI_GPE_DISPATCH_NONE) {
+		local_event_status |= ACPI_EVENT_FLAG_HAS_HANDLER;
+	}
 
-    /* Get the info block for the entire GPE register */
+	/* Get the info block for the entire GPE register */
 
-    GpeRegisterInfo = GpeEventInfo->RegisterInfo;
+	gpe_register_info = gpe_event_info->register_info;
 
-    /* Get the register bitmask for this GPE */
+	/* Get the register bitmask for this GPE */
 
-    RegisterBit = AcpiHwGetGpeRegisterBit (GpeEventInfo);
+	register_bit = acpi_hw_get_gpe_register_bit (gpe_event_info);
 
-    /* GPE currently enabled? (enabled for runtime?) */
+	/* GPE currently enabled? (enabled for runtime?) */
 
-    if (RegisterBit & GpeRegisterInfo->EnableForRun)
-    {
-        LocalEventStatus |= ACPI_EVENT_FLAG_ENABLED;
-    }
+	if (register_bit & gpe_register_info->enable_for_run) {
+		local_event_status |= ACPI_EVENT_FLAG_ENABLED;
+	}
 
-    /* GPE currently masked? (masked for runtime?) */
+	/* GPE currently masked? (masked for runtime?) */
 
-    if (RegisterBit & GpeRegisterInfo->MaskForRun)
-    {
-        LocalEventStatus |= ACPI_EVENT_FLAG_MASKED;
-    }
+	if (register_bit & gpe_register_info->mask_for_run) {
+		local_event_status |= ACPI_EVENT_FLAG_MASKED;
+	}
 
-    /* GPE enabled for wake? */
+	/* GPE enabled for wake? */
 
-    if (RegisterBit & GpeRegisterInfo->EnableForWake)
-    {
-        LocalEventStatus |= ACPI_EVENT_FLAG_WAKE_ENABLED;
-    }
+	if (register_bit & gpe_register_info->enable_for_wake) {
+		local_event_status |= ACPI_EVENT_FLAG_WAKE_ENABLED;
+	}
 
-    /* GPE currently enabled (enable bit == 1)? */
+	/* GPE currently enabled (enable bit == 1)? */
 
-    Status = AcpiHwRead (&InByte, &GpeRegisterInfo->EnableAddress);
-    if (ACPI_FAILURE (Status))
-    {
-        return (Status);
-    }
+	status = acpi_hw_read (&in_byte, &gpe_register_info->enable_address);
+	if (ACPI_FAILURE (status)) {
+		return (status);
+	}
 
-    if (RegisterBit & InByte)
-    {
-        LocalEventStatus |= ACPI_EVENT_FLAG_ENABLE_SET;
-    }
+	if (register_bit & in_byte) {
+		local_event_status |= ACPI_EVENT_FLAG_ENABLE_SET;
+	}
 
-    /* GPE currently active (status bit == 1)? */
+	/* GPE currently active (status bit == 1)? */
 
-    Status = AcpiHwRead (&InByte, &GpeRegisterInfo->StatusAddress);
-    if (ACPI_FAILURE (Status))
-    {
-        return (Status);
-    }
+	status = acpi_hw_read (&in_byte, &gpe_register_info->status_address);
+	if (ACPI_FAILURE (status)) {
+		return (status);
+	}
 
-    if (RegisterBit & InByte)
-    {
-        LocalEventStatus |= ACPI_EVENT_FLAG_STATUS_SET;
-    }
+	if (register_bit & in_byte) {
+		local_event_status |= ACPI_EVENT_FLAG_STATUS_SET;
+	}
 
-    /* Set return value */
+	/* Set return value */
 
-    (*EventStatus) = LocalEventStatus;
-    return (AE_OK);
+	(*event_status) = local_event_status;
+	return (AE_OK);
 }
 
 
 /******************************************************************************
  *
- * FUNCTION:    AcpiHwGpeEnableWrite
+ * FUNCTION:    acpi_hw_gpe_enable_write
  *
- * PARAMETERS:  EnableMask          - Bit mask to write to the GPE register
- *              GpeRegisterInfo     - Gpe Register info
+ * PARAMETERS:  enable_mask         - Bit mask to write to the GPE register
+ *              gpe_register_info   - Gpe Register info
  *
  * RETURN:      Status
  *
@@ -440,27 +285,27 @@ AcpiHwGetGpeStatus (
  *
  ******************************************************************************/
 
-static ACPI_STATUS
-AcpiHwGpeEnableWrite (
-    UINT8                   EnableMask,
-    ACPI_GPE_REGISTER_INFO  *GpeRegisterInfo)
+static acpi_status
+acpi_hw_gpe_enable_write (
+	u8                              enable_mask,
+	struct acpi_gpe_register_info   *gpe_register_info)
 {
-    ACPI_STATUS             Status;
+	acpi_status                     status;
 
 
-    GpeRegisterInfo->EnableMask = EnableMask;
+	gpe_register_info->enable_mask = enable_mask;
 
-    Status = AcpiHwWrite (EnableMask, &GpeRegisterInfo->EnableAddress);
-    return (Status);
+	status = acpi_hw_write (enable_mask, &gpe_register_info->enable_address);
+	return (status);
 }
 
 
 /******************************************************************************
  *
- * FUNCTION:    AcpiHwDisableGpeBlock
+ * FUNCTION:    acpi_hw_disable_gpe_block
  *
- * PARAMETERS:  GpeXruptInfo        - GPE Interrupt info
- *              GpeBlock            - Gpe Block info
+ * PARAMETERS:  gpe_xrupt_info      - GPE Interrupt info
+ *              gpe_block           - Gpe Block info
  *
  * RETURN:      Status
  *
@@ -468,39 +313,38 @@ AcpiHwGpeEnableWrite (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiHwDisableGpeBlock (
-    ACPI_GPE_XRUPT_INFO     *GpeXruptInfo,
-    ACPI_GPE_BLOCK_INFO     *GpeBlock,
-    void                    *Context)
+acpi_status
+acpi_hw_disable_gpe_block (
+	struct acpi_gpe_xrupt_info      *gpe_xrupt_info,
+	struct acpi_gpe_block_info      *gpe_block,
+	void                            *context)
 {
-    UINT32                  i;
-    ACPI_STATUS             Status;
+	u32                             i;
+	acpi_status                     status;
 
 
-    /* Examine each GPE Register within the block */
+	/* Examine each GPE Register within the block */
 
-    for (i = 0; i < GpeBlock->RegisterCount; i++)
-    {
-        /* Disable all GPEs in this register */
+	for (i = 0; i < gpe_block->register_count; i++) {
 
-        Status = AcpiHwGpeEnableWrite (0x00, &GpeBlock->RegisterInfo[i]);
-        if (ACPI_FAILURE (Status))
-        {
-            return (Status);
-        }
-    }
+		/* Disable all GPEs in this register */
 
-    return (AE_OK);
+		status = acpi_hw_gpe_enable_write (0x00, &gpe_block->register_info[i]);
+		if (ACPI_FAILURE (status)) {
+			return (status);
+		}
+	}
+
+	return (AE_OK);
 }
 
 
 /******************************************************************************
  *
- * FUNCTION:    AcpiHwClearGpeBlock
+ * FUNCTION:    acpi_hw_clear_gpe_block
  *
- * PARAMETERS:  GpeXruptInfo        - GPE Interrupt info
- *              GpeBlock            - Gpe Block info
+ * PARAMETERS:  gpe_xrupt_info      - GPE Interrupt info
+ *              gpe_block           - Gpe Block info
  *
  * RETURN:      Status
  *
@@ -508,39 +352,38 @@ AcpiHwDisableGpeBlock (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiHwClearGpeBlock (
-    ACPI_GPE_XRUPT_INFO     *GpeXruptInfo,
-    ACPI_GPE_BLOCK_INFO     *GpeBlock,
-    void                    *Context)
+acpi_status
+acpi_hw_clear_gpe_block (
+	struct acpi_gpe_xrupt_info      *gpe_xrupt_info,
+	struct acpi_gpe_block_info      *gpe_block,
+	void                            *context)
 {
-    UINT32                  i;
-    ACPI_STATUS             Status;
+	u32                             i;
+	acpi_status                     status;
 
 
-    /* Examine each GPE Register within the block */
+	/* Examine each GPE Register within the block */
 
-    for (i = 0; i < GpeBlock->RegisterCount; i++)
-    {
-        /* Clear status on all GPEs in this register */
+	for (i = 0; i < gpe_block->register_count; i++) {
 
-        Status = AcpiHwWrite (0xFF, &GpeBlock->RegisterInfo[i].StatusAddress);
-        if (ACPI_FAILURE (Status))
-        {
-            return (Status);
-        }
-    }
+		/* Clear status on all GPEs in this register */
 
-    return (AE_OK);
+		status = acpi_hw_write (0xFF, &gpe_block->register_info[i].status_address);
+		if (ACPI_FAILURE (status)) {
+			return (status);
+		}
+	}
+
+	return (AE_OK);
 }
 
 
 /******************************************************************************
  *
- * FUNCTION:    AcpiHwEnableRuntimeGpeBlock
+ * FUNCTION:    acpi_hw_enable_runtime_gpe_block
  *
- * PARAMETERS:  GpeXruptInfo        - GPE Interrupt info
- *              GpeBlock            - Gpe Block info
+ * PARAMETERS:  gpe_xrupt_info      - GPE Interrupt info
+ *              gpe_block           - Gpe Block info
  *
  * RETURN:      Status
  *
@@ -549,51 +392,48 @@ AcpiHwClearGpeBlock (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiHwEnableRuntimeGpeBlock (
-    ACPI_GPE_XRUPT_INFO     *GpeXruptInfo,
-    ACPI_GPE_BLOCK_INFO     *GpeBlock,
-    void                    *Context)
+acpi_status
+acpi_hw_enable_runtime_gpe_block (
+	struct acpi_gpe_xrupt_info      *gpe_xrupt_info,
+	struct acpi_gpe_block_info      *gpe_block,
+	void                            *context)
 {
-    UINT32                  i;
-    ACPI_STATUS             Status;
-    ACPI_GPE_REGISTER_INFO  *GpeRegisterInfo;
-    UINT8                   EnableMask;
+	u32                             i;
+	acpi_status                     status;
+	struct acpi_gpe_register_info   *gpe_register_info;
+	u8                              enable_mask;
 
 
-    /* NOTE: assumes that all GPEs are currently disabled */
+	/* NOTE: assumes that all GPEs are currently disabled */
 
-    /* Examine each GPE Register within the block */
+	/* Examine each GPE Register within the block */
 
-    for (i = 0; i < GpeBlock->RegisterCount; i++)
-    {
-        GpeRegisterInfo = &GpeBlock->RegisterInfo[i];
-        if (!GpeRegisterInfo->EnableForRun)
-        {
-            continue;
-        }
+	for (i = 0; i < gpe_block->register_count; i++) {
+		gpe_register_info = &gpe_block->register_info[i];
+		if (!gpe_register_info->enable_for_run) {
+			continue;
+		}
 
-        /* Enable all "runtime" GPEs in this register */
+		/* Enable all "runtime" GPEs in this register */
 
-        EnableMask = GpeRegisterInfo->EnableForRun &
-            ~GpeRegisterInfo->MaskForRun;
-        Status = AcpiHwGpeEnableWrite (EnableMask, GpeRegisterInfo);
-        if (ACPI_FAILURE (Status))
-        {
-            return (Status);
-        }
-    }
+		enable_mask = gpe_register_info->enable_for_run &
+			~gpe_register_info->mask_for_run;
+		status = acpi_hw_gpe_enable_write (enable_mask, gpe_register_info);
+		if (ACPI_FAILURE (status)) {
+			return (status);
+		}
+	}
 
-    return (AE_OK);
+	return (AE_OK);
 }
 
 
 /******************************************************************************
  *
- * FUNCTION:    AcpiHwEnableWakeupGpeBlock
+ * FUNCTION:    acpi_hw_enable_wakeup_gpe_block
  *
- * PARAMETERS:  GpeXruptInfo        - GPE Interrupt info
- *              GpeBlock            - Gpe Block info
+ * PARAMETERS:  gpe_xrupt_info      - GPE Interrupt info
+ *              gpe_block           - Gpe Block info
  *
  * RETURN:      Status
  *
@@ -602,45 +442,43 @@ AcpiHwEnableRuntimeGpeBlock (
  *
  ******************************************************************************/
 
-static ACPI_STATUS
-AcpiHwEnableWakeupGpeBlock (
-    ACPI_GPE_XRUPT_INFO     *GpeXruptInfo,
-    ACPI_GPE_BLOCK_INFO     *GpeBlock,
-    void                    *Context)
+static acpi_status
+acpi_hw_enable_wakeup_gpe_block (
+	struct acpi_gpe_xrupt_info      *gpe_xrupt_info,
+	struct acpi_gpe_block_info      *gpe_block,
+	void                            *context)
 {
-    UINT32                  i;
-    ACPI_STATUS             Status;
-    ACPI_GPE_REGISTER_INFO  *GpeRegisterInfo;
+	u32                             i;
+	acpi_status                     status;
+	struct acpi_gpe_register_info   *gpe_register_info;
 
 
-    /* Examine each GPE Register within the block */
+	/* Examine each GPE Register within the block */
 
-    for (i = 0; i < GpeBlock->RegisterCount; i++)
-    {
-        GpeRegisterInfo = &GpeBlock->RegisterInfo[i];
+	for (i = 0; i < gpe_block->register_count; i++) {
+		gpe_register_info = &gpe_block->register_info[i];
 
-        /*
-         * Enable all "wake" GPEs in this register and disable the
-         * remaining ones.
-         */
-        Status = AcpiHwGpeEnableWrite (GpeRegisterInfo->EnableForWake,
-            GpeRegisterInfo);
-        if (ACPI_FAILURE (Status))
-        {
-            return (Status);
-        }
-    }
+		/*
+		 * Enable all "wake" GPEs in this register and disable the
+		 * remaining ones.
+		 */
+		status = acpi_hw_gpe_enable_write (gpe_register_info->enable_for_wake,
+			gpe_register_info);
+		if (ACPI_FAILURE (status)) {
+			return (status);
+		}
+	}
 
-    return (AE_OK);
+	return (AE_OK);
 }
 
 
 /******************************************************************************
  *
- * FUNCTION:    AcpiHwGetGpeBlockStatus
+ * FUNCTION:    acpi_hw_get_gpe_block_status
  *
- * PARAMETERS:  GpeXruptInfo    - GPE Interrupt info
- *              GpeBlock        - Gpe Block info
+ * PARAMETERS:  gpe_xrupt_info  - GPE Interrupt info
+ *              gpe_block       - Gpe Block info
  *
  * RETURN:      Success
  *
@@ -648,48 +486,45 @@ AcpiHwEnableWakeupGpeBlock (
  *
  ******************************************************************************/
 
-static ACPI_STATUS
-AcpiHwGetGpeBlockStatus(
-    ACPI_GPE_XRUPT_INFO     *GpeXruptInfo,
-    ACPI_GPE_BLOCK_INFO     *GpeBlock,
-    void *RetPtr)
+static acpi_status
+acpi_hw_get_gpe_block_status(
+	struct acpi_gpe_xrupt_info      *gpe_xrupt_info,
+	struct acpi_gpe_block_info      *gpe_block,
+	void *ret_ptr)
 {
-    ACPI_GPE_REGISTER_INFO  *GpeRegisterInfo;
-    UINT64                  InEnable;
-    UINT64                  InStatus;
-    ACPI_STATUS             Status;
-    UINT8                   *Ret = RetPtr;
-    UINT32                  i;
+	struct acpi_gpe_register_info   *gpe_register_info;
+	u64                             in_enable;
+	u64                             in_status;
+	acpi_status                     status;
+	u8                              *ret = ret_ptr;
+	u32                             i;
 
 
-    /* Examine each GPE Register within the block */
+	/* Examine each GPE Register within the block */
 
-    for (i = 0; i < GpeBlock->RegisterCount; i++)
-    {
-        GpeRegisterInfo = &GpeBlock->RegisterInfo[i];
+	for (i = 0; i < gpe_block->register_count; i++) {
+		gpe_register_info = &gpe_block->register_info[i];
 
-        Status = AcpiHwRead (&InEnable, &GpeRegisterInfo->EnableAddress);
-        if (ACPI_FAILURE (Status))
-        {
-            continue;
-        }
+		status = acpi_hw_read (&in_enable, &gpe_register_info->enable_address);
+		if (ACPI_FAILURE (status)) {
+			continue;
+		}
 
-        Status = AcpiHwRead (&InStatus, &GpeRegisterInfo->StatusAddress);
-        if (ACPI_FAILURE (Status))
-        {
-            continue;
-        }
+		status = acpi_hw_read (&in_status, &gpe_register_info->status_address);
+		if (ACPI_FAILURE (status)) {
+			continue;
+		}
 
-        *Ret |= InEnable & InStatus;
-    }
+		*ret |= in_enable & in_status;
+	}
 
-    return (AE_OK);
+	return (AE_OK);
 }
 
 
 /******************************************************************************
  *
- * FUNCTION:    AcpiHwDisableAllGpes
+ * FUNCTION:    acpi_hw_disable_all_gpes
  *
  * PARAMETERS:  None
  *
@@ -699,24 +534,24 @@ AcpiHwGetGpeBlockStatus(
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiHwDisableAllGpes (
-    void)
+acpi_status
+acpi_hw_disable_all_gpes (
+	void)
 {
-    ACPI_STATUS             Status;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE (HwDisableAllGpes);
+	ACPI_FUNCTION_TRACE (hw_disable_all_gpes);
 
 
-    Status = AcpiEvWalkGpeList (AcpiHwDisableGpeBlock, NULL);
-    return_ACPI_STATUS (Status);
+	status = acpi_ev_walk_gpe_list (acpi_hw_disable_gpe_block, NULL);
+	return_ACPI_STATUS (status);
 }
 
 
 /******************************************************************************
  *
- * FUNCTION:    AcpiHwEnableAllRuntimeGpes
+ * FUNCTION:    acpi_hw_enable_all_runtime_gpes
  *
  * PARAMETERS:  None
  *
@@ -726,24 +561,24 @@ AcpiHwDisableAllGpes (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiHwEnableAllRuntimeGpes (
-    void)
+acpi_status
+acpi_hw_enable_all_runtime_gpes (
+	void)
 {
-    ACPI_STATUS             Status;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE (HwEnableAllRuntimeGpes);
+	ACPI_FUNCTION_TRACE (hw_enable_all_runtime_gpes);
 
 
-    Status = AcpiEvWalkGpeList (AcpiHwEnableRuntimeGpeBlock, NULL);
-    return_ACPI_STATUS (Status);
+	status = acpi_ev_walk_gpe_list (acpi_hw_enable_runtime_gpe_block, NULL);
+	return_ACPI_STATUS (status);
 }
 
 
 /******************************************************************************
  *
- * FUNCTION:    AcpiHwEnableAllWakeupGpes
+ * FUNCTION:    acpi_hw_enable_all_wakeup_gpes
  *
  * PARAMETERS:  None
  *
@@ -753,24 +588,24 @@ AcpiHwEnableAllRuntimeGpes (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiHwEnableAllWakeupGpes (
-    void)
+acpi_status
+acpi_hw_enable_all_wakeup_gpes (
+	void)
 {
-    ACPI_STATUS             Status;
+	acpi_status                     status;
 
 
-    ACPI_FUNCTION_TRACE (HwEnableAllWakeupGpes);
+	ACPI_FUNCTION_TRACE (hw_enable_all_wakeup_gpes);
 
 
-    Status = AcpiEvWalkGpeList (AcpiHwEnableWakeupGpeBlock, NULL);
-    return_ACPI_STATUS (Status);
+	status = acpi_ev_walk_gpe_list (acpi_hw_enable_wakeup_gpe_block, NULL);
+	return_ACPI_STATUS (status);
 }
 
 
 /******************************************************************************
  *
- * FUNCTION:    AcpiHwCheckAllGpes
+ * FUNCTION:    acpi_hw_check_all_gpes
  *
  * PARAMETERS:  None
  *
@@ -781,17 +616,17 @@ AcpiHwEnableAllWakeupGpes (
  *
  ******************************************************************************/
 
-UINT8
-AcpiHwCheckAllGpes (
-    void)
+u8
+acpi_hw_check_all_gpes (
+	void)
 {
-    UINT8                      Ret = 0;
+	u8                                 ret = 0;
 
 
-    ACPI_FUNCTION_TRACE (AcpiHwCheckAllGpes);
+	ACPI_FUNCTION_TRACE (acpi_hw_check_all_gpes);
 
-    (void) AcpiEvWalkGpeList (AcpiHwGetGpeBlockStatus, &Ret);
-    return (Ret != 0);
+	(void) acpi_ev_walk_gpe_list (acpi_hw_get_gpe_block_status, &ret);
+	return (ret != 0);
 }
 
 #endif /* !ACPI_REDUCED_HARDWARE */

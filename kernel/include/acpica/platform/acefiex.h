@@ -1,153 +1,12 @@
+/* SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0 */
 /******************************************************************************
  *
  * Name: acefiex.h - Extra OS specific defines, etc. for EFI
  *
+ * Copyright (C) 2000 - 2022, Intel Corp.
+ *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #ifndef __ACEFIEX_H__
 #define __ACEFIEX_H__
@@ -155,12 +14,12 @@
 
 #ifndef ACPI_USE_SYSTEM_CLIBRARY
 
-typedef signed char                     int8_t;
-typedef short int                       int16_t;
-typedef int                             int32_t;
-typedef unsigned char                   uint8_t;
-typedef unsigned short int              uint16_t;
-typedef unsigned int                    uint32_t;
+typedef signed char                             int8_t;
+typedef short int                               int16_t;
+typedef int                                     int32_t;
+typedef unsigned char                           uint8_t;
+typedef unsigned short int                      uint16_t;
+typedef unsigned int                            uint32_t;
 typedef COMPILER_DEPENDENT_INT64        int64_t;
 typedef COMPILER_DEPENDENT_UINT64       uint64_t;
 
@@ -197,58 +56,58 @@ typedef VOID *ACPI_EFI_HANDLE;
 typedef VOID *ACPI_EFI_EVENT;
 
 typedef struct {
-    UINT32  Data1;
-    UINT16  Data2;
-    UINT16  Data3;
-    UINT8   Data4[8];
+	u32  data1;
+	u16  data2;
+	u16  data3;
+	u8   data4[8];
 } ACPI_EFI_GUID;
 
 typedef struct {
-    UINT16 Year;       /* 1998 - 20XX */
-    UINT8  Month;      /* 1 - 12 */
-    UINT8  Day;        /* 1 - 31 */
-    UINT8  Hour;       /* 0 - 23 */
-    UINT8  Minute;     /* 0 - 59 */
-    UINT8  Second;     /* 0 - 59 */
-    UINT8  Pad1;
-    UINT32 Nanosecond; /* 0 - 999,999,999 */
-    INT16  TimeZone;   /* -1440 to 1440 or 2047 */
-    UINT8  Daylight;
-    UINT8  Pad2;
+	u16 year;       /* 1998 - 20XX */
+	u8  month;      /* 1 - 12 */
+	u8  day;        /* 1 - 31 */
+	u8  hour;       /* 0 - 23 */
+	u8  minute;     /* 0 - 59 */
+	u8  second;     /* 0 - 59 */
+	u8  pad1;
+	u32 nanosecond; /* 0 - 999,999,999 */
+	s16  time_zone;  /* -1440 to 1440 or 2047 */
+	u8  daylight;
+	u8  pad2;
 } ACPI_EFI_TIME;
 
-typedef struct _ACPI_EFI_DEVICE_PATH {
-        UINT8                           Type;
-        UINT8                           SubType;
-        UINT8                           Length[2];
-} ACPI_EFI_DEVICE_PATH;
+struct _ACPI_EFI_DEVICE_PATH {
+		u8                                      type;
+		u8                                      sub_type;
+		u8                                      length[2];
+};
 
-typedef UINT64          ACPI_EFI_PHYSICAL_ADDRESS;
-typedef UINT64          ACPI_EFI_VIRTUAL_ADDRESS;
+typedef u64                     ACPI_EFI_PHYSICAL_ADDRESS;
+typedef u64                     ACPI_EFI_VIRTUAL_ADDRESS;
 
 typedef enum {
-    AcpiEfiAllocateAnyPages,
-    AcpiEfiAllocateMaxAddress,
-    AcpiEfiAllocateAddress,
-    AcpiEfiMaxAllocateType
+	acpi_efi_allocate_any_pages,
+	acpi_efi_allocate_max_address,
+	acpi_efi_allocate_address,
+	acpi_efi_max_allocate_type
 } ACPI_EFI_ALLOCATE_TYPE;
 
 typedef enum {
-    AcpiEfiReservedMemoryType,
-    AcpiEfiLoaderCode,
-    AcpiEfiLoaderData,
-    AcpiEfiBootServicesCode,
-    AcpiEfiBootServicesData,
-    AcpiEfiRuntimeServicesCode,
-    AcpiEfiRuntimeServicesData,
-    AcpiEfiConventionalMemory,
-    AcpiEfiUnusableMemory,
-    AcpiEfiACPIReclaimMemory,
-    AcpiEfiACPIMemoryNVS,
-    AcpiEfiMemoryMappedIO,
-    AcpiEfiMemoryMappedIOPortSpace,
-    AcpiEfiPalCode,
-    AcpiEfiMaxMemoryType
+	acpi_efi_reserved_memory_type,
+	acpi_efi_loader_code,
+	acpi_efi_loader_data,
+	acpi_efi_boot_services_code,
+	acpi_efi_boot_services_data,
+	acpi_efi_runtime_services_code,
+	acpi_efi_runtime_services_data,
+	acpi_efi_conventional_memory,
+	acpi_efi_unusable_memory,
+	acpi_efi_ACPireclaim_memory,
+	acpi_efi_ACPimemory_NVS,
+	acpi_efi_memory_mapped_IO,
+	acpi_efi_memory_mapped_Ioport_space,
+	acpi_efi_pal_code,
+	acpi_efi_max_memory_type
 } ACPI_EFI_MEMORY_TYPE;
 
 /* possible caching types for the memory range */
@@ -268,125 +127,125 @@ typedef enum {
 
 #define ACPI_EFI_MEMORY_DESCRIPTOR_VERSION  1
 typedef struct {
-    UINT32                          Type;
-    UINT32                          Pad;
-    ACPI_EFI_PHYSICAL_ADDRESS       PhysicalStart;
-    ACPI_EFI_VIRTUAL_ADDRESS        VirtualStart;
-    UINT64                          NumberOfPages;
-    UINT64                          Attribute;
+	u32                                     type;
+	u32                                     pad;
+	ACPI_EFI_PHYSICAL_ADDRESS       physical_start;
+	ACPI_EFI_VIRTUAL_ADDRESS        virtual_start;
+	u64                                     number_of_pages;
+	u64                                     attribute;
 } ACPI_EFI_MEMORY_DESCRIPTOR;
 
-typedef struct _ACPI_EFI_TABLE_HEARDER {
-    UINT64                      Signature;
-    UINT32                      Revision;
-    UINT32                      HeaderSize;
-    UINT32                      CRC32;
-    UINT32                      Reserved;
-} ACPI_EFI_TABLE_HEADER;
+struct _ACPI_EFI_TABLE_HEARDER {
+	u64                                 signature;
+	u32                                 revision;
+	u32                                 header_size;
+	u32                                 CRC32;
+	u32                                 reserved;
+};
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_UNKNOWN_INTERFACE) (
-    void);
+	void);
 
 
 /*
  * Text output protocol
  */
 #define ACPI_SIMPLE_TEXT_OUTPUT_PROTOCOL \
-    { 0x387477c2, 0x69c7, 0x11d2, {0x8e, 0x39, 0x0, 0xa0, 0xc9, 0x69, 0x72, 0x3b} }
+	{ 0x387477c2, 0x69c7, 0x11d2, {0x8e, 0x39, 0x0, 0xa0, 0xc9, 0x69, 0x72, 0x3b} }
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_TEXT_RESET) (
-    struct _ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE   *This,
-    BOOLEAN                                     ExtendedVerification);
+	struct _ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE   *this,
+	u8                                                  extended_verification);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_TEXT_OUTPUT_STRING) (
-    struct _ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE   *This,
-    CHAR16                                      *String);
+	struct _ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE   *this,
+	CHAR16                                      *string);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_TEXT_TEST_STRING) (
-    struct _ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE   *This,
-    CHAR16                                      *String);
+	struct _ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE   *this,
+	CHAR16                                      *string);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_TEXT_QUERY_MODE) (
-    struct _ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE   *This,
-    UINTN                                       ModeNumber,
-    UINTN                                       *Columns,
-    UINTN                                       *Rows);
+	struct _ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE   *this,
+	UINTN                                       mode_number,
+	UINTN                                       *columns,
+	UINTN                                       *rows);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_TEXT_SET_MODE) (
-    struct _ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE   *This,
-    UINTN                                       ModeNumber);
+	struct _ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE   *this,
+	UINTN                                       mode_number);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_TEXT_SET_ATTRIBUTE) (
-    struct _ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE   *This,
-    UINTN                                       Attribute);
+	struct _ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE   *this,
+	UINTN                                       attribute);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_TEXT_CLEAR_SCREEN) (
-    struct _ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE   *This);
+	struct _ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE   *this);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_TEXT_SET_CURSOR_POSITION) (
-    struct _ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE   *This,
-    UINTN                                       Column,
-    UINTN                                       Row);
+	struct _ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE   *this,
+	UINTN                                       column,
+	UINTN                                       row);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_TEXT_ENABLE_CURSOR) (
-    struct _ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE   *This,
-    BOOLEAN                                     Enable);
+	struct _ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE   *this,
+	u8                                                  enable);
 
 typedef struct {
-    INT32                           MaxMode;
-    INT32                           Mode;
-    INT32                           Attribute;
-    INT32                           CursorColumn;
-    INT32                           CursorRow;
-    BOOLEAN                         CursorVisible;
+	s32                                     max_mode;
+	s32                                     mode;
+	s32                                     attribute;
+	s32                                     cursor_column;
+	s32                                     cursor_row;
+	u8                                      cursor_visible;
 } ACPI_SIMPLE_TEXT_OUTPUT_MODE;
 
-typedef struct _ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE {
-    ACPI_EFI_TEXT_RESET                 Reset;
+struct _ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE {
+	ACPI_EFI_TEXT_RESET                 reset;
 
-    ACPI_EFI_TEXT_OUTPUT_STRING         OutputString;
-    ACPI_EFI_TEXT_TEST_STRING           TestString;
+	ACPI_EFI_TEXT_OUTPUT_STRING         output_string;
+	ACPI_EFI_TEXT_TEST_STRING           test_string;
 
-    ACPI_EFI_TEXT_QUERY_MODE            QueryMode;
-    ACPI_EFI_TEXT_SET_MODE              SetMode;
-    ACPI_EFI_TEXT_SET_ATTRIBUTE         SetAttribute;
+	ACPI_EFI_TEXT_QUERY_MODE            query_mode;
+	ACPI_EFI_TEXT_SET_MODE              set_mode;
+	ACPI_EFI_TEXT_SET_ATTRIBUTE         set_attribute;
 
-    ACPI_EFI_TEXT_CLEAR_SCREEN          ClearScreen;
-    ACPI_EFI_TEXT_SET_CURSOR_POSITION   SetCursorPosition;
-    ACPI_EFI_TEXT_ENABLE_CURSOR         EnableCursor;
+	ACPI_EFI_TEXT_CLEAR_SCREEN          clear_screen;
+	ACPI_EFI_TEXT_SET_CURSOR_POSITION   set_cursor_position;
+	ACPI_EFI_TEXT_ENABLE_CURSOR         enable_cursor;
 
-    ACPI_SIMPLE_TEXT_OUTPUT_MODE        *Mode;
-} ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE;
+	ACPI_SIMPLE_TEXT_OUTPUT_MODE        *mode;
+};
 
 /*
  * Text input protocol
  */
 #define ACPI_SIMPLE_TEXT_INPUT_PROTOCOL  \
-    { 0x387477c1, 0x69c7, 0x11d2, {0x8e, 0x39, 0x0, 0xa0, 0xc9, 0x69, 0x72, 0x3b} }
+	{ 0x387477c1, 0x69c7, 0x11d2, {0x8e, 0x39, 0x0, 0xa0, 0xc9, 0x69, 0x72, 0x3b} }
 
 typedef struct {
-    UINT16                              ScanCode;
-    CHAR16                              UnicodeChar;
+	u16                                         scan_code;
+	CHAR16                              unicode_char;
 } ACPI_EFI_INPUT_KEY;
 
 /*
@@ -401,51 +260,51 @@ typedef struct {
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_INPUT_RESET) (
-    struct _ACPI_SIMPLE_INPUT_INTERFACE         *This,
-    BOOLEAN                                     ExtendedVerification);
+	struct _ACPI_SIMPLE_INPUT_INTERFACE         *this,
+	u8                                                  extended_verification);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_INPUT_READ_KEY) (
-    struct _ACPI_SIMPLE_INPUT_INTERFACE         *This,
-    ACPI_EFI_INPUT_KEY                          *Key);
+	struct _ACPI_SIMPLE_INPUT_INTERFACE         *this,
+	ACPI_EFI_INPUT_KEY                          *key);
 
-typedef struct _ACPI_SIMPLE_INPUT_INTERFACE {
-    ACPI_EFI_INPUT_RESET                    Reset;
-    ACPI_EFI_INPUT_READ_KEY                 ReadKeyStroke;
-    ACPI_EFI_EVENT                          WaitForKey;
-} ACPI_SIMPLE_INPUT_INTERFACE;
+struct _ACPI_SIMPLE_INPUT_INTERFACE {
+	ACPI_EFI_INPUT_RESET                    reset;
+	ACPI_EFI_INPUT_READ_KEY                 read_key_stroke;
+	ACPI_EFI_EVENT                          wait_for_key;
+};
 
 
 /*
  * Simple file system protocol
  */
 #define ACPI_SIMPLE_FILE_SYSTEM_PROTOCOL \
-    { 0x964e5b22, 0x6459, 0x11d2, {0x8e, 0x39, 0x0, 0xa0, 0xc9, 0x69, 0x72, 0x3b} }
+	{ 0x964e5b22, 0x6459, 0x11d2, {0x8e, 0x39, 0x0, 0xa0, 0xc9, 0x69, 0x72, 0x3b} }
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_VOLUME_OPEN) (
-    struct _ACPI_EFI_FILE_IO_INTERFACE          *This,
-    struct _ACPI_EFI_FILE_HANDLE                **Root);
+	struct _ACPI_EFI_FILE_IO_INTERFACE          *this,
+	struct _ACPI_EFI_FILE_HANDLE                **root);
 
 #define ACPI_EFI_FILE_IO_INTERFACE_REVISION     0x00010000
 
-typedef struct _ACPI_EFI_FILE_IO_INTERFACE {
-    UINT64                  Revision;
-    ACPI_EFI_VOLUME_OPEN    OpenVolume;
-} ACPI_EFI_FILE_IO_INTERFACE;
+struct _ACPI_EFI_FILE_IO_INTERFACE {
+	u64                             revision;
+	ACPI_EFI_VOLUME_OPEN    open_volume;
+};
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_FILE_OPEN) (
-    struct _ACPI_EFI_FILE_HANDLE                *File,
-    struct _ACPI_EFI_FILE_HANDLE                **NewHandle,
-    CHAR16                                      *FileName,
-    UINT64                                      OpenMode,
-    UINT64                                      Attributes);
+	struct _ACPI_EFI_FILE_HANDLE                *file,
+	struct _ACPI_EFI_FILE_HANDLE                **new_handle,
+	CHAR16                                      *file_name,
+	u64                                                 open_mode,
+	u64                                                 attributes);
 
-/* Values for OpenMode used above */
+/* Values for open_mode used above */
 
 #define ACPI_EFI_FILE_MODE_READ     0x0000000000000001
 #define ACPI_EFI_FILE_MODE_WRITE    0x0000000000000002
@@ -464,166 +323,166 @@ ACPI_EFI_STATUS
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_FILE_CLOSE) (
-    struct _ACPI_EFI_FILE_HANDLE                *File);
+	struct _ACPI_EFI_FILE_HANDLE                *file);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_FILE_DELETE) (
-    struct _ACPI_EFI_FILE_HANDLE                *File);
+	struct _ACPI_EFI_FILE_HANDLE                *file);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_FILE_READ) (
-    struct _ACPI_EFI_FILE_HANDLE                *File,
-    UINTN                                       *BufferSize,
-    VOID                                        *Buffer);
+	struct _ACPI_EFI_FILE_HANDLE                *file,
+	UINTN                                       *buffer_size,
+	VOID                                        *buffer);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_FILE_WRITE) (
-    struct _ACPI_EFI_FILE_HANDLE                *File,
-    UINTN                                       *BufferSize,
-    VOID                                        *Buffer);
+	struct _ACPI_EFI_FILE_HANDLE                *file,
+	UINTN                                       *buffer_size,
+	VOID                                        *buffer);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_FILE_SET_POSITION) (
-    struct _ACPI_EFI_FILE_HANDLE                *File,
-    UINT64                                      Position);
+	struct _ACPI_EFI_FILE_HANDLE                *file,
+	u64                                                 position);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_FILE_GET_POSITION) (
-    struct _ACPI_EFI_FILE_HANDLE                *File,
-    UINT64                                      *Position);
+	struct _ACPI_EFI_FILE_HANDLE                *file,
+	u64                                                 *position);
 
 #define ACPI_EFI_FILE_INFO_ID \
-    { 0x9576e92, 0x6d3f, 0x11d2, {0x8e, 0x39, 0x0, 0xa0, 0xc9, 0x69, 0x72, 0x3b} }
+	{ 0x9576e92, 0x6d3f, 0x11d2, {0x8e, 0x39, 0x0, 0xa0, 0xc9, 0x69, 0x72, 0x3b} }
 
 typedef struct {
-    UINT64 Size;
-    UINT64 FileSize;
-    UINT64 PhysicalSize;
-    ACPI_EFI_TIME CreateTime;
-    ACPI_EFI_TIME LastAccessTime;
-    ACPI_EFI_TIME ModificationTime;
-    UINT64 Attribute;
-    CHAR16 FileName[1];
+	u64 size;
+	u64 file_size;
+	u64 physical_size;
+	ACPI_EFI_TIME create_time;
+	ACPI_EFI_TIME last_access_time;
+	ACPI_EFI_TIME modification_time;
+	u64 attribute;
+	CHAR16 file_name[1];
 } ACPI_EFI_FILE_INFO;
 
-#define SIZE_OF_ACPI_EFI_FILE_INFO  ACPI_OFFSET(ACPI_EFI_FILE_INFO, FileName)
+#define SIZE_OF_ACPI_EFI_FILE_INFO  ACPI_OFFSET(ACPI_EFI_FILE_INFO, file_name)
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_FILE_GET_INFO) (
-    struct _ACPI_EFI_FILE_HANDLE                *File,
-    ACPI_EFI_GUID                               *InformationType,
-    UINTN                                       *BufferSize,
-    VOID                                        *Buffer);
+	struct _ACPI_EFI_FILE_HANDLE                *file,
+	ACPI_EFI_GUID                               *information_type,
+	UINTN                                       *buffer_size,
+	VOID                                        *buffer);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_FILE_SET_INFO) (
-    struct _ACPI_EFI_FILE_HANDLE                *File,
-    ACPI_EFI_GUID                               *InformationType,
-    UINTN                                       BufferSize,
-    VOID                                        *Buffer);
+	struct _ACPI_EFI_FILE_HANDLE                *file,
+	ACPI_EFI_GUID                               *information_type,
+	UINTN                                       buffer_size,
+	VOID                                        *buffer);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_FILE_FLUSH) (
-    struct _ACPI_EFI_FILE_HANDLE                *File);
+	struct _ACPI_EFI_FILE_HANDLE                *file);
 
 
 #define ACPI_EFI_FILE_HANDLE_REVISION           0x00010000
 
-typedef struct _ACPI_EFI_FILE_HANDLE {
-    UINT64                      Revision;
-    ACPI_EFI_FILE_OPEN          Open;
-    ACPI_EFI_FILE_CLOSE         Close;
-    ACPI_EFI_FILE_DELETE        Delete;
-    ACPI_EFI_FILE_READ          Read;
-    ACPI_EFI_FILE_WRITE         Write;
-    ACPI_EFI_FILE_GET_POSITION  GetPosition;
-    ACPI_EFI_FILE_SET_POSITION  SetPosition;
-    ACPI_EFI_FILE_GET_INFO      GetInfo;
-    ACPI_EFI_FILE_SET_INFO      SetInfo;
-    ACPI_EFI_FILE_FLUSH         Flush;
-} ACPI_EFI_FILE_STRUCT, *ACPI_EFI_FILE_HANDLE;
+struct _ACPI_EFI_FILE_HANDLE {
+	u64                                 revision;
+	ACPI_EFI_FILE_OPEN          open;
+	ACPI_EFI_FILE_CLOSE         close;
+	ACPI_EFI_FILE_DELETE        delete;
+	ACPI_EFI_FILE_READ          read;
+	ACPI_EFI_FILE_WRITE         write;
+	ACPI_EFI_FILE_GET_POSITION  get_position;
+	ACPI_EFI_FILE_SET_POSITION  set_position;
+	ACPI_EFI_FILE_GET_INFO      get_info;
+	ACPI_EFI_FILE_SET_INFO      set_info;
+	ACPI_EFI_FILE_FLUSH         flush;
+};
 
 
 /*
  * Loaded image protocol
  */
 #define ACPI_EFI_LOADED_IMAGE_PROTOCOL \
-    { 0x5B1B31A1, 0x9562, 0x11d2, {0x8E, 0x3F, 0x00, 0xA0, 0xC9, 0x69, 0x72, 0x3B} }
+	{ 0x5B1B31A1, 0x9562, 0x11d2, {0x8E, 0x3F, 0x00, 0xA0, 0xC9, 0x69, 0x72, 0x3B} }
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_IMAGE_ENTRY_POINT) (
-    ACPI_EFI_HANDLE                         ImageHandle,
-    struct _ACPI_EFI_SYSTEM_TABLE           *SystemTable);
+	ACPI_EFI_HANDLE                         image_handle,
+	struct _ACPI_EFI_SYSTEM_TABLE           *system_table);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_IMAGE_LOAD) (
-    BOOLEAN                         BootPolicy,
-    ACPI_EFI_HANDLE                 ParentImageHandle,
-    ACPI_EFI_DEVICE_PATH            *FilePath,
-    VOID                            *SourceBuffer,
-    UINTN                           SourceSize,
-    ACPI_EFI_HANDLE                 *ImageHandle);
+	u8                                      boot_policy,
+	ACPI_EFI_HANDLE                 parent_image_handle,
+	ACPI_EFI_DEVICE_PATH            *file_path,
+	VOID                            *source_buffer,
+	UINTN                           source_size,
+	ACPI_EFI_HANDLE                 *image_handle);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_IMAGE_START) (
-    ACPI_EFI_HANDLE                 ImageHandle,
-    UINTN                           *ExitDataSize,
-    CHAR16                          **ExitData);
+	ACPI_EFI_HANDLE                 image_handle,
+	UINTN                           *exit_data_size,
+	CHAR16                          **exit_data);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_EXIT) (
-    ACPI_EFI_HANDLE                 ImageHandle,
-    ACPI_EFI_STATUS                 ExitStatus,
-    UINTN                           ExitDataSize,
-    CHAR16                          *ExitData);
+	ACPI_EFI_HANDLE                 image_handle,
+	ACPI_EFI_STATUS                 exit_status,
+	UINTN                           exit_data_size,
+	CHAR16                          *exit_data);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_IMAGE_UNLOAD) (
-    ACPI_EFI_HANDLE                 ImageHandle);
+	ACPI_EFI_HANDLE                 image_handle);
 
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_STALL) (
-    UINTN                           Microseconds);
+	UINTN                           microseconds);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_SET_WATCHDOG_TIMER) (
-    UINTN                           Timeout,
-    UINT64                          WatchdogCode,
-    UINTN                           DataSize,
-    CHAR16                          *WatchdogData);
+	UINTN                           timeout,
+	u64                                     watchdog_code,
+	UINTN                           data_size,
+	CHAR16                          *watchdog_data);
 
 
 #define EFI_IMAGE_INFORMATION_REVISION      0x1000
 typedef struct {
-    UINT32                          Revision;
-    ACPI_EFI_HANDLE                 ParentHandle;
-    struct _ACPI_EFI_SYSTEM_TABLE   *SystemTable;
-    ACPI_EFI_HANDLE                 DeviceHandle;
-    ACPI_EFI_DEVICE_PATH            *FilePath;
-    VOID                            *Reserved;
-    UINT32                          LoadOptionsSize;
-    VOID                            *LoadOptions;
-    VOID                            *ImageBase;
-    UINT64                          ImageSize;
-    ACPI_EFI_MEMORY_TYPE            ImageCodeType;
-    ACPI_EFI_MEMORY_TYPE            ImageDataType;
-    ACPI_EFI_IMAGE_UNLOAD           Unload;
+	u32                                     revision;
+	ACPI_EFI_HANDLE                 parent_handle;
+	struct _ACPI_EFI_SYSTEM_TABLE   *system_table;
+	ACPI_EFI_HANDLE                 device_handle;
+	ACPI_EFI_DEVICE_PATH            *file_path;
+	VOID                            *reserved;
+	u32                                     load_options_size;
+	VOID                            *load_options;
+	VOID                            *image_base;
+	u64                                     image_size;
+	ACPI_EFI_MEMORY_TYPE            image_code_type;
+	ACPI_EFI_MEMORY_TYPE            image_data_type;
+	ACPI_EFI_IMAGE_UNLOAD           unload;
 
 } ACPI_EFI_LOADED_IMAGE;
 
@@ -634,134 +493,134 @@ typedef struct {
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_ALLOCATE_PAGES) (
-    ACPI_EFI_ALLOCATE_TYPE          Type,
-    ACPI_EFI_MEMORY_TYPE            MemoryType,
-    UINTN                           NoPages,
-    ACPI_EFI_PHYSICAL_ADDRESS       *Memory);
+	ACPI_EFI_ALLOCATE_TYPE          type,
+	ACPI_EFI_MEMORY_TYPE            memory_type,
+	UINTN                           no_pages,
+	ACPI_EFI_PHYSICAL_ADDRESS       *memory);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_FREE_PAGES) (
-    ACPI_EFI_PHYSICAL_ADDRESS       Memory,
-    UINTN                           NoPages);
+	ACPI_EFI_PHYSICAL_ADDRESS       memory,
+	UINTN                           no_pages);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_GET_MEMORY_MAP) (
-    UINTN                           *MemoryMapSize,
-    ACPI_EFI_MEMORY_DESCRIPTOR      *MemoryMap,
-    UINTN                           *MapKey,
-    UINTN                           *DescriptorSize,
-    UINT32                          *DescriptorVersion);
+	UINTN                           *memory_map_size,
+	ACPI_EFI_MEMORY_DESCRIPTOR      *memory_map,
+	UINTN                           *map_key,
+	UINTN                           *descriptor_size,
+	u32                                     *descriptor_version);
 
-#define NextMemoryDescriptor(Ptr,Size)  ((ACPI_EFI_MEMORY_DESCRIPTOR *) (((UINT8 *) Ptr) + Size))
+#define next_memory_descriptor(ptr,size) ((ACPI_EFI_MEMORY_DESCRIPTOR *) (((u8 *) ptr) + size))
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_ALLOCATE_POOL) (
-    ACPI_EFI_MEMORY_TYPE            PoolType,
-    UINTN                           Size,
-    VOID                            **Buffer);
+	ACPI_EFI_MEMORY_TYPE            pool_type,
+	UINTN                           size,
+	VOID                            **buffer);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_FREE_POOL) (
-    VOID                            *Buffer);
+	VOID                            *buffer);
 
 
 /*
  * EFI Time
  */
 typedef struct {
-    UINT32 Resolution;
-    UINT32 Accuracy;
-    BOOLEAN SetsToZero;
+	u32 resolution;
+	u32 accuracy;
+	u8 sets_to_zero;
 } ACPI_EFI_TIME_CAPABILITIES;
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_GET_TIME) (
-    ACPI_EFI_TIME                   *Time,
-    ACPI_EFI_TIME_CAPABILITIES      *Capabilities);
+	ACPI_EFI_TIME                   *time,
+	ACPI_EFI_TIME_CAPABILITIES      *capabilities);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_SET_TIME) (
-    ACPI_EFI_TIME                   *Time);
+	ACPI_EFI_TIME                   *time);
 
 
 /*
  * Protocol handler functions
  */
 typedef enum {
-    ACPI_EFI_NATIVE_INTERFACE,
-    ACPI_EFI_PCODE_INTERFACE
+	ACPI_EFI_NATIVE_INTERFACE,
+	ACPI_EFI_PCODE_INTERFACE
 } ACPI_EFI_INTERFACE_TYPE;
 
 typedef enum {
-    AcpiEfiAllHandles,
-    AcpiEfiByRegisterNotify,
-    AcpiEfiByProtocol
+	acpi_efi_all_handles,
+	acpi_efi_by_register_notify,
+	acpi_efi_by_protocol
 } ACPI_EFI_LOCATE_SEARCH_TYPE;
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_INSTALL_PROTOCOL_INTERFACE) (
-    ACPI_EFI_HANDLE                 *Handle,
-    ACPI_EFI_GUID                   *Protocol,
-    ACPI_EFI_INTERFACE_TYPE         InterfaceType,
-    VOID                            *Interface);
+	ACPI_EFI_HANDLE                 *handle,
+	ACPI_EFI_GUID                   *protocol,
+	ACPI_EFI_INTERFACE_TYPE         interface_type,
+	VOID                            *interface);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_REINSTALL_PROTOCOL_INTERFACE) (
-    ACPI_EFI_HANDLE                 Handle,
-    ACPI_EFI_GUID                   *Protocol,
-    VOID                            *OldInterface,
-    VOID                            *NewInterface);
+	ACPI_EFI_HANDLE                 handle,
+	ACPI_EFI_GUID                   *protocol,
+	VOID                            *old_interface,
+	VOID                            *new_interface);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_UNINSTALL_PROTOCOL_INTERFACE) (
-    ACPI_EFI_HANDLE                 Handle,
-    ACPI_EFI_GUID                   *Protocol,
-    VOID                            *Interface);
+	ACPI_EFI_HANDLE                 handle,
+	ACPI_EFI_GUID                   *protocol,
+	VOID                            *interface);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_HANDLE_PROTOCOL) (
-    ACPI_EFI_HANDLE                 Handle,
-    ACPI_EFI_GUID                   *Protocol,
-    VOID                            **Interface);
+	ACPI_EFI_HANDLE                 handle,
+	ACPI_EFI_GUID                   *protocol,
+	VOID                            **interface);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_REGISTER_PROTOCOL_NOTIFY) (
-    ACPI_EFI_GUID                   *Protocol,
-    ACPI_EFI_EVENT                  Event,
-    VOID                            **Registration);
+	ACPI_EFI_GUID                   *protocol,
+	ACPI_EFI_EVENT                  event,
+	VOID                            **registration);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_LOCATE_HANDLE) (
-    ACPI_EFI_LOCATE_SEARCH_TYPE     SearchType,
-    ACPI_EFI_GUID                   *Protocol,
-    VOID                            *SearchKey,
-    UINTN                           *BufferSize,
-    ACPI_EFI_HANDLE                 *Buffer);
+	ACPI_EFI_LOCATE_SEARCH_TYPE     search_type,
+	ACPI_EFI_GUID                   *protocol,
+	VOID                            *search_key,
+	UINTN                           *buffer_size,
+	ACPI_EFI_HANDLE                 *buffer);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_LOCATE_DEVICE_PATH) (
-    ACPI_EFI_GUID                   *Protocol,
-    ACPI_EFI_DEVICE_PATH            **DevicePath,
-    ACPI_EFI_HANDLE                 *Device);
+	ACPI_EFI_GUID                   *protocol,
+	ACPI_EFI_DEVICE_PATH            **device_path,
+	ACPI_EFI_HANDLE                 *device);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_INSTALL_CONFIGURATION_TABLE) (
-    ACPI_EFI_GUID                   *Guid,
-    VOID                            *Table);
+	ACPI_EFI_GUID                   *guid,
+	VOID                            *table);
 
 #define ACPI_EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL  0x00000001
 #define ACPI_EFI_OPEN_PROTOCOL_GET_PROTOCOL        0x00000002
@@ -773,91 +632,91 @@ ACPI_EFI_STATUS
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_OPEN_PROTOCOL) (
-    ACPI_EFI_HANDLE                 Handle,
-    ACPI_EFI_GUID                   *Protocol,
-    VOID                            **Interface,
-    ACPI_EFI_HANDLE                 AgentHandle,
-    ACPI_EFI_HANDLE                 ControllerHandle,
-    UINT32                          Attributes);
+	ACPI_EFI_HANDLE                 handle,
+	ACPI_EFI_GUID                   *protocol,
+	VOID                            **interface,
+	ACPI_EFI_HANDLE                 agent_handle,
+	ACPI_EFI_HANDLE                 controller_handle,
+	u32                                     attributes);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_CLOSE_PROTOCOL) (
-    ACPI_EFI_HANDLE                 Handle,
-    ACPI_EFI_GUID                   *Protocol,
-    ACPI_EFI_HANDLE                 AgentHandle,
-    ACPI_EFI_HANDLE                 ControllerHandle);
+	ACPI_EFI_HANDLE                 handle,
+	ACPI_EFI_GUID                   *protocol,
+	ACPI_EFI_HANDLE                 agent_handle,
+	ACPI_EFI_HANDLE                 controller_handle);
 
 typedef struct {
-    ACPI_EFI_HANDLE                 AgentHandle;
-    ACPI_EFI_HANDLE                 ControllerHandle;
-    UINT32                          Attributes;
-    UINT32                          OpenCount;
+	ACPI_EFI_HANDLE                 agent_handle;
+	ACPI_EFI_HANDLE                 controller_handle;
+	u32                                     attributes;
+	u32                                     open_count;
 } ACPI_EFI_OPEN_PROTOCOL_INFORMATION_ENTRY;
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_OPEN_PROTOCOL_INFORMATION) (
-    ACPI_EFI_HANDLE                 Handle,
-    ACPI_EFI_GUID                   *Protocol,
-    ACPI_EFI_OPEN_PROTOCOL_INFORMATION_ENTRY **EntryBuffer,
-    UINTN                           *EntryCount);
+	ACPI_EFI_HANDLE                 handle,
+	ACPI_EFI_GUID                   *protocol,
+	ACPI_EFI_OPEN_PROTOCOL_INFORMATION_ENTRY **entry_buffer,
+	UINTN                           *entry_count);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_PROTOCOLS_PER_HANDLE) (
-    ACPI_EFI_HANDLE                 Handle,
-    ACPI_EFI_GUID                   ***ProtocolBuffer,
-    UINTN                           *ProtocolBufferCount);
+	ACPI_EFI_HANDLE                 handle,
+	ACPI_EFI_GUID                   ***protocol_buffer,
+	UINTN                           *protocol_buffer_count);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_LOCATE_HANDLE_BUFFER) (
-    ACPI_EFI_LOCATE_SEARCH_TYPE     SearchType,
-    ACPI_EFI_GUID                   *Protocol,
-    VOID                            *SearchKey,
-    UINTN                           *NoHandles,
-    ACPI_EFI_HANDLE                 **Buffer);
+	ACPI_EFI_LOCATE_SEARCH_TYPE     search_type,
+	ACPI_EFI_GUID                   *protocol,
+	VOID                            *search_key,
+	UINTN                           *no_handles,
+	ACPI_EFI_HANDLE                 **buffer);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_LOCATE_PROTOCOL) (
-    ACPI_EFI_GUID                   *Protocol,
-    VOID                            *Registration,
-    VOID                            **Interface);
+	ACPI_EFI_GUID                   *protocol,
+	VOID                            *registration,
+	VOID                            **interface);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_INSTALL_MULTIPLE_PROTOCOL_INTERFACES) (
-    ACPI_EFI_HANDLE                 *Handle,
-    ...);
+	ACPI_EFI_HANDLE                 *handle,
+	...);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_UNINSTALL_MULTIPLE_PROTOCOL_INTERFACES) (
-    ACPI_EFI_HANDLE                 Handle,
-    ...);
+	ACPI_EFI_HANDLE                 handle,
+	...);
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_CALCULATE_CRC32) (
-    VOID                            *Data,
-    UINTN                           DataSize,
-    UINT32                          *Crc32);
+	VOID                            *data,
+	UINTN                           data_size,
+	u32                                     *crc32);
 
 typedef
 VOID
 (ACPI_EFI_API *ACPI_EFI_COPY_MEM) (
-    VOID                            *Destination,
-    VOID                            *Source,
-    UINTN                           Length);
+	VOID                            *destination,
+	VOID                            *source,
+	UINTN                           length);
 
 typedef
 VOID
 (ACPI_EFI_API *ACPI_EFI_SET_MEM) (
-    VOID                            *Buffer,
-    UINTN                           Size,
-    UINT8                           Value);
+	VOID                            *buffer,
+	UINTN                           size,
+	u8                                      value);
 
 /*
  * EFI Boot Services Table
@@ -865,92 +724,92 @@ VOID
 #define ACPI_EFI_BOOT_SERVICES_SIGNATURE 0x56524553544f4f42
 #define ACPI_EFI_BOOT_SERVICES_REVISION  (ACPI_EFI_SPECIFICATION_MAJOR_REVISION<<16) | (ACPI_EFI_SPECIFICATION_MINOR_REVISION)
 
-typedef struct _ACPI_EFI_BOOT_SERVICES {
-    ACPI_EFI_TABLE_HEADER               Hdr;
+struct _ACPI_EFI_BOOT_SERVICES {
+	ACPI_EFI_TABLE_HEADER               hdr;
 
 #if 0
-    ACPI_EFI_RAISE_TPL                  RaiseTPL;
-    ACPI_EFI_RESTORE_TPL                RestoreTPL;
+	ACPI_EFI_RAISE_TPL                  raise_TPL;
+	ACPI_EFI_RESTORE_TPL                restore_TPL;
 #else
-    ACPI_EFI_UNKNOWN_INTERFACE          RaiseTPL;
-    ACPI_EFI_UNKNOWN_INTERFACE          RestoreTPL;
+	ACPI_EFI_UNKNOWN_INTERFACE          raise_TPL;
+	ACPI_EFI_UNKNOWN_INTERFACE          restore_TPL;
 #endif
 
-    ACPI_EFI_ALLOCATE_PAGES             AllocatePages;
-    ACPI_EFI_FREE_PAGES                 FreePages;
-    ACPI_EFI_GET_MEMORY_MAP             GetMemoryMap;
-    ACPI_EFI_ALLOCATE_POOL              AllocatePool;
-    ACPI_EFI_FREE_POOL                  FreePool;
+	ACPI_EFI_ALLOCATE_PAGES             allocate_pages;
+	ACPI_EFI_FREE_PAGES                 free_pages;
+	ACPI_EFI_GET_MEMORY_MAP             get_memory_map;
+	ACPI_EFI_ALLOCATE_POOL              allocate_pool;
+	ACPI_EFI_FREE_POOL                  free_pool;
 
 #if 0
-    ACPI_EFI_CREATE_EVENT               CreateEvent;
-    ACPI_EFI_SET_TIMER                  SetTimer;
-    ACPI_EFI_WAIT_FOR_EVENT             WaitForEvent;
-    ACPI_EFI_SIGNAL_EVENT               SignalEvent;
-    ACPI_EFI_CLOSE_EVENT                CloseEvent;
-    ACPI_EFI_CHECK_EVENT                CheckEvent;
+	ACPI_EFI_CREATE_EVENT               create_event;
+	ACPI_EFI_SET_TIMER                  set_timer;
+	ACPI_EFI_WAIT_FOR_EVENT             wait_for_event;
+	ACPI_EFI_SIGNAL_EVENT               signal_event;
+	ACPI_EFI_CLOSE_EVENT                close_event;
+	ACPI_EFI_CHECK_EVENT                check_event;
 #else
-    ACPI_EFI_UNKNOWN_INTERFACE          CreateEvent;
-    ACPI_EFI_UNKNOWN_INTERFACE          SetTimer;
-    ACPI_EFI_UNKNOWN_INTERFACE          WaitForEvent;
-    ACPI_EFI_UNKNOWN_INTERFACE          SignalEvent;
-    ACPI_EFI_UNKNOWN_INTERFACE          CloseEvent;
-    ACPI_EFI_UNKNOWN_INTERFACE          CheckEvent;
+	ACPI_EFI_UNKNOWN_INTERFACE          create_event;
+	ACPI_EFI_UNKNOWN_INTERFACE          set_timer;
+	ACPI_EFI_UNKNOWN_INTERFACE          wait_for_event;
+	ACPI_EFI_UNKNOWN_INTERFACE          signal_event;
+	ACPI_EFI_UNKNOWN_INTERFACE          close_event;
+	ACPI_EFI_UNKNOWN_INTERFACE          check_event;
 #endif
 
-    ACPI_EFI_INSTALL_PROTOCOL_INTERFACE InstallProtocolInterface;
-    ACPI_EFI_REINSTALL_PROTOCOL_INTERFACE ReinstallProtocolInterface;
-    ACPI_EFI_UNINSTALL_PROTOCOL_INTERFACE UninstallProtocolInterface;
-    ACPI_EFI_HANDLE_PROTOCOL            HandleProtocol;
-    ACPI_EFI_HANDLE_PROTOCOL            PCHandleProtocol;
-    ACPI_EFI_REGISTER_PROTOCOL_NOTIFY   RegisterProtocolNotify;
-    ACPI_EFI_LOCATE_HANDLE              LocateHandle;
-    ACPI_EFI_LOCATE_DEVICE_PATH         LocateDevicePath;
-    ACPI_EFI_INSTALL_CONFIGURATION_TABLE InstallConfigurationTable;
+	ACPI_EFI_INSTALL_PROTOCOL_INTERFACE install_protocol_interface;
+	ACPI_EFI_REINSTALL_PROTOCOL_INTERFACE reinstall_protocol_interface;
+	ACPI_EFI_UNINSTALL_PROTOCOL_INTERFACE uninstall_protocol_interface;
+	ACPI_EFI_HANDLE_PROTOCOL            handle_protocol;
+	ACPI_EFI_HANDLE_PROTOCOL            Pchandle_protocol;
+	ACPI_EFI_REGISTER_PROTOCOL_NOTIFY   register_protocol_notify;
+	ACPI_EFI_LOCATE_HANDLE              locate_handle;
+	ACPI_EFI_LOCATE_DEVICE_PATH         locate_device_path;
+	ACPI_EFI_INSTALL_CONFIGURATION_TABLE install_configuration_table;
 
-    ACPI_EFI_IMAGE_LOAD                 LoadImage;
-    ACPI_EFI_IMAGE_START                StartImage;
-    ACPI_EFI_EXIT                       Exit;
-    ACPI_EFI_IMAGE_UNLOAD               UnloadImage;
+	ACPI_EFI_IMAGE_LOAD                 load_image;
+	ACPI_EFI_IMAGE_START                start_image;
+	ACPI_EFI_EXIT                       exit;
+	ACPI_EFI_IMAGE_UNLOAD               unload_image;
 
 #if 0
-    ACPI_EFI_EXIT_BOOT_SERVICES         ExitBootServices;
-    ACPI_EFI_GET_NEXT_MONOTONIC_COUNT   GetNextMonotonicCount;
+	ACPI_EFI_EXIT_BOOT_SERVICES         exit_boot_services;
+	ACPI_EFI_GET_NEXT_MONOTONIC_COUNT   get_next_monotonic_count;
 #else
-    ACPI_EFI_UNKNOWN_INTERFACE          ExitBootServices;
-    ACPI_EFI_UNKNOWN_INTERFACE          GetNextMonotonicCount;
+	ACPI_EFI_UNKNOWN_INTERFACE          exit_boot_services;
+	ACPI_EFI_UNKNOWN_INTERFACE          get_next_monotonic_count;
 #endif
-    ACPI_EFI_STALL                      Stall;
-    ACPI_EFI_SET_WATCHDOG_TIMER         SetWatchdogTimer;
+	ACPI_EFI_STALL                      stall;
+	ACPI_EFI_SET_WATCHDOG_TIMER         set_watchdog_timer;
 
 #if 0
-    ACPI_EFI_CONNECT_CONTROLLER         ConnectController;
-    ACPI_EFI_DISCONNECT_CONTROLLER      DisconnectController;
+	ACPI_EFI_CONNECT_CONTROLLER         connect_controller;
+	ACPI_EFI_DISCONNECT_CONTROLLER      disconnect_controller;
 #else
-    ACPI_EFI_UNKNOWN_INTERFACE          ConnectController;
-    ACPI_EFI_UNKNOWN_INTERFACE          DisconnectController;
+	ACPI_EFI_UNKNOWN_INTERFACE          connect_controller;
+	ACPI_EFI_UNKNOWN_INTERFACE          disconnect_controller;
 #endif
 
-    ACPI_EFI_OPEN_PROTOCOL              OpenProtocol;
-    ACPI_EFI_CLOSE_PROTOCOL             CloseProtocol;
-    ACPI_EFI_OPEN_PROTOCOL_INFORMATION  OpenProtocolInformation;
-    ACPI_EFI_PROTOCOLS_PER_HANDLE       ProtocolsPerHandle;
-    ACPI_EFI_LOCATE_HANDLE_BUFFER       LocateHandleBuffer;
-    ACPI_EFI_LOCATE_PROTOCOL            LocateProtocol;
-    ACPI_EFI_INSTALL_MULTIPLE_PROTOCOL_INTERFACES InstallMultipleProtocolInterfaces;
-    ACPI_EFI_UNINSTALL_MULTIPLE_PROTOCOL_INTERFACES UninstallMultipleProtocolInterfaces;
+	ACPI_EFI_OPEN_PROTOCOL              open_protocol;
+	ACPI_EFI_CLOSE_PROTOCOL             close_protocol;
+	ACPI_EFI_OPEN_PROTOCOL_INFORMATION  open_protocol_information;
+	ACPI_EFI_PROTOCOLS_PER_HANDLE       protocols_per_handle;
+	ACPI_EFI_LOCATE_HANDLE_BUFFER       locate_handle_buffer;
+	ACPI_EFI_LOCATE_PROTOCOL            locate_protocol;
+	ACPI_EFI_INSTALL_MULTIPLE_PROTOCOL_INTERFACES install_multiple_protocol_interfaces;
+	ACPI_EFI_UNINSTALL_MULTIPLE_PROTOCOL_INTERFACES uninstall_multiple_protocol_interfaces;
 
-    ACPI_EFI_CALCULATE_CRC32        CalculateCrc32;
+	ACPI_EFI_CALCULATE_CRC32        calculate_crc32;
 
-    ACPI_EFI_COPY_MEM               CopyMem;
-    ACPI_EFI_SET_MEM                SetMem;
+	ACPI_EFI_COPY_MEM               copy_mem;
+	ACPI_EFI_SET_MEM                set_mem;
 
 #if 0
-    ACPI_EFI_CREATE_EVENT_EX        CreateEventEx;
+	ACPI_EFI_CREATE_EVENT_EX        create_event_ex;
 #else
-    ACPI_EFI_UNKNOWN_INTERFACE      CreateEventEx;
+	ACPI_EFI_UNKNOWN_INTERFACE      create_event_ex;
 #endif
-} ACPI_EFI_BOOT_SERVICES;
+};
 
 
 /*
@@ -959,46 +818,45 @@ typedef struct _ACPI_EFI_BOOT_SERVICES {
 #define ACPI_EFI_RUNTIME_SERVICES_SIGNATURE 0x56524553544e5552
 #define ACPI_EFI_RUNTIME_SERVICES_REVISION  (EFI_SPECIFICATION_MAJOR_REVISION<<16) | (EFI_SPECIFICATION_MINOR_REVISION)
 
-typedef struct _ACPI_EFI_RUNTIME_SERVICES {
-    ACPI_EFI_TABLE_HEADER               Hdr;
+struct _ACPI_EFI_RUNTIME_SERVICES {
+	ACPI_EFI_TABLE_HEADER               hdr;
 
-    ACPI_EFI_GET_TIME                   GetTime;
-    ACPI_EFI_SET_TIME                   SetTime;
+	ACPI_EFI_GET_TIME                   get_time;
+	ACPI_EFI_SET_TIME                   set_time;
 #if 0
-    ACPI_EFI_GET_WAKEUP_TIME            GetWakeupTime;
-    ACPI_EFI_SET_WAKEUP_TIME            SetWakeupTime;
+	ACPI_EFI_GET_WAKEUP_TIME            get_wakeup_time;
+	ACPI_EFI_SET_WAKEUP_TIME            set_wakeup_time;
 #else
-    ACPI_EFI_UNKNOWN_INTERFACE          GetWakeupTime;
-    ACPI_EFI_UNKNOWN_INTERFACE          SetWakeupTime;
+	ACPI_EFI_UNKNOWN_INTERFACE          get_wakeup_time;
+	ACPI_EFI_UNKNOWN_INTERFACE          set_wakeup_time;
 #endif
 
 #if 0
-    ACPI_EFI_SET_VIRTUAL_ADDRESS_MAP    SetVirtualAddressMap;
-    ACPI_EFI_CONVERT_POINTER            ConvertPointer;
+	ACPI_EFI_SET_VIRTUAL_ADDRESS_MAP    set_virtual_address_map;
+	ACPI_EFI_CONVERT_POINTER            convert_pointer;
 #else
-    ACPI_EFI_UNKNOWN_INTERFACE          SetVirtualAddressMap;
-    ACPI_EFI_UNKNOWN_INTERFACE          ConvertPointer;
+	ACPI_EFI_UNKNOWN_INTERFACE          set_virtual_address_map;
+	ACPI_EFI_UNKNOWN_INTERFACE          convert_pointer;
 #endif
 
 #if 0
-    ACPI_EFI_GET_VARIABLE               GetVariable;
-    ACPI_EFI_GET_NEXT_VARIABLE_NAME     GetNextVariableName;
-    ACPI_EFI_SET_VARIABLE               SetVariable;
+	ACPI_EFI_GET_VARIABLE               get_variable;
+	ACPI_EFI_GET_NEXT_VARIABLE_NAME     get_next_variable_name;
+	ACPI_EFI_SET_VARIABLE               set_variable;
 #else
-    ACPI_EFI_UNKNOWN_INTERFACE          GetVariable;
-    ACPI_EFI_UNKNOWN_INTERFACE          GetNextVariableName;
-    ACPI_EFI_UNKNOWN_INTERFACE          SetVariable;
+	ACPI_EFI_UNKNOWN_INTERFACE          get_variable;
+	ACPI_EFI_UNKNOWN_INTERFACE          get_next_variable_name;
+	ACPI_EFI_UNKNOWN_INTERFACE          set_variable;
 #endif
 
 #if 0
-    ACPI_EFI_GET_NEXT_HIGH_MONO_COUNT   GetNextHighMonotonicCount;
-    ACPI_EFI_RESET_SYSTEM               ResetSystem;
+	ACPI_EFI_GET_NEXT_HIGH_MONO_COUNT   get_next_high_monotonic_count;
+	ACPI_EFI_RESET_SYSTEM               reset_system;
 #else
-    ACPI_EFI_UNKNOWN_INTERFACE          GetNextHighMonotonicCount;
-    ACPI_EFI_UNKNOWN_INTERFACE          ResetSystem;
+	ACPI_EFI_UNKNOWN_INTERFACE          get_next_high_monotonic_count;
+	ACPI_EFI_UNKNOWN_INTERFACE          reset_system;
 #endif
-
-} ACPI_EFI_RUNTIME_SERVICES;
+};
 
 
 /*
@@ -1009,114 +867,113 @@ typedef struct _ACPI_EFI_RUNTIME_SERVICES {
  * EFI Configuration Table and GUID definitions
  */
 #define ACPI_TABLE_GUID \
-    { 0xeb9d2d30, 0x2d88, 0x11d3, {0x9a, 0x16, 0x0, 0x90, 0x27, 0x3f, 0xc1, 0x4d} }
+	{ 0xeb9d2d30, 0x2d88, 0x11d3, {0x9a, 0x16, 0x0, 0x90, 0x27, 0x3f, 0xc1, 0x4d} }
 #define ACPI_20_TABLE_GUID \
-    { 0x8868e871, 0xe4f1, 0x11d3, {0xbc, 0x22, 0x0, 0x80, 0xc7, 0x3c, 0x88, 0x81} }
+	{ 0x8868e871, 0xe4f1, 0x11d3, {0xbc, 0x22, 0x0, 0x80, 0xc7, 0x3c, 0x88, 0x81} }
 
-typedef struct _ACPI_EFI_CONFIGURATION_TABLE {
-    ACPI_EFI_GUID           VendorGuid;
-    VOID                    *VendorTable;
-} ACPI_EFI_CONFIGURATION_TABLE;
+struct _ACPI_EFI_CONFIGURATION_TABLE {
+	ACPI_EFI_GUID           vendor_guid;
+	VOID                    *vendor_table;
+};
 
 
 #define ACPI_EFI_SYSTEM_TABLE_SIGNATURE 0x5453595320494249
 #define ACPI_EFI_SYSTEM_TABLE_REVISION  (ACPI_EFI_SPECIFICATION_MAJOR_REVISION<<16) | (ACPI_EFI_SPECIFICATION_MINOR_REVISION)
 
-typedef struct _ACPI_EFI_SYSTEM_TABLE {
-    ACPI_EFI_TABLE_HEADER               Hdr;
+struct _ACPI_EFI_SYSTEM_TABLE {
+	ACPI_EFI_TABLE_HEADER               hdr;
 
-    CHAR16                              *FirmwareVendor;
-    UINT32                              FirmwareRevision;
+	CHAR16                              *firmware_vendor;
+	u32                                         firmware_revision;
 
-    ACPI_EFI_HANDLE                     ConsoleInHandle;
-    ACPI_SIMPLE_INPUT_INTERFACE         *ConIn;
+	ACPI_EFI_HANDLE                     console_in_handle;
+	ACPI_SIMPLE_INPUT_INTERFACE         *con_in;
 
-    ACPI_EFI_HANDLE                     ConsoleOutHandle;
-    ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE   *ConOut;
+	ACPI_EFI_HANDLE                     console_out_handle;
+	ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE   *con_out;
 
-    ACPI_EFI_HANDLE                     StandardErrorHandle;
-    ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE   *StdErr;
+	ACPI_EFI_HANDLE                     standard_error_handle;
+	ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE   *std_err;
 
-    ACPI_EFI_RUNTIME_SERVICES           *RuntimeServices;
-    ACPI_EFI_BOOT_SERVICES              *BootServices;
+	ACPI_EFI_RUNTIME_SERVICES           *runtime_services;
+	ACPI_EFI_BOOT_SERVICES              *boot_services;
 
-    UINTN                               NumberOfTableEntries;
-    ACPI_EFI_CONFIGURATION_TABLE        *ConfigurationTable;
-
-} ACPI_EFI_SYSTEM_TABLE;
+	UINTN                               number_of_table_entries;
+	ACPI_EFI_CONFIGURATION_TABLE        *configuration_table;
+};
 
 
 /*
  * EFI PCI I/O Protocol
  */
 #define ACPI_EFI_PCI_IO_PROTOCOL \
-    { 0x4cf5b200, 0x68b8, 0x4ca5, {0x9e, 0xec, 0xb2, 0x3e, 0x3f, 0x50, 0x2, 0x9a} }
+	{ 0x4cf5b200, 0x68b8, 0x4ca5, {0x9e, 0xec, 0xb2, 0x3e, 0x3f, 0x50, 0x2, 0x9a} }
 
 typedef enum {
-    AcpiEfiPciIoWidthUint8 = 0,
-    AcpiEfiPciIoWidthUint16,
-    AcpiEfiPciIoWidthUint32,
-    AcpiEfiPciIoWidthUint64,
-    AcpiEfiPciIoWidthFifoUint8,
-    AcpiEfiPciIoWidthFifoUint16,
-    AcpiEfiPciIoWidthFifoUint32,
-    AcpiEfiPciIoWidthFifoUint64,
-    AcpiEfiPciIoWidthFillUint8,
-    AcpiEfiPciIoWidthFillUint16,
-    AcpiEfiPciIoWidthFillUint32,
-    AcpiEfiPciIoWidthFillUint64,
-    AcpiEfiPciIoWidthMaximum
+	acpi_efi_pci_io_width_uint8 = 0,
+	acpi_efi_pci_io_width_uint16,
+	acpi_efi_pci_io_width_uint32,
+	acpi_efi_pci_io_width_uint64,
+	acpi_efi_pci_io_width_fifo_uint8,
+	acpi_efi_pci_io_width_fifo_uint16,
+	acpi_efi_pci_io_width_fifo_uint32,
+	acpi_efi_pci_io_width_fifo_uint64,
+	acpi_efi_pci_io_width_fill_uint8,
+	acpi_efi_pci_io_width_fill_uint16,
+	acpi_efi_pci_io_width_fill_uint32,
+	acpi_efi_pci_io_width_fill_uint64,
+	acpi_efi_pci_io_width_maximum
 } ACPI_EFI_PCI_IO_PROTOCOL_WIDTH;
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_PCI_IO_PROTOCOL_CONFIG)(
-    struct _ACPI_EFI_PCI_IO             *This,
-    ACPI_EFI_PCI_IO_PROTOCOL_WIDTH      Width,
-    UINT32                              Offset,
-    UINTN                               Count,
-    VOID                                *Buffer);
+	struct _ACPI_EFI_PCI_IO             *this,
+	ACPI_EFI_PCI_IO_PROTOCOL_WIDTH      width,
+	u32                                         offset,
+	UINTN                               count,
+	VOID                                *buffer);
 
 typedef struct {
-    ACPI_EFI_PCI_IO_PROTOCOL_CONFIG     Read;
-    ACPI_EFI_PCI_IO_PROTOCOL_CONFIG     Write;
+	ACPI_EFI_PCI_IO_PROTOCOL_CONFIG     read;
+	ACPI_EFI_PCI_IO_PROTOCOL_CONFIG     write;
 } ACPI_EFI_PCI_IO_PROTOCOL_CONFIG_ACCESS;
 
 typedef
 ACPI_EFI_STATUS
 (ACPI_EFI_API *ACPI_EFI_PCI_IO_PROTOCOL_GET_LOCATION)(
-    struct _ACPI_EFI_PCI_IO             *This,
-    UINTN                               *SegmentNumber,
-    UINTN                               *BusNumber,
-    UINTN                               *DeviceNumber,
-    UINTN                               *FunctionNumber);
+	struct _ACPI_EFI_PCI_IO             *this,
+	UINTN                               *segment_number,
+	UINTN                               *bus_number,
+	UINTN                               *device_number,
+	UINTN                               *function_number);
 
-typedef struct _ACPI_EFI_PCI_IO {
-    ACPI_EFI_UNKNOWN_INTERFACE          PollMem;
-    ACPI_EFI_UNKNOWN_INTERFACE          PollIo;
-    ACPI_EFI_UNKNOWN_INTERFACE          Mem;
-    ACPI_EFI_UNKNOWN_INTERFACE          Io;
-    ACPI_EFI_PCI_IO_PROTOCOL_CONFIG_ACCESS Pci;
-    ACPI_EFI_UNKNOWN_INTERFACE          CopyMem;
-    ACPI_EFI_UNKNOWN_INTERFACE          Map;
-    ACPI_EFI_UNKNOWN_INTERFACE          Unmap;
-    ACPI_EFI_UNKNOWN_INTERFACE          AllocateBuffer;
-    ACPI_EFI_UNKNOWN_INTERFACE          FreeBuffer;
-    ACPI_EFI_UNKNOWN_INTERFACE          Flush;
-    ACPI_EFI_PCI_IO_PROTOCOL_GET_LOCATION GetLocation;
-    ACPI_EFI_UNKNOWN_INTERFACE          Attributes;
-    ACPI_EFI_UNKNOWN_INTERFACE          GetBarAttributes;
-    ACPI_EFI_UNKNOWN_INTERFACE          SetBarAttributes;
-    UINT64                              RomSize;
-    VOID                                *RomImage;
-} ACPI_EFI_PCI_IO;
+struct _ACPI_EFI_PCI_IO {
+	ACPI_EFI_UNKNOWN_INTERFACE          poll_mem;
+	ACPI_EFI_UNKNOWN_INTERFACE          poll_io;
+	ACPI_EFI_UNKNOWN_INTERFACE          mem;
+	ACPI_EFI_UNKNOWN_INTERFACE          io;
+	ACPI_EFI_PCI_IO_PROTOCOL_CONFIG_ACCESS pci;
+	ACPI_EFI_UNKNOWN_INTERFACE          copy_mem;
+	ACPI_EFI_UNKNOWN_INTERFACE          map;
+	ACPI_EFI_UNKNOWN_INTERFACE          unmap;
+	ACPI_EFI_UNKNOWN_INTERFACE          allocate_buffer;
+	ACPI_EFI_UNKNOWN_INTERFACE          free_buffer;
+	ACPI_EFI_UNKNOWN_INTERFACE          flush;
+	ACPI_EFI_PCI_IO_PROTOCOL_GET_LOCATION get_location;
+	ACPI_EFI_UNKNOWN_INTERFACE          attributes;
+	ACPI_EFI_UNKNOWN_INTERFACE          get_bar_attributes;
+	ACPI_EFI_UNKNOWN_INTERFACE          set_bar_attributes;
+	u64                                         rom_size;
+	VOID                                *rom_image;
+};
 
 /* FILE abstraction */
 
 union acpi_efi_file {
-    struct _ACPI_EFI_FILE_HANDLE File;
-    struct _ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE ConOut;
-    struct _ACPI_SIMPLE_INPUT_INTERFACE ConIn;
+	struct _ACPI_EFI_FILE_HANDLE file;
+	struct _ACPI_SIMPLE_TEXT_OUTPUT_INTERFACE con_out;
+	struct _ACPI_SIMPLE_INPUT_INTERFACE con_in;
 };
 
 
@@ -1127,46 +984,46 @@ union acpi_efi_file {
 /*
  * This is needed to hide platform specific code from ACPICA
  */
-UINT64 ACPI_EFI_API
-DivU64x32 (
-    UINT64                  Dividend,
-    UINTN                   Divisor,
-    UINTN                   *Remainder);
+u64 ACPI_EFI_API
+div_u64x32 (
+	u64                             dividend,
+	UINTN                   divisor,
+	UINTN                   *remainder);
 
-UINT64 ACPI_EFI_API
-MultU64x32 (
-    UINT64                  Multiplicand,
-    UINTN                   Multiplier);
+u64 ACPI_EFI_API
+mult_u64x32 (
+	u64                             multiplicand,
+	UINTN                   multiplier);
 
-UINT64 ACPI_EFI_API
-LShiftU64 (
-    UINT64                  Operand,
-    UINTN                   Count);
+u64 ACPI_EFI_API
+lshift_u64 (
+	u64                             operand,
+	UINTN                   count);
 
-UINT64 ACPI_EFI_API
-RShiftU64 (
-    UINT64                  Operand,
-    UINTN                   Count);
+u64 ACPI_EFI_API
+rshift_u64 (
+	u64                             operand,
+	UINTN                   count);
 
 /*
  * EFI specific prototypes
  */
 ACPI_EFI_STATUS
 efi_main (
-    ACPI_EFI_HANDLE         Image,
-    ACPI_EFI_SYSTEM_TABLE   *SystemTab);
+	ACPI_EFI_HANDLE         image,
+	ACPI_EFI_SYSTEM_TABLE   *system_tab);
 
 int
 acpi_main (
-    int                     argc,
-    char                    *argv[]);
+	int                             argc,
+	char                            *argv[]);
 
 #endif
 
-extern ACPI_EFI_GUID AcpiGbl_LoadedImageProtocol;
-extern ACPI_EFI_GUID AcpiGbl_TextInProtocol;
-extern ACPI_EFI_GUID AcpiGbl_TextOutProtocol;
-extern ACPI_EFI_GUID AcpiGbl_FileSystemProtocol;
-extern ACPI_EFI_GUID AcpiGbl_GenericFileInfo;
+extern ACPI_EFI_GUID acpi_gbl_loaded_image_protocol;
+extern ACPI_EFI_GUID acpi_gbl_text_in_protocol;
+extern ACPI_EFI_GUID acpi_gbl_text_out_protocol;
+extern ACPI_EFI_GUID acpi_gbl_file_system_protocol;
+extern ACPI_EFI_GUID acpi_gbl_generic_file_info;
 
 #endif /* __ACEFIEX_H__ */

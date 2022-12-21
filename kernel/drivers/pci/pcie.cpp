@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2017 Pedro Falcato
+ * Copyright (c) 2017 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <assert.h>
 #include <errno.h>
@@ -21,7 +23,7 @@
 namespace pci
 {
 
-ACPI_TABLE_MCFG *mcfg = nullptr;
+acpi_table_mcfg *mcfg = nullptr;
 cul::vector<pcie_allocation> allocations;
 
 pcie_allocation *find_alloc_for_root(uint16_t segment, uint8_t nbus)
@@ -43,14 +45,14 @@ pcie_allocation *find_alloc_for_root(uint16_t segment, uint8_t nbus)
     return nullptr;
 }
 
-int pcie_get_mcfg(void)
+int pcie_get_mcfg()
 {
     // TODO: Add pcie regions with device tree
     if (!acpi::is_enabled())
         return 0;
 
-    ACPI_STATUS st;
-    if (ACPI_FAILURE((st = AcpiGetTable((char *) "MCFG", 0, (ACPI_TABLE_HEADER **) &mcfg))))
+    acpi_status st;
+    if (ACPI_FAILURE((st = acpi_get_table((char *) "MCFG", 0, (acpi_table_header **) &mcfg))))
     {
         printf("pcie: MCFG not found - proceeding with conventional pci.\n");
         return 0;
@@ -61,7 +63,7 @@ int pcie_get_mcfg(void)
 
 bool pcie_is_enabled(void)
 {
-    return mcfg ? true : false;
+    return mcfg != nullptr;
 }
 
 struct pcie_address
@@ -273,26 +275,26 @@ int pcie_init(void)
      * To read every MCFG allocation, we get the end of the table. The allocations
      * start there, and there are x number of them
      */
-    ACPI_MCFG_ALLOCATION *alloc = (ACPI_MCFG_ALLOCATION *) (mcfg + 1);
+    acpi_mcfg_allocation *alloc = (acpi_mcfg_allocation *) (mcfg + 1);
     size_t nr_allocs =
-        (mcfg->Header.Length - sizeof(ACPI_TABLE_MCFG)) / sizeof(ACPI_MCFG_ALLOCATION);
+        (mcfg->header.length - sizeof(acpi_table_mcfg)) / sizeof(acpi_mcfg_allocation);
     while (nr_allocs--)
     {
         pcie_allocation allocation;
         /* Failing to allocate enough memory here is pretty much a system failure */
 
-        unsigned int nr_buses = alloc->EndBusNumber - alloc->StartBusNumber;
+        unsigned int nr_buses = alloc->end_bus_number - alloc->start_bus_number;
         size_t size = nr_buses << 20;
 
         allocation.address =
-            mmiomap((void *) alloc->Address, size, VM_READ | VM_WRITE | VM_NOCACHE);
+            mmiomap((void *) alloc->address, size, VM_READ | VM_WRITE | VM_NOCACHE);
 
         if (!allocation.address)
             return -ENOMEM;
 
-        allocation.segment = alloc->PciSegment;
-        allocation.start_bus = alloc->StartBusNumber;
-        allocation.end_bus = alloc->EndBusNumber;
+        allocation.segment = alloc->pci_segment;
+        allocation.start_bus = alloc->start_bus_number;
+        allocation.end_bus = alloc->end_bus_number;
 
         if (!allocations.push_back(cul::move(allocation)))
         {

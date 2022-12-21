@@ -1,153 +1,12 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /******************************************************************************
  *
  * Module Name: nspredef - Validation of ACPI predefined methods and objects
  *
+ * Copyright (C) 2000 - 2022, Intel Corp.
+ *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #define ACPI_CREATE_PREDEFINED_TABLE
 
@@ -158,13 +17,13 @@
 
 
 #define _COMPONENT          ACPI_NAMESPACE
-        ACPI_MODULE_NAME    ("nspredef")
+	 ACPI_MODULE_NAME    ("nspredef")
 
 
 /*******************************************************************************
  *
  * This module validates predefined ACPI objects that appear in the namespace,
- * at the time they are evaluated (via AcpiEvaluateObject). The purpose of this
+ * at the time they are evaluated (via acpi_evaluate_object). The purpose of this
  * validation is to detect problems with BIOS-exposed predefined ACPI objects
  * before the results are returned to the ACPI-related drivers.
  *
@@ -185,25 +44,25 @@
 
 /* Local prototypes */
 
-static ACPI_STATUS
-AcpiNsCheckReference (
-    ACPI_EVALUATE_INFO          *Info,
-    ACPI_OPERAND_OBJECT         *ReturnObject);
+static acpi_status
+acpi_ns_check_reference (
+	struct acpi_evaluate_info           *info,
+	union acpi_operand_object           *return_object);
 
-static UINT32
-AcpiNsGetBitmappedType (
-    ACPI_OPERAND_OBJECT         *ReturnObject);
+static u32
+acpi_ns_get_bitmapped_type (
+	union acpi_operand_object           *return_object);
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiNsCheckReturnValue
+ * FUNCTION:    acpi_ns_check_return_value
  *
- * PARAMETERS:  Node            - Namespace node for the method/object
- *              Info            - Method execution information block
- *              UserParamCount  - Number of parameters actually passed
- *              ReturnStatus    - Status from the object evaluation
- *              ReturnObjectPtr - Pointer to the object returned from the
+ * PARAMETERS:  node            - Namespace node for the method/object
+ *              info            - Method execution information block
+ *              user_param_count - Number of parameters actually passed
+ *              return_status   - Status from the object evaluation
+ *              return_object_ptr - Pointer to the object returned from the
  *                                evaluation of a method or object
  *
  * RETURN:      Status
@@ -212,133 +71,125 @@ AcpiNsGetBitmappedType (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiNsCheckReturnValue (
-    ACPI_NAMESPACE_NODE         *Node,
-    ACPI_EVALUATE_INFO          *Info,
-    UINT32                      UserParamCount,
-    ACPI_STATUS                 ReturnStatus,
-    ACPI_OPERAND_OBJECT         **ReturnObjectPtr)
+acpi_status
+acpi_ns_check_return_value (
+	struct acpi_namespace_node          *node,
+	struct acpi_evaluate_info           *info,
+	u32                                 user_param_count,
+	acpi_status                         return_status,
+	union acpi_operand_object           **return_object_ptr)
 {
-    ACPI_STATUS                 Status;
-    const ACPI_PREDEFINED_INFO  *Predefined;
+	acpi_status                         status;
+	const union acpi_predefined_info    *predefined;
 
-    ACPI_FUNCTION_TRACE (NsCheckReturnValue);
+	ACPI_FUNCTION_TRACE (ns_check_return_value);
 
-    /* If not a predefined name, we cannot validate the return object */
+	/* If not a predefined name, we cannot validate the return object */
 
-    Predefined = Info->Predefined;
-    if (!Predefined)
-    {
-        return_ACPI_STATUS (AE_OK);
-    }
+	predefined = info->predefined;
+	if (!predefined) {
+		return_ACPI_STATUS (AE_OK);
+	}
 
-    /*
-     * If the method failed or did not actually return an object, we cannot
-     * validate the return object
-     */
-    if ((ReturnStatus != AE_OK) &&
-        (ReturnStatus != AE_CTRL_RETURN_VALUE))
-    {
-        return_ACPI_STATUS (AE_OK);
-    }
+	/*
+	 * If the method failed or did not actually return an object, we cannot
+	 * validate the return object
+	 */
+	if ((return_status != AE_OK) &&
+		(return_status != AE_CTRL_RETURN_VALUE)) {
+		return_ACPI_STATUS (AE_OK);
+	}
 
-    /*
-     * Return value validation and possible repair.
-     *
-     * 1) Don't perform return value validation/repair if this feature
-     * has been disabled via a global option.
-     *
-     * 2) We have a return value, but if one wasn't expected, just exit,
-     * this is not a problem. For example, if the "Implicit Return"
-     * feature is enabled, methods will always return a value.
-     *
-     * 3) If the return value can be of any type, then we cannot perform
-     * any validation, just exit.
-     */
-    if (AcpiGbl_DisableAutoRepair ||
-        (!Predefined->Info.ExpectedBtypes) ||
-        (Predefined->Info.ExpectedBtypes == ACPI_RTYPE_ALL))
-    {
-        return_ACPI_STATUS (AE_OK);
-    }
+	/*
+	 * Return value validation and possible repair.
+	 *
+	 * 1) Don't perform return value validation/repair if this feature
+	 * has been disabled via a global option.
+	 *
+	 * 2) We have a return value, but if one wasn't expected, just exit,
+	 * this is not a problem. For example, if the "Implicit Return"
+	 * feature is enabled, methods will always return a value.
+	 *
+	 * 3) If the return value can be of any type, then we cannot perform
+	 * any validation, just exit.
+	 */
+	if (acpi_gbl_disable_auto_repair ||
+		(!predefined->info.expected_btypes) ||
+		(predefined->info.expected_btypes == ACPI_RTYPE_ALL)) {
+		return_ACPI_STATUS (AE_OK);
+	}
 
-    /*
-     * Check that the type of the main return object is what is expected
-     * for this predefined name
-     */
-    Status = AcpiNsCheckObjectType (Info, ReturnObjectPtr,
-        Predefined->Info.ExpectedBtypes, ACPI_NOT_PACKAGE_ELEMENT);
-    if (ACPI_FAILURE (Status))
-    {
-        goto Exit;
-    }
+	/*
+	 * Check that the type of the main return object is what is expected
+	 * for this predefined name
+	 */
+	status = acpi_ns_check_object_type (info, return_object_ptr,
+		predefined->info.expected_btypes, ACPI_NOT_PACKAGE_ELEMENT);
+	if (ACPI_FAILURE (status)) {
+		goto exit;
+	}
 
-    /*
-     *
-     * 4) If there is no return value and it is optional, just return
-     * AE_OK (_WAK).
-     */
-    if (!(*ReturnObjectPtr))
-    {
-        goto Exit;
-    }
+	/*
+	 *
+	 * 4) If there is no return value and it is optional, just return
+	 * AE_OK (_WAK).
+	 */
+	if (!(*return_object_ptr)) {
+		goto exit;
+	}
 
-    /*
-     * For returned Package objects, check the type of all sub-objects.
-     * Note: Package may have been newly created by call above.
-     */
-    if ((*ReturnObjectPtr)->Common.Type == ACPI_TYPE_PACKAGE)
-    {
-        Info->ParentPackage = *ReturnObjectPtr;
-        Status = AcpiNsCheckPackage (Info, ReturnObjectPtr);
-        if (ACPI_FAILURE (Status))
-        {
-            /* We might be able to fix some errors */
+	/*
+	 * For returned Package objects, check the type of all sub-objects.
+	 * Note: Package may have been newly created by call above.
+	 */
+	if ((*return_object_ptr)->common.type == ACPI_TYPE_PACKAGE) {
+		info->parent_package = *return_object_ptr;
+		status = acpi_ns_check_package (info, return_object_ptr);
+		if (ACPI_FAILURE (status)) {
 
-            if ((Status != AE_AML_OPERAND_TYPE) &&
-                (Status != AE_AML_OPERAND_VALUE))
-            {
-                goto Exit;
-            }
-        }
-    }
+			/* We might be able to fix some errors */
 
-    /*
-     * The return object was OK, or it was successfully repaired above.
-     * Now make some additional checks such as verifying that package
-     * objects are sorted correctly (if required) or buffer objects have
-     * the correct data width (bytes vs. dwords). These repairs are
-     * performed on a per-name basis, i.e., the code is specific to
-     * particular predefined names.
-     */
-    Status = AcpiNsComplexRepairs (Info, Node, Status, ReturnObjectPtr);
+			if ((status != AE_AML_OPERAND_TYPE) &&
+				(status != AE_AML_OPERAND_VALUE)) {
+				goto exit;
+			}
+		}
+	}
 
-Exit:
-    /*
-     * If the object validation failed or if we successfully repaired one
-     * or more objects, mark the parent node to suppress further warning
-     * messages during the next evaluation of the same method/object.
-     */
-    if (ACPI_FAILURE (Status) ||
-       (Info->ReturnFlags & ACPI_OBJECT_REPAIRED))
-    {
-        Node->Flags |= ANOBJ_EVALUATED;
-    }
+	/*
+	 * The return object was OK, or it was successfully repaired above.
+	 * Now make some additional checks such as verifying that package
+	 * objects are sorted correctly (if required) or buffer objects have
+	 * the correct data width (bytes vs. dwords). These repairs are
+	 * performed on a per-name basis, i.e., the code is specific to
+	 * particular predefined names.
+	 */
+	status = acpi_ns_complex_repairs (info, node, status, return_object_ptr);
 
-    return_ACPI_STATUS (Status);
+exit:
+	/*
+	 * If the object validation failed or if we successfully repaired one
+	 * or more objects, mark the parent node to suppress further warning
+	 * messages during the next evaluation of the same method/object.
+	 */
+	if (ACPI_FAILURE (status) ||
+	   (info->return_flags & ACPI_OBJECT_REPAIRED)) {
+		node->flags |= ANOBJ_EVALUATED;
+	}
+
+	return_ACPI_STATUS (status);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiNsCheckObjectType
+ * FUNCTION:    acpi_ns_check_object_type
  *
- * PARAMETERS:  Info            - Method execution information block
- *              ReturnObjectPtr - Pointer to the object returned from the
+ * PARAMETERS:  info            - Method execution information block
+ *              return_object_ptr - Pointer to the object returned from the
  *                                evaluation of a method or object
- *              ExpectedBtypes  - Bitmap of expected return type(s)
- *              PackageIndex    - Index of object within parent package (if
+ *              expected_btypes - Bitmap of expected return type(s)
+ *              package_index   - Index of object within parent package (if
  *                                applicable - ACPI_NOT_PACKAGE_ELEMENT
  *                                otherwise)
  *
@@ -349,99 +200,93 @@ Exit:
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiNsCheckObjectType (
-    ACPI_EVALUATE_INFO          *Info,
-    ACPI_OPERAND_OBJECT         **ReturnObjectPtr,
-    UINT32                      ExpectedBtypes,
-    UINT32                      PackageIndex)
+acpi_status
+acpi_ns_check_object_type (
+	struct acpi_evaluate_info           *info,
+	union acpi_operand_object           **return_object_ptr,
+	u32                                 expected_btypes,
+	u32                                 package_index)
 {
-    ACPI_OPERAND_OBJECT         *ReturnObject = *ReturnObjectPtr;
-    ACPI_STATUS                 Status = AE_OK;
-    char                        TypeBuffer[96]; /* Room for 10 types */
+	union acpi_operand_object           *return_object = *return_object_ptr;
+	acpi_status                         status = AE_OK;
+	char                                type_buffer[96]; /* Room for 10 types */
 
 
-    /* A Namespace node should not get here, but make sure */
+	/* A Namespace node should not get here, but make sure */
 
-    if (ReturnObject &&
-        ACPI_GET_DESCRIPTOR_TYPE (ReturnObject) == ACPI_DESC_TYPE_NAMED)
-    {
-        ACPI_WARN_PREDEFINED ((AE_INFO, Info->FullPathname, Info->NodeFlags,
-            "Invalid return type - Found a Namespace node [%4.4s] type %s",
-            ReturnObject->Node.Name.Ascii,
-            AcpiUtGetTypeName (ReturnObject->Node.Type)));
-        return (AE_AML_OPERAND_TYPE);
-    }
+	if (return_object &&
+		ACPI_GET_DESCRIPTOR_TYPE (return_object) == ACPI_DESC_TYPE_NAMED) {
+		ACPI_WARN_PREDEFINED ((AE_INFO, info->full_pathname, info->node_flags,
+			"Invalid return type - Found a Namespace node [%4.4s] type %s",
+			return_object->node.name.ascii,
+			acpi_ut_get_type_name (return_object->node.type)));
+		return (AE_AML_OPERAND_TYPE);
+	}
 
-    /*
-     * Convert the object type (ACPI_TYPE_xxx) to a bitmapped object type.
-     * The bitmapped type allows multiple possible return types.
-     *
-     * Note, the cases below must handle all of the possible types returned
-     * from all of the predefined names (including elements of returned
-     * packages)
-     */
-    Info->ReturnBtype = AcpiNsGetBitmappedType (ReturnObject);
-    if (Info->ReturnBtype == ACPI_RTYPE_ANY)
-    {
-        /* Not one of the supported objects, must be incorrect */
-        goto TypeErrorExit;
-    }
+	/*
+	 * Convert the object type (ACPI_TYPE_xxx) to a bitmapped object type.
+	 * The bitmapped type allows multiple possible return types.
+	 *
+	 * Note, the cases below must handle all of the possible types returned
+	 * from all of the predefined names (including elements of returned
+	 * packages)
+	 */
+	info->return_btype = acpi_ns_get_bitmapped_type (return_object);
+	if (info->return_btype == ACPI_RTYPE_ANY) {
 
-    /* For reference objects, check that the reference type is correct */
+		/* Not one of the supported objects, must be incorrect */
+		goto type_error_exit;
+	}
 
-    if ((Info->ReturnBtype & ExpectedBtypes) == ACPI_RTYPE_REFERENCE)
-    {
-        Status = AcpiNsCheckReference (Info, ReturnObject);
-        return (Status);
-    }
+	/* For reference objects, check that the reference type is correct */
 
-    /* Attempt simple repair of the returned object if necessary */
+	if ((info->return_btype & expected_btypes) == ACPI_RTYPE_REFERENCE) {
+		status = acpi_ns_check_reference (info, return_object);
+		return (status);
+	}
 
-    Status = AcpiNsSimpleRepair (Info, ExpectedBtypes,
-        PackageIndex, ReturnObjectPtr);
-    if (ACPI_SUCCESS (Status))
-    {
-        return (AE_OK); /* Successful repair */
-    }
+	/* Attempt simple repair of the returned object if necessary */
+
+	status = acpi_ns_simple_repair (info, expected_btypes,
+		package_index, return_object_ptr);
+	if (ACPI_SUCCESS (status)) {
+		return (AE_OK); /* Successful repair */
+	}
 
 
-TypeErrorExit:
+type_error_exit:
 
-    /* Create a string with all expected types for this predefined object */
+	/* Create a string with all expected types for this predefined object */
 
-    AcpiUtGetExpectedReturnTypes (TypeBuffer, ExpectedBtypes);
+	acpi_ut_get_expected_return_types (type_buffer, expected_btypes);
 
-    if (!ReturnObject)
-    {
-        ACPI_WARN_PREDEFINED ((AE_INFO, Info->FullPathname, Info->NodeFlags,
-            "Expected return object of type %s",
-            TypeBuffer));
-    }
-    else if (PackageIndex == ACPI_NOT_PACKAGE_ELEMENT)
-    {
-        ACPI_WARN_PREDEFINED ((AE_INFO, Info->FullPathname, Info->NodeFlags,
-            "Return type mismatch - found %s, expected %s",
-            AcpiUtGetObjectTypeName (ReturnObject), TypeBuffer));
-    }
-    else
-    {
-        ACPI_WARN_PREDEFINED ((AE_INFO, Info->FullPathname, Info->NodeFlags,
-            "Return Package type mismatch at index %u - "
-            "found %s, expected %s", PackageIndex,
-            AcpiUtGetObjectTypeName (ReturnObject), TypeBuffer));
-    }
+	if (!return_object) {
+		ACPI_WARN_PREDEFINED ((AE_INFO, info->full_pathname, info->node_flags,
+			"Expected return object of type %s",
+			type_buffer));
+	}
+	else if (package_index == ACPI_NOT_PACKAGE_ELEMENT) {
+		ACPI_WARN_PREDEFINED ((AE_INFO, info->full_pathname, info->node_flags,
+			"Return type mismatch - found %s, expected %s",
+			acpi_ut_get_object_type_name (return_object), type_buffer));
+	}
+	else {
+		ACPI_WARN_PREDEFINED ((AE_INFO, info->full_pathname, info->node_flags,
+			"Return Package type mismatch at index %u - "
+			"found %s, expected %s", package_index,
+			acpi_ut_get_object_type_name (return_object), type_buffer));
+	}
 
-    return (AE_AML_OPERAND_TYPE);
+	return (AE_AML_OPERAND_TYPE);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiNsCheckReference
+ * FUNCTION:    acpi_ns_check_reference
  *
- * PARAMETERS:  Info            - Method execution information block
- *              ReturnObject    - Object returned from the evaluation of a
+ * PARAMETERS:  info            - Method execution information block
+ *              return_object   - Object returned from the evaluation of a
  *                                method or object
  *
  * RETURN:      Status
@@ -452,93 +297,90 @@ TypeErrorExit:
  *
  ******************************************************************************/
 
-static ACPI_STATUS
-AcpiNsCheckReference (
-    ACPI_EVALUATE_INFO          *Info,
-    ACPI_OPERAND_OBJECT         *ReturnObject)
+static acpi_status
+acpi_ns_check_reference (
+	struct acpi_evaluate_info           *info,
+	union acpi_operand_object           *return_object)
 {
 
-    /*
-     * Check the reference object for the correct reference type (opcode).
-     * The only type of reference that can be converted to an ACPI_OBJECT is
-     * a reference to a named object (reference class: NAME)
-     */
-    if (ReturnObject->Reference.Class == ACPI_REFCLASS_NAME)
-    {
-        return (AE_OK);
-    }
+	/*
+	 * Check the reference object for the correct reference type (opcode).
+	 * The only type of reference that can be converted to an union acpi_object is
+	 * a reference to a named object (reference class: NAME)
+	 */
+	if (return_object->reference.class == ACPI_REFCLASS_NAME) {
+		return (AE_OK);
+	}
 
-    ACPI_WARN_PREDEFINED ((AE_INFO, Info->FullPathname, Info->NodeFlags,
-        "Return type mismatch - unexpected reference object type [%s] %2.2X",
-        AcpiUtGetReferenceName (ReturnObject),
-        ReturnObject->Reference.Class));
+	ACPI_WARN_PREDEFINED ((AE_INFO, info->full_pathname, info->node_flags,
+		"Return type mismatch - unexpected reference object type [%s] %2.2X",
+		acpi_ut_get_reference_name (return_object),
+		return_object->reference.class));
 
-    return (AE_AML_OPERAND_TYPE);
+	return (AE_AML_OPERAND_TYPE);
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiNsGetBitmappedType
+ * FUNCTION:    acpi_ns_get_bitmapped_type
  *
- * PARAMETERS:  ReturnObject    - Object returned from method/obj evaluation
+ * PARAMETERS:  return_object   - Object returned from method/obj evaluation
  *
  * RETURN:      Object return type. ACPI_RTYPE_ANY indicates that the object
  *              type is not supported. ACPI_RTYPE_NONE indicates that no
- *              object was returned (ReturnObject is NULL).
+ *              object was returned (return_object is NULL).
  *
  * DESCRIPTION: Convert object type into a bitmapped object return type.
  *
  ******************************************************************************/
 
-static UINT32
-AcpiNsGetBitmappedType (
-    ACPI_OPERAND_OBJECT         *ReturnObject)
+static u32
+acpi_ns_get_bitmapped_type (
+	union acpi_operand_object           *return_object)
 {
-    UINT32                      ReturnBtype;
+	u32                                 return_btype;
 
 
-    if (!ReturnObject)
-    {
-        return (ACPI_RTYPE_NONE);
-    }
+	if (!return_object) {
+		return (ACPI_RTYPE_NONE);
+	}
 
-    /* Map ACPI_OBJECT_TYPE to internal bitmapped type */
+	/* Map acpi_object_type to internal bitmapped type */
 
-    switch (ReturnObject->Common.Type)
-    {
-    case ACPI_TYPE_INTEGER:
+	switch (return_object->common.type) {
+	case ACPI_TYPE_INTEGER:
 
-        ReturnBtype = ACPI_RTYPE_INTEGER;
-        break;
+		return_btype = ACPI_RTYPE_INTEGER;
+		break;
 
-    case ACPI_TYPE_BUFFER:
+	case ACPI_TYPE_BUFFER:
 
-        ReturnBtype = ACPI_RTYPE_BUFFER;
-        break;
+		return_btype = ACPI_RTYPE_BUFFER;
+		break;
 
-    case ACPI_TYPE_STRING:
+	case ACPI_TYPE_STRING:
 
-        ReturnBtype = ACPI_RTYPE_STRING;
-        break;
+		return_btype = ACPI_RTYPE_STRING;
+		break;
 
-    case ACPI_TYPE_PACKAGE:
+	case ACPI_TYPE_PACKAGE:
 
-        ReturnBtype = ACPI_RTYPE_PACKAGE;
-        break;
+		return_btype = ACPI_RTYPE_PACKAGE;
+		break;
 
-    case ACPI_TYPE_LOCAL_REFERENCE:
+	case ACPI_TYPE_LOCAL_REFERENCE:
 
-        ReturnBtype = ACPI_RTYPE_REFERENCE;
-        break;
+		return_btype = ACPI_RTYPE_REFERENCE;
+		break;
 
-    default:
+	default:
 
-        /* Not one of the supported objects, must be incorrect */
+		/* Not one of the supported objects, must be incorrect */
 
-        ReturnBtype = ACPI_RTYPE_ANY;
-        break;
-    }
+		return_btype = ACPI_RTYPE_ANY;
+		break;
+	}
 
-    return (ReturnBtype);
+	return (return_btype);
 }

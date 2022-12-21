@@ -1,153 +1,12 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0
 /******************************************************************************
  *
  * Module Name: nsrepair - Repair for objects returned by predefined methods
  *
+ * Copyright (C) 2000 - 2022, Intel Corp.
+ *
  *****************************************************************************/
 
-/******************************************************************************
- *
- * 1. Copyright Notice
- *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
- * All rights reserved.
- *
- * 2. License
- *
- * 2.1. This is your license from Intel Corp. under its intellectual property
- * rights. You may have additional license terms from the party that provided
- * you this software, covering your right to use that party's intellectual
- * property rights.
- *
- * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
- * copy of the source code appearing in this file ("Covered Code") an
- * irrevocable, perpetual, worldwide license under Intel's copyrights in the
- * base code distributed originally by Intel ("Original Intel Code") to copy,
- * make derivatives, distribute, use and display any portion of the Covered
- * Code in any form, with the right to sublicense such rights; and
- *
- * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
- * license (with the right to sublicense), under only those claims of Intel
- * patents that are infringed by the Original Intel Code, to make, use, sell,
- * offer to sell, and import the Covered Code and derivative works thereof
- * solely to the minimum extent necessary to exercise the above copyright
- * license, and in no event shall the patent license extend to any additions
- * to or modifications of the Original Intel Code. No other license or right
- * is granted directly or by implication, estoppel or otherwise;
- *
- * The above copyright and patent license is granted only if the following
- * conditions are met:
- *
- * 3. Conditions
- *
- * 3.1. Redistribution of Source with Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification with rights to further distribute source must include
- * the above Copyright Notice, the above License, this list of Conditions,
- * and the following Disclaimer and Export Compliance provision. In addition,
- * Licensee must cause all Covered Code to which Licensee contributes to
- * contain a file documenting the changes Licensee made to create that Covered
- * Code and the date of any change. Licensee must include in that file the
- * documentation of any changes made by any predecessor Licensee. Licensee
- * must include a prominent statement that the modification is derived,
- * directly or indirectly, from Original Intel Code.
- *
- * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
- * Redistribution of source code of any substantial portion of the Covered
- * Code or modification without rights to further distribute source must
- * include the following Disclaimer and Export Compliance provision in the
- * documentation and/or other materials provided with distribution. In
- * addition, Licensee may not authorize further sublicense of source of any
- * portion of the Covered Code, and must include terms to the effect that the
- * license from Licensee to its licensee is limited to the intellectual
- * property embodied in the software Licensee provides to its licensee, and
- * not to intellectual property embodied in modifications its licensee may
- * make.
- *
- * 3.3. Redistribution of Executable. Redistribution in executable form of any
- * substantial portion of the Covered Code or modification must reproduce the
- * above Copyright Notice, and the following Disclaimer and Export Compliance
- * provision in the documentation and/or other materials provided with the
- * distribution.
- *
- * 3.4. Intel retains all right, title, and interest in and to the Original
- * Intel Code.
- *
- * 3.5. Neither the name Intel nor any other trademark owned or controlled by
- * Intel shall be used in advertising or otherwise to promote the sale, use or
- * other dealings in products derived from or relating to the Covered Code
- * without prior written authorization from Intel.
- *
- * 4. Disclaimer and Export Compliance
- *
- * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
- * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
- * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
- * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
- * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
- * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
- * PARTICULAR PURPOSE.
- *
- * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
- * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
- * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
- * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
- * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
- * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
- * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
- * LIMITED REMEDY.
- *
- * 4.3. Licensee shall not export, either directly or indirectly, any of this
- * software or system incorporating such software without first obtaining any
- * required license or other approval from the U. S. Department of Commerce or
- * any other agency or department of the United States Government. In the
- * event Licensee exports any such software from the United States or
- * re-exports any such software from a foreign destination, Licensee shall
- * ensure that the distribution and export/re-export of the software is in
- * compliance with all laws, regulations, orders, or other restrictions of the
- * U.S. Export Administration Regulations. Licensee agrees that neither it nor
- * any of its subsidiaries will export/re-export any technical data, process,
- * software, or service, directly or indirectly, to any country for which the
- * United States government or any agency thereof requires an export license,
- * other governmental approval, or letter of assurance, without first obtaining
- * such license, approval or letter.
- *
- *****************************************************************************
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * following license:
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions, and the following disclaimer,
- *    without modification.
- * 2. Redistributions in binary form must reproduce at minimum a disclaimer
- *    substantially similar to the "NO WARRANTY" disclaimer below
- *    ("Disclaimer") and any redistribution must be conditioned upon
- *    including a substantially similar Disclaimer requirement for further
- *    binary redistribution.
- * 3. Neither the names of the above-listed copyright holders nor the names
- *    of any contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Alternatively, you may choose to be licensed under the terms of the
- * GNU General Public License ("GPL") version 2 as published by the Free
- * Software Foundation.
- *
- *****************************************************************************/
 
 #include "acpi.h"
 #include "accommon.h"
@@ -157,7 +16,7 @@
 #include "amlresrc.h"
 
 #define _COMPONENT          ACPI_NAMESPACE
-        ACPI_MODULE_NAME    ("nsrepair")
+	 ACPI_MODULE_NAME    ("nsrepair")
 
 
 /*******************************************************************************
@@ -183,7 +42,7 @@
  * Package -> Package of one Package
  *
  * Additional conversions that are available:
- *  Convert a null return or zero return value to an EndTag descriptor
+ *  Convert a null return or zero return value to an end_tag descriptor
  *  Convert an ASCII string to a Unicode buffer
  *
  * An incorrect standalone object is wrapped with required outer package
@@ -196,11 +55,11 @@
 
 /* Local prototypes */
 
-static const ACPI_SIMPLE_REPAIR_INFO *
-AcpiNsMatchSimpleRepair (
-    ACPI_NAMESPACE_NODE     *Node,
-    UINT32                  ReturnBtype,
-    UINT32                  PackageIndex);
+static const struct acpi_simple_repair_info *
+acpi_ns_match_simple_repair (
+	struct acpi_namespace_node      *node,
+	u32                             return_btype,
+	u32                             package_index);
 
 
 /*
@@ -208,46 +67,46 @@ AcpiNsMatchSimpleRepair (
  *
  * 2nd argument: Unexpected types that can be repaired
  */
-static const ACPI_SIMPLE_REPAIR_INFO    AcpiObjectRepairInfo[] =
+static const struct acpi_simple_repair_info     acpi_object_repair_info[] =
 {
-    /* Resource descriptor conversions */
+	/* Resource descriptor conversions */
 
-    { "_CRS", ACPI_RTYPE_INTEGER | ACPI_RTYPE_STRING | ACPI_RTYPE_BUFFER | ACPI_RTYPE_NONE,
-                ACPI_NOT_PACKAGE_ELEMENT,
-                AcpiNsConvertToResource },
-    { "_DMA", ACPI_RTYPE_INTEGER | ACPI_RTYPE_STRING | ACPI_RTYPE_BUFFER | ACPI_RTYPE_NONE,
-                ACPI_NOT_PACKAGE_ELEMENT,
-                AcpiNsConvertToResource },
-    { "_PRS", ACPI_RTYPE_INTEGER | ACPI_RTYPE_STRING | ACPI_RTYPE_BUFFER | ACPI_RTYPE_NONE,
-                ACPI_NOT_PACKAGE_ELEMENT,
-                AcpiNsConvertToResource },
+	{ "_CRS", ACPI_RTYPE_INTEGER | ACPI_RTYPE_STRING | ACPI_RTYPE_BUFFER | ACPI_RTYPE_NONE,
+			 ACPI_NOT_PACKAGE_ELEMENT,
+			 acpi_ns_convert_to_resource },
+	{ "_DMA", ACPI_RTYPE_INTEGER | ACPI_RTYPE_STRING | ACPI_RTYPE_BUFFER | ACPI_RTYPE_NONE,
+			 ACPI_NOT_PACKAGE_ELEMENT,
+			 acpi_ns_convert_to_resource },
+	{ "_PRS", ACPI_RTYPE_INTEGER | ACPI_RTYPE_STRING | ACPI_RTYPE_BUFFER | ACPI_RTYPE_NONE,
+			 ACPI_NOT_PACKAGE_ELEMENT,
+			 acpi_ns_convert_to_resource },
 
-    /* Object reference conversions */
+	/* Object reference conversions */
 
-    { "_DEP", ACPI_RTYPE_STRING, ACPI_ALL_PACKAGE_ELEMENTS,
-                AcpiNsConvertToReference },
+	{ "_DEP", ACPI_RTYPE_STRING, ACPI_ALL_PACKAGE_ELEMENTS,
+			 acpi_ns_convert_to_reference },
 
-    /* Unicode conversions */
+	/* Unicode conversions */
 
-    { "_MLS", ACPI_RTYPE_STRING, 1,
-                AcpiNsConvertToUnicode },
-    { "_STR", ACPI_RTYPE_STRING | ACPI_RTYPE_BUFFER,
-                ACPI_NOT_PACKAGE_ELEMENT,
-                AcpiNsConvertToUnicode },
-    { {0,0,0,0}, 0, 0, NULL } /* Table terminator */
+	{ "_MLS", ACPI_RTYPE_STRING, 1,
+			 acpi_ns_convert_to_unicode },
+	{ "_STR", ACPI_RTYPE_STRING | ACPI_RTYPE_BUFFER,
+			 ACPI_NOT_PACKAGE_ELEMENT,
+			 acpi_ns_convert_to_unicode },
+	{ {0,0,0,0}, 0, 0, NULL } /* Table terminator */
 };
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiNsSimpleRepair
+ * FUNCTION:    acpi_ns_simple_repair
  *
- * PARAMETERS:  Info                - Method execution information block
- *              ExpectedBtypes      - Object types expected
- *              PackageIndex        - Index of object within parent package (if
+ * PARAMETERS:  info                - Method execution information block
+ *              expected_btypes     - Object types expected
+ *              package_index       - Index of object within parent package (if
  *                                    applicable - ACPI_NOT_PACKAGE_ELEMENT
  *                                    otherwise)
- *              ReturnObjectPtr     - Pointer to the object returned from the
+ *              return_object_ptr   - Pointer to the object returned from the
  *                                    evaluation of a method or object
  *
  * RETURN:      Status. AE_OK if repair was successful.
@@ -257,196 +116,177 @@ static const ACPI_SIMPLE_REPAIR_INFO    AcpiObjectRepairInfo[] =
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiNsSimpleRepair (
-    ACPI_EVALUATE_INFO      *Info,
-    UINT32                  ExpectedBtypes,
-    UINT32                  PackageIndex,
-    ACPI_OPERAND_OBJECT     **ReturnObjectPtr)
+acpi_status
+acpi_ns_simple_repair (
+	struct acpi_evaluate_info       *info,
+	u32                             expected_btypes,
+	u32                             package_index,
+	union acpi_operand_object       **return_object_ptr)
 {
-    ACPI_OPERAND_OBJECT     *ReturnObject = *ReturnObjectPtr;
-    ACPI_OPERAND_OBJECT     *NewObject = NULL;
-    ACPI_STATUS             Status;
-    const ACPI_SIMPLE_REPAIR_INFO   *Predefined;
+	union acpi_operand_object       *return_object = *return_object_ptr;
+	union acpi_operand_object       *new_object = NULL;
+	acpi_status                     status;
+	const struct acpi_simple_repair_info    *predefined;
 
 
-    ACPI_FUNCTION_NAME (NsSimpleRepair);
+	ACPI_FUNCTION_NAME (ns_simple_repair);
 
 
-    /*
-     * Special repairs for certain names that are in the repair table.
-     * Check if this name is in the list of repairable names.
-     */
-    Predefined = AcpiNsMatchSimpleRepair (Info->Node,
-        Info->ReturnBtype, PackageIndex);
-    if (Predefined)
-    {
-        if (!ReturnObject)
-        {
-            ACPI_WARN_PREDEFINED ((AE_INFO, Info->FullPathname,
-                ACPI_WARN_ALWAYS, "Missing expected return value"));
-        }
+	/*
+	 * Special repairs for certain names that are in the repair table.
+	 * Check if this name is in the list of repairable names.
+	 */
+	predefined = acpi_ns_match_simple_repair (info->node,
+		info->return_btype, package_index);
+	if (predefined) {
+		if (!return_object) {
+			ACPI_WARN_PREDEFINED ((AE_INFO, info->full_pathname,
+				ACPI_WARN_ALWAYS, "Missing expected return value"));
+		}
 
-        Status = Predefined->ObjectConverter (Info->Node, ReturnObject,
-            &NewObject);
-        if (ACPI_FAILURE (Status))
-        {
-            /* A fatal error occurred during a conversion */
+		status = predefined->object_converter (info->node, return_object,
+			&new_object);
+		if (ACPI_FAILURE (status)) {
 
-            ACPI_EXCEPTION ((AE_INFO, Status,
-                "During return object analysis"));
-            return (Status);
-        }
-        if (NewObject)
-        {
-            goto ObjectRepaired;
-        }
-    }
+			/* A fatal error occurred during a conversion */
 
-    /*
-     * Do not perform simple object repair unless the return type is not
-     * expected.
-     */
-    if (Info->ReturnBtype & ExpectedBtypes)
-    {
-        return (AE_OK);
-    }
+			ACPI_EXCEPTION ((AE_INFO, status,
+				"During return object analysis"));
+			return (status);
+		}
+		if (new_object) {
+			goto object_repaired;
+		}
+	}
 
-    /*
-     * At this point, we know that the type of the returned object was not
-     * one of the expected types for this predefined name. Attempt to
-     * repair the object by converting it to one of the expected object
-     * types for this predefined name.
-     */
+	/*
+	 * Do not perform simple object repair unless the return type is not
+	 * expected.
+	 */
+	if (info->return_btype & expected_btypes) {
+		return (AE_OK);
+	}
 
-    /*
-     * If there is no return value, check if we require a return value for
-     * this predefined name. Either one return value is expected, or none,
-     * for both methods and other objects.
-     *
-     * Try to fix if there was no return object. Warning if failed to fix.
-     */
-    if (!ReturnObject)
-    {
-        if (ExpectedBtypes && (!(ExpectedBtypes & ACPI_RTYPE_NONE)))
-        {
-            if (PackageIndex != ACPI_NOT_PACKAGE_ELEMENT)
-            {
-                ACPI_WARN_PREDEFINED ((AE_INFO, Info->FullPathname,
-                    ACPI_WARN_ALWAYS, "Found unexpected NULL package element"));
+	/*
+	 * At this point, we know that the type of the returned object was not
+	 * one of the expected types for this predefined name. Attempt to
+	 * repair the object by converting it to one of the expected object
+	 * types for this predefined name.
+	 */
 
-                Status = AcpiNsRepairNullElement (Info, ExpectedBtypes,
-                    PackageIndex, ReturnObjectPtr);
-                if (ACPI_SUCCESS (Status))
-                {
-                    return (AE_OK); /* Repair was successful */
-                }
-            }
-            else
-            {
-                ACPI_WARN_PREDEFINED ((AE_INFO, Info->FullPathname,
-                    ACPI_WARN_ALWAYS, "Missing expected return value"));
-            }
+	/*
+	 * If there is no return value, check if we require a return value for
+	 * this predefined name. Either one return value is expected, or none,
+	 * for both methods and other objects.
+	 *
+	 * Try to fix if there was no return object. Warning if failed to fix.
+	 */
+	if (!return_object) {
+		if (expected_btypes && (!(expected_btypes & ACPI_RTYPE_NONE))) {
+			if (package_index != ACPI_NOT_PACKAGE_ELEMENT) {
+				ACPI_WARN_PREDEFINED ((AE_INFO, info->full_pathname,
+					ACPI_WARN_ALWAYS, "Found unexpected NULL package element"));
 
-            return (AE_AML_NO_RETURN_VALUE);
-        }
-    }
+				status = acpi_ns_repair_null_element (info, expected_btypes,
+					package_index, return_object_ptr);
+				if (ACPI_SUCCESS (status)) {
+					return (AE_OK); /* Repair was successful */
+				}
+			}
+			else {
+				ACPI_WARN_PREDEFINED ((AE_INFO, info->full_pathname,
+					ACPI_WARN_ALWAYS, "Missing expected return value"));
+			}
 
-    if (ExpectedBtypes & ACPI_RTYPE_INTEGER)
-    {
-        Status = AcpiNsConvertToInteger (ReturnObject, &NewObject);
-        if (ACPI_SUCCESS (Status))
-        {
-            goto ObjectRepaired;
-        }
-    }
-    if (ExpectedBtypes & ACPI_RTYPE_STRING)
-    {
-        Status = AcpiNsConvertToString (ReturnObject, &NewObject);
-        if (ACPI_SUCCESS (Status))
-        {
-            goto ObjectRepaired;
-        }
-    }
-    if (ExpectedBtypes & ACPI_RTYPE_BUFFER)
-    {
-        Status = AcpiNsConvertToBuffer (ReturnObject, &NewObject);
-        if (ACPI_SUCCESS (Status))
-        {
-            goto ObjectRepaired;
-        }
-    }
-    if (ExpectedBtypes & ACPI_RTYPE_PACKAGE)
-    {
-        /*
-         * A package is expected. We will wrap the existing object with a
-         * new package object. It is often the case that if a variable-length
-         * package is required, but there is only a single object needed, the
-         * BIOS will return that object instead of wrapping it with a Package
-         * object. Note: after the wrapping, the package will be validated
-         * for correct contents (expected object type or types).
-         */
-        Status = AcpiNsWrapWithPackage (Info, ReturnObject, &NewObject);
-        if (ACPI_SUCCESS (Status))
-        {
-            /*
-             * The original object just had its reference count
-             * incremented for being inserted into the new package.
-             */
-            *ReturnObjectPtr = NewObject;       /* New Package object */
-            Info->ReturnFlags |= ACPI_OBJECT_REPAIRED;
-            return (AE_OK);
-        }
-    }
+			return (AE_AML_NO_RETURN_VALUE);
+		}
+	}
 
-    /* We cannot repair this object */
+	if (expected_btypes & ACPI_RTYPE_INTEGER) {
+		status = acpi_ns_convert_to_integer (return_object, &new_object);
+		if (ACPI_SUCCESS (status)) {
+			goto object_repaired;
+		}
+	}
+	if (expected_btypes & ACPI_RTYPE_STRING) {
+		status = acpi_ns_convert_to_string (return_object, &new_object);
+		if (ACPI_SUCCESS (status)) {
+			goto object_repaired;
+		}
+	}
+	if (expected_btypes & ACPI_RTYPE_BUFFER) {
+		status = acpi_ns_convert_to_buffer (return_object, &new_object);
+		if (ACPI_SUCCESS (status)) {
+			goto object_repaired;
+		}
+	}
+	if (expected_btypes & ACPI_RTYPE_PACKAGE) {
+		/*
+		 * A package is expected. We will wrap the existing object with a
+		 * new package object. It is often the case that if a variable-length
+		 * package is required, but there is only a single object needed, the
+		 * BIOS will return that object instead of wrapping it with a Package
+		 * object. Note: after the wrapping, the package will be validated
+		 * for correct contents (expected object type or types).
+		 */
+		status = acpi_ns_wrap_with_package (info, return_object, &new_object);
+		if (ACPI_SUCCESS (status)) {
+			/*
+			 * The original object just had its reference count
+			 * incremented for being inserted into the new package.
+			 */
+			*return_object_ptr = new_object;    /* New Package object */
+			info->return_flags |= ACPI_OBJECT_REPAIRED;
+			return (AE_OK);
+		}
+	}
 
-    return (AE_AML_OPERAND_TYPE);
+	/* We cannot repair this object */
+
+	return (AE_AML_OPERAND_TYPE);
 
 
-ObjectRepaired:
+object_repaired:
 
-    /* Object was successfully repaired */
+	/* Object was successfully repaired */
 
-    if (PackageIndex != ACPI_NOT_PACKAGE_ELEMENT)
-    {
-        /* Update reference count of new object */
+	if (package_index != ACPI_NOT_PACKAGE_ELEMENT) {
 
-        if (!(Info->ReturnFlags & ACPI_OBJECT_WRAPPED))
-        {
-            NewObject->Common.ReferenceCount =
-                ReturnObject->Common.ReferenceCount;
-        }
+		/* Update reference count of new object */
 
-        ACPI_DEBUG_PRINT ((ACPI_DB_REPAIR,
-            "%s: Converted %s to expected %s at Package index %u\n",
-            Info->FullPathname, AcpiUtGetObjectTypeName (ReturnObject),
-            AcpiUtGetObjectTypeName (NewObject), PackageIndex));
-    }
-    else
-    {
-        ACPI_DEBUG_PRINT ((ACPI_DB_REPAIR,
-            "%s: Converted %s to expected %s\n",
-            Info->FullPathname, AcpiUtGetObjectTypeName (ReturnObject),
-            AcpiUtGetObjectTypeName (NewObject)));
-    }
+		if (!(info->return_flags & ACPI_OBJECT_WRAPPED)) {
+			new_object->common.reference_count =
+				return_object->common.reference_count;
+		}
 
-    /* Delete old object, install the new return object */
+		ACPI_DEBUG_PRINT ((ACPI_DB_REPAIR,
+			"%s: Converted %s to expected %s at Package index %u\n",
+			info->full_pathname, acpi_ut_get_object_type_name (return_object),
+			acpi_ut_get_object_type_name (new_object), package_index));
+	}
+	else {
+		ACPI_DEBUG_PRINT ((ACPI_DB_REPAIR,
+			"%s: Converted %s to expected %s\n",
+			info->full_pathname, acpi_ut_get_object_type_name (return_object),
+			acpi_ut_get_object_type_name (new_object)));
+	}
 
-    AcpiUtRemoveReference (ReturnObject);
-    *ReturnObjectPtr = NewObject;
-    Info->ReturnFlags |= ACPI_OBJECT_REPAIRED;
-    return (AE_OK);
+	/* Delete old object, install the new return object */
+
+	acpi_ut_remove_reference (return_object);
+	*return_object_ptr = new_object;
+	info->return_flags |= ACPI_OBJECT_REPAIRED;
+	return (AE_OK);
 }
 
 
 /******************************************************************************
  *
- * FUNCTION:    AcpiNsMatchSimpleRepair
+ * FUNCTION:    acpi_ns_match_simple_repair
  *
- * PARAMETERS:  Node                - Namespace node for the method/object
- *              ReturnBtype         - Object type that was returned
- *              PackageIndex        - Index of object within parent package (if
+ * PARAMETERS:  node                - Namespace node for the method/object
+ *              return_btype        - Object type that was returned
+ *              package_index       - Index of object within parent package (if
  *                                    applicable - ACPI_NOT_PACKAGE_ELEMENT
  *                                    otherwise)
  *
@@ -456,51 +296,49 @@ ObjectRepaired:
  *
  *****************************************************************************/
 
-static const ACPI_SIMPLE_REPAIR_INFO *
-AcpiNsMatchSimpleRepair (
-    ACPI_NAMESPACE_NODE     *Node,
-    UINT32                  ReturnBtype,
-    UINT32                  PackageIndex)
+static const struct acpi_simple_repair_info *
+acpi_ns_match_simple_repair (
+	struct acpi_namespace_node      *node,
+	u32                             return_btype,
+	u32                             package_index)
 {
-    const ACPI_SIMPLE_REPAIR_INFO   *ThisName;
+	const struct acpi_simple_repair_info    *this_name;
 
 
-    /* Search info table for a repairable predefined method/object name */
+	/* Search info table for a repairable predefined method/object name */
 
-    ThisName = AcpiObjectRepairInfo;
-    while (ThisName->ObjectConverter)
-    {
-        if (ACPI_COMPARE_NAMESEG (Node->Name.Ascii, ThisName->Name))
-        {
-            /* Check if we can actually repair this name/type combination */
+	this_name = acpi_object_repair_info;
+	while (this_name->object_converter) {
+		if (ACPI_COMPARE_NAMESEG (node->name.ascii, this_name->name)) {
 
-            if ((ReturnBtype & ThisName->UnexpectedBtypes) &&
-                (ThisName->PackageIndex == ACPI_ALL_PACKAGE_ELEMENTS ||
-                 PackageIndex == ThisName->PackageIndex))
-            {
-                return (ThisName);
-            }
+			/* Check if we can actually repair this name/type combination */
 
-            return (NULL);
-        }
+			if ((return_btype & this_name->unexpected_btypes) &&
+				(this_name->package_index == ACPI_ALL_PACKAGE_ELEMENTS ||
+				 package_index == this_name->package_index)) {
+				return (this_name);
+			}
 
-        ThisName++;
-    }
+			return (NULL);
+		}
 
-    return (NULL); /* Name was not found in the repair table */
+		this_name++;
+	}
+
+	return (NULL); /* Name was not found in the repair table */
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiNsRepairNullElement
+ * FUNCTION:    acpi_ns_repair_null_element
  *
- * PARAMETERS:  Info                - Method execution information block
- *              ExpectedBtypes      - Object types expected
- *              PackageIndex        - Index of object within parent package (if
+ * PARAMETERS:  info                - Method execution information block
+ *              expected_btypes     - Object types expected
+ *              package_index       - Index of object within parent package (if
  *                                    applicable - ACPI_NOT_PACKAGE_ELEMENT
  *                                    otherwise)
- *              ReturnObjectPtr     - Pointer to the object returned from the
+ *              return_object_ptr   - Pointer to the object returned from the
  *                                    evaluation of a method or object
  *
  * RETURN:      Status. AE_OK if repair was successful.
@@ -509,86 +347,83 @@ AcpiNsMatchSimpleRepair (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiNsRepairNullElement (
-    ACPI_EVALUATE_INFO      *Info,
-    UINT32                  ExpectedBtypes,
-    UINT32                  PackageIndex,
-    ACPI_OPERAND_OBJECT     **ReturnObjectPtr)
+acpi_status
+acpi_ns_repair_null_element (
+	struct acpi_evaluate_info       *info,
+	u32                             expected_btypes,
+	u32                             package_index,
+	union acpi_operand_object       **return_object_ptr)
 {
-    ACPI_OPERAND_OBJECT     *ReturnObject = *ReturnObjectPtr;
-    ACPI_OPERAND_OBJECT     *NewObject;
+	union acpi_operand_object       *return_object = *return_object_ptr;
+	union acpi_operand_object       *new_object;
 
 
-    ACPI_FUNCTION_NAME (NsRepairNullElement);
+	ACPI_FUNCTION_NAME (ns_repair_null_element);
 
 
-    /* No repair needed if return object is non-NULL */
+	/* No repair needed if return object is non-NULL */
 
-    if (ReturnObject)
-    {
-        return (AE_OK);
-    }
+	if (return_object) {
+		return (AE_OK);
+	}
 
-    /*
-     * Attempt to repair a NULL element of a Package object. This applies to
-     * predefined names that return a fixed-length package and each element
-     * is required. It does not apply to variable-length packages where NULL
-     * elements are allowed, especially at the end of the package.
-     */
-    if (ExpectedBtypes & ACPI_RTYPE_INTEGER)
-    {
-        /* Need an Integer - create a zero-value integer */
+	/*
+	 * Attempt to repair a NULL element of a Package object. This applies to
+	 * predefined names that return a fixed-length package and each element
+	 * is required. It does not apply to variable-length packages where NULL
+	 * elements are allowed, especially at the end of the package.
+	 */
+	if (expected_btypes & ACPI_RTYPE_INTEGER) {
 
-        NewObject = AcpiUtCreateIntegerObject ((UINT64) 0);
-    }
-    else if (ExpectedBtypes & ACPI_RTYPE_STRING)
-    {
-        /* Need a String - create a NULL string */
+		/* Need an integer - create a zero-value integer */
 
-        NewObject = AcpiUtCreateStringObject (0);
-    }
-    else if (ExpectedBtypes & ACPI_RTYPE_BUFFER)
-    {
-        /* Need a Buffer - create a zero-length buffer */
+		new_object = acpi_ut_create_integer_object ((u64) 0);
+	}
+	else if (expected_btypes & ACPI_RTYPE_STRING) {
 
-        NewObject = AcpiUtCreateBufferObject (0);
-    }
-    else
-    {
-        /* Error for all other expected types */
+		/* Need a string - create a NULL string */
 
-        return (AE_AML_OPERAND_TYPE);
-    }
+		new_object = acpi_ut_create_string_object (0);
+	}
+	else if (expected_btypes & ACPI_RTYPE_BUFFER) {
 
-    if (!NewObject)
-    {
-        return (AE_NO_MEMORY);
-    }
+		/* Need a buffer - create a zero-length buffer */
 
-    /* Set the reference count according to the parent Package object */
+		new_object = acpi_ut_create_buffer_object (0);
+	}
+	else {
+		/* Error for all other expected types */
 
-    NewObject->Common.ReferenceCount =
-        Info->ParentPackage->Common.ReferenceCount;
+		return (AE_AML_OPERAND_TYPE);
+	}
 
-    ACPI_DEBUG_PRINT ((ACPI_DB_REPAIR,
-        "%s: Converted NULL package element to expected %s at index %u\n",
-        Info->FullPathname, AcpiUtGetObjectTypeName (NewObject),
-        PackageIndex));
+	if (!new_object) {
+		return (AE_NO_MEMORY);
+	}
 
-    *ReturnObjectPtr = NewObject;
-    Info->ReturnFlags |= ACPI_OBJECT_REPAIRED;
-    return (AE_OK);
+	/* Set the reference count according to the parent Package object */
+
+	new_object->common.reference_count =
+		info->parent_package->common.reference_count;
+
+	ACPI_DEBUG_PRINT ((ACPI_DB_REPAIR,
+		"%s: Converted NULL package element to expected %s at index %u\n",
+		info->full_pathname, acpi_ut_get_object_type_name (new_object),
+		package_index));
+
+	*return_object_ptr = new_object;
+	info->return_flags |= ACPI_OBJECT_REPAIRED;
+	return (AE_OK);
 }
 
 
 /******************************************************************************
  *
- * FUNCTION:    AcpiNsRemoveNullElements
+ * FUNCTION:    acpi_ns_remove_null_elements
  *
- * PARAMETERS:  Info                - Method execution information block
- *              PackageType         - An AcpiReturnPackageTypes value
- *              ObjDesc             - A Package object
+ * PARAMETERS:  info                - Method execution information block
+ *              package_type        - An acpi_return_package_types value
+ *              obj_desc            - A Package object
  *
  * RETURN:      None.
  *
@@ -599,93 +434,88 @@ AcpiNsRepairNullElement (
  *****************************************************************************/
 
 void
-AcpiNsRemoveNullElements (
-    ACPI_EVALUATE_INFO      *Info,
-    UINT8                   PackageType,
-    ACPI_OPERAND_OBJECT     *ObjDesc)
+acpi_ns_remove_null_elements (
+	struct acpi_evaluate_info       *info,
+	u8                              package_type,
+	union acpi_operand_object       *obj_desc)
 {
-    ACPI_OPERAND_OBJECT     **Source;
-    ACPI_OPERAND_OBJECT     **Dest;
-    UINT32                  Count;
-    UINT32                  NewCount;
-    UINT32                  i;
+	union acpi_operand_object       **source;
+	union acpi_operand_object       **dest;
+	u32                             count;
+	u32                             new_count;
+	u32                             i;
 
 
-    ACPI_FUNCTION_NAME (NsRemoveNullElements);
+	ACPI_FUNCTION_NAME (ns_remove_null_elements);
 
 
-    /*
-     * We can safely remove all NULL elements from these package types:
-     * PTYPE1_VAR packages contain a variable number of simple data types.
-     * PTYPE2 packages contain a variable number of subpackages.
-     */
-    switch (PackageType)
-    {
-    case ACPI_PTYPE1_VAR:
-    case ACPI_PTYPE2:
-    case ACPI_PTYPE2_COUNT:
-    case ACPI_PTYPE2_PKG_COUNT:
-    case ACPI_PTYPE2_FIXED:
-    case ACPI_PTYPE2_MIN:
-    case ACPI_PTYPE2_REV_FIXED:
-    case ACPI_PTYPE2_FIX_VAR:
-        break;
+	/*
+	 * We can safely remove all NULL elements from these package types:
+	 * PTYPE1_VAR packages contain a variable number of simple data types.
+	 * PTYPE2 packages contain a variable number of subpackages.
+	 */
+	switch (package_type) {
+	case ACPI_PTYPE1_VAR:
+	case ACPI_PTYPE2:
+	case ACPI_PTYPE2_COUNT:
+	case ACPI_PTYPE2_PKG_COUNT:
+	case ACPI_PTYPE2_FIXED:
+	case ACPI_PTYPE2_MIN:
+	case ACPI_PTYPE2_REV_FIXED:
+	case ACPI_PTYPE2_FIX_VAR:
+		break;
 
-    default:
-    case ACPI_PTYPE2_VAR_VAR:
-    case ACPI_PTYPE1_FIXED:
-    case ACPI_PTYPE1_OPTION:
-        return;
-    }
+	default:
+	case ACPI_PTYPE2_VAR_VAR:
+	case ACPI_PTYPE1_FIXED:
+	case ACPI_PTYPE1_OPTION:
+		return;
+	}
 
-    Count = ObjDesc->Package.Count;
-    NewCount = Count;
+	count = obj_desc->package.count;
+	new_count = count;
 
-    Source = ObjDesc->Package.Elements;
-    Dest = Source;
+	source = obj_desc->package.elements;
+	dest = source;
 
-    /* Examine all elements of the package object, remove nulls */
+	/* Examine all elements of the package object, remove nulls */
 
-    for (i = 0; i < Count; i++)
-    {
-        if (!*Source)
-        {
-            NewCount--;
-        }
-        else
-        {
-            *Dest = *Source;
-            Dest++;
-        }
+	for (i = 0; i < count; i++) {
+		if (!*source) {
+			new_count--;
+		}
+		else {
+			*dest = *source;
+			dest++;
+		}
 
-        Source++;
-    }
+		source++;
+	}
 
-    /* Update parent package if any null elements were removed */
+	/* Update parent package if any null elements were removed */
 
-    if (NewCount < Count)
-    {
-        ACPI_DEBUG_PRINT ((ACPI_DB_REPAIR,
-            "%s: Found and removed %u NULL elements\n",
-            Info->FullPathname, (Count - NewCount)));
+	if (new_count < count) {
+		ACPI_DEBUG_PRINT ((ACPI_DB_REPAIR,
+			"%s: Found and removed %u NULL elements\n",
+			info->full_pathname, (count - new_count)));
 
-        /* NULL terminate list and update the package count */
+		/* NULL terminate list and update the package count */
 
-        *Dest = NULL;
-        ObjDesc->Package.Count = NewCount;
-    }
+		*dest = NULL;
+		obj_desc->package.count = new_count;
+	}
 }
 
 
 /*******************************************************************************
  *
- * FUNCTION:    AcpiNsWrapWithPackage
+ * FUNCTION:    acpi_ns_wrap_with_package
  *
- * PARAMETERS:  Info                - Method execution information block
- *              OriginalObject      - Pointer to the object to repair.
- *              ObjDescPtr          - The new package object is returned here
+ * PARAMETERS:  info                - Method execution information block
+ *              original_object     - Pointer to the object to repair.
+ *              obj_desc_ptr        - The new package object is returned here
  *
- * RETURN:      Status, new object in *ObjDescPtr
+ * RETURN:      Status, new object in *obj_desc_ptr
  *
  * DESCRIPTION: Repair a common problem with objects that are defined to
  *              return a variable-length Package of sub-objects. If there is
@@ -701,37 +531,36 @@ AcpiNsRemoveNullElements (
  *
  ******************************************************************************/
 
-ACPI_STATUS
-AcpiNsWrapWithPackage (
-    ACPI_EVALUATE_INFO      *Info,
-    ACPI_OPERAND_OBJECT     *OriginalObject,
-    ACPI_OPERAND_OBJECT     **ObjDescPtr)
+acpi_status
+acpi_ns_wrap_with_package (
+	struct acpi_evaluate_info       *info,
+	union acpi_operand_object       *original_object,
+	union acpi_operand_object       **obj_desc_ptr)
 {
-    ACPI_OPERAND_OBJECT     *PkgObjDesc;
+	union acpi_operand_object       *pkg_obj_desc;
 
 
-    ACPI_FUNCTION_NAME (NsWrapWithPackage);
+	ACPI_FUNCTION_NAME (ns_wrap_with_package);
 
 
-    /*
-     * Create the new outer package and populate it. The new
-     * package will have a single element, the lone sub-object.
-     */
-    PkgObjDesc = AcpiUtCreatePackageObject (1);
-    if (!PkgObjDesc)
-    {
-        return (AE_NO_MEMORY);
-    }
+	/*
+	 * Create the new outer package and populate it. The new
+	 * package will have a single element, the lone sub-object.
+	 */
+	pkg_obj_desc = acpi_ut_create_package_object (1);
+	if (!pkg_obj_desc) {
+		return (AE_NO_MEMORY);
+	}
 
-    PkgObjDesc->Package.Elements[0] = OriginalObject;
+	pkg_obj_desc->package.elements[0] = original_object;
 
-    ACPI_DEBUG_PRINT ((ACPI_DB_REPAIR,
-        "%s: Wrapped %s with expected Package object\n",
-        Info->FullPathname, AcpiUtGetObjectTypeName (OriginalObject)));
+	ACPI_DEBUG_PRINT ((ACPI_DB_REPAIR,
+		"%s: Wrapped %s with expected Package object\n",
+		info->full_pathname, acpi_ut_get_object_type_name (original_object)));
 
-    /* Return the new object in the object pointer */
+	/* Return the new object in the object pointer */
 
-    *ObjDescPtr = PkgObjDesc;
-    Info->ReturnFlags |= ACPI_OBJECT_REPAIRED | ACPI_OBJECT_WRAPPED;
-    return (AE_OK);
+	*obj_desc_ptr = pkg_obj_desc;
+	info->return_flags |= ACPI_OBJECT_REPAIRED | ACPI_OBJECT_WRAPPED;
+	return (AE_OK);
 }

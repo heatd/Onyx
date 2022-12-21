@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Pedro Falcato
+ * Copyright (c) 2021 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -83,7 +83,7 @@
 class hpet_timer
 {
 private:
-    const ACPI_TABLE_HPET *hpet_;
+    const acpi_table_hpet *hpet_;
     mmio_range event_timer_block_;
     uint8_t nr_timers;
 
@@ -93,7 +93,7 @@ public:
      *
      * @param hpet_table Pointer to the ACPI HPET table
      */
-    hpet_timer(const ACPI_TABLE_HPET *hpet_table);
+    hpet_timer(const acpi_table_hpet *hpet_table);
 
     /**
      * @brief Destroys the HPET timer object.
@@ -124,7 +124,7 @@ public:
  *
  * @param hpet_table Pointer to the ACPI HPET table
  */
-hpet_timer::hpet_timer(const ACPI_TABLE_HPET *hpet_table) : hpet_{hpet_table}, event_timer_block_{}
+hpet_timer::hpet_timer(const acpi_table_hpet *hpet_table) : hpet_{hpet_table}, event_timer_block_{}
 {
 }
 
@@ -136,7 +136,7 @@ hpet_timer::hpet_timer(const ACPI_TABLE_HPET *hpet_table) : hpet_{hpet_table}, e
  */
 bool hpet_timer::init()
 {
-    volatile void *evt_block = mmiomap((void *) hpet_->Address.Address, HPET_EVENT_BLOCK_LENGTH,
+    volatile void *evt_block = mmiomap((void *) hpet_->address.address, HPET_EVENT_BLOCK_LENGTH,
                                        VM_READ | VM_WRITE | VM_NOCACHE);
 
     if (!evt_block)
@@ -162,9 +162,9 @@ bool hpet_timer::init()
  */
 static void hpet_init()
 {
-    ACPI_TABLE_HPET *hpet_table;
+    acpi_table_hpet *hpet_table;
 
-    auto st = AcpiGetTable((char *) ACPI_SIG_HPET, 0, (ACPI_TABLE_HEADER **) &hpet_table);
+    auto st = acpi_get_table((char *) ACPI_SIG_HPET, 0, (acpi_table_header **) &hpet_table);
 
     if (ACPI_FAILURE(st))
     {
@@ -173,7 +173,7 @@ static void hpet_init()
 
     INFO("hpet", "Found valid HPET firmware table\n");
 
-    if (hpet_table->Address.SpaceId != ACPI_ADR_SPACE_SYSTEM_MEMORY)
+    if (hpet_table->address.space_id != ACPI_ADR_SPACE_SYSTEM_MEMORY)
     {
         ERROR("hpet", "Invalid HPET table: HPET must be in memory\n");
         return;
