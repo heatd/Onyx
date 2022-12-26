@@ -1,2 +1,4 @@
 # Run clang-format through the whole codebase
 176c837dfe8100b27d1d23ea693b7abd35a76bf6
+# clang-format: Fix cast style 
+7f1e5fa92733a6e58a49d983a15e1e1f899ddbda
