@@ -15,13 +15,13 @@
 #include <onyx/cpu.h>
 #include <onyx/elf.h>
 #include <onyx/fnv.h>
-#include <onyx/kernelinfo.h>
 #include <onyx/log.h>
 #include <onyx/modules.h>
 #include <onyx/panic.h>
 #include <onyx/process.h>
 #include <onyx/random.h>
 #include <onyx/symbol.h>
+#include <onyx/uname.h>
 #include <onyx/vfs.h>
 #include <onyx/vm.h>
 

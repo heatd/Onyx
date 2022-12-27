@@ -1,17 +1,20 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
-#ifndef _KERNEL_INFO_H
-#define _KERNEL_INFO_H
+#ifndef _ONYX_UNAME_H
+#define _ONYX_UNAME_H
 
 #include <onyx/utils.h>
 
-#define OS_NAME    "Onyx"
-#define OS_TAGLINE "hey it's me, your unix"
-#define OS_RELEASE "onyx-rolling"
-#define OS_VERSION "SMP " __DATE__ " " __TIME__
+#define OS_NAME              "Onyx"
+#define OS_TAGLINE           "hey it's me, your unix"
+#define OS_RELEASE           "onyx-rolling"
+#define OS_RELEASE_WITH_TAGS OS_RELEASE KERNEL_TAGS
+#define OS_VERSION           "SMP " __DATE__ " " __TIME__
 
 #if defined(__x86_64__)
 #define OS_MACHINE "x86_64"

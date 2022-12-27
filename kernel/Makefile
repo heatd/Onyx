@@ -19,6 +19,8 @@ BOOTDIR?=$(EXEC_PREFIX)/boot
 INCLUDEDIR?=$(PREFIX)/usr/include
 LIBDIR?=$(EXEC_PREFIX)/usr/lib
 
+KERNEL_TAGS?=
+
 CFLAGS:=$(CFLAGS) -MMD -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong \
 -Wno-unused-parameter -Wno-unused-function \
 -Werror -Wno-error=frame-address -Wno-address-of-packed-member \
@@ -111,6 +113,7 @@ endif
 
 ifeq ($(CONFIG_KASAN), y)
 CFLAGS_KASAN:=-fsanitize=kernel-address
+KERNEL_TAGS+=KASAN
 
 ifeq ($(ONYX_USING_CLANG), yes)
 
@@ -146,7 +149,7 @@ ifeq ($(CONFIG_UBSAN), y)
 # function and vptr require RTTI
 # vptr is supported in GCC 12, function is not, so we if based on LLVM
 CFLAGS+=-fsanitize=undefined -fno-sanitize=alignment -fno-sanitize=pointer-overflow -fno-sanitize=vptr
-
+KERNEL_TAGS+=UBSAN
 ifeq ($(ONYX_USING_CLANG), y)
 CFLAGS+=-fno-sanitize=function
 endif
@@ -162,7 +165,7 @@ endif
 # TODO: Fix -Wno-mismatched-new-delete cases
 CXXFLAGS:=-fno-rtti -fno-exceptions -fcheck-new -Wno-mismatched-new-delete
 
-CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -D ACPI_LIBRARY -Wno-error=deprecated-declarations
+CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -D ACPI_LIBRARY -Wno-error=deprecated-declarations -DKERNEL_TAGS='"$(KERNEL_TAGS)"'
 LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS)
 LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
 ACPICA_CFLAGS:=$(filter-out -fsanitize=undefined -Werror, $(CFLAGS))

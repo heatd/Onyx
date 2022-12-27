@@ -1,13 +1,15 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
-#ifndef _KERNEL_MODULE_H_INCLUDED
-#define _KERNEL_MODULE_H_INCLUDED
+#ifndef _ONYX_MODULE_H
+#define _ONYX_MODULE_H
 
 #include <onyx/compiler.h>
-#include <onyx/kernelinfo.h>
+#include <onyx/uname.h>
 
 #define MODULE_LICENSE_GPL2 "GPL2"
 #define MODULE_LICENSE_MIT  "MIT"
@@ -20,7 +22,7 @@
 #define MODULE_AUTHOR(x)        MODULE_INFO("author", x, author)
 #define MODULE_LICENSE(x)       MODULE_INFO("license", x, license)
 #define MODULE_ALIAS(x)         MODULE_INFO("alias", x, alias)
-#define MODULE_INSERT_VERSION() MODULE_INFO("kernel", OS_RELEASE, kver)
+#define MODULE_INSERT_VERSION() MODULE_INFO("kernel", OS_RELEASE_WITH_TAGS, kver)
 
 #ifdef __KERNEL_MODULE__
 
@@ -31,11 +33,13 @@
 #else
 
 #define MODULE_INIT(x)           \
-    extern "C" {                 \
+    extern "C"                   \
+    {                            \
     strong_alias(x, module_init) \
     }
 #define MODULE_FINI(x)           \
-    extern "C" {                 \
+    extern "C"                   \
+    {                            \
     strong_alias(x, module_fini) \
     }
 
