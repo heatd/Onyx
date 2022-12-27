@@ -32,12 +32,6 @@ static inline unsigned long pow2(int exp)
     return (1UL << (unsigned long) exp);
 }
 
-struct page_list
-{
-    struct page *page;
-    struct list_head list_node;
-};
-
 struct page_arena
 {
     void *start_arena;
@@ -97,11 +91,9 @@ int page_node::page_add(struct page_arena *arena, void *__page)
     nr_global_pages++;
     total_pages++;
 
-    struct page_list *page = (struct page_list *) PHYS_TO_VIRT(__page);
-
-    page->page = page_add_page(__page);
-    page->page->flags |= PAGE_FLAG_FREE;
-    list_add(&page->list_node, &page_list);
+    auto page = page_add_page(__page);
+    page->flags |= PAGE_FLAG_FREE;
+    list_add(&page->page_allocator_node.list_node, &page_list);
 
     return 0;
 }
@@ -152,15 +144,6 @@ void page_init(size_t memory_size, unsigned long maxpfn)
 
     __kbrk(PHYS_TO_VIRT(ptr), (void *) ((unsigned long) PHYS_TO_VIRT(ptr) + needed_memory));
     page_allocate_pagemap(maxpfn);
-
-    /* The context cookie is supposed to be used as a way for the
-     * get_phys_mem_region implementation to keep track of where it's at,
-     * without needing ugly global variables.
-     */
-
-    /* Loop this call until the context cookie is NULL
-     * (we must have reached the end)
-     */
 
     for_every_phys_region([](unsigned long start, size_t size) {
         /* page_add_region can't return an error value since it halts
@@ -237,7 +220,6 @@ void free_page(struct page *p)
 struct page *page_node::alloc_page(unsigned long flags)
 {
     struct page *ret = nullptr;
-    struct page_list *p = nullptr;
 
     /* The slow, alloc_contiguous function is the one that handles those requests */
     if (flags & PAGE_ALLOC_4GB_LIMIT)
@@ -251,15 +233,15 @@ struct page *page_node::alloc_page(unsigned long flags)
         goto out;
     }
 
-    p = container_of(list_first_element(&page_list), struct page_list, list_node);
+    ret = container_of(list_first_element(&page_list), struct page, page_allocator_node.list_node);
 
-    list_remove(&p->list_node);
+    list_remove(&ret->page_allocator_node.list_node);
 
-    assert(p->page->flags & PAGE_FLAG_FREE);
+    assert(ret->flags & PAGE_FLAG_FREE);
 
-    p->page->ref = 1;
-    p->page->flags &= ~PAGE_FLAG_FREE;
-    ret = p->page;
+    ret->ref = 1;
+    ret->flags &= ~PAGE_FLAG_FREE;
+    ret->next_un.next_allocation = nullptr;
 
     used_pages++;
     ::used_pages++;
@@ -352,8 +334,7 @@ struct page *page_arena::alloc_contiguous(size_t nr_pgs, unsigned long flags)
     for (size_t i = 0; i < nr_pgs; i++)
     {
         auto page = first_page + i;
-        auto page_list_struct = (page_list *) PAGE_TO_VIRT(page);
-        list_remove(&page_list_struct->list_node);
+        list_remove(&page->page_allocator_node.list_node);
         page->flags &= ~PAGE_FLAG_FREE;
 
         page_ref(page);
@@ -363,6 +344,8 @@ struct page *page_arena::alloc_contiguous(size_t nr_pgs, unsigned long flags)
 
         before = page;
     }
+
+    before->next_un.next_allocation = nullptr;
 
     used_pages += nr_pgs;
     ::used_pages += nr_pgs;
@@ -431,11 +414,8 @@ void page_node::free_page(struct page *p)
 
     p->flags |= PAGE_FLAG_FREE;
 
-    auto page_list_node = (struct page_list *) PAGE_TO_VIRT(p);
-    page_list_node->page = p;
-
     /* Add it at the beginning since it might be fresh in the cache */
-    list_add(&page_list_node->list_node, &page_list);
+    list_add(&p->page_allocator_node.list_node, &page_list);
 
     used_pages--;
     ::used_pages--;

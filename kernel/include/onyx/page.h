@@ -69,11 +69,20 @@ struct page
 
     /* Hmm, I'd love a way to get rid of next_un */
     union {
-        struct page *next_allocation;
-        struct page *next_virtual_region;
-    } next_un;
+        struct
+        {
+            struct list_head list_node;
+        } page_allocator_node;
+        struct
+        {
+            union {
+                struct page *next_allocation;
+                struct page *next_virtual_region;
+            } next_un;
 
-    unsigned long priv;
+            unsigned long priv;
+        };
+    };
 };
 
 #ifdef CONFIG_BUDDY_ALLOCATOR
