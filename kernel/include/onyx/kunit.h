@@ -15,6 +15,8 @@
 #ifndef _ONYX_KUNIT_H
 #define _ONYX_KUNIT_H
 
+#include <inttypes.h>
+
 namespace onx
 {
 
