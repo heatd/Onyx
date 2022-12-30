@@ -151,7 +151,7 @@ void node::enumerate_resources()
         // TODO: How to autodetect if the region in reg is MMIO, IO ports (since you *can* have
         // device trees in x86)? Is it even possible?
 
-        dev_resource *res = new dev_resource{start, size, DEV_RESOURCE_FLAG_MEM};
+        dev_resource *res = new dev_resource{start, start + size - 1, DEV_RESOURCE_FLAG_MEM};
 
         if (!res)
             panic("Could not allocate a device resource descriptor");
