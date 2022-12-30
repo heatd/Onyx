@@ -1309,7 +1309,10 @@ ssize_t vterm_write_tty(const void *buffer, size_t size, struct tty *tty)
              * has some weird casting and returns.
              */
             if (codepoint == UTF_INVALID_CODEPOINT)
+            {
                 codepoint = '?';
+                codepoint_length = 1;
+            }
 #if 0
             char x[9];
             snprintf(x, 9, "%x\n", codepoint);
