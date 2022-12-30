@@ -79,6 +79,16 @@ unsigned long percpu_init_for_cpu(unsigned int cpu)
     return (unsigned long) buffer;
 }
 
+unsigned long percpu_get_area(unsigned int cpu)
+{
+    if (cpu >= nr_bases)
+    {
+        return 0;
+    }
+
+    return percpu_bases[cpu];
+}
+
 int percpu_map_master_copy()
 {
     size_t percpu_size = (unsigned long) &__percpu_end - (unsigned long) &__percpu_start;

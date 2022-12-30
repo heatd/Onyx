@@ -36,7 +36,15 @@ void lapic_init();
 
 struct smp_header;
 
-void apic_wake_up_processor(uint8_t lapic_id, struct smp_header *s);
+/**
+ * @brief Wake up a processor
+ * Wakes up a given CPU with the given lapic_id and the given smp_header parameters.
+ *
+ * @param lapic_id LAPIC id
+ * @param s SMP header
+ * @return True if woken up, else false.
+ */
+bool apic_wake_up_processor(uint8_t lapic_id, struct smp_header *s);
 void apic_timer_smp_init(volatile uint32_t *lapic);
 void apic_set_irql(int irql);
 int apic_get_irql(void);

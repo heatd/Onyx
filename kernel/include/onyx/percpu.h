@@ -88,6 +88,8 @@ unsigned long percpu_init_for_cpu(unsigned int cpu);
 int percpu_map_master_copy();
 unsigned long percpu_get_nr_bases();
 
+unsigned long percpu_get_area(unsigned int cpu);
+
 #define other_cpu_get_ptr(var, cpu)    ((__typeof__(var) *) (percpu_bases[cpu] + (unsigned long) &var))
 #define other_cpu_get(var, cpu)        *other_cpu_get_ptr(var, cpu)
 #define other_cpu_write(var, val, cpu) *other_cpu_get_ptr(var, cpu) = val

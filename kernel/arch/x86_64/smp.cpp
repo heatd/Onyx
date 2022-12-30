@@ -18,11 +18,7 @@ namespace smp
 {
 
 static cul::vector<uint32_t> lapic_ids;
-
-extern "C"
-{
-extern unsigned int cpu_nr;
-};
+static cpumask inited_cpus;
 
 void boot(unsigned int cpu)
 {
@@ -37,23 +33,38 @@ void boot(unsigned int cpu)
 
     struct smp_header *s = (struct smp_header *) actual_smpboot_header;
 
-    s->gs_base = percpu_init_for_cpu(cpu);
     s->boot_done = false;
     s->kernel_load_bias = get_kernel_phys_offset();
 
-    other_cpu_write(cpu_nr, cpu, cpu);
+    if (inited_cpus.is_cpu_set(cpu))
+    {
+        // CPU was frozen/offlined but is now back online, so instead of doing proper init,
+        // we can skip that (since most things are already in memory).
+        s->gs_base = percpu_get_area(cpu);
 
-    sched_init_cpu(cpu);
+        assert(s->gs_base != 0);
+    }
+    else
+    {
+        s->gs_base = percpu_init_for_cpu(cpu);
 
-    cpu_messages_init(cpu);
+        other_cpu_write(cpu_nr, cpu, cpu);
+
+        sched_init_cpu(cpu);
+
+        cpu_messages_init(cpu);
+
+        apic_set_lapic_id(cpu, lapic_ids[cpu]);
+    }
 
     s->thread_stack = (unsigned long) get_thread_for_cpu(cpu)->kernel_stack_top;
 
-    apic_set_lapic_id(cpu, lapic_ids[cpu]);
+    if (apic_wake_up_processor(static_cast<uint8_t>(lapic_ids[cpu]), s))
+    {
+        smp::set_online(cpu);
+    }
 
-    apic_wake_up_processor(static_cast<uint8_t>(lapic_ids[cpu]), s);
-
-    smp::set_online(cpu);
+    inited_cpus.set_cpu(cpu);
 }
 
 }; // namespace smp
