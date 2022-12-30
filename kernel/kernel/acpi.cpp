@@ -382,10 +382,51 @@ void acpi_irq_resource_to_dev_resource(const acpi_resource *acpires, dev_resourc
     }
 }
 
+expected<u32, acpi_status> acpi_exec_sta(acpi_handle object)
+{
+    union acpi_object obj;
+    acpi_buffer out = {sizeof(obj), &obj};
+    acpi_status st = acpi_evaluate_object(object, (char *) "_STA", nullptr, &out);
+
+    if (ACPI_FAILURE(st))
+    {
+        // If _STA is not found, we assume all the bits are set (per the spec)
+        if (st == AE_NOT_FOUND)
+            return ACPI_STA_DEVICE_PRESENT | ACPI_STA_DEVICE_ENABLED | ACPI_STA_DEVICE_UI |
+                   ACPI_STA_DEVICE_OK | ACPI_STA_BATTERY_PRESENT;
+        return unexpected<acpi_status>{st};
+    }
+
+    if (obj.type != ACPI_TYPE_INTEGER)
+    {
+        return unexpected<acpi_status>{AE_BAD_VALUE};
+    }
+
+    return (u32) obj.integer.value;
+}
+
+bool acpi_is_present(acpi_handle object)
+{
+    auto ret = acpi_exec_sta(object);
+
+    if (ret.has_error())
+    {
+        printf("acpi: error: acpi_exec_sta returned %u\n", ret.error());
+        return false;
+    }
+
+    return (ret.value() & (ACPI_STA_DEVICE_PRESENT | ACPI_STA_DEVICE_FUNCTIONING)) ==
+           (ACPI_STA_DEVICE_PRESENT | ACPI_STA_DEVICE_FUNCTIONING);
+}
+
 acpi_status acpi_add_device(acpi_handle object, u32 nesting_level, void *context,
                             void **returnvalue)
 {
     bool free_id = false;
+
+    if (!acpi_is_present(object))
+        return AE_OK;
+
     acpi_device_info *info;
     acpi_status st;
     st = acpi_get_object_info(object, &info);
