@@ -17,7 +17,7 @@ config("compiler_defaults") {
               "-fstack-protector-strong"]
     
     if (target_cpu == "x86_64") {
-        cflags += ["-march=x86-64-v3"]
+        cflags += ["-march=x86-64-v2"]
     }
 
     if (target_cpu == "riscv64" && clang_path != "") {
