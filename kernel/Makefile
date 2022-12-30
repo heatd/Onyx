@@ -193,7 +193,6 @@ include drivers/Makefile
 
 ifeq ($(CONFIG_ACPI), y)
 CPPFLAGS+=-Iinclude/acpica
-include acpica/Makefile
 endif
 
 OBJS:=$(obj-y) $(obj-y_NOKASAN)
@@ -270,10 +269,6 @@ ifeq ($(KERNEL_REQUIRES_FLATTENING), yes)
 # For arm64 and others
 	$(OBJCOPY) -O binary vmonyx vmonyx
 endif
-
-acpica/%.o: acpica/%.c $(GENERATED_HEADERS)
-	@echo [CC] $<
-	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) $(CPPFLAGS)
 
 $(obj-y_NOKASAN): 
 $(obj-y_NOKASAN): CFLAGS:=$(filter-out $(CFLAGS_KASAN), $(CFLAGS)) $(CFLAGS_NOKASAN)

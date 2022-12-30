@@ -14,8 +14,6 @@ kern-$(CONFIG_COMPAT)+= binfmt/elf_compat.o
 
 kern-$(CONFIG_KTRACE)+= ktrace.o
 
-kern-$(CONFIG_ACPI)+= acpi.o acpi_osl.o
-
 obj-y+= $(patsubst %, kernel/%, $(kern-y)) 
 
 include kernel/mm/Makefile

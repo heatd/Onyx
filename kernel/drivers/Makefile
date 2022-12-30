@@ -16,6 +16,12 @@ include drivers/serial/Makefile
 include drivers/net/Makefile
 include drivers/firmware/Makefile
 
+ifeq ($(CONFIG_ACPI), y)
+
+include drivers/acpi/Makefile
+
+endif
+
 ifeq ($(CONFIG_X86), y)
 
 ifeq ($(CONFIG_X86_PLATFORM), pc)

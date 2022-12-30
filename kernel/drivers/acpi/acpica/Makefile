@@ -159,4 +159,8 @@ acpica/components/hardware/hwgpe.o \
 acpica/components/hardware/hwpci.o \
 acpica/components/hardware/hwxfsleep.o
 
-obj-y+= $(acpica-y)
+obj-$(CONFIG_ACPI)+= $(patsubst %, drivers/acpi/%, $(acpica-y))
+
+drivers/acpi/acpica/%.o: drivers/acpi/acpica/%.c $(GENERATED_HEADERS)
+	@echo [CC] $<
+	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) $(CPPFLAGS)
