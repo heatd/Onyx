@@ -50,12 +50,13 @@
 
 #define PAGE_NO_RETRY (1 << 3)
 
-#define PAGE_FLAG_LOCKED   (1 << 0)
-#define PAGE_FLAG_DIRTY    (1 << 1)
-#define PAGE_FLAG_PINNED   (1 << 2)
-#define PAGE_FLAG_FREE     (1 << 3)
-#define PAGE_FLAG_BUFFER   (1 << 4) /* Used by the filesystem code */
-#define PAGE_FLAG_FLUSHING (1 << 5)
+#define PAGE_FLAG_LOCKED      (1 << 0)
+#define PAGE_FLAG_DIRTY       (1 << 1)
+#define PAGE_FLAG_PINNED      (1 << 2)
+#define PAGE_FLAG_FREE        (1 << 3)
+#define PAGE_FLAG_BUFFER      (1 << 4) /* Used by the filesystem code */
+#define PAGE_FLAG_FLUSHING    (1 << 5)
+#define PAGE_FLAG_FILESYSTEM1 (1 << 6) /* Filesystem private flag */
 
 /* struct page - Represents every usable page on the system
  * Everything is native-word-aligned in order to allow atomic changes

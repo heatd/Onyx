@@ -162,6 +162,14 @@ off_t tmpfs_getdirent(struct dirent *buf, off_t off, struct file *file)
 
 int tmpfs_prepare_write(inode *ino, struct page *page, size_t page_off, size_t offset, size_t len)
 {
+    // If PAGE_FLAG_FILESYSTEM1 is not set, we have not seen this page. Add to blocks and make sure
+    // we dont count this in ino->i_blocks again.
+    if (!(page->flags & PAGE_FLAG_FILESYSTEM1))
+    {
+        ino->i_blocks += PAGE_SIZE / 512;
+        page->flags |= PAGE_FLAG_FILESYSTEM1;
+    }
+
     return 0;
 }
 
