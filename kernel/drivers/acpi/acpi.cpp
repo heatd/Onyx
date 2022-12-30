@@ -89,17 +89,22 @@ extern "C" int __enter_sleep_state(uint8_t sleep_state);
 
 unsigned int acpi_suspend()
 {
+    return -EIO;
+#if 0
+    // TODO: Add suspend support
+    acpi_set_firmware_waking_vector(3, 0);
+
     /* Prepare to enter S3 */
-    acpi_status st = acpi_enter_sleep_state_prep(2);
+    acpi_status st = acpi_enter_sleep_state_prep(3);
     if (ACPI_FAILURE(st))
         return -EIO;
     irq_save_and_disable();
     /* We'll need to enter assembly in order to correctly save and restore
      * registers
      */
-    if (__enter_sleep_state(2) < 0)
-        return -1;
+    acpi_enter_sleep_state(3);
     return 0;
+#endif
 }
 
 int acpi_shutdown_device(struct device *dev);
