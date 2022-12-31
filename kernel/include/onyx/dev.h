@@ -345,7 +345,30 @@ struct device
     {
         dev_resource *r = nullptr;
         for_every_resource([&](dev_resource *resource) -> bool {
-            if ((resource->flags() & type) == type && index-- == 0)
+            if (resource->flags() & type && index-- == 0)
+            {
+                r = resource;
+                return false;
+            }
+
+            return true;
+        });
+
+        return r;
+    }
+
+    /**
+     * @brief Retrieves a device's resource using the bus index
+     *
+     * @param type Type of the device (see dev_resource.h's flags)
+     * @param index Bus specific index of the resource
+     * @return Pointer to the dev_resource found, or nullptr if not found.
+     */
+    dev_resource *get_resource_busindex(uint32_t type, unsigned int index)
+    {
+        dev_resource *r = nullptr;
+        for_every_resource([&](dev_resource *resource) -> bool {
+            if (resource->flags() & type && resource->bus_index() == index)
             {
                 r = resource;
                 return false;

@@ -138,6 +138,13 @@ struct device_address
     uint8_t device;
     uint8_t function;
 };
+
+static inline bool operator==(const device_address &lhs, const device_address &rhs)
+{
+    return lhs.segment == rhs.segment && lhs.bus == rhs.bus && lhs.device == rhs.device &&
+           lhs.function == rhs.function;
+}
+
 struct pci_bar
 {
     uint64_t address;
@@ -182,6 +189,8 @@ protected:
     int wait_for_tp(off_t cap_start);
     int set_power_state(int power_state);
 
+    bool enum_bars();
+
 public:
     pci_device(const char *name, struct bus *b, device *parent, uint16_t did_, uint16_t vid_,
                const device_address &addr)
@@ -219,6 +228,17 @@ public:
     uint8_t prog_if() const
     {
         return prog_if_;
+    }
+
+    uint32_t nr_bars() const
+    {
+        unsigned int nr_bars = 6;
+
+        if (type == 1)
+            nr_bars = 2;
+        else if (type == 2)
+            nr_bars = 1;
+        return nr_bars;
     }
 
     void init();

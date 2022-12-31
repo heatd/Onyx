@@ -27,6 +27,14 @@
 
 #include <onyx/memory.hpp>
 
+#define PCI_MAX_BAR         5
+#define PCI_BAR_GET_TYPE(x) ((x >> 1) & 0x3)
+#define PCI_BAR_TYPE_32     0
+#define PCI_BAR_TYPE_64     0x2
+
+#define PCI_BAR_IO_RANGE     (1 << 0)
+#define PCI_BAR_PREFETCHABLE (1 << 3)
+
 namespace pci
 {
 
@@ -81,6 +89,121 @@ void pci_device::find_supported_capabilities()
     }
 }
 
+#define PCI_BAR_IOP_MASK  0xfffffffc
+#define PCI_BAR_MMIO_MASK 0xfffffff0
+
+bool pci_device::enum_bars()
+{
+    auto nbars = nr_bars();
+    // First, before mucking around with BARs, make sure we don't decode anything on this device
+    uint16_t command = (uint16_t) read(PCI_REGISTER_COMMAND, sizeof(u16));
+
+    write(command & ~(PCI_COMMAND_MEMORY_SPACE | PCI_COMMAND_IOSPACE), PCI_REGISTER_COMMAND,
+          sizeof(u16));
+
+    /* Iterate through BARs and try and figure out if each BAR is implemented.
+     * Then we decode the size and prefetchable, etc and send it to dev_resources. */
+    for (unsigned int i = 0; i < nbars; i++)
+    {
+        unsigned int base_bar = i;
+        auto bar = PCI_BARx(i);
+
+        u64 addr = 0;
+        u64 size = 0;
+        u32 flags = 0;
+
+        u32 val = (u32) read(bar, sizeof(u32));
+
+        /* The general algorithm for getting the length of a BAR involves
+         * writing all-1s, reading the result and ~val + 1.
+         * Why does this work? The length's bits are hardwired to 0.
+         * So a 0x1000 BAR will be 0xfffff000 after writing all-1s, then
+         * ~val = 0xfff, + 1 = 0x1000 which is our length.
+         * Note that we must skip the bottom hardwired bits, which differ for
+         * each BAR type.
+         */
+
+        write(0xffffffff, bar, sizeof(uint32_t));
+
+        u32 read_back = read(bar, sizeof(uint32_t));
+
+        if (read_back == val)
+        {
+            // Unimplemented, skip
+            continue;
+        }
+
+        if (val & PCI_BAR_IO_RANGE)
+        {
+            /* IO ranges are 32-bit only */
+            addr = val & PCI_BAR_IOP_MASK;
+            size = (~(read_back & PCI_BAR_IOP_MASK)) + 1;
+            flags |= DEV_RESOURCE_FLAG_IO_PORT;
+        }
+        else
+        {
+            if (val & PCI_BAR_PREFETCHABLE)
+                flags |= DEV_RESOURCE_FLAG_PREFETCHABLE;
+            flags |= DEV_RESOURCE_FLAG_MEM;
+
+            bool is_64 = PCI_BAR_GET_TYPE(val) == PCI_BAR_TYPE_64;
+            u32 old64 = 0;
+            /* Disable the top bits if 64 */
+            if (is_64)
+            {
+                if (i + 1 == nbars)
+                {
+                    /* Weird. Continue. */
+                    write(val, bar, sizeof(uint32_t));
+
+                    printf("pci: error: BAR %u of device %04x:%02x:%02x:%02x says it is 64-bits "
+                           "but has no space for the top half.\n",
+                           i, address.segment, address.bus, address.device, address.function);
+                    continue;
+                }
+
+                old64 = read(bar + 4, sizeof(u32));
+                write(0xffffffff, bar + 4, sizeof(u32));
+
+                size |= read(bar + 4, sizeof(u32)) << 32;
+                write(old64, bar + 4, sizeof(u32));
+                i++;
+            }
+
+            size |= read_back & PCI_BAR_MMIO_MASK;
+
+            size = ~size + 1;
+            if (!is_64)
+                size &= 0xffffffff;
+            addr = (val & PCI_BAR_MMIO_MASK) | ((u64) old64 << 32);
+        }
+
+        write(val, bar, sizeof(uint32_t));
+
+        unique_ptr<dev_resource> res = make_unique<dev_resource>(addr, addr + size - 1, flags);
+        if (!res)
+        {
+            write(command, PCI_REGISTER_COMMAND, sizeof(u16));
+            return false;
+        }
+
+        res->set_bus_index(base_bar);
+
+        printf("pci: %04x:%02x:%02x:%02x: Found BAR%u [%016lx, %016lx] %s\n", address.segment,
+               address.bus, address.device, address.function, base_bar, res->start(), res->end(),
+               flags & DEV_RESOURCE_FLAG_IO_PORT
+                   ? "ioport"
+                   : (flags & DEV_RESOURCE_FLAG_PREFETCHABLE ? "mem-prefetchable" : "mem"));
+
+        add_resource(res.release());
+    }
+
+    // Reset decoding of IO and MMIO
+    write(command, PCI_REGISTER_COMMAND, sizeof(u16));
+
+    return true;
+}
+
 void pci_device::init()
 {
     uint32_t word = (uint32_t) read_config(address, PCI_REGISTER_REVISION_ID, sizeof(uint32_t));
@@ -96,53 +219,29 @@ void pci_device::init()
     find_supported_capabilities();
 
     assert(device_init(this) == 0);
+
+    assert(enum_bars());
 }
-
-#define PCI_MAX_BAR         5
-#define PCI_BAR_GET_TYPE(x) ((x >> 1) & 0x3)
-#define PCI_BAR_TYPE_32     0
-#define PCI_BAR_TYPE_64     0x2
-
-#define PCI_BAR_IO_RANGE     (1 << 0)
-#define PCI_BAR_PREFETCHABLE (1 << 3)
 
 expected<pci_bar, int> pci_device::get_bar(unsigned int index)
 {
     assert(index <= PCI_MAX_BAR);
 
+    auto bar = get_resource_busindex(DEV_RESOURCE_FLAG_IO_PORT | DEV_RESOURCE_FLAG_MEM, index);
+    if (!bar)
+        return unexpected<int>{-EIO};
+
     pci_bar b;
 
     uint16_t offset = PCI_BARx(index);
 
-    uint32_t word = (uint32_t) read(offset, sizeof(word));
-    uint32_t upper_half = 0;
+    u32 word = (uint32_t) read(offset, sizeof(word));
 
-    b.is_iorange = word & PCI_BAR_IO_RANGE;
-    b.may_prefetch = word & PCI_BAR_PREFETCHABLE;
+    b.is_iorange = bar->flags() & DEV_RESOURCE_FLAG_IO_PORT;
+    b.may_prefetch = bar->flags() & DEV_RESOURCE_FLAG_PREFETCHABLE;
 
-    bool is_64 = PCI_BAR_GET_TYPE(word) == PCI_BAR_TYPE_64;
-
-    if (is_64)
-    {
-        upper_half = read(PCI_BARx((index + 1)), sizeof(uint32_t));
-    }
-
-    uint32_t mask = 0xfffffff0;
-    if (b.is_iorange)
-    {
-        mask = 0xfffffffc;
-    }
-
-    b.address = word & mask;
-    b.address |= ((uint64_t) upper_half << 32);
-
-    /* Get the size */
-    write(0xffffffff, offset, sizeof(uint32_t));
-
-    uint32_t size = (~((read(offset, sizeof(uint32_t)) & 0xfffffff0))) + 1;
-    b.size = size;
-
-    write(word, offset, sizeof(uint32_t));
+    b.address = bar->start();
+    b.size = bar->size();
 
     return b;
 }
@@ -517,6 +616,29 @@ int pci_device::reset_device()
     write(PCI_AF_INTIATE_FLR, off + PCI_AF_REG_CONTROL, sizeof(uint8_t));
 
     return wait_for_tp(off);
+}
+
+static pci_device *__find_dev_bus(struct bus *bus, const device_address &addr)
+{
+    list_for_every (&bus->device_list_head)
+    {
+        auto dev = list_head_cpp<pci_device>::self_from_list_head(l);
+        if (dev->addr() == addr)
+            return dev;
+    }
+
+    return nullptr;
+}
+
+pci_device *get_device(const device_address &addr)
+{
+    pci_device *dev = nullptr;
+    pci.for_every_bus([&](struct bus *bus) -> bool {
+        dev = __find_dev_bus(bus, addr);
+        return dev == nullptr;
+    });
+
+    return dev;
 }
 
 } // namespace pci

@@ -14,9 +14,10 @@
 
 // TODO: Do IRQ flags need to be here? So something like install_irq can look at them
 // and do the correct set up.
-#define DEV_RESOURCE_FLAG_IO_PORT (1 << 0)
-#define DEV_RESOURCE_FLAG_MEM     (1 << 1)
-#define DEV_RESOURCE_FLAG_IRQ     (1 << 2)
+#define DEV_RESOURCE_FLAG_IO_PORT      (1 << 0)
+#define DEV_RESOURCE_FLAG_MEM          (1 << 1)
+#define DEV_RESOURCE_FLAG_IRQ          (1 << 2)
+#define DEV_RESOURCE_FLAG_PREFETCHABLE (1 << 3)
 
 /**
  * @brief Represents a generic device resource.
@@ -28,6 +29,7 @@ class dev_resource
     unsigned long start_;
     unsigned long end_;
     uint32_t flags_;
+    uint32_t bus_index_{0};
 
 public:
     list_head_cpp<dev_resource> resource_list_node_;
@@ -97,6 +99,26 @@ public:
     uint32_t& flags()
     {
         return flags_;
+    }
+
+    /**
+     * @brief Set the bus-specific index of this device resource
+     *
+     * @param i Index
+     */
+    void set_bus_index(uint32_t i)
+    {
+        bus_index_ = i;
+    }
+
+    /**
+     * @brief Get the bus index of the device resource
+     *
+     * @return Bus index (if not set, 0)
+     */
+    uint32_t bus_index() const
+    {
+        return bus_index_;
     }
 };
 
