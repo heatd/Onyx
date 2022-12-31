@@ -7,6 +7,7 @@
  */
 
 #include <onyx/bus_type.h>
+#include <onyx/cred.h>
 #include <onyx/dev.h>
 #include <onyx/init.h>
 #include <onyx/public/pciio.h>
@@ -209,11 +210,28 @@ int devpci_getconf(struct pci_conf_io *ucio)
     return st;
 }
 
-int devpci_read(struct pci_io *arg)
+/**
+ * @brief Calculate the register limit for devpci
+ *
+ * @return The maximum register you can access, in this context for this user.
+ */
+__u16 devpci_reg_limit()
+{
+    if (is_root_user())
+        return pcie_is_enabled() ? 4096 : 256;
+
+    // Linux seems to believe the first 64 bytes are safe for non-root access
+    return 64;
+}
+
+int devpci_read(struct pci_io *arg, struct file *file)
 {
     struct pci_io io;
     if (copy_from_user(&io, arg, sizeof(io)) < 0)
         return -EFAULT;
+
+    if (!fd_may_access(file, FILE_ACCESS_READ))
+        return -EPERM;
 
     auto daddr = pcisel_to_daddr(io.pi_sel);
     auto dev = pci::get_device(daddr);
@@ -226,11 +244,11 @@ int devpci_read(struct pci_io *arg)
         return -EINVAL;
     }
 
-    const auto reglimit = pcie_is_enabled() ? 4096 : 256;
+    const auto reglimit = devpci_reg_limit();
 
     if (io.pi_reg >= reglimit)
     {
-        return -EINVAL;
+        return is_root_user() ? -EINVAL : -EPERM;
     }
 
     const __u32 val = (__u32) dev->read(io.pi_reg, io.pi_width);
@@ -238,11 +256,49 @@ int devpci_read(struct pci_io *arg)
     return copy_to_user(&arg->pi_data, &val, sizeof(__u32));
 }
 
-static int devpci_getbar(struct pci_bar_io *uio)
+int devpci_write(struct pci_io *arg, struct file *file)
+{
+    struct pci_io io;
+    if (copy_from_user(&io, arg, sizeof(io)) < 0)
+        return -EFAULT;
+
+    if (!fd_may_access(file, FILE_ACCESS_WRITE))
+        return -EPERM;
+
+    if (!is_root_user())
+        return -EPERM;
+
+    auto daddr = pcisel_to_daddr(io.pi_sel);
+    auto dev = pci::get_device(daddr);
+
+    if (!dev)
+        return -ENODEV;
+    if (io.pi_width > 4 || io.pi_width == 0 || io.pi_width & 1)
+    {
+        // Only valid widths are 1, 2, 4
+        return -EINVAL;
+    }
+
+    const auto reglimit = devpci_reg_limit();
+
+    if (io.pi_reg >= reglimit)
+    {
+        return is_root_user() ? -EINVAL : -EPERM;
+    }
+
+    dev->write(io.pi_data, io.pi_reg, io.pi_width);
+
+    return 0;
+}
+
+static int devpci_getbar(struct pci_bar_io *uio, struct file *file)
 {
     struct pci_bar_io io;
     if (copy_from_user(&io, uio, sizeof(io)) < 0)
         return -EFAULT;
+
+    if (!fd_may_access(file, FILE_ACCESS_READ))
+        return -EPERM;
 
     auto daddr = pcisel_to_daddr(io.pbi_sel);
     auto dev = pci::get_device(daddr);
@@ -262,7 +318,7 @@ static int devpci_getbar(struct pci_bar_io *uio)
         dev->get_resource_busindex(DEV_RESOURCE_FLAG_MEM | DEV_RESOURCE_FLAG_IO_PORT, bar);
 
     if (!resource)
-        return -ENOENT;
+        return -EINVAL;
 
     io.pbi_base = resource->start();
     io.pbi_enabled = 1;
@@ -278,9 +334,11 @@ static unsigned int devpci_ioctl(int request, void *argp, struct file *file)
         case PCIOCGETCONF:
             return devpci_getconf((struct pci_conf_io *) argp);
         case PCIOCREAD:
-            return devpci_read((struct pci_io *) argp);
+            return devpci_read((struct pci_io *) argp, file);
         case PCIOCGETBAR:
-            return devpci_getbar((struct pci_bar_io *) argp);
+            return devpci_getbar((struct pci_bar_io *) argp, file);
+        case PCIOCWRITE:
+            return devpci_write((struct pci_io *) argp, file);
     }
 
     return -ENOTTY;
