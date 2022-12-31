@@ -30,6 +30,7 @@
 #include <onyx/panic.h>
 #include <onyx/percpu.h>
 #include <onyx/process.h>
+#include <onyx/public/memstat.h>
 #include <onyx/random.h>
 #include <onyx/spinlock.h>
 #include <onyx/sysfs.h>

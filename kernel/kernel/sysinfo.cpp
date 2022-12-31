@@ -10,6 +10,7 @@
 
 #include <onyx/page.h>
 #include <onyx/process.h>
+#include <onyx/public/memstat.h>
 
 struct sysinfo do_sys_sysinfo()
 {

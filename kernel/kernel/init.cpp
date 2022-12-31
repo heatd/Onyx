@@ -83,8 +83,6 @@ void set_initrd_address(void *initrd_address, size_t length)
     initrd_length = length;
 }
 
-void dump_used_mem();
-
 int sys_execve(const char *p, const char **argv, const char **envp);
 
 int find_and_exec_init(const char **argv, const char **envp)
@@ -140,21 +138,6 @@ int find_and_exec_init(const char **argv, const char **envp)
 
     return -1;
 }
-
-#if 1
-void dump_used_mem()
-{
-    struct memstat ps;
-    page_get_stats(&ps);
-    printk("Used total: %lu - Page cache %lu, kernel heap %lu\n", ps.allocated_pages,
-           ps.page_cache_pages, ps.kernel_heap_pages);
-
-    unsigned long memory_pressure = (ps.allocated_pages * 1000000) / (ps.total_pages);
-    printk("Global %lu\n", ps.total_pages);
-    printk("Memory pressure: 0.%06lu\n", memory_pressure);
-}
-
-#endif
 
 static thread_t *new_thread;
 

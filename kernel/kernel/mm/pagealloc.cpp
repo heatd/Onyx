@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2017 Pedro Falcato
+ * Copyright (c) 2017 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #include <assert.h>
@@ -15,8 +17,11 @@
 #include <unistd.h>
 
 #include <onyx/copy.h>
+#include <onyx/heap.h>
 #include <onyx/page.h>
+#include <onyx/pagecache.h>
 #include <onyx/panic.h>
+#include <onyx/public/memstat.h>
 #include <onyx/spinlock.h>
 #include <onyx/utils.h>
 #include <onyx/vm.h>
@@ -154,9 +159,6 @@ void page_init(size_t memory_size, unsigned long maxpfn)
 
     page_is_initialized = true;
 }
-
-#include <onyx/heap.h>
-#include <onyx/pagecache.h>
 
 void page_get_stats(struct memstat *m)
 {

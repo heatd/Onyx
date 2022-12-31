@@ -15,7 +15,6 @@
 
 #include <onyx/compiler.h>
 #include <onyx/list.h>
-#include <onyx/public/memstat.h>
 #include <onyx/ref.h>
 #include <onyx/spinlock.h>
 #include <onyx/vm.h>
@@ -125,6 +124,8 @@ typedef struct 0
 0t;
 
 #endif /* CONFIG_BUDDY_ALLOCATOR */
+
+struct memstat;
 
 void page_get_stats(struct memstat *memstat);
 

@@ -17,7 +17,6 @@
 
 #include <onyx/mm/vm_object.h>
 #include <onyx/object.h>
-#include <onyx/public/socket.h>
 #include <onyx/rwlock.h>
 #include <onyx/superblock.h>
 #include <onyx/vm.h>
@@ -243,6 +242,7 @@ static inline bool inode_is_special(inode *ino)
 
 bool inode_can_access(struct inode *file, unsigned int perms);
 bool file_can_access(struct file *file, unsigned int perms);
+bool fd_may_access(struct file *f, unsigned int access);
 
 struct page_cache_block;
 struct page_cache_block *inode_get_page(struct inode *inode, off_t offset, long flags);
