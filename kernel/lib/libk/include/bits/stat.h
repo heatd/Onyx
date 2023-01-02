@@ -9,6 +9,7 @@ struct stat {
 	mode_t st_mode;
 	uid_t st_uid;
 	gid_t st_gid;
+	unsigned int    __pad0;
 	dev_t st_rdev;
 	off_t st_size;
 	blksize_t st_blksize;
@@ -17,4 +18,5 @@ struct stat {
 	struct timespec st_atim;
 	struct timespec st_mtim;
 	struct timespec st_ctim;
+	long __unused[3];
 };

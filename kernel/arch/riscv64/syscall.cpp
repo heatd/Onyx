@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 - 2023 Pedro Falcato
+ * Copyright (c) 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -45,7 +45,7 @@ long do_syscall64(registers_t *frame)
     else
         ret = -ENOSYS;
 
-#if 1
+#if 0
     if (ret < 0)
         printk("Error doing syscall %ld = %ld (%s)\n", syscall_nr, ret, strerror(-ret));
 #endif
