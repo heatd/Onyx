@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Pedro Falcato
+ * Copyright (c) 2021 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -54,8 +54,7 @@ int uart8250_acpi_probe(device *fake_dev)
         return -1;
 
     unique_ptr<uart8250_port> port =
-        make_unique<uart8250_port>(static_cast<uint16_t>(io_resource->start()),
-                                   static_cast<unsigned int>(irq_rc->start()), dev);
+        make_unique<uart8250_port>(io_resource, static_cast<unsigned int>(irq_rc->start()), dev);
 
     if (!port)
         return -1;

@@ -139,9 +139,12 @@ liveiso: fullbuild
 fullbuild-plus-initrd: fullbuild
 	SYSTEM_ROOT=$(SYSROOT) scripts/geninitrd --compression-method none scripts/default-initrd.sh
 
-qemu-riscv: fullbuild-plus-initrd
+fullbuild-plus-full-initrd: fullbuild
+	SYSTEM_ROOT=$(SYSROOT) scripts/geninitrd --compression-method none scripts/livecd-initrd.sh
+
+qemu-riscv: fullbuild-plus-full-initrd
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) -kernel kernel/vmonyx -m 512M -machine virt \
-	-monitor stdio -s -initrd initrd.tar
+	-serial stdio -s -initrd initrd.tar -trace "*irq*"
 
 qemu-arm64: fullbuild-plus-initrd
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) -kernel kernel/vmonyx -m 512M -machine virt \
@@ -167,7 +170,7 @@ qemu-serial-stdio: iso
 
 ci-test-qemu: liveiso
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) \
-	-s -cdrom Onyx.iso -m 2G -serial stdio -boot d -netdev user,id=u1 \
+	-s -cdrom Onyx.iso -m 1G -serial stdio -boot d -netdev user,id=u1 \
 	-device virtio-net,netdev=u1 -object filter-dump,id=f1,netdev=u1,file=net.pcap \
 	-cpu Haswell --enable-kvm -smp 4 -vga qxl -device usb-ehci -device usb-mouse \
 	-display gtk,gl=on -machine q35

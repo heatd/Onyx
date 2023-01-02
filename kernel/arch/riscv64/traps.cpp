@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2022 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -269,6 +269,10 @@ void riscv_handle_interrupt(registers_t *regs, unsigned long cause)
     {
         // Supervisor timer interrupt
         riscv_timer_irq();
+    }
+    else
+    {
+        panic("external");
     }
 
     // Run softirqs if we can

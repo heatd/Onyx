@@ -35,7 +35,7 @@ void stack_trace_user(uintptr_t *stack)
     int i = 0;
     while (get_ulong_user(fp, &error) != 0 && error == false)
     {
-        uintptr_t rip = get_ulong_user((fp + 1), &error);
+        uintptr_t rip = get_ulong_user((fp - 1), &error);
 
         if (error == true)
             return;
@@ -44,7 +44,7 @@ void stack_trace_user(uintptr_t *stack)
 
         printk("<%d> %016lx\n", i++, rip);
 
-        fp = (uintptr_t *) get_ulong_user(fp, &error);
+        fp = (uintptr_t *) get_ulong_user(fp - 2, &error);
 
         if (error == true)
             return;
@@ -52,10 +52,8 @@ void stack_trace_user(uintptr_t *stack)
     printk("Stack trace ended.\n");
 }
 
-char *resolve_sym(void *address);
-__attribute__((no_sanitize_undefined)) void stack_trace_ex(unsigned long *stack)
+size_t stack_trace_get(unsigned long *stack, unsigned long *pcs, size_t nr_pcs)
 {
-    // Get all the unwinds possible using threading structures
     thread_t *thread = get_current_thread();
     size_t unwinds_possible = 0;
     if (!thread) // We're still in single tasking mode, just use a safe default
@@ -63,43 +61,56 @@ __attribute__((no_sanitize_undefined)) void stack_trace_ex(unsigned long *stack)
     else
         unwinds_possible = 1024; /* It's safe to say the stack won't grow larger than this */
 
-    unsigned long *fp = stack;
-    for (size_t i = 0; i < unwinds_possible; i++)
+    unwinds_possible = min(unwinds_possible, nr_pcs);
+    uint64_t *fp = stack;
+    size_t i;
+    for (i = 0; i < unwinds_possible; i++)
     {
-        /*if(thread)
+        if (thread)
         {
-            if((unsigned long*) *fp >= thread->kernel_stack_top)
+            if ((uintptr_t) fp & 0x7)
                 break;
-        }*/
 
-        printk("fp: %p\n", fp);
+            unsigned long stack_base = ((unsigned long) thread->kernel_stack_top) - 0x4000;
 
-        void *retaddr = (void *) *(fp + 1);
-        if (!retaddr)
+            if (fp >= thread->kernel_stack_top)
+                break;
+            if (fp - 2 < (unsigned long *) stack_base)
+                break;
+        }
+
+        if (!(void *) *(fp - 1))
             break;
-#if 0
-        char *s = resolve_sym((void *) *(fp + 1));
-        if (!s)
-            break;
-#endif
-        printk("Stack trace #%lu: %p\n", i, retaddr);
 
-#if 0
-        free(s);
-#endif
-        fp = (unsigned long *) *fp;
+        auto ip = (unsigned long) *(fp - 1);
+        if (ip < VM_HIGHER_HALF)
+            break;
+
+        pcs[i] = ip;
+
+        fp = (uint64_t *) *(fp - 2);
         if (!fp)
             break;
     }
+
+    if (i != unwinds_possible)
+        pcs[i] = 0;
+
+    return i;
 }
 
-void stack_trace(void)
+char *resolve_sym(void *address);
+void stack_trace_ex(unsigned long *stack)
 {
-    return;
+    unsigned long pcs[32];
+    const size_t nr = stack_trace_get(stack, pcs, sizeof(pcs) / sizeof(unsigned long));
+    for (size_t i = 0; i < nr; i++)
+    {
+        printk("Stack frame #%lu: %lx\n", i, pcs[i]);
+    }
+}
+
+void stack_trace()
+{
     stack_trace_ex((unsigned long *) __builtin_frame_address(1));
-}
-
-size_t stack_trace_get(unsigned long *stack, unsigned long *pcs, size_t nr_pcs)
-{
-    return 0;
 }

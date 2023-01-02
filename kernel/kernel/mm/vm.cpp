@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -315,7 +315,7 @@ static inline void __vm_lock(bool kernel)
     if (kernel)
         mutex_lock(&kernel_address_space.vm_lock);
     else
-        mutex_lock(&get_current_process()->get_aspace()->vm_lock);
+        mutex_lock(&get_current_address_space()->vm_lock);
 }
 
 static inline void __vm_unlock(bool kernel)
@@ -323,7 +323,7 @@ static inline void __vm_unlock(bool kernel)
     if (kernel)
         mutex_unlock(&kernel_address_space.vm_lock);
     else
-        mutex_unlock(&get_current_process()->get_aspace()->vm_lock);
+        mutex_unlock(&get_current_address_space()->vm_lock);
 }
 
 static inline bool is_higher_half(void *address)
@@ -624,7 +624,7 @@ struct vm_region *__vm_allocate_virt_region(uint64_t flags, size_t pages, uint32
         allocating_kernel = false;
 
     struct mm_address_space *as =
-        allocating_kernel ? &kernel_address_space : get_current_process()->get_aspace();
+        allocating_kernel ? &kernel_address_space : get_current_address_space();
 
     MUST_HOLD_MUTEX(&as->vm_lock);
 
@@ -2125,13 +2125,13 @@ int vm_handle_present_cow(struct vm_pf_context *ctx)
     size_t vmo_off = (ctx->vpage - entry->base) + entry->offset;
 
 #if 0
-	printk("Re-mapping COW'd page %lx with perms %x\n", ctx->vpage, ctx->page_rwx);
-	printk("fd: %p", entry->fd);
+    printk("Re-mapping COW'd page %lx with perms %x\n", ctx->vpage, ctx->page_rwx);
+    printk("fd: %p", entry->fd);
 
-	if(entry->fd)
-		printk(" (%s)\n", entry->fd->f_dentry->d_name);
-	else
-		printk("\n");
+    if (entry->fd)
+        printk(" (%s)\n", entry->fd->f_dentry->d_name);
+    else
+        printk("\n");
 #endif
 
     struct page *new_page = vmo_cow_on_page(vmo, vmo_off);
@@ -2654,8 +2654,7 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 void *vm_map_vmo(size_t flags, uint32_t type, size_t pages, size_t prot, vm_object *vmo)
 {
     bool kernel = !(flags & VM_ADDRESS_USER);
-    struct mm_address_space *mm =
-        kernel ? &kernel_address_space : get_current_process()->get_aspace();
+    struct mm_address_space *mm = kernel ? &kernel_address_space : get_current_address_space();
 
     scoped_mutex g{mm->vm_lock};
 

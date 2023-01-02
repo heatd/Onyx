@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2022 Pedro Falcato
+ * Copyright (c) 2020 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -956,7 +956,7 @@ struct create_handling : public last_name_handling
         rw_lock_write(&inode->i_rwlock);
 
         if (in.type == create_file_type::creat)
-            new_inode = inode->i_fops->creat(_name, (int) in.mode, dentry);
+            new_inode = inode->i_fops->creat(_name, (int) in.mode | S_IFREG, dentry);
         else if (in.type == create_file_type::mkdir)
             new_inode = inode->i_fops->mkdir(_name, in.mode, dentry);
         else if (in.type == create_file_type::mknod)

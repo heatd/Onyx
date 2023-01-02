@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2022 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -322,7 +322,7 @@ int paging_clone_as(mm_address_space *addr_space, mm_address_space *original)
 PML *paging_fork_pml(PML *pml, int entry, struct mm_address_space *as)
 {
     uint64_t old_address = PML_EXTRACT_ADDRESS(pml->entries[entry]);
-    uint64_t perms = pml->entries[entry] & 0xF000000000000FFF;
+    uint64_t perms = pml->entries[entry] & RISCV_PAGING_PROT_BITS;
 
     void *new_pt = alloc_pt();
     if (!new_pt)
@@ -330,7 +330,7 @@ PML *paging_fork_pml(PML *pml, int entry, struct mm_address_space *as)
 
     increment_vm_stat(as, page_tables_size, PAGE_SIZE);
 
-    pml->entries[entry] = (uint64_t) new_pt | perms;
+    pml->entries[entry] = (uint64_t) riscv_make_pt_entry_page_table((PML *) new_pt) | perms;
     PML *new_pml = (PML *) PHYS_TO_VIRT(new_pt);
     PML *old_pml = (PML *) PHYS_TO_VIRT(old_address);
     memcpy(new_pml, old_pml, sizeof(PML));
@@ -398,7 +398,13 @@ void paging_load_top_pt(PML *pml)
 {
     unsigned long new_satp = RISCV_SATP_4LEVEL_MMU | (unsigned long) pml >> PAGE_SHIFT;
     riscv_write_csr(RISCV_SATP, new_satp);
-    __asm__ __volatile__("sfence.vma zero, zero");
+    __asm__ __volatile__("sfence.vma zero, %0" ::"r"(0));
+}
+
+static void dump_pt(PML *pt)
+{
+    for (const auto &entry : pt->entries)
+        printk("%016lx\n", entry);
 }
 
 bool riscv_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,

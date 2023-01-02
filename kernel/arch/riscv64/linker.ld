@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -151,6 +151,11 @@ SECTIONS
 	{
 		*vdso_helper.o(*.vdso)
 	} : vdso
+
+	.riscv.attributes : AT(ADDR(.riscv.attributes) - VIRT_BASE)
+	{
+		*(.riscv.attributes)
+	}
 
 	. = ALIGN(0x1000);
 	_vdso_sect_end = .;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2022 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -167,7 +167,22 @@ void node::enumerate_resources()
         reg_offset += addr_cells + size_cells;
     }
 
-    // TODO: IRQs
+    int irqs_len;
+    // TODO: interrupt-cells from interrupt-parent, interrupts-extended
+    const fdt32_t *irqs = (const fdt32_t *) get_property("interrupts", &irqs_len);
+
+    if (irqs)
+    {
+        for (int i = 0; i < irqs_len / 4; i++)
+        {
+            const auto irq = fdt32_to_cpu(irqs[i]);
+            dev_resource *res = new dev_resource{irq, 1, DEV_RESOURCE_FLAG_IRQ};
+            if (!res)
+                panic("Could not allocate a device resource descriptor");
+
+            add_resource(res);
+        }
+    }
 }
 
 /**

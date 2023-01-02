@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2022 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -35,16 +35,6 @@ void arch_vm_init()
 
 int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigaction,
                          struct registers *regs)
-{
-    UNIMPLEMENTED;
-}
-
-int platform_install_irq(unsigned int irqn, struct interrupt_handler *h)
-{
-    UNIMPLEMENTED;
-}
-
-void platform_mask_irq(unsigned int irq)
 {
     UNIMPLEMENTED;
 }
@@ -100,6 +90,16 @@ uint64_t get_posix_time_early()
 
 void setup_kernel_symbols(struct module *m)
 {
+}
+
+int platform_install_irq(unsigned int irqn, struct interrupt_handler *h)
+{
+    UNIMPLEMENTED;
+}
+
+void platform_mask_irq(unsigned int irq)
+{
+    UNIMPLEMENTED;
 }
 
 namespace entropy

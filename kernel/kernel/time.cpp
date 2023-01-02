@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #include <assert.h>
@@ -106,48 +108,55 @@ int clock_gettime_kernel(clockid_t clk_id, struct timespec *tp)
 {
     switch (clk_id)
     {
-    case CLOCK_REALTIME: {
-        tp->tv_sec = clocks[clk_id].epoch;
-        uint64_t start = clocks[clk_id].tick;
-        uint64_t end = clocks[clk_id].source->get_ticks();
-        tp->tv_nsec = clocks[clk_id].source->elapsed_ns(start, end);
-        break;
-    }
+        case CLOCK_REALTIME: {
+            if (!clocks[clk_id].source)
+            {
+                tp->tv_sec = 0;
+                tp->tv_nsec = 0;
+                return 0;
+            }
 
-    case CLOCK_MONOTONIC:
-    case CLOCK_BOOTTIME:
-    case CLOCK_MONOTONIC_RAW: {
-        // TODO: This is not conforming
-        if (clk_id == CLOCK_MONOTONIC_RAW)
-        {
-            clk_id = CLOCK_MONOTONIC;
+            tp->tv_sec = clocks[clk_id].epoch;
+            uint64_t start = clocks[clk_id].tick;
+            uint64_t end = clocks[clk_id].source->get_ticks();
+            tp->tv_nsec = clocks[clk_id].source->elapsed_ns(start, end);
+            break;
         }
 
-        auto t0 = clocksource_get_time();
-        tp->tv_sec = t0 / NS_PER_SEC;
-        tp->tv_nsec = t0 % NS_PER_SEC;
-        break;
-    }
+        case CLOCK_MONOTONIC:
+        case CLOCK_BOOTTIME:
+        case CLOCK_MONOTONIC_RAW: {
+            // TODO: This is not conforming
+            if (clk_id == CLOCK_MONOTONIC_RAW)
+            {
+                clk_id = CLOCK_MONOTONIC;
+            }
 
-    case CLOCK_PROCESS_CPUTIME_ID: {
-        struct process *p = get_current_process();
+            auto t0 = clocksource_get_time();
+            tp->tv_sec = t0 / NS_PER_SEC;
+            tp->tv_nsec = t0 % NS_PER_SEC;
+            break;
+        }
 
-        hrtime_t total_time = p->system_time + p->user_time;
+        case CLOCK_PROCESS_CPUTIME_ID: {
+            struct process *p = get_current_process();
 
-        hrtime_to_timespec(total_time, tp);
-        break;
-    }
+            hrtime_t total_time = p->system_time + p->user_time;
 
-    case CLOCK_THREAD_CPUTIME_ID: {
-        struct thread *thr = get_current_thread();
+            hrtime_to_timespec(total_time, tp);
+            break;
+        }
 
-        hrtime_t total_time = thr->cputime_info.system_time + thr->cputime_info.user_time;
-        hrtime_to_timespec(total_time, tp);
-        break;
-    }
+        case CLOCK_THREAD_CPUTIME_ID: {
+            struct thread *thr = get_current_thread();
 
-    default:
-        return -EINVAL;
+            hrtime_t total_time = thr->cputime_info.system_time + thr->cputime_info.user_time;
+            hrtime_to_timespec(total_time, tp);
+            break;
+        }
+
+        default:
+            return -EINVAL;
     }
 
     return 0;

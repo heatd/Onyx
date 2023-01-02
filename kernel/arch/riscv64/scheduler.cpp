@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2022 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -225,7 +225,9 @@ void arch_load_thread(thread *thread, unsigned int cpu)
         // If we're a kernel thread, load the address space if its not &kernel_address_space
         // since it may be a special one like efi_aspace
         // This is not done for user threads since those get loaded later on
-        vm_load_arch_mmu(&thread->get_aspace()->arch_mmu);
+        auto kspace = thread->get_aspace();
+        if (kspace != &kernel_address_space)
+            vm_load_aspace(kspace, cpu);
     }
 
     // Note: We know that abi data is guaranteed to be the first member of tp, so we can use it as

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2022 - 2923 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -9,6 +9,7 @@
 #include <libfdt.h>
 #include <stdio.h>
 
+#include <onyx/cmdline.h>
 #include <onyx/device_tree.h>
 #include <onyx/init.h>
 #include <onyx/mm/kasan.h>
@@ -30,6 +31,8 @@ void plic_init();
 
 extern "C" void kernel_entry(void *fdt)
 {
+    // XXX HACK
+    set_kernel_cmdline("--root=/dev/sda1");
     write_per_cpu(__cpu_base, &percpu_base);
     paging_init();
 
