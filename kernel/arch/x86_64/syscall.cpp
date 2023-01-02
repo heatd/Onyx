@@ -34,7 +34,7 @@ extern "C" long do_syscall64(struct syscall_frame *frame)
     if (frame->rax == SYS_sigaltstack)
         frame->rdx = (unsigned long) frame;
 
-    long syscall_nr = frame->rax;
+    unsigned long syscall_nr = frame->rax;
     long ret = 0;
 
     proc_event_enter_syscall(frame, frame->rax);
