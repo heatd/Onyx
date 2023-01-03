@@ -25,7 +25,7 @@ extern syscall_callback_t syscall_table_64[];
 long do_syscall64(registers_t *frame)
 {
     /* In case of a fork or sigreturn, adjust %rdi so it points to the frame */
-    if (frame->a7 == SYS_fork || frame->a7 == SYS_sigreturn)
+    if (frame->a7 == SYS_fork || frame->a7 == SYS_sigreturn || frame->a7 == SYS_vfork)
         frame->a0 = (unsigned long) frame;
 
     /* sigaltstack's implementation requires the syscall frame as the 3rd argument */
