@@ -115,7 +115,7 @@ void clock_init()
     int st = cpus->get_property("timebase-frequency", &freq);
     if (st == 0)
     {
-        printk("Timer frequency: %u Hz\n", freq);
+        printf("riscv: Timer frequency: %u Hz\n", freq);
     }
     else
     {

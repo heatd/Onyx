@@ -177,7 +177,7 @@ void riscv_fixup_harts()
 
     if (index != 0)
     {
-        printk("riscv: We would be cpu#%lu, fixing up hart list...\n", index);
+        printf("riscv: We would be cpu#%lu, fixing up hart list...\n", index);
         cul::swap(cpus[0], cpus[index]);
         cul::swap(cpu2hart[0], cpu2hart[index]);
     }

@@ -114,7 +114,7 @@ int plic_chip::init()
 
         auto hart = riscv_cpu_get_hart(cpu);
 
-        printk("hart %u intno %u @ context %u\n", hart, intno, context);
+        printf("hart %u intno %u @ context %u\n", hart, intno, context);
         bool success = contexts.push_back({hart, PLIC_ENABLES(context), PLIC_CONTEXT(context)});
 
         if (!success)

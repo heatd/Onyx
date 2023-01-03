@@ -62,7 +62,7 @@ extern "C" void kernel_entry(unsigned long hartid, void *fdt)
 
     console_init();
 
-    printk("riscv: Booted on hart%lu\n", hartid);
+    printf("riscv: Booted on hart%lu\n", hartid);
 
     sbi_init();
 
@@ -82,7 +82,7 @@ extern "C" void smpboot_main(unsigned long hartid)
     riscv_setup_trap_handling();
 
     riscv_cpu_init(hartid);
-    printk("riscv: hart%lu (cpu%u) online\n", hartid, get_cpu_nr());
+    printf("riscv: hart%lu (cpu%u) online\n", hartid, get_cpu_nr());
 
     time_init();
 
