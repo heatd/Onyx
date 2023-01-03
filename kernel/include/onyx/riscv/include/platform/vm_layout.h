@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Pedro Falcato
+ * Copyright (c) 2021 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -9,13 +9,13 @@
 #ifndef _ONYX_RISCV_PLATFORM_VM_LAYOUT_H
 #define _ONYX_RISCV_PLATFORM_VM_LAYOUT_H
 
-/* x86_64 virtual address space layout. Subsystem addresses are *offsets*,
+/* riscv virtual address space layout. Subsystem addresses are *offsets*,
  * not absolute addresses
  */
 
 typedef enum
 {
-    arch_low_half_min = 0x400000,
+    arch_low_half_min = 0x10000,
     arch_brk_base = 0x80000000,
     arch_mmap_base = 0x0000550000000000,
     arch_low_half_max = 0x00007fffffffffff,
