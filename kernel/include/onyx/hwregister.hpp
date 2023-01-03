@@ -14,6 +14,7 @@
 #include <onyx/dev_resource.h>
 #include <onyx/new.h>
 #include <onyx/port_io.h>
+#include <onyx/vm.h>
 
 #include <onyx/utility.hpp>
 
@@ -214,6 +215,20 @@ public:
             is_io = true;
             new (&io) io_range((uint16_t) res->start());
         }
+    }
+
+    bool init(dev_resource *res)
+    {
+        if (!is_io)
+        {
+            void *ptr =
+                mmiomap((void *) res->start(), res->size(), VM_WRITE | VM_READ | VM_NOCACHE);
+            if (!ptr)
+                return false;
+            mmio.set_base(ptr);
+        }
+
+        return true;
     }
 
     hw_range(uint16_t port) : io{port}, is_io{true}

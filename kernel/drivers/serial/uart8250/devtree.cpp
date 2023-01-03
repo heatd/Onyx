@@ -51,7 +51,6 @@ static driver uart8250_dt = {
 
 int uart8250_dt_init()
 {
-    printk("dt init\n");
     device_tree::register_driver(&uart8250_dt);
     return 0;
 }

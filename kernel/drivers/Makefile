@@ -15,6 +15,7 @@ include drivers/mmio_utils/Makefile
 include drivers/serial/Makefile
 include drivers/net/Makefile
 include drivers/firmware/Makefile
+include drivers/rtc/Makefile
 
 ifeq ($(CONFIG_ACPI), y)
 
@@ -28,7 +29,6 @@ ifeq ($(CONFIG_X86_PLATFORM), pc)
 
 include drivers/pci/Makefile
 include drivers/ps2/Makefile
-include drivers/rtc/Makefile
 
 endif
 endif
