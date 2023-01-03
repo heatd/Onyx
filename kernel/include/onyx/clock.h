@@ -56,8 +56,7 @@ struct clocksource
 struct clock_time
 {
     time_t epoch;
-    hrtime_t tick;
-    struct clocksource *source;
+    hrtime_t measurement_timestamp;
 };
 
 void register_wallclock_source(struct wallclock_source *clk);

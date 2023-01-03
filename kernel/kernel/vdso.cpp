@@ -211,7 +211,7 @@ int vdso::update_time(clockid_t id, struct clock_time *time)
 
     /* FIXME: Probably something like a seqlock would be good for this (like pvclock does) */
     t->epoch = time->epoch;
-    t->tick = time->tick;
+    t->measurement_timestamp = get_main_clock()->get_ticks();
 
     return 0;
 }

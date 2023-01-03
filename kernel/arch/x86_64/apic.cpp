@@ -338,9 +338,7 @@ void apic_update_clock_monotonic(void)
     struct clocksource *source = get_main_clock();
     if (source)
     {
-        time.tick = source->get_ticks();
         time.epoch = source->get_ns() / NS_PER_SEC;
-        time.source = source;
     }
 
     time_set(CLOCK_MONOTONIC, &time);

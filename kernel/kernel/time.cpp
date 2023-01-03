@@ -53,6 +53,18 @@ void clocksource_unidle(struct clockevent *ev)
     ev->deadline = clocksource_get_time() + s->max_idle_ns;
 }
 
+static void sample_wallclock()
+{
+    if (!main_wallclock)
+        return;
+
+    auto now = main_wallclock->get_posix_time();
+    struct clock_time time;
+    time.epoch = now;
+    time.measurement_timestamp = clocksource_get_time();
+    time_set(CLOCK_REALTIME, &time);
+}
+
 void register_clock_source(struct clocksource *clk)
 {
     if (main_clock)
@@ -78,6 +90,11 @@ void register_clock_source(struct clocksource *clk)
     ev->flags = CLOCKEVENT_FLAG_ATOMIC | CLOCKEVENT_FLAG_PULSE;
 
     timer_queue_clockevent(ev);
+
+    if (main_clock == clk)
+    {
+        sample_wallclock();
+    }
 }
 
 struct clocksource *get_main_clock(void)
@@ -109,17 +126,10 @@ int clock_gettime_kernel(clockid_t clk_id, struct timespec *tp)
     switch (clk_id)
     {
         case CLOCK_REALTIME: {
-            if (!clocks[clk_id].source)
-            {
-                tp->tv_sec = 0;
-                tp->tv_nsec = 0;
-                return 0;
-            }
-
-            tp->tv_sec = clocks[clk_id].epoch;
-            uint64_t start = clocks[clk_id].tick;
-            uint64_t end = clocks[clk_id].source->get_ticks();
-            tp->tv_nsec = clocks[clk_id].source->elapsed_ns(start, end);
+            const hrtime_t now = clocksource_get_time();
+            const auto delta = now - clocks[clk_id].measurement_timestamp;
+            const auto epoch_ns = clocks[clk_id].epoch * NS_PER_SEC + delta;
+            hrtime_to_timespec(epoch_ns, tp);
             break;
         }
 

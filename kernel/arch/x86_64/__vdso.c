@@ -61,23 +61,26 @@ int __vdso_clock_gettime(clockid_t clk_id, struct timespec *tp)
     volatile struct vdso_clock_time *clk = NULL;
     switch (clk_id)
     {
-    case CLOCK_REALTIME: {
-        clk = &clock_realtime;
-        break;
-    }
-    case CLOCK_MONOTONIC:
-    case CLOCK_MONOTONIC_RAW: {
-        clk = &clock_monotonic;
-        break;
-    }
-    default: {
-        return __vdso_syscall(SyS_clock_gettime, clk_id, tp);
-    }
+        case CLOCK_REALTIME: {
+            clk = &clock_realtime;
+            break;
+        }
+        case CLOCK_MONOTONIC:
+        case CLOCK_MONOTONIC_RAW: {
+            clk = &clock_monotonic;
+            break;
+        }
+        default: {
+            return __vdso_syscall(SyS_clock_gettime, clk_id, tp);
+        }
     }
 
-    tp->tv_sec = clk->epoch;
+    hrtime_t epoch_ns = clk->epoch * NS_PER_SEC;
+
     uint64_t end = rdtsc();
-    tp->tv_nsec = tsc_elapsed_ns(clk->tick, end);
+    epoch_ns += tsc_elapsed_ns(clk->tick, end);
+
+    hrtime_to_timespec(epoch_ns, tp);
     return 0;
 }
 

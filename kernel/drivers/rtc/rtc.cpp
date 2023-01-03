@@ -170,8 +170,7 @@ irqstatus_t rtc_irq(struct irq_context *ctx, void *cookie)
     {
         struct clock_time clk;
         clk.epoch = get_posix_time();
-        clk.source = get_main_clock();
-        clk.tick = clk.source->get_ticks();
+        clk.measurement_timestamp = clocksource_get_time();
         time_set(CLOCK_REALTIME, &clk);
     }
 
@@ -199,7 +198,7 @@ int rtc_probe(struct device *device)
     outb(0x70, RTC_STATUS_REG_B);
     outb(0x71, b);
 
-    assert(install_irq(RTC_IRQ, rtc_irq, device, IRQ_FLAG_REGULAR, nullptr) == 0);
+    // assert(install_irq(RTC_IRQ, rtc_irq, device, IRQ_FLAG_REGULAR, nullptr) == 0);
     /* Setup a frequency of 2hz by setting the divisor to 15 */
     outb(0x70, RTC_STATUS_REG_A);
     uint8_t st = inb(0x71);
@@ -223,8 +222,7 @@ int rtc_probe(struct device *device)
 
     struct clock_time clk;
     clk.epoch = get_posix_time();
-    clk.source = get_main_clock();
-    clk.tick = clk.source->get_ticks();
+    clk.measurement_timestamp = clocksource_get_time();
     time_set(CLOCK_REALTIME, &clk);
 
     register_wallclock_source(&rtc_clock);
