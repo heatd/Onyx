@@ -610,6 +610,18 @@
         "return_type": "void *"
     },
     {
+        "name": "sigreturn",
+        "nr": 37,
+        "nr_args": 1,
+        "args": [
+            [
+                "registers *",
+                "frame"
+            ]
+        ],
+        "return_type": "unsigned long"
+    },
+    {
         "name": "insmod",
         "nr": 38,
         "nr_args": 2,
