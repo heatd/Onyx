@@ -375,11 +375,6 @@ extern "C" void smpboot_main(unsigned long gs_base, volatile struct smp_header *
     sched_transition_to_idle();
 }
 
-unsigned int get_nr_cpus(void)
-{
-    return booted_cpus;
-}
-
 static void rep_movsb(void *dst, const void *src, size_t n)
 {
     __asm__ __volatile__("rep movsb\n\t" : "+D"(dst), "+S"(src), "+c"(n) : : "memory");

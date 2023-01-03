@@ -152,6 +152,14 @@ struct dev_id
  */
 void register_driver(driver *driver_);
 
+/**
+ * @brief Map a phandle ID to a node
+ *
+ * @param phandle phandle ID
+ * @return Node that it maps to, or nullptr if not found.
+ */
+node *map_phandle(uint32_t phandle);
+
 } // namespace device_tree
 
 #endif

@@ -186,6 +186,13 @@ public:
         return ~m;
     }
 
+    static constexpr cpumask one(unsigned long cpu)
+    {
+        cpumask m;
+        m.set_cpu(cpu);
+        return m;
+    }
+
     unsigned long* raw_mask()
     {
         return mask;

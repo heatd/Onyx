@@ -103,13 +103,10 @@ void riscv_timer_irq()
     timer_handle_events(get_per_cpu_ptr(riscv_timer));
 }
 
-/**
- * @brief Initialise timekeeping and timer functionality in RISCV
- *
- */
-void time_init()
+static bool clock_inited = false;
+
+void clock_init()
 {
-    irq_enable();
     uint32_t freq;
     auto cpus = device_tree::open_node("/cpus");
     if (!cpus)
@@ -134,9 +131,23 @@ void time_init()
     riscv_clock.last_cycle = riscv_get_time();
     riscv_clock.ticks_per_ns = &ticks_per_ns;
 
+    register_clock_source(&riscv_clock);
+
+    clock_inited = true;
+}
+
+/**
+ * @brief Initialise timekeeping and timer functionality in RISCV
+ *
+ */
+void time_init()
+{
     platform_init_clockevents();
 
-    register_clock_source(&riscv_clock);
+    if (!clock_inited)
+    {
+        clock_init();
+    }
 
     riscv_or_csr(RISCV_SIE, RISCV_SIE_STIE);
 }

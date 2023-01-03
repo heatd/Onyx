@@ -167,11 +167,6 @@ extern "C" int return_from_execve(void *entry, void *stack)
     UNIMPLEMENTED;
 }
 
-unsigned int get_nr_cpus()
-{
-    return 1;
-}
-
 void cpu_send_resched(unsigned int cpu)
 {
     UNIMPLEMENTED;

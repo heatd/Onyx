@@ -26,10 +26,16 @@ extern char percpu_base;
 
 void riscv_setup_trap_handling();
 void time_init();
-void riscv_cpu_init();
+void riscv_cpu_init(unsigned long hartid);
 void plic_init();
 
-extern "C" void kernel_entry(void *fdt)
+static void riscv_enable_interrupts()
+{
+    riscv_or_csr(RISCV_SIE, RISCV_SIE_STIE | RISCV_SIE_SEIE | RISCV_SIE_SSIE);
+    irq_enable();
+}
+
+extern "C" void kernel_entry(unsigned long hartid, void *fdt)
 {
     // XXX HACK
     set_kernel_cmdline("--root=/dev/sda1");
@@ -56,15 +62,35 @@ extern "C" void kernel_entry(void *fdt)
 
     console_init();
 
+    printk("riscv: Booted on hart%lu\n", hartid);
+
     sbi_init();
 
     device_tree::enumerate();
 
     time_init();
 
-    riscv_cpu_init();
+    riscv_cpu_init(hartid);
 
     plic_init();
+
+    riscv_enable_interrupts();
+}
+
+extern "C" void smpboot_main(unsigned long hartid)
+{
+    riscv_setup_trap_handling();
+
+    riscv_cpu_init(hartid);
+    printk("riscv: hart%lu (cpu%u) online\n", hartid, get_cpu_nr());
+
+    time_init();
+
+    sched_enable_pulse();
+
+    riscv_enable_interrupts();
+
+    sched_transition_to_idle();
 }
 
 void init_arch_vdso()

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2022 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -7,7 +7,9 @@
  */
 
 #include <onyx/device_tree.h>
+#include <onyx/riscv/features.h>
 #include <onyx/riscv/intrinsics.h>
+#include <onyx/types.h>
 
 #include <onyx/hwregister.hpp>
 
@@ -50,8 +52,19 @@ public:
 
     void complete(unsigned int intid);
 
+    plic_context &current_context();
+
     DEFINE_MMIO_RW_FUNCTIONS(plic_base);
 };
+
+// TODO: Find a header for this?
+/**
+ * @brief Get the CPU node's hart id
+ *
+ * @param node Node
+ * @return HART id
+ */
+u32 riscv_cpu_get_hart(device_tree::node *node);
 
 int plic_chip::init()
 {
@@ -85,11 +98,22 @@ int plic_chip::init()
     int context = 0;
     for (int i = 0; i < len / 4; i += 2, context++)
     {
-        uint32_t hart = fdt32_to_cpu(ints[i + 0]);
+        uint32_t hart_phandle = fdt32_to_cpu(ints[i + 0]);
         uint32_t intno = fdt32_to_cpu(ints[i + 1]);
         if (intno != 9)
             continue;
-        // TODO: hart is a phandle. Handle phandles
+
+        auto interrupt_controller = device_tree::map_phandle(hart_phandle);
+
+        if (!interrupt_controller)
+        {
+            panic("Interrupt controller phandle %u that plic maps to not found\n", hart_phandle);
+        }
+
+        auto cpu = interrupt_controller->parent;
+
+        auto hart = riscv_cpu_get_hart(cpu);
+
         printk("hart %u intno %u @ context %u\n", hart, intno, context);
         bool success = contexts.push_back({hart, PLIC_ENABLES(context), PLIC_CONTEXT(context)});
 
@@ -109,6 +133,18 @@ int plic_chip::init()
     riscv_or_csr(RISCV_SIE, RISCV_SIE_SEIE);
 
     return 0;
+}
+
+plic_context &plic_chip::current_context()
+{
+    const auto hartid = riscv_get_hartid();
+    for (auto &context : contexts)
+    {
+        if (hartid == context.hart)
+            return context;
+    }
+
+    panic("hartid %u not found for plic, how did we get an IRQ?", hartid);
 }
 
 void plic_chip::mask_all()
@@ -144,14 +180,13 @@ void plic_chip::unmask(unsigned int irq)
 
 unsigned int plic_chip::claim()
 {
-    // TODO: This is not SMP correct
-    auto &context = contexts.front();
+    auto &context = current_context();
     return read32(context.plic_ctx + PLIC_CLAIM);
 }
 
 void plic_chip::complete(unsigned int intid)
 {
-    auto &context = contexts.front();
+    auto &context = current_context();
     write32(context.plic_ctx + PLIC_CLAIM, intid);
 }
 

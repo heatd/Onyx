@@ -11,6 +11,7 @@
 #include <onyx/panic.h>
 #include <onyx/registers.h>
 #include <onyx/riscv/intrinsics.h>
+#include <onyx/riscv/smp.h>
 #include <onyx/scheduler.h>
 #include <onyx/signal.h>
 #include <onyx/softirq.h>
@@ -34,6 +35,8 @@ static const char *exception_msg[] = {
     nullptr,
     "Store page fault",
 };
+
+#define RISCV_SUPERVISOR_SOFTWARE_INTERRUPT 1
 
 #define INSTRUCTION_PAGE_FAULT 12
 #define LOAD_PAGE_FAULT        13
@@ -265,6 +268,19 @@ unsigned int plic_claim();
 
 void plic_complete(unsigned int intid);
 
+static void riscv_handle_ipi()
+{
+    riscv_clear_csr(RISCV_SIP, RISCV_SIP_SSIP);
+
+    for (u32 pending = riscv::get_pending_ipi(); pending != 0; pending = riscv::get_pending_ipi())
+    {
+        if (pending & RISCV_IPI_TYPE_SYNC_CALL)
+            smp::cpu_handle_sync_calls();
+        if (pending & RISCV_IPI_TYPE_RESCHED)
+            get_current_thread()->flags |= THREAD_NEEDS_RESCHED;
+    }
+}
+
 void riscv_handle_interrupt(registers_t *regs, unsigned long cause)
 {
     // IRQs run with interrupts disabled
@@ -286,6 +302,10 @@ void riscv_handle_interrupt(registers_t *regs, unsigned long cause)
         dispatch_irq(irqn, &context);
 
         plic_complete(irqn);
+    }
+    else if (cause == RISCV_SUPERVISOR_SOFTWARE_INTERRUPT)
+    {
+        riscv_handle_ipi();
     }
 
     // Run softirqs if we can

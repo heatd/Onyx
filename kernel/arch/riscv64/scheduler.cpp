@@ -38,7 +38,7 @@ void thread_setup_stack(thread *thread, bool is_user, const registers_t *regs)
     {
         kregs->status |= RISCV_SSTATUS_SPP | RISCV_SSTATUS_SPIE;
         kregs->gp = get_kernel_gp();
-        kregs->tp = percpu_bases[get_cpu_nr()];
+        kregs->tp = 0;
         kregs->sp = reinterpret_cast<uint64_t>(thread->kernel_stack);
     }
 
@@ -253,6 +253,9 @@ extern "C" [[noreturn]] void riscv_context_switch(thread *prev, unsigned char *s
 
     if (!(next_regs->status & RISCV_SSTATUS_SPP) && next_regs->epc > VM_HIGHER_HALF)
         panic("what");
+
+    if (next->flags & THREAD_KERNEL)
+        next_regs->tp = riscv_get_tp();
 
     bool is_last_dead = prev && prev->status == THREAD_DEAD;
     riscv_context_switch(prev, (unsigned char *) next->kernel_stack, is_last_dead);

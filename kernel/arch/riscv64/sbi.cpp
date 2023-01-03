@@ -57,6 +57,8 @@ struct sbiret sbi_probe_extension(long extension_id)
 
 bool supports_timer_extension = false;
 bool supports_reset_extension = false;
+bool supports_hsm_extension = false;
+bool supports_ipi_extension = false;
 
 void sbi_set_timer(uint64_t future)
 {
@@ -74,10 +76,26 @@ long sbi_system_reset(uint32_t type, uint32_t reason)
     return sbi_call(SBI_SYSTEM_RESET_EXTENSION, 0, type, reason).error;
 }
 
+long sbi_hart_start(unsigned long hartid, unsigned long start, unsigned long opaque)
+{
+    if (!supports_hsm_extension)
+        return SBI_ERR_NOT_SUPPORTED;
+    return sbi_call(SBI_HART_STATE_MANAGEMENT_EXTENSION, 0, hartid, start, opaque).error;
+}
+
+long sbi_send_ipi(unsigned long hart_mask, unsigned long hart_mask_base)
+{
+    if (!supports_ipi_extension)
+        return SBI_ERR_NOT_SUPPORTED;
+    return sbi_call(SBI_IPI_EXTENSION, 0, hart_mask, hart_mask_base).error;
+}
+
 void sbi_init()
 {
     supports_timer_extension = (sbi_probe_extension(SBI_TIMER_EXTENSION).value != 0);
     supports_reset_extension = (sbi_probe_extension(SBI_SYSTEM_RESET_EXTENSION).value != 0);
+    supports_hsm_extension = (sbi_probe_extension(SBI_HART_STATE_MANAGEMENT_EXTENSION).value != 0);
+    supports_ipi_extension = (sbi_probe_extension(SBI_IPI_EXTENSION).value != 0);
 }
 
 const char *sbi_error_codes[] = {

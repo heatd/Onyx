@@ -22,6 +22,7 @@ static inline void mov_non_temporal(volatile Type *p, Type val)
 #define RISCV_SSTATUS  "sstatus"
 #define RISCV_TIME     "time"
 #define RISCV_SIE      "sie"
+#define RISCV_SIP      "sip"
 #define RISCV_SSCRATCH "sscratch"
 
 #define riscv_read_csr(register)                               \
@@ -54,5 +55,9 @@ static inline uint64_t riscv_get_time()
 #define RISCV_SIE_SSIE (1 << 1)
 #define RISCV_SIE_STIE (1 << 5)
 #define RISCV_SIE_SEIE (1 << 9)
+
+#define RISCV_SIP_SSIP (1 << 1)
+#define RISCV_SIP_STIP (1 << 5)
+#define RISCV_SIP_SEIP (1 << 9)
 
 #endif

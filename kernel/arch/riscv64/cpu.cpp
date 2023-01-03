@@ -24,7 +24,31 @@ uint32_t riscv_get_features()
     return isa_features;
 }
 
-void riscv_cpu_init()
+PER_CPU_VAR(unsigned long hartid);
+
+/**
+ * @brief Set the current hartid
+ *
+ * @param hart hartid
+ */
+void riscv_set_hartid(unsigned long hart)
+{
+    write_per_cpu(hartid, hart);
+}
+
+/**
+ * @brief Get the current hartid
+ *
+ * @return Current hartid
+ */
+unsigned long riscv_get_hartid()
+{
+    return get_per_cpu(hartid);
+}
+
+static bool feature_init = false;
+
+static void riscv_cpu_features_enum()
 {
     int len;
     auto cpu_node = device_tree::open_node("/cpus/cpu@0");
@@ -46,6 +70,18 @@ void riscv_cpu_init()
         int bit = *isa - 'a';
         isa_features |= (1 << bit);
         isa++;
+    }
+
+    feature_init = true;
+}
+
+void riscv_cpu_init(unsigned long hartid_)
+{
+    riscv_set_hartid(hartid_);
+
+    if (!feature_init)
+    {
+        riscv_cpu_features_enum();
     }
 
     fpu_init();

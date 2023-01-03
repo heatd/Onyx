@@ -44,6 +44,7 @@ entry_point:
 booted: .dword 0
 
 virtual_entry: .dword riscv_virtual_entry
+secondary_ventry: .dword riscv_secondary_virtual_entry
 
 entry:
 .option push
@@ -51,7 +52,9 @@ entry:
 	lla gp, __global_pointer$
 .option pop
 
+	/* a0 = hartid, a1 = device tree */
 	mv s1, a1
+	mv s2, a0
 
 	# Stop possible infinite loops of boots from happening
 	lw t1, booted
@@ -85,7 +88,8 @@ riscv_virtual_entry:
 .option pop
 	lla sp, stack_top
 	lla tp, percpu_base
-	mv a0, s1
+	mv a1, s1
+	mv a0, s2
 	call kernel_entry
 
 	call runtime_call_constructors
@@ -98,3 +102,58 @@ riscv_virtual_entry:
 	wfi
 	j 1b
 
+.global riscv_secondary_hart_start
+riscv_secondary_hart_start:
+.option push
+.option norelax
+	lla gp, __global_pointer$
+.option pop
+
+	/* Status: interrupts disabled, satp = 0,
+	 * a0 = hartid, a1 = opaque.
+	 *
+	 * We use opaque to store our stack, which we will quickly use to get
+	 * the percpu data.
+	 */
+	mv sp, a1
+
+	/* Get the bootstrap page tables */
+	lla t0, boot_page_tables
+	srli t1, t0, 12
+	li t5, 9 << 60
+	or t1, t1, t5
+
+	csrw satp, t1
+	sfence.vma zero, zero
+	ld ra, secondary_ventry
+	ret
+riscv_secondary_virtual_entry:
+.option push
+.option norelax
+	lla gp, __global_pointer$
+.option pop
+
+	/* Load the actual page tables */
+	ld t0, boot_pt
+	srli t1, t0, 12
+	li t5, 9 << 60
+	or t1, t1, t5
+
+	csrw satp, t1
+	sfence.vma zero, zero
+
+	/* Load the tp */
+	ld tp, -8(sp)
+
+	mv s1, a0
+	/* Get the cpunr and init ssp */
+	la a0, cpu_nr
+	add a0, a0, tp
+	ld a0, 0(a0)
+	call init_ssp_for_cpu
+
+	mv a0, s1
+	call smpboot_main
+1:
+	wfi
+	j 1b

@@ -31,4 +31,18 @@
  */
 uint32_t riscv_get_features();
 
+/**
+ * @brief Set the current hartid
+ *
+ * @param hart hartid
+ */
+void riscv_set_hartid(unsigned long hart);
+
+/**
+ * @brief Get the current hartid
+ *
+ * @return Current hartid
+ */
+unsigned long riscv_get_hartid();
+
 #endif

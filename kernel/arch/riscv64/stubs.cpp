@@ -33,31 +33,6 @@ void arch_vm_init()
 {
 }
 
-namespace smp
-{
-
-void boot(unsigned int nr)
-{
-    UNIMPLEMENTED;
-}
-
-} // namespace smp
-
-void cpu_send_sync_notif(unsigned int cpu)
-{
-    UNIMPLEMENTED;
-}
-
-unsigned int get_nr_cpus()
-{
-    return 1;
-}
-
-void cpu_send_resched(unsigned int cpu)
-{
-    UNIMPLEMENTED;
-}
-
 bool cpu_send_message(unsigned int cpu, unsigned long message, void *arg, bool should_wait)
 {
     UNIMPLEMENTED;

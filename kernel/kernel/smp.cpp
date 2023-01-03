@@ -22,7 +22,8 @@
 extern unsigned char _start_smp;
 extern unsigned char _end_smp;
 
-extern "C" {
+extern "C"
+{
 
 PER_CPU_VAR(unsigned int cpu_nr) = 0;
 };
@@ -31,9 +32,11 @@ namespace smp
 {
 
 static cpumask online_cpus;
-unsigned int nr_cpus = 0;
+unsigned int nr_cpus = 1;
 unsigned int nr_online_cpus = 0;
+#if __x86_64__
 constexpr unsigned long smp_trampoline_phys = 0x0;
+#endif
 
 void set_number_of_cpus(unsigned int nr)
 {
@@ -49,9 +52,11 @@ void set_online(unsigned int cpu)
 void boot_cpus()
 {
     printf("smpboot: booting cpus\n");
+#ifdef __x86_64__
+    // TODO: Move this to arch/x86_64/
     memcpy((void *) (PHYS_BASE + (uintptr_t) smp_trampoline_phys), &_start_smp,
            (uintptr_t) &_end_smp - (uintptr_t) &_start_smp);
-
+#endif
     for (unsigned int i = 0; i < nr_cpus; i++)
     {
         if (!online_cpus.is_cpu_set(i))
@@ -194,3 +199,8 @@ void cpu_handle_sync_calls()
 }
 
 } // namespace smp
+
+unsigned int get_nr_cpus()
+{
+    return smp::nr_cpus;
+}

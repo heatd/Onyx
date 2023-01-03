@@ -54,4 +54,11 @@
 #define add_per_cpu_4(var, val) add_per_cpu_generic(var, val, 4)
 #define add_per_cpu_8(var, val) add_per_cpu_generic(var, val, 8)
 
+#define riscv_get_tp()                   \
+    ({                                   \
+        unsigned long tp;                \
+        __asm__("mv %0, tp" : "=r"(tp)); \
+        tp;                              \
+    })
+
 #endif

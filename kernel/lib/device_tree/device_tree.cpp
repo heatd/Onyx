@@ -352,6 +352,21 @@ void init(void *fdt)
 }
 
 node *root_node;
+cul::vector<node *> phandle_map;
+
+/**
+ * @brief Map a phandle ID to a node
+ *
+ * @param phandle phandle ID
+ * @return Node that it maps to, or nullptr if not found.
+ */
+node *map_phandle(uint32_t phandle)
+{
+    if (phandle >= phandle_map.size())
+        return nullptr;
+    return phandle_map[phandle];
+}
+
 /**
  * @brief Get the root dt node
  *
@@ -378,6 +393,15 @@ void enumerate()
     root_node = new node{cul::string(""), 0, 0};
     if (!root_node)
         panic("Failed to allocate a device tree node");
+
+    uint32_t max_phandle;
+    fdt_find_max_phandle(fdt_, &max_phandle);
+    if (!phandle_map.resize(max_phandle + 1))
+        panic("Failed to allocate the phandle list");
+
+    /* Zero-init the phandle list */
+    for (auto &p : phandle_map)
+        p = nullptr;
 
     int address_cell_stack[DEVICE_TREE_MAX_DEPTH];
     int size_cell_stack[DEVICE_TREE_MAX_DEPTH];
@@ -443,6 +467,19 @@ void enumerate()
 
         if (!parents[depth - 1]->children.push_back(dev_node))
             panic("Failed to allocate memory for the device tree");
+
+        uint32_t phandle = fdt_get_phandle(fdt_, offset);
+
+        if (phandle)
+        {
+            /* We have a phandle, register ourselves */
+            if (phandle_map[phandle])
+            {
+                panic("We already had phandle %u registered, bad device tree?", phandle);
+            }
+
+            phandle_map[phandle] = dev_node;
+        }
 
         parents[depth] = dev_node;
     }
