@@ -53,8 +53,8 @@ int uart8250_acpi_probe(device *fake_dev)
     if (!io_resource)
         return -1;
 
-    unique_ptr<uart8250_port> port =
-        make_unique<uart8250_port>(io_resource, static_cast<unsigned int>(irq_rc->start()), dev);
+    unique_ptr<uart8250_port> port = make_unique<uart8250_port>(
+        io_resource->start(), static_cast<unsigned int>(irq_rc->start()), dev);
 
     if (!port)
         return -1;
