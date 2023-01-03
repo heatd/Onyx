@@ -64,7 +64,7 @@ unsigned int blkdev_ioctl(int request, void *argp, struct file *f)
 size_t blkdev_read_file(size_t offset, size_t len, void *buffer, struct file *f)
 {
     if (f->f_flags & O_NONBLOCK)
-        return errno = EWOULDBLOCK, -1;
+        return -EWOULDBLOCK;
 
     auto d = (blockdev *) f->f_ino->i_helper;
     /* align the offset first */
@@ -80,7 +80,7 @@ size_t blkdev_read_file(size_t offset, size_t len, void *buffer, struct file *f)
         struct page *p = alloc_page(PAGE_ALLOC_NO_ZERO);
         if (!p)
         {
-            return errno = ENOMEM, -1;
+            return -ENOMEM;
         }
 
         void *virt = PAGE_TO_VIRT(p);
@@ -94,7 +94,7 @@ size_t blkdev_read_file(size_t offset, size_t len, void *buffer, struct file *f)
         if (s < 0)
         {
             free_page(p);
-            return -1;
+            return -errno;
         }
 
         memcpy(buf, (char *) virt + misalignment, to_copy);
@@ -120,7 +120,7 @@ size_t blkdev_read_file(size_t offset, size_t len, void *buffer, struct file *f)
         ssize_t s = blkdev_read(sector * d->sector_size, reading, buf, d);
         if (s < 0)
         {
-            return errno = ENXIO, -1;
+            return -ENXIO;
         }
 
         len -= reading;
@@ -134,7 +134,7 @@ size_t blkdev_read_file(size_t offset, size_t len, void *buffer, struct file *f)
         struct page *p = alloc_page(PAGE_ALLOC_NO_ZERO);
         if (!p)
         {
-            return errno = ENOMEM, -1;
+            return -ENOMEM;
         }
 
         void *virt = PAGE_TO_VIRT(p);
@@ -144,7 +144,7 @@ size_t blkdev_read_file(size_t offset, size_t len, void *buffer, struct file *f)
         if (s < 0)
         {
             free_page(p);
-            return -1;
+            return -errno;
         }
 
         memcpy(buf, (char *) virt, len);

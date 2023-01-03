@@ -410,9 +410,9 @@ void *elf_load_binfmt(struct binfmt_args *args)
     if (!header)
         return errno = EINVAL, nullptr;
 
-    if (read_vfs(0, sizeof(elf_ehdr), header.get(), args->file) < 0)
+    if (ssize_t st = read_vfs(0, sizeof(elf_ehdr), header.get(), args->file); st < 0)
     {
-        return nullptr;
+        return errno = -st, nullptr;
     }
 
     void *entry = elf_load(args, header.get());

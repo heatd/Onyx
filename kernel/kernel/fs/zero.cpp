@@ -17,7 +17,7 @@ size_t zero_read(size_t offset, size_t count, void *buf, file *f)
 {
     /* While reading from /dev/zero, all you read is zeroes. Just memset the buf. */
     if (user_memset(buf, 0, count) < 0)
-        return errno = EFAULT, -1;
+        return -EFAULT;
 
     return count;
 }

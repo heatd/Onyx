@@ -433,7 +433,7 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
     ssize_t size = read_vfs(fil->f_seek, count, (char *) buf, fil);
     if (size < 0)
     {
-        return -errno;
+        return size;
     }
 
     /* TODO: Seek adjustments are required to be atomic */
@@ -489,7 +489,7 @@ ssize_t sys_pread(int fd, void *buf, size_t count, off_t offset)
     ssize_t size = read_vfs(offset, count, (char *) buf, fil);
     if (size < 0)
     {
-        return -errno;
+        return size;
     }
 
     return size;
@@ -791,6 +791,7 @@ bool fd_may_access(struct file *f, unsigned int access)
 ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 {
     size_t read = 0;
+    ssize_t was_read = 0;
 
     struct file *f = get_file_description(fd);
     if (!f)
@@ -825,10 +826,10 @@ ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 
         if (v.iov_len == 0)
             continue;
-        ssize_t was_read = read_vfs(f->f_seek, v.iov_len, v.iov_base, f);
+        was_read = read_vfs(f->f_seek, v.iov_len, v.iov_base, f);
         if (was_read < 0)
         {
-            goto out;
+            goto error;
         }
 
         read += was_read;
@@ -847,7 +848,7 @@ out:
 error:
     if (f)
         fd_put(f);
-    return -errno;
+    return was_read;
 }
 
 ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
@@ -915,6 +916,7 @@ error:
 ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 {
     size_t read = 0;
+    ssize_t was_read = 0;
 
     struct file *f = get_file_description(fd);
     if (!f)
@@ -949,11 +951,11 @@ ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 
         if (v.iov_len == 0)
             continue;
-        ssize_t was_read = read_vfs(offset, v.iov_len, v.iov_base, f);
+        was_read = read_vfs(offset, v.iov_len, v.iov_base, f);
 
         if (was_read < 0)
         {
-            goto out;
+            goto error;
         }
 
         read += was_read;
@@ -972,7 +974,7 @@ out:
 error:
     if (f)
         fd_put(f);
-    return -errno;
+    return was_read;
 }
 
 ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)

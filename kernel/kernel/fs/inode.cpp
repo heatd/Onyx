@@ -221,8 +221,7 @@ ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t off
                 0)
             {
                 page_unpin(page);
-                errno = EFAULT;
-                return -1;
+                return -EFAULT;
             }
 
             page_unpin(page);
@@ -234,8 +233,7 @@ ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t off
                 0)
             {
                 page_unpin(page);
-                errno = EFAULT;
-                return -1;
+                return -EFAULT;
             }
         }
 

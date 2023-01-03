@@ -196,10 +196,10 @@ ssize_t read_vfs(size_t offset, size_t len, void *buffer, struct file *file)
 {
     struct inode *ino = file->f_ino;
     if (S_ISDIR(ino->i_mode))
-        return errno = EISDIR, -1;
+        return -EISDIR;
 
     if (!ino->i_fops->readpage && !ino->i_fops->read)
-        return errno = EIO, -1;
+        return -EIO;
 
     len = clamp_length(len);
 

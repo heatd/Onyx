@@ -134,7 +134,7 @@ size_t sysfs_read(size_t offset, size_t sizeofread, void *buffer, struct file *t
     if (file->read)
         return file->read(buffer, sizeofread, offset);
     else
-        return errno = ENOSYS, (size_t) -1;
+        return -ENOSYS;
 }
 
 size_t sysfs_write(size_t offset, size_t sizeofwrite, void *buffer, struct file *this_)

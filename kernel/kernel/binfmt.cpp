@@ -62,8 +62,9 @@ void *bin_do_interp(struct binfmt_args *_args)
         return nullptr;
     }
 
-    if (read_vfs(0, BINFMT_SIGNATURE_LENGTH, args.file_signature, file) < 0)
+    if (ssize_t st = read_vfs(0, BINFMT_SIGNATURE_LENGTH, args.file_signature, file); st < 0)
     {
+        errno = -st;
         return nullptr;
     }
 

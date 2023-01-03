@@ -296,11 +296,7 @@ size_t socket_read(size_t offset, size_t len, void *buffer, file *file)
     msg.msg_name = nullptr;
     msg.msg_namelen = 0;
 
-    ssize_t res = s->recvmsg(&msg, fd_flags_to_msg_flags(file));
-
-    if (res < 0)
-        return errno = -res, -1;
-    return res;
+    return s->recvmsg(&msg, fd_flags_to_msg_flags(file));
 }
 
 short socket::poll(void *poll_file, short events)
