@@ -78,6 +78,7 @@ int sys_clone(void *fn, void *child_stack, int flags, void *arg, struct tid_out 
     regs.status = RISCV_SSTATUS_SPIE;
     regs.epc = (unsigned long) start;
     regs.a0 = (unsigned long) arg;
+    regs.tp = (unsigned long) tls;
 
     thread_t *thread = sched_spawn_thread(&regs, 0, tls);
     if (!thread)
