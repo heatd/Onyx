@@ -152,6 +152,8 @@ class Package:
 		os.environ["ONYX_TARGET"] = os.environ["ONYX_ARCH"] + "-onyx"
 		os.environ["ONYX_CONFIGURE_OPTIONS"] = f'--host={os.environ["ONYX_TARGET"]}'
 		os.environ["ONYX_CMAKE_OPTIONS"] = f'-DCMAKE_MODULE_PATH={os.path.join(onyx_root, "toolchains/cmake")} -DCMAKE_SYSTEM_NAME=Onyx'
+		os.environ["PATH"] = os.path.join(onyx_root, "buildpkg") + ":" + os.environ["PATH"]
+		print("path: " + os.environ["PATH"])
 		extra_env = self.get_build_options()
 	
 		with generate_meson_cross(os.getenv("CLANG_PATH"), os.getenv("ONYX_ARCH")) as meson_cross:
