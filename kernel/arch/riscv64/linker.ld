@@ -170,7 +170,6 @@ PHDRS
 	boot PT_LOAD FLAGS(5);
 	text PT_LOAD FLAGS(5);
 	rodata PT_LOAD FLAGS(4);
-	eh_frame PT_LOAD FLAGS(4);
 	data PT_LOAD FLAGS(6);
 	percpu PT_LOAD FLAGS(6);
 	vdso PT_LOAD FLAGS(7);
