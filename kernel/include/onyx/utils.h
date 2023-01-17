@@ -1,8 +1,11 @@
 /*
- * Copyright (c) 2017 Pedro Falcato
+ * Copyright (c) 2017 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
+
 #ifndef _ONYX_UTILS_H
 #define _ONYX_UTILS_H
 
@@ -60,7 +63,7 @@ static inline bool array_overflows(size_t n)
  * @param x2 Upper boundary of X
  * @param y1 Lower boundary of Y
  * @param y2 Upper boundary of Y
- * @return True if the they overlap, else false
+ * @return True if they overlap, else false
  */
 template <typename Type>
 static inline constexpr bool check_for_overlap(Type x1, Type x2, Type y1, Type y2)
