@@ -857,10 +857,11 @@ bool nvme_device::nvme_queue::handle_cq()
  */
 irqstatus_t nvme_device::handle_irq(const irq_context *ctx)
 {
+    // Handle every queue's possible IRQs
     bool handled = false;
     for (auto &q : queues_)
     {
-        handled = handled || q.handle_cq();
+        handled |= q.handle_cq();
     }
 
     return handled ? IRQ_HANDLED : IRQ_UNHANDLED;
