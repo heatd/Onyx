@@ -2,3 +2,5 @@
 176c837dfe8100b27d1d23ea693b7abd35a76bf6
 # clang-format: Fix cast style 
 7f1e5fa92733a6e58a49d983a15e1e1f899ddbda
+# x86: Convert .S to space indentation 
+0b98378a426e068ab6ba9c75443790addd125b5a
