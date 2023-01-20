@@ -66,149 +66,149 @@
 
 #ifdef CONFIG_EFISTUB
 dos_header:
-	.ascii "MZ"
-	.skip 0x3c - 2
-	.word pe_header - dos_header
+    .ascii "MZ"
+    .skip 0x3c - 2
+    .word pe_header - dos_header
 .align 4
 pe_header:
-	.ascii "PE\0\0"
-	.word IMAGE_FILE_MACHINE_AMD64
-	.word 2 /* Nr sections */
-	.long 0
-	.long 0
-	.long 0
-	.word optional_header_end - optional_header
-	.word IMAGE_FILE_RELOCS_STRIPPED | IMAGE_FILE_EXECUTABLE_IMAGE | IMAGE_FILE_DEBUG_STRIPPED | IMAGE_FILE_LINE_NUMS_STRIPPED
+    .ascii "PE\0\0"
+    .word IMAGE_FILE_MACHINE_AMD64
+    .word 2 /* Nr sections */
+    .long 0
+    .long 0
+    .long 0
+    .word optional_header_end - optional_header
+    .word IMAGE_FILE_RELOCS_STRIPPED | IMAGE_FILE_EXECUTABLE_IMAGE | IMAGE_FILE_DEBUG_STRIPPED | IMAGE_FILE_LINE_NUMS_STRIPPED
 optional_header:
-	.word OPTIONAL_HEADER_PE32PLUS
-	/* Linker major and minor */
-	.byte 0
-	.byte 4
-	/* Sizeof code */
-	.long _ro_end - (efi_entry + KERNEL_VIRTUAL_BASE)
-	/* sizeof initialized data */
-	.long __pecoff_data_size
-	/* sizeof uninitialized data */
-	.long _bss_size
-	/* entry point */
-	.long efi_entry - dos_header
-	/* BaseOfCode */
-	.long efi_entry - dos_header
+    .word OPTIONAL_HEADER_PE32PLUS
+    /* Linker major and minor */
+    .byte 0
+    .byte 4
+    /* Sizeof code */
+    .long _ro_end - (efi_entry + KERNEL_VIRTUAL_BASE)
+    /* sizeof initialized data */
+    .long __pecoff_data_size
+    /* sizeof uninitialized data */
+    .long _bss_size
+    /* entry point */
+    .long efi_entry - dos_header
+    /* BaseOfCode */
+    .long efi_entry - dos_header
 windows_header:
-	/* Image base */
-	.quad 0x1000000
-	/* SectionAlignment */
-	.long PAGE_SIZE
-	/* FileAlignment */
-	.long PAGE_SIZE /* ?? */
-	/* Various version crap */
-	.word 0
-	.word 0
-	/* Image version major/minor */
-	.word 0
-	.word 4
-	/* Subsystem version */
-	.word 0
-	.word 0
-	/* Win32VersionValue */
-	.long 0
-	/* SizeOfImage */
-	.long kernel_phys_end - dos_header
-	/* SizeOfHeaders */
-	.long header_end - dos_header
-	/* CheckSum */
-	.long 0
-	.word IMAGE_SUBSYSTEM_EFI_APPLICATION
-	/* DLL characteristics */
-	.word 0
-	/* Stack and heap reserve - unused */
-	.quad 0
-	.quad 0
-	.quad 0
-	.quad 0
-	/* LoaderFlags - mbz */
-	.long 0
-	/* NumberOfRvaAndSizes - unclear what this does */
-	.long 6
+    /* Image base */
+    .quad 0x1000000
+    /* SectionAlignment */
+    .long PAGE_SIZE
+    /* FileAlignment */
+    .long PAGE_SIZE /* ?? */
+    /* Various version crap */
+    .word 0
+    .word 0
+    /* Image version major/minor */
+    .word 0
+    .word 4
+    /* Subsystem version */
+    .word 0
+    .word 0
+    /* Win32VersionValue */
+    .long 0
+    /* SizeOfImage */
+    .long kernel_phys_end - dos_header
+    /* SizeOfHeaders */
+    .long header_end - dos_header
+    /* CheckSum */
+    .long 0
+    .word IMAGE_SUBSYSTEM_EFI_APPLICATION
+    /* DLL characteristics */
+    .word 0
+    /* Stack and heap reserve - unused */
+    .quad 0
+    .quad 0
+    .quad 0
+    .quad 0
+    /* LoaderFlags - mbz */
+    .long 0
+    /* NumberOfRvaAndSizes - unclear what this does */
+    .long 6
 
-	/* Is this related to RVA and sizes? */
-	.quad 0
-	.quad 0
-	.quad 0
-	.quad 0
-	.quad 0
-	.quad 0
-	/* Optional header end */
+    /* Is this related to RVA and sizes? */
+    .quad 0
+    .quad 0
+    .quad 0
+    .quad 0
+    .quad 0
+    .quad 0
+    /* Optional header end */
 optional_header_end:
-	/* Section table */
+    /* Section table */
 section_table:
-	.ascii ".text\0\0\0"
-	.long _text_end - (efi_entry + KERNEL_VIRTUAL_BASE)
-	.long efi_entry - dos_header
-	.long _text_end - (efi_entry + KERNEL_VIRTUAL_BASE)
-	/* PointerToRawData */
-	.long efi_entry - dos_header
-	.long 0 /* PointerToRelocations */
-	.long 0 /* PointerToLineNumbers */
-	.word 0 /* Number of ^^ */
-	.word 0
-	.long IMAGE_SCN_CNT_CODE | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_MEM_READ
-	/* .data */
-	.ascii ".data\0\0\0"
-	.long _data_size
-	.long (_data_start - KERNEL_VIRTUAL_BASE) - dos_header
-	.long __pecoff_data_size
-	/* PointerToRawData */
-	.long efi_entry - dos_header
-	.long 0 /* PointerToRelocations */
-	.long 0 /* PointerToLineNumbers */
-	.word 0 /* Number of ^^ */
-	.word 0
-	.long IMAGE_SCN_MEM_WRITE | IMAGE_SCN_MEM_READ | IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_CNT_UNINITIALIZED_DATA
+    .ascii ".text\0\0\0"
+    .long _text_end - (efi_entry + KERNEL_VIRTUAL_BASE)
+    .long efi_entry - dos_header
+    .long _text_end - (efi_entry + KERNEL_VIRTUAL_BASE)
+    /* PointerToRawData */
+    .long efi_entry - dos_header
+    .long 0 /* PointerToRelocations */
+    .long 0 /* PointerToLineNumbers */
+    .word 0 /* Number of ^^ */
+    .word 0
+    .long IMAGE_SCN_CNT_CODE | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_MEM_READ
+    /* .data */
+    .ascii ".data\0\0\0"
+    .long _data_size
+    .long (_data_start - KERNEL_VIRTUAL_BASE) - dos_header
+    .long __pecoff_data_size
+    /* PointerToRawData */
+    .long efi_entry - dos_header
+    .long 0 /* PointerToRelocations */
+    .long 0 /* PointerToLineNumbers */
+    .word 0 /* Number of ^^ */
+    .word 0
+    .long IMAGE_SCN_MEM_WRITE | IMAGE_SCN_MEM_READ | IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_CNT_UNINITIALIZED_DATA
 header_end:
 
 .align PAGE_SIZE
 efi_entry:
-	hlt
-	jmp efi_entry
+    hlt
+    jmp efi_entry
 #endif
 jmp entry_point
 .align 4
 hdr_start: 
-	.long 0xe85250d6
-	.long 0
-	.long hdr_end - hdr_start
-	.long 0x100000000 - (0xe85250d6 + 0 + (hdr_end - hdr_start))
-	.align 8 # All tags need to be 8 byte aligned
-	# Framebuffer tag
-	.word 5
-	.word 0
-	.long 20
-	.long 1024
-	.long 768
-	.long 32
-	.align 8
-	# Module alignment tag
-	.word 6
-	.word 0
-	.long 8
+    .long 0xe85250d6
+    .long 0
+    .long hdr_end - hdr_start
+    .long 0x100000000 - (0xe85250d6 + 0 + (hdr_end - hdr_start))
+    .align 8 # All tags need to be 8 byte aligned
+    # Framebuffer tag
+    .word 5
+    .word 0
+    .long 20
+    .long 1024
+    .long 768
+    .long 32
+    .align 8
+    # Module alignment tag
+    .word 6
+    .word 0
+    .long 8
 #ifdef CONFIG_RELOCATABLE_PHYS
-	.align 8
-	.word 10
-	.word 0
-	.long 24
-	/* Use a minimum address of 1MB, a max of 4GB, alignment of 2MB (so we can easily map ourselves) */
-	.long 0x100000
-	.long 0xffffffff
-	.long 0x200000
-	/* 2 = put us as high as you can */
-	.long 2
+    .align 8
+    .word 10
+    .word 0
+    .long 24
+    /* Use a minimum address of 1MB, a max of 4GB, alignment of 2MB (so we can easily map ourselves) */
+    .long 0x100000
+    .long 0xffffffff
+    .long 0x200000
+    /* 2 = put us as high as you can */
+    .long 2
 #endif
-	.align 8
-	# Finish tag
-	.word 0
-	.word 0
-	.long 8
+    .align 8
+    # Finish tag
+    .word 0
+    .word 0
+    .long 8
 hdr_end: 
 
 .section .bss
@@ -227,44 +227,44 @@ x86_stack_top:
 
 .section .text
 _start:
-	movq $x86_stack_top, %rsp
-	pushq $0
-	mov %rsp, %rbp
+    movq $x86_stack_top, %rsp
+    pushq $0
+    mov %rsp, %rbp
 
-	/* Take the time to wrmsr the default GS_BASE */
-	mov $percpu_base, %rdx
-	mov %rdx, %r11
-	mov %edx, %eax
-	shr $32, %rdx
-	mov $GS_BASE_MSR, %ecx
-	wrmsr
+    /* Take the time to wrmsr the default GS_BASE */
+    mov $percpu_base, %rdx
+    mov %rdx, %r11
+    mov %edx, %eax
+    shr $32, %rdx
+    mov $GS_BASE_MSR, %ecx
+    wrmsr
 
-	mov %r11, %gs:__cpu_base
+    mov %r11, %gs:__cpu_base
 
-	push %rdi
-	push %rsi
+    push %rdi
+    push %rsi
 
 #ifdef CONFIG_KASAN
-	call x86_bootstrap_kasan
+    call x86_bootstrap_kasan
 #endif
-	pop %rsi
-	pop %rdi
+    pop %rsi
+    pop %rdi
 
-	call multiboot2_kernel_entry
-	call _init
-	call runtime_call_constructors
-	# rdi = cpu nr
-	xor %rdi, %rdi
-	call init_ssp_for_cpu
-	call kernel_main
-	cli
+    call multiboot2_kernel_entry
+    call _init
+    call runtime_call_constructors
+    # rdi = cpu nr
+    xor %rdi, %rdi
+    call init_ssp_for_cpu
+    call kernel_main
+    cli
 _start.Lhang: 
-	hlt
-	jmp _start.Lhang
+    hlt
+    jmp _start.Lhang
 
 .section .boot, "ax"
 protectedmode_stack:
-	.skip 128
+    .skip 128
 protectedmode_stack_top:
 
 #ifdef CONFIG_RELOCATABLE_PHYS
@@ -276,80 +276,80 @@ protectedmode_stack_top:
 .code32
 .global entry_point
 entry_point:
-	cli
+    cli
 #ifdef CONFIG_RELOCATABLE_PHYS
-	/* Calculate a possible load bias */
-	call 1f
+    /* Calculate a possible load bias */
+    call 1f
 1:
-	pop %edi
-	movl $1b, %ebp
-	sub %ebp, %edi
-	mov %edi, %ebp
+    pop %edi
+    movl $1b, %ebp
+    sub %ebp, %edi
+    mov %edi, %ebp
 #else
-	xor %ebp, %ebp
+    xor %ebp, %ebp
 #endif
-	/* From now on, ebp = load bias */
-	# Clear the direction flag since its state is unspecified by the multiboot spec
-	cld
-	CALC_EFF_ADDRESS(protectedmode_stack_top, %esp)
-	pushl %eax
-	pushl %ebx
-	CALC_EFF_ADDRESS(gdtr1, %eax)
-	# Fix up the gdtr before loading it
-	CALC_EFF_ADDRESS(gdt, %ebx)
-	mov %ebx, 2(%eax)
-	lgdt (%eax)
+    /* From now on, ebp = load bias */
+    # Clear the direction flag since its state is unspecified by the multiboot spec
+    cld
+    CALC_EFF_ADDRESS(protectedmode_stack_top, %esp)
+    pushl %eax
+    pushl %ebx
+    CALC_EFF_ADDRESS(gdtr1, %eax)
+    # Fix up the gdtr before loading it
+    CALC_EFF_ADDRESS(gdt, %ebx)
+    mov %ebx, 2(%eax)
+    lgdt (%eax)
 
-	pushl $0x08
-	CALC_EFF_ADDRESS(.gdtrdy, %eax)
+    pushl $0x08
+    CALC_EFF_ADDRESS(.gdtrdy, %eax)
 
-	push %eax
-	lret
+    push %eax
+    lret
 
 .gdtrdy: 
-	movl $0x10, %eax
-	movw %ax, %ds
-	movw %ax, %ss
-	call setup_paging_and_longm
+    movl $0x10, %eax
+    movw %ax, %ds
+    movw %ax, %ss
+    call setup_paging_and_longm
 
-	CALC_EFF_ADDRESS(gdtr2, %eax)
-	/* Fixup the gdtr2's gdt address */
-	CALC_EFF_ADDRESS(gdt_begin, %edi)
-	mov %edi, 2(%eax)
-	lgdt (%eax)
+    CALC_EFF_ADDRESS(gdtr2, %eax)
+    /* Fixup the gdtr2's gdt address */
+    CALC_EFF_ADDRESS(gdt_begin, %edi)
+    mov %edi, 2(%eax)
+    lgdt (%eax)
 
-	pushl $0x08
-	CALC_EFF_ADDRESS(.gdt2rdy, %eax)
-	push %eax
-	lret
+    pushl $0x08
+    CALC_EFF_ADDRESS(.gdt2rdy, %eax)
+    push %eax
+    lret
 
 .code64
 .gdt2rdy:
-	movl $0x10, %eax
-	movw %ax, %ds
-	movw %ax, %es
-	movw %ax, %ss
+    movl $0x10, %eax
+    movw %ax, %ds
+    movw %ax, %es
+    movw %ax, %ss
 
-	# Our %gs and %fs segments need to be NULL
-	xor %ax, %ax
-	mov %ax, %gs
-	mov %ax, %fs
+    # Our %gs and %fs segments need to be NULL
+    xor %ax, %ax
+    mov %ax, %gs
+    mov %ax, %fs
 
-	lea gdtr3(%rip), %rax
-	lgdt (%rax)
-	popq %rbx
-	xorq %rsi, %rsi
-	movq %rbx, %rsi
-	shrq $32, %rsi
+    lea gdtr3(%rip), %rax
+    lgdt (%rax)
+    popq %rbx
+    xorq %rsi, %rsi
+    movq %rbx, %rsi
+    shrq $32, %rsi
 
-	movq %rbx, %r8
-	xorq %rdi, %rdi
-	movl %r8d, %edi
+    movq %rbx, %r8
+    xorq %rdi, %rdi
+    movl %r8d, %edi
 #ifdef CONFIG_RELOCATABLE_PHYS
-	mov %rbp, kernel_phys_offset
+    mov %rbp, kernel_phys_offset
 #endif
-	movq $_start, %rax
-	jmp *%rax
+    movq $_start, %rax
+    jmp *%rax
 
 .macro PAGE_TABLE_INDEX source_ptr, level
 
@@ -364,155 +364,155 @@ and $0x1ff, %ebx
 .code32
 
 zero_page_tables:
-	CALC_EFF_ADDRESS(__early_page_tables_start, %edi)
-	mov $__early_page_tables_size, %ecx
-	xor %al, %al
-	rep stosb
-	ret
+    CALC_EFF_ADDRESS(__early_page_tables_start, %edi)
+    mov $__early_page_tables_size, %ecx
+    xor %al, %al
+    rep stosb
+    ret
 
 setup_paging_and_longm:
-	/* Register allocation:
-	 * edi - Top level page table
-	 * 
-	 * Usual register allocation for the rest of the code:
-	 * eax - Page table entry
-	 * ecx - Page table index
-	 * edx - shift amount
-	 *
-	 * Stack allocation:
-	 * [off 0] = virtual pfn low
-	 * [off 4] =  virtual pfn high
-	 */
-	
-	call zero_page_tables
+    /* Register allocation:
+     * edi - Top level page table
+     * 
+     * Usual register allocation for the rest of the code:
+     * eax - Page table entry
+     * ecx - Page table index
+     * edx - shift amount
+     *
+     * Stack allocation:
+     * [off 0] = virtual pfn low
+     * [off 4] =  virtual pfn high
+     */
+    
+    call zero_page_tables
 
-	sub $8, %esp
-	# Index formula: (virt >> 12) >> (pt_level * 9) & 0x1ff;
+    sub $8, %esp
+    # Index formula: (virt >> 12) >> (pt_level * 9) & 0x1ff;
 
-	mov $KERNEL_VIRTUAL_BASE >> 32, %ebx
-	movl $KERNEL_VIRTUAL_BASE, %ecx
-	add $PHYS_BASE, %ecx
-	shrdl $12, %ebx, %ecx
-	shr $12, %ebx
-	mov %ecx, (%esp)
-	mov %ebx, 4(%esp)
+    mov $KERNEL_VIRTUAL_BASE >> 32, %ebx
+    movl $KERNEL_VIRTUAL_BASE, %ecx
+    add $PHYS_BASE, %ecx
+    shrdl $12, %ebx, %ecx
+    shr $12, %ebx
+    mov %ecx, (%esp)
+    mov %ebx, 4(%esp)
 
-	/* The top page level is held in %edi */
-	/* Test for PML5 */
-	mov $7, %eax
-	xor %ecx, %ecx
-	cpuid
-	test $1 << 16, %ecx
-	jz 1f
+    /* The top page level is held in %edi */
+    /* Test for PML5 */
+    mov $7, %eax
+    xor %ecx, %ecx
+    cpuid
+    test $1 << 16, %ecx
+    jz 1f
 
-	/* Enable PML5 on cr4 and set a flag */
-	mov %cr4, %eax
-	or $1 << 12, %eax
-	mov %eax, %cr4
-	mov $pml5, %edi
+    /* Enable PML5 on cr4 and set a flag */
+    mov %cr4, %eax
+    or $1 << 12, %eax
+    mov %eax, %cr4
+    mov $pml5, %edi
 
-	jmp 2f
+    jmp 2f
 1:
-	CALC_EFF_ADDRESS(pml4, %edi)
+    CALC_EFF_ADDRESS(pml4, %edi)
 2:
-	CALC_EFF_ADDRESS(pdpt, %eax)
-	orl $(X86_PAGING_PRESENT | X86_PAGING_WRITE), %eax
-	movl %eax, (%edi)
+    CALC_EFF_ADDRESS(pdpt, %eax)
+    orl $(X86_PAGING_PRESENT | X86_PAGING_WRITE), %eax
+    movl %eax, (%edi)
 
-	PAGE_TABLE_INDEX %esp, 3
+    PAGE_TABLE_INDEX %esp, 3
 
-	CALC_EFF_ADDRESS(pml4, %esi)
-	mov %eax, (%esi, %ebx, 8)
+    CALC_EFF_ADDRESS(pml4, %esi)
+    mov %eax, (%esi, %ebx, 8)
 
-	/* Set up the lower page directories for the lower range of the address space */
-	CALC_EFF_ADDRESS(pdlower, %eax)
-	or $(X86_PAGING_PRESENT | X86_PAGING_WRITE), %eax
-	CALC_EFF_ADDRESS(pdpt, %esi)
-	movl %eax, (%esi)
-	add $0x1000, %eax
-	movl %eax, 8(%esi)
-	add $0x1000, %eax
-	movl %eax, 16(%esi)
-	add $0x1000, %eax
-	movl %eax, 24(%esi)
+    /* Set up the lower page directories for the lower range of the address space */
+    CALC_EFF_ADDRESS(pdlower, %eax)
+    or $(X86_PAGING_PRESENT | X86_PAGING_WRITE), %eax
+    CALC_EFF_ADDRESS(pdpt, %esi)
+    movl %eax, (%esi)
+    add $0x1000, %eax
+    movl %eax, 8(%esi)
+    add $0x1000, %eax
+    movl %eax, 16(%esi)
+    add $0x1000, %eax
+    movl %eax, 24(%esi)
 
-	CALC_EFF_ADDRESS(pd, %eax)
-	or $(X86_PAGING_PRESENT | X86_PAGING_WRITE), %eax
+    CALC_EFF_ADDRESS(pd, %eax)
+    or $(X86_PAGING_PRESENT | X86_PAGING_WRITE), %eax
 
-	PAGE_TABLE_INDEX %esp, 2
+    PAGE_TABLE_INDEX %esp, 2
 
-	CALC_EFF_ADDRESS(pdpt, %esi)
-	mov %eax, (%esi, %ebx, 8)
+    CALC_EFF_ADDRESS(pdpt, %esi)
+    mov %eax, (%esi, %ebx, 8)
 
-	PAGE_TABLE_INDEX %esp, 1
+    PAGE_TABLE_INDEX %esp, 1
 
-	push %ebx
+    push %ebx
 
-	CALC_EFF_ADDRESS(pdlower, %esi)
+    CALC_EFF_ADDRESS(pdlower, %esi)
 3:
 
-	mov %ebx, %eax
-	shl $21, %eax
-	or $0x83, %eax
-	mov %eax, (%esi, %ebx, 8)
-	inc %ebx
-	cmp $2048, %ebx
-	jne 3b
+    mov %ebx, %eax
+    shl $21, %eax
+    or $0x83, %eax
+    mov %eax, (%esi, %ebx, 8)
+    inc %ebx
+    cmp $2048, %ebx
+    jne 3b
 
-	pop %ebx
+    pop %ebx
 
-	push %ebp
-	CALC_EFF_ADDRESS(pd, %esi)
+    push %ebp
+    CALC_EFF_ADDRESS(pd, %esi)
 
 #ifndef CONFIG_RELOCATABLE_PHYS
-	movl $PHYS_BASE, %ebp
-	and $-0x200000, %ebp
+    movl $PHYS_BASE, %ebp
+    and $-0x200000, %ebp
 #endif
-	movl %ebp, %eax
-	or $0x83, %eax
-	mov %eax, (%esi, %ebx, 8)
-	inc %ebx
-	lea 0x200000(%ebp), %eax
-	or $0x83, %eax
-	mov %eax, (%esi, %ebx, 8)
-	inc %ebx
-	lea 0x400000(%ebp), %eax
-	or $0x83, %eax
-	mov %eax, (%esi, %ebx, 8)
-	lea 0x600000(%ebp), %eax
-	or $0x83, %eax
-	mov %eax, (%esi, %ebx, 8)
-	inc %ebx
-	lea 0x800000(%ebp), %eax
-	or $0x83, %eax
-	mov %eax, (%esi, %ebx, 8)
+    movl %ebp, %eax
+    or $0x83, %eax
+    mov %eax, (%esi, %ebx, 8)
+    inc %ebx
+    lea 0x200000(%ebp), %eax
+    or $0x83, %eax
+    mov %eax, (%esi, %ebx, 8)
+    inc %ebx
+    lea 0x400000(%ebp), %eax
+    or $0x83, %eax
+    mov %eax, (%esi, %ebx, 8)
+    lea 0x600000(%ebp), %eax
+    or $0x83, %eax
+    mov %eax, (%esi, %ebx, 8)
+    inc %ebx
+    lea 0x800000(%ebp), %eax
+    or $0x83, %eax
+    mov %eax, (%esi, %ebx, 8)
 
-	pop %ebp
+    pop %ebp
 
-	# Load CR3 with the top page level
-	movl %edi, %cr3
+    # Load CR3 with the top page level
+    movl %edi, %cr3
 
-	# Enable PAE
-	movl %cr4, %eax
-	or $CR4_PAE, %eax
-	movl %eax, %cr4
+    # Enable PAE
+    movl %cr4, %eax
+    or $CR4_PAE, %eax
+    movl %eax, %cr4
 
-	# Enable Long Mode in the MSR
-	# Use this to enable NX as well
-	movl $IA32_EFER, %ecx
-	rdmsr
-	or $(IA32_EFER_LME | IA32_EFER_NXE), %eax
-	xorl %edx, %edx
-	wrmsr
+    # Enable Long Mode in the MSR
+    # Use this to enable NX as well
+    movl $IA32_EFER, %ecx
+    rdmsr
+    or $(IA32_EFER_LME | IA32_EFER_NXE), %eax
+    xorl %edx, %edx
+    wrmsr
 
-	# Enable Paging and write protect
-	movl %cr0, %eax
-	or $(CR0_PG | CR0_WP), %eax
-	movl %eax, %cr0
+    # Enable Paging and write protect
+    movl %cr0, %eax
+    or $(CR0_PG | CR0_WP), %eax
+    movl %eax, %cr0
 
-	add $8, %esp
+    add $8, %esp
 
-	RET
+    RET
 
 .extern pml4
 .extern boot_pml4
@@ -522,17 +522,17 @@ setup_paging_and_longm:
 /* Load bias in %ebp, ecx:edx for the 64-bit thread stack */
 .global startup_secondary_32
 startup_secondary_32:
-	/* Get the PML4 and load it */
-	lea pml4(%ebp), %eax
+    /* Get the PML4 and load it */
+    lea pml4(%ebp), %eax
     mov %eax, %cr3
     /* Enable PAE and PSE, required for 64-bit paging */
     mov %cr4, %eax
     or $(CR4_PAE | CR4_PSE), %eax
     mov %eax, %cr4
 
-	/* Move ecx:edx to edi:esi due to us needing ecx for MSRs and not having a stack yet. */
-	mov %ecx, %edi
-	mov %edx, %esi
+    /* Move ecx:edx to edi:esi due to us needing ecx for MSRs and not having a stack yet. */
+    mov %ecx, %edi
+    mov %edx, %esi
 
     /* Enable Long Mode in the MSR
      * Use this to enable NX as well */
@@ -549,17 +549,17 @@ startup_secondary_32:
     mov $gdtr2, %eax
     lgdt (%eax)
 
-	CALC_EFF_ADDRESS(protectedmode_stack_top, %esp)
+    CALC_EFF_ADDRESS(protectedmode_stack_top, %esp)
     push $KERNEL_CS
     push $startup_secondary_64
     lret
 
 startup_secondary_64:
 .code64
-	/* Load the higher half GDT */
-	lea gdtr3(%rip), %rbx
+    /* Load the higher half GDT */
+    lea gdtr3(%rip), %rbx
     lgdt (%rbx)
-	/* Reload segments */
+    /* Reload segments */
     mov $KERNEL_DS, %rax
     mov %ax, %ds
     mov %ax, %es
@@ -568,28 +568,28 @@ startup_secondary_64:
     mov %ax, %gs
     mov %ax, %fs
 
-	/* Reload CS and jump to higher half in one go */
-	push $KERNEL_CS
-	push $1f
-	lretq
+    /* Reload CS and jump to higher half in one go */
+    push $KERNEL_CS
+    push $1f
+    lretq
 .section .text
 1:
-	/* Load the actual current page tables */
-	mov boot_pml4(%rip), %rax
-	mov %rax, %cr3
+    /* Load the actual current page tables */
+    mov boot_pml4(%rip), %rax
+    mov %rax, %cr3
 
     /* Load the IDT */
     lidt (idt_ptr)
 
-	/* Load the stack from esi:edi */
+    /* Load the stack from esi:edi */
     mov %edi, %esp
-	shl $32, %rsi
-	or %rsi, %rsp
+    shl $32, %rsi
+    or %rsi, %rsp
 
     mov %cr3, %rax
     mov %rax, %cr3
 
-	/* Top of stack holds gs_base */
+    /* Top of stack holds gs_base */
     pop %rdi
 
     /* Note: This cannot be done in C++ code because LTO likes to get funky and add stack protector stuff where
@@ -615,43 +615,43 @@ startup_secondary_64:
     pop %rdi
 
     jmp smpboot_main
-	int3
+    int3
 
 .section .boot,"ax"
 
 gdt: 
-	.quad 0x0000000000000000
-	.quad 0x00CF9A000000FFFF
-	.quad 0x00CF92000000FFFF
+    .quad 0x0000000000000000
+    .quad 0x00CF9A000000FFFF
+    .quad 0x00CF92000000FFFF
 .global gdt_begin
 gdt_begin: 
-	.quad 0x0000000000000000   # 0x0  - NULL segment
-	.quad 0x00A09A0000000000   # 0x8  - KERNEL CS
-	.quad 0x00A0920000000000   # 0x10 - KERNEL DS
-	.quad 0x00CFFA000000FFFF   # 0x18 - 32-bit user CS
-	.quad 0x00CFF2000000FFFF   # 0x20 - 32-bit user DS
-	.quad 0x00A0FA0000000000   # 0x28 - USER CS
-	.quad 0x00A0F20000000000   # 0x30 - USER DS
+    .quad 0x0000000000000000   # 0x0  - NULL segment
+    .quad 0x00A09A0000000000   # 0x8  - KERNEL CS
+    .quad 0x00A0920000000000   # 0x10 - KERNEL DS
+    .quad 0x00CFFA000000FFFF   # 0x18 - 32-bit user CS
+    .quad 0x00CFF2000000FFFF   # 0x20 - 32-bit user DS
+    .quad 0x00A0FA0000000000   # 0x28 - USER CS
+    .quad 0x00A0F20000000000   # 0x30 - USER DS
                                # 0x38 - TSS
 tss_gdt: 
-	.quad 0
-	.quad 0
+    .quad 0
+    .quad 0
 .global gdt_end
 gdt_end:
 
 gdtr1: 
-	.word gdt_begin - gdt - 1
-	.long gdt
+    .word gdt_begin - gdt - 1
+    .long gdt
 
 gdtr2: 
-	.word gdt_end - gdt_begin - 1
-	.long gdt_begin
-	.long 0
+    .word gdt_end - gdt_begin - 1
+    .long gdt_begin
+    .long 0
 
 .global gdtr3
 gdtr3: 
-	.word gdt_end - gdt_begin - 1
-	.quad gdt_begin + 0xFFFFFFFF80000000
+    .word gdt_end - gdt_begin - 1
+    .quad gdt_begin + 0xFFFFFFFF80000000
 
 #ifdef CONFIG_KASAN
 
@@ -659,6 +659,6 @@ gdtr3:
 .align 4096
 .global kasan_shadow_page_tables
 kasan_shadow_page_tables:
-	.skip 4096 * 16
+    .skip 4096 * 16
 
 #endif

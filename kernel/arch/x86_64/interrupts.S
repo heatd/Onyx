@@ -14,103 +14,103 @@
 .section .text
 
 .macro pushaq
-	push %rax
-	push %rbx
-	push %rcx
-	push %rdx
-	push %rdi
-	push %rsi
-	push %rbp
-	push %r8
-	push %r9
-	push %r10
-	push %r11
-	push %r12
-	push %r13
-	push %r14
-	push %r15
+    push %rax
+    push %rbx
+    push %rcx
+    push %rdx
+    push %rdi
+    push %rsi
+    push %rbp
+    push %r8
+    push %r9
+    push %r10
+    push %r11
+    push %r12
+    push %r13
+    push %r14
+    push %r15
 .endm
 
 .macro popaq
-	pop %r15
-	pop %r14
-	pop %r13
-	pop %r12
-	pop %r11
-	pop %r10
-	pop %r9
-	pop %r8
-	pop %rbp
-	pop %rsi
-	pop %rdi
-	pop %rdx
-	pop %rcx
-	pop %rbx
-	pop %rax
+    pop %r15
+    pop %r14
+    pop %r13
+    pop %r12
+    pop %r11
+    pop %r10
+    pop %r9
+    pop %r8
+    pop %rbp
+    pop %rsi
+    pop %rdi
+    pop %rdx
+    pop %rcx
+    pop %rbx
+    pop %rax
 .endm
 
 .macro CFI_INTERRUPT_FRAME_BEFORE_DS
-	.cfi_def_cfa rsp, 0
-	.cfi_offset rip, REGISTER_OFF_RIP-8
-	.cfi_offset cs, REGISTER_OFF_CS-8
-	.cfi_offset rsp, REGISTER_OFF_RSP-8
-	.cfi_offset ss, REGISTER_OFF_SS-8
-	.cfi_offset r15, REGISTER_OFF_R15-8
-	.cfi_offset r14, REGISTER_OFF_R14-8
-	.cfi_offset r13, REGISTER_OFF_R13-8
-	.cfi_offset r12, REGISTER_OFF_R12-8
-	.cfi_offset r11, REGISTER_OFF_R11-8
-	.cfi_offset r10, REGISTER_OFF_R10-8
-	.cfi_offset r9, REGISTER_OFF_R9-8
-	.cfi_offset r8, REGISTER_OFF_R8-8
-	.cfi_offset rbp, REGISTER_OFF_RBP-8
-	.cfi_offset rsi, REGISTER_OFF_RSI-8
-	.cfi_offset rdi, REGISTER_OFF_RDI-8
-	.cfi_offset rdx, REGISTER_OFF_RDX-8
-	.cfi_offset rcx, REGISTER_OFF_RCX-8
-	.cfi_offset rbx, REGISTER_OFF_RBX-8
-	.cfi_offset rax, REGISTER_OFF_RAX-8
+    .cfi_def_cfa rsp, 0
+    .cfi_offset rip, REGISTER_OFF_RIP-8
+    .cfi_offset cs, REGISTER_OFF_CS-8
+    .cfi_offset rsp, REGISTER_OFF_RSP-8
+    .cfi_offset ss, REGISTER_OFF_SS-8
+    .cfi_offset r15, REGISTER_OFF_R15-8
+    .cfi_offset r14, REGISTER_OFF_R14-8
+    .cfi_offset r13, REGISTER_OFF_R13-8
+    .cfi_offset r12, REGISTER_OFF_R12-8
+    .cfi_offset r11, REGISTER_OFF_R11-8
+    .cfi_offset r10, REGISTER_OFF_R10-8
+    .cfi_offset r9, REGISTER_OFF_R9-8
+    .cfi_offset r8, REGISTER_OFF_R8-8
+    .cfi_offset rbp, REGISTER_OFF_RBP-8
+    .cfi_offset rsi, REGISTER_OFF_RSI-8
+    .cfi_offset rdi, REGISTER_OFF_RDI-8
+    .cfi_offset rdx, REGISTER_OFF_RDX-8
+    .cfi_offset rcx, REGISTER_OFF_RCX-8
+    .cfi_offset rbx, REGISTER_OFF_RBX-8
+    .cfi_offset rax, REGISTER_OFF_RAX-8
 .endm
 
 .macro CFI_INTERRUPT_FRAME reg
-	.cfi_def_cfa reg, 0
-	.cfi_offset ds, 0
-	.cfi_offset rip, REGISTER_OFF_RIP
-	.cfi_offset cs, REGISTER_OFF_CS
-	.cfi_offset rsp, REGISTER_OFF_RSP
-	.cfi_offset ss, REGISTER_OFF_SS
-	.cfi_offset r15, REGISTER_OFF_R15
-	.cfi_offset r14, REGISTER_OFF_R14
-	.cfi_offset r13, REGISTER_OFF_R13
-	.cfi_offset r12, REGISTER_OFF_R12
-	.cfi_offset r11, REGISTER_OFF_R11
-	.cfi_offset r10, REGISTER_OFF_R10
-	.cfi_offset r9, REGISTER_OFF_R9
-	.cfi_offset r8, REGISTER_OFF_R8
-	.cfi_offset rbp, REGISTER_OFF_RBP
-	.cfi_offset rsi, REGISTER_OFF_RSI
-	.cfi_offset rdi, REGISTER_OFF_RDI
-	.cfi_offset rdx, REGISTER_OFF_RDX
-	.cfi_offset rcx, REGISTER_OFF_RCX
-	.cfi_offset rbx, REGISTER_OFF_RBX
-	.cfi_offset rax, REGISTER_OFF_RAX
+    .cfi_def_cfa reg, 0
+    .cfi_offset ds, 0
+    .cfi_offset rip, REGISTER_OFF_RIP
+    .cfi_offset cs, REGISTER_OFF_CS
+    .cfi_offset rsp, REGISTER_OFF_RSP
+    .cfi_offset ss, REGISTER_OFF_SS
+    .cfi_offset r15, REGISTER_OFF_R15
+    .cfi_offset r14, REGISTER_OFF_R14
+    .cfi_offset r13, REGISTER_OFF_R13
+    .cfi_offset r12, REGISTER_OFF_R12
+    .cfi_offset r11, REGISTER_OFF_R11
+    .cfi_offset r10, REGISTER_OFF_R10
+    .cfi_offset r9, REGISTER_OFF_R9
+    .cfi_offset r8, REGISTER_OFF_R8
+    .cfi_offset rbp, REGISTER_OFF_RBP
+    .cfi_offset rsi, REGISTER_OFF_RSI
+    .cfi_offset rdi, REGISTER_OFF_RDI
+    .cfi_offset rdx, REGISTER_OFF_RDX
+    .cfi_offset rcx, REGISTER_OFF_RCX
+    .cfi_offset rbx, REGISTER_OFF_RBX
+    .cfi_offset rax, REGISTER_OFF_RAX
 .endm
 
 /* Should be used after pushing %ds */
 .macro CFI_INTERRUPT_FRAME_ADJUST_DS
-	.cfi_adjust_cfa_offset 8
-	.cfi_offset ds, 0
+    .cfi_adjust_cfa_offset 8
+    .cfi_offset ds, 0
 .endm
 
 .macro INTERRUPT_STACK_ALIGN
-	/* After pushing the interrupt frame we're left with an 8-byte aligned stack,
-	 * so align it by subbing 8 bytes
-	*/
-	sub $8, %rsp
+    /* After pushing the interrupt frame we're left with an 8-byte aligned stack,
+     * so align it by subbing 8 bytes
+    */
+    sub $8, %rsp
 .endm
 
 .macro INTERRUPT_STACK_RESTORE
-	add $8, %rsp
+    add $8, %rsp
 .endm
 
 /* struct registers has two longs that are used only for ISRs,
@@ -124,10 +124,10 @@
 .global isr\num
 .type isr\num,@function
 isr\num:
-	cli
-	sub $8, %rsp
-	push $\num # Push the interrupt number
-	jmp x86_interrupt_common # Go to the handler
+    cli
+    sub $8, %rsp
+    push $\num # Push the interrupt number
+    jmp x86_interrupt_common # Go to the handler
 
 .pushsection .rodata.isr_table
 .quad isr\num
@@ -139,10 +139,10 @@ isr\num:
 .global irq\irq_num
 .type irq\irq_num,@ function
 irq\irq_num:
-	cli
-	sub $8, %rsp
-	push $(\irq_num + EXCEPTION_VECTORS_END)
-	jmp x86_interrupt_common
+    cli
+    sub $8, %rsp
+    push $(\irq_num + EXCEPTION_VECTORS_END)
+    jmp x86_interrupt_common
 
 .pushsection .rodata.isr_table
 .quad irq\irq_num
@@ -153,9 +153,9 @@ irq\irq_num:
 .macro ISR_ERRCODE num
 .global isr\num
 isr\num:
-	cli
-	push $\num # Push the interrupt number to the intctx
-	jmp x86_interrupt_common # Go to the handler
+    cli
+    push $\num # Push the interrupt number to the intctx
+    jmp x86_interrupt_common # Go to the handler
 
 .pushsection .rodata.isr_table
 .quad isr\num
@@ -166,35 +166,35 @@ isr\num:
 .global x86_interrupt_ret
 .type x86_interrupt_ret, @function
 x86_interrupt_ret:
-	call signal_is_pending
-	cmp $1, %al
-	je 1f
+    call signal_is_pending
+    cmp $1, %al
+    je 1f
 
 2:
-	INTERRUPT_STACK_RESTORE
+    INTERRUPT_STACK_RESTORE
 .global x86_scheduler_exit
 .type x86_scheduler_exit,@function
 x86_scheduler_exit:
-	/* We'll use this bit of code as a trampoline to the new thread too */
-	mov REGISTER_OFF_CS(%rsp), %rax
-	test $3, %rax
-	cli
-	jz 3f
-	swapgs
+    /* We'll use this bit of code as a trampoline to the new thread too */
+    mov REGISTER_OFF_CS(%rsp), %rax
+    test $3, %rax
+    cli
+    jz 3f
+    swapgs
 3:
-	pop %rax
-	mov %ax, %ds
-	mov %ax, %es
+    pop %rax
+    mov %ax, %ds
+    mov %ax, %es
 
-	popaq
+    popaq
 
-	add $REGISTERS_UNUSED_OFF, %rsp
-	iretq
+    add $REGISTERS_UNUSED_OFF, %rsp
+    iretq
 1:
-	mov %rsp, %rdi
-	add $8, %rdi
-	call handle_signal
-	jmp 2b
+    mov %rsp, %rdi
+    add $8, %rdi
+    call handle_signal
+    jmp 2b
 
 .pushsection .text.x86_entry
 
@@ -203,44 +203,44 @@ x86_scheduler_exit:
 .type x86_interrupt_common,@function
 .align 64
 x86_interrupt_common:
-	.cfi_startproc
-	pushaq
-	CFI_INTERRUPT_FRAME_BEFORE_DS
-	cld
-	/* Clear the AC flag if we were in copy_from_user() et al
-	 * This prevents us from running a full ISR or IRQ without SMAP
-	 * protection.
-	 */
-	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_clac_patch, 3, 0, 0)
+    .cfi_startproc
+    pushaq
+    CFI_INTERRUPT_FRAME_BEFORE_DS
+    cld
+    /* Clear the AC flag if we were in copy_from_user() et al
+     * This prevents us from running a full ISR or IRQ without SMAP
+     * protection.
+     */
+    __ASM_ALTERNATIVE_INSTRUCTION(x86_smap_clac_patch, 3, 0, 0)
 
-	mov %ds, %rax
-	push %rax
-	CFI_INTERRUPT_FRAME_ADJUST_DS
-	mov $KERNEL_DS, %ax
-	mov %ax, %ss
-	mov %ax, %ds
-	mov %ax, %es
+    mov %ds, %rax
+    push %rax
+    CFI_INTERRUPT_FRAME_ADJUST_DS
+    mov $KERNEL_DS, %ax
+    mov %ax, %ss
+    mov %ax, %ds
+    mov %ax, %es
 
-	mov REGISTER_OFF_CS(%rsp), %rax
-	test $3, %rax
+    mov REGISTER_OFF_CS(%rsp), %rax
+    test $3, %rax
 
-	jz 1f
-	swapgs
+    jz 1f
+    swapgs
 1:
-	mov %rsp, %rdi
-	mov %rdi, %rbp
+    mov %rsp, %rdi
+    mov %rdi, %rbp
 
-	.cfi_def_cfa_register rbp
-	# End the stack frame list so we stop here
-	# xor %rbp, %rbp
+    .cfi_def_cfa_register rbp
+    # End the stack frame list so we stop here
+    # xor %rbp, %rbp
 
-	INTERRUPT_STACK_ALIGN
+    INTERRUPT_STACK_ALIGN
 
-	call x86_dispatch_interrupt
+    call x86_dispatch_interrupt
 
-	mov %rax, %rsp
+    mov %rax, %rsp
 
-	jmp x86_interrupt_ret
+    jmp x86_interrupt_ret
 
 .cfi_endproc
 
@@ -521,54 +521,54 @@ x86_isr_table_end:
 .global platform_yield
 .type platform_yield,@function
 platform_yield:
-	.cfi_startproc
-	/* Basically we need to set up an IRQ frame on the stack.
-	 * For future reference consult include/(carbon/onyx)/x86/registers.h
-	*/
-	/* Set up a regular stack frame first */
-	push %rbp
-	mov %rsp, %rbp
-	push %rax	/* We're going to need rax as a scratch register */
-	push $KERNEL_DS /* %ss */
-	mov %rsp, %rax
-	add $8, %rax
-	push %rax /* %rsp */
-	pushf /* %rflags */
-	cli
-	push $KERNEL_CS /* %cs */
-	push $1f /* %rip */
-	sub $REGISTERS_UNUSED_OFF, %rsp
-	pushaq /* General purpose registers (%rax - %r15) */
-	push $KERNEL_DS /* %ds */
-	mov %rsp, %rdi
-	call sched_schedule
-	mov %rax, %rsp
-	jmp x86_scheduler_exit
+    .cfi_startproc
+    /* Basically we need to set up an IRQ frame on the stack.
+     * For future reference consult include/(carbon/onyx)/x86/registers.h
+    */
+    /* Set up a regular stack frame first */
+    push %rbp
+    mov %rsp, %rbp
+    push %rax	/* We're going to need rax as a scratch register */
+    push $KERNEL_DS /* %ss */
+    mov %rsp, %rax
+    add $8, %rax
+    push %rax /* %rsp */
+    pushf /* %rflags */
+    cli
+    push $KERNEL_CS /* %cs */
+    push $1f /* %rip */
+    sub $REGISTERS_UNUSED_OFF, %rsp
+    pushaq /* General purpose registers (%rax - %r15) */
+    push $KERNEL_DS /* %ds */
+    mov %rsp, %rdi
+    call sched_schedule
+    mov %rax, %rsp
+    jmp x86_scheduler_exit
 1:
-	pop %rax
-	pop %rbp
+    pop %rax
+    pop %rbp
 
-	RET
-	.cfi_endproc
-	
+    RET
+    .cfi_endproc
+    
 
 .global __sigret_return
 .type __sigret_return,@function
 __sigret_return:
-	cli
+    cli
 
-	mov %rdi, %rsp
-	
-	swapgs
+    mov %rdi, %rsp
+    
+    swapgs
 
-	pop %rcx
-	mov %cx, %ds
-	mov %cx, %es
-	popaq
+    pop %rcx
+    mov %cx, %ds
+    mov %cx, %es
+    popaq
 
-	add $REGISTERS_UNUSED_OFF, %rsp
-	iretq
+    add $REGISTERS_UNUSED_OFF, %rsp
+    iretq
 
 .global apic_spurious_irq
 apic_spurious_irq:
-	iretq
+    iretq

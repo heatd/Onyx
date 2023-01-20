@@ -11,16 +11,16 @@
 
 .global tss_flush
 tss_flush:
-	mov $0x3b, %ax
-	ltr %ax
-	RET
+    mov $0x3b, %ax
+    ltr %ax
+    RET
 
 .global gdt_flush
 gdt_flush:
-	lgdt (%rdi)
-	RET
+    lgdt (%rdi)
+    RET
 
 .global idt_flush
 idt_flush:
-	lidt (%rdi)
-	RET
+    lidt (%rdi)
+    RET
