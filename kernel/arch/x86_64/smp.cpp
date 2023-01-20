@@ -36,18 +36,13 @@ void boot(unsigned int cpu)
     s->boot_done = false;
     s->kernel_load_bias = get_kernel_phys_offset();
 
-    if (inited_cpus.is_cpu_set(cpu))
-    {
-        // CPU was frozen/offlined but is now back online, so instead of doing proper init,
-        // we can skip that (since most things are already in memory).
-        s->gs_base = percpu_get_area(cpu);
+    const auto gs_base =
+        inited_cpus.is_cpu_set(cpu) ? percpu_get_area(cpu) : percpu_init_for_cpu(cpu);
 
-        assert(s->gs_base != 0);
-    }
-    else
-    {
-        s->gs_base = percpu_init_for_cpu(cpu);
+    assert(gs_base != 0);
 
+    if (!inited_cpus.is_cpu_set(cpu))
+    {
         other_cpu_write(cpu_nr, cpu, cpu);
 
         sched_init_cpu(cpu);
@@ -57,7 +52,12 @@ void boot(unsigned int cpu)
         apic_set_lapic_id(cpu, lapic_ids[cpu]);
     }
 
-    s->thread_stack = (unsigned long) get_thread_for_cpu(cpu)->kernel_stack_top;
+    unsigned long *thread_stack = get_thread_for_cpu(cpu)->kernel_stack_top;
+
+    // Stash the gs_base on the top of the stack
+    *--thread_stack = gs_base;
+
+    s->thread_stack = (unsigned long) thread_stack;
 
     if (apic_wake_up_processor(static_cast<uint8_t>(lapic_ids[cpu]), s))
     {

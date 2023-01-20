@@ -10,6 +10,8 @@ x86_64-$(CONFIG_ACPI)+= acpi/acpi.o
 
 x86_64-$(CONFIG_X86_RETHUNK)+= rethunk.o
 
+x86_64-$(CONFIG_EFISTUB)+= efistub/early.o
+
 obj-y+= $(patsubst %, arch/x86_64/%, $(x86_64-y))
 
 arch/x86_64/vdso_helper.o: arch/x86_64/vdso_helper.S onyx-vdso.so.0 kernel.config

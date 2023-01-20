@@ -716,9 +716,6 @@ extern char _text_start;
 extern char _text_end;
 extern char _data_start;
 extern char _data_end;
-extern char _vdso_sect_start;
-extern char _vdso_sect_end;
-extern char VIRT_BASE;
 extern struct mm_address_space kernel_address_space;
 
 void paging_protect_kernel(void)
@@ -730,7 +727,6 @@ void paging_protect_kernel(void)
 
     uintptr_t text_start = (uintptr_t) &_text_start;
     uintptr_t data_start = (uintptr_t) &_data_start;
-    uintptr_t vdso_start = (uintptr_t) &_vdso_sect_start;
 
     memcpy(PHYS_TO_VIRT(pml), PHYS_TO_VIRT(original_pml), sizeof(PML));
     PML *p = (PML *) PHYS_TO_VIRT(pml);
@@ -744,9 +740,6 @@ void paging_protect_kernel(void)
 
     size = (uintptr_t) &_data_end - data_start;
     map_pages_to_vaddr((void *) data_start, (void *) VA2PA(data_start), size, VM_WRITE | VM_READ);
-
-    size = (uintptr_t) &_vdso_sect_end - vdso_start;
-    map_pages_to_vaddr((void *) vdso_start, (void *) VA2PA(vdso_start), size, VM_READ | VM_WRITE);
 
     percpu_map_master_copy();
 

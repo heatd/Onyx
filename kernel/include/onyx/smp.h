@@ -58,7 +58,6 @@ void cpu_handle_sync_calls();
 struct smp_header
 {
     volatile unsigned long thread_stack;
-    volatile unsigned long gs_base;
     volatile unsigned long boot_done;
     volatile unsigned long kernel_load_bias;
 } __attribute__((packed));

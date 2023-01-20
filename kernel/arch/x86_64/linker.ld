@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -9,7 +9,7 @@
 ENTRY(entry_point)
 
 VIRT_BASE = 0xffffffff80000000;
-PHYS_BASE = 0x100000;
+PHYS_BASE = 0x1000000;
 
 SECTIONS
 {
@@ -20,6 +20,7 @@ SECTIONS
 	{
 		*(.boot)
 		. = ALIGN(4096);
+		PROVIDE_HIDDEN(__early_page_tables_start = .);
 		pml4 = .;
 		. += 0x1000;
 		pdpt = .;
@@ -36,6 +37,8 @@ SECTIONS
 		. += 0x1000;
 		pml5 = .;
 		. += 0x1000;
+		PROVIDE_HIDDEN(__early_page_tables_end = .);
+		PROVIDE_HIDDEN(__early_page_tables_size = __early_page_tables_end - __early_page_tables_start);
 	} : boot
 
 	. += VIRT_BASE;
@@ -125,23 +128,6 @@ SECTIONS
 
 	_text_end = .;
 	_data_start = .;
-	.data ALIGN(0x1000) : AT(ADDR(.data) - VIRT_BASE)
-	{
-		*(.data*)
-		*(.gnu.linkonce.d*)
-	} : data
-
-	_bss_start = .;
-	.bss : AT(ADDR(.bss) - VIRT_BASE)
-	{
-		*(COMMON*)
-		*(.bss*)
-		*(.gnu.linkonce.b*)
-	} : data
-	_bss_end = .;
-	_bss_size = _bss_end - _bss_start;
-
-	. = ALIGN(0x1000);
 
 	percpu_base = .;
 
@@ -155,17 +141,35 @@ SECTIONS
 
 	. = ABSOLUTE(percpu_base) + SIZEOF(.percpu);
 
+	.data ALIGN(0x1000) : AT(ADDR(.data) - VIRT_BASE)
+	{
+		*(.data*)
+		*(.gnu.linkonce.d*)
+	} : data
+
+	. = ALIGN(0x1000);
+
+	_bss_start = .;
+	.bss : AT(ADDR(.bss) - VIRT_BASE)
+	{
+		*(COMMON*)
+		*(.bss*)
+		*(.gnu.linkonce.b*)
+	} : data
+	_bss_end = .;
+	_bss_size = _bss_end - _bss_start;
+
 	. = ALIGN(0x1000);
 	_data_end = .;
-	_vdso_sect_start = .;
-	.vdso : AT(ADDR(.vdso) - VIRT_BASE)
-	{
-		*vdso_helper.o(*.vdso)
-	} : vdso
+	_data_size = _data_end - _data_start;
+
+	__pecoff_data_size = _bss_start - _data_start;
 
 	. = ALIGN(0x1000);
 	_vdso_sect_end = .;
 	kernel_end = .;
+	kernel_phys_end = . - VIRT_BASE;
+	PROVIDE_HIDDEN(__kernel_size = kernel_end - kernel_start);
 }
 
 PHDRS
@@ -174,8 +178,7 @@ PHDRS
 	text PT_LOAD FLAGS(5);
 	rodata PT_LOAD FLAGS(4);
 	eh_frame PT_LOAD FLAGS(4);
-	data PT_LOAD FLAGS(6);
 	percpu PT_LOAD FLAGS(6);
-	vdso PT_LOAD FLAGS(7);
+	data PT_LOAD FLAGS(6);
 	note PT_NOTE FLAGS(0);
 }
