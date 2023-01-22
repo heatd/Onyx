@@ -18,6 +18,8 @@ SECTIONS
 	_text_start = . + VIRT_BASE;
 	.boot ALIGN(0x1000) :
 	{
+		*(.boot.head)
+		*(.boot.data)
 		*(.boot)
 		. = ALIGN(4096);
 		PROVIDE_HIDDEN(__early_page_tables_start = .);

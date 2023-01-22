@@ -74,7 +74,7 @@ include/onyx/config.h: ../scripts/config_to_header.py kernel.config
 include $(ARCHDIR)/make.config
 
 ifeq ($(CONFIG_EFISTUB), y)
-KERNEL_REQUIRES_FLATTENING:=no
+KERNEL_REQUIRES_FLATTENING:=yes
 endif
 
 ifeq ($(CONFIG_RISCV), y)

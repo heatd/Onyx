@@ -10,6 +10,8 @@
 #include <onyx/vm.h>
 
 #include <efi/boot-services.h>
+#include <efi/protocol/initrd.h>
+#include <efi/protocol/loadfile.h>
 #include <efi/runtime-services.h>
 #include <efi/system-table.h>
 
@@ -19,9 +21,8 @@ extern char __kernel_size[];
 
 extern "C" BOOT_SECTION void efi_relocate(EFI_SYSTEM_TABLE *table)
 {
-#if 0
     EFI_BOOT_SERVICES *bs = table->BootServices;
-    EFI_PHYSICAL_ADDR addr;
+    EFI_PHYSICAL_ADDR addr = 0xffffffff;
 
     addr = UINT32_MAX;
 
@@ -31,6 +32,36 @@ extern "C" BOOT_SECTION void efi_relocate(EFI_SYSTEM_TABLE *table)
     if (ksize & (PAGE_SIZE - 1))
         pages++;
 
-    // bs->AllocatePages(AllocateMaxAddress, EfiReservedMemoryType, pages, )
-#endif
+    EFI_STATUS st = bs->AllocatePages(AllocateMaxAddress, EfiReservedMemoryType, pages, &addr);
+    (void) st;
+}
+
+[[gnu::section(".boot.data")]] const EFI_GUID loadfile2_guid = EFI_LOAD_FILE2_PROTOCOL_GUID;
+
+EFI_STATUS efistub_load_initrd(EFI_SYSTEM_TABLE *systab)
+{
+    EFI_DEVICE_PATH_PROTOCOL *path;
+    EFI_HANDLE path_handle;
+    EFI_LOAD_FILE2_PROTOCOL *loadfile_pp;
+    const auto bs = systab->BootServices;
+    const EFI_GUID linux_initrd_guid = EFI_INITRD_MEDIA_GUID;
+
+    // First locate the handle and protocol pointer for the given device path
+    EFI_STATUS st = bs->LocateDevicePath(&linux_initrd_guid, &path, &path_handle);
+
+    if (st < 0)
+        return EFI_NOT_FOUND;
+
+    // Get the LOADFILE2 protocol for the path handle
+    st = bs->HandleProtocol(path_handle, &loadfile2_guid, (void **) &loadfile_pp);
+
+    if (st < 0)
+        return EFI_NOT_FOUND;
+    return EFI_SUCCESS;
+}
+
+extern "C" BOOT_SECTION void efistub_main(EFI_SYSTEM_TABLE *table)
+{
+    if (efistub_load_initrd(table) != EFI_SUCCESS)
+        __asm__ __volatile("int3");
 }

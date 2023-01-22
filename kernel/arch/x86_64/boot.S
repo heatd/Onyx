@@ -65,11 +65,12 @@
 .section .boot, "ax"
 
 #ifdef CONFIG_EFISTUB
+.section .boot.head, "ax"
 dos_header:
     .ascii "MZ"
     .skip 0x3c - 2
-    .word pe_header - dos_header
-.align 4
+    .long pe_header - dos_header
+.align 8
 pe_header:
     .ascii "PE\0\0"
     .word IMAGE_FILE_MACHINE_AMD64
@@ -168,9 +169,17 @@ section_table:
 header_end:
 
 .align PAGE_SIZE
+.global efi_entry
+.type efi_entry,@function
 efi_entry:
+    /* Convert x64 msabi to x86_64 sysv */
+    /* rcx -> rdi, rdx -> rsi */
+    mov %rcx, %rdi
+    mov %rdx, %rsi
+    call efistub_main
+1:
     hlt
-    jmp efi_entry
+    jmp 1b
 #endif
 jmp entry_point
 .align 4

@@ -10,7 +10,7 @@ x86_64-$(CONFIG_ACPI)+= acpi/acpi.o
 
 x86_64-$(CONFIG_X86_RETHUNK)+= rethunk.o
 
-x86_64-$(CONFIG_EFISTUB)+= efistub/early.o
+include arch/x86_64/efistub/Makefile
 
 obj-y+= $(patsubst %, arch/x86_64/%, $(x86_64-y))
 
