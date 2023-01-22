@@ -65,7 +65,7 @@ __long_mode_enter:
      */
     movl $1, SMPSYM(ap_done)
 
-    mov $startup_secondary_32, %eax
+    lea startup_secondary_32(%ebp), %eax
     jmp *%eax
 .align 4
 stack:

@@ -197,8 +197,8 @@ hdr_start:
     .word 10
     .word 0
     .long 24
-    /* Use a minimum address of 1MB, a max of 4GB, alignment of 2MB (so we can easily map ourselves) */
-    .long 0x100000
+    /* Use a minimum address of 16MiB, a max of 4GiB, alignment of 2MiB (so we can easily map ourselves) */
+    .long 0x1000000
     .long 0xffffffff
     .long 0x200000
     /* 2 = put us as high as you can */
@@ -464,10 +464,10 @@ setup_paging_and_longm:
     push %ebp
     CALC_EFF_ADDRESS(pd, %esi)
 
-#ifndef CONFIG_RELOCATABLE_PHYS
-    movl $PHYS_BASE, %ebp
+    /* Calculate a useful load bias for mapping */
+    add $PHYS_BASE, %ebp
     and $-0x200000, %ebp
-#endif
+
     movl %ebp, %eax
     or $0x83, %eax
     mov %eax, (%esi, %ebx, 8)
@@ -546,12 +546,13 @@ startup_secondary_32:
     mov %cr0, %eax
     or $(CR0_PG | CR0_WP), %eax
     mov %eax, %cr0
-    mov $gdtr2, %eax
+    lea gdtr2(%ebp), %eax
     lgdt (%eax)
 
     CALC_EFF_ADDRESS(protectedmode_stack_top, %esp)
     push $KERNEL_CS
-    push $startup_secondary_64
+    lea startup_secondary_64(%ebp), %eax
+    push %eax
     lret
 
 startup_secondary_64:
