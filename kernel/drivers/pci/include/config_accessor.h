@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2021 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the MIT License
+ * Copyright (c) 2021 - 2025 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 #ifndef _PCI_INTERNAL_CONFIG_ACCESSOR_H
 #define _PCI_INTERNAL_CONFIG_ACCESSOR_H

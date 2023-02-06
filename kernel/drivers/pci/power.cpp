@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2021 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the MIT License
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  */
 
@@ -51,20 +51,20 @@ int pci_device::set_power_state(int power_state)
     int p;
     switch (power_state)
     {
-    case PCI_POWER_STATE_D0:
-        p = 0;
-        break;
-    case PCI_POWER_STATE_D1:
-        p = 1;
-        break;
-    case PCI_POWER_STATE_D2:
-        p = 2;
-        break;
-    case PCI_POWER_STATE_D3:
-        p = 3;
-        break;
-    default:
-        panic("pci: Invalid target power state\n");
+        case PCI_POWER_STATE_D0:
+            p = 0;
+            break;
+        case PCI_POWER_STATE_D1:
+            p = 1;
+            break;
+        case PCI_POWER_STATE_D2:
+            p = 2;
+            break;
+        case PCI_POWER_STATE_D3:
+            p = 3;
+            break;
+        default:
+            panic("pci: Invalid target power state\n");
     }
     /* And set them in PMCSR, writing them back */
     // Zero out the old bits

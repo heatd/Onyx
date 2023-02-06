@@ -1,12 +1,12 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
-#ifndef _KERNEL_PCI_H
-#define _KERNEL_PCI_H
+#ifndef _ONYX_PCI_H
+#define _ONYX_PCI_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -39,11 +39,24 @@
 #define PCI_REGISTER_PROGIF              0x9
 #define PCI_REGISTER_SUBCLASS            0xa
 #define PCI_REGISTER_CLASS               0xb
-#define PCI_REGISTER_SECONDARY_BUS       0x1a
+#define PCI_REGISTER_PRIMARY_BUS         0x18
+#define PCI_REGISTER_SECONDARY_BUS       0x19
+#define PCI_REGISTER_SUBORDINATE_BUS     0x1a
 #define PCI_REGISTER_SUBSYSTEM_VID       0x2c
 #define PCI_REGISTER_SUBSYSTEM_ID        0x2e
 #define PCI_REGISTER_CAPABILTIES_POINTER 0x34
 #define PCI_REGISTER_INTN                0x3c
+
+#define PCI_REGISTER_IO_BASE          0x1c
+#define PCI_REGISTER_IO_LIMIT         0x1d
+#define PCI_REGISTER_MEMORY_BASE      0x20
+#define PCI_REGISTER_MEMORY_LIMIT     0x22
+#define PCI_REGISTER_PREF_MEMORY_BASE 0x24
+#define PCI_REGISTER_PREF_MEMORY_LIM  0x26
+#define PCI_REGISTER_UPPER_PREF_BASE  0x28
+#define PCI_REGISTER_UPPER_PREF_LIM   0x2c
+#define PCI_REGISTER_UPPER_IO_BASE    0x30
+#define PCI_REGISTER_UPPER_IO_LIMIT   0x32
 
 #define PCI_HEADER_MULTIFUNCTION 0x80
 #define PCI_TYPE_MASK            0x7f
@@ -180,6 +193,8 @@ struct msix_table_entry
 
 #define MSIX_VEC_CTL_MASKED (1 << 0)
 
+class pci_bus;
+
 class pci_device : public device
 {
 protected:
@@ -202,6 +217,24 @@ protected:
     int set_power_state(int power_state);
 
     bool enum_bars();
+
+    pci_bus *get_pci_bus()
+    {
+        return (pci_bus *) bus;
+    }
+
+    bool bridge_supports_32bit_io();
+
+    bool bridge_supports_64bit_prefetch();
+
+    int bridge_set_io_window(u32 io_start, u32 io_end);
+
+    int bridge_set_mem_window(u32 start, u32 end);
+
+    int bridge_set_pref_mem_window(u64 start, u64 end);
+
+    friend class pci_bus;
+    friend class pci_root;
 
 public:
     struct msix_table_entry *msix_table;
@@ -314,6 +347,26 @@ public:
     {
         this->alloc = alloc;
     }
+
+    /**
+     * @brief Initialize the not-initialized bridge
+     *
+     */
+    void init_bridge();
+
+    /**
+     * @brief Finish the bridge initialization
+     *
+     */
+    void finish_bridge_init();
+
+    /**
+     * @brief Assign a value to a BAR
+     *
+     * @param bar
+     * @param start
+     */
+    void assign_bar(unsigned int bar, u64 start);
 };
 
 #define PCI_ID_DEVICE(vendor, dev, drv_data)                                                \

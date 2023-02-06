@@ -1,9 +1,9 @@
 /*
  * Copyright (c) 2016 - 2022 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the MIT License
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 #include <assert.h>
 #include <errno.h>
@@ -400,7 +400,7 @@ void add_bus(pci_bus *b)
     pci.add_bus(b);
 }
 
-void pci_init(void)
+void pci_init()
 {
     pcie_get_mcfg();
 
@@ -642,6 +642,25 @@ pci_device *get_device(const device_address &addr)
     });
 
     return dev;
+}
+
+/**
+ * @brief Assign a value to a BAR
+ *
+ * @param bar
+ * @param start
+ */
+void pci_device::assign_bar(unsigned int bar, u64 start)
+{
+    auto reg = PCI_BARx(bar);
+
+    u32 val = (u32) read(bar, sizeof(u32));
+    bool is_64 = PCI_BAR_GET_TYPE(val) == PCI_BAR_TYPE_64;
+
+    write((u32) start, reg, sizeof(u32));
+
+    if (is_64)
+        write(start >> 32, reg + 4, sizeof(u32));
 }
 
 } // namespace pci

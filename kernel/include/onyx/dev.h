@@ -459,15 +459,21 @@ struct bus
     }
 
     template <typename Callable>
-    void for_every_child_bus(Callable cb)
+    void for_every_child_bus_unlocked(Callable cb)
     {
-        scoped_lock g{bus_lock};
         list_for_every (&child_buses)
         {
             auto b = list_head_cpp<bus>::self_from_list_head(l);
             if (!cb(b))
                 return;
         }
+    }
+
+    template <typename Callable>
+    void for_every_child_bus(Callable cb)
+    {
+        scoped_lock g{bus_lock};
+        for_every_child_bus_unlocked<Callable>(cb);
     }
 };
 
