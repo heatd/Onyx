@@ -30,6 +30,8 @@ __BEGIN_CDECLS
 #define EFIAPI __attribute__((ms_abi))
 #elif defined(__i386__)
 #define EFIAPI __attribute__((regparm(0)))
+#elif defined(__riscv)
+// The ELF ABI applies here
 #elif defined(__aarch64__)
 // ARM64 doesn't need the ABI tag
 #define EFIAPI
