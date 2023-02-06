@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2022 Pedro Falcato
+ * Copyright (c) 2017 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -61,7 +61,7 @@ int pcie_get_mcfg()
     return 0;
 }
 
-bool pcie_is_enabled(void)
+bool pcie_is_enabled()
 {
     return mcfg != nullptr;
 }
@@ -97,7 +97,7 @@ void __pcie_config_write_byte(pcie_address &addr, uint8_t data)
 {
     uint16_t aligned_offset = addr.offset & -4;
     uint16_t write_offset = addr.offset - aligned_offset;
-    uint16_t write_mask = 0xff << (write_offset * 8);
+    u32 write_mask = 0xffu << (write_offset * 8);
     addr.offset = aligned_offset;
     uint32_t dword = __pcie_config_read_dword(addr);
 
@@ -267,7 +267,35 @@ class pcie_accessor : public config_accessor
 
 pcie_accessor pcie_access;
 
-int pcie_init(void)
+int add_ecam(u16 segment, u16 start_bus, u16 end_bus, u64 mmio_start)
+{
+    pcie_allocation allocation;
+    /* Failing to allocate enough memory here is pretty much a system failure */
+
+    unsigned int nr_buses = end_bus - start_bus;
+    size_t size = nr_buses << 20;
+
+    allocation.address = mmiomap((void *) mmio_start, size, VM_READ | VM_WRITE | VM_NOCACHE);
+
+    if (!allocation.address)
+        return -ENOMEM;
+
+    allocation.segment = segment;
+    allocation.start_bus = start_bus;
+    allocation.end_bus = end_bus;
+
+    if (!allocations.push_back(cul::move(allocation)))
+    {
+        vm_munmap(&kernel_address_space, (void *) allocation.address, size);
+        return -ENOMEM;
+    }
+
+    set_accessor(&pcie_access);
+
+    return 0;
+}
+
+int pcie_init()
 {
     assert(pcie_is_enabled() == true);
     /*
@@ -280,32 +308,12 @@ int pcie_init(void)
         (mcfg->header.length - sizeof(acpi_table_mcfg)) / sizeof(acpi_mcfg_allocation);
     while (nr_allocs--)
     {
-        pcie_allocation allocation;
-        /* Failing to allocate enough memory here is pretty much a system failure */
-
-        unsigned int nr_buses = alloc->end_bus_number - alloc->start_bus_number;
-        size_t size = nr_buses << 20;
-
-        allocation.address =
-            mmiomap((void *) alloc->address, size, VM_READ | VM_WRITE | VM_NOCACHE);
-
-        if (!allocation.address)
-            return -ENOMEM;
-
-        allocation.segment = alloc->pci_segment;
-        allocation.start_bus = alloc->start_bus_number;
-        allocation.end_bus = alloc->end_bus_number;
-
-        if (!allocations.push_back(cul::move(allocation)))
-        {
-            vm_munmap(&kernel_address_space, (void *) allocation.address, size);
-            return -ENOMEM;
-        }
-
+        int st = add_ecam(alloc->pci_segment, alloc->start_bus_number, alloc->end_bus_number,
+                          alloc->address);
+        if (st < 0)
+            return st;
         ++alloc;
     }
-
-    set_accessor(&pcie_access);
 
     return 0;
 }

@@ -143,8 +143,10 @@ fullbuild-plus-full-initrd: fullbuild
 	SYSTEM_ROOT=$(SYSROOT) scripts/geninitrd --compression-method none scripts/livecd-initrd.sh
 
 qemu-riscv: fullbuild-plus-full-initrd
-	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) -kernel kernel/vmonyx -m 512M -machine virt \
-	-serial stdio -s -initrd initrd.tar -smp 4
+	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) -kernel kernel/vmonyx -m 2G -machine virt \
+	-serial stdio -s -initrd initrd.tar -smp 4 -netdev user,id=u1 -device pci-bridge,id=pci_b0,bus=pcie.0,chassis_nr=2,addr=10 \
+	-device virtio-net,netdev=u1,bus=pci_b0,addr=1 -device pci-bridge,id=pci_b1,bus=pci_b0,addr=10,chassis_nr=3 \
+	-device e1000,bus=pci_b1,addr=1 -object filter-dump,id=f1,netdev=u1,file=net.pcap -device e1000e
 
 qemu-arm64: fullbuild-plus-initrd
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) -kernel kernel/vmonyx -m 512M -machine virt \

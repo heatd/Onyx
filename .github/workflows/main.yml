@@ -6,11 +6,11 @@ name: CI
 # events but only for the master branch and riscv
 on:
   push:
-    branches: [ master, riscv]
+    branches: [ master, riscv, pci-config]
   pull_request:
-    branches: [ master, riscv]
+    branches: [ master, riscv, pci-config]
   release:
-    branches: [ master, riscv]
+    branches: [ master, riscv, pci-config]
 
 jobs:
   build:

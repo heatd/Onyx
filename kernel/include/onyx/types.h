@@ -12,6 +12,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifndef __ASSEMBLY__
+
 // Traditional sN and uN typedefs
 
 typedef int8_t __s8;
@@ -27,7 +29,7 @@ typedef uint64_t __u64;
 typedef uintptr_t __uptr;
 typedef size_t __usize;
 
-#ifndef ONYX_UAPI_HEADER
+// #ifndef ONYX_UAPI_HEADER
 
 typedef __s8 s8;
 typedef __s16 s16;
@@ -37,6 +39,8 @@ typedef __u8 u8;
 typedef __u16 u16;
 typedef __u32 u32;
 typedef __u64 u64;
+
+// #endif
 
 #endif
 

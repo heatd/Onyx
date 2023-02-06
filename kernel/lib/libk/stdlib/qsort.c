@@ -1,5 +1,3 @@
-#include <stdlib.h>
-#include <string.h>
 /*
  * Copyright (c) 2012, 2014 Jonas 'Sortie' Termansen.
  *
