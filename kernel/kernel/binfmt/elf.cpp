@@ -123,7 +123,7 @@ bool elf_phdrs_valid(const elf_phdr *phdrs, size_t nr_phdrs)
 
         // ELF PT_LOAD segments must be ordered by rising vaddr
         // This also deals with overlap
-        if (last != -1 && (unsigned long) last >= phdrs->p_vaddr)
+        if (last != -1 && (unsigned long) last > phdrs->p_vaddr)
         {
             return false;
         }
@@ -210,8 +210,8 @@ static void *elf_load(struct binfmt_args *args, elf_ehdr *header)
     }
 
 #if 0
-	printk("initial mmap %p to %p\n", base,
-	       (void *)((unsigned long) base + (vm_size_to_pages(needed_size) << PAGE_SHIFT)));
+    printk("initial mmap %p to %p\n", base,
+           (void *) ((unsigned long) base + (vm_size_to_pages(needed_size) << PAGE_SHIFT)));
 #endif
     header->e_entry += (uintptr_t) base;
 
@@ -489,6 +489,25 @@ TEST(elfldr, test_bad_phdrs)
     phdrs[0].p_filesz = PAGE_SIZE;
 
     EXPECT_TRUE(ELF_NAMESPACE::elf_phdrs_valid(phdrs, 3));
+}
+
+TEST(elfldr, test_no_gap_regression)
+{
+    // Regression test for issue loading segments with no gap in between.
+    elf_phdr phdrs[2];
+    unsigned long vaddr = 0x4000000;
+    for (auto &p : phdrs)
+    {
+        p.p_type = PT_LOAD;
+        p.p_vaddr = vaddr;
+        p.p_memsz = p.p_filesz = 0x1000;
+        vaddr += p.p_memsz;
+    }
+
+    // 0 [0x4000000, 0x4001000]
+    // 1 [0x4001000, 0x4002000]
+
+    EXPECT_TRUE(ELF_NAMESPACE::elf_phdrs_valid(phdrs, 2));
 }
 
 #endif
