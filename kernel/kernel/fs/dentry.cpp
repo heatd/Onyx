@@ -1087,6 +1087,10 @@ file *file_creation_helper(dentry *base, const char *path, last_name_handling &h
 
 file *creat_vfs(dentry *base, const char *path, int mode)
 {
+    // Mask out the possible file type bits and set IFREG for a regular creat
+    mode &= ~S_IFMT;
+    mode |= S_IFREG;
+
     create_handling h{{create_file_type::creat, (mode_t) mode, 0}};
     return file_creation_helper(base, path, h);
 }
