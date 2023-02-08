@@ -479,6 +479,7 @@ setup_paging_and_longm:
     lea 0x400000(%ebp), %eax
     or $0x83, %eax
     mov %eax, (%esi, %ebx, 8)
+    inc %ebx
     lea 0x600000(%ebp), %eax
     or $0x83, %eax
     mov %eax, (%esi, %ebx, 8)
