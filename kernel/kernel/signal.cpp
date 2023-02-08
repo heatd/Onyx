@@ -386,7 +386,7 @@ void handle_signal(struct registers *regs)
 
 int kernel_raise_signal(int sig, struct process *process, unsigned int flags, siginfo_t *info)
 {
-    struct thread *t = NULL;
+    struct thread *t = nullptr;
 
     spin_lock(&process->thread_list_lock);
 
@@ -401,14 +401,22 @@ int kernel_raise_signal(int sig, struct process *process, unsigned int flags, si
         }
     }
 
-    if (t == NULL)
+    if (t == nullptr)
     {
+        if (list_is_empty(&process->thread_list))
+        {
+            // Process is a zombie, return success (doesn't matter if the signal is not delivered,
+            // no one is expecting it.)
+            spin_unlock(&process->thread_list_lock);
+            return 0;
+        }
+
         /* If the signal is masked everywhere, just pick the first thread... */
         t = container_of(list_first_element(&process->thread_list), struct thread,
                          thread_list_head);
     }
 
-    assert(t != NULL);
+    assert(t != nullptr);
 
     thread_get(t);
 
