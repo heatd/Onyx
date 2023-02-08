@@ -1,0 +1,12 @@
+import("//build/app.gni")
+
+app_executable("test-runner") {
+    include_dirs = [ "include" ]
+    package_name = "test-runner"
+
+    output_name = "test-runner"
+
+    sources = [ "main.cpp", "gtest.cpp", "fsx.cpp", "process.cpp", "kunit.cpp"]
+
+    deps = [ "//lib/onyx" ]
+}
