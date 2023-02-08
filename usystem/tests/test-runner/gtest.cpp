@@ -25,8 +25,8 @@ struct gtest_test : public test
 };
 
 const gtest_test gtests[] = {
-    gtest_test(std::filesystem::path("/usr/bin/kernel_api_tests"), "kernel_api_tests", 30),
-    gtest_test(std::filesystem::path("/usr/bin/net_tests"), "net_tests", 20)};
+    gtest_test(std::filesystem::path("/usr/bin/kernel_api_tests"), "kernel_api_tests", 240),
+    gtest_test(std::filesystem::path("/usr/bin/net_tests"), "net_tests", 30)};
 
 test_result gtest_test::run_test() const
 {

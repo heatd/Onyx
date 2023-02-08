@@ -47,7 +47,7 @@ test_result fsx_test::run_test() const
     return wait_for_process(pid, "fsx", timeout_seconds_);
 }
 
-const fsx_test fsx_t{"/usr/bin/fsx", "fsx", FSX_TEST_DURATION * 2};
+const fsx_test fsx_t{"/usr/bin/fsx", "fsx", FSX_TEST_DURATION * 3};
 
 const static auto _do = []() {
     register_test(&fsx_t);

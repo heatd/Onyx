@@ -6,11 +6,11 @@ name: CI
 # events but only for the master branch and riscv
 on:
   push:
-    branches: [ master, riscv]
+    branches: [ master, riscv ]
   pull_request:
-    branches: [ master, riscv]
+    branches: [ master, riscv ]
   release:
-    branches: [ master, riscv]
+    branches: [ master, riscv ]
 
 jobs:
   build:
@@ -514,3 +514,172 @@ jobs:
         with:
           name: Onyx boot image (arm64) (llvm)
           path: arm64-onyx-image-llvm.tar.zst
+  run-x86_64:
+    runs-on: ubuntu-latest
+    needs: build-toolchains
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: "recursive"
+      
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.11.0' # Require the same version of python as Onyx builds, in order to ease the build
+        
+
+      - name: Download the x86_64-onyx-linux toolchain
+        uses: actions/download-artifact@v2.0.8
+        with:
+          # Artifact name
+          name: x86_64-onyx-linux
+
+      - name: Extract Toolchain
+        run: |
+          zstd -d x86_64-onyx-linux.tar.zst --stdout | tar x
+          echo "$PWD/x86_64-onyx/bin" >> $GITHUB_PATH
+  
+      - name: Install dependencies
+        run: |
+          scripts/ci/install_github_ci_deps.sh
+          echo "$PWD/gn_bin" >> $GITHUB_PATH
+
+      # Runs a set of commands using the runners shell
+      - name: Build Onyx
+        run: |
+          cp kernel/configs/kernel.config.x86_64 kernel/kernel.config
+          export SYSROOT=$PWD/sysroot
+          export ONYX_ARCH=x86_64
+          cd kernel && ../scripts/ci/enable-debug-kernel.sh && cd ..
+          ./scripts/setup_build.sh
+          make -j $(nproc) liveiso
+          USE_KVM=0 ./scripts/ci/run-tests.py
+  
+  run-x86_64-llvm:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+    needs: build-toolchains
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+        with:
+          submodules: "recursive"
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.11.0' # Require the same version of python as Onyx builds, in order to ease the build
+        
+
+      # Runs a single command using the runners shell
+      - name: Download the onyx-llvm-linux toolchain
+        uses: actions/download-artifact@v2.0.8
+        with:
+          # Artifact name
+          name: onyx-llvm-linux
+
+      - name: Extract Toolchain
+        run: |
+          zstd -d onyx-llvm-linux.tar.zst --stdout | tar x
+  
+      - name: Install dependencies
+        run: |
+          scripts/ci/install_github_ci_deps.sh
+          echo "$PWD/gn_bin" >> $GITHUB_PATH
+
+      # Runs a set of commands using the runners shell
+      - name: Build Onyx
+        run: |
+          cp kernel/configs/kernel.config.x86_64 kernel/kernel.config
+          export CLANG_PATH=$PWD/onyx-llvm
+          export SYSROOT=$PWD/sysroot
+          export ONYX_ARCH=x86_64
+          cd kernel && ../scripts/ci/enable-debug-kernel.sh && cd ..
+          ./scripts/setup_build.sh
+          make -j $(nproc) liveiso
+          USE_KVM=0 ./scripts/ci/run-tests.py
+
+  
+  run-riscv:
+    runs-on: ubuntu-latest
+    needs: build-toolchains
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: "recursive"
+      
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.11.0' # Require the same version of python as Onyx builds, in order to ease the build
+        
+
+      - name: Download the riscv64-onyx-linux toolchain
+        uses: actions/download-artifact@v2.0.8
+        with:
+          # Artifact name
+          name: riscv64-onyx-linux
+
+      - name: Extract Toolchain
+        run: |
+          zstd -d riscv64-onyx-linux.tar.zst --stdout | tar x
+          echo "$PWD/riscv64-onyx/bin" >> $GITHUB_PATH
+  
+      - name: Install dependencies
+        run: |
+          scripts/ci/install_github_ci_deps.sh
+          echo "$PWD/gn_bin" >> $GITHUB_PATH
+
+      - name: Build Onyx
+        run: |
+          cp kernel/configs/kernel.config.riscv kernel/kernel.config
+          export SYSROOT=$PWD/sysroot
+          export ONYX_ARCH=riscv64
+          cd kernel && ../scripts/ci/enable-debug-kernel.sh && cd ..
+          ./scripts/setup_build.sh
+          make -j $(nproc) fullbuild-plus-full-initrd
+          USE_KVM=0 ./scripts/ci/run-tests.py
+  
+  run-riscv64-llvm:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+    needs: build-toolchains
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+        with:
+          submodules: "recursive"
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.11.0' # Require the same version of python as Onyx builds, in order to ease the build
+        
+
+      # Runs a single command using the runners shell
+      - name: Download the onyx-llvm-linux toolchain
+        uses: actions/download-artifact@v2.0.8
+        with:
+          # Artifact name
+          name: onyx-llvm-linux
+
+      - name: Extract Toolchain
+        run: |
+          zstd -d onyx-llvm-linux.tar.zst --stdout | tar x
+  
+      - name: Install dependencies
+        run: |
+          scripts/ci/install_github_ci_deps.sh
+          echo "$PWD/gn_bin" >> $GITHUB_PATH
+
+      # Runs a set of commands using the runners shell
+      - name: Build Onyx
+        run: |
+          cp kernel/configs/kernel.config.riscv kernel/kernel.config
+          export CLANG_PATH=$PWD/onyx-llvm
+          export SYSROOT=$PWD/sysroot
+          export ONYX_ARCH=riscv64
+          cd kernel && ../scripts/ci/enable-debug-kernel.sh && cd ..
+          ./scripts/setup_build.sh
+          make -j $(nproc) fullbuild-plus-full-initrd
+          USE_KVM=0 ./scripts/ci/run-tests.py
