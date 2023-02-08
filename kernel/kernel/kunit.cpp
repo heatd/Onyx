@@ -38,6 +38,7 @@ void kunit_do_tests()
     }
 
     printk("--------- KUnit tests done -- %u tests executed, %u failed ---------\n", done, failed);
+    printf("kunit: tests done -- %u tests executed, %u failed\n", done, failed);
 }
 
 INIT_LEVEL_CORE_KERNEL_ENTRY(kunit_do_tests);
