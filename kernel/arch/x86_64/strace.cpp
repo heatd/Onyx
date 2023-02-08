@@ -435,14 +435,18 @@ void elf_sections_reserve(struct multiboot_tag_elf_sections *__secs)
 
     bootmem_reserve(strtabs->sh_addr, strtabs->sh_size);
 
+    strtab = (char *) strtabs->sh_addr;
+
     for (unsigned int i = 0; i < num_secs; i++)
     {
         Elf64_Shdr *section = (Elf64_Shdr *) x86_placement_map((unsigned long) (sections + i));
         Elf64_Word name = section->sh_name;
 
-        strtab = (char *) x86_placement_map(strtabs->sh_addr);
+        const char *str = elf_get_string(name);
 
-        if (!strcmp(".symtab", elf_get_string(name)))
+        str = (char *) x86_placement_map((unsigned long) str);
+
+        if (!strcmp(".symtab", str))
         {
             section = (Elf64_Shdr *) x86_placement_map((unsigned long) (sections + i));
             symtab_start = section->sh_addr;
@@ -450,7 +454,7 @@ void elf_sections_reserve(struct multiboot_tag_elf_sections *__secs)
 
             bootmem_reserve(symtab_start, section->sh_size);
         }
-        if (!strcmp(".strtab", elf_get_string(name)))
+        if (!strcmp(".strtab", str))
         {
             section = (Elf64_Shdr *) x86_placement_map((unsigned long) (sections + i));
             strtab_start = section->sh_addr;
