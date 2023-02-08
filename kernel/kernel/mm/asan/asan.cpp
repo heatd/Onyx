@@ -325,6 +325,12 @@ extern "C" void asan_unpoison_stack_shadow()
     // Called by code that needs to exit and not unwind the stack. This forcibly unpoisons the whole
     // stack.
     auto cur = get_current_thread();
+    if (!cur)
+    {
+        stray_shadow_unpoison++;
+        return;
+    }
+
     unsigned long local_stack;
     unsigned long bottom = (unsigned long) &local_stack;
     auto len = ((unsigned long) cur->kernel_stack_top) - bottom;
