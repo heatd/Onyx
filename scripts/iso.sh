@@ -22,6 +22,8 @@ xz -9 -e -f isodir/boot/vmonyx
 #zstd -15 isodir/boot/vmonyx
 
 cat > isodir/boot/grub/grub.cfg << EOF
+set default="0"
+set timeout=5
 menuentry "Onyx" {
     loadfont unicode
     insmod all_video
