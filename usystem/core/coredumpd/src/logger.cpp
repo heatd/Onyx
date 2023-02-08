@@ -55,7 +55,7 @@ Logger::Logger() : log_filename_{"/var/log/coredumpd/"}
                      std::to_string(date->tm_hour) + ":" + std::to_string(date->tm_min) + ":" +
                      std::to_string(date->tm_sec) + ".log";
 
-    int fd = open(log_filename_.c_str(), O_CREAT | O_RDWR);
+    int fd = open(log_filename_.c_str(), O_CREAT | O_RDWR, 0644);
     if (fd < 0)
         throw std::system_error(errno, std::generic_category(),
                                 "Failed to create log file "s + log_filename_);
