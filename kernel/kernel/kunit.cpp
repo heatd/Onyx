@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2022 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -8,6 +8,12 @@
 #include <onyx/init.h>
 #include <onyx/kunit.h>
 #include <onyx/vector.h>
+
+extern "C"
+{
+void ubsan_enter_kunit();
+void ubsan_exit_kunit();
+}
 
 namespace internal
 {
@@ -29,6 +35,10 @@ void kunit_do_tests()
     unsigned int failed = 0;
     unsigned int done = 0;
 
+#ifdef CONFIG_UBSAN
+    ubsan_enter_kunit();
+#endif
+
     for (auto t : internal::tests)
     {
         t->do_test();
@@ -36,6 +46,10 @@ void kunit_do_tests()
             failed++;
         done++;
     }
+
+#ifdef CONFIG_UBSAN
+    ubsan_exit_kunit();
+#endif
 
     printk("--------- KUnit tests done -- %u tests executed, %u failed ---------\n", done, failed);
     printf("kunit: tests done -- %u tests executed, %u failed\n", done, failed);

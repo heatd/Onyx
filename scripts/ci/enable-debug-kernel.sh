@@ -12,4 +12,6 @@ if [ "$ONYX_ARCH" = "x86_64" ]; then
     sed -i 's/CONFIG_KASLR=y/CONFIG_KASLR=n/g' kernel.config
     # Enable RELOCATABLE_PHYS, since it's a tricky feature
     sed -i 's/CONFIG_RELOCATABLE_PHYS=n/CONFIG_RELOCATABLE_PHYS=y/g' kernel.config
+    # Make the kernel UBSAN always abort on error
+    echo "CONFIG_UBSAN_ALWAYS_ABORT=y" >> kernel.config
 fi
