@@ -71,6 +71,7 @@ struct file_ops
     ssize_t (*writepage)(struct page *page, size_t offset, struct inode *ino);
     int (*prepare_write)(struct inode *ino, struct page *page, size_t page_off, size_t offset,
                          size_t len);
+    int (*fcntl)(struct file *filp, int cmd, unsigned long arg);
 };
 
 struct getdents_ret

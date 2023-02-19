@@ -1398,6 +1398,11 @@ int fcntl_f_setfl(int fd, struct ioctx *ctx, unsigned long arg)
     return 0;
 }
 
+int default_fcntl(struct file *f, int cmd, unsigned long arg)
+{
+    return -EINVAL;
+}
+
 int sys_fcntl(int fd, int cmd, unsigned long arg)
 {
     struct ioctx *ctx = &get_current_process()->ctx;
@@ -1428,9 +1433,18 @@ int sys_fcntl(int fd, int cmd, unsigned long arg)
         case F_SETFL:
             return fcntl_f_setfl(fd, ctx, arg);
 
-        default:
-            ret = -EINVAL;
+        default: {
+            // Call the file's fcntl method if it exists
+            auto_file f;
+
+            if (int st = f.from_fd(fd); st < 0)
+                return st;
+
+            const auto ino = f.get_file()->f_ino;
+            const auto fcntl_ = ino->i_fops->fcntl ?: default_fcntl;
+            ret = fcntl_(f.get_file(), cmd, arg);
             break;
+        }
     }
 
     return ret;

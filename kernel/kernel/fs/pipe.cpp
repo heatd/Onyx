@@ -30,12 +30,16 @@
 #include <onyx/types.h>
 #include <onyx/utils.h>
 
+#include <bits/ioctl.h>
+
 #include <onyx/list.hpp>
 
 static chardev *pipedev = nullptr;
 static atomic<ino_t> current_inode_number = 0;
 
 constexpr unsigned long default_pipe_size = (16 * PAGE_SIZE);
+// TODO: Make this configurable
+constexpr unsigned long max_pipe_size = 0x100000;
 
 static slab_cache *pipe_buffer_cache, *pipe_cache;
 
@@ -127,7 +131,7 @@ public:
         wait_queue_wake_all(wq);
     }
 
-    size_t __test_only_size() const
+    size_t get_unread_len() const
     {
         return curr_len;
     }
@@ -146,6 +150,9 @@ public:
     {
         buf_size = len;
     }
+
+    int get_capacity();
+    int set_capacity(size_t len);
 };
 
 pipe::pipe() : refcountable(2)
@@ -168,12 +175,12 @@ pipe::~pipe()
 
 bool pipe::is_full() const
 {
-    return buf_size == curr_len;
+    return buf_size <= curr_len;
 }
 
 size_t pipe::available_space() const
 {
-    return buf_size - curr_len;
+    return buf_size < curr_len ? 0 : buf_size - curr_len;
 }
 
 ssize_t pipe::read(int flags, size_t len, void *buf)
@@ -188,7 +195,8 @@ ssize_t pipe::read(int flags, size_t len, void *buf)
     // Lets keep track if the pipe was full the last time we grabbed the lack
     // By doing so, we can know when to wake writers instead of wasting time trying to do so
     // for no reason.
-    bool wasfull = is_full();
+    // Since PIPE_BUF atomic writes are complicated with this scheme, we add PIPE_BUF slack.
+    bool wasfull = available_space() < PIPE_BUF;
 
     while (true)
     {
@@ -216,7 +224,7 @@ ssize_t pipe::read(int flags, size_t len, void *buf)
                 break;
             }
 
-            wasfull = is_full();
+            wasfull = available_space() < PIPE_BUF;
 
             continue;
         }
@@ -537,14 +545,78 @@ short pipe::poll(void *poll_file, short events)
     return revents;
 }
 
-short pipe_poll(void *poll_file, short events, struct file *f)
+static short pipe_poll(void *poll_file, short events, struct file *f)
 {
     pipe *p = get_pipe(f->f_ino->i_helper);
     return p->poll(poll_file, events);
 }
 
-struct file_ops pipe_ops = {
-    .read = pipe_read, .write = pipe_write, .close = pipe_close, .poll = pipe_poll};
+static unsigned int pipe_ioctl(int req, void *argp, struct file *f)
+{
+    auto p = get_pipe(f->f_ino->i_helper);
+
+    switch (req)
+    {
+        case FIONREAD: {
+            auto len = (int) cul::clamp(p->get_unread_len(), (size_t) INT_MAX);
+            return copy_to_user(argp, &len, sizeof(int));
+        }
+    }
+
+    return -ENOTTY;
+}
+
+int pipe::get_capacity()
+{
+    return buf_size;
+}
+
+int pipe::set_capacity(size_t len)
+{
+    // PIPE_BUF is the minimum buffer size, per POSIX
+    if (len < PIPE_BUF)
+        len = PIPE_BUF;
+
+    // Clamp to int as some interfaces (FIONREAD, fcntl) may struggle with larger than int
+    // sizes and lengths.
+    if (len > INT_MAX)
+        len = INT_MAX;
+
+    if (len > max_pipe_size)
+        len = max_pipe_size;
+
+    scoped_mutex g{pipe_lock};
+
+    buf_size = len;
+
+    // Wake up any writers
+    wake_all(&write_queue);
+    return 0;
+}
+
+static int pipe_fcntl(struct file *f, int cmd, unsigned long arg)
+{
+    auto p = get_pipe(f->f_ino->i_helper);
+
+    switch (cmd)
+    {
+        case F_GETPIPE_SZ:
+            return p->get_capacity();
+        case F_SETPIPE_SZ:
+            return p->set_capacity(arg);
+    }
+
+    return -EINVAL;
+}
+
+const struct file_ops pipe_ops = {
+    .read = pipe_read,
+    .write = pipe_write,
+    .close = pipe_close,
+    .ioctl = pipe_ioctl,
+    .poll = pipe_poll,
+    .fcntl = pipe_fcntl,
+};
 
 int pipe_create(struct file **pipe_readable, struct file **pipe_writeable)
 {
@@ -572,7 +644,7 @@ int pipe_create(struct file **pipe_readable, struct file **pipe_writeable)
     node0->i_flags = INODE_FLAG_NO_SEEK;
     node0->i_inode = current_inode_number++;
     node0->i_helper = (void *) new_pipe;
-    node0->i_fops = &pipe_ops;
+    node0->i_fops = (struct file_ops *) &pipe_ops;
 
     /* TODO: This memcpy seems unsafe, at least... */
     memcpy(node1, node0, sizeof(*node0));
@@ -654,13 +726,13 @@ TEST(pipe, rw_works)
     ssize_t st = p->write(0, len, h);
 
     ASSERT_EQ(st, (ssize_t) len);
-    ASSERT_EQ(p->__test_only_size(), len);
+    ASSERT_EQ(p->get_unread_len(), len);
 
     char buf[len];
     st = p->read(0, PAGE_SIZE, buf);
 
     ASSERT_EQ(st, (ssize_t) len);
-    ASSERT_EQ(p->__test_only_size(), 0U);
+    ASSERT_EQ(p->get_unread_len(), 0U);
 }
 
 TEST(pipe, pipe_buf_works)
@@ -676,16 +748,16 @@ TEST(pipe, pipe_buf_works)
     ssize_t st = p->write(O_NONBLOCK, len, h);
 
     ASSERT_EQ(st, -EAGAIN);
-    ASSERT_EQ(p->__test_only_size(), 0U);
+    ASSERT_EQ(p->get_unread_len(), 0U);
 
     st = p->write(O_NONBLOCK, 1, h);
     ASSERT_EQ(st, 1);
-    ASSERT_EQ(p->__test_only_size(), 1U);
+    ASSERT_EQ(p->get_unread_len(), 1U);
 
     st = p->write(O_NONBLOCK, 1, h);
 
     ASSERT_EQ(st, -EAGAIN);
-    ASSERT_EQ(p->__test_only_size(), 1U);
+    ASSERT_EQ(p->get_unread_len(), 1U);
 }
 
 TEST(pipe, eof_works)
@@ -721,7 +793,7 @@ TEST(pipe, broken_pipe)
     kernel_raise_signal_MOCK = original;
 
     EXPECT_EQ(st, -EPIPE);
-    EXPECT_EQ(p->__test_only_size(), 0U);
+    EXPECT_EQ(p->get_unread_len(), 0U);
 }
 
 #endif
