@@ -388,7 +388,7 @@ USED void __ubsan_handle_divrem_overflow(ubsan_overflow_data *data, size_t lhs, 
     ubsan_report_end();
 }
 
-USED void __ubsan_handle_divrem_abort(ubsan_overflow_data *data, size_t lhs, size_t rhs)
+USED void __ubsan_handle_divrem_overflow_abort(ubsan_overflow_data *data, size_t lhs, size_t rhs)
 {
     __ubsan_handle_divrem_overflow(data, lhs, rhs);
     ubsan_abort();
