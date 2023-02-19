@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2022 Pedro Falcato
+ * Copyright (c) 2020 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -13,19 +13,21 @@
 #include <onyx/binfmt.h>
 #include <onyx/exec.h>
 #include <onyx/file.h>
+#include <onyx/kunit.h>
 #include <onyx/process.h>
 #include <onyx/random.h>
 #include <onyx/signal.h>
 #include <onyx/user.h>
 #include <onyx/vdso.h>
 
-void exec_state_destroy(struct exec_state *);
+void exec_state_destroy(struct exec_state *state);
 
-char **process_copy_envarg(const char **envarg, bool to_kernel, int *count)
+expected<envarg_res, int> process_copy_envarg(const char **envarg, size_t current_size)
 {
-    /* Copy the envp/argv to another buffer */
-    /* Each buffer takes up argc * sizeof pointer + string_size + one extra pointer(to nullptr
-     * terminate) */
+    /* Copy the envp/argv to another buffer
+     * Each buffer takes up argc * sizeof pointer + string_size + one extra pointer
+     * (to nullptr terminate)
+     */
     size_t nr_args = 0;
     size_t string_size = 0;
     const char **b = envarg;
@@ -36,28 +38,29 @@ char **process_copy_envarg(const char **envarg, bool to_kernel, int *count)
     {
         ssize_t length = strlen_user(ptr);
         if (length == -EFAULT)
-            return errno = EFAULT, nullptr;
+            return unexpected<int>{-EFAULT};
 
         string_size += length + 1;
         nr_args++;
+
+        if (nr_args > INT_MAX)
+            return unexpected<int>{-E2BIG};
+
         b++;
     }
 
     if (st < 0)
-        return errno = EFAULT, nullptr;
+        return unexpected<int>{-EFAULT};
 
     size_t buffer_size = (nr_args + 1) * sizeof(void *) + string_size;
-    char *new_;
-    if (to_kernel)
-    {
-        new_ = (char *) zalloc(buffer_size);
-        if (!new_)
-            return nullptr;
-    }
-    else
-    {
-        panic("old code");
-    }
+
+    // Check if we overflow the ARG_MAX
+    if (current_size + buffer_size > ARG_MAX)
+        return unexpected<int>{-E2BIG};
+
+    char *new_ = (char *) zalloc(buffer_size);
+    if (!new_)
+        return unexpected<int>{-ENOMEM};
 
     char *strings = (char *) new_ + (nr_args + 1) * sizeof(void *);
     char *it = strings;
@@ -67,14 +70,14 @@ char **process_copy_envarg(const char **envarg, bool to_kernel, int *count)
     {
         const char *str;
         if (get_user64((unsigned long *) &envarg[i], (unsigned long *) &str) < 0)
-            return errno = EFAULT, nullptr;
+            return unexpected<int>{-EFAULT};
 
         ssize_t length = strlen_user(str);
         if (length == -EFAULT)
-            return errno = EFAULT, nullptr;
+            return unexpected<int>{-EFAULT};
 
         if (copy_from_user(it, str, length) < 0)
-            return errno = EFAULT, nullptr;
+            return unexpected<int>{-EFAULT};
 
         it += length + 1;
     }
@@ -86,10 +89,12 @@ char **process_copy_envarg(const char **envarg, bool to_kernel, int *count)
         strings += strlen(new_args[i]) + 1;
     }
 
-    if (count)
-        *count = nr_args;
+    struct envarg_res r;
+    r.s = new_args;
+    r.count = nr_args;
+    r.total_size = buffer_size;
 
-    return new_args;
+    return r;
 }
 
 size_t count_strings_len(char **ps, int *count)
@@ -384,9 +389,9 @@ int sys_execve(const char *p, const char **argv, const char **envp)
     struct file *f = nullptr;
     unsigned long old = 0;
     void *entry = nullptr;
-    struct binfmt_args args
-    {
-    };
+    binfmt_args args{};
+    envarg_res er;
+    expected<envarg_res, int> ex;
     struct process *current = get_current_process();
 
     char *path = strcpy_from_user(p);
@@ -401,20 +406,28 @@ int sys_execve(const char *p, const char **argv, const char **envp)
     exec_state_created = true;
 
     /* Copy argv and envp to the kernel space */
-    karg = process_copy_envarg(argv, true, &argc);
-
-    if (!karg)
+    if (ex = process_copy_envarg(argv, 0); ex.has_error())
     {
-        st = -errno;
+        st = ex.error();
         goto error;
     }
 
-    kenv = process_copy_envarg(envp, true, nullptr);
-    if (!kenv)
+    er = ex.value();
+
+    args.argv_size = er.total_size;
+    argc = er.count;
+    karg = er.s;
+
+    if (ex = process_copy_envarg(envp, args.argv_size); ex.has_error())
     {
-        st = -errno;
+        st = ex.error();
         goto error;
     }
+
+    er = ex.value();
+
+    args.envp_size = er.total_size;
+    kenv = er.s;
 
     /* We might be getting called from kernel code, so force the address limit */
     thread_change_addr_limit(VM_USER_ADDR_LIMIT);
@@ -572,3 +585,49 @@ void exec_state_destroy(struct exec_state *state)
     if (state->flushed)
         return;
 }
+
+#ifdef CONFIG_KUNIT
+
+TEST(exec, arg_max_handling)
+{
+    auto_addr_limit l_{VM_KERNEL_ADDR_LIMIT};
+    // Test that the accounting is accurate
+    const char *args[] = {"hello", nullptr};
+
+    auto ex = process_copy_envarg(args, 0);
+
+    ASSERT_TRUE(ex.has_value());
+
+    auto res = ex.value();
+
+    ASSERT_NONNULL(res.s);
+    ASSERT_EQ(res.count, 1);
+    ASSERT_EQ(res.total_size, (2 * sizeof(const char *) + (strlen("hello") + 1)));
+
+    free(res.s);
+
+    // Test that arguments too large result in E2BIG
+    size_t number_args = (ARG_MAX / PAGE_SIZE) + 2;
+
+    cul::vector<char *> v;
+
+    for (size_t i = 0; i < number_args; i++)
+    {
+        char *s = (char *) malloc(PAGE_SIZE);
+        ASSERT_NONNULL(s);
+        memset(s, 'A', PAGE_SIZE);
+        s[PAGE_SIZE - 1] = '\0';
+        ASSERT_TRUE(v.push_back(s));
+    }
+
+    ASSERT_TRUE(v.push_back(nullptr));
+
+    ex = process_copy_envarg((const char **) v.begin(), 0);
+
+    for (auto &s : v)
+        free(s);
+
+    ASSERT_TRUE(ex.has_error());
+    ASSERT_TRUE(ex.error() == -E2BIG);
+}
+#endif

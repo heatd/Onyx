@@ -802,6 +802,30 @@ static inline unsigned long thread_change_addr_limit(unsigned long limit)
 }
 
 /**
+ * @brief RAII wrapper for thread_change_addr_limit
+ *
+ */
+class auto_addr_limit
+{
+    unsigned long old_;
+
+public:
+    auto_addr_limit(unsigned long new_limit)
+    {
+        old_ = thread_change_addr_limit(new_limit);
+    }
+
+    ~auto_addr_limit()
+    {
+        thread_change_addr_limit(old_);
+    }
+
+    auto_addr_limit() = delete;
+    CLASS_DISALLOW_COPY(auto_addr_limit);
+    CLASS_DISALLOW_MOVE(auto_addr_limit);
+};
+
+/**
  * @brief Map a given VMO.
 
  * @param flags Flags for the allocation (VM_KERNEL, VM_ADDRESS_USER).

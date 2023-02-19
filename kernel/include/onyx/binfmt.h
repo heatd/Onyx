@@ -1,10 +1,12 @@
 /*
- * Copyright (c) 2017 Pedro Falcato
+ * Copyright (c) 2017 - 2021 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
-#ifndef _KERNEL_BINFMT_H
-#define _KERNEL_BINFMT_H
+#ifndef _ONYX_BINFMT_H
+#define _ONYX_BINFMT_H
 #include <stdint.h>
 
 #include <onyx/vfs.h>
@@ -28,6 +30,7 @@ struct binfmt_args
     char *filename;
     char **argv, **envp;
     int *argc;
+    size_t argv_size, envp_size;
     struct file *file;
     char *interp_path;
     bool needs_interp;

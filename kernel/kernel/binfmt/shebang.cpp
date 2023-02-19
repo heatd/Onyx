@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2021 Pedro Falcato
+ * Copyright (c) 2020 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -22,7 +22,7 @@ static char *find_space_or_tab(const char *str, size_t len)
         str++;
     }
 
-    return NULL;
+    return nullptr;
 }
 
 static char *find_space_or_tab_or_zero(const char *str, size_t len)
@@ -34,7 +34,7 @@ static char *find_space_or_tab_or_zero(const char *str, size_t len)
         str++;
     }
 
-    return NULL;
+    return nullptr;
 }
 
 static char *find_not_space_nor_tab(const char *str, size_t len)
@@ -46,7 +46,7 @@ static char *find_not_space_nor_tab(const char *str, size_t len)
         str++;
     }
 
-    return NULL;
+    return nullptr;
 }
 
 #if 0
@@ -161,20 +161,23 @@ void *shebang_load(struct binfmt_args *args)
 
     unsigned long limit = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 
-    char **new_args = process_copy_envarg((const char **) new_argv, true, &argc);
+    auto ex = process_copy_envarg((const char **) new_argv, args->envp_size);
 
     thread_change_addr_limit(limit);
 
     free(new_argv);
 
-    if (!new_args)
+    if (ex.has_error())
     {
         free(interp);
-        return errno = ENOMEM, nullptr;
+        return errno = -ex.error(), nullptr;
     }
 
-    args->argv = new_args;
-    *args->argc = argc;
+    auto res = ex.value();
+
+    args->argv = res.s;
+    *args->argc = res.count;
+    args->argv_size = res.total_size;
 
     free(old_kargs);
 
@@ -184,7 +187,7 @@ void *shebang_load(struct binfmt_args *args)
     void *entry = bin_do_interp(args);
 
     free(interp);
-    args->interp_path = NULL;
+    args->interp_path = nullptr;
 
     return entry;
 }
@@ -198,7 +201,7 @@ struct binfmt shebang_binfmt = {.signature = (unsigned char *) "#!",
                                 .size_signature = 2,
                                 .is_valid_exec = shebang_is_valid,
                                 .callback = shebang_load,
-                                .next = NULL};
+                                .next = nullptr};
 
 __init static void __shebang_init()
 {

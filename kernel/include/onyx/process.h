@@ -287,7 +287,22 @@ struct process *process_find_tracee(struct process *tracer, pid_t pid);
 
 void process_end(struct process *p);
 void process_add_thread(struct process *process, thread_t *thread);
-char **process_copy_envarg(const char **envarg, bool to_kernel, int *count);
+
+struct envarg_res
+{
+    char **s;
+    int count;
+    size_t total_size;
+};
+
+/**
+ * @brief Copy environ/arguments from userspace to the kernel
+ *
+ * @param envarg NULL-terminated vector of char*
+ * @param current_size Current size of args/environ (for ARG_MAX calculation)
+ * @return Expected containing an envarg_res with the result, or negative error codes
+ */
+expected<envarg_res, int> process_copy_envarg(const char **envarg, size_t current_size);
 
 static inline void process_get(struct process *process)
 {
