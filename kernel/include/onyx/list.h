@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2022 Pedro Falcato
+ * Copyright (c) 2017 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -123,6 +123,13 @@ static inline struct list_head *list_first_element(struct list_head *head)
     if (unlikely(list_is_empty(head)))
         return NULL;
     return head->next;
+}
+
+static inline struct list_head *list_last_element(struct list_head *head)
+{
+    if (unlikely(list_is_empty(head)))
+        return NULL;
+    return head->prev;
 }
 
 static inline void list_reset(struct list_head *head)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2022 Pedro Falcato
+ * Copyright (c) 2017 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -18,13 +18,16 @@
 #include <onyx/dentry.h>
 #include <onyx/dev.h>
 #include <onyx/init.h>
+#include <onyx/kunit.h>
 #include <onyx/limits.h>
+#include <onyx/mm/slab.h>
 #include <onyx/panic.h>
 #include <onyx/pipe.h>
 #include <onyx/poll.h>
 #include <onyx/process.h>
 #include <onyx/scoped_lock.h>
 #include <onyx/spinlock.h>
+#include <onyx/types.h>
 #include <onyx/utils.h>
 
 #include <onyx/list.hpp>
@@ -32,109 +35,376 @@
 static chardev *pipedev = nullptr;
 static atomic<ino_t> current_inode_number = 0;
 
-pipe::pipe()
-    : refcountable(2), buffer(nullptr), buf_size(0),
-      pos(0), eof{}, broken{}, reader_count{1}, writer_count{1}
+constexpr unsigned long default_pipe_size = (16 * PAGE_SIZE);
+
+static slab_cache *pipe_buffer_cache, *pipe_cache;
+
+struct pipe_buffer
+{
+    struct page *page_;
+    struct list_head list_node;
+    unsigned int len_;
+    unsigned int offset_{0};
+
+    pipe_buffer(struct page *page, unsigned int len) : page_{page}, len_{len}
+    {
+    }
+
+    pipe_buffer() = delete;
+
+    CLASS_DISALLOW_COPY(pipe_buffer);
+    CLASS_DISALLOW_MOVE(pipe_buffer);
+
+    ~pipe_buffer()
+    {
+        page_unref(page_);
+    }
+
+    void *operator new(size_t len)
+    {
+        return kmem_cache_alloc(pipe_buffer_cache, 0);
+    }
+
+    void operator delete(void *ptr)
+    {
+        kmem_cache_free(pipe_buffer_cache, ptr);
+    }
+};
+
+class pipe : public refcountable
+{
+private:
+    struct list_head pipe_buffers;
+    size_t buf_size{default_pipe_size};
+    size_t curr_len{0};
+    mutex pipe_lock;
+
+    wait_queue write_queue;
+    wait_queue read_queue;
+
+    bool can_read() const
+    {
+        return curr_len != 0;
+    }
+
+    bool can_read_or_eof() const
+    {
+        return can_read() || writer_count == 0;
+    }
+
+    bool can_write() const
+    {
+        return curr_len < buf_size;
+    }
+
+    bool can_write_or_broken() const
+    {
+        return curr_len < buf_size || reader_count == 0;
+    }
+
+    pipe_buffer *first_buf()
+    {
+        return container_of(list_first_element(&pipe_buffers), pipe_buffer, list_node);
+    }
+
+    ssize_t append(const void *ubuf, size_t len, bool atomic);
+
+public:
+    size_t reader_count{1};
+    size_t writer_count{1};
+    pipe();
+    ~pipe() override;
+    ssize_t read(int flags, size_t len, void *buffer);
+    ssize_t write(int flags, size_t len, const void *buffer);
+    bool is_full() const;
+    size_t available_space() const;
+    void close_read_end();
+    void close_write_end();
+    short poll(void *poll_file, short events);
+
+    void wake_all(wait_queue *wq)
+    {
+        wait_queue_wake_all(wq);
+    }
+
+    size_t __test_only_size() const
+    {
+        return curr_len;
+    }
+
+    void *operator new(size_t len)
+    {
+        return kmem_cache_alloc(pipe_cache, 0);
+    }
+
+    void operator delete(void *ptr)
+    {
+        kmem_cache_free(pipe_cache, ptr);
+    }
+
+    void set_max_length(size_t len)
+    {
+        buf_size = len;
+    }
+};
+
+pipe::pipe() : refcountable(2)
 {
     init_wait_queue_head(&write_queue);
     init_wait_queue_head(&read_queue);
+    INIT_LIST_HEAD(&pipe_buffers);
 }
 
 pipe::~pipe()
 {
-    free((void *) buffer);
-}
-
-bool pipe::allocate_pipe_buffer(unsigned long buf_size)
-{
-    buffer = zalloc(buf_size);
-    if (buffer)
+    list_for_every_safe (&pipe_buffers)
     {
-        this->buf_size = buf_size;
-        return true;
-    }
+        auto pbf = container_of(l, struct pipe_buffer, list_node);
 
-    return false;
+        list_remove(&pbf->list_node);
+        delete pbf;
+    }
 }
 
 bool pipe::is_full() const
 {
-    return buf_size == pos;
+    return buf_size == curr_len;
 }
 
 size_t pipe::available_space() const
 {
-    return buf_size - pos;
+    return buf_size - curr_len;
 }
 
 ssize_t pipe::read(int flags, size_t len, void *buf)
 {
-    ssize_t been_read = 0;
+    ssize_t ret = 0;
+
+    if (len == 0)
+        return 0;
 
     scoped_mutex g{pipe_lock};
 
-    while (been_read != (ssize_t) len)
+    // Lets keep track if the pipe was full the last time we grabbed the lack
+    // By doing so, we can know when to wake writers instead of wasting time trying to do so
+    // for no reason.
+    bool wasfull = is_full();
+
+    while (true)
     {
-        if (can_read())
+        if (!can_read())
         {
-            size_t to_read = min(len - been_read, pos);
-            if (copy_to_user((void *) ((char *) buf + been_read), buffer, to_read) < 0)
+            // If we can't read more, return the short read if we have read some
+            if (ret || writer_count == 0)
             {
-
-                /* Note: We do need to signal writers and readers on EFAULT if we have read/written
-                 */
-                if (been_read != 0)
-                    wake_all(&write_queue);
-
-                return -EFAULT;
+                break;
             }
 
-            /* move the rest of the buffer back to the beginning if we have to */
-            if (pos - to_read != 0)
-                memmove(buffer, (const void *) ((char *) buffer + to_read), pos - to_read);
-
-            pos -= to_read;
-            been_read += to_read;
-            wake_all(&write_queue);
-        }
-        else
-        {
-            if (been_read || eof)
-                return been_read;
-
-            /* buffer empty */
+            // NONBLOCK = return short read (already handled) or EAGAIN
             if (flags & O_NONBLOCK)
             {
-                return -EAGAIN;
+                if (!ret)
+                    ret = -EAGAIN;
+                break;
             }
 
+            // Wait for writers
             if (wait_for_event_mutex_interruptible(&read_queue, can_read_or_eof(), &pipe_lock) ==
                 -EINTR)
-                return -EINTR;
+            {
+                ret = ret ?: -EINTR;
+                break;
+            }
+
+            wasfull = is_full();
+
+            continue;
+        }
+
+        /* We have data, lets read some */
+        assert(!list_is_empty(&pipe_buffers));
+
+        // Consume the first buffer in the queue
+
+        auto pbf = first_buf();
+
+        size_t to_read = min((size_t) pbf->len_, len);
+
+        u8 *page_buf = (u8 *) PAGE_TO_VIRT(pbf->page_) + pbf->offset_;
+
+        if (copy_to_user((u8 *) buf + ret, page_buf, to_read) < 0)
+        {
+            if (!ret)
+                ret = -EFAULT;
+            break;
+        }
+
+        pbf->offset_ += to_read;
+        pbf->len_ -= to_read;
+
+        if (pbf->len_ == 0)
+        {
+            // If its now empty, free the pipe buffer
+            list_remove(&pbf->list_node);
+            delete pbf;
+        }
+
+        // Decrement the length of the pipe (curr_len)
+        curr_len -= to_read;
+        ret += to_read;
+        len -= to_read;
+
+        if (!len || !can_read())
+        {
+            // No more to read, break
+            break;
         }
     }
 
-    return been_read;
+    // Unlock to prevent contention with writers
+    g.unlock();
+
+    if (wasfull && ret > 0)
+    {
+        // If it was previously full and we read some, wake the writers
+        wake_all(&write_queue);
+    }
+
+    return ret;
 }
 
-ssize_t pipe::write(int flags, size_t len, const void *buf)
+ssize_t pipe::append(const void *ubuf, size_t len, bool atomic)
+{
+    // Logic here is a bit tricky. Try to append to the last pipe buf
+    // If we can do so, then do it. Then if we still have more data, allocate a new pipe buffer
+    // and append it. If we ever need to roll back (since it may be a PIPE_BUF write), do so using
+    // "to_restore" and "old_restore_len".
+
+    pipe_buffer *to_restore = nullptr;
+    size_t old_restore_len = 0;
+    ssize_t ret = 0;
+
+    if (!list_is_empty(&pipe_buffers))
+    {
+        auto last_buf = container_of(list_last_element(&pipe_buffers), pipe_buffer, list_node);
+
+        // See if we have space in this pipe buffer
+        // TODO: Idea to test: memmove data back if we have offset != 0
+        // May compact things a bit.
+        if (PAGE_SIZE - last_buf->len_ <= len)
+        {
+            // We have space, copy up
+            if (atomic)
+                to_restore = last_buf;
+
+            old_restore_len = last_buf->len_;
+            u8 *page_buf = (u8 *) PAGE_TO_VIRT(last_buf->page_);
+            size_t to_copy = min(PAGE_SIZE - last_buf->len_, len);
+            if (copy_from_user(page_buf + last_buf->offset_, ubuf, to_copy) < 0)
+                return -EFAULT;
+
+            // Adjust the length
+            last_buf->len_ += to_copy;
+            assert(last_buf->len_ <= PAGE_SIZE);
+            len -= to_copy;
+            ret += to_copy;
+            curr_len += to_copy;
+        }
+    }
+
+    const auto avail = available_space();
+
+    // If we still have more to append and enough space, lets do so
+    if (avail && len)
+    {
+        page *p = alloc_page(PAGE_ALLOC_NO_ZERO);
+        if (!p)
+        {
+            ret = -ENOMEM;
+            goto out;
+        }
+
+        auto blen = min(min(avail, len), PAGE_SIZE);
+        // Note: the page and its lifetime are now tied to the pipe buffer
+        auto buf = make_unique<pipe_buffer>(p, blen);
+        if (!buf)
+        {
+            ret = -ENOMEM;
+            free_page(p);
+            goto out;
+        }
+
+        u8 *page_buf = (u8 *) PAGE_TO_VIRT(p);
+        if (copy_from_user(page_buf, (u8 *) ubuf + ret, buf->len_) < 0)
+        {
+            if (atomic || !ret)
+                ret = -EFAULT;
+            goto out;
+        }
+
+        // Append the page_buf to the end of list
+        list_add_tail(&buf->list_node, &pipe_buffers);
+        ret += buf->len_;
+        curr_len += buf->len_;
+        to_restore = nullptr;
+
+        buf.release();
+    }
+
+out:
+    if (atomic && to_restore)
+    {
+        curr_len -= (to_restore->len_ - old_restore_len);
+        to_restore->len_ = old_restore_len;
+    }
+
+    return ret;
+}
+
+// Pretty basic mocking thing
+// I don't know if this is any useful honestly.
+// The "easiest" way would be to hot-patch the functions we want to mock with a jmp
+
+#ifdef CONFIG_KUNIT
+#define KUNIT_MOCKABLE(name, ret, ...) ret (*name##_MOCK)(__VA_ARGS__) = name;
+#define CALL_KUNIT_MOCKABLE(name, ...) (name##_MOCK)(__VA_ARGS__)
+#else
+#define KUNIT_MOCKABLE(name, ret, ...)
+#define CALL_KUNIT_MOCKABLE(name, ...) (name)(__VA_ARGS__)
+#endif
+
+KUNIT_MOCKABLE(kernel_raise_signal, int, int, process *, unsigned int, siginfo_t *);
+
+ssize_t pipe::write(int flags, size_t len, const void *ubuf)
 {
     bool is_atomic_write = len <= PIPE_BUF;
-    ssize_t written = 0;
+    ssize_t ret = 0;
 
     scoped_mutex g{pipe_lock};
 
-    while (written != (ssize_t) len)
+    bool wasempty = !can_read();
+
+    while (len)
     {
-        if (broken)
+        if (reader_count == 0)
         {
-            kernel_raise_signal(SIGPIPE, get_current_process(), 0, nullptr);
-            return -EPIPE;
+            CALL_KUNIT_MOCKABLE(kernel_raise_signal, SIGPIPE, get_current_process(), 0, nullptr);
+
+            if (!ret)
+                ret = -EPIPE;
+            break;
         }
 
-        if (((available_space() < (len - written)) && is_atomic_write) || is_full())
+        const auto avail = available_space();
+
+        bool may_write = avail > 0;
+
+        if (avail < len && is_atomic_write)
+            may_write = false;
+
+        if (!may_write)
         {
-            if (written != 0)
+            if (ret != 0)
             {
                 /* now that we're blocking, might as well signal readers */
                 wake_all(&read_queue);
@@ -142,39 +412,45 @@ ssize_t pipe::write(int flags, size_t len, const void *buf)
 
             if (flags & O_NONBLOCK)
             {
-                return -EAGAIN;
+                if (!ret)
+                    ret = -EAGAIN;
+                break;
             }
 
             if (wait_for_event_mutex_interruptible(
                     &write_queue,
-                    (is_atomic_write && available_space() >= (len - written)) || !is_full() ||
-                        broken,
+                    (is_atomic_write && available_space() >= (len - ret)) || !is_full() ||
+                        reader_count == 0,
                     &pipe_lock) == -EINTR)
-                return -EINTR;
-        }
-        else
-        {
-            size_t to_write = min(len - written, available_space());
-            /* sigh - sometimes C++ really gets in the way */
-            if (copy_from_user((void *) ((char *) buffer + pos),
-                               (const void *) ((char *) buf + written), to_write) < 0)
             {
-                /* Note: We do need to signal writers and readers on EFAULT if we have read/written
-                 */
-                if (written != 0)
-                    wake_all(&read_queue);
-                return -EFAULT;
+                if (!ret)
+                    ret = -EINTR;
+                break;
             }
 
-            pos += to_write;
-            written += to_write;
+            wasempty = !can_read();
+            continue;
         }
+
+        // Ok, we have space, lets write
+        ssize_t st = append((const u8 *) ubuf + ret, min(avail, len), is_atomic_write);
+
+        if (st < 0)
+        {
+            if (!ret)
+                ret = st;
+            break;
+        }
+
+        ret += st;
+        len -= st;
     }
 
     /* After finishing the write, signal any possible readers */
-    wake_all(&read_queue);
+    if (wasempty && ret > 0)
+        wake_all(&read_queue);
 
-    return written;
+    return ret;
 }
 
 #define PIPE_WRITEABLE 0x1
@@ -202,19 +478,19 @@ size_t pipe_write(size_t offset, size_t sizeofwrite, void *buffer, struct file *
 
 void pipe::close_write_end()
 {
+    scoped_mutex g{pipe_lock};
     /* wake up any possibly-blocked writers */
     if (--writer_count == 0)
     {
-        eof = 1;
         wake_all(&read_queue);
     }
 }
 
 void pipe::close_read_end()
 {
+    scoped_mutex g{pipe_lock};
     if (--reader_count == 0)
     {
-        broken = 1;
         wake_all(&write_queue);
     }
 }
@@ -291,11 +567,6 @@ int pipe_create(struct file **pipe_readable, struct file **pipe_writeable)
         goto err0;
     }
 
-    if (!new_pipe->allocate_pipe_buffer())
-    {
-        goto err1;
-    }
-
     node0->i_dev = pipedev->dev();
     node0->i_type = VFS_TYPE_CHAR_DEVICE;
     node0->i_flags = INODE_FLAG_NO_SEEK;
@@ -351,13 +622,106 @@ err0:
     return -1;
 }
 
-void pipe_register_device()
+static void pipe_init()
 {
     auto ex = dev_register_chardevs(0, 1, 0, nullptr, cul::string{"pipe"});
     if (!ex)
         panic("Could not allocate pipedev!\n");
 
     pipedev = ex.value();
+
+    pipe_cache = kmem_cache_create("pipe", sizeof(pipe), 0, 0, nullptr);
+    if (!pipe_cache)
+        panic("Could not create pipe cache\n");
+
+    pipe_buffer_cache = kmem_cache_create("pipe_buffer", sizeof(pipe_buffer), 0, 0, nullptr);
+    if (!pipe_buffer_cache)
+        panic("Could not create pipe_buffer cache\n");
 }
 
-INIT_LEVEL_CORE_KERNEL_ENTRY(pipe_register_device);
+INIT_LEVEL_CORE_AFTER_SCHED_ENTRY(pipe_init);
+
+#ifdef CONFIG_KUNIT
+
+TEST(pipe, rw_works)
+{
+    auto_addr_limit l_{VM_KERNEL_ADDR_LIMIT};
+
+    auto p = make_refc<pipe>();
+
+    const char *h = "Hello";
+    const size_t len = strlen(h) + 1;
+    ssize_t st = p->write(0, len, h);
+
+    ASSERT_EQ(st, (ssize_t) len);
+    ASSERT_EQ(p->__test_only_size(), len);
+
+    char buf[len];
+    st = p->read(0, PAGE_SIZE, buf);
+
+    ASSERT_EQ(st, (ssize_t) len);
+    ASSERT_EQ(p->__test_only_size(), 0U);
+}
+
+TEST(pipe, pipe_buf_works)
+{
+    auto_addr_limit l_{VM_KERNEL_ADDR_LIMIT};
+
+    auto p = make_refc<pipe>();
+
+    p->set_max_length(1);
+
+    const char *h = "Hello";
+    const size_t len = strlen(h) + 1;
+    ssize_t st = p->write(O_NONBLOCK, len, h);
+
+    ASSERT_EQ(st, -EAGAIN);
+    ASSERT_EQ(p->__test_only_size(), 0U);
+
+    st = p->write(O_NONBLOCK, 1, h);
+    ASSERT_EQ(st, 1);
+    ASSERT_EQ(p->__test_only_size(), 1U);
+
+    st = p->write(O_NONBLOCK, 1, h);
+
+    ASSERT_EQ(st, -EAGAIN);
+    ASSERT_EQ(p->__test_only_size(), 1U);
+}
+
+TEST(pipe, eof_works)
+{
+    auto_addr_limit l_{VM_KERNEL_ADDR_LIMIT};
+
+    auto p = make_refc<pipe>();
+    p->writer_count = 0;
+
+    char c;
+    ssize_t st = p->read(0, 1, &c);
+
+    EXPECT_EQ(st, 0);
+
+    st = p->read(O_NONBLOCK, 1, &c);
+    EXPECT_EQ(st, 0);
+}
+
+TEST(pipe, broken_pipe)
+{
+    auto_addr_limit l_{VM_KERNEL_ADDR_LIMIT};
+
+    auto p = make_refc<pipe>();
+    p->reader_count = 0;
+
+    auto original = kernel_raise_signal_MOCK;
+    kernel_raise_signal_MOCK = [](int, process *, unsigned, siginfo_t *) -> int { return 0; };
+
+    char c = 'A';
+
+    ssize_t st = p->write(0, 1, &c);
+
+    kernel_raise_signal_MOCK = original;
+
+    EXPECT_EQ(st, -EPIPE);
+    EXPECT_EQ(p->__test_only_size(), 0U);
+}
+
+#endif
