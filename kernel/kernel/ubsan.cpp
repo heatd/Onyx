@@ -33,14 +33,14 @@ extern "C"
 struct ubsan_source_location
 {
     const char *filename;
-    uint32_t line;
-    uint32_t column;
+    u32 line;
+    u32 column;
 };
 
 struct ubsan_type_descriptor
 {
-    uint16_t typekind;
-    uint16_t typeinfo;
+    u16 typekind;
+    u16 typeinfo;
     char typename_[];
 };
 
@@ -321,28 +321,31 @@ struct ubsan_overflow_data
 };
 
 static void ubsan_handle_integer_overflow(const ubsan_overflow_data *data, size_t lhs, size_t rhs,
-                                          const char *Op)
+                                          const char *op)
 {
     bool signed_;
+    val lhs_v{lhs, data->type};
+    val rhs_v{rhs, data->type};
 
     signed_ = ubsan_type_is_signed_int(data->type);
 
     ubsan_report_start(&data->location, "Integer overflow");
 
-    printk("%s integer overflow: %lu %s %lu can't be represented in type %s",
-           signed_ ? "signed" : "unsigned", (u64) lhs, Op, (u64) rhs, data->type->typename_);
+    printk("%s integer overflow: %s %s %s can't be represented in type %s",
+           signed_ ? "signed" : "unsigned", lhs_v.to_string().c_str(), op,
+           rhs_v.to_string().c_str(), data->type->typename_);
     ubsan_report_end();
 }
 
-#define UBSAN_DEFINE_OVERFLOW(Name, Op)                                                        \
-    USED void __ubsan_handle_##Name(ubsan_overflow_data *data, size_t lhs, size_t rhs)         \
+#define UBSAN_DEFINE_OVERFLOW(name, op)                                                        \
+    USED void __ubsan_handle_##name(ubsan_overflow_data *data, size_t lhs, size_t rhs)         \
     {                                                                                          \
-        ubsan_handle_integer_overflow(data, lhs, rhs, Op);                                     \
+        ubsan_handle_integer_overflow(data, lhs, rhs, op);                                     \
     }                                                                                          \
                                                                                                \
-    USED void __ubsan_handle_##Name##_abort(ubsan_overflow_data *data, size_t lhs, size_t rhs) \
+    USED void __ubsan_handle_##name##_abort(ubsan_overflow_data *data, size_t lhs, size_t rhs) \
     {                                                                                          \
-        ubsan_handle_integer_overflow(data, lhs, rhs, Op);                                     \
+        ubsan_handle_integer_overflow(data, lhs, rhs, op);                                     \
         ubsan_abort();                                                                         \
     }
 
@@ -352,12 +355,14 @@ UBSAN_DEFINE_OVERFLOW(mul_overflow, "*");
 
 USED void __ubsan_handle_negate_overflow(ubsan_overflow_data *data, size_t value)
 {
+    val v{value, data->type};
     ubsan_report_start(&data->location, "Negation overflow");
-    printk("Negation of %zu cannot be represented in type %s\n", value, data->type->typename_);
+    printk("Negation of %s cannot be represented in type %s\n", v.to_string().c_str(),
+           data->type->typename_);
     ubsan_report_end();
 }
 
-USED void __ubsan_handle_overflow_abort(ubsan_overflow_data *data, size_t value)
+USED void __ubsan_handle_negate_overflow_abort(ubsan_overflow_data *data, size_t value)
 {
     __ubsan_handle_negate_overflow(data, value);
     ubsan_abort();
@@ -383,9 +388,9 @@ USED void __ubsan_handle_divrem_overflow(ubsan_overflow_data *data, size_t lhs, 
     ubsan_report_end();
 }
 
-USED void __ubsan_handle_divrem_abort(ubsan_overflow_data *data, size_t value)
+USED void __ubsan_handle_divrem_abort(ubsan_overflow_data *data, size_t lhs, size_t rhs)
 {
-    __ubsan_handle_negate_overflow(data, value);
+    __ubsan_handle_divrem_overflow(data, lhs, rhs);
     ubsan_abort();
 }
 
@@ -420,8 +425,9 @@ void ubsan_handle_shift_out_of_bounds(const ubsan_shift_oob_data *data, ssize_t 
         }
         else
         {
-            printk("left shift of %zu by %zu places cannot be represented in type %s\n",
-                   (size_t) lhs, (size_t) rhs, lhs_t->typename_);
+            val v{(size_t) lhs, lhs_t};
+            printk("left shift of %s by %zu places cannot be represented in type %s\n",
+                   v.to_string().c_str(), (size_t) rhs, lhs_t->typename_);
         }
     }
 
