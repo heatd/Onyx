@@ -189,7 +189,7 @@ static void ubsan_report_end()
 static void do_ubsan_type_mismatch_nullptr(const ubsan_type_mismatch_data *data, size_t ptr)
 {
     ubsan_report_start(&data->location, "Null pointer dereference");
-    printk("%s null pointer of type %sn", type_check_kinds[data->type_check_kind],
+    printk("%s null pointer of type %s\n", type_check_kinds[data->type_check_kind],
            data->type->typename_);
     ubsan_report_end();
 }
