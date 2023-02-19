@@ -246,6 +246,8 @@ radix_tree::~radix_tree()
     clear();
 }
 
+#ifdef CONFIG_KUNIT
+
 TEST(radix, basic_store_test)
 {
     radix_tree tree;
@@ -264,3 +266,5 @@ TEST(radix, basic_store_test)
     EXPECT_EQ(out1.value(), 0x10000ul);
     EXPECT_EQ(out2.value(), 0x10000ul);
 }
+
+#endif

@@ -445,6 +445,8 @@ __init void __elf_init()
 
 } // namespace ELF_NAMESPACE
 
+#ifdef CONFIG_KUNIT
+
 #ifndef ELF_COMPAT
 
 TEST(elfldr, test_invalid_header)
@@ -509,5 +511,7 @@ TEST(elfldr, test_no_gap_regression)
 
     EXPECT_TRUE(ELF_NAMESPACE::elf_phdrs_valid(phdrs, 2));
 }
+
+#endif
 
 #endif

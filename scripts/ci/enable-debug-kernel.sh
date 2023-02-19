@@ -14,4 +14,6 @@ if [ "$ONYX_ARCH" = "x86_64" ]; then
     sed -i 's/CONFIG_RELOCATABLE_PHYS=n/CONFIG_RELOCATABLE_PHYS=y/g' kernel.config
     # Make the kernel UBSAN always abort on error
     echo "CONFIG_UBSAN_ALWAYS_ABORT=y" >> kernel.config
+    # Enable KUNIT
+    echo "CONFIG_KUNIT=y" >> kernel.config
 fi

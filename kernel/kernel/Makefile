@@ -1,6 +1,6 @@
 kern-y+= arc4random.o binfmt.o compression.o copy.o cppnew.o cpprt.o crc32.o dev.o dma.o dpc.o \
 	driver.o exceptions.o font.o framebuffer.o futex.o i2c.o id_manager.o init.o initrd.o \
-	irq.o uname.o kernlog.o kunit.o ktest.o modules.o object.o panic.o percpu.o \
+	irq.o uname.o kernlog.o ktest.o modules.o object.o panic.o percpu.o \
 	power_management.o proc_event.o process.o pid.o ptrace.o random.o ref.o signal.o \
 	smp.o spinlock.o symbol.o time.o timer.o utils.o wait_queue.o \
 	worker.o cred.o list.o softirq.o cputime.o rlimit.o handle.o ctor.o internal_abi.o ssp.o \
@@ -13,6 +13,8 @@ kern-y+= fonts/font.o photon/photon.o binfmt/elf.o binfmt/module_loader.o binfmt
 kern-$(CONFIG_COMPAT)+= binfmt/elf_compat.o
 
 kern-$(CONFIG_KTRACE)+= ktrace.o
+
+kern-$(CONFIG_KUNIT)+= kunit.o
 
 obj-y+= $(patsubst %, kernel/%, $(kern-y)) 
 
