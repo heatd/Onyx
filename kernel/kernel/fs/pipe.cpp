@@ -22,13 +22,13 @@
 #include <onyx/limits.h>
 #include <onyx/mm/slab.h>
 #include <onyx/panic.h>
-#include <onyx/pipe.h>
 #include <onyx/poll.h>
 #include <onyx/process.h>
 #include <onyx/scoped_lock.h>
 #include <onyx/spinlock.h>
 #include <onyx/types.h>
 #include <onyx/utils.h>
+#include <onyx/vfs.h>
 
 #include <bits/ioctl.h>
 
@@ -618,45 +618,46 @@ const struct file_ops pipe_ops = {
     .fcntl = pipe_fcntl,
 };
 
-int pipe_create(struct file **pipe_readable, struct file **pipe_writeable)
+static int pipe_create(struct file **pipe_readable, struct file **pipe_writeable)
 {
     /* Create the node */
     struct inode *node0 = nullptr, *node1 = nullptr;
-    pipe *new_pipe = nullptr;
+    ref_guard<pipe> new_pipe;
     struct file *rd = nullptr, *wr = nullptr;
     dentry *read_dent, *write_dent;
+    int ret = -ENOMEM;
+
     node0 = inode_create(false);
     if (!node0)
-        return errno = ENOMEM, -1;
+        return -ENOMEM;
 
     node1 = inode_create(false);
     if (!node1)
         goto err0;
 
-    new_pipe = new pipe;
+    new_pipe = make_refc<pipe>();
     if (!new_pipe)
     {
         goto err0;
     }
 
-    node0->i_dev = pipedev->dev();
-    node0->i_type = VFS_TYPE_CHAR_DEVICE;
-    node0->i_flags = INODE_FLAG_NO_SEEK;
-    node0->i_inode = current_inode_number++;
-    node0->i_helper = (void *) new_pipe;
-    node0->i_fops = (struct file_ops *) &pipe_ops;
+    node1->i_dev = node0->i_dev = pipedev->dev();
+    node1->i_type = node0->i_type = VFS_TYPE_CHAR_DEVICE;
+    node1->i_flags = node0->i_flags = INODE_FLAG_NO_SEEK;
+    node1->i_inode = node0->i_inode = current_inode_number++;
+    // write end is set down there
+    node0->i_helper = (void *) new_pipe.get();
+    node1->i_fops = node0->i_fops = (struct file_ops *) &pipe_ops;
 
-    /* TODO: This memcpy seems unsafe, at least... */
-    memcpy(node1, node0, sizeof(*node0));
     read_dent = dentry_create("<pipe_read>", node0, nullptr);
     if (!read_dent)
-        goto err1;
+        goto err0;
 
     write_dent = dentry_create("<pipe_write>", node1, nullptr);
     if (!write_dent)
     {
         dentry_put(read_dent);
-        goto err1;
+        goto err0;
     }
 
     rd = inode_to_file(node0);
@@ -677,21 +678,20 @@ int pipe_create(struct file **pipe_readable, struct file **pipe_writeable)
     *pipe_writeable = wr;
 
     /* Since malloc returns 16-byte aligned memory we can use the lower bits for stuff like this */
-    node1->i_helper = (void *) ((unsigned long) new_pipe | PIPE_WRITEABLE);
+    node1->i_helper = (void *) ((unsigned long) new_pipe.get() | PIPE_WRITEABLE);
+
+    new_pipe.release();
+
     return 0;
 err2:
     dentry_put(write_dent);
     dentry_put(read_dent);
-err1:
-    delete new_pipe;
 err0:
     if (node0)
         free(node0);
     if (node1)
         free(node1);
-    errno = ENOMEM;
-
-    return -1;
+    return ret;
 }
 
 static void pipe_init()
@@ -712,6 +712,66 @@ static void pipe_init()
 }
 
 INIT_LEVEL_CORE_AFTER_SCHED_ENTRY(pipe_init);
+
+// TODO: O_DIRECT
+#define PIPE2_VALID_FLAGS (O_CLOEXEC | O_NONBLOCK)
+
+int sys_pipe2(int *upipefd, int flags)
+{
+    int pipefd[2] = {-1, -1};
+    int st = 0;
+
+    if (flags & ~PIPE2_VALID_FLAGS)
+        return -EINVAL;
+
+    /* Create the pipe */
+    struct file *read_end, *write_end;
+
+    if (st = pipe_create(&read_end, &write_end); st < 0)
+    {
+        return st;
+    }
+
+    pipefd[0] = open_with_vnode(read_end, O_RDONLY | flags);
+    if (pipefd[0] < 0)
+    {
+        st = -errno;
+        goto error;
+    }
+
+    pipefd[1] = open_with_vnode(write_end, O_WRONLY | flags);
+    if (pipefd[1] < 0)
+    {
+        st = -errno;
+        goto error;
+    }
+
+    if (copy_to_user(upipefd, pipefd, sizeof(int) * 2) < 0)
+    {
+        st = -EFAULT;
+        goto error;
+    }
+
+    fd_put(read_end);
+    fd_put(write_end);
+
+    return 0;
+error:
+    fd_put(read_end);
+    fd_put(write_end);
+
+    if (pipefd[0] != -1)
+        file_close(pipefd[0]);
+    if (pipefd[1] != -1)
+        file_close(pipefd[1]);
+
+    return -st;
+}
+
+int sys_pipe(int *upipefds)
+{
+    return sys_pipe2(upipefds, 0);
+}
 
 #ifdef CONFIG_KUNIT
 

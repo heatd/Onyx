@@ -340,4 +340,6 @@ bool apply_sugid_permissions(file *f);
  */
 void inode_trim_cache();
 
+int file_close(int fd);
+
 #endif

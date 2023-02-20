@@ -24,7 +24,6 @@
 #include <onyx/limits.h>
 #include <onyx/mm/slab.h>
 #include <onyx/panic.h>
-#include <onyx/pipe.h>
 #include <onyx/process.h>
 #include <onyx/user.h>
 #include <onyx/vfs.h>
@@ -1244,55 +1243,6 @@ out:
     if (filesystemtype)
         free((void *) filesystemtype);
     return ret;
-}
-
-int sys_pipe(int *upipefd)
-{
-    int pipefd[2] = {-1, -1};
-    int st = 0;
-
-    /* Create the pipe */
-    struct file *read_end, *write_end;
-
-    if (pipe_create(&read_end, &write_end) < 0)
-    {
-        return -errno;
-    }
-
-    pipefd[0] = open_with_vnode(read_end, O_RDONLY);
-    if (pipefd[0] < 0)
-    {
-        st = -errno;
-        goto error;
-    }
-
-    pipefd[1] = open_with_vnode(write_end, O_WRONLY);
-    if (pipefd[1] < 0)
-    {
-        st = -errno;
-        goto error;
-    }
-
-    if (copy_to_user(upipefd, pipefd, sizeof(int) * 2) < 0)
-    {
-        st = -EFAULT;
-        goto error;
-    }
-
-    fd_put(read_end);
-    fd_put(write_end);
-
-    return 0;
-error:
-    fd_put(read_end);
-    fd_put(write_end);
-
-    if (pipefd[0] != -1)
-        file_close(pipefd[0]);
-    if (pipefd[1] != -1)
-        file_close(pipefd[1]);
-
-    return -st;
 }
 
 int do_dupfd(struct file *f, int fdbase, bool cloexec)

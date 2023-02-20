@@ -2646,5 +2646,21 @@
                 ]
             ],
             "return_type": "pid_t"
+    },
+    {
+        "name": "pipe2",
+        "nr": 151,
+        "nr_args": 2,
+        "args": [
+            [
+                "int *",
+                "pipefds"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int"
     }
 ]
