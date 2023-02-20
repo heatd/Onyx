@@ -67,6 +67,9 @@ void fd_put(struct file *fd)
 {
     if (__atomic_sub_fetch(&fd->f_refcount, 1, __ATOMIC_RELEASE) == 0)
     {
+        if (fd->f_ino->i_fops->release)
+            fd->f_ino->i_fops->release(fd);
+
         close_vfs(fd->f_ino);
         // printk("file %s dentry refs %lu\n", fd->f_dentry->d_name, fd->f_dentry->d_ref);
         dentry_put(fd->f_dentry);

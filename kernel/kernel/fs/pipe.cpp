@@ -461,13 +461,9 @@ ssize_t pipe::write(int flags, size_t len, const void *ubuf)
     return ret;
 }
 
-#define PIPE_WRITEABLE 0x1
-
 pipe *get_pipe(void *helper)
 {
-    unsigned long raw = (unsigned long) helper;
-
-    return (pipe *) ((void *) (raw & ~PIPE_WRITEABLE));
+    return (pipe *) helper;
 }
 
 size_t pipe_read(size_t offset, size_t sizeofread, void *buffer, struct file *file)
@@ -505,17 +501,11 @@ void pipe::close_read_end()
 
 void pipe_close(struct inode *ino)
 {
-    bool is_writeable = ((unsigned long) ino->i_helper) & PIPE_WRITEABLE;
     pipe *p = get_pipe(ino->i_helper);
 
-    if (is_writeable)
-    {
-        p->close_write_end();
-    }
-    else
-    {
-        p->close_read_end();
-    }
+    assert(p->writer_count == 0);
+    assert(p->reader_count == 0);
+    printk("pipe close\n");
 
     p->unref();
 }
@@ -609,6 +599,17 @@ static int pipe_fcntl(struct file *f, int cmd, unsigned long arg)
     return -EINVAL;
 }
 
+void pipe_release(struct file *filp)
+{
+    pipe *p = get_pipe(filp->f_ino->i_helper);
+
+    if (fd_may_access(filp, FILE_ACCESS_READ))
+        p->close_read_end();
+
+    if (fd_may_access(filp, FILE_ACCESS_WRITE))
+        p->close_write_end();
+}
+
 const struct file_ops pipe_ops = {
     .read = pipe_read,
     .write = pipe_write,
@@ -616,24 +617,21 @@ const struct file_ops pipe_ops = {
     .ioctl = pipe_ioctl,
     .poll = pipe_poll,
     .fcntl = pipe_fcntl,
+    .release = pipe_release,
 };
 
 static int pipe_create(struct file **pipe_readable, struct file **pipe_writeable)
 {
     /* Create the node */
-    struct inode *node0 = nullptr, *node1 = nullptr;
+    struct inode *anon_pipe_ino = nullptr;
     ref_guard<pipe> new_pipe;
     struct file *rd = nullptr, *wr = nullptr;
-    dentry *read_dent, *write_dent;
+    dentry *anon_pipe_dent;
     int ret = -ENOMEM;
 
-    node0 = inode_create(false);
-    if (!node0)
+    anon_pipe_ino = inode_create(false);
+    if (!anon_pipe_ino)
         return -ENOMEM;
-
-    node1 = inode_create(false);
-    if (!node1)
-        goto err0;
 
     new_pipe = make_refc<pipe>();
     if (!new_pipe)
@@ -641,56 +639,49 @@ static int pipe_create(struct file **pipe_readable, struct file **pipe_writeable
         goto err0;
     }
 
-    node1->i_dev = node0->i_dev = pipedev->dev();
-    node1->i_type = node0->i_type = VFS_TYPE_CHAR_DEVICE;
-    node1->i_flags = node0->i_flags = INODE_FLAG_NO_SEEK;
-    node1->i_inode = node0->i_inode = current_inode_number++;
+    anon_pipe_ino->i_dev = pipedev->dev();
+    anon_pipe_ino->i_type = VFS_TYPE_FIFO;
+    anon_pipe_ino->i_flags = INODE_FLAG_NO_SEEK;
+    anon_pipe_ino->i_inode = current_inode_number++;
     // write end is set down there
-    node0->i_helper = (void *) new_pipe.get();
-    node1->i_fops = node0->i_fops = (struct file_ops *) &pipe_ops;
+    anon_pipe_ino->i_helper = (void *) new_pipe.get();
+    anon_pipe_ino->i_fops = (struct file_ops *) &pipe_ops;
 
-    read_dent = dentry_create("<pipe_read>", node0, nullptr);
-    if (!read_dent)
+    anon_pipe_dent = dentry_create("<anon_pipe>", anon_pipe_ino, nullptr);
+    if (!anon_pipe_dent)
         goto err0;
 
-    write_dent = dentry_create("<pipe_write>", node1, nullptr);
-    if (!write_dent)
-    {
-        dentry_put(read_dent);
-        goto err0;
-    }
-
-    rd = inode_to_file(node0);
+    rd = inode_to_file(anon_pipe_ino);
     if (!rd)
         goto err2;
 
-    wr = inode_to_file(node1);
+    wr = inode_to_file(anon_pipe_ino);
     if (!wr)
     {
         fd_put(rd);
         goto err2;
     }
 
-    rd->f_dentry = read_dent;
-    wr->f_dentry = write_dent;
+    rd->f_dentry = anon_pipe_dent;
+    wr->f_dentry = anon_pipe_dent;
+
+    // Get new refs for the second fd
+    dentry_get(anon_pipe_dent);
+    inode_ref(anon_pipe_ino);
 
     *pipe_readable = rd;
     *pipe_writeable = wr;
 
-    /* Since malloc returns 16-byte aligned memory we can use the lower bits for stuff like this */
-    node1->i_helper = (void *) ((unsigned long) new_pipe.get() | PIPE_WRITEABLE);
+    anon_pipe_ino->i_helper = (void *) new_pipe.release();
 
     new_pipe.release();
 
     return 0;
 err2:
-    dentry_put(write_dent);
-    dentry_put(read_dent);
+    dentry_put(anon_pipe_dent);
 err0:
-    if (node0)
-        free(node0);
-    if (node1)
-        free(node1);
+    if (anon_pipe_ino)
+        close_vfs(anon_pipe_ino);
     return ret;
 }
 
