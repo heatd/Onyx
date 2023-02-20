@@ -246,6 +246,8 @@ ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t off
     return (ssize_t) read;
 }
 
+int pipe_do_fifo(inode *ino);
+
 int inode_special_init(struct inode *ino)
 {
     if (S_ISBLK(ino->i_mode) || S_ISCHR(ino->i_mode))
@@ -257,6 +259,10 @@ int inode_special_init(struct inode *ino)
 
         ino->i_fops = const_cast<file_ops *>(dev->fops());
         ino->i_helper = dev->private_;
+    }
+    else if (S_ISFIFO(ino->i_mode))
+    {
+        return pipe_do_fifo(ino);
     }
 
     return 0;

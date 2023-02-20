@@ -301,6 +301,19 @@ struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
 
     ino->i_fops = &ext2_ops;
 
+    if (inode_is_special(ino))
+    {
+        int st = inode_special_init(ino);
+
+        if (st < 0)
+        {
+            errno = -st;
+            free(ino->i_helper);
+            free(ino);
+            return nullptr;
+        }
+    }
+
     return ino;
 }
 

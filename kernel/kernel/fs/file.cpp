@@ -593,6 +593,12 @@ static struct file *try_to_open(struct file *base, const char *filename, int fla
     if (!ret && errno == ENOENT && flags & O_CREAT)
         ret = creat_vfs(base->f_dentry, filename, mode & ~get_current_umask());
 
+    if (ret)
+    {
+        ret->f_seek = 0;
+        ret->f_flags = flags;
+    }
+
     return ret;
 }
 
@@ -1679,8 +1685,6 @@ int open_with_vnode(struct file *node, int flags)
         return -errno;
     }
 
-    node->f_seek = 0;
-    node->f_flags = flags;
     handle_open_flags(node, flags);
     bool cloexec = flags & O_CLOEXEC;
     fd_set_cloexec(fd_num, cloexec, ioctx);

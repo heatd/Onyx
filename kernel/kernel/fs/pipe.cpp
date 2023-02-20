@@ -153,6 +153,8 @@ public:
 
     int get_capacity();
     int set_capacity(size_t len);
+
+    int open_named(struct file *filp);
 };
 
 pipe::pipe() : refcountable(2)
@@ -469,14 +471,14 @@ pipe *get_pipe(void *helper)
 size_t pipe_read(size_t offset, size_t sizeofread, void *buffer, struct file *file)
 {
     (void) offset;
-    pipe *p = get_pipe(file->f_ino->i_helper);
+    pipe *p = get_pipe(file->f_ino->i_pipe);
     return p->read(file->f_flags, sizeofread, buffer);
 }
 
 size_t pipe_write(size_t offset, size_t sizeofwrite, void *buffer, struct file *file)
 {
     (void) offset;
-    pipe *p = get_pipe(file->f_ino->i_helper);
+    pipe *p = get_pipe(file->f_ino->i_pipe);
     return p->write(file->f_flags, sizeofwrite, buffer);
 }
 
@@ -501,11 +503,10 @@ void pipe::close_read_end()
 
 void pipe_close(struct inode *ino)
 {
-    pipe *p = get_pipe(ino->i_helper);
+    pipe *p = get_pipe(ino->i_pipe);
 
     assert(p->writer_count == 0);
     assert(p->reader_count == 0);
-    printk("pipe close\n");
 
     p->unref();
 }
@@ -537,13 +538,13 @@ short pipe::poll(void *poll_file, short events)
 
 static short pipe_poll(void *poll_file, short events, struct file *f)
 {
-    pipe *p = get_pipe(f->f_ino->i_helper);
+    pipe *p = get_pipe(f->f_ino->i_pipe);
     return p->poll(poll_file, events);
 }
 
 static unsigned int pipe_ioctl(int req, void *argp, struct file *f)
 {
-    auto p = get_pipe(f->f_ino->i_helper);
+    auto p = get_pipe(f->f_ino->i_pipe);
 
     switch (req)
     {
@@ -586,7 +587,7 @@ int pipe::set_capacity(size_t len)
 
 static int pipe_fcntl(struct file *f, int cmd, unsigned long arg)
 {
-    auto p = get_pipe(f->f_ino->i_helper);
+    auto p = get_pipe(f->f_ino->i_pipe);
 
     switch (cmd)
     {
@@ -601,7 +602,7 @@ static int pipe_fcntl(struct file *f, int cmd, unsigned long arg)
 
 void pipe_release(struct file *filp)
 {
-    pipe *p = get_pipe(filp->f_ino->i_helper);
+    pipe *p = get_pipe(filp->f_ino->i_pipe);
 
     if (fd_may_access(filp, FILE_ACCESS_READ))
         p->close_read_end();
@@ -643,8 +644,6 @@ static int pipe_create(struct file **pipe_readable, struct file **pipe_writeable
     anon_pipe_ino->i_type = VFS_TYPE_FIFO;
     anon_pipe_ino->i_flags = INODE_FLAG_NO_SEEK;
     anon_pipe_ino->i_inode = current_inode_number++;
-    // write end is set down there
-    anon_pipe_ino->i_helper = (void *) new_pipe.get();
     anon_pipe_ino->i_fops = (struct file_ops *) &pipe_ops;
 
     anon_pipe_dent = dentry_create("<anon_pipe>", anon_pipe_ino, nullptr);
@@ -672,7 +671,7 @@ static int pipe_create(struct file **pipe_readable, struct file **pipe_writeable
     *pipe_readable = rd;
     *pipe_writeable = wr;
 
-    anon_pipe_ino->i_helper = (void *) new_pipe.release();
+    anon_pipe_ino->i_pipe = new_pipe.release();
 
     new_pipe.release();
 
@@ -762,6 +761,157 @@ error:
 int sys_pipe(int *upipefds)
 {
     return sys_pipe2(upipefds, 0);
+}
+
+int named_pipe_open(struct file *f);
+
+void named_pipe_release(struct file *filp);
+
+const struct file_ops named_pipe_ops = {
+    .read = pipe_read,
+    .write = pipe_write,
+    .close = pipe_close,
+    .ioctl = pipe_ioctl,
+    .on_open = named_pipe_open,
+    .poll = pipe_poll,
+    .fcntl = pipe_fcntl,
+    .release = named_pipe_release,
+};
+
+const struct file_ops preopen_named_pipe_ops = {
+    .on_open = named_pipe_open,
+};
+
+void named_pipe_release(struct file *filp)
+{
+    pipe *p = get_pipe(filp->f_ino->i_pipe);
+
+    if (fd_may_access(filp, FILE_ACCESS_READ))
+        p->close_read_end();
+
+    if (fd_may_access(filp, FILE_ACCESS_WRITE))
+        p->close_write_end();
+
+    if (p->reader_count + p->writer_count == 0)
+    {
+        // Let's attempt to free the pipe, but first lock the inode
+        scoped_lock g{filp->f_ino->i_lock};
+
+        // Re-check under the lock
+        if (p->reader_count + p->writer_count == 0)
+        {
+            // Free the pipe, undo file_ops
+            p->unref();
+            filp->f_ino->i_pipe = nullptr;
+            filp->f_ino->i_fops = (struct file_ops *) &preopen_named_pipe_ops;
+        }
+    }
+}
+
+int named_pipe_open(struct file *f)
+{
+    // Lets attempt to grab a pipe for our inode
+    // Note that we do not need a hashtable or tree
+    // of any kind for the inode, because as long as
+    // a pipe is alive, so is its struct inode.
+    auto ino = f->f_ino;
+
+    scoped_lock g{ino->i_lock};
+
+    pipe *p = ino->i_pipe;
+
+    if (!p)
+    {
+        // Not found, create a new pipe
+        p = new pipe{};
+        if (!p)
+            return -ENOMEM;
+        // And set the readers/writers to 0, 0
+        p->reader_count = p->writer_count = 0;
+        ino->i_pipe = p;
+    }
+
+    // ref the pipe and unlock the inode
+    p->ref();
+
+    g.unlock();
+
+    ino->i_fops = (struct file_ops *) &named_pipe_ops;
+
+    int st = p->open_named(f);
+    if (st < 0)
+    {
+        // Attempt to revert our changes
+        g.lock();
+
+        if (p->reader_count + p->writer_count == 0)
+        {
+            // Unused, we can free
+            p->unref();
+            ino->i_pipe = nullptr;
+            // ... and undo the i_fops
+            ino->i_fops = (struct file_ops *) &preopen_named_pipe_ops;
+        }
+
+        g.unlock();
+
+        p->unref();
+    }
+
+    return 0;
+}
+
+int pipe::open_named(struct file *filp)
+{
+    scoped_mutex g{pipe_lock};
+    ssize_t st;
+
+    // As per standard named pipe behavior, block until a peer shows up
+    if ((filp->f_flags & O_RDWRMASK) == O_RDONLY)
+    {
+        reader_count++;
+        wake_all(&write_queue);
+        COMPILER_BARRIER();
+        st = wait_for_event_mutex_interruptible(&read_queue, writer_count != 0, &pipe_lock);
+    }
+    else if ((filp->f_flags & O_RDWRMASK) == O_WRONLY)
+    {
+        writer_count++;
+        wake_all(&read_queue);
+        COMPILER_BARRIER();
+        // Use a lambda to go around the multiple wait_for_event problem
+        st = [&]() -> ssize_t {
+            return wait_for_event_mutex_interruptible(&write_queue, reader_count != 0, &pipe_lock);
+        }();
+    }
+    else if ((filp->f_flags & O_RDWRMASK) == O_RDWR)
+    {
+        // POSIX leaves this undefined, we peer with ourselves.
+        writer_count++;
+        reader_count++;
+        st = 0;
+    }
+    else
+    {
+        assert(0);
+    }
+
+    if (st < 0)
+    {
+        // Remove ourselves from the count if EINTR
+        if (filp->f_flags & O_WRONLY)
+            writer_count--;
+        else
+            reader_count--;
+    }
+
+    return st;
+}
+
+int pipe_do_fifo(inode *ino)
+{
+    ino->i_fops = (file_ops *) &preopen_named_pipe_ops;
+    return 0;
 }
 
 #ifdef CONFIG_KUNIT

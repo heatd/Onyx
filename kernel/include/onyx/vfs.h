@@ -83,6 +83,8 @@ struct getdents_ret
 
 int inode_init(struct inode *ino, bool is_reg);
 
+class pipe;
+
 #define INODE_FLAG_DONT_CACHE (1 << 0)
 #define INODE_FLAG_DIRTY      (1 << 1)
 #define INODE_FLAG_NO_SEEK    (1 << 2)
@@ -123,6 +125,9 @@ struct inode
     struct list_head i_sb_list_node;
     struct list_head i_hash_list_node;
     struct spinlock i_lock;
+
+    // For FIFOs
+    pipe *i_pipe;
 
 #ifdef __cplusplus
     int init(mode_t mode)

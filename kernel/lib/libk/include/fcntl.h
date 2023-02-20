@@ -44,6 +44,8 @@ int posix_fallocate(int, off_t, off_t);
 #define O_WRONLY  01
 #define O_RDWR    02
 
+#define O_RDWRMASK 03
+
 #define F_OFD_GETLK 36
 #define F_OFD_SETLK 37
 #define F_OFD_SETLKW 38
