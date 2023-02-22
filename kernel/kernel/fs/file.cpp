@@ -525,6 +525,7 @@ ssize_t sys_pwrite(int fd, const void *buf, size_t count, off_t offset)
 
 void handle_open_flags(struct file *fd, int flags)
 {
+    fd->f_flags = flags;
     if (flags & O_APPEND)
         fd->f_seek = fd->f_ino->i_size;
 }

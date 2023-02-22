@@ -673,8 +673,6 @@ static int pipe_create(struct file **pipe_readable, struct file **pipe_writeable
 
     anon_pipe_ino->i_pipe = new_pipe.release();
 
-    new_pipe.release();
-
     return 0;
 err2:
     dentry_put(anon_pipe_dent);
