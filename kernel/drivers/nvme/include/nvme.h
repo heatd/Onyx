@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2022 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -13,7 +13,9 @@
 
 #include <onyx/bitmap.h>
 #include <onyx/block.h>
+#include <onyx/block/io-queue.h>
 #include <onyx/vector.h>
+#include <onyx/wait.h>
 #include <onyx/wait_queue.h>
 
 #include <pci/pci.h>
@@ -37,7 +39,7 @@ private:
     pci::pci_device *dev_;
     unsigned int device_index_;
     mmio_range regs_{};
-    class nvme_queue
+    class nvme_queue : public io_queue
     {
     private:
         nvme_device *dev_;
@@ -69,9 +71,11 @@ private:
          */
         nvme_queue(nvme_device *dev, uint16_t index, unsigned int sq_size, unsigned int cq_size);
 
-        nvme_queue() = default;
+        nvme_queue() : io_queue(0)
+        {
+        }
 
-        ~nvme_queue()
+        virtual ~nvme_queue()
         {
             if (sq_pages_)
                 free_pages(sq_pages_);
@@ -103,7 +107,7 @@ private:
             return *this;
         }
 
-        nvme_queue(nvme_queue &&q)
+        nvme_queue(nvme_queue &&q) : io_queue{q.sq_size_}
         {
             if (&q == this)
                 return;
@@ -195,10 +199,18 @@ private:
         {
             return cq_size_;
         }
+
+        /**
+         * @brief Submits IO to a device
+         *
+         * @param req bio_req to submit
+         * @return 0 on sucess, negative error codes
+         */
+        int device_io_submit(bio_req *req) override;
     };
     page *identify_page_;
 
-    cul::vector<nvme_queue> queues_;
+    cul::vector<unique_ptr<nvme_queue>> queues_;
 
     /**
      * @brief Identify and list namespaces
@@ -300,7 +312,7 @@ private:
      * @param ns NVMe namespace
      * @return Expected object containing a prp_setup, or a negative error code
      */
-    expected<prp_setup, int> setup_prp(bio_req *req, nvme_namespace *ns);
+    expected<prp_setup *, int> setup_prp(bio_req *req, nvme_namespace *ns);
 
     /**
      * @brief Pick an IO queue for this request
@@ -524,6 +536,7 @@ struct nvmecmd
     nvmesqe cmd;
     nvmecqe response;
     bool has_response;
+    struct bio_req *req;
 };
 
 #define NVME_IDENTIFY_CNS_IDENTIFY_NAMESPACE  0

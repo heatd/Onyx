@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -13,6 +13,7 @@
 
 #include <onyx/async_io.h>
 #include <onyx/block.h>
+#include <onyx/block/io-queue.h>
 #include <onyx/clock.h>
 #include <onyx/compiler.h>
 #include <onyx/dev.h>
@@ -26,7 +27,9 @@
 #include <onyx/port_io.h>
 #include <onyx/scoped_lock.h>
 #include <onyx/timer.h>
+#include <onyx/types.h>
 #include <onyx/vm.h>
+#include <onyx/wait.h>
 #include <onyx/wait_queue.h>
 
 #include <drivers/ata.h>
@@ -39,19 +42,48 @@
 #define ATA_IDENTIFY_TIMEOUT 100 * NS_PER_MS
 
 static struct ids *ata_ids = nullptr;
+static constexpr size_t prdt_nr_pages = 1;
 
 irqstatus_t ide_irq(struct irq_context *ctx, void *cookie);
 
-class ide_ata_bus
+// The IDE ATA bus is a single queue, 1-depth device
+// Every driver on it shares this single queue, annoyingly.
+class ide_ata_bus : public io_queue
 {
 public:
     uint16_t control_reg;
     uint16_t data_reg;
     uint16_t busmaster_reg;
-    aio_req *req;
+    bio_req *req{nullptr};
+    prdt_entry_t *prdt{nullptr};
+    page *prdt_page{nullptr};
 
-    ide_ata_bus() : control_reg{}, data_reg{}, busmaster_reg{}, req{nullptr}
+    ide_ata_bus() : io_queue{1}, control_reg{}, data_reg{}, busmaster_reg{}
     {
+    }
+
+    int init()
+    {
+        prdt_page = alloc_pages(prdt_nr_pages, PAGE_ALLOC_4GB_LIMIT);
+        if (!prdt_page)
+            return -ENOMEM;
+
+        /* Allocate PRDT base */
+        prdt = (prdt_entry_t *) mmiomap(page_to_phys(prdt_page), prdt_nr_pages << PAGE_SHIFT,
+                                        VM_READ | VM_WRITE);
+        if (!prdt)
+        {
+            ERROR("ata", "Could not allocate a PRDT\n");
+            return -ENOMEM;
+        }
+
+        return 0;
+    }
+
+    ~ide_ata_bus()
+    {
+        mmiounmap(prdt, prdt_nr_pages << PAGE_SHIFT);
+        free_pages(prdt_page);
     }
 
     void reset()
@@ -83,6 +115,18 @@ public:
     void start_dma(bool write);
     void stop_dma();
     void prepare_dma(struct page *prdt_page, bool write);
+
+    void fill_prdt_from_hwvec(const page_iov *vec, size_t nr_vecs);
+
+    /**
+     * @brief Submits IO to a device
+     *
+     * @param req bio_req to submit
+     * @return 0 on sucess, negative error codes
+     */
+    int device_io_submit(struct bio_req *req) override;
+
+    irqstatus_t handle_irq();
 };
 
 class ide_dev;
@@ -101,6 +145,7 @@ struct ide_drive
         : exists{false}, lba28{}, lba48{}, type{}, bus{bus}, drive{}, identify_buf{}
     {
     }
+
     int probe();
 
     /**
@@ -137,30 +182,19 @@ struct ide_drive
 
 class ide_dev
 {
-    static constexpr size_t prdt_nr_pages = 1;
-
     ide_ata_bus ata_buses[2];
 
     ide_drive ide_drives[4];
-    prdt_entry_t *prdt;
-    page *prdt_page;
     pci::pci_device *dev;
-    uint16_t busmaster_reg;
-    mutex io_op_lock;
+    uint16_t busmaster_reg{0};
 
 public:
     explicit ide_dev(pci::pci_device *dev)
-        : ata_buses{}, ide_drives{ata_buses[0], ata_buses[0], ata_buses[1], ata_buses[1]}, prdt{},
-          prdt_page{}, dev{dev}, busmaster_reg{}, io_op_lock{}
+        : ata_buses{}, ide_drives{ata_buses[0], ata_buses[0], ata_buses[1], ata_buses[1]}, dev{dev}
+
     {
         for (auto &drv : ide_drives)
             drv.dev = this;
-    }
-
-    ~ide_dev()
-    {
-        mmiounmap(prdt, prdt_nr_pages << PAGE_SHIFT);
-        free_pages(prdt_page);
     }
 
     int probe();
@@ -226,17 +260,10 @@ void ide_dev::enable_pci()
 
 int ide_dev::probe()
 {
-    prdt_page = alloc_pages(prdt_nr_pages, PAGE_ALLOC_4GB_LIMIT);
-    if (!prdt_page)
-        return -ENOMEM;
-
-    /* Allocate PRDT base */
-    prdt = (prdt_entry_t *) mmiomap(page_to_phys(prdt_page), prdt_nr_pages << PAGE_SHIFT,
-                                    VM_READ | VM_WRITE);
-    if (!prdt)
+    for (auto &bus : ata_buses)
     {
-        ERROR("ata", "Could not allocate a PRDT\n");
-        return -ENOMEM;
+        if (int st = bus.init(); st < 0)
+            return st;
     }
 
     /* Enable PCI IDE mode, and PCI busmastering DMA*/
@@ -275,6 +302,40 @@ void ide_ata_bus::send_command(uint8_t command)
 unsigned long nr_ide_irq = 0;
 unsigned long total_irq_ide = 0;
 
+irqstatus_t ide_ata_bus::handle_irq()
+{
+    scoped_lock<spinlock, true> g{lock_};
+    total_irq_ide++;
+
+    auto status = inw(busmaster_reg + IDE_BMR_REG_STATUS);
+
+    if (!(status & IDE_BMR_ST_IRQ_GEN) || !req)
+        return IRQ_UNHANDLED;
+
+    bool had_error = status & IDE_BMR_ST_DMA_ERR;
+    inb(data_reg + ATA_REG_STATUS);
+
+    outw(busmaster_reg + IDE_BMR_REG_STATUS, status);
+    stop_dma();
+
+    req->flags |= had_error ? BIO_REQ_EIO : 0;
+
+    req->flags |= BIO_REQ_DONE;
+
+    wake_address(req);
+
+    auto next = complete_request(req);
+
+    req = nullptr;
+
+    if (next)
+        device_io_submit(next);
+
+    nr_ide_irq++;
+
+    return IRQ_HANDLED;
+}
+
 irqstatus_t ide_irq(struct irq_context *ctx, void *cookie)
 {
     auto device = (ide_dev *) cookie;
@@ -288,30 +349,77 @@ irqstatus_t ide_irq(struct irq_context *ctx, void *cookie)
         bus_idx = 1;
 
     auto &bus = device->get_bus(bus_idx);
-    total_irq_ide++;
 
-    auto status = inw(bus.busmaster_reg + IDE_BMR_REG_STATUS);
-
-    if (!(status & IDE_BMR_ST_IRQ_GEN) || !bus.req)
-        return IRQ_UNHANDLED;
-
-    bool had_error = status & IDE_BMR_ST_DMA_ERR;
-    inb(bus.data_reg + ATA_REG_STATUS);
-
-    bus.req->status = had_error ? AIO_STATUS_EIO : AIO_STATUS_OK;
-    bus.req->signaled = true;
-    wait_queue_wake_all(&bus.req->wake_sem);
-
-    nr_ide_irq++;
-
-    outw(bus.busmaster_reg + IDE_BMR_REG_STATUS, status);
-
-    return IRQ_HANDLED;
+    return bus.handle_irq();
 }
 
 ide_drive *ide_drive_from_blockdev(blockdev *dev)
 {
     return (ide_drive *) dev->device_info;
+}
+
+// bio_req details:
+// device_specific[0] layout: top 32 bits = len, bottom 32 is flags
+// only 1 flag is defined: bit 0: bounce buffer valid
+
+#define BIO_REQ_HAS_BOUNCE_BUF (1U << 0)
+
+int ide_ata_bus::device_io_submit(struct bio_req *req)
+{
+    auto drive = ide_drive_from_blockdev(req->bdev);
+    bool write = (req->flags & BIO_REQ_OP_MASK) == BIO_REQ_WRITE_OP;
+    u8 command = write ? ATA_CMD_WRITE_DMA_EXT : ATA_CMD_READ_DMA_EXT;
+    bool prdt_write = !write;
+
+    struct page_iov *hw_vec = req->vec;
+    size_t iov_size = req->nr_vecs;
+
+    if (req->device_specific[0] & BIO_REQ_HAS_BOUNCE_BUF)
+    {
+        hw_vec = (struct page_iov *) req->device_specific[1];
+        iov_size = req->device_specific[2];
+    }
+
+    fill_prdt_from_hwvec(hw_vec, iov_size);
+
+    prepare_dma(prdt_page, prdt_write);
+
+    int st = drive->wait_for_bsy_clear();
+
+    if (st < 0)
+    {
+        printf("ata: wait_for_bsy_clear failed: %d\n", st);
+        return st;
+    }
+
+    select_drive(drive->drive);
+
+    st = drive->wait_for_bsy_clear();
+
+    if (st < 0)
+    {
+        printf("ata: wait_for_bsy_clear failed: %d\n", st);
+        return st;
+    }
+
+    const auto sect = req->sector_number;
+    const uint16_t num_secs = (req->device_specific[0] >> 32) / 512;
+    outb(data_reg + ATA_REG_SECCOUNT0, num_secs >> 8);
+    outb(data_reg + ATA_REG_LBA0, sect >> 24);
+    outb(data_reg + ATA_REG_LBA1, sect >> 32);
+    outb(data_reg + ATA_REG_LBA2, sect >> 40);
+    outb(data_reg + ATA_REG_SECCOUNT0, num_secs);
+    outb(data_reg + ATA_REG_LBA0, sect);
+    outb(data_reg + ATA_REG_LBA1, sect >> 8);
+    outb(data_reg + ATA_REG_LBA2, sect >> 16);
+
+    outb(data_reg + ATA_REG_COMMAND, command);
+
+    start_dma(prdt_write);
+
+    this->req = req;
+
+    return 0;
 }
 
 int ata_flush(struct blockdev *blkd)
@@ -383,8 +491,6 @@ int ide_drive::do_identify()
     struct aio_req r;
     aio_req_init(&r);
 
-    bus.req = &r;
-
     int st = wait_for_bsy_clear();
 
     if (st < 0)
@@ -404,14 +510,6 @@ int ide_drive::do_identify()
         printf("ide: Wait for BSY clear error: %d\n", st);
         return st;
     }
-
-    if (aio_wait_on_req(&r, ATA_IDENTIFY_TIMEOUT) == -ETIMEDOUT)
-    {
-        return -ETIMEDOUT;
-    }
-
-    while (!wait_queue_may_delete(&r.wake_sem))
-        ;
 
     auto status = read_alt_status();
 
@@ -435,10 +533,6 @@ int ide_drive::do_identify()
 
 int ide_drive::probe()
 {
-    struct aio_req r;
-    aio_req_init(&r);
-
-    bus.req = &r;
     // Inspired by EDK2's MdeModulePkg/Bus/Ata/AtaAtapiPassThru/IdeMode.c
     // The probing process looks pretty undocumented so this is the best
     // reference I got.
@@ -473,7 +567,7 @@ int ide_drive::probe()
 
     if (int st = do_identify(); st < 0)
     {
-        printf("ide: ATA_CMD_IDENTIFY failed\n");
+        printk("ide: ATA_CMD_IDENTIFY failed\n");
         return st;
     }
 
@@ -601,7 +695,7 @@ void fill_bounce_buf(page_iov *hw_vec, size_t vec_size, bio_req *req)
     }
 }
 
-void ide_dev::fill_prdt_from_hwvec(const page_iov *vec, size_t nr_vecs)
+void ide_ata_bus::fill_prdt_from_hwvec(const page_iov *vec, size_t nr_vecs)
 {
     auto prd = prdt;
 
@@ -654,6 +748,10 @@ int ide_dev::submit_request(bio_req *req, ide_drive *drive)
 
     auto len = look_at_bio_req(req, needs_bounce);
 
+    req->device_specific[0] = (u64) len << 32;
+    req->device_specific[1] = 0;
+    req->device_specific[2] = 0;
+
     if (needs_bounce)
     {
         size_t nr_pages = vm_size_to_pages(len);
@@ -675,87 +773,36 @@ int ide_dev::submit_request(bio_req *req, ide_drive *drive)
         fill_bounce_buf_vec(hw_vec, nr_pages, pages, len);
         if (req_code == BIO_REQ_WRITE_OP)
             fill_bounce_buf(hw_vec, iov_size, req);
+
+        req->device_specific[0] |= BIO_REQ_HAS_BOUNCE_BUF;
+        req->device_specific[1] = (unsigned long) hw_vec;
+        req->device_specific[2] = iov_size;
     }
-
-    bool write = req_code == BIO_REQ_WRITE_OP;
-    uint8_t command = write ? ATA_CMD_WRITE_DMA_EXT : ATA_CMD_READ_DMA_EXT;
-    bool prdt_write = !write;
-
-    scoped_mutex g{io_op_lock};
-
-    fill_prdt_from_hwvec(hw_vec, iov_size);
 
     auto &bus = drive->bus;
 
-    struct aio_req r;
-    aio_req_init(&r);
-
-    bus.req = &r;
-
-    /*outl(bus.busmaster_reg + 0x4, (uint32_t)(uint64_t) page_to_phys(prdt_page));
-    outb(bus.busmaster_reg + 2, 4);*/
-    // printk("ATA status %x\n", inb(bus.control_reg + ATA_REG_ALTSTATUS));
-
-    bus.prepare_dma(prdt_page, prdt_write);
-
-    int st = drive->wait_for_bsy_clear();
+    int st = bus.submit_request(req);
 
     if (st < 0)
-    {
-        printf("ata: wait_for_bsy_clear failed: %d\n", st);
-        return st;
-    }
+        goto out;
 
-    bus.select_drive(drive->drive);
+    st = wait_for(
+        req,
+        [](void *_req) -> bool {
+            struct bio_req *r = (struct bio_req *) _req;
+            return r->flags & (BIO_REQ_DONE | BIO_REQ_EIO);
+        },
+        WAIT_FOR_FOREVER, 0);
 
-    st = drive->wait_for_bsy_clear();
-
-    if (st < 0)
-    {
-        printf("ata: wait_for_bsy_clear failed: %d\n", st);
-        return st;
-    }
-
-    const auto sect = req->sector_number;
-    const uint16_t num_secs = len / 512;
-    outb(bus.data_reg + ATA_REG_SECCOUNT0, num_secs >> 8);
-    outb(bus.data_reg + ATA_REG_LBA0, sect >> 24);
-    outb(bus.data_reg + ATA_REG_LBA1, sect >> 32);
-    outb(bus.data_reg + ATA_REG_LBA2, sect >> 40);
-    outb(bus.data_reg + ATA_REG_SECCOUNT0, num_secs);
-    outb(bus.data_reg + ATA_REG_LBA0, sect);
-    outb(bus.data_reg + ATA_REG_LBA1, sect >> 8);
-    outb(bus.data_reg + ATA_REG_LBA2, sect >> 16);
-
-    outb(bus.data_reg + ATA_REG_COMMAND, command);
-
-    bus.start_dma(prdt_write);
-
-    st = aio_wait_on_req(&r, ATA_TIMEOUT);
-
-    bus.stop_dma();
-    // printk("st %d\n", st);
-    // printk("ATA status %x\n", inb(bus.control_reg + ATA_REG_ALTSTATUS));
-
+out:
     if (needs_bounce)
     {
+        // Note: This is not a problem now, but it really is something we don't want to do
+        // when everything moves async.
+        // TODO: Get a semi-generic bounce buffer infra. We can probably get by by using alloc_pages
+        // instead of calloc or something. I don't think we need an IRQ-safe slab allocator portion.
         free(hw_vec);
         free_pages(bounce_buffer_pages);
-    }
-
-    if (st == -ETIMEDOUT)
-    {
-        req->flags |= BIO_REQ_TIMEOUT;
-        return st;
-    }
-
-    if (r.status == AIO_STATUS_EIO)
-    {
-        req->flags |= BIO_REQ_EIO;
-    }
-    else
-    {
-        req->flags |= BIO_REQ_DONE;
     }
 
     return st;
@@ -763,6 +810,7 @@ int ide_dev::submit_request(bio_req *req, ide_drive *drive)
 
 int ata_submit_request(blockdev *dev, bio_req *req)
 {
+    req->bdev = dev;
     auto drive = ide_drive_from_blockdev(dev);
     req->sector_number += dev->offset / 512;
 

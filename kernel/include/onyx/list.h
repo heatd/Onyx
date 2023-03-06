@@ -144,6 +144,24 @@ static inline void list_reset(struct list_head *head)
     for (struct list_head *l = (lh)->next, *____tmp = l->next; l != (lh); \
          l = ____tmp, ____tmp = l->next)
 
+static inline void list_copy(struct list_head *dest, const list_head *src)
+{
+    dest->prev = src->prev;
+    dest->next = src->next;
+
+    // Fixup the pointers that should point to the head of the list (next->prev and prev->next,
+    // since those are the edges).
+
+    dest->next->prev = dest;
+    dest->prev->next = dest;
+}
+
+static inline void list_move(struct list_head *dest, struct list_head *src)
+{
+    list_copy(dest, src);
+    list_reset(src);
+}
+
 /*
  * TODO: This code is weird, inconsistent, and needs to be rewritten
  * and re-thought.

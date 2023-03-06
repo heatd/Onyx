@@ -28,11 +28,12 @@
 
 struct blockdev;
 
-typedef uint64_t sector_t;
+using sector_t = uint64_t;
 
-#define BIO_REQ_OP_MASK  (0xff)
-#define BIO_REQ_READ_OP  0
-#define BIO_REQ_WRITE_OP 1
+#define BIO_REQ_OP_MASK         (0xff)
+#define BIO_REQ_READ_OP         0
+#define BIO_REQ_WRITE_OP        1
+#define BIO_REQ_DEVICE_SPECIFIC 2
 
 /* BIO flags start at bit 8 since bits 0 - 7 are reserved for operations */
 /* Note that we still have 24 bits for flags, which should be More Than Enough(tm) */
@@ -48,50 +49,49 @@ struct bio_req
     struct page_iov *vec;
     size_t nr_vecs;
     size_t curr_vec_index;
+    blockdev *bdev;
+    struct list_head list_node;
+    unsigned long device_specific[4];
 };
 
-typedef ssize_t (*__blkread)(size_t offset, size_t count, void *buffer, struct blockdev *_this);
-typedef ssize_t (*__blkwrite)(size_t offset, size_t count, void *buffer, struct blockdev *_this);
-typedef int (*__blkflush)(struct blockdev *_this);
-typedef int (*__blkpowermanagement)(int op, struct blockdev *_this);
+using __blkread = ssize_t (*)(size_t, size_t, void *, struct blockdev *);
+using __blkwrite = ssize_t (*)(size_t, size_t, void *, struct blockdev *);
+using __blkflush = int (*)(struct blockdev *);
+using __blkpowermanagement = int (*)(int, struct blockdev *);
 
 struct superblock;
 
 struct blockdev
 {
-    __blkread read;
-    __blkwrite write;
-    __blkflush flush;
-    __blkpowermanagement power;
+    __blkread read{};
+    __blkwrite write{};
+    __blkflush flush{};
+    __blkpowermanagement power{};
     cul::string name;
-    unsigned int sector_size;
+    unsigned int sector_size{};
     /* Explicitly use uint64_t here to support LBA > 32, like the extremely popular LBA48 */
-    uint64_t nr_sectors;
-    void *device_info;
+    uint64_t nr_sectors{};
+    void *device_info{};
     struct list_head block_dev_head;
-    struct blockdev *actual_blockdev; // isn't null when blockdev is a partition
-    size_t offset;
-    int (*submit_request)(struct blockdev *dev, struct bio_req *req);
+    struct blockdev *actual_blockdev{}; // isn't null when blockdev is a partition
+    size_t offset{};
+    int (*submit_request)(struct blockdev *dev, struct bio_req *req){};
     /* This vmo serves as the buffer cache of the block device, exactly like the page cache */
-    struct vm_object *vmo;
+    struct vm_object *vmo{};
     /* This will have the mounted superblock here if this block device is mounted */
-    struct superblock *sb;
+    struct superblock *sb{};
 
-    blkdev *dev;
+    blkdev *dev{};
 
     // An optional partition prefix, like the 'p' in nvme0n1p1
     cul::string partition_prefix;
 
-    constexpr blockdev()
-        : read{}, write{}, flush{}, power{}, name{}, sector_size{}, nr_sectors{}, device_info{},
-          actual_blockdev{}, offset{}, submit_request{}, vmo{}, sb{}, dev{}, partition_prefix{}
-    {
-    }
+    constexpr blockdev() = default;
 };
 
 static inline bool blkdev_is_partition(struct blockdev *dev)
 {
-    return dev->actual_blockdev != NULL;
+    return dev->actual_blockdev != nullptr;
 }
 
 static inline struct blockdev *blkdev_get_dev(struct file *f)
