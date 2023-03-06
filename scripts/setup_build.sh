@@ -29,12 +29,12 @@ if [ "$GN_ARGS" != "" ] && [ -f out/args.gn ]; then
 	done_stuff="1"
 fi
 
-gn gen out/
+gn gen out/ --export-compile-commands
 
 if [ "$GN_ARGS" != "" ] && [ "$done_stuff" != "1" ]; then
 	printf "$GN_ARGS" > out/args.gn
 
-	gn gen out/
+	gn gen out/ --export-compile-commands
 fi
 
 touch -r dash/ -c dash/*

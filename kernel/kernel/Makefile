@@ -2,7 +2,7 @@ kern-y+= arc4random.o binfmt.o compression.o copy.o cppnew.o cpprt.o crc32.o dev
 	driver.o exceptions.o font.o framebuffer.o futex.o i2c.o id_manager.o init.o initrd.o \
 	irq.o uname.o kernlog.o ktest.o modules.o object.o panic.o percpu.o \
 	power_management.o proc_event.o process.o pid.o ptrace.o random.o ref.o signal.o \
-	smp.o spinlock.o symbol.o time.o timer.o utils.o wait_queue.o \
+	smp.o spinlock.o symbol.o tasklet.o time.o timer.o utils.o wait_queue.o \
 	worker.o cred.o list.o softirq.o cputime.o rlimit.o handle.o ctor.o internal_abi.o ssp.o \
 	cmdline.o syscall_thunk.o vdso.o sysinfo.o memstream.o perf.o radix.o
 

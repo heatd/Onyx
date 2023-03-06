@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -14,7 +14,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <onyx/async_io.h>
 #include <onyx/block.h>
 #include <onyx/compiler.h>
 #include <onyx/cpu.h>
@@ -30,6 +29,7 @@
 #include <onyx/timer.h>
 #include <onyx/vfs.h>
 #include <onyx/vm.h>
+#include <onyx/wait.h>
 
 #include <drivers/ata.h>
 #include <pci/pci.h>
@@ -39,8 +39,6 @@
 MODULE_AUTHOR("Pedro Falcato");
 MODULE_LICENSE(MODULE_LICENSE_MIT);
 MODULE_INSERT_VERSION();
-
-void ahci_destroy_aio(struct ahci_port *port, struct aio_req *req);
 
 #define MPRINTF(...) printf("ahci: " __VA_ARGS__)
 
@@ -54,44 +52,45 @@ void ahci_destroy_aio(struct ahci_port *port, struct aio_req *req);
     } while (0);
 #endif
 
-void ahci_wake_io(void *ctx)
+void ahci_io_queue::do_irq(u16 slot, u32 irq_status)
 {
-    struct aio_req *req = (aio_req *) ctx;
-    req->signaled = true;
-    wait_queue_wake_all(&req->wake_sem);
-}
+    scoped_lock<spinlock, true> g{lock_};
 
-void ahci_deal_aio(struct command_list *list)
-{
-    // TODO: Hm?
-    if (!list->req)
+    auto list = &cmdslots[slot];
+    list->received_interrupt = true;
+    list->last_interrupt_status = irq_status;
+    list->status = port->port->status;
+    list->tfd = port->port->tfd;
+
+    // TODO: Understand why this fires and fix it
+    // assert(list->breq != nullptr);
+    if (!list->breq)
         return;
-
-    struct aio_req *req = list->req;
 
     if (list->last_interrupt_status & AHCI_INTST_ERROR)
     {
-        req->status = AIO_STATUS_EIO;
+        list->breq->flags |= BIO_REQ_EIO;
     }
     else if (list->last_interrupt_status & AHCI_PORT_INTERRUPT_DHRE)
     {
-        req->status = AIO_STATUS_OK;
+        list->breq->flags |= BIO_REQ_DONE;
     }
 
-    req->req_end = get_main_clock()->get_ns();
-    ahci_wake_io(req);
+    auto breq = list->breq;
+
+    wake_address(breq);
+
+    auto next = complete_request(breq);
+
+    free_slot(slot);
+
+    port->issued &= ~(1UL << slot);
+
+    if (next)
+        device_io_submit(next);
 }
 
-void ahci_do_clist_irq(struct ahci_port *port, int j)
-{
-    port->cmdslots[j].received_interrupt = true;
-    port->cmdslots[j].last_interrupt_status = port->port->interrupt_status;
-    port->cmdslots[j].status = port->port->status;
-    port->cmdslots[j].tfd = port->port->tfd;
-    ahci_deal_aio(&port->cmdslots[j]);
-}
-
-void ahci_do_port_irqs(struct ahci_port *port)
+void ahci_do_port_irqs(struct ahci_port *port, u32 irq_status)
 {
     uint32_t cmd_done = port->issued ^ port->port->command_issue;
 
@@ -99,8 +98,7 @@ void ahci_do_port_irqs(struct ahci_port *port)
     {
         if (cmd_done & (1U << j))
         {
-            ahci_do_clist_irq(port, j);
-            port->issued &= ~(1UL << j);
+            port->io_queue->do_irq(j, irq_status);
         }
     }
 }
@@ -134,55 +132,13 @@ irqstatus_t ahci_irq(struct irq_context *ctx, void *cookie)
             uint32_t port_is = port->port->interrupt_status;
             port->port->interrupt_status = port_is;
             dev->hba->interrupt_status = (1U << i);
-            ahci_do_port_irqs(port);
+            ahci_do_port_irqs(port, port_is);
         }
 
         spin_unlock_irqrestore(&port->port_lock, cpu_flags);
     }
 
     return IRQ_HANDLED;
-}
-
-#define AHCI_BYTES_PER_REQ (NUM_PRDT_PER_TABLE * PRDT_MAX_SIZE)
-
-ssize_t ahci_read(size_t offset, size_t count, void *buffer, struct blockdev *blkd)
-{
-    struct ahci_port *p = (ahci_port *) blkd->device_info;
-
-    size_t to_read = count;
-
-    uint64_t lba = offset / 512;
-    assert(offset % 512 == 0);
-    assert(count % 512 == 0);
-    uint8_t *buf = (uint8_t *) buffer;
-
-    /* TODO: Implement other types of devices */
-    if (p->port->sig != SATA_SIG_ATA)
-        return -ENXIO;
-
-    while (count != 0)
-    {
-        size_t c = count > AHCI_BYTES_PER_REQ ? AHCI_BYTES_PER_REQ : count;
-
-        struct ahci_command_ata cmd;
-        cmd.buffer = buf;
-        cmd.lba = lba;
-        cmd.size = c;
-        cmd.write = false;
-        cmd.cmd = ATA_CMD_READ_DMA_EXT;
-        cmd.flags = 0;
-
-        if (!ahci_do_command(p, &cmd))
-        {
-            return -1;
-        }
-
-        buf += c;
-        count -= c;
-        lba += c / 512;
-    }
-
-    return to_read;
 }
 
 #define ATA_CMD_ERR_BAD_REQ 0xff
@@ -196,143 +152,146 @@ static uint8_t bio_req_to_ata_command(struct bio_req *req)
             return ATA_CMD_READ_DMA_EXT;
         case BIO_REQ_WRITE_OP:
             return ATA_CMD_WRITE_DMA_EXT;
+        case BIO_REQ_DEVICE_SPECIFIC:
+            return req->device_specific[0];
         default:
             return ATA_CMD_ERR_BAD_REQ;
     }
 }
 
-int ahci_submit_request(struct blockdev *dev, struct bio_req *req)
+long ahci_setup_prdt_bio(prdt_t *prdt, struct bio_req *r, size_t *size);
+void ahci_set_lba(uint64_t lba, cfis_t *cfis);
+
+/**
+ * @brief Allocate a command list slow
+ *
+ * @return Pair with pointer to command_list_t, index
+ */
+cul::pair<command_list_t *, u16> ahci_io_queue::allocate_clist()
+{
+    assert(list_bitmap != UINT32_MAX);
+    u16 pos = __builtin_ctz(~list_bitmap);
+
+    __atomic_or_fetch(&list_bitmap, 1U << pos, __ATOMIC_RELAXED);
+
+    return {clist + pos, pos};
+}
+
+void ahci_io_queue::free_slot(u16 slot)
+{
+    command_list_t *list = clist + slot;
+    list->prdbc = 0;
+
+    cmdslots[slot].req = nullptr;
+
+    list->prdtl = 0;
+
+    list_bitmap &= ~(1 << slot);
+}
+
+/**
+ * @brief Submits IO to a device
+ *
+ * @param req bio_req to submit
+ * @return 0 on sucess, negative error codes
+ */
+int ahci_io_queue::device_io_submit(bio_req *req)
+{
+    auto bdev = req->bdev;
+    req->sector_number += (bdev->offset / 512);
+
+    const uint16_t fis_len = 5;
+    (void) fis_len;
+
+    auto [list, list_index] = allocate_clist();
+
+    list->desc_info =
+        fis_len | ((req->flags & BIO_REQ_OP_MASK) == BIO_REQ_READ_OP ? AHCI_COMMAND_LIST_WRITE : 0);
+    list->prdbc = 0;
+    command_table_t *table = (command_table_t *) PHYS_TO_VIRT(ctables[list_index]);
+
+    memset(table, 0, sizeof(command_table_t));
+
+    prdt_t *prdt = (prdt_t *) (table + 1);
+
+    long nr_prdt = 0;
+    size_t size;
+
+    if ((nr_prdt = ahci_setup_prdt_bio(prdt, req, &size)) < 0)
+    {
+        req->flags |= BIO_REQ_EIO;
+        free_slot(list_index);
+        return -EIO;
+    }
+
+    list->prdtl = nr_prdt;
+
+    table->cfis.fis_type = FIS_TYPE_REG_H2D;
+
+    table->cfis.port_mult = 0;
+    table->cfis.c = 1;
+    table->cfis.feature_low = 1;
+
+    /* Load the LBA */
+    uint64_t lba = req->sector_number;
+    // printk("Lba: %lu\n", lba);
+    ahci_set_lba(lba, &table->cfis);
+
+    /* We need to set bit 6 to enable the LBA mode */
+    auto op = req->flags & BIO_REQ_OP_MASK;
+    bool read_or_write = op == BIO_REQ_READ_OP || op == BIO_REQ_WRITE_OP;
+    if (read_or_write)
+        table->cfis.device = (1 << 6);
+    else
+        table->cfis.device = 0;
+
+    size_t num_sectors = size / 512;
+    table->cfis.count = (uint16_t) num_sectors;
+    table->cfis.command = bio_req_to_ata_command(req);
+
+    struct command_list *l = &cmdslots[list_index];
+
+    l->breq = req;
+
+    COMPILER_BARRIER();
+
+    port->port->command_issue = (1U << list_index);
+    port->issued |= (1U << list_index);
+
+    return 0;
+}
+
+int ahci_submit_request_new(struct blockdev *dev, struct bio_req *req)
 {
     struct ahci_port *port = (ahci_port *) dev->device_info;
     if (port->port->sig != SATA_SIG_ATA)
         return -ENXIO;
+    req->bdev = dev;
 
-    sector_t sector = req->sector_number + (dev->offset / 512);
+    int st = port->io_queue->submit_request(req);
 
-    // printk("req: %lu.%lu\n", req->curr_vec_index, req->nr_vecs);
+    if (st < 0)
+        return st;
+    st = wait_for(
+        req,
+        [](void *_req) -> bool {
+            struct bio_req *r = (struct bio_req *) _req;
+            return r->flags & (BIO_REQ_DONE | BIO_REQ_EIO);
+        },
+        WAIT_FOR_FOREVER, 0);
+    assert(st == 0);
 
-    while (req->curr_vec_index != req->nr_vecs)
-    {
-        struct ahci_command_ata cmd;
-        cmd.lba = sector;
-        cmd.cmd = bio_req_to_ata_command(req);
-
-        if (cmd.cmd == ATA_CMD_ERR_BAD_REQ)
-        {
-            req->flags |= BIO_REQ_NOT_SUPP;
-            return -EIO;
-        }
-
-        cmd.write = (req->flags & BIO_REQ_OP_MASK) == BIO_REQ_WRITE_OP;
-
-        cmd.buffer = req;
-        cmd.flags = AHCI_COMMAND_BIO_REQ;
-
-        if (!ahci_do_command(port, &cmd))
-        {
-            req->flags |= BIO_REQ_EIO;
-            return -EIO;
-        }
-
-        /* ahci_do_command fills in cmd.size with the size read */
-        sector_t sectors_read = cmd.size / 512;
-        sector += sectors_read;
-    }
-
-    req->flags |= BIO_REQ_DONE;
     return 0;
-}
-
-ssize_t ahci_write(size_t offset, size_t count, void *buffer, struct blockdev *blkd)
-{
-    struct ahci_port *p = (ahci_port *) blkd->device_info;
-
-    size_t to_read = count;
-
-    uint64_t lba = offset / 512;
-    uint8_t *buf = (uint8_t *) buffer;
-    assert(offset % 512 == 0);
-    assert(count % 512 == 0);
-
-    if (p->port->sig != SATA_SIG_ATA)
-        return -ENXIO;
-
-    while (count != 0)
-    {
-        size_t c = count > AHCI_BYTES_PER_REQ ? AHCI_BYTES_PER_REQ : count;
-
-        struct ahci_command_ata cmd;
-        cmd.buffer = buf;
-        cmd.lba = lba;
-        cmd.size = c;
-        cmd.write = true;
-        cmd.cmd = ATA_CMD_WRITE_DMA_EXT;
-        cmd.flags = 0;
-
-        if (!ahci_do_command(p, &cmd))
-        {
-            return -1;
-        }
-
-        buf += c;
-        count -= c;
-        lba += c / 512;
-    }
-
-    return to_read;
 }
 
 bool ahci_command_error(struct ahci_port *port, unsigned int cmdslot)
 {
-    if (port->cmdslots[cmdslot].last_interrupt_status & AHCI_INTST_ERROR)
-        return true;
-    return false;
-}
-
-command_list_t *ahci_find_free_command_list(command_list_t *lists, unsigned int ncs, size_t *n)
-{
-    while (true)
-    {
-        for (unsigned int i = 0; i < ncs; i++)
-        {
-            if (lists[i].prdtl == 0)
-            {
-                /* Set a placeholder */
-                lists[i].prdtl = 0xff;
-                *n = i;
-                return &lists[i];
-            }
-        }
-
-        sched_yield();
-    }
+    return (port->cmdslots[cmdslot].last_interrupt_status & AHCI_INTST_ERROR) != 0;
 }
 
 void ahci_issue_command(struct ahci_port *port, size_t slot)
 {
     port->port->command_issue = (1U << slot);
-}
-
-command_list_t *ahci_allocate_command_list(struct ahci_port *ahci_port, size_t *index)
-{
-    command_list_t *clist = ahci_port->clist;
-
-    spin_lock(&ahci_port->bitmap_spl);
-
-    wait_for_event_locked(&ahci_port->list_wq, ahci_port->list_bitmap != ~0U,
-                          &ahci_port->bitmap_spl);
-
-    unsigned int pos = __builtin_ctz(~ahci_port->list_bitmap);
-
-    ahci_port->list_bitmap |= (1 << pos);
-
-    spin_unlock(&ahci_port->bitmap_spl);
-
-    clist = clist + pos;
-
-    *index = (size_t) pos;
-
-    return clist;
 }
 
 size_t ahci_setup_prdt(prdt_t *table, struct phys_ranges *ranges)
@@ -370,6 +329,12 @@ void ahci_free_list(struct ahci_port *port, size_t idx);
 
 long ahci_setup_prdt_bio(prdt_t *prdt, struct bio_req *r, size_t *size)
 {
+    if (!r->vec)
+    {
+        *size = 0;
+        return 0;
+    }
+
     struct page_iov *v = r->vec + r->curr_vec_index;
     size_t left = r->nr_vecs - r->curr_vec_index;
 
@@ -404,146 +369,29 @@ long ahci_setup_prdt_bio(prdt_t *prdt, struct bio_req *r, size_t *size)
     return i;
 }
 
-bool ahci_do_command_async(struct ahci_port *ahci_port, struct ahci_command_ata *buf,
-                           struct aio_req *ioreq)
-{
-    const uint16_t fis_len = 5;
-    size_t list_index = 0;
-
-    command_list_t *list = ahci_allocate_command_list(ahci_port, &list_index);
-
-    list->desc_info = fis_len | (buf->write ? AHCI_COMMAND_LIST_WRITE : 0);
-    list->prdbc = 0;
-
-    command_table_t *table = (command_table_t *) PHYS_TO_VIRT(ahci_port->ctables[list_index]);
-
-    memset(table, 0, sizeof(command_table_t));
-
-    prdt_t *prdt = (prdt_t *) (table + 1);
-
-    long nr_prdt = 0;
-
-    if (buf->flags & AHCI_COMMAND_BIO_REQ)
-    {
-        struct bio_req *req = (bio_req *) buf->buffer;
-        if ((nr_prdt = ahci_setup_prdt_bio(prdt, req, &buf->size)) < 0)
-        {
-            ioreq->status = AIO_STATUS_EIO;
-            ahci_free_list(ahci_port, list_index);
-            return false;
-        }
-    }
-    else
-    {
-        struct phys_ranges ranges;
-
-        if (dma_get_ranges(buf->buffer, buf->size, PRDT_MAX_SIZE, &ranges) < 0)
-        {
-            ahci_free_list(ahci_port, list_index);
-            return false;
-        }
-
-        nr_prdt = (long) ahci_setup_prdt(prdt, &ranges);
-
-        /* TODO: Calling destroy ranges here isn't safe */
-        dma_destroy_ranges(&ranges);
-    }
-
-    list->prdtl = nr_prdt;
-
-    table->cfis.fis_type = FIS_TYPE_REG_H2D;
-
-    table->cfis.port_mult = 0;
-    table->cfis.c = 1;
-    table->cfis.feature_low = 1;
-
-    /* Load the LBA */
-    uint64_t lba = buf->lba;
-    // printk("Lba: %lu\n", lba);
-    ahci_set_lba(lba, &table->cfis);
-
-    /* We need to set bit 6 to enable the LBA mode */
-    if (buf->cmd == ATA_CMD_READ_DMA_EXT || buf->cmd == ATA_CMD_WRITE_DMA_EXT)
-        table->cfis.device = (1 << 6);
-    else
-        table->cfis.device = 0;
-
-    size_t num_sectors = buf->size / 512;
-    table->cfis.count = (uint16_t) num_sectors;
-    table->cfis.command = buf->cmd;
-
-    struct command_list *l = &ahci_port->cmdslots[list_index];
-
-    l->req = ioreq;
-    ioreq->cookie = (void *) list_index;
-
-    unsigned long cpu_flags = spin_lock_irqsave(&ahci_port->port_lock);
-
-    ahci_port->issued |= (1 << list_index);
-
-    ahci_issue_command(ahci_port, list_index);
-
-    spin_unlock_irqrestore(&ahci_port->port_lock, cpu_flags);
-
-    return true;
-}
-
-void ahci_wake_callback(void *cb, struct wait_queue_token *token)
-{
-    struct aio_req *req = (aio_req *) cb;
-    req->signaled = true;
-}
-
 bool ahci_do_command(struct ahci_port *ahci_port, struct ahci_command_ata *buf)
 {
-    struct aio_req req = {};
-    aio_req_init(&req);
+    struct bio_req r;
+    r.bdev = ahci_port->bdev.get();
+    r.curr_vec_index = 0;
+    r.flags = BIO_REQ_DEVICE_SPECIFIC;
+    r.device_specific[0] = buf->cmd;
+    r.sector_number = 0;
+    r.nr_vecs = buf->nr_iov;
+    r.vec = buf->iovec;
 
-    req.req_start = get_main_clock()->get_ns();
-    struct wait_queue_token wait_token = {};
-
-    wait_token.thread = get_current_thread();
-    wait_token.context = &req;
-    wait_token.callback = nullptr;
-
-    wait_queue_add(&req.wake_sem, &wait_token);
-
-    set_current_state(THREAD_UNINTERRUPTIBLE);
-
-    if (!ahci_do_command_async(ahci_port, buf, &req))
-    {
-        set_current_state(THREAD_RUNNABLE);
+    if (ahci_port->io_queue->submit_request(&r) < 0)
         return false;
-    }
 
-    while (!req.signaled)
-    {
-        sched_yield();
-        set_current_state(THREAD_UNINTERRUPTIBLE);
-    }
+    int st = wait_for(
+        &r,
+        [](void *_req) -> bool {
+            struct bio_req *r = (struct bio_req *) _req;
+            return r->flags & (BIO_REQ_DONE | BIO_REQ_EIO);
+        },
+        WAIT_FOR_FOREVER, 0);
 
-    set_current_state(THREAD_RUNNABLE);
-
-    while (!wait_queue_may_delete(&req.wake_sem))
-    {
-    }
-
-#if 0
-	if(req.req_end - req.req_start > NS_PER_SEC)
-		printk("Response time: %luns. Disk time: %luns\n", get_main_clock()->get_ns() - req.req_start,
-		       req.req_end - req.req_start);
-#endif
-
-    if (req.status == AIO_STATUS_OK)
-    {
-        ahci_destroy_aio(ahci_port, &req);
-        return true;
-    }
-    else
-    {
-        ahci_destroy_aio(ahci_port, &req);
-        return false;
-    }
+    return st == 0 && !(r.flags & BIO_REQ_EIO);
 }
 
 unsigned int ahci_check_drive_type(ahci_port_t *port)
@@ -742,8 +590,123 @@ int ahci_port_set_idle(ahci_port_t *port)
     return 0;
 }
 
-int ahci_allocate_port_lists(ahci_hba_memory_regs_t *hba, ahci_port_t *port,
-                             struct ahci_port *_port)
+bool ahci_port_has_device(ahci_port_t *port)
+{
+    uint32_t status = port->status;
+
+    uint32_t det = AHCI_PORT_STATUS_DET(status);
+
+    return det != 0;
+}
+
+void ahci_enable_interrupts_for_port(ahci_port_t *port)
+{
+    port->pxie = AHCI_PORT_ENABLED_INTERRUPTS;
+}
+
+int ahci_do_identify(struct ahci_port *port)
+{
+    switch (port->port->sig)
+    {
+        case SATA_SIG_ATA: {
+            struct ahci_command_ata command = {};
+            command.size = 512;
+            command.write = false;
+            command.lba = 0;
+            command.cmd = ATA_CMD_IDENTIFY;
+            page *p = alloc_page(PAGE_ALLOC_NO_ZERO);
+            if (!p)
+                return -ENOMEM;
+
+            struct page_iov v;
+            v.page = p;
+            v.length = sizeof(port->identify);
+            v.page_off = 0;
+
+            command.iovec = &v;
+            command.nr_iov = 1;
+
+            if (!ahci_do_command(port, &command))
+            {
+                printf("ATA_CMD_IDENTIFY failed!\n");
+                perror("error");
+                free_page(p);
+                return -1;
+            }
+
+            memcpy(&port->identify, PAGE_TO_VIRT(p), sizeof(port->identify));
+
+            free_page(p);
+
+            string_fix(port->identify.serial.word, sizeof(port->identify.serial.word));
+            string_fix(port->identify.model_id.word, sizeof(port->identify.model_id.word));
+            string_fix(port->identify.firmware_rev.word, sizeof(port->identify.firmware_rev.word));
+
+            port->bdev->nr_sectors = port->identify.lba_capacity2 != 0
+                                         ? port->identify.lba_capacity2
+                                         : port->identify.lba_capacity;
+
+            break;
+        }
+        default:
+            return -1;
+    }
+    return 0;
+}
+
+int ahci_io_queue::configure_port_dma()
+{
+    /* Allocate the pointer table */
+    if (!ctables.resize(nr_entries_))
+        return false;
+
+    /* Allocate ncs command tables and their respective PRDTs */
+
+    /* The allocations are required to fit in a single page
+     * The defaults are already very space efficient since you can fit
+     * 4 in a single page, without any waste
+     */
+    const size_t allocation_size = sizeof(command_table_t) + NUM_PRDT_PER_TABLE * sizeof(prdt_t);
+
+    struct page *current_buf_page = nullptr;
+    uint8_t *buf = nullptr;
+    size_t nr_tables_per_page = PAGE_SIZE / allocation_size;
+    /* Curr is the nr of allocations in the page
+     * It starts at nr_tables_per_page so it allocates a new one
+     */
+    size_t curr = nr_tables_per_page;
+
+    for (size_t i = 0; i < nr_entries_; i++)
+    {
+        if (curr == nr_tables_per_page)
+        {
+            current_buf_page = alloc_page(0);
+            if (!current_buf_page)
+                return false;
+
+            buf = (uint8_t *) page_to_phys(current_buf_page);
+            curr = 0;
+        }
+
+        ctables[i] = (command_table_t *) buf;
+        clist[i].base_address_lo = (uint32_t) (uintptr_t) buf;
+        clist[i].base_address_hi = ((uintptr_t) buf) >> 32;
+        buf += allocation_size;
+        curr++;
+    }
+
+    return true;
+}
+
+/**
+ * @brief Initialize the AHCI port's io queue
+ *
+ * @param hba HBA regs
+ * @param port AHCI port
+ * @parma _port AHCI port regs
+ * @return True if success, else false
+ */
+bool ahci_io_queue::init(ahci_hba_memory_regs_t *hba, ahci_port_t *port, ahci_port *_port)
 {
     bool addr64_supported = hba->host_cap & AHCI_CAP_ADDR64;
     /* Allocates the command list and the FIS buffer for a port */
@@ -770,14 +733,12 @@ int ahci_allocate_port_lists(ahci_hba_memory_regs_t *hba, ahci_port_t *port,
     /* We keep the virtual fisb in order to free it in case anything goes wrong */
     fisb = virtual2phys(virtual_fisb);
 
-    if ((uintptr_t) fisb > UINT32_MAX && addr64_supported == false)
+    if ((uintptr_t) fisb > UINT32_MAX && !addr64_supported)
         goto error;
 
-    _port->clist = (command_list_t *) mmiomap(command_list, PAGE_SIZE, VM_READ | VM_WRITE);
-    if (!_port->clist)
+    clist = (command_list_t *) mmiomap(command_list, PAGE_SIZE, VM_READ | VM_WRITE);
+    if (!clist)
         goto error;
-
-    _port->fisb = virtual_fisb;
 
     /* Set FB and CB */
     port->command_list_base_low = (uintptr_t) command_list & 0xFFFFFFFF;
@@ -787,138 +748,13 @@ int ahci_allocate_port_lists(ahci_hba_memory_regs_t *hba, ahci_port_t *port,
     if (addr64_supported)
         port->fis_list_base_hi = ((unsigned long) fisb) >> 32;
 
-    return 0;
+    return true;
 error:
     if (command_list_page)
         free_page(command_list_page);
     if (fisb)
         free(virtual_fisb);
-    return -1;
-}
-
-bool ahci_port_has_device(ahci_port_t *port)
-{
-    uint32_t status = port->status;
-
-    uint32_t det = AHCI_PORT_STATUS_DET(status);
-
-    return det != 0;
-}
-
-void ahci_enable_interrupts_for_port(ahci_port_t *port)
-{
-    port->pxie = AHCI_PORT_ENABLED_INTERRUPTS;
-}
-
-void ahci_free_list(struct ahci_port *port, size_t idx)
-{
-    command_list_t *list = port->clist + idx;
-
-    list->prdbc = 0;
-
-    port->cmdslots[idx].req = nullptr;
-
-    list->prdtl = 0;
-
-    spin_lock(&port->bitmap_spl);
-
-    bool needs_to_wake_up = port->list_bitmap == ~0U;
-
-    port->list_bitmap &= ~(1 << idx);
-
-    if (needs_to_wake_up)
-    {
-        wait_queue_wake(&port->list_wq);
-    }
-
-    spin_unlock(&port->bitmap_spl);
-}
-
-void ahci_destroy_aio(struct ahci_port *port, struct aio_req *req)
-{
-    ahci_free_list(port, (size_t) req->cookie);
-}
-
-int ahci_do_identify(struct ahci_port *port)
-{
-    switch (port->port->sig)
-    {
-        case SATA_SIG_ATA: {
-            struct ahci_command_ata command = {};
-            command.size = 512;
-            command.write = false;
-            command.lba = 0;
-            command.cmd = ATA_CMD_IDENTIFY;
-            command.buffer = (void *) &port->identify;
-
-            if (!ahci_do_command(port, &command))
-            {
-                printf("ATA_CMD_IDENTIFY failed!\n");
-                perror("error");
-                return -1;
-            }
-
-            string_fix(port->identify.serial.word, sizeof(port->identify.serial.word));
-            string_fix(port->identify.model_id.word, sizeof(port->identify.model_id.word));
-            string_fix(port->identify.firmware_rev.word, sizeof(port->identify.firmware_rev.word));
-
-            port->bdev->nr_sectors = port->identify.lba_capacity2 != 0
-                                         ? port->identify.lba_capacity2
-                                         : port->identify.lba_capacity;
-
-            break;
-        }
-        default:
-            return -1;
-    }
-    return 0;
-}
-
-int ahci_configure_port_dma(struct ahci_port *port, unsigned int ncs)
-{
-    /* Allocate the pointer table */
-    port->ctables = (command_table_t **) calloc(ncs, sizeof(void *));
-
-    if (!port->ctables)
-        return -1;
-
-    /* Allocate ncs command tables and their respective PRDTs */
-
-    /* The allocations are required to fit in a single page
-     * The defaults are already very space efficient since you can fit
-     * 4 in a single page, without any waste
-     */
-    const size_t allocation_size = sizeof(command_table_t) + NUM_PRDT_PER_TABLE * sizeof(prdt_t);
-
-    struct page *current_buf_page = nullptr;
-    uint8_t *buf = nullptr;
-    size_t nr_tables_per_page = PAGE_SIZE / allocation_size;
-    /* Curr is the nr of allocations in the page
-     * It starts at nr_tables_per_page so it allocates a new one
-     */
-    size_t curr = nr_tables_per_page;
-
-    for (size_t i = 0; i < ncs; i++)
-    {
-        if (curr == nr_tables_per_page)
-        {
-            current_buf_page = alloc_page(0);
-            if (!current_buf_page)
-                return -1;
-
-            buf = (uint8_t *) page_to_phys(current_buf_page);
-            curr = 0;
-        }
-
-        port->ctables[i] = (command_table_t *) buf;
-        port->clist[i].base_address_lo = (uint32_t) (uintptr_t) buf;
-        if (port->dev->hba->host_cap & AHCI_CAP_ADDR64)
-            port->clist[i].base_address_hi = ((uintptr_t) buf) >> 32;
-        buf += allocation_size;
-        curr++;
-    }
-
-    return 0;
+    return false;
 }
 
 void ahci_init_port(struct ahci_port *ahci_port)
@@ -945,19 +781,14 @@ void ahci_init_port(struct ahci_port *ahci_port)
 
     unsigned int ncs = AHCI_CAP_NCS(device->hba->host_cap);
     MPRINTF("AHCI controller supports %u command list slots\n", ncs);
-    ahci_port->list_bitmap = -(1 << ncs);
-    // wait queue debugging value: ~((1 << 1) - 1); true: -(1 << ncs)
-    if (ahci_allocate_port_lists(hba, port, ahci_port) < 0)
-    {
-        VERBOSE_MPRINTF("Failed to allocate the command and FIS lists for port %p\n", port);
-        return;
-    }
 
-    if (ahci_configure_port_dma(ahci_port, ncs) < 0)
-    {
-        VERBOSE_MPRINTF("Failed to configure command tables\n");
-        return;
-    }
+    ahci_port->io_queue = make_unique<ahci_io_queue>(ahci_port, ncs);
+    if (!ahci_port->io_queue)
+        panic("OOM configuring AHCI");
+
+    if (!ahci_port->io_queue->init(hba, port, ahci_port) ||
+        !ahci_port->io_queue->configure_port_dma())
+        panic("OOM configuring AHCI port");
 
     if (port->pxcmd & AHCI_PORT_CMD_CR)
     {
@@ -967,8 +798,6 @@ void ahci_init_port(struct ahci_port *ahci_port)
             MPRINTF("error: timeout waiting for PXCMD_CR to clear");
         }
     }
-
-    init_wait_queue_head(&ahci_port->list_wq);
 
     /* Enable FIS receive */
     port->pxcmd = port->pxcmd | AHCI_PORT_CMD_FRE;
@@ -997,7 +826,7 @@ int ahci_initialize(struct ahci_device *device)
         {
             VERBOSE_MPRINTF("Looking at port %d...\n", i);
             /* Do not create a device until we've checked the port has some device behind it */
-            if (ahci_port_has_device(&hba->ports[i]) == false)
+            if (!ahci_port_has_device(&hba->ports[i]))
                 continue;
             VERBOSE_MPRINTF("Port %d has device, continuing...\n", i);
 
@@ -1024,9 +853,7 @@ int ahci_initialize(struct ahci_device *device)
             }
 
             dev->device_info = &device->ports[i];
-            dev->read = ahci_read;
-            dev->write = ahci_write;
-            dev->submit_request = ahci_submit_request;
+            dev->submit_request = ahci_submit_request_new;
             dev->sector_size = 512;
 
             MPRINTF("Created %s for port %d\n", dev->name.c_str(), i);
@@ -1138,7 +965,7 @@ struct driver ahci_driver = {.name = "ahci",
                              .probe = ahci_probe,
                              .bus_type_node = {&ahci_driver}};
 
-static int ahci_init(void)
+static int ahci_init()
 {
     MPRINTF("initializing!\n");
 
@@ -1147,7 +974,7 @@ static int ahci_init(void)
     return 0;
 }
 
-int ahci_fini(void)
+int ahci_fini()
 {
     MPRINTF("de-initializing!\n");
     return 0;

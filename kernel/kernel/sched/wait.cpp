@@ -43,7 +43,7 @@ unsigned long wake_address(void *ptr)
 
     auto index = ht.get_hashtable_index(hash);
 
-    scoped_lock g{locks[index]};
+    scoped_lock<spinlock, true> g{locks[index]};
 
     auto lh = ht.get_hashtable(index);
 
@@ -104,7 +104,7 @@ int wait_for(void *ptr, bool (*complete)(void *), unsigned int flags, hrtime_t t
 
     auto index = ht.get_hashtable_index(hash);
 
-    scoped_lock g{locks[index]};
+    scoped_lock<spinlock, true> g{locks[index]};
 
     ht.add_element(token);
 
