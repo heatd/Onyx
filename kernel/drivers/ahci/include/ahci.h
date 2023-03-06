@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -12,10 +12,15 @@
 #include <stdint.h>
 
 #include <onyx/async_io.h>
+#include <onyx/block/io-queue.h>
 #include <onyx/spinlock.h>
+#include <onyx/types.h>
+#include <onyx/vector.h>
 
 #include <drivers/ata.h>
 #include <pci/pci.h>
+
+#include <onyx/pair.hpp>
 
 #define SATA_SIG_ATA   0x00000101 // SATA drive
 #define SATA_SIG_ATAPI 0xEB140101 // SATAPI drive
@@ -222,10 +227,62 @@ struct command_list
     uint32_t last_interrupt_status;
     uint32_t status;
     uint32_t tfd;
-    struct aio_req *req;
+    union {
+        struct aio_req *req;
+        struct bio_req *breq;
+    };
 };
 
 struct ahci_device;
+struct ahci_port;
+
+class ahci_io_queue final : public io_queue
+{
+protected:
+    ahci_port *port;
+    uint32_t list_bitmap;
+    command_list_t *clist;
+    struct command_list cmdslots[32];
+
+    /**
+     * @brief Allocate a command list slow
+     *
+     * @return Pair with pointer to command_list_t, index
+     */
+    cul::pair<command_list_t *, u16> allocate_clist();
+
+    /**
+     * @brief Submits IO to a device
+     *
+     * @param req bio_req to submit
+     * @return 0 on sucess, negative error codes
+     */
+    int device_io_submit(bio_req *req) override;
+
+    cul::vector<command_table_t *> ctables;
+
+    void free_slot(u16 pos);
+
+public:
+    ahci_io_queue(ahci_port *port, uint32_t ncs)
+        : io_queue{ncs}, port{port}, list_bitmap{-(1U << ncs)}
+    {
+    }
+
+    /**
+     * @brief Initialize the AHCI port's io queue
+     *
+     * @param hba HBA regs
+     * @param port AHCI port
+     * @parma _port AHCI port regs
+     * @return True if success, else false
+     */
+    bool init(ahci_hba_memory_regs_t *hba, ahci_port_t *port, ahci_port *_port);
+
+    int configure_port_dma();
+
+    void do_irq(u16 slot, u32 irq_status);
+};
 
 struct ahci_port
 {
@@ -235,12 +292,9 @@ struct ahci_port
     struct spinlock port_lock;
     command_table_t **ctables;
     prdt_t *prdt;
-    command_list_t *clist;
     void *fisb;
+    unique_ptr<ahci_io_queue> io_queue;
     struct command_list cmdslots[32];
-    uint32_t list_bitmap;
-    struct spinlock bitmap_spl;
-    struct wait_queue list_wq;
     ata_identify_response identify;
     uint32_t issued;
     unique_ptr<blockdev> bdev;
@@ -259,7 +313,8 @@ struct ahci_command_ata
     uint8_t cmd;
     size_t size;
     bool write;
-    void *buffer;
+    struct page_iov *iovec;
+    size_t nr_iov;
     uint64_t lba;
     unsigned int flags;
 };

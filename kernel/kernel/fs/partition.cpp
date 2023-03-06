@@ -191,6 +191,7 @@ int partition_setup_disk_gpt(struct blockdev *dev)
     struct page *p = nullptr;
     unsigned int nr_parts = 1;
     struct page *part_tab_pages = nullptr;
+
     struct page *gpt_header_pages = read_disk(dev, 1, dev->sector_size);
     if (!gpt_header_pages)
         return -errno;

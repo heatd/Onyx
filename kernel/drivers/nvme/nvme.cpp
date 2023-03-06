@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2022 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -60,12 +60,13 @@ int nvme_device::identify()
     cmd.cmd.dptr.prp[0] = (prp_entry_t) page_to_phys(identify_page_);
     cmd.cmd.dptr.prp[1] = 0;
     cmd.cmd.cdw10 = NVME_IDENTIFY_CNS_IDENTIFY_CONTROLLER;
+    cmd.req = nullptr;
 
     wait_queue wq;
     init_wait_queue_head(&wq);
     cmd.wq = &wq;
 
-    queues_[0].submit_command(&cmd);
+    queues_[0]->submit_command(&cmd);
 
     wait_for_event(&wq, cmd.has_response);
     return 0;
@@ -314,9 +315,9 @@ int nvme_device::init_drive(uint32_t nsid, unique_page identify_namespace_data)
  *
  * @param req Request
  * @param ns NVMe namespace
- * @return Expected object containing a prp_setup, or a negative error code
+ * @return Expected object containing a prp_setup pointer, or a negative error code
  */
-auto nvme_device::setup_prp(bio_req *req, nvme_namespace *ns) -> expected<prp_setup, int>
+auto nvme_device::setup_prp(bio_req *req, nvme_namespace *ns) -> expected<prp_setup *, int>
 {
     size_t xfer_size = 0;
 
@@ -339,26 +340,29 @@ auto nvme_device::setup_prp(bio_req *req, nvme_namespace *ns) -> expected<prp_se
         }
     }
 
-    prp_setup s{};
+    auto s = make_unique<prp_setup>();
 
-    s.xfer_blocks = xfer_size / ns->dev_->sector_size;
+    if (!s)
+        return unexpected{-ENOMEM};
+
+    s->xfer_blocks = xfer_size / ns->dev_->sector_size;
 
     // An empty transfer is invalid, and so is a request with a xfer_size % sector_size
-    if (s.xfer_blocks == 0 || xfer_size % ns->dev_->sector_size)
+    if (s->xfer_blocks == 0 || xfer_size % ns->dev_->sector_size)
         return unexpected{-EIO};
 
     // Check if we can transfer this number of sectors
     // This is limited by the command dword 12 (Number of logical blocks)
-    if (s.xfer_blocks - 1 > 0xffff)
+    if (s->xfer_blocks - 1 > 0xffff)
         return unexpected{-EIO};
 
-    s.nr_entries = req->nr_vecs;
-    s.first = (prp_entry_t) page_to_phys(req->vec[0].page) + req->vec[0].page_off;
+    s->nr_entries = req->nr_vecs;
+    s->first = (prp_entry_t) page_to_phys(req->vec[0].page) + req->vec[0].page_off;
 
-    if (s.nr_entries == 1) [[likely]]
+    if (s->nr_entries == 1) [[likely]]
     {
         // Fast path. Get out
-        return s;
+        return s.release();
     }
 
     size_t nr_entries = req->nr_vecs - 1;
@@ -381,7 +385,7 @@ auto nvme_device::setup_prp(bio_req *req, nvme_namespace *ns) -> expected<prp_se
             if (!current_list_page)
                 return unexpected{-ENOMEM};
 
-            if (!s.indirect_list.push_back(current_list_page))
+            if (!s->indirect_list.push_back(current_list_page))
                 return free_page(current_list_page), unexpected{-ENOMEM};
 
             if (current_list)
@@ -401,7 +405,7 @@ auto nvme_device::setup_prp(bio_req *req, nvme_namespace *ns) -> expected<prp_se
         v++;
     }
 
-    return s;
+    return s.release();
 }
 
 /**
@@ -445,27 +449,28 @@ int nvme_device::submit_request(nvme_namespace *ns, struct bio_req *req)
     cmd.cmd.cdw0.cdw0 = NVME_CMD_OPCODE(command) | NVME_CMD_FUSE_NORMAL | NVME_CMD_PSDT_PRP;
     cmd.cmd.nsid = ns->nsid_;
     cmd.cmd.cdw12 = 0;
+    cmd.req = req;
 
     auto ex = setup_prp(req, ns);
 
     if (ex.has_error())
     {
-        printf("Error setting up PRPs\n");
+        printf("nvme: Error setting up PRPs: %d\n", ex.error());
         req->flags |= BIO_REQ_EIO;
         return ex.error();
     }
 
-    const auto &prp = ex.value();
+    const auto prp = ex.value();
 
-    cmd.cmd.dptr.prp[0] = prp.first;
+    cmd.cmd.dptr.prp[0] = prp->first;
 
-    if (prp.nr_entries > 1)
-        cmd.cmd.dptr.prp[1] = (prp_entry_t) page_to_phys(prp.indirect_list[0]);
+    if (prp->nr_entries > 1)
+        cmd.cmd.dptr.prp[1] = (prp_entry_t) page_to_phys(prp->indirect_list[0]);
 
     // Set up the starting LBA and number of sectors
     cmd.cmd.cdw10 = (uint32_t) req->sector_number;
     cmd.cmd.cdw11 = (uint32_t) (req->sector_number >> 32);
-    cmd.cmd.cdw12 = (uint16_t) prp.xfer_blocks - 1; // TODO: FUA
+    cmd.cmd.cdw12 = (uint16_t) prp->xfer_blocks - 1; // TODO: FUA
     cmd.cmd.cdw13 = 0;
     cmd.cmd.cdw14 = 0;
 
@@ -474,9 +479,20 @@ int nvme_device::submit_request(nvme_namespace *ns, struct bio_req *req)
     cmd.wq = &wq;
 
     auto &queue = queues_[pick_io_queue(req)];
-    queue.submit_command(&cmd);
+    req->device_specific[0] = (unsigned long) &cmd;
+    req->device_specific[1] = (unsigned long) prp;
+
+    int st = queue->submit_request(req);
+
+    if (st < 0)
+    {
+        delete prp;
+        return st;
+    }
 
     wait_for_event(&wq, cmd.has_response);
+
+    delete prp;
 
     if (auto status = NVME_CQE_STATUS_CODE(cmd.response.dw3); status != 0)
     {
@@ -516,12 +532,13 @@ int nvme_device::cmd_create_io_submission_queue(uint16_t queue, uint64_t queue_a
     cmd.cmd.cdw11 = (unsigned int) completion_queue << 16 |
                     NVME_CREATE_IOSQ_PHYS_CONTIG; // Set bit0 (physically contiguous)
     cmd.cmd.cdw12 = 0;
+    cmd.req = nullptr;
 
     wait_queue wq;
     init_wait_queue_head(&wq);
     cmd.wq = &wq;
 
-    queues_[0].submit_command(&cmd);
+    queues_[0]->submit_command(&cmd);
 
     wait_for_event(&wq, cmd.has_response);
 
@@ -556,12 +573,13 @@ int nvme_device::cmd_create_io_completion_queue(uint16_t queue, uint64_t queue_a
     cmd.cmd.cdw11 = (unsigned int) interrupt_vector << 16 | NVME_CREATE_IOCQ_IEN |
                     NVME_CREATE_IOCQ_PHYS_CONTIG; // Set bit0 (physically contiguous)
     cmd.cmd.cdw12 = 0;
+    cmd.req = nullptr;
 
     wait_queue wq;
     init_wait_queue_head(&wq);
     cmd.wq = &wq;
 
-    queues_[0].submit_command(&cmd);
+    queues_[0]->submit_command(&cmd);
 
     wait_for_event(&wq, cmd.has_response);
 
@@ -586,16 +604,16 @@ int nvme_device::create_io_queue(uint16_t queue_index)
     bool needs_contiguous = caps & NVME_CAP_CQR;
     const uint16_t sq_size = cul::clamp(NVME_CAP_MQES(caps), NVME_DEFAULT_SQ_SIZE);
     const uint16_t cq_size = cul::clamp(NVME_CAP_MQES(caps), NVME_DEFAULT_CQ_SIZE);
-    nvme_queue q{this, (uint16_t) (queue_index + 1), sq_size, cq_size};
+    auto q = make_unique<nvme_queue>(this, (uint16_t) (queue_index + 1), sq_size, cq_size);
 
-    if (!q.init(needs_contiguous))
+    if (!q->init(needs_contiguous))
         return -ENOMEM;
 
     // TODO: Proper MSI and MSI-X multi-vector support
     const uint16_t interrupt_vector = 0;
     if (int st = cmd_create_io_completion_queue(queue_index + 1,
-                                                (uint64_t) page_to_phys(q.get_cq_pages()),
-                                                q.get_cq_queue_size(), interrupt_vector);
+                                                (uint64_t) page_to_phys(q->get_cq_pages()),
+                                                q->get_cq_queue_size(), interrupt_vector);
         st < 0)
     {
         printf("nvme%u: create io completion queue: error %d\n", device_index_, st);
@@ -603,18 +621,32 @@ int nvme_device::create_io_queue(uint16_t queue_index)
     }
 
     if (int st = cmd_create_io_submission_queue(queue_index + 1,
-                                                (uint64_t) page_to_phys(q.get_sq_pages()),
-                                                q.get_sq_queue_size(), queue_index + 1);
+                                                (uint64_t) page_to_phys(q->get_sq_pages()),
+                                                q->get_sq_queue_size(), queue_index + 1);
         st < 0)
     {
         printf("nvme%u: create io submission queue: error %d\n", device_index_, st);
         return st;
     }
 
-    if (!queues_.push_back(cul::move(q)))
-        return -ENOMEM;
+    struct cblk
+    {
+        unique_ptr<nvme_queue> q;
+        cul::vector<unique_ptr<nvme_queue>> &queues_;
+        bool success;
+    } c{cul::move(q), queues_, false};
 
-    return 0;
+    // Use this as a barrier for "Get out of IRQ"
+    // It's mostly reliable as IO queue creation is done at the beginning in a serialized fashion
+    // and it's our best chance to avoid atomics in hot paths.
+    smp::sync_call_with_local([](void *) {}, nullptr, cpumask::all(),
+                              [](void *ptr) {
+                                  struct cblk *c = (cblk *) ptr;
+                                  c->success = c->queues_.push_back(cul::move(c->q));
+                              },
+                              &c);
+
+    return c.success ? 0 : -ENOMEM;
 }
 
 /**
@@ -635,12 +667,13 @@ int nvme_device::init_io_queues()
     cmd.cmd.nsid = 0;
     cmd.cmd.cdw10 = NVME_SET_FEATURES_NUMBER_QUEUES;
     cmd.cmd.cdw11 = (desired_nr_queues << 16) | desired_nr_queues;
+    cmd.req = nullptr;
 
     wait_queue wq;
     init_wait_queue_head(&wq);
     cmd.wq = &wq;
 
-    queues_[0].submit_command(&cmd);
+    queues_[0]->submit_command(&cmd);
 
     wait_for_event(&wq, cmd.has_response);
 
@@ -693,12 +726,13 @@ int nvme_device::identify_namespace(uint32_t nsid)
     cmd.cmd.dptr.prp[0] = (prp_entry_t) page_to_phys(nsid_page);
     cmd.cmd.dptr.prp[1] = 0;
     cmd.cmd.cdw10 = NVME_IDENTIFY_CNS_IDENTIFY_NAMESPACE;
+    cmd.req = nullptr;
 
     wait_queue wq;
     init_wait_queue_head(&wq);
     cmd.wq = &wq;
 
-    queues_[0].submit_command(&cmd);
+    queues_[0]->submit_command(&cmd);
 
     wait_for_event(&wq, cmd.has_response);
 
@@ -733,12 +767,13 @@ int nvme_device::identify_namespaces()
     cmd.cmd.dptr.prp[0] = (prp_entry_t) page_to_phys(namespace_identify_page);
     cmd.cmd.dptr.prp[1] = 0;
     cmd.cmd.cdw10 = NVME_IDENTIFY_CNS_ACTIVE_NSPACE;
+    cmd.req = nullptr;
 
     wait_queue wq;
     init_wait_queue_head(&wq);
     cmd.wq = &wq;
 
-    queues_[0].submit_command(&cmd);
+    queues_[0]->submit_command(&cmd);
 
     wait_for_event(&wq, cmd.has_response);
 
@@ -766,7 +801,7 @@ int nvme_device::identify_namespaces()
  */
 nvme_device::nvme_queue::nvme_queue(nvme_device *dev, uint16_t index, unsigned int sq_size,
                                     unsigned int cq_size)
-    : dev_{dev}, sq_size_{sq_size}, cq_size_{cq_size}, index_{index}
+    : io_queue{sq_size}, dev_{dev}, sq_size_{sq_size}, cq_size_{cq_size}, index_{index}
 {
     spinlock_init(&lock_);
     const auto caps = dev->read_caps();
@@ -824,12 +859,21 @@ bool nvme_device::nvme_queue::handle_cq()
 
             memcpy(&command->response, cqe, sizeof(nvmecqe));
             command->has_response = true;
+            bio_req *next = nullptr;
+
+            if (command->req)
+            {
+                next = complete_request(command->req);
+            }
 
             if (command->wq)
                 wait_queue_wake_all(command->wq);
             queued_commands_[cid] = nullptr;
             queued_bitmap_.free_bit(cid);
             sq_head_ = NVME_CQE_SQHD(cqe->dw2);
+
+            if (next)
+                device_io_submit(next);
         }
         else
             break;
@@ -850,6 +894,17 @@ bool nvme_device::nvme_queue::handle_cq()
 }
 
 /**
+ * @brief Submits IO to a device
+ *
+ * @param req bio_req to submit
+ * @return 0 on sucess, negative error codes
+ */
+int nvme_device::nvme_queue::device_io_submit(bio_req *req)
+{
+    return submit_command((nvmecmd *) req->device_specific[0]);
+}
+
+/**
  * @brief Handle an IRQ
  *
  * @param ctx IRQ context (to figure out which MSI vector got triggered)
@@ -861,7 +916,7 @@ irqstatus_t nvme_device::handle_irq(const irq_context *ctx)
     bool handled = false;
     for (auto &q : queues_)
     {
-        handled |= q.handle_cq();
+        handled |= q->handle_cq();
     }
 
     return handled ? IRQ_HANDLED : IRQ_UNHANDLED;
@@ -874,16 +929,18 @@ irqstatus_t nvme_device::handle_irq(const irq_context *ctx)
  */
 bool nvme_device::init_admin_queue()
 {
-    bool success = queues_.push_back(nvme_queue{this, 0, NVME_DEFAULT_ADMIN_SUBMISSION_QUEUE_SIZE,
-                                                NVME_DEFAULT_ADMIN_COMPLETION_QUEUE_SIZE}) &&
-                   queues_[0].init(false);
+    auto q = make_unique<nvme_queue>(this, 0, NVME_DEFAULT_ADMIN_SUBMISSION_QUEUE_SIZE,
+                                     NVME_DEFAULT_ADMIN_COMPLETION_QUEUE_SIZE);
+    if (!q)
+        return false;
+    bool success = queues_.push_back(cul::move(q)) && queues_[0]->init(false);
     if (!success)
         return false;
-    regs_.write64(NVME_REG_ASQ, (uint64_t) page_to_phys(queues_[0].get_sq_pages()));
-    regs_.write64(NVME_REG_ACQ, (uint64_t) page_to_phys(queues_[0].get_cq_pages()));
+    regs_.write64(NVME_REG_ASQ, (uint64_t) page_to_phys(queues_[0]->get_sq_pages()));
+    regs_.write64(NVME_REG_ACQ, (uint64_t) page_to_phys(queues_[0]->get_cq_pages()));
     // The queue size values are 0's based, so subtract one
-    regs_.write32(NVME_REG_AQA, ((queues_[0].get_cq_queue_size() - 1) << 16) |
-                                    (queues_[0].get_sq_queue_size() - 1));
+    regs_.write32(NVME_REG_AQA, ((queues_[0]->get_cq_queue_size() - 1) << 16) |
+                                    (queues_[0]->get_sq_queue_size() - 1));
     return true;
 }
 
@@ -893,7 +950,7 @@ nvme_device::~nvme_device()
     auto ex = dev_->get_bar(0);
     assert(ex.has_value());
 
-    vm_munmap(&kernel_address_space, (void *) regs_.as_ptr(), ex.value().size);
+    mmiounmap((void *) regs_.as_ptr(), ex.value().size);
 }
 
 int nvme_probe(struct device *_dev)

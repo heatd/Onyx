@@ -33,7 +33,7 @@ menuentry "Onyx" {
     set gfxpayload=1024x768x32
 
     echo "Loading the vmonyx kernel"
-    multiboot2 /boot/vmonyx.xz --root=/dev/sda1
+    multiboot2 /boot/vmonyx.xz --root=/dev/nvme0n1p1
     echo "Loading the initrd"
     module2 /boot/${INITRD_NAME}
 

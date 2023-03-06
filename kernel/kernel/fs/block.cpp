@@ -30,7 +30,7 @@ static struct list_head dev_list = LIST_HEAD_INIT(dev_list);
  */
 struct blockdev *blkdev_search(const char *name)
 {
-    assert(name != NULL);
+    assert(name != nullptr);
 
     rw_lock_read(&dev_list_lock);
 
@@ -382,7 +382,7 @@ int blkdev_power(int op, struct blockdev *dev)
 
 int bio_submit_request(struct blockdev *dev, struct bio_req *req)
 {
-    if (unlikely(dev->submit_request == NULL))
+    if (unlikely(dev->submit_request == nullptr))
         return -EIO;
 
     return dev->submit_request(dev, req);

@@ -522,7 +522,6 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
     {
         ERROR("ext2", "invalid ext2 signature %x\n", ext2_sb->s_magic);
         errno = EINVAL;
-        block_buf_put(b);
         goto error;
     }
 
@@ -531,7 +530,6 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
     if (block_size > MAX_BLOCK_SIZE)
     {
         ERROR("ext2", "bad block size %u\n", block_size);
-        block_buf_put(b);
         goto error;
     }
 
