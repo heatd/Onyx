@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -1478,7 +1478,7 @@ extern "C" NO_ASAN void x86_bootstrap_kasan()
         auto newpml = ++shadow_pts;
 
         // Copy the old page table
-        memcpy(newpml, pml, PAGE_SIZE);
+        __memcpy(newpml, pml, PAGE_SIZE);
 
         oldpml->entries[indices[i - 1]] = (uint64_t) VA2PA(newpml) | page_table_flags;
         pml = (PML *) newpml;
@@ -1537,7 +1537,7 @@ int mmu_map_real_shadow(unsigned long virt)
             return -ENOMEM;
 
         // Copy the old page table
-        memcpy(PHYS_TO_VIRT(page), pml, PAGE_SIZE);
+        __memcpy(PHYS_TO_VIRT(page), pml, PAGE_SIZE);
 
         increment_vm_stat((&kernel_address_space), page_tables_size, PAGE_SIZE);
         oldpml->entries[indices[i - 1]] = (uint64_t) page | page_table_flags;

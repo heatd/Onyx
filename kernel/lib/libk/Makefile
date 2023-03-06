@@ -2,7 +2,6 @@ LIBK_OBJS:=\
 stdio/printf.o \
 stdio/puts.o \
 string/memcmp.o \
-string/memmove.o \
 string/memset.o \
 string/strlen.o \
 string/strcpy.o \

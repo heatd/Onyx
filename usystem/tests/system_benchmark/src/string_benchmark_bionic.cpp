@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2012 The Android Open Source Project
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2022 - 2023 Pedro Falcato
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,22 @@
 #define KB 1024
 #define MB 1024 * KB
 #define AT_COMMON_SIZES \
-    Arg(8)->Arg(64)->Arg(512)->Arg(1 * KB)->Arg(8 * KB)->Arg(16 * KB)->Arg(32 * KB)->Arg(64 * KB)
+    Arg(4)              \
+        ->Arg(8)        \
+        ->Arg(16)       \
+        ->Arg(32)       \
+        ->Arg(64)       \
+        ->Arg(128)      \
+        ->Arg(150)      \
+        ->Arg(192)      \
+        ->Arg(256)      \
+        ->Arg(384)      \
+        ->Arg(512)      \
+        ->Arg(1 * KB)   \
+        ->Arg(8 * KB)   \
+        ->Arg(16 * KB)  \
+        ->Arg(32 * KB)  \
+        ->Arg(64 * KB)
 
 // TODO: test unaligned operation too? (currently everything will be 8-byte aligned by malloc.)
 void BM_string_memcmp(benchmark::State& state)

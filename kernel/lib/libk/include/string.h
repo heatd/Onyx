@@ -22,8 +22,11 @@ extern "C" {
 
 #include <bits/alltypes.h>
 
-void *memcpy (void *__restrict, const void *__restrict, size_t);
-void *memmove (void *, const void *, size_t);
+void *memcpy(void *__restrict, const void *__restrict, size_t);
+void *memmove(void *, const void *, size_t);
+void *__memcpy(void *__restrict dest, const void *__restrict src, size_t len);
+void *__memmove(void *dest, const void *src, size_t len);
+
 void *memset (void *, int, size_t);
 void explicit_bzero(void *ptr, size_t size);
 int memcmp (const void *, const void *, size_t);

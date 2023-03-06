@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2022 Pedro Falcato
+ * Copyright (c) 2019 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -436,7 +436,7 @@ USED void __asan_version_mismatch_check_v8()
 {
 }
 
-USED void *__asan_memcpy(void *dst, const void *src, size_t n)
+USED void *memcpy(void *dst, const void *src, size_t n)
 {
     if (n == 0)
         return dst;
@@ -444,10 +444,10 @@ USED void *__asan_memcpy(void *dst, const void *src, size_t n)
     kasan_check_memory((unsigned long) dst, n, true);
     kasan_check_memory((unsigned long) src, n, false);
 
-    return memcpy(dst, src, n);
+    return __memcpy(dst, src, n);
 }
 
-USED void *__asan_memmove(void *dst, const void *src, size_t n)
+USED void *amemmove(void *dst, const void *src, size_t n)
 {
     if (n == 0)
         return dst;
@@ -455,7 +455,7 @@ USED void *__asan_memmove(void *dst, const void *src, size_t n)
     kasan_check_memory((unsigned long) dst, n, true);
     kasan_check_memory((unsigned long) src, n, false);
 
-    return memmove(dst, src, n);
+    return __memmove(dst, src, n);
 }
 
 USED void *__asan_memset(void *dst, int c, size_t n)

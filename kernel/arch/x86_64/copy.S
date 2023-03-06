@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 - 2022 Pedro Falcato
+ * Copyright (c) 2018 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -82,21 +82,6 @@ __set_non_temporal:
     jnz .L0
 
     xor %rax, %rax
-
-    RET
-
-.global memcpy
-.type memcpy, @function
-memcpy:
-    push %rbp
-    mov %rsp, %rbp
-
-    mov %rdx, %rcx
-    mov %rdi, %rax
-
-    rep movsb
-
-    pop %rbp
 
     RET
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2022 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -1081,7 +1081,7 @@ void *realloc(void *ptr, size_t size)
     auto newbuf = malloc(size);
     if (!newbuf)
         return nullptr;
-    memcpy(newbuf, ptr, size);
+    __memcpy(newbuf, ptr, old_slab->cache->objsize);
     kfree(ptr);
     return newbuf;
 }

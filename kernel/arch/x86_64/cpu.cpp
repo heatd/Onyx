@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -371,17 +371,6 @@ extern "C" void smpboot_main(unsigned long gs_base, volatile struct smp_header *
     ENABLE_INTERRUPTS();
 
     sched_transition_to_idle();
-}
-
-static void rep_movsb(void *dst, const void *src, size_t n)
-{
-    __asm__ __volatile__("rep movsb\n\t" : "+D"(dst), "+S"(src), "+c"(n) : : "memory");
-}
-
-void *memcpy_fast(void *dst, void *src, size_t n)
-{
-    rep_movsb(dst, src, n);
-    return dst;
 }
 
 bool is_kernel_ip(uintptr_t ip)
