@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2022 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -27,7 +27,7 @@ typedef uint64_t __u64;
 typedef uintptr_t __uptr;
 typedef size_t __usize;
 
-#ifndef ONYX_UAPI_HEADER
+#ifdef __is_onyx_kernel
 
 typedef __s8 s8;
 typedef __s16 s16;
