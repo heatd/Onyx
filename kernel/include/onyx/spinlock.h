@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -17,6 +17,7 @@
 #include <stdbool.h>
 
 #include <onyx/compiler.h>
+#include <onyx/preempt.h>
 #include <onyx/smp.h>
 #include <onyx/utils.h>
 
@@ -36,13 +37,12 @@ struct spinlock
 };
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-void spin_lock(struct spinlock *lock);
-void spin_unlock(struct spinlock *lock);
-void spin_lock_preempt(struct spinlock *lock);
-void spin_unlock_preempt(struct spinlock *lock);
+void __spin_lock(struct spinlock *lock);
+void __spin_unlock(struct spinlock *lock);
 int spin_try_lock(struct spinlock *lock);
 
 #ifndef __ONLY_INCLUDE_BASIC_C_DEFS
@@ -67,19 +67,32 @@ CONSTEXPR static inline void spinlock_init(struct spinlock *s)
 static inline FUNC_NO_DISCARD unsigned long spin_lock_irqsave(struct spinlock *lock)
 {
     unsigned long flags = irq_save_and_disable();
-    spin_lock_preempt(lock);
+    __spin_lock(lock);
     return flags;
 }
 
 static inline void spin_unlock_irqrestore(struct spinlock *lock, unsigned long old_flags)
 {
-    spin_unlock_preempt(lock);
+    __spin_unlock(lock);
     irq_restore(old_flags);
 }
 
 static inline bool spin_lock_held(struct spinlock *lock)
 {
     return lock->lock == get_cpu_nr() + 1;
+}
+
+static inline void spin_lock(struct spinlock *lock)
+{
+    sched_disable_preempt();
+
+    __spin_lock(lock);
+}
+
+static inline void spin_unlock(struct spinlock *lock)
+{
+    __spin_unlock(lock);
+    sched_enable_preempt();
 }
 
 #define MUST_HOLD_LOCK(lock) assert(spin_lock_held(lock) != false)

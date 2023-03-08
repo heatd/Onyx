@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Pedro Falcato
+ * Copyright (c) 2021 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -16,16 +16,18 @@
 // Clang doesn't implement %p yet
 // TODO: Implement and submit a PR?
 // clang-format off
-#define __PCPU_VAR             " %%gs:%c1"
+#define ____PCPU_VAR(index)             " %%gs:%c" index
 #define __PCPU_CONSTRAINT(var) "i"((unsigned long) &var)
 // clang-format on
 #else
 // GCC rejects the trick we use for clang, so use the "proper" solution here
 // clang-format off
-#define __PCPU_VAR             " %%gs:%p1"
+#define ____PCPU_VAR(index)             " %%gs:%p" index
 #define __PCPU_CONSTRAINT(var) "m"(var)
 // clang-format on
 #endif
+
+#define __PCPU_VAR ____PCPU_VAR("1")
 
 #define get_per_cpu_x86_internal(var, suffix, type)                                                \
     ({                                                                                             \
@@ -88,5 +90,21 @@
 #define add_per_cpu_2(var, val) add_per_cpu_internal(var, val, "w", uint16_t)
 #define add_per_cpu_4(var, val) add_per_cpu_internal(var, val, "l", uint32_t)
 #define add_per_cpu_8(var, val) add_per_cpu_internal(var, val, "q", uint64_t)
+
+#define inc_per_cpu_internal(var, suffix, type) \
+    ({ __asm__ __volatile__("inc" suffix ____PCPU_VAR("0")::__PCPU_CONSTRAINT(var)); })
+
+#define inc_per_cpu_1(var) inc_per_cpu_internal(var, "b", uint8_t)
+#define inc_per_cpu_2(var) inc_per_cpu_internal(var, "w", uint16_t)
+#define inc_per_cpu_4(var) inc_per_cpu_internal(var, "l", uint32_t)
+#define inc_per_cpu_8(var) inc_per_cpu_internal(var, "q", uint64_t)
+
+#define dec_per_cpu_internal(var, suffix, type) \
+    ({ __asm__ __volatile__("dec" suffix ____PCPU_VAR("0")::__PCPU_CONSTRAINT(var)); })
+
+#define dec_per_cpu_1(var) dec_per_cpu_internal(var, "b", uint8_t)
+#define dec_per_cpu_2(var) dec_per_cpu_internal(var, "w", uint16_t)
+#define dec_per_cpu_4(var) dec_per_cpu_internal(var, "l", uint32_t)
+#define dec_per_cpu_8(var) dec_per_cpu_internal(var, "q", uint64_t)
 
 #endif

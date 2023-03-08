@@ -24,7 +24,8 @@ struct irq_context
 };
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
 static inline unsigned long x86_save_flags(void)
@@ -39,12 +40,12 @@ static inline void irq_disable(void)
     __asm__ __volatile__("cli");
 }
 
-static inline void irq_enable(void)
+static inline void irq_enable()
 {
     __asm__ __volatile__("sti");
 }
 
-static inline unsigned long irq_save_and_disable(void)
+static inline unsigned long irq_save_and_disable()
 {
     unsigned long old = x86_save_flags();
     irq_disable();
@@ -54,26 +55,16 @@ static inline unsigned long irq_save_and_disable(void)
 
 #define CPU_FLAGS_NO_IRQ (0)
 
-static inline bool irq_is_disabled(void)
+static inline bool irq_is_disabled()
 {
     return !(x86_save_flags() & EFLAGS_INT_ENABLED);
 }
-
-void softirq_try_handle(void);
-bool sched_is_preemption_disabled(void);
-void sched_try_to_resched_if_needed(void);
 
 static inline void irq_restore(unsigned long flags)
 {
     if (flags & EFLAGS_INT_ENABLED)
     {
         irq_enable();
-
-        if (!sched_is_preemption_disabled())
-        {
-            softirq_try_handle();
-            sched_try_to_resched_if_needed();
-        }
     }
 }
 

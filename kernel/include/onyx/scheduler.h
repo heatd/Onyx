@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -16,6 +16,7 @@
 #include <onyx/cputime.h>
 #include <onyx/list.h>
 #include <onyx/percpu.h>
+#include <onyx/preempt.h>
 #include <onyx/signal.h>
 #include <onyx/spinlock.h>
 
@@ -142,8 +143,6 @@ void thread_set_state(thread_t *thread, int state);
 
 void thread_wake_up(thread_t *thread);
 
-bool sched_is_preemption_disabled(void);
-
 void sched_sleep_until_wake(void);
 
 void thread_wake_up_ftx(thread_t *thread);
@@ -153,16 +152,6 @@ void thread_reset_futex_state(thread_t *thread);
 void sched_start_thread(thread_t *thread);
 
 void sched_wake_up_available_threads(void);
-
-void sched_enable_preempt(void);
-
-void sched_disable_preempt(void);
-
-void sched_enable_preempt_no_softirq(void);
-
-void sched_enable_preempt_for_cpu(unsigned int cpu);
-
-void sched_disable_preempt_for_cpu(unsigned int cpu);
 
 void sched_block(struct thread *thread);
 
@@ -232,8 +221,6 @@ static inline void sched_sleep_ms(unsigned long ms)
 {
     sched_sleep(ms * NS_PER_MS);
 }
-
-void sched_enable_pulse(void);
 
 #ifdef __cplusplus
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -44,6 +44,10 @@
 #define strong_alias_c_name(name, aliasname) _strong_alias_c_name(name, aliasname)
 #define _strong_alias_c_name(name, aliasname) \
     extern "C" __typeof(name) aliasname __attribute__((alias(#name)));
+
+#define __always_inline static inline __attribute__((always_inline))
+#define __noinline      __attribute__((noinline))
+#define __packed        __attribute__((packed))
 
 #define NO_ASAN __attribute__((no_sanitize_address))
 

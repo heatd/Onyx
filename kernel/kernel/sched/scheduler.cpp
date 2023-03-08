@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -30,6 +30,7 @@
 #include <onyx/process.h>
 #include <onyx/rwlock.h>
 #include <onyx/semaphore.h>
+#include <onyx/softirq.h>
 #include <onyx/spinlock.h>
 #include <onyx/task_switching.h>
 #include <onyx/timer.h>
@@ -242,16 +243,6 @@ thread_t *sched_find_runnable(void)
 }
 
 PER_CPU_VAR(unsigned long preemption_counter) = 0;
-
-bool sched_is_preemption_disabled(void)
-{
-    return get_per_cpu(preemption_counter) > 0;
-}
-
-unsigned long sched_get_preempt_counter(void)
-{
-    return get_per_cpu(preemption_counter);
-}
 
 void sched_save_thread(thread *thread, void *stack)
 {
@@ -927,7 +918,7 @@ void condvar_wait_unlocked(cond *var)
 
     enqueue_thread_condvar(var, current);
 
-    spin_unlock_preempt(&var->llock);
+    __spin_unlock(&var->llock);
 
     __sched_block(current, f);
 
@@ -1049,24 +1040,7 @@ void sem_signal(semaphore *sem)
     spin_unlock_irqrestore(&sem->lock, cpu_flags);
 }
 
-/* TODO: Optimise these code paths */
-
-void sched_enable_preempt_for_cpu(unsigned int cpu)
-{
-    unsigned long *preempt_counter = get_per_cpu_ptr_any(preemption_counter, cpu);
-
-    // assert(*preempt_counter > 0);
-
-    __atomic_fetch_add(preempt_counter, -1, __ATOMIC_RELAXED);
-}
-
-void sched_disable_preempt_for_cpu(unsigned int cpu)
-{
-    unsigned long *preempt_counter = get_per_cpu_ptr_any(preemption_counter, cpu);
-    __atomic_fetch_add(preempt_counter, 1, __ATOMIC_RELAXED);
-}
-
-void sched_try_to_resched_if_needed(void)
+void sched_try_to_resched_if_needed()
 {
     thread *current = get_current_thread();
 
@@ -1077,28 +1051,16 @@ void sched_try_to_resched_if_needed(void)
     }
 }
 
-void sched_enable_preempt_no_softirq(void)
+void sched_handle_preempt(bool may_softirq)
 {
-    add_per_cpu(preemption_counter, -1);
-
-    sched_try_to_resched_if_needed();
-}
-
-void sched_enable_preempt(void)
-{
-    // assert(*preempt_counter > 0);
-
-    add_per_cpu(preemption_counter, -1);
-
-    if (get_per_cpu(preemption_counter) == 0 && !irq_is_disabled())
-        softirq_try_handle();
-
-    sched_try_to_resched_if_needed();
-}
-
-void sched_disable_preempt(void)
-{
-    add_per_cpu(preemption_counter, 1);
+    if (may_softirq && softirq_pending()) [[unlikely]]
+        softirq_handle();
+    auto curr = get_current_thread();
+    if (curr && curr->flags & THREAD_NEEDS_RESCHED) [[unlikely]]
+    {
+        sched_yield();
+        curr->flags &= ~THREAD_NEEDS_RESCHED;
+    }
 }
 
 void __sched_kill_other(thread *thread, unsigned int cpu)

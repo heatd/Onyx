@@ -1,10 +1,12 @@
 /*
- * Copyright (c) 2019 Pedro Falcato
- * This file is part of Carbon, and is released under the terms of the MIT License
+ * Copyright (c) 2019 - 2023 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
-#ifndef _CARBON_PERCPU_H
-#define _CARBON_PERCPU_H
+#ifndef _ONYX_PERCPU_H
+#define _ONYX_PERCPU_H
 #include <stdbool.h>
 
 #include <onyx/compiler.h>
@@ -66,6 +68,80 @@
                 break;                   \
         }                                \
     })
+
+// INC/DEC operations can use the intrinsic ops defined
+// by the arch percpu, or they fallback to add_per_cpu
+#ifdef inc_per_cpu_1
+
+#define inc_per_cpu(var)            \
+    ({                              \
+        switch (sizeof(var))        \
+        {                           \
+            case 1:                 \
+                inc_per_cpu_1(var); \
+                break;              \
+            case 2:                 \
+                inc_per_cpu_2(var); \
+                break;              \
+            case 4:                 \
+                inc_per_cpu_4(var); \
+                break;              \
+            case 8:                 \
+                inc_per_cpu_8(var); \
+                break;              \
+        }                           \
+    })
+#else
+#define inc_per_cpu(var) add_per_cpu(var, 1)
+#endif
+
+#ifdef inc_per_cpu_1
+
+#define inc_per_cpu(var)            \
+    ({                              \
+        switch (sizeof(var))        \
+        {                           \
+            case 1:                 \
+                inc_per_cpu_1(var); \
+                break;              \
+            case 2:                 \
+                inc_per_cpu_2(var); \
+                break;              \
+            case 4:                 \
+                inc_per_cpu_4(var); \
+                break;              \
+            case 8:                 \
+                inc_per_cpu_8(var); \
+                break;              \
+        }                           \
+    })
+#else
+#define inc_per_cpu(var) add_per_cpu(var, 1)
+#endif
+
+#ifdef dec_per_cpu_1
+
+#define dec_per_cpu(var)            \
+    ({                              \
+        switch (sizeof(var))        \
+        {                           \
+            case 1:                 \
+                dec_per_cpu_1(var); \
+                break;              \
+            case 2:                 \
+                dec_per_cpu_2(var); \
+                break;              \
+            case 4:                 \
+                dec_per_cpu_4(var); \
+                break;              \
+            case 8:                 \
+                dec_per_cpu_8(var); \
+                break;              \
+        }                           \
+    })
+#else
+#define dec_per_cpu(var) add_per_cpu(var, -1)
+#endif
 
 #else
 
