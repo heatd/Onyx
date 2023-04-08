@@ -219,7 +219,8 @@ void ioapic_mask_pin(uint32_t pin)
 
 #ifndef CONFIG_ACPI
 
-ACPI_STATUS AcpiGetTable(ACPI_STRING name, UINT32 instance, ACPI_TABLE_HEADER **out)
+acpi_status acpi_get_table(acpi_string signature, u32 instance,
+                           struct acpi_table_header **out_table)
 {
     return AE_NOT_IMPLEMENTED;
 }
