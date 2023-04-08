@@ -105,7 +105,7 @@ public:
         if (range != nullptr)
         {
             // Was mapped, unmap it
-            vm_munmap(&kernel_address_space, (void *) range, HPET_EVENT_BLOCK_LENGTH);
+            mmiounmap((void *) range, HPET_EVENT_BLOCK_LENGTH);
         }
     }
 

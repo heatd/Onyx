@@ -1888,48 +1888,6 @@ void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags)
     return __map_pages_to_vaddr(nullptr, virt, phys, size, flags);
 }
 
-/**
- * @brief Creates a mapping of MMIO memory.
- * Note: This function does not add any implicit caching behaviour by default.
- *
- * @param phys The start of the physical range.
- * @param size The size of the physical range.
- * @param flags Permissions on the new region.
- * @return A pointer to the new mapping, or NULL with errno set on error.
- */
-void *mmiomap(void *phys, size_t size, size_t flags)
-{
-    uintptr_t u = (uintptr_t) phys;
-    uintptr_t p_off = u & (PAGE_SIZE - 1);
-
-    size_t pages = vm_size_to_pages(size);
-    if (p_off)
-    {
-        pages++;
-        size += p_off;
-    }
-
-    struct vm_region *entry = vm_allocate_virt_region(flags & VM_USER ? VM_ADDRESS_USER : VM_KERNEL,
-                                                      pages, VM_TYPE_REGULAR, flags);
-    if (!entry)
-    {
-        printf("mmiomap: Could not allocate virtual range\n");
-        return nullptr;
-    }
-
-    u &= ~(PAGE_SIZE - 1);
-
-    /* TODO: Clean up if something goes wrong */
-    void *p = map_pages_to_vaddr((void *) entry->base, (void *) u, size, flags | VM_NOFLUSH);
-    if (!p)
-    {
-        printf("map_pages_to_vaddr: Could not map pages\n");
-        return nullptr;
-    }
-
-    return (void *) ((uintptr_t) p + p_off);
-}
-
 struct vm_pf_context
 {
     /* The vm region in question */

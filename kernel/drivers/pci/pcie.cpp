@@ -298,7 +298,7 @@ int pcie_init(void)
 
         if (!allocations.push_back(cul::move(allocation)))
         {
-            vm_munmap(&kernel_address_space, (void *) allocation.address, size);
+            mmiounmap((void *) allocation.address, size);
             return -ENOMEM;
         }
 

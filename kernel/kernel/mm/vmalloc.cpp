@@ -258,12 +258,13 @@ static struct vmalloc_region *vfind(void *ptr)
 }
 
 /**
- * @brief Frees a region of memory previously allocated by vmalloc.
+ * @brief Frees a region of memory previously allocated by vmalloc or mmiomap.
  *
  * @param ptr A pointer to the allocation.
  * @param pages The number of pages it consists in.
+ * @param is_mmiounmap Skip certain checks
  */
-void vfree(void *ptr, size_t pages)
+static void __vfree(void *ptr, size_t pages, bool is_mmiounmap)
 {
     scoped_lock g{vmalloc_tree.lock};
     if ((unsigned long) ptr & (PAGE_SIZE - 1))
@@ -276,7 +277,7 @@ void vfree(void *ptr, size_t pages)
         panic("vfree: Bad pointer %p not mapped\n", ptr);
     }
 
-    if (reg->addr != (unsigned long) ptr)
+    if (!is_mmiounmap && reg->addr != (unsigned long) ptr)
     {
         panic("vfree: Pointer %p does not point to start of vmalloc allocation %lx\n", ptr,
               reg->addr);
@@ -294,7 +295,8 @@ void vfree(void *ptr, size_t pages)
 #endif
 
     // First, free the pages, then unmap the memory, then finally unlink it
-    free_pages(reg->backing_pgs);
+    if (!is_mmiounmap && reg->backing_pgs)
+        free_pages(reg->backing_pgs);
 
     vm_mmu_unmap(&kernel_address_space, (void *) reg->addr, reg->pages);
 
@@ -303,6 +305,76 @@ void vfree(void *ptr, size_t pages)
 
     // and delete it
     pool.free(reg);
+}
+
+/**
+ * @brief Frees a region of memory previously allocated by vmalloc
+ *
+ * @param ptr A pointer to the allocation.
+ * @param pages The number of pages it consists in.
+ */
+void vfree(void *ptr, size_t pages)
+{
+    return __vfree(ptr, pages, false);
+}
+
+/**
+ * @brief Creates a mapping of MMIO memory.
+ * Note: This function does not add any implicit caching behaviour by default.
+ *
+ * @param phys The start of the physical range.
+ * @param size The size of the physical range.
+ * @param flags Permissions on the new region.
+ * @return A pointer to the new mapping, or NULL with errno set on error.
+ */
+void *mmiomap(void *phys, size_t size, size_t flags)
+{
+    size_t pages = vm_size_to_pages(size);
+    scoped_lock g{vmalloc_tree.lock};
+    auto start = vmalloc_allocate_base(&vmalloc_tree, 0, pages << PAGE_SHIFT);
+
+    if (start + (pages << PAGE_SHIFT) > vmalloc_tree.start + vmalloc_tree.length)
+        return errno = ENOMEM, nullptr;
+
+    auto vmal_reg = vmalloc_insert_region(&vmalloc_tree, start, pages, flags);
+    if (!vmal_reg)
+        return errno = ENOMEM, nullptr;
+
+    auto delvmr = [vmal_reg]() {
+        bst_delete(&vmalloc_tree.root, &vmal_reg->tree_node);
+        pool.free(vmal_reg);
+    };
+
+#ifdef CONFIG_KASAN
+    if (kasan_alloc_shadow(vmal_reg->addr, pages << PAGE_SHIFT, true) < 0)
+    {
+        delvmr();
+        return errno = ENOMEM, nullptr;
+    }
+#endif
+    unsigned long u = ((unsigned long) phys) & ~(PAGE_SIZE - 1);
+    unsigned long p_off = ((unsigned long) phys) & (PAGE_SIZE - 1);
+
+    void *p = map_pages_to_vaddr((void *) vmal_reg->addr, (void *) u, size, flags | VM_NOFLUSH);
+    if (!p)
+    {
+        printf("map_pages_to_vaddr: Could not map pages\n");
+        delvmr();
+        return errno = ENOMEM, nullptr;
+    }
+
+    return (void *) ((uintptr_t) p + p_off);
+}
+
+/**
+ * @brief Unmaps a mmio region
+ *
+ * @param virt Virtual address
+ * @param size Size
+ */
+void mmiounmap(void *virt, size_t size)
+{
+    __vfree(virt, vm_size_to_pages(size), true);
 }
 
 /**

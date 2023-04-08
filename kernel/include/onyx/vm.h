@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -389,6 +389,14 @@ void vm_do_fatal_page_fault(struct fault_info *info);
  * @return A pointer to the new mapping, or NULL with errno set on error.
  */
 void *mmiomap(void *phys, size_t size, size_t flags);
+
+/**
+ * @brief Unmaps a mmio region
+ *
+ * @param virt Virtual address
+ * @param size Size
+ */
+void mmiounmap(void *virt, size_t size);
 
 /**
  * @brief Destroys an address space.
