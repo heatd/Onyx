@@ -447,7 +447,7 @@ USED void *memcpy(void *dst, const void *src, size_t n)
     return __memcpy(dst, src, n);
 }
 
-USED void *amemmove(void *dst, const void *src, size_t n)
+USED void *memmove(void *dst, const void *src, size_t n)
 {
     if (n == 0)
         return dst;
@@ -458,6 +458,7 @@ USED void *amemmove(void *dst, const void *src, size_t n)
     return __memmove(dst, src, n);
 }
 
+// TODO(heat): Make memset intercepted (since it may be implemented in assembly)
 USED void *__asan_memset(void *dst, int c, size_t n)
 {
     if (n == 0)
@@ -671,14 +672,14 @@ extern "C" USED void __asan_allocas_unpoison(unsigned long top, unsigned long bo
  */
 size_t kasan_get_redzone_size(size_t objsize)
 {
-    if (objsize >= 128)
-        return 64;
-    else if (objsize >= 512)
-        return 128;
+    if (objsize >= 2048)
+        return 512;
     else if (objsize >= 1024)
         return 256;
-    else if (objsize >= 2048)
-        return 512;
+    else if (objsize >= 512)
+        return 128;
+    else if (objsize >= 128)
+        return 64;
     else if (objsize < 32)
         return 16;
     else if (objsize < 128)
