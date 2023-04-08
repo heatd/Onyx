@@ -221,9 +221,11 @@ struct clock_time *get_raw_clock_time(clockid_t clkid)
     return &clocks[clkid];
 }
 
-time_t clock_get_posix_time(void)
+time_t clock_get_posix_time()
 {
-    return get_raw_clock_time(CLOCK_REALTIME)->epoch;
+    struct timespec tp;
+    clock_gettime_kernel(CLOCK_REALTIME, &tp);
+    return tp.tv_sec;
 }
 
 void ndelay(unsigned int ns)
