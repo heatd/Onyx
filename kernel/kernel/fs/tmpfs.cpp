@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -19,6 +19,7 @@
 #include <onyx/log.h>
 #include <onyx/mutex.h>
 #include <onyx/page.h>
+#include <onyx/public/memstat.h>
 #include <onyx/tmpfs.h>
 #include <onyx/vfs.h>
 
@@ -168,6 +169,9 @@ int tmpfs_prepare_write(inode *ino, struct page *page, size_t page_off, size_t o
     {
         ino->i_blocks += PAGE_SIZE / 512;
         page->flags |= PAGE_FLAG_FILESYSTEM1;
+
+        ((tmpfs_superblock *) ino->i_sb)->nblocks++;
+        // TODO: Decrement this when truncating/killing inodes
     }
 
     return 0;
@@ -179,6 +183,7 @@ void tmpfs_close(inode *file)
 
     if (ino->link)
         free((void *) ino->link);
+    ((tmpfs_superblock *) ino->i_sb)->ino_nr--;
 }
 
 int tmpfs_ftruncate(size_t len, file *f)
@@ -258,6 +263,8 @@ tmpfs_inode *tmpfs_superblock::create_inode(mode_t mode, dev_t rdev)
             return nullptr;
         }
     }
+
+    ino_nr++;
 
     superblock_add_inode(this, ino.get());
 
@@ -350,4 +357,23 @@ __init void tmpfs_init()
 {
     if (auto st = fs_mount_add(tmpfs_mount, FS_MOUNT_PSEUDO_FS, "tmpfs"); st < 0)
         ERROR("tmpfs", "Failed to register tmpfs - error %d", st);
+}
+
+#define TMPFS_MAGIC 0x11102002
+
+int tmpfs_statfs(struct statfs *buf, struct superblock *sb)
+{
+    tmpfs_superblock *s = (tmpfs_superblock *) sb;
+    buf->f_type = TMPFS_MAGIC;
+    buf->f_bsize = PAGE_SIZE;
+    struct memstat mbuf;
+    page_get_stats(&mbuf);
+    buf->f_bavail = buf->f_blocks = mbuf.total_pages - mbuf.allocated_pages;
+    buf->f_blocks = s->nblocks;
+    buf->f_files = s->ino_nr;
+    memset(&buf->f_fsid, 0, sizeof(buf->f_fsid));
+    buf->f_ffree = 0xffffffff;
+    buf->f_namelen = NAME_MAX;
+    buf->f_flags = 0;
+    return 0;
 }

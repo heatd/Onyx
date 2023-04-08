@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -25,6 +25,8 @@ struct tmpfs_inode : public inode
 
 extern file_ops tmpfs_fops;
 
+int tmpfs_statfs(struct statfs *buf, struct superblock *sb);
+
 class tmpfs_superblock : public superblock
 {
 private:
@@ -38,6 +40,8 @@ public:
     list_head_cpp<tmpfs_superblock> fs_list_node;
 
     file_ops *tmpfs_ops_;
+    atomic<size_t> nblocks;
+    atomic<size_t> ino_nr;
 
     tmpfs_superblock()
         : superblock{}, curr_inode{}, fs_minor{++curr_minor_number}, fs_list_node{this},
@@ -46,6 +50,7 @@ public:
         superblock_init(this);
         s_block_size = PAGE_SIZE;
         s_flags = SB_FLAG_NODIRTY | SB_FLAG_IN_MEMORY;
+        this->statfs = tmpfs_statfs;
     }
 
     tmpfs_inode *create_inode(mode_t mode, dev_t rdev = 0);
