@@ -159,7 +159,7 @@ public:
 
     ~ide_dev()
     {
-        vm_munmap(&kernel_address_space, prdt, prdt_nr_pages << PAGE_SHIFT);
+        mmiounmap(prdt, prdt_nr_pages << PAGE_SHIFT);
         free_pages(prdt_page);
     }
 
