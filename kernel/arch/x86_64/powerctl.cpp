@@ -75,7 +75,7 @@ extern "C" int do_machine_reboot(unsigned int flags)
 
 #ifndef CONFIG_ACPI
 
-ACPI_STATUS acpi_shutdown()
+acpi_status acpi_shutdown()
 {
     return AE_NOT_IMPLEMENTED;
 }
