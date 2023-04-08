@@ -1,42 +1,50 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <string.h>
 
-char *strchr(const char *s, int c)
+char *strchr(const char *str, int c)
 {
-    while (*s != c && *s != '\0')
-        s++;
-
-    if (*s == '\0')
-        return NULL;
-    return (char *) s;
-}
-
-char *strnchr(const char *s, size_t len, int c)
-{
-    while (*s != c && *s != '\0' && len)
-    {
-        s++;
-        len--;
-    }
-
-    if (len == 0 || *s == '\0')
-        return NULL;
-    return (char *) s;
-}
-
-char *strrchr(const char *s, int c)
-{
-    size_t len = strlen(s);
-
-    while (len--)
+    char *s = (char *) str;
+    for (;; s++)
     {
         if (*s == c)
-            return (char *) s;
-        s--;
+            return s;
+
+        if (*s == '\0')
+            return NULL;
+    }
+}
+
+char *strrchr(const char *str, int c)
+{
+    char *s = (char *) str;
+    char *last = NULL;
+
+    for (;; s++)
+    {
+        if (*s == c)
+            last = s;
+
+        if (*s == '\0')
+            return last;
+    }
+}
+
+char *strnchr(const char *str, size_t len, int c)
+{
+    char *s = (char *) str;
+    for (; len > 0; s++, len--)
+    {
+        if (*s == c)
+            return s;
+
+        if (*s == '\0')
+            break;
     }
 
     return NULL;
