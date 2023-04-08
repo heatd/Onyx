@@ -301,6 +301,11 @@ NO_ASAN void sched_load_finish(thread *prev_thread, thread *next_thread)
 #endif
     sched_load_thread(next_thread, get_cpu_nr());
 
+    if (prev_thread)
+        prev_thread->flags &= ~THREAD_RUNNING;
+
+    next_thread->flags |= THREAD_RUNNING;
+
     if (prev_thread && prev_thread->status == THREAD_DEAD && prev_thread->flags & THREAD_IS_DYING)
     {
         /* Finally, kill the thread for good */
@@ -1102,4 +1107,16 @@ extern "C" unsigned long thread_get_addr_limit(void)
         return VM_KERNEL_ADDR_LIMIT;
     assert(t->addr_limit != 0);
     return t->addr_limit;
+}
+
+/**
+ * @brief Check if we can sleep (to be used by debugging functions)
+ *
+ * @return True if we can, else false
+ */
+bool __can_sleep_internal()
+{
+    if (!get_current_thread() || is_in_panic())
+        return true;
+    return !sched_is_preemption_disabled() && !irq_is_disabled();
 }

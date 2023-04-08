@@ -135,18 +135,9 @@ static inline void mutex_postlock(mutex *mtx)
 {
 }
 
-void must_not_sleep()
-{
-    if (sched_is_preemption_disabled())
-    {
-        halt();
-        panic("Mutexes may not be used under disabled preemption");
-    }
-}
-
 int __mutex_lock(struct mutex *mutex, int state)
 {
-    // must_not_sleep();
+    MAY_SLEEP();
     int ret = 0;
     if (!mutex_trylock(mutex)) [[unlikely]]
         ret = mutex_lock_slow_path(mutex, state);
@@ -171,6 +162,7 @@ int mutex_lock_interruptible(struct mutex *mutex)
 
 void mutex_unlock(struct mutex *mutex)
 {
+    // MAY_SLEEP();
     __atomic_store_n(&mutex->counter, 0, __ATOMIC_RELEASE);
 
     scoped_lock g{mutex->llock};
