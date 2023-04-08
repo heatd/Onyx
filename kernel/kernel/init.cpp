@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -232,8 +232,6 @@ extern "C" void kernel_main(void)
 
     assert(new_thread);
 
-    do_init_level(INIT_LEVEL_CORE_AFTER_SCHED);
-
     /* Start the new thread */
     sched_start_thread(new_thread);
 
@@ -249,6 +247,8 @@ void kernel_multitasking(void *arg)
     /* Execute ktests */
     do_ktests();
 #endif
+
+    do_init_level(INIT_LEVEL_CORE_AFTER_SCHED);
 
     do_init_level(INIT_LEVEL_CORE_KERNEL);
 
