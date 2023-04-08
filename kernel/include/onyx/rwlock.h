@@ -1,31 +1,51 @@
 /*
- * Copyright (c) 2017 Pedro Falcato
+ * Copyright (c) 2017 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
-#ifndef _KERNEL_RWLOCK_H
-#define _KERNEL_RWLOCK_H
+#ifndef _ONYX_RWLOCK_H
+#define _ONYX_RWLOCK_H
 
 #include <onyx/compiler.h>
 #include <onyx/limits.h>
 #include <onyx/list.h>
 #include <onyx/spinlock.h>
 
-#define RDWR_LOCK_WRITE LONG_MAX
+constexpr unsigned long ULONG_WIDTH = sizeof(unsigned long) * CHAR_BIT;
+
+#define RDWR_LOCK_WAITERS      (1UL << (ULONG_WIDTH - 2))
+#define RDWR_LOCK_WRITE        (1UL << (ULONG_WIDTH - 1))
+#define RDWR_LOCK_COUNTER_MASK ((1UL << (ULONG_WIDTH - 2)) - 1)
+
+#define RDWR_LOCK_WRITE_UNLOCK_MASK (~(RDWR_LOCK_WRITE | RDWR_LOCK_COUNTER_MASK))
+#define RDWR_MAX_COUNTER            RDWR_LOCK_COUNTER_MASK
+
+/**
+ * rwlock counter:
+ * bit N (64 or 32 probably) ..................... bit 0
+ * | Write | Waiters | "Counter" |
+ * Meaning of the bits:
+ * Write - is write locked
+ * Waiters - has waiters (if sleepable locked, these waiters are queued)
+ * Counter - If write locked, this holds the owner of the lock. Else, 0 OR
+ *           the read counter.
+ * Worth noting that the "owner" of the lock is a thread * shifted down, so
+ * the lower bits (currently 2, may change) must be 0.
+ */
 
 struct rwlock
 {
-    unsigned long lock;
+    unsigned long lock{0};
     struct list_head waiting_list;
     struct spinlock llock;
 
-#ifdef __cplusplus
-    constexpr rwlock() : lock{}, waiting_list{}, llock{}
+    constexpr rwlock()
     {
         spinlock_init(&llock);
         INIT_LIST_HEAD(&waiting_list);
     }
-#endif
 };
 
 struct rwslock
@@ -46,7 +66,7 @@ public:
     int try_write();
 };
 
-bool rw_lock_tryread(struct rwlock *lock);
+int rw_lock_tryread(struct rwlock *lock);
 void rw_lock_read(struct rwlock *lock);
 void rw_lock_write(struct rwlock *lock);
 int rw_lock_write_interruptible(struct rwlock *lock);

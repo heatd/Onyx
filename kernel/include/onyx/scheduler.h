@@ -12,6 +12,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <onyx/assert.h>
 #include <onyx/clock.h>
 #include <onyx/cputime.h>
 #include <onyx/list.h>
@@ -114,6 +115,7 @@ using thread_t = struct thread
 #define THREAD_IS_DYING      (1 << 2)
 #define THREAD_SHOULD_DIE    (1 << 3)
 #define THREAD_ACTIVE        (1 << 4)
+#define THREAD_RUNNING       (1 << 5)
 
 int sched_init(void);
 
@@ -221,6 +223,15 @@ static inline void sched_sleep_ms(unsigned long ms)
 {
     sched_sleep(ms * NS_PER_MS);
 }
+
+/**
+ * @brief Check if we can sleep (to be used by debugging functions)
+ *
+ * @return True if we can, else false
+ */
+bool __can_sleep_internal();
+
+#define MAY_SLEEP() DCHECK(__can_sleep_internal())
 
 #ifdef __cplusplus
 

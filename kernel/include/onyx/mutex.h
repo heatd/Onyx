@@ -1,13 +1,16 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
-#ifndef _KERNEL_MUTEX_H
-#define _KERNEL_MUTEX_H
+#ifndef _ONYX_MUTEX_H
+#define _ONYX_MUTEX_H
 
 #include <string.h>
 
+#include <onyx/assert.h>
 #include <onyx/list.h>
 #include <onyx/spinlock.h>
 #include <onyx/utils.h>

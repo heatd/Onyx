@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -27,7 +27,8 @@ __attribute__((noreturn, noinline)) void panic(const char *msg, ...);
 
 void panic_start();
 
-/* This does not compile in C++ */
+bool is_in_panic();
+
 void init_elf_symbols(struct multiboot_tag_elf_sections *secs);
 void elf_sections_reserve(struct multiboot_tag_elf_sections *secs);
 

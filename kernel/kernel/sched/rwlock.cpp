@@ -1,9 +1,10 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2017 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
-
 #include <errno.h>
 
 #include <onyx/cpu.h>
@@ -12,118 +13,175 @@
 #include <onyx/scoped_lock.h>
 #include <onyx/spinlock.h>
 #include <onyx/thread.h>
+#include <onyx/types.h>
 
 #include "primitive_generic.h"
 
-bool rw_lock_tryread(rwlock *lock)
+__always_inline unsigned long thread_to_counter(thread *t)
+{
+    unsigned long c = (unsigned long) t;
+    DCHECK((c & 3) == 0);
+    return c >> 2;
+}
+
+__always_inline thread *counter_to_thread(unsigned long c)
+{
+    return (thread *) (c << 2);
+}
+
+#define RW_WAITER_WRITER (1U << 0)
+#define RW_WAITER_QUEUED (1U << 1)
+/**
+ * @brief Represents a waiter in the wait queue
+ *
+ */
+struct rwlock_waiter
+{
+    struct list_head head;
+    thread *thr;
+    u8 flags;
+
+    rwlock_waiter(thread *curr, u8 flags) : thr{curr}, flags{flags}
+    {
+    }
+};
+
+int rw_lock_tryread(rwlock *lock)
 {
     unsigned long l;
     unsigned long to_insert;
 
     do
     {
-        l = lock->lock;
-        if (l == RDWR_LOCK_WRITE - 1)
-            return errno = EAGAIN, false;
-        if (l == RDWR_LOCK_WRITE)
-            return errno = EBUSY, false;
+        l = __atomic_load_n(&lock->lock, __ATOMIC_RELAXED);
+
+        if (l & RDWR_LOCK_WRITE) [[unlikely]]
+            return -EAGAIN;
+
+        if (l == RDWR_MAX_COUNTER) [[unlikely]]
+            return -EAGAIN;
 
         to_insert = l + 1;
     } while (!__atomic_compare_exchange_n(&lock->lock, &l, to_insert, false, __ATOMIC_ACQUIRE,
                                           __ATOMIC_RELAXED));
 
-    return true;
+    return 0;
 }
 
-bool rw_lock_trywrite(rwlock *lock)
+int rw_lock_trywrite(rwlock *lock)
 {
     unsigned long expected = 0;
-    unsigned long write_value = RDWR_LOCK_WRITE;
+    unsigned long write_value = RDWR_LOCK_WRITE | thread_to_counter(get_current_thread());
     return __atomic_compare_exchange_n(&lock->lock, &expected, write_value, false, __ATOMIC_ACQUIRE,
                                        __ATOMIC_RELAXED);
 }
 
-static void rwlock_prepare_sleep(rwlock *rwl, int state)
+__always_inline void rwlock_prepare_sleep(rwlock *rwl, rwlock_waiter *w, int state)
 {
-    auto t = get_current_thread();
-
+    MUST_HOLD_LOCK(&rwl->llock);
     set_current_state(state);
 
-    list_add_tail(&t->wait_list_head, &rwl->waiting_list);
-}
-
-static void dequeue_thread_rwlock(rwlock *lock, thread *thread)
-{
-    list_remove(&thread->wait_list_head);
-}
-
-int __rw_lock_write(rwlock *lock, int state)
-{
-    /* Try once before doing the whole preempt disable loop and all */
-    if (rw_lock_trywrite(lock))
-        return 0;
-
-    int ret = 0;
-
-    auto current = get_current_thread();
-
-    bool signals_allowed = state == THREAD_INTERRUPTIBLE;
-
-    spin_lock(&lock->llock);
-
-    rwlock_prepare_sleep(lock, state);
-
-    while (true)
+    if (!(w->flags & RW_WAITER_QUEUED))
     {
-        if (rw_lock_trywrite(lock))
-        {
-            break;
-        }
-
-        if (signals_allowed && signal_is_pending())
-        {
-            ret = -EINTR;
-            break;
-        }
-
-        spin_unlock(&lock->llock);
-
-        sched_yield();
-
-        spin_lock(&lock->llock);
-
-        set_current_state(state);
+        // A writer lock behaves exactly like an exclusive entry.
+        // When wake-up code sees a writer, it stops right there and then.
+        // Therefore, add it to the tail, while we add readers to the head.
+        // TODO: This may be super unfair. Get feedback from mjg and/or read more
+        // about rwlock fairness.
+        if (w->flags & RW_WAITER_WRITER)
+            list_add_tail(&w->head, &rwl->waiting_list);
+        else
+            list_add(&w->head, &rwl->waiting_list);
+        w->flags |= RW_WAITER_QUEUED;
     }
 
-    dequeue_thread_rwlock(lock, current);
-    set_current_state(THREAD_RUNNABLE);
-
-    spin_unlock(&lock->llock);
-
-    return ret;
+    __atomic_or_fetch(&rwl->lock, RDWR_LOCK_WAITERS, __ATOMIC_ACQUIRE);
 }
 
-int __rw_lock_read(rwlock *lock, int state)
+__always_inline void dequeue_thread_rwlock(rwlock *lock, rwlock_waiter *w)
 {
-    /* Try once before doing the whole preempt disable loop and all */
-    if (rw_lock_tryread(lock))
-        return 0;
+    MUST_HOLD_LOCK(&lock->llock);
+    list_remove(&w->head);
+    w->flags &= ~RW_WAITER_QUEUED;
+}
 
+int rwspin_succ = 0;
+int rwspin_fail = 0;
+
+__always_inline bool rw_lock_spin_write(rwlock *lock)
+{
+    /* The algorithm goes like this: Try to always fetch the owner thread,
+     * and if there's none try to acquire the lock. If in fact there is a thread,
+     * check if it's on the same CPU; if so, give up, if not, try to get the lock
+     * until we run out of budget. If the thread changes from under us, give up too.
+     */
+    for (;;)
+    {
+        // Stop spinning if it's not write locked
+        const auto counter = read_once(lock->lock);
+        if (counter != RDWR_LOCK_WRITE && counter != 0)
+            return rwspin_fail++, false;
+
+        struct thread *thread = counter_to_thread(counter);
+
+        if ((counter & RDWR_LOCK_COUNTER_MASK) == 0)
+        {
+            if (rw_lock_trywrite(lock)) [[likely]]
+                return rwspin_succ++, true;
+        }
+
+        if (thread && !(thread->flags & THREAD_RUNNING))
+            return rwspin_fail++, false;
+
+        cpu_relax();
+    }
+}
+
+__always_inline bool rw_lock_spin_read(rwlock *lock)
+{
+    /* The algorithm goes like this: Try to always fetch the owner thread,
+     * and if there's none try to acquire the lock. If in fact there is a thread,
+     * check if it's on the same CPU; if so, give up, if not, try to get the lock
+     * until we run out of budget. If the thread changes from under us, give up too.
+     */
+    for (;;)
+    {
+        // Stop spinning if it's not write locked
+        const auto counter = read_once(lock->lock);
+        struct thread *thread = counter_to_thread(counter);
+
+        if (!(counter & RDWR_LOCK_WRITE))
+        {
+            if (rw_lock_tryread(lock) == 0) [[likely]]
+                return rwspin_succ++, true;
+        }
+
+        if (thread && !(thread->flags & THREAD_RUNNING))
+            return rwspin_fail++, false;
+
+        cpu_relax();
+    }
+}
+
+__noinline int __rw_lock_write_slow(rwlock *lock, int state)
+{
     int ret = 0;
     thread *current = get_current_thread();
+    const bool signals_allowed = state == THREAD_INTERRUPTIBLE;
 
-    bool signals_allowed = state == THREAD_INTERRUPTIBLE;
-
-    spin_lock(&lock->llock);
-    rwlock_prepare_sleep(lock, state);
-
+    /**
+     * Slow path algorithm:
+     * First, lock the queue and queue ourselves in. Then, under the lock, try again. If we fail,
+     * unlock and try to sleep. After we wake up, try again. *IF* we fail, restart.
+     */
+    rwlock_waiter w{current, RW_WAITER_WRITER};
     while (true)
     {
+        spin_lock(&lock->llock);
+        rwlock_prepare_sleep(lock, &w, state);
 
-        if (rw_lock_tryread(lock))
-        {
+        if (rw_lock_trywrite(lock) == 0)
             break;
-        }
 
         if (signals_allowed && signal_is_pending())
         {
@@ -132,21 +190,105 @@ int __rw_lock_read(rwlock *lock, int state)
         }
 
         spin_unlock(&lock->llock);
-
         sched_yield();
 
-        spin_lock(&lock->llock);
-
-        set_current_state(state);
+        if (rw_lock_trywrite(lock) == 0)
+        {
+            // If we must unqueue ourselves, remove
+            if (w.flags & RW_WAITER_QUEUED)
+            {
+                // Note: We must re-check with the lock held since
+                // it's the only condition where RW_WAITER_QUEUED changes.
+                // If it's still set by the time we lock, we must dequeue ourselves.
+                spin_lock(&lock->llock);
+                if (!(w.flags & RW_WAITER_QUEUED))
+                    spin_unlock(&lock->llock);
+            }
+            break;
+        }
     }
 
-    dequeue_thread_rwlock(lock, current);
+    if (w.flags & RW_WAITER_QUEUED)
+    {
+        dequeue_thread_rwlock(lock, &w);
+        spin_unlock(&lock->llock);
+    }
 
     set_current_state(THREAD_RUNNABLE);
 
-    spin_unlock(&lock->llock);
+    return ret;
+}
+
+__always_inline int __rw_lock_write(rwlock *lock, int state)
+{
+    MAY_SLEEP();
+    /* Try once before doing the whole preempt disable loop and all */
+    if (rw_lock_trywrite(lock) < 0 && !rw_lock_spin_write(lock)) [[unlikely]]
+        return __rw_lock_write_slow(lock, state);
+    return 0;
+}
+
+__noinline int __rw_lock_read_slow(rwlock *lock, int state)
+{
+    int ret = 0;
+    thread *current = get_current_thread();
+    const bool signals_allowed = state == THREAD_INTERRUPTIBLE;
+
+    /**
+     * Slow path algorithm:
+     * First, lock the queue and queue ourselves in. Then, under the lock, try again. If we fail,
+     * unlock and try to sleep. After we wake up, try again. *IF* we fail, restart.
+     */
+    rwlock_waiter w{current, 0};
+    while (true)
+    {
+        spin_lock(&lock->llock);
+        rwlock_prepare_sleep(lock, &w, state);
+
+        if (rw_lock_tryread(lock) == 0)
+            break;
+
+        if (signals_allowed && signal_is_pending())
+        {
+            ret = -EINTR;
+            break;
+        }
+
+        spin_unlock(&lock->llock);
+        sched_yield();
+
+        if (rw_lock_trywrite(lock) == 0)
+        {
+            // If we must unqueue ourselves, remove
+            if (w.flags & RW_WAITER_QUEUED)
+            {
+                // Note: We must re-check with the lock held since
+                // it's the only condition where RW_WAITER_QUEUED changes.
+                // If it's still set by the time we lock, we must dequeue ourselves.
+                spin_lock(&lock->llock);
+                if (!(w.flags & RW_WAITER_QUEUED))
+                    spin_unlock(&lock->llock);
+            }
+            break;
+        }
+    }
+
+    if (w.flags & RW_WAITER_QUEUED)
+    {
+        dequeue_thread_rwlock(lock, &w);
+        spin_unlock(&lock->llock);
+    }
 
     return ret;
+}
+
+__always_inline int __rw_lock_read(rwlock *lock, int state)
+{
+    MAY_SLEEP();
+    /* Try once before doing the whole preempt disable loop and all */
+    if (rw_lock_tryread(lock) < 0 && !rw_lock_spin_read(lock)) [[unlikely]]
+        return __rw_lock_read_slow(lock, state);
+    return 0;
 }
 
 void rw_lock_write(rwlock *lock)
@@ -169,30 +311,28 @@ int rw_lock_read_interruptible(rwlock *lock)
     return __rw_lock_read(lock, THREAD_INTERRUPTIBLE);
 }
 
-void rw_lock_wake_up_threads(rwlock *lock)
+void rwlock_wake(rwlock *lock)
 {
     scoped_lock g{lock->llock};
 
     list_for_every (&lock->waiting_list)
     {
-        struct thread *t = container_of(l, thread, wait_list_head);
+        rwlock_waiter *w = container_of(l, rwlock_waiter, head);
 
-        thread_wake_up(t);
+        // We use read_once below to make sure that loads don't get re-ordered
+        // or tear through dequeue_thread_rwlock, since at that point the other thread may be long
+        // gone and we could be touching bad memory.
+        auto flags = read_once(w->flags) & RW_WAITER_WRITER;
+        auto thread = read_once(w->thr);
+        dequeue_thread_rwlock(lock, w);
+        thread_wake_up(thread);
+
+        if (flags & RW_WAITER_WRITER)
+            break;
     }
-}
 
-void rw_lock_wake_up_thread(rwlock *lock)
-{
-    scoped_lock g{lock->llock};
-
-    if (!list_is_empty(&lock->waiting_list))
-    {
-        struct list_head *l = list_first_element(&lock->waiting_list);
-        assert(l != &lock->waiting_list);
-        struct thread *t = container_of(l, thread, wait_list_head);
-
-        thread_wake_up(t);
-    }
+    if (list_is_empty(&lock->waiting_list))
+        __atomic_and_fetch(&lock->lock, ~RDWR_LOCK_WAITERS, __ATOMIC_RELEASE);
 }
 
 void rw_unlock_read(rwlock *lock)
@@ -200,17 +340,20 @@ void rw_unlock_read(rwlock *lock)
     /* Implementation note: If we're unlocking a read lock, only wake up a
      * single thread, since the write lock is exclusive, like a mutex.
      */
-    if (__atomic_sub_fetch(&lock->lock, 1, __ATOMIC_RELEASE) == 0)
-        rw_lock_wake_up_thread(lock);
+    if (__atomic_sub_fetch(&lock->lock, 1, __ATOMIC_RELEASE) & RDWR_LOCK_WAITERS)
+        rwlock_wake(lock);
 }
 
 void rw_unlock_write(rwlock *lock)
 {
-    __atomic_store_n(&lock->lock, 0, __ATOMIC_RELEASE);
+    const bool has_waiters =
+        __atomic_and_fetch(&lock->lock, RDWR_LOCK_WRITE_UNLOCK_MASK, __ATOMIC_RELEASE) &
+        RDWR_LOCK_WAITERS;
     /* Implementation note: If we're unlocking a write lock, wake up every single thread
      * because we can have both readers and writers waiting to get woken up.
      */
-    rw_lock_wake_up_threads(lock);
+    if (has_waiters)
+        rwlock_wake(lock);
 }
 
 int rwslock::try_read()
@@ -222,7 +365,7 @@ int rwslock::try_read()
     do
     {
         l = __atomic_load_n(&lock, __ATOMIC_RELAXED);
-        if (l == RDWR_LOCK_WRITE || l == RDWR_LOCK_WRITE - 1)
+        if (l & RDWR_LOCK_WRITE || l == RDWR_MAX_COUNTER)
         {
             sched_enable_preempt();
             return -EAGAIN;
@@ -258,7 +401,7 @@ void rwslock::lock_read()
     do
     {
         l = __atomic_load_n(&lock, __ATOMIC_RELAXED);
-        while (l == RDWR_LOCK_WRITE || l == RDWR_LOCK_WRITE - 1)
+        while (l & RDWR_LOCK_WRITE || l == RDWR_MAX_COUNTER)
         {
             cpu_relax();
             l = __atomic_load_n(&lock, __ATOMIC_RELAXED);

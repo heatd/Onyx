@@ -59,6 +59,11 @@ PER_CPU_VAR(bool start_end) = false;
 
 #define PANIC_STACK_BUF_SZ 1024
 
+bool is_in_panic()
+{
+    return get_per_cpu(in_panic);
+}
+
 void panic_start()
 {
     irq_disable();
