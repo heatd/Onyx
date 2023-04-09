@@ -547,7 +547,7 @@ void vm_region_destroy(struct vm_region *region)
         vmo_unref(region->vmo);
     }
 
-    memset_s(region, 0xfd, sizeof(struct vm_region));
+    memset_explicit(region, 0xfd, sizeof(struct vm_region));
 
     vm_free_vmregion(region);
 }

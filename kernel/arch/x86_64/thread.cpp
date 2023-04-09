@@ -161,7 +161,7 @@ extern "C" void thread_finish_destruction(void *___thread)
 
     thread_remove_from_list(thread);
 
-    memset_s(&thread->lock, 0x80, sizeof(struct spinlock));
+    memset_explicit(&thread->lock, 0x80, sizeof(struct spinlock));
     ((volatile struct thread *) thread)->canary = THREAD_DEAD_CANARY;
     /* Free the thread */
     delete thread;

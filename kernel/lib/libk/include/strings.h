@@ -20,9 +20,6 @@ char *index (const char *, int);
 char *rindex (const char *, int);
 #endif
 
-/* Non standard memset_s */
-void *memset_s(void *s, int c, size_t n);
-
 #if defined(_XOPEN_SOURCE) || defined(_GNU_SOURCE)  || defined(_BSD_SOURCE)
 int ffs (int);
 int ffsl (long);

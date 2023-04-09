@@ -111,7 +111,7 @@ void page_node::add_region(uintptr_t base, size_t size)
         size_t area_size = min(size, arena_default_size);
         struct page_arena *arena = (struct page_arena *) __ksbrk(sizeof(struct page_arena));
         assert(arena != NULL);
-        memset_s(arena, 0, sizeof(struct page_arena));
+        memset_explicit(arena, 0, sizeof(struct page_arena));
 
         arena->start_arena = (void *) base;
         arena->end_arena = (void *) (base + area_size);

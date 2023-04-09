@@ -19,8 +19,3 @@ void *__memset(void *bufptr, int value, size_t size)
 }
 
 weak_alias(__memset, memset);
-
-void *memset_s(void *s, int c, size_t n)
-{
-    return memset(s, c, n);
-}

@@ -28,6 +28,7 @@ void *__memcpy(void *__restrict dest, const void *__restrict src, size_t len);
 void *__memmove(void *dest, const void *src, size_t len);
 
 void *memset (void *, int, size_t);
+void *memset_explicit(void *s, int c, size_t n);
 void explicit_bzero(void *ptr, size_t size);
 int memcmp (const void *, const void *, size_t);
 void *memchr (const void *, int, size_t);

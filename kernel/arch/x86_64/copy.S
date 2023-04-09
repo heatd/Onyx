@@ -85,9 +85,9 @@ __set_non_temporal:
 
     RET
 
-.global memset
-.type memset, @function
-memset:
+.global __memset
+.type __memset, @function
+__memset:
     push %rbp
     mov %rsp, %rbp
 
@@ -104,3 +104,8 @@ memset:
 
     pop %rbp
     RET
+
+.size __memset, . - __memset 
+
+.weak memset
+.set memset, __memset
