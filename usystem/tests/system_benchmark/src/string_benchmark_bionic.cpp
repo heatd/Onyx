@@ -34,6 +34,7 @@
         ->Arg(384)      \
         ->Arg(512)      \
         ->Arg(1 * KB)   \
+        ->Arg(4 * KB)   \
         ->Arg(8 * KB)   \
         ->Arg(16 * KB)  \
         ->Arg(32 * KB)  \

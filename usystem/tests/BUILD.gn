@@ -4,6 +4,7 @@ group("tests") {
         "system_benchmark",
         "testsuite",
         "kernelbuild-smoketest",
-        "test-runner"
+        "test-runner",
+        "regtests"
     ]
 }

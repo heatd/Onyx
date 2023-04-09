@@ -1,0 +1,14 @@
+import("//build/app.gni")
+
+app_executable("nameitests") {
+    include_dirs = [ "include" ]
+    package_name = "nameitests"
+
+    output_name = "nameitests"
+
+    sources = [ "namei.c" ]
+}
+
+group("regtests") {
+    deps = [ ":nameitests" ]
+}

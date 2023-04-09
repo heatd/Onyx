@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -155,18 +155,6 @@ struct file
 
 int inode_create_vmo(struct inode *ino);
 
-#define OPEN_FLAG_NOFOLLOW     (1 << 0)
-#define OPEN_FLAG_FAIL_IF_LINK (1 << 1)
-#define OPEN_FLAG_MUST_BE_DIR  (1 << 2)
-#define LOOKUP_FLAG_INTERNAL_TRAILING_SLASH \
-    (1 << 3) /* Might be useful for callers \
-              * that handle the last name.  \
-              */
-
-#define OPEN_FLAG_EMPTY_PATH                              \
-    (1 << 4) /* Used to implement AT_EMPTY_PATH,          \
-              * makes open routines return the base file. \
-              */
 struct file *open_vfs_with_flags(struct file *dir, const char *path, unsigned int flags);
 struct file *open_vfs(struct file *dir, const char *path);
 
@@ -241,6 +229,26 @@ static inline bool inode_is_special(inode *ino)
         return false;
     else
         return true;
+}
+
+__always_inline void inode_lock(inode *ino)
+{
+    rw_lock_write(&ino->i_rwlock);
+}
+
+__always_inline void inode_unlock(inode *ino)
+{
+    rw_unlock_write(&ino->i_rwlock);
+}
+
+__always_inline void inode_lock_shared(inode *ino)
+{
+    rw_lock_read(&ino->i_rwlock);
+}
+
+__always_inline void inode_unlock_shared(inode *ino)
+{
+    rw_unlock_read(&ino->i_rwlock);
 }
 
 #define FILE_ACCESS_READ    (1 << 0)

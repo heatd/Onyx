@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 - 2022 Pedro Falcato
+ * Copyright (c) 2018 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -48,7 +48,7 @@ struct dentry
 
 struct dentry *dentry_open(char *path, struct dentry *base);
 struct dentry *dentry_mount(const char *mountpoint, struct inode *inode);
-void dentry_init(void);
+void dentry_init();
 void dentry_put(struct dentry *d);
 void dentry_get(struct dentry *d);
 struct inode;
@@ -175,6 +175,49 @@ public:
  *
  */
 void dentry_trim_caches();
+
+__always_inline bool dentry_is_dir(const dentry *d)
+{
+    return S_ISDIR(d->d_inode->i_mode);
+}
+
+__always_inline bool dentry_is_symlink(const dentry *d)
+{
+    return S_ISLNK(d->d_inode->i_mode);
+}
+
+__always_inline bool dentry_is_mountpoint(const dentry *dir)
+{
+    return dir->d_flags & DENTRY_FLAG_MOUNTPOINT;
+}
+
+__always_inline bool dentry_involved_with_mount(dentry *d)
+{
+    return d->d_flags & (DENTRY_FLAG_MOUNTPOINT | DENTRY_FLAG_MOUNT_ROOT);
+}
+
+expected<dentry *, int> dentry_create_pending_lookup(const char *name, inode *ino, dentry *parent,
+                                                     bool check_existance = true);
+
+/**
+ * @brief Fail a dentry lookup
+ *
+ * @param d Dentry
+ */
+void dentry_fail_lookup(dentry *d);
+
+/**
+ * @brief Complete a dentry lookup
+ *
+ * @param d Dentry
+ */
+void dentry_complete_lookup(dentry *d);
+
+dentry *__dentry_parent(dentry *dir);
+bool dentry_does_not_have_parent(dentry *dir, dentry *to_not_have);
+void dentry_do_unlink(dentry *entry);
+void dentry_rename(dentry *dent, const char *name);
+void dentry_move(dentry *target, dentry *new_parent);
 
 #endif
 

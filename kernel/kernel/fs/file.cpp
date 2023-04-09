@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2022 Pedro Falcato
+ * Copyright (c) 2017 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -23,6 +23,7 @@
 #include <onyx/fs_mount.h>
 #include <onyx/limits.h>
 #include <onyx/mm/slab.h>
+#include <onyx/namei.h>
 #include <onyx/panic.h>
 #include <onyx/process.h>
 #include <onyx/user.h>
@@ -332,7 +333,6 @@ void process_destroy_file_descriptors(process *process)
 {
     ioctx *ctx = &process->ctx;
     file **table = ctx->file_desc;
-    spin_lock(&ctx->fdlock);
 
     for (unsigned int i = 0; i < ctx->file_desc_entries; i++)
     {
@@ -346,8 +346,6 @@ void process_destroy_file_descriptors(process *process)
 
     ctx->file_desc = nullptr;
     ctx->file_desc_entries = 0;
-
-    spin_unlock(&ctx->fdlock);
 }
 
 int alloc_fd(int fdbase)
@@ -541,12 +539,17 @@ bool may_noatime(file *f)
     return g.get()->euid == 0 || f->f_ino->i_uid == g.get()->euid;
 }
 
-static struct file *try_to_open(struct file *base, const char *filename, int flags, mode_t mode)
+static expected<struct file *, int> try_to_open(struct file *base, const char *filename, int flags,
+                                                mode_t mode)
 {
-    unsigned int open_flags = (flags & O_EXCL ? OPEN_FLAG_FAIL_IF_LINK : 0) |
-                              (flags & O_NOFOLLOW ? OPEN_FLAG_FAIL_IF_LINK : 0) |
-                              (flags & O_DIRECTORY ? OPEN_FLAG_MUST_BE_DIR : 0);
-    struct file *ret = open_vfs_with_flags(base, filename, open_flags);
+    auto ex = vfs_open(base, filename, flags, mode);
+
+    if (ex.has_error())
+        return unexpected<int>{ex.error()};
+
+    struct file *ret = ex.value();
+
+    DCHECK(ret != nullptr);
 
     if (ret)
     {
@@ -554,7 +557,7 @@ static struct file *try_to_open(struct file *base, const char *filename, int fla
         if (!file_can_access(ret, open_to_file_access_flags(flags)))
         {
             fd_put(ret);
-            return errno = EACCES, nullptr;
+            return unexpected<int>{-EACCES};
         }
 
         // O_NOATIME can only be used when the euid of the process = owner of file, or
@@ -562,7 +565,7 @@ static struct file *try_to_open(struct file *base, const char *filename, int fla
         if (flags & O_NOATIME)
         {
             if (!may_noatime(ret))
-                return errno = EPERM, nullptr;
+                return unexpected<int>{-EPERM};
         }
 
         if (S_ISDIR(ret->f_ino->i_mode))
@@ -570,14 +573,8 @@ static struct file *try_to_open(struct file *base, const char *filename, int fla
             if (flags & O_RDWR || flags & O_WRONLY || (flags & O_CREAT && !(flags & O_DIRECTORY)))
             {
                 fd_put(ret);
-                return errno = EISDIR, nullptr;
+                return unexpected<int>{-EISDIR};
             }
-        }
-
-        if (flags & O_EXCL)
-        {
-            fd_put(ret);
-            return errno = EEXIST, nullptr;
         }
 
         if (flags & O_TRUNC)
@@ -586,13 +583,10 @@ static struct file *try_to_open(struct file *base, const char *filename, int fla
             if (st < 0)
             {
                 fd_put(ret);
-                return nullptr;
+                return unexpected<int>{st};
             }
         }
     }
-
-    if (!ret && errno == ENOENT && flags & O_CREAT)
-        ret = creat_vfs(base->f_dentry, filename, mode & ~get_current_umask());
 
     if (ret)
     {
@@ -626,11 +620,13 @@ int do_sys_open(const char *filename, int flags, mode_t mode, struct file *__rel
     int fd_num = -1;
 
     /* Open/creat the file */
-    struct file *file = try_to_open(base, filename, flags, mode);
-    if (!file)
+    auto ex = try_to_open(base, filename, flags, mode);
+    if (ex.has_error())
     {
-        return -errno;
+        return ex.error();
     }
+
+    struct file *file = ex.value();
 
     if (file->f_ino->i_fops->on_open)
     {
@@ -1436,7 +1432,7 @@ int sys_fstatat(int dirfd, const char *upathname, struct stat *ubuf, int flags)
     {
         unsigned int open_flags = 0;
         if (flags & AT_SYMLINK_NOFOLLOW)
-            open_flags |= OPEN_FLAG_NOFOLLOW;
+            open_flags |= LOOKUP_NOFOLLOW;
 
         auto_file f2 = open_vfs_with_flags(f.get_file(), s.data(), open_flags);
 
@@ -1655,7 +1651,6 @@ int sys_fmount(int fd, const char *upath)
 
 void file_do_cloexec(struct ioctx *ctx)
 {
-    scoped_lock g{ctx->fdlock};
     struct file **fd = ctx->file_desc;
 
     for (unsigned int i = 0; i < ctx->file_desc_entries; i++)
@@ -1858,7 +1853,7 @@ ssize_t sys_readlinkat(int dirfd, const char *upathname, char *ubuf, size_t bufs
         goto out;
     }
 
-    f = open_vfs_with_flags(base, pathname, OPEN_FLAG_NOFOLLOW);
+    f = open_vfs_with_flags(base, pathname, LOOKUP_NOFOLLOW);
     if (!f)
     {
         st = -errno;
@@ -1927,7 +1922,7 @@ int sys_fchmodat(int dirfd, const char *pathname, mode_t mode, int flags)
     if (int st = dir.from_dirfd(dirfd); st < 0)
         return st;
 
-    int open_flags = (flags & AT_SYMLINK_NOFOLLOW ? OPEN_FLAG_NOFOLLOW : 0);
+    int open_flags = (flags & AT_SYMLINK_NOFOLLOW ? LOOKUP_NOFOLLOW : 0);
     auto_file f = open_vfs_with_flags(dir.get_file(), path.data(), open_flags);
 
     if (!f)
@@ -2013,7 +2008,7 @@ int sys_utimensat(int dirfd, const char *pathname, const struct timespec *times,
         if (int st = dir.from_dirfd(dirfd); st < 0)
             return st;
 
-        int open_flags = (flags & AT_SYMLINK_NOFOLLOW ? OPEN_FLAG_NOFOLLOW : 0);
+        int open_flags = (flags & AT_SYMLINK_NOFOLLOW ? LOOKUP_NOFOLLOW : 0);
         f = open_vfs_with_flags(dir.get_file(), path.data(), open_flags);
 
         if (!f)
@@ -2112,7 +2107,7 @@ int sys_fchownat_core(int dirfd, const char *pathname, uid_t owner, gid_t group,
         if (int st = dir.from_dirfd(dirfd); st < 0)
             return st;
 
-        int open_flags = (flags & AT_SYMLINK_NOFOLLOW ? OPEN_FLAG_NOFOLLOW : 0);
+        int open_flags = (flags & AT_SYMLINK_NOFOLLOW ? LOOKUP_NOFOLLOW : 0);
         f = open_vfs_with_flags(dir.get_file(), pathname, open_flags);
 
         if (!f)

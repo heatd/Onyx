@@ -416,7 +416,7 @@ void rwslock::lock_write()
 {
     sched_disable_preempt();
     unsigned long expected = 0;
-    const unsigned long write_value = RDWR_LOCK_WRITE;
+    const unsigned long write_value = RDWR_LOCK_WRITE | get_cpu_nr();
     while (!__atomic_compare_exchange_n(&lock, &expected, write_value, false, __ATOMIC_ACQUIRE,
                                         __ATOMIC_RELAXED))
     {
