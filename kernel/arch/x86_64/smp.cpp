@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2022 Pedro Falcato
+ * Copyright (c) 2019 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -17,7 +17,6 @@ extern unsigned char _start_smp;
 namespace smp
 {
 
-static cul::vector<uint32_t> lapic_ids;
 static cpumask inited_cpus;
 
 void boot(unsigned int cpu)
@@ -49,7 +48,7 @@ void boot(unsigned int cpu)
 
         cpu_messages_init(cpu);
 
-        apic_set_lapic_id(cpu, lapic_ids[cpu]);
+        apic_set_lapic_id(cpu, cpu2lapicid(cpu));
     }
 
     unsigned long *thread_stack = get_thread_for_cpu(cpu)->kernel_stack_top;
@@ -59,7 +58,7 @@ void boot(unsigned int cpu)
 
     s->thread_stack = (unsigned long) thread_stack;
 
-    if (apic_wake_up_processor(static_cast<uint8_t>(lapic_ids[cpu]), s))
+    if (apic_wake_up_processor(static_cast<uint8_t>(cpu2lapicid(cpu)), s))
     {
         smp::set_online(cpu);
     }
@@ -68,31 +67,6 @@ void boot(unsigned int cpu)
 }
 
 }; // namespace smp
-
-extern "C" void smp_parse_cpus(void *__madt)
-{
-    acpi_table_madt *madt = static_cast<acpi_table_madt *>(__madt);
-    unsigned int nr_cpus = 0;
-    auto first = (acpi_subtable_header *) (madt + 1);
-    for (acpi_subtable_header *i = first;
-         i < (acpi_subtable_header *) ((char *) madt + madt->header.length);
-         i = (acpi_subtable_header *) ((uint64_t) i + (uint64_t) i->length))
-    {
-        if (i->type == ACPI_MADT_TYPE_LOCAL_APIC)
-        {
-            acpi_madt_local_apic *la = (acpi_madt_local_apic *) i;
-
-            assert(smp::lapic_ids.push_back(la->id) != false);
-            nr_cpus++;
-        }
-    }
-
-    smp::set_number_of_cpus(nr_cpus);
-    cpu_messages_init(0);
-
-    /* We're CPU0 and we're online */
-    smp::set_online(0);
-}
 
 extern "C" void smp_boot_cpus()
 {

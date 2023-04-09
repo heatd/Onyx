@@ -314,8 +314,6 @@ void x86_init_percpu(void)
 
 void cpu_init_mp(void)
 {
-    smp_parse_cpus(madt);
-
     smp_boot_cpus();
 
     ENABLE_INTERRUPTS();
@@ -329,9 +327,9 @@ void cpu_init_late(void)
 
     pat_init();
 
-    /* Initialize the APIC and LAPIC */
-    ioapic_init();
+    /* Initialize the IOAPIC and LAPIC */
     lapic_init();
+    ioapic_init();
 
     /* Initialize timers and TSC timekeeping */
     apic_timer_init();

@@ -1,15 +1,16 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: MIT
  */
-#ifndef _APIC_H
-#define _APIC_H
+#ifndef _ONYX_X86_APIC_H
+#define _ONYX_X86_APIC_H
 
 #include <stdio.h>
 
+#include <onyx/types.h>
 #include <onyx/vm.h>
 
 #define IOAPIC_BASE_PHYS          0xFEC00000
@@ -22,6 +23,8 @@
 #define IOAPIC_PIN_POLARITY_ACTIVE_LOW (1 << 13)
 #define IOAPIC_PIN_TRIGGER_LEVEL       (1 << 15)
 #define IOAPIC_PIN_MASKED              (1 << 16)
+#define IOAPIC_DESTINATION(x)          ((u64) x << 56)
+#define IOAPIC_DESTINATION_MASK        IOAPIC_DESTINATION(0xff)
 
 void ioapic_early_init(void);
 void apic_timer_init();
@@ -55,10 +58,12 @@ uint32_t apic_get_lapic_id(unsigned int cpu);
 void apic_set_lapic_id(unsigned int cpu, uint32_t lapic_id);
 volatile uint32_t *apic_get_lapic(unsigned int cpu);
 void lapic_init_per_cpu(void);
+u32 cpu2lapicid(u32 cpu);
 
 #define irq_set_irql apic_set_irql
 #define irq_get_irql apic_get_irql
 
+#define LAPIC_ID_REG                      0x20
 #define LAPIC_EOI                         0xB0
 #define LAPIC_TSKPRI                      0x80
 #define LAPIC_ICR                         0x300

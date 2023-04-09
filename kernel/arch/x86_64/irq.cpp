@@ -87,7 +87,9 @@ int platform_allocate_msi_interrupts(unsigned int num_vectors, bool addr64,
         return -1;
     /* See section 10.11.1 of the intel software developer manuals */
     uint32_t address = PCI_MSI_BASE_ADDRESS;
-    address |= (apic_get_lapic_id(get_cpu_nr())) << PCI_MSI_APIC_ID_SHIFT;
+    address |= (cpu2lapicid(get_cpu_nr())) << PCI_MSI_APIC_ID_SHIFT;
+
+    printf("x86/msi: Routing %u vectors to cpu%u\n", num_vectors, get_cpu_nr());
 
     /* See section 10.11.2 of the intel software developer manuals */
     uint32_t data_val = vecs;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -81,15 +81,6 @@ static bool tsc_deadline_supported = false;
  */
 void lapic_init(void)
 {
-    /* Get the BSP's LAPIC base address from the msr's */
-    uint64_t addr = rdmsr(IA32_APIC_BASE);
-    addr &= 0xFFFFF000;
-    /* Map the BSP's LAPIC */
-    bsp_lapic =
-        (volatile uint32_t *) mmiomap((void *) addr, PAGE_SIZE, VM_READ | VM_WRITE | VM_NOCACHE);
-
-    assert(bsp_lapic != NULL);
-
     /* Enable the LAPIC by setting LAPIC_SPUINT to 0x100 OR'd with the default spurious IRQ(15) */
     lapic_write(bsp_lapic, LAPIC_SPUINT, 0x100 | APIC_DEFAULT_SPURIOUS_IRQ);
 
@@ -192,6 +183,21 @@ void ioapic_set_pin(bool active_high, bool level, uint32_t pin)
     write_redirection_entry(pin, entry);
 }
 
+static cul::vector<u32> lapic_ids;
+
+u32 cpu2lapicid(u32 cpu)
+{
+    DCHECK(cpu < lapic_ids.size());
+    return lapic_ids[cpu];
+}
+
+static u32 x86_get_current_lapic_id()
+{
+    DCHECK(bsp_lapic != nullptr);
+    DCHECK(get_cpu_nr() == 0);
+    return lapic_read(bsp_lapic, LAPIC_ID_REG);
+}
+
 /**
  * @brief Unmasks an interrupt pin.
  *
@@ -200,7 +206,20 @@ void ioapic_set_pin(bool active_high, bool level, uint32_t pin)
 void ioapic_unmask_pin(uint32_t pin)
 {
     uint64_t entry = read_redirection_entry(pin);
-    entry &= ~IOAPIC_PIN_MASKED;
+    u32 curr_lapic_id;
+
+    if (lapic_ids.size() == 0)
+    {
+        // Empty, use current
+        curr_lapic_id = x86_get_current_lapic_id();
+    }
+    else
+        curr_lapic_id = cpu2lapicid(get_cpu_nr());
+    // TODO(heat): Add an irqchip infra that can allow dynamic routing of IRQs
+    // until then, assume we route to the current CPU.
+    entry &= ~(IOAPIC_PIN_MASKED | IOAPIC_DESTINATION_MASK);
+    entry |= IOAPIC_DESTINATION(curr_lapic_id);
+    printf("x86: Unmasking IOAPIC pin %u to lapic %u (cpu %u)\n", pin, curr_lapic_id, get_cpu_nr());
     write_redirection_entry(pin, entry);
 }
 
@@ -227,7 +246,68 @@ acpi_status acpi_get_table(acpi_string signature, u32 instance,
 
 #endif
 
-void set_pin_handlers(void)
+/**
+ * @brief Fixup the cpu list and make the boot cpu CPU0
+ *
+ */
+static void x86_fixup_lapic_list(u32 current_lapicid)
+{
+    /* We may have booted as a cpy which is not cpu0 in the lapic list, so fix that up since
+     * our logical cpu number is 0.
+     */
+    int index = -1;
+
+    for (unsigned int i = 0; i < lapic_ids.size(); i++)
+    {
+        const auto id = lapic_ids[i];
+        if (id == current_lapicid)
+        {
+            index = i;
+            break;
+        }
+    }
+
+    DCHECK(index != -1);
+
+    if (index != 0)
+    {
+        printf("x86: We would be cpu#%u, fixing up cpu list...\n", index);
+        cul::swap(lapic_ids[0], lapic_ids[index]);
+        cul::swap(lapic_ids[0], lapic_ids[index]);
+    }
+}
+
+static void parse_lapics()
+{
+    // Go through the MADT and find local APICs
+    CHECK(madt != nullptr);
+    unsigned int nr_cpus = 0;
+    auto first = (acpi_subtable_header *) (madt + 1);
+    for (acpi_subtable_header *i = first;
+         i < (acpi_subtable_header *) ((char *) madt + madt->header.length);
+         i = (acpi_subtable_header *) ((uint64_t) i + (uint64_t) i->length))
+    {
+        if (i->type == ACPI_MADT_TYPE_LOCAL_APIC)
+        {
+            acpi_madt_local_apic *la = (acpi_madt_local_apic *) i;
+
+            assert(lapic_ids.push_back(la->id) != false);
+            nr_cpus++;
+        }
+    }
+
+    x86_fixup_lapic_list(x86_get_current_lapic_id());
+
+    // Take this time to do brief init of some SMP stuff that needed the number of CPUs
+
+    smp::set_number_of_cpus(nr_cpus);
+    cpu_messages_init(0);
+
+    /* We're CPU0 and we're online */
+    smp::set_online(0);
+}
+
+void set_pin_handlers()
 {
     /* Allocate a pool of vectors and reserve them */
     irqs = x86_allocate_vectors(24);
@@ -259,6 +339,8 @@ void set_pin_handlers(void)
     acpi_status st = acpi_get_table((acpi_string) "APIC", 0, (acpi_table_header **) &madt);
     if (ACPI_FAILURE(st))
         panic("Failed to get the MADT");
+
+    parse_lapics();
 
     acpi_subtable_header *first = (acpi_subtable_header *) (madt + 1);
     for (int i = 0; i < 24; i++)
@@ -293,17 +375,18 @@ void set_pin_handlers(void)
             uint64_t red = read_redirection_entry(mio->global_irq);
             red |= 32 + mio->global_irq;
             if ((mio->inti_flags & ACPI_MADT_POLARITY_MASK) == ACPI_MADT_POLARITY_ACTIVE_LOW)
-                red |= (1 << 13);
+                red |= IOAPIC_PIN_POLARITY_ACTIVE_LOW;
             else
-                red &= ~(1 << 13);
+                red &= ~IOAPIC_PIN_POLARITY_ACTIVE_LOW;
 
             if ((mio->inti_flags & ACPI_MADT_TRIGGER_LEVEL) == ACPI_MADT_TRIGGER_LEVEL)
-                red |= (1 << 15);
+                red |= IOAPIC_PIN_TRIGGER_LEVEL;
             else
-                red &= ~(1 << 15);
+                red &= ~IOAPIC_PIN_TRIGGER_LEVEL;
 
-            printf("GSI %d %s:%s\n", mio->global_irq, red & (1 << 13) ? "low" : "high",
-                   red & (1 << 15) ? "level" : "edge");
+            printf("GSI %d %s:%s\n", mio->global_irq,
+                   red & IOAPIC_PIN_POLARITY_ACTIVE_LOW ? "low" : "high",
+                   red & IOAPIC_PIN_TRIGGER_LEVEL ? "level" : "edge");
             write_redirection_entry(mio->global_irq, red);
         }
     }
@@ -316,6 +399,15 @@ void ioapic_early_init(void)
     ioapic_base = (volatile char *) mmiomap((void *) IOAPIC_BASE_PHYS, PAGE_SIZE,
                                             VM_READ | VM_WRITE | VM_NOCACHE);
     assert(ioapic_base != NULL);
+
+    /* Get the BSP's LAPIC base address from the msr's */
+    uint64_t addr = rdmsr(IA32_APIC_BASE);
+    addr &= 0xFFFFF000;
+    /* Map the BSP's LAPIC */
+    bsp_lapic =
+        (volatile uint32_t *) mmiomap((void *) addr, PAGE_SIZE, VM_READ | VM_WRITE | VM_NOCACHE);
+
+    assert(bsp_lapic != NULL);
 }
 
 void ioapic_init()
