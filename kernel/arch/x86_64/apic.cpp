@@ -252,7 +252,7 @@ acpi_status acpi_get_table(acpi_string signature, u32 instance,
  */
 static void x86_fixup_lapic_list(u32 current_lapicid)
 {
-    /* We may have booted as a cpy which is not cpu0 in the lapic list, so fix that up since
+    /* We may have booted as a cpu which is not cpu0 in the lapic list, so fix that up since
      * our logical cpu number is 0.
      */
     int index = -1;
