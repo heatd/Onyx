@@ -51,7 +51,13 @@ struct irq_line
     struct irqstats stats;
 };
 
-bool is_in_interrupt(void);
+extern bool in_irq;
+
+__always_inline __nocov bool is_in_interrupt()
+{
+    return get_per_cpu(in_irq);
+}
+
 void dispatch_irq(unsigned int irq, struct irq_context *context);
 int install_irq(unsigned int irq, irq_t handler, struct device *device, unsigned int flags,
                 void *cookie);

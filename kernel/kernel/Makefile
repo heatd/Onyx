@@ -16,6 +16,8 @@ kern-$(CONFIG_KTRACE)+= ktrace.o
 
 kern-$(CONFIG_KUNIT)+= kunit.o
 
+kern-$(CONFIG_KCOV)+= kcov.o
+
 obj-y+= $(patsubst %, kernel/%, $(kern-y)) 
 
 include kernel/mm/Makefile
@@ -30,3 +32,5 @@ kernel/syscall_thunk.cpp: generate_syscall_bits.py $(ARCHDIR)/syscall_table.json
 	python3 generate_syscall_bits.py $(ARCHDIR)/syscall_table.json kernel/syscall_thunk.cpp include/onyx/gen/syscall.h
 
 include/onyx/gen/syscall.h: kernel/syscall_thunk.cpp
+
+kernel/kcov.o: CFLAGS+=-fno-sanitize-coverage=trace-pc

@@ -1,4 +1,4 @@
-#define _IOC(a,b,c,d) ( ((a)<<30) | ((b)<<8) | (c) | ((d)<<16) )
+#define _IOC(a,b,c,d) ((int)( ((a)<<30) | ((b)<<8) | (c) | ((d)<<16) ))
 #define _IOC_NONE  0U
 #define _IOC_WRITE 1U
 #define _IOC_READ  2U

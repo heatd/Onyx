@@ -390,3 +390,26 @@ void vmalloc_init(unsigned long start, unsigned long length)
     vmalloc_tree.length = length;
     spinlock_init(&vmalloc_tree.lock);
 }
+
+/**
+ * @brief Get the backing pages behind a vmalloc region
+ *
+ * @param ptr Pointer to the region (must be mapped and not MMIO)
+ * @return List of pages
+ */
+struct page *vmalloc_to_pages(void *ptr)
+{
+    scoped_lock g{vmalloc_tree.lock};
+    auto reg = vfind(ptr);
+    if (!reg)
+    {
+        panic("vfree: Bad pointer %p not mapped\n", ptr);
+    }
+
+    for (struct page *p = reg->backing_pgs; p != nullptr; p = p->next_un.next_allocation)
+    {
+        page_ref(p);
+    }
+
+    return reg->backing_pgs;
+}

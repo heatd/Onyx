@@ -1,8 +1,11 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
+
 #include <onyx/irq.h>
 #include <onyx/net/netif.h>
 #include <onyx/panic.h>
@@ -11,6 +14,7 @@
 #include <onyx/timer.h>
 
 PER_CPU_VAR(unsigned int pending_vectors);
+PER_CPU_VAR(bool handling_softirq);
 
 bool softirq_may_handle()
 {
@@ -27,6 +31,8 @@ bool softirq_pending()
 
 void softirq_handle()
 {
+    write_per_cpu(handling_softirq, true);
+
     sched_disable_preempt();
 
     bool is_disabled = irq_is_disabled();
@@ -55,6 +61,8 @@ void softirq_handle()
         irq_disable();
 
     sched_enable_preempt_no_softirq();
+
+    write_per_cpu(handling_softirq, false);
 }
 
 void softirq_try_handle()

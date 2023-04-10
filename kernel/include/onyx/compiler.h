@@ -160,4 +160,10 @@ inline void write_once(const Type& t, Type val)
 #define __END_CDECLS
 #endif
 
+#ifdef CONFIG_KCOV
+#define __nocov __attribute__((no_sanitize_coverage))
+#else
+#define __nocov
+#endif
+
 #endif /* COMPILER_H */

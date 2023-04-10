@@ -116,11 +116,6 @@ void free_irq(unsigned int irq, struct device *device)
 
 PER_CPU_VAR(bool in_irq) = false;
 
-bool is_in_interrupt(void)
-{
-    return get_per_cpu(in_irq);
-}
-
 void dispatch_irq(unsigned int irq, struct irq_context *context)
 {
     struct irq_line *line = &irq_lines[irq];
