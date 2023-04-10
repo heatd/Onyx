@@ -151,6 +151,7 @@ struct file
     struct inode *f_ino;
     unsigned int f_flags;
     struct dentry *f_dentry;
+    void *private_data;
 };
 
 int inode_create_vmo(struct inode *ino);

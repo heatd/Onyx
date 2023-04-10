@@ -23,6 +23,7 @@
 #include <onyx/elf.h>
 #include <onyx/fpu.h>
 #include <onyx/irq.h>
+#include <onyx/kcov.h>
 #include <onyx/mm/kasan.h>
 #include <onyx/panic.h>
 #include <onyx/percpu.h>
@@ -718,13 +719,14 @@ void thread_destroy(struct thread *thread)
     dpc_schedule_work(&w, DPC_PRIORITY_MEDIUM);
 }
 
-void thread_exit(void)
+void thread_exit()
 {
     // printk("tid %u(%p) dying\n", get_current_thread()->id, get_current_thread()->entry);
 
-    sched_disable_preempt();
-
     thread *current = get_current_thread();
+
+    kcov_free_thread(current);
+    sched_disable_preempt();
 
     /* We need to switch to the fallback page directory while we can, because
      * we don't know if the current pgd will be destroyed by some other thread.

@@ -948,4 +948,12 @@ void vm_create_sysfs(struct sysfs_object *mmobj);
  */
 void vmalloc_init(unsigned long start, unsigned long length);
 
+/**
+ * @brief Get the backing pages behind a vmalloc region
+ *
+ * @param ptr Pointer to the region (must be mapped and not MMIO)
+ * @return List of pages
+ */
+struct page *vmalloc_to_pages(void *ptr);
+
 #endif

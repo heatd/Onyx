@@ -1373,6 +1373,9 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
             else
                 __vm_munmap(mm, (void *) area->base, pages << PAGE_SHIFT);
 
+            if (ret)
+                goto out;
+
             return ret;
         }
     }
@@ -1388,6 +1391,10 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
         __vm_munmap(mm, (void *) area->base, pages << PAGE_SHIFT);
         return errno = ENOMEM, nullptr;
     }
+
+out:
+    if (flags & MAP_SHARED)
+        increment_vm_stat(mm, shared_set_size, pages << PAGE_SHIFT);
 
     base = (void *) area->base;
 
@@ -2785,9 +2792,6 @@ int vm_region_setup_backing(struct vm_region *region, size_t pages, bool is_file
 
         add_vmo_to_private_list(mm, vmo);
     }
-
-    if (is_shared)
-        increment_vm_stat(region->mm, shared_set_size, region->pages << PAGE_SHIFT);
 
     assert(region->vmo == nullptr);
     region->vmo = vmo;

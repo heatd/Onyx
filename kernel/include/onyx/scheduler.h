@@ -32,6 +32,7 @@
 using thread_callback_t = void (*)(void *);
 struct process;
 struct mm_address_space;
+struct kcov_data;
 
 #define THREAD_STRUCT_CANARY 0xcacacacafdfddead
 #define THREAD_DEAD_CANARY   0xdeadbeefbeefdead
@@ -69,6 +70,10 @@ using thread_t = struct thread
 
     struct thread_cputime_info cputime_info;
     mm_address_space *aspace{};
+
+#ifdef CONFIG_KCOV
+    struct kcov_data *kcov_data{nullptr};
+#endif
     /* And arch dependent stuff in this ifdef */
 #ifdef __x86_64__
     void *fs;
