@@ -1,17 +1,14 @@
 /*
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2022 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: MIT
  */
-#ifndef _ONYX_PUBLIC_PCIIO_H
-#define _ONYX_PUBLIC_PCIIO_H
+#ifndef _UAPI_PCIIO_H
+#define _UAPI_PCIIO_H
 
 /* Implementation of pciio.h as specified in FreeBSD pci(4) */
-#undef ONYX_UAPI_HEADER
-#define ONYX_UAPI_HEADER
-
 #include <onyx/types.h>
 
 #define PCI_MAXNAMELEN 64

@@ -7,7 +7,7 @@
 #define _ONYX_FILE_H
 
 #include <errno.h>
-#include <fcntl.h>
+#include <uapi/fcntl.h>
 
 #include <onyx/panic.h>
 #include <onyx/vfs.h>

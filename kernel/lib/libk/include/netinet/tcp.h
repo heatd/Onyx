@@ -59,7 +59,7 @@
 
 #define SOL_TCP 6
 
-#include <sys/types.h>
+#include <onyx/types.h>
 #include <sys/socket.h>
 #include <stdint.h>
 #include <endian.h>

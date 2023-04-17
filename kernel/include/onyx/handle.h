@@ -7,7 +7,8 @@
 #define _ONYX_HANDLE_H
 
 #include <onyx/file.h>
-#include <onyx/public/handle.h>
+
+#include <uapi/handle.h>
 
 namespace onx
 {

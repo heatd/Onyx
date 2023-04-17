@@ -9,7 +9,7 @@
 #ifndef _ONYX_X86_SIGNAL_H
 #define _ONYX_X86_SIGNAL_H
 
-#include <signal.h>
+#include <uapi/signal.h>
 #include <ucontext.h>
 
 /* This struct needs to be exactly like user-space's ucontext_t, but without

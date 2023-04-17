@@ -6,12 +6,12 @@
 #ifndef _PHOTON_PHOTON_TYPES_H
 #define _PHOTON_PHOTON_TYPES_H
 
-#include <stdint.h>
-#include <sys/types.h>
-
 #include <onyx/limits.h>
+#include <onyx/types.h>
 
-typedef uint64_t photon_handle;
+#include <uapi/posix-types.h>
+
+typedef __u64 photon_handle;
 
 #define PHOTON_INVALID_HANDLE ((photon_handle) -1)
 
@@ -49,18 +49,18 @@ enum photon_bus_type
 
 struct photon_pci_address
 {
-    uint16_t segment;
-    uint8_t bus;
-    uint8_t device;
-    uint8_t function;
+    __u16 segment;
+    __u8 bus;
+    __u8 device;
+    __u8 function;
 };
 
 struct photon_pci_info
 {
     struct photon_pci_address addr;
-    uint16_t device_id;
-    uint16_t vendor_id;
-    uint16_t subsystem_id;
+    __u16 device_id;
+    __u16 vendor_id;
+    __u16 subsystem_id;
 };
 
 struct photon_bus_info
@@ -75,11 +75,11 @@ struct photon_bus_info
 struct photon_dumb_buffer_info
 {
     photon_handle handle;
-    uint32_t width;
-    uint32_t height;
-    uint32_t bpp;
-    uint32_t stride;
-    uint32_t size;
+    __u32 width;
+    __u32 height;
+    __u32 bpp;
+    __u32 stride;
+    __u32 size;
 };
 
 struct photon_swap_buffer_args
@@ -90,21 +90,21 @@ struct photon_swap_buffer_args
 struct photon_create_buf_map_args
 {
     photon_handle handle;
-    off_t offset;
+    __off_t offset;
 };
 
 struct photon_videomode
 {
-    uint32_t width;
-    uint32_t height;
-    uint32_t bpp;
+    __u32 width;
+    __u32 height;
+    __u32 bpp;
 };
 
 struct photon_modeset_args
 {
-    uint32_t width;
-    uint32_t height;
-    uint32_t bpp;
+    __u32 width;
+    __u32 height;
+    __u32 bpp;
 };
 
 struct photon_set_name_args
@@ -112,15 +112,15 @@ struct photon_set_name_args
     photon_handle handle;
     /* Set name uses a security cookie as to not allow other processes to access it */
     /* User processes are expected to fill this field with secure contents */
-    uint64_t security_cookie;
+    __u64 security_cookie;
     /* Set by the ioctl */
-    uint32_t name;
+    __u32 name;
 };
 
 struct photon_open_from_name_args
 {
-    uint32_t name;
-    uint64_t security_cookie;
+    __u32 name;
+    __u64 security_cookie;
     /* Set by the ioctl */
     photon_handle handle;
 };

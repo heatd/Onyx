@@ -20,9 +20,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <multiboot2.h>
-#include <pthread_kernel.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -71,6 +69,7 @@
 
 #include <acpica/acpi.h>
 #include <pci/pci.h>
+#include <uapi/fcntl.h>
 
 #include <onyx/linker_section.hpp>
 

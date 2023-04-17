@@ -10,11 +10,12 @@
 #define _ONYX_SYSFS_H
 
 #include <stdbool.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 
 #include <onyx/list.h>
 #include <onyx/object.h>
+
+#include <uapi/posix-types.h>
+#include <uapi/stat.h>
 
 /* Each sysfs entry is a sysfs property */
 struct sysfs_object

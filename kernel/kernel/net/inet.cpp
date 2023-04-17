@@ -11,8 +11,9 @@
 #include <onyx/net/socket_table.h>
 #include <onyx/net/tcp.h>
 #include <onyx/net/udp.h>
-#include <onyx/public/socket.h>
 #include <onyx/random.h>
+
+#include <uapi/socket.h>
 
 namespace ip
 {

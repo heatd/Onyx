@@ -14,12 +14,12 @@
 #include <onyx/spinlock.h>
 #include <onyx/vfs.h>
 struct netif;
-#include <netinet/in.h>
-
 #include <onyx/net/arp.h>
 #include <onyx/net/dll.h>
-#include <onyx/public/socket.h>
 #include <onyx/vector.h>
+
+#include <uapi/netinet.h>
+#include <uapi/socket.h>
 
 #define NETIF_LINKUP                (1 << 0)
 #define NETIF_SUPPORTS_CSUM_OFFLOAD (1 << 1)

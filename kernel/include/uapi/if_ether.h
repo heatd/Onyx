@@ -5,11 +5,8 @@
  *
  * SPDX-License-Identifier: MIT
  */
-#ifndef _ONYX_PUBLIC_IF_ETHER_H
-#define _ONYX_PUBLIC_IF_ETHER_H
-
-#undef ONYX_UAPI_HEADER
-#define ONYX_UAPI_HEADER
+#ifndef _UAPI_IF_ETHER_H
+#define _UAPI_IF_ETHER_H
 
 #include <onyx/types.h>
 

@@ -2,7 +2,7 @@
 #define _NETINET_IF_ETHER_H
 
 #include <stdint.h>
-#include <sys/types.h>
+#include <onyx/types.h>
 
 #define ETH_ALEN	6
 #define ETH_HLEN	14

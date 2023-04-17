@@ -13,7 +13,8 @@
 #include <stdint.h>
 
 #include <onyx/compiler.h>
-#include <onyx/public/perf_probe.h>
+
+#include <uapi/perf_probe.h>
 
 struct registers;
 

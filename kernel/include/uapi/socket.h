@@ -1,29 +1,40 @@
-#ifndef _ONYX_PUBLIC_SOCKET_H
-#define _ONYX_PUBLIC_SOCKET_H
-#ifdef __cplusplus
-extern "C" {
-#endif
+/*
+ * Copyright (c) 2020 - 2023 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
+#ifndef _UAPI_SOCKET_H
+#define _UAPI_SOCKET_H
 
-#include <features.h>
+#include <uapi/net-types.h>
+#include <uapi/posix-types.h>
 
-#define __NEED_socklen_t
-#define __NEED_sa_family_t
-#define __NEED_size_t
-#define __NEED_ssize_t
-#define __NEED_uid_t
-#define __NEED_pid_t
-#define __NEED_gid_t
-#define __NEED_struct_iovec
-
-#include <bits/alltypes.h>
-#include <bits/socket.h>
-
-#ifdef _GNU_SOURCE
 struct ucred
 {
-    pid_t pid;
-    uid_t uid;
-    gid_t gid;
+    __pid_t pid;
+    __uid_t uid;
+    __gid_t gid;
+};
+
+struct msghdr
+{
+    void *msg_name;
+    __socklen_t msg_namelen;
+    struct iovec *msg_iov;
+    int msg_iovlen, __pad1;
+    void *msg_control;
+    __socklen_t msg_controllen, __pad2;
+    int msg_flags;
+};
+
+struct cmsghdr
+{
+    __socklen_t cmsg_len;
+    int __pad1;
+    int cmsg_level;
+    int cmsg_type;
 };
 
 struct mmsghdr
@@ -31,12 +42,6 @@ struct mmsghdr
     struct msghdr msg_hdr;
     unsigned int msg_len;
 };
-
-struct timespec;
-
-int sendmmsg(int, struct mmsghdr *, unsigned int, unsigned int);
-int recvmmsg(int, struct mmsghdr *, unsigned int, unsigned int, struct timespec *);
-#endif
 
 struct linger
 {
@@ -307,20 +312,4 @@ struct linger
 #define SCM_RIGHTS      0x01
 #define SCM_CREDENTIALS 0x02
 
-struct sockaddr
-{
-    sa_family_t sa_family;
-    char sa_data[14];
-};
-
-struct sockaddr_storage
-{
-    sa_family_t ss_family;
-    char __ss_padding[128 - sizeof(long) - sizeof(sa_family_t)];
-    unsigned long __ss_align;
-};
-
-#ifdef __cplusplus
-}
-#endif
 #endif

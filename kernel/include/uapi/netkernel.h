@@ -1,13 +1,23 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
-#ifndef _ONYX_PUBLIC_NETKERNEL_H
-#define _ONYX_PUBLIC_NETKERNEL_H
+#ifndef _UAPI_NETKERNEL_H
+#define _UAPI_NETKERNEL_H
 
+/* Annoying kernel - libc compat kludges... */
+#ifdef __is_onyx_kernel
+#include <uapi/netinet.h>
+#include <uapi/socket.h>
+#else
 #include <netinet/in.h>
+#include <sys/socket.h>
+typedef sa_family_t __sa_family_t;
+#endif
 
 struct netkernel_hdr
 {
@@ -38,7 +48,7 @@ struct netkernel_error
 
 struct sockaddr_nk
 {
-    sa_family_t nk_family;
+    __sa_family_t nk_family;
     /* netkernel addresses are expressed through a 109 character dot-separated path,
      * and are null terminated.
      */
@@ -76,8 +86,8 @@ struct netkernel_nif_interface
 {
     unsigned int if_index;
     char if_name[IF_NAMESIZE];
-    sockaddr if_hwaddr;
-    sockaddr if_brdaddr;
+    struct sockaddr if_hwaddr;
+    struct sockaddr if_brdaddr;
     unsigned int if_mtu;
     // if.h documents the flags
     short if_flags;

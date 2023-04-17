@@ -11,9 +11,10 @@
 
 #include <onyx/net/inet_route.h>
 #include <onyx/net/inet_socket.h>
-#include <onyx/public/icmp.h>
 #include <onyx/scoped_lock.h>
 #include <onyx/spinlock.h>
+
+#include <uapi/icmp.h>
 
 #define ICMPV6_DEST_UNREACHABLE  1
 #define ICMPV6_PACKET_TOO_BIG    2

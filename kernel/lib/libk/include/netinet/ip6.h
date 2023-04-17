@@ -6,8 +6,9 @@ extern "C" {
 #endif
 
 #include <stdint.h>
-#include <netinet/in.h>
 #include <endian.h>
+
+#include <uapi/netinet.h>
 
 struct ip6_hdr {
 	union {

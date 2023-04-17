@@ -7,8 +7,6 @@
  */
 
 #include <errno.h>
-#include <fcntl.h>
-#include <poll.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -31,6 +29,8 @@
 #include <onyx/vfs.h>
 
 #include <bits/ioctl.h>
+#include <uapi/fcntl.h>
+#include <uapi/poll.h>
 
 #include <onyx/list.hpp>
 

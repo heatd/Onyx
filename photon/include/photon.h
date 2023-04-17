@@ -7,6 +7,8 @@
 #ifndef _PHOTON_H
 #define _PHOTON_H
 
+#include <stdint.h>
+
 #include <photon/photon-types.h>
 
 struct photon_list_device_instance
@@ -15,7 +17,8 @@ struct photon_list_device_instance
 };
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
 int photon_list_devices(struct photon_list_device_instance *device_instances, int length);

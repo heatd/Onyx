@@ -12,7 +12,7 @@
 
 #include <cstdlib>
 
-#include <onyx/public/memstat.h>
+#include <uapi/memstat.h>
 
 #include <test/libtest.h>
 

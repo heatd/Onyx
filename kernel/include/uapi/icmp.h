@@ -1,11 +1,13 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
-#ifndef _ONYX_PUBLIC_ICMP_H
-#define _ONYX_PUBLIC_ICMP_H
+#ifndef _UAPI_ICMP_H
+#define _UAPI_ICMP_H
 
 #define ICMP_ADD_FILTER 0x10000
 

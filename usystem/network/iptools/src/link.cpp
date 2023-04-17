@@ -15,7 +15,7 @@
 #include <cstring>
 #include <utility>
 
-#include <onyx/public/netkernel.h>
+#include <uapi/netkernel.h>
 
 #include <libonyx/unique_fd.h>
 

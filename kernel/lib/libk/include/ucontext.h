@@ -6,7 +6,7 @@ extern "C" {
 
 #include <features.h>
 
-#include <signal.h>
+#include <uapi/signal.h>
 
 #if defined(_GNU_SOURCE) || defined(_BSD_SOURCE)
 #define NGREG (sizeof(gregset_t)/sizeof(greg_t))

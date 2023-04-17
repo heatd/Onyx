@@ -11,7 +11,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/types.h>
+#include <onyx/types.h>
 
 #include <onyx/culstring.h>
 #include <onyx/dev.h>

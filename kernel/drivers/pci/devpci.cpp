@@ -10,10 +10,10 @@
 #include <onyx/cred.h>
 #include <onyx/dev.h>
 #include <onyx/init.h>
-#include <onyx/public/pciio.h>
 #include <onyx/vector.h>
 
 #include <pci/pci.h>
+#include <uapi/pciio.h>
 
 #include <onyx/slice.hpp>
 

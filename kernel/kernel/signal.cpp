@@ -4,7 +4,7 @@
  * check LICENSE at the root directory for more information
  */
 #include <errno.h>
-#include <signal.h>
+#include <uapi/signal.h>
 #include <stdio.h>
 
 #include <onyx/clock.h>

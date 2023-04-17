@@ -16,8 +16,8 @@
 #include <utility>
 #include <vector>
 
-#include <onyx/public/icmp.h>
-#include <onyx/public/netkernel.h>
+#include <uapi/icmp.h>
+#include <uapi/netkernel.h>
 
 #include <netctl.hpp>
 #include <v6/addrcfg.hpp>

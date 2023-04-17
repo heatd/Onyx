@@ -11,7 +11,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <sys/types.h>
 
 #include <onyx/compiler.h>
 #include <onyx/list.h>

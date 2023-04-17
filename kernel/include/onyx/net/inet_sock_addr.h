@@ -7,9 +7,8 @@
 #ifndef _ONYX_NET_INET_SOCK_ADDR_H
 #define _ONYX_NET_INET_SOCK_ADDR_H
 
-#include <netinet/in.h>
-
-#include <onyx/public/socket.h>
+#include <uapi/netinet.h>
+#include <uapi/socket.h>
 
 constexpr bool operator==(const in_addr& lhs, const in_addr& rhs)
 {

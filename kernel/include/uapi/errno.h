@@ -6,8 +6,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef _ONYX_PUBLIC_ERRNO_H
-#define _ONYX_PUBLIC_ERRNO_H
+#ifndef _UAPI_ERRNO_H
+#define _UAPI_ERRNO_H
 
 #define EPERM           1
 #define ENOENT          2

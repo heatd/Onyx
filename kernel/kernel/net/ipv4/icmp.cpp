@@ -21,8 +21,9 @@
 #include <onyx/net/socket_table.h>
 #include <onyx/packetbuf.h>
 #include <onyx/poll.h>
-#include <onyx/public/icmp.h>
 #include <onyx/vfs.h>
+
+#include <uapi/icmp.h>
 
 #include <onyx/memory.hpp>
 

@@ -9,6 +9,9 @@
 #ifndef _ONYX_TYPES_H
 #define _ONYX_TYPES_H
 
+#ifndef __is_onyx_kernel
+#include <uapi/types.h>
+#else
 #include <stddef.h>
 #include <stdint.h>
 
@@ -37,6 +40,10 @@ typedef __u8 u8;
 typedef __u16 u16;
 typedef __u32 u32;
 typedef __u64 u64;
+
+#endif
+
+#include <uapi/posix-types.h>
 
 #endif
 

@@ -8,7 +8,7 @@
 #ifndef _ONYX_TMPFS_H
 #define _ONYX_TMPFS_H
 
-#include <sys/types.h>
+#include <onyx/types.h>
 
 #include <onyx/list.h>
 #include <onyx/mutex.h>

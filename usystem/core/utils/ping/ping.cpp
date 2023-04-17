@@ -26,7 +26,7 @@
 #include <random>
 #include <tuple>
 
-#include <onyx/public/icmp.h>
+#include <uapi/icmp.h>
 
 const struct option long_options[] = {
     {"help", 0, nullptr, 'h'}, {"version", 0, nullptr, 'v'}, {"flood", 0, nullptr, 'f'}, {}};

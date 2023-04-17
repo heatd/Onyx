@@ -9,7 +9,7 @@
 #define _ONYX_CRED_H
 
 #include <string.h>
-#include <sys/types.h>
+#include <onyx/types.h>
 
 #include <onyx/groups.h>
 #include <onyx/rwlock.h>

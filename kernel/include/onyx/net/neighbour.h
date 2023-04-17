@@ -13,8 +13,9 @@
 #include <onyx/fnv.h>
 #include <onyx/list.h>
 #include <onyx/net/inet_sock_addr.h>
-#include <onyx/public/socket.h>
 #include <onyx/timer.h>
+
+#include <uapi/socket.h>
 
 #include <onyx/hashtable.hpp>
 #include <onyx/memory.hpp>

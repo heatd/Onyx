@@ -7,8 +7,8 @@ extern "C" {
 
 #include <stdint.h>
 #include <string.h>
-#include <sys/types.h>
-#include <netinet/in.h>
+#include <onyx/types.h>
+#include <uapi/netinet.h>
 
 #define ICMP6_FILTER 1
 

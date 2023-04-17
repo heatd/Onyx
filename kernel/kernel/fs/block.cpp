@@ -6,7 +6,7 @@
  * SPDX-License-Identifier: MIT
  */
 #include <errno.h>
-#include <fcntl.h>
+#include <uapi/fcntl.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>

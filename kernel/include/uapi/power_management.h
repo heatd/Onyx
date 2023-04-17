@@ -1,10 +1,12 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
-#ifndef _ONYX_PUBLIC_POWER_MANAGEMENT_H
-#define _ONYX_PUBLIC_POWER_MANAGEMENT_H
+#ifndef _UAPI_POWER_MANAGEMENT_H
+#define _UAPI_POWER_MANAGEMENT_H
 
 #define POWER_STATE_REBOOT   0
 #define POWER_STATE_SHUTDOWN 1

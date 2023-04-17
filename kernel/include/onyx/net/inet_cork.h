@@ -8,11 +8,12 @@
 #define _ONYX_NET_INET_CORK_H
 
 #include <stddef.h>
-#include <sys/uio.h>
 
 #include <onyx/list.h>
 #include <onyx/net/inet_packet_flow.h>
 #include <onyx/packetbuf.h>
+
+#include <uapi/posix-types.h>
 
 class inet_cork
 {

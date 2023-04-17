@@ -5,6 +5,9 @@
  *
  * SPDX-License-Identifier: MIT
  */
+/* Define the kernel def so we get the extra defs */
+#define __is_onyx_kernel
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <sys/time.h>
@@ -13,6 +16,7 @@
 
 #include <onyx/clock.h>
 #include <onyx/vdso.h>
+#undef __is_onyx_kernel
 
 #include <fixed_point/fixed_point.h>
 

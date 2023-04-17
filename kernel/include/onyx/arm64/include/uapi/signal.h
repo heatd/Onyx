@@ -17,4 +17,7 @@ typedef struct mcontext
     unsigned char dummy;
 } mcontext_t;
 
+/* Include generic signal definitions, after our struct code */
+#include <uapi/signal-generic.h>
+
 #endif

@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
+#include <onyx/types.h>
 
 #include <onyx/compiler.h>
 #include <onyx/dentry.h>

@@ -14,8 +14,8 @@
 #include <string>
 #include <vector>
 
-#include <onyx/public/handle.h>
-#include <onyx/public/process.h>
+#include <uapi/handle.h>
+#include <uapi/process.h>
 
 #include <gtest/gtest.h>
 #include <libonyx/handle.h>

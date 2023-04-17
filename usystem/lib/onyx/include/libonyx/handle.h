@@ -9,16 +9,17 @@
 #include <stddef.h>
 #include <unistd.h>
 
-#include <onyx/public/handle.h>
+#include <uapi/handle.h>
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
 /**
  * @brief Opens a handle to a resource
  *
- * @param resource_type The type of resource to be opened (specified in onyx/public/handle.h)
+ * @param resource_type The type of resource to be opened (specified in uapi/handle.h)
  * @param id The id of the resource (can be a regular old ID, or even a pointer, depending on the
  * resource)
  * @param flags Flags passed to the handle opening code, that affect handle opening and the

@@ -13,7 +13,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/mman.h>
-#include <sys/types.h>
+#include <onyx/types.h>
 
 #include <onyx/list.h>
 #include <onyx/mutex.h>

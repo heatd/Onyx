@@ -7,7 +7,7 @@
 #ifndef _PROC_EVENT_H_
 #define _PROC_EVENT_H_
 
-#include <sys/types.h>
+#include <onyx/types.h>
 #include <sys/user.h>
 #define PROC_EVENT_LISTEN_SYSCALLS (1 << 0)
 

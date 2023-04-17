@@ -6,7 +6,6 @@
  * SPDX-License-Identifier: MIT
  */
 #include <errno.h>
-#include <netinet/in.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,9 +24,11 @@
 #include <onyx/net/tcp.h>
 #include <onyx/net/udp.h>
 #include <onyx/new.h>
-#include <onyx/public/socket.h>
 #include <onyx/random.h>
 #include <onyx/utils.h>
+
+#include <uapi/netinet.h>
+#include <uapi/socket.h>
 
 namespace ip::v4
 {

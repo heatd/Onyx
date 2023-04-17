@@ -10,7 +10,7 @@
 #define _ONYX_USER_H
 
 #include <stddef.h>
-#include <sys/types.h>
+#include <onyx/types.h>
 
 #ifdef __cplusplus
 extern "C" {

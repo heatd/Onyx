@@ -10,11 +10,12 @@
 #include <onyx/irq.h>
 #include <onyx/kcov.h>
 #include <onyx/kunit.h>
-#include <onyx/public/kcov.h>
 #include <onyx/softirq.h>
 #include <onyx/thread.h>
 #include <onyx/types.h>
 #include <onyx/vfs.h>
+
+#include <uapi/kcov.h>
 
 enum kcov_state
 {

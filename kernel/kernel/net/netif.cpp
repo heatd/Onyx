@@ -9,7 +9,7 @@
 #include <errno.h>
 #include <net/if.h>
 #include <net/if_arp.h>
-#include <sys/ioctl.h>
+#include <uapi/ioctls.h>
 
 #include <onyx/byteswap.h>
 #include <onyx/dev.h>

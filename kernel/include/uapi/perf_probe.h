@@ -5,12 +5,10 @@
  *
  * SPDX-License-Identifier: MIT
  */
-#ifndef _ONYX_PUBLIC_PERF_PROBE_H
-#define _ONYX_PUBLIC_PERF_PROBE_H
+#ifndef _UAPI_PERF_PROBE_H
+#define _UAPI_PERF_PROBE_H
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <onyx/types.h>
 
 #define FLAME_GRAPH_FRAMES   32
 #define FLAME_GRAPH_NENTRIES 65536
@@ -22,8 +20,8 @@ struct flame_graph_entry
 
 struct flame_graph_pcpu
 {
-    uint32_t nentries;
-    uint32_t windex;
+    __u32 nentries;
+    __u32 windex;
     struct flame_graph_entry *fge; /* array of nentries */
     int dummy[12];
 };

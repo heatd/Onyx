@@ -10,9 +10,10 @@
 #define _ONYX_NET_NETKERNEL_H
 
 #include <onyx/net/socket.h>
-#include <onyx/public/netkernel.h>
 #include <onyx/rwlock.h>
 #include <onyx/vector.h>
+
+#include <uapi/netkernel.h>
 
 #include <onyx/expected.hpp>
 #include <onyx/memory.hpp>

@@ -4,9 +4,10 @@
  * check LICENSE at the root directory for more information
  */
 #include <sys/syscall.h>
-#include <sys/types.h>
 #include <sys/uio.h>
 #include <unistd.h>
+
+#include <onyx/types.h>
 
 #pragma GCC push_options
 #pragma GCC diagnostic ignored "-Wunused-parameter"

@@ -10,7 +10,7 @@
 
 #include <errno.h>
 #include <stdint.h>
-#include <sys/stat.h>
+#include <uapi/stat.h>
 
 #include <onyx/block.h>
 #include <onyx/buffer.h>

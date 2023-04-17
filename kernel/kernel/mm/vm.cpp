@@ -8,7 +8,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <fcntl.h>
+#include <uapi/fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <sys/mman.h>
@@ -30,7 +30,6 @@
 #include <onyx/panic.h>
 #include <onyx/percpu.h>
 #include <onyx/process.h>
-#include <onyx/public/memstat.h>
 #include <onyx/random.h>
 #include <onyx/spinlock.h>
 #include <onyx/sysfs.h>
@@ -42,6 +41,7 @@
 #include <onyx/vm_layout.h>
 
 #include <libdict/dict.h>
+#include <uapi/memstat.h>
 
 bool is_initialized = false;
 static bool enable_aslr = true;

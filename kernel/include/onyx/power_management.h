@@ -7,7 +7,7 @@
 #ifndef _ONYX_POWER_MANAGEMENT_H
 #define _ONYX_POWER_MANAGEMENT_H
 
-#include <onyx/public/power_management.h>
+#include <uapi/power_management.h>
 
 int set_power_state(unsigned int state, unsigned int flags);
 

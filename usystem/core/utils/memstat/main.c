@@ -11,7 +11,7 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
-#include <onyx/public/memstat.h>
+#include <uapi/memstat.h>
 
 int main()
 {

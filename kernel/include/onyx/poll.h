@@ -7,9 +7,10 @@
 #ifndef _ONYX_POLL_H
 #define _ONYX_POLL_H
 
-#include <poll.h>
-
 #include <onyx/vfs.h>
+
+#include <uapi/poll.h>
+#include <uapi/select.h>
 
 #ifdef __cplusplus
 

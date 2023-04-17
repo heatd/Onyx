@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
-#include <sys/types.h>
+#include <onyx/types.h>
 
 #pragma GCC push_options
 #pragma GCC diagnostic ignored "-Wunused-parameter"

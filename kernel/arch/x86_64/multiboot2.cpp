@@ -7,9 +7,7 @@
  */
 #include <assert.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <multiboot2.h>
-#include <pthread_kernel.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -63,6 +61,7 @@
 #include <acpica/acpi.h>
 #include <drivers/rtc.h>
 #include <efi/efi.h>
+#include <uapi/fcntl.h>
 
 static struct multiboot_tag_module *initrd_tag = NULL;
 struct multiboot_tag_elf_sections *secs;

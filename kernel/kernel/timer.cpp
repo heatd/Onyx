@@ -18,6 +18,8 @@
 #include <onyx/user.h>
 #include <onyx/vm.h>
 
+#include <uapi/time.h>
+
 void timer_queue_clockevent(struct clockevent *ev)
 {
     auto timer = platform_get_timer();

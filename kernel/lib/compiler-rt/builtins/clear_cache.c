@@ -26,7 +26,7 @@ uintptr_t GetCurrentProcess(void);
 
 #if defined(__FreeBSD__) && defined(__arm__)
 // clang-format off
-#include <sys/types.h>
+#include <onyx/types.h>
 #include <machine/sysarch.h>
 // clang-format on
 #endif
@@ -37,7 +37,7 @@ uintptr_t GetCurrentProcess(void);
 
 #if defined(__OpenBSD__) && (defined(__arm__) || defined(__mips__) || defined(__riscv))
 // clang-format off
-#include <sys/types.h>
+#include <onyx/types.h>
 #include <machine/sysarch.h>
 // clang-format on
 #endif

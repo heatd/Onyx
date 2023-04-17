@@ -9,7 +9,7 @@
 #define _ONYX_GPT_H
 
 #include <stdint.h>
-#include <sys/types.h>
+#include <onyx/types.h>
 
 #define GPT_SIGNATURE "EFI PART"
 typedef struct

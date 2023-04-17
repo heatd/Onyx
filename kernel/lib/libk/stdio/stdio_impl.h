@@ -6,7 +6,7 @@
 #ifndef _STDIO_IMPL_H
 #define _STDIO_IMPL_H
 #include <stddef.h>
-#include <sys/types.h>
+#include <onyx/types.h>
 
 struct _IO_FILE
 {

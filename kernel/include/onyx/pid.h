@@ -7,9 +7,9 @@
 #ifndef _ONYX_PGRP_H
 #define _ONYX_PGRP_H
 
-#include <signal.h>
+#include <uapi/signal.h>
 #include <stdio.h>
-#include <sys/types.h>
+#include <onyx/types.h>
 
 #include <onyx/auto_resource.h>
 #include <onyx/fnv.h>

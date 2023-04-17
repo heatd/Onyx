@@ -43,4 +43,7 @@ typedef struct mcontext_t
     union __riscv_mc_fp_state __fpregs;
 } mcontext_t;
 
+/* Include generic signal definitions, after our struct code */
+#include <uapi/signal-generic.h>
+
 #endif

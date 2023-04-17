@@ -16,9 +16,8 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
-#include <onyx/public/perf_probe.h>
-
 #include <symbolize/symbolize.h>
+#include <uapi/perf_probe.h>
 
 bool tracing_wait = false;
 

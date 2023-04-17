@@ -9,17 +9,18 @@
 #ifndef _ONYX_VFS_H
 #define _ONYX_VFS_H
 
-#include <dirent.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <string.h>
-#include <sys/stat.h>
 
 #include <onyx/mm/vm_object.h>
 #include <onyx/object.h>
 #include <onyx/rwlock.h>
 #include <onyx/superblock.h>
 #include <onyx/vm.h>
+
+#include <uapi/dirent.h>
+#include <uapi/stat.h>
 
 #define VFS_TYPE_FILE         (1 << 0)
 #define VFS_TYPE_DIR          (1 << 1)

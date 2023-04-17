@@ -6,7 +6,6 @@
 #ifndef _ONYX_NET_IP_H
 #define _ONYX_NET_IP_H
 
-#include <netinet/in.h>
 #include <netinet/ip6.h>
 #include <stdint.h>
 
@@ -22,7 +21,9 @@
 #include <onyx/net/socket.h>
 #include <onyx/net/socket_table.h>
 #include <onyx/packetbuf.h>
-#include <onyx/public/socket.h>
+
+#include <uapi/netinet.h>
+#include <uapi/socket.h>
 
 struct ip_header
 {

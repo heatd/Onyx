@@ -1,2 +1,2 @@
-#include <dirent.h>
+#include <uapi/dirent.h>
 #define direct dirent

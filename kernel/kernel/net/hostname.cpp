@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
+#include <onyx/types.h>
 #include <sys/utsname.h>
 
 #include <onyx/net/network.h>

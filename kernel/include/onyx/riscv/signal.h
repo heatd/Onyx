@@ -9,7 +9,7 @@
 #ifndef _ONYX_RISCV_SIGNAL_H
 #define _ONYX_RISCV_SIGNAL_H
 
-#include <signal.h>
+#include <uapi/signal.h>
 
 #include <uapi/signal.h>
 

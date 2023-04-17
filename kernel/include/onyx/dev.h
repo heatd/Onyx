@@ -10,7 +10,7 @@
 #define _ONYX_DEV_H
 #include <stdbool.h>
 #include <stdint.h>
-#include <sys/types.h>
+#include <onyx/types.h>
 
 #include <onyx/culstring.h>
 #include <onyx/dev_resource.h>

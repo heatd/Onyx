@@ -16,9 +16,11 @@
 #include <onyx/panic.h>
 #include <onyx/port_io.h>
 #include <onyx/power_management.h>
-#include <onyx/public/power_management.h>
 
-extern "C" {
+#include <uapi/power_management.h>
+
+extern "C"
+{
 
 int do_machine_reboot(unsigned int flags);
 int do_machine_shutdown(unsigned int flags);
@@ -48,13 +50,13 @@ int set_power_state(unsigned int state, unsigned int flags)
 {
     switch (state)
     {
-    case POWER_STATE_REBOOT:
-    case POWER_STATE_HALT:
-    case POWER_STATE_SUSPEND:
-    case POWER_STATE_SHUTDOWN:
-        return do_powerctl(state, flags);
-    default:
-        return -EINVAL;
+        case POWER_STATE_REBOOT:
+        case POWER_STATE_HALT:
+        case POWER_STATE_SUSPEND:
+        case POWER_STATE_SHUTDOWN:
+            return do_powerctl(state, flags);
+        default:
+            return -EINVAL;
     }
 }
 
