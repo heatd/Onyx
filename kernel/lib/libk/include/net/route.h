@@ -7,7 +7,7 @@ extern "C" {
 
 #include <stdint.h>
 #include <sys/socket.h>
-#include <sys/types.h>
+#include <onyx/types.h>
 #include <netinet/in.h>
 
 

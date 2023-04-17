@@ -7,7 +7,7 @@
  */
 
 #include <errno.h>
-#include <sys/types.h>
+#include <onyx/types.h>
 
 #include <onyx/scheduler.h>
 #include <onyx/user.h>

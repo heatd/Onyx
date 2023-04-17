@@ -7,10 +7,10 @@
 #ifndef _ONYX_NET_INET_ROUTE_H
 #define _ONYX_NET_INET_ROUTE_H
 
-#include <netinet/in.h>
-
 #include <onyx/net/neighbour.h>
-#include <onyx/public/socket.h>
+
+#include <uapi/netinet.h>
+#include <uapi/socket.h>
 
 struct netif;
 /* Internal routing table entry */

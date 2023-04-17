@@ -12,8 +12,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/ioctl.h>
-#include <sys/types.h>
+#include <uapi/ioctls.h>
+#include <onyx/types.h>
 
 #include <onyx/dpc.h>
 #include <onyx/font.h>

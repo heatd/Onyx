@@ -5,7 +5,7 @@ extern "C" {
 #endif
 
 #include <sys/time.h>
-#include <sys/types.h>
+#include <onyx/types.h>
 #include <sys/user.h>
 
 struct elf_siginfo {

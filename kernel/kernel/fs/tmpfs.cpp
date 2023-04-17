@@ -8,7 +8,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <fcntl.h>
+#include <uapi/fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -19,9 +19,10 @@
 #include <onyx/log.h>
 #include <onyx/mutex.h>
 #include <onyx/page.h>
-#include <onyx/public/memstat.h>
 #include <onyx/tmpfs.h>
 #include <onyx/vfs.h>
+
+#include <uapi/memstat.h>
 
 #include <onyx/atomic.hpp>
 

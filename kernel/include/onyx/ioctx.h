@@ -6,7 +6,7 @@
 #ifndef _IOCTX_H
 #define _IOCTX_H
 
-#include <sys/types.h>
+#include <onyx/types.h>
 
 #include <onyx/file.h>
 #include <onyx/mutex.h>

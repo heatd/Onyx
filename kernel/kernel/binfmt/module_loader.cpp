@@ -7,7 +7,6 @@
  */
 #include <assert.h>
 #include <errno.h>
-#include <pthread_kernel.h>
 #include <stdbool.h>
 #include <stdio.h>
 

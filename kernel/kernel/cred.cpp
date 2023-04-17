@@ -8,7 +8,8 @@
 #include <onyx/compiler.h>
 #include <onyx/cred.h>
 #include <onyx/process.h>
-#include <onyx/public/cred.h>
+
+#include <uapi/cred.h>
 
 static struct creds kernel_creds = {
     .lock = rwslock{}, .ruid = 0, .euid = 0, .rgid = 0, .egid = 0, .suid = 0, .sgid = 0};

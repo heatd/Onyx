@@ -19,7 +19,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <fcntl.h>
+#include <uapi/fcntl.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>

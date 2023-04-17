@@ -8,7 +8,6 @@
 #include <assert.h>
 #include <endian.h>
 #include <errno.h>
-#include <netinet/in.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,6 +26,8 @@
 #include <onyx/poll.h>
 #include <onyx/scoped_lock.h>
 #include <onyx/utils.h>
+
+#include <uapi/netinet.h>
 
 #include <onyx/expected.hpp>
 #include <onyx/memory.hpp>

@@ -6,7 +6,7 @@
 #ifndef _KERNEL_MTABLE_H
 #define _KERNEL_MTABLE_H
 
-#include <sys/types.h>
+#include <onyx/types.h>
 
 typedef struct
 {

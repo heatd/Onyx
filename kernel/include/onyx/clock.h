@@ -12,8 +12,7 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <sys/time.h>
-#include <time.h>
+#include <uapi/time.h>
 
 #include <onyx/compiler.h>
 #include <onyx/limits.h>

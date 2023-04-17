@@ -71,9 +71,9 @@ def output_syscall_thunk(syscall, output_file):
     output_file.write(thunk_function)
 
 def output_thunk_file_prologue(syscall_thunk):
-    headers = ["unistd.h", "dirent.h", "signal.h", "stdint.h", "stddef.h", "stdio.h", "errno.h", "fcntl.h", "poll.h",
-               "sys/time.h", "sys/types.h", "sys/mman.h", "sys/resource.h", "sys/uio.h", "sys/utsname.h", "onyx/public/socket.h", "sys/times.h",
-               "sys/sysinfo.h", "platform/syscall.h"]
+    headers = ["unistd.h", "dirent.h", "uapi/signal.h", "stdint.h", "stddef.h", "stdio.h", "uapi/errno.h", "uapi/fcntl.h", "uapi/poll.h",
+               "uapi/time.h", "onyx/types.h", "uapi/mman.h", "uapi/resource.h", "uapi/posix-types.h", "sys/utsname.h", "uapi/socket.h", "sys/times.h",
+               "sys/sysinfo.h", "platform/syscall.h", "uapi/select.h"]
     
     for header in headers:
         syscall_thunk.write(f'#include <{header}>\n')

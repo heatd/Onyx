@@ -11,7 +11,7 @@
 
 #include <unistd.h>
 
-#include <onyx/public/process.h>
+#include <uapi/process.h>
 
 #ifdef __cplusplus
 extern "C"

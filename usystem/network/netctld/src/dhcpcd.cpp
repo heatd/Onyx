@@ -30,8 +30,8 @@
 #include <thread>
 #include <vector>
 
-#include <onyx/public/icmp.h>
-#include <onyx/public/netkernel.h>
+#include <uapi/icmp.h>
+#include <uapi/netkernel.h>
 
 #include <dhcpcd.hpp>
 

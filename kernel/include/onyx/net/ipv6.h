@@ -7,13 +7,13 @@
 #ifndef _ONYX_NET_IPV6_H
 #define _ONYX_NET_IPV6_H
 
-#include <netinet/in.h>
-
 #include <onyx/net/inet_proto_family.h>
 #include <onyx/net/inet_route.h>
 #include <onyx/net/inet_sock_addr.h>
 #include <onyx/net/inet_socket.h>
-#include <onyx/public/socket.h>
+
+#include <uapi/netinet.h>
+#include <uapi/socket.h>
 
 #include <onyx/tuple.hpp>
 

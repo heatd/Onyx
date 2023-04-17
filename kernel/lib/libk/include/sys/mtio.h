@@ -1,7 +1,7 @@
 #ifndef _SYS_MTIO_H
 #define _SYS_MTIO_H
 
-#include <sys/types.h>
+#include <onyx/types.h>
 #include <sys/ioctl.h>
 
 struct mtop {

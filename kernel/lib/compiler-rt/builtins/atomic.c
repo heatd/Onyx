@@ -80,7 +80,7 @@ static const long SPINLOCK_MASK = SPINLOCK_COUNT - 1;
 #if defined(__FreeBSD__) || defined(__DragonFly__)
 #include <errno.h>
 // clang-format off
-#include <sys/types.h>
+#include <onyx/types.h>
 #include <machine/atomic.h>
 #include <sys/umtx.h>
 // clang-format on

@@ -5,7 +5,7 @@
  *
  * SPDX-License-Identifier: MIT
  */
-#include <fcntl.h>
+#include <uapi/fcntl.h>
 
 #include <onyx/dentry.h>
 #include <onyx/file.h>

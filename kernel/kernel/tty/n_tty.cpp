@@ -6,7 +6,7 @@
  * SPDX-License-Identifier: MIT
  */
 #include <ctype.h>
-#include <sys/ioctl.h>
+#include <uapi/ioctls.h>
 
 #include <onyx/tty.h>
 

@@ -6,7 +6,7 @@ extern "C" {
 #endif
 
 #include <features.h>
-#include <sys/stat.h>
+#include <uapi/stat.h>
 
 #define FTW_F   1
 #define FTW_D   2

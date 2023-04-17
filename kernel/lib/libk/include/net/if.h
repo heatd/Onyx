@@ -24,7 +24,7 @@ void if_freenameindex (struct if_nameindex *);
 
 #if defined(_GNU_SOURCE) || defined(_BSD_SOURCE)
 
-#include <onyx/public/socket.h>
+#include <uapi/socket.h>
 
 #define IFF_UP	0x1
 #define IFF_BROADCAST 0x2

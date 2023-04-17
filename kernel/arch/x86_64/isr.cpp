@@ -5,7 +5,7 @@
  *
  * SPDX-License-Identifier: MIT
  */
-#include <signal.h>
+#include <uapi/signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>

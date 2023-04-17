@@ -86,7 +86,7 @@
 #include <machine/limits.h>
 #endif
 #include <sys/stdint.h>
-#include <sys/types.h>
+#include <onyx/types.h>
 #else
 // Include the standard compiler builtin headers we use functionality from.
 #include <float.h>

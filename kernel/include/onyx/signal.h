@@ -1,15 +1,19 @@
 /*
- * Copyright (c) 2016-2020 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
+
 #ifndef _ONYX_SIGNAL_H
 #define _ONYX_SIGNAL_H
 
-#include <signal.h>
 #include <stdbool.h>
 
 #include <onyx/list.h>
+
+#include <uapi/signal.h>
 
 #ifdef __cplusplus
 #include <onyx/scoped_lock.h>
@@ -18,6 +22,61 @@
 #define KERNEL_SIGRTMIN 32
 #define KERNEL_SIGRTMAX 64
 
+static inline int sigemptyset(sigset_t *set)
+{
+    for (size_t i = 0; i < _SIGSET_SIZE; i++)
+        set->__bits[i] = 0;
+    return 0;
+}
+
+static inline int sigaddset(sigset_t *set, int sig)
+{
+    unsigned s = sig - 1;
+    set->__bits[s / _NSIG_PER_WORD] |= (1UL << (s % _NSIG_PER_WORD));
+    return 0;
+}
+
+static inline int sigdelset(sigset_t *set, int sig)
+{
+    unsigned s = sig - 1;
+    set->__bits[s / _NSIG_PER_WORD] &= ~(1UL << (s % _NSIG_PER_WORD));
+    return 0;
+}
+
+static inline int sigismember(const sigset_t *set, int sig)
+{
+    unsigned s = sig - 1;
+    return set->__bits[s / _NSIG_PER_WORD] & (1UL << (s % _NSIG_PER_WORD));
+}
+
+static inline int sigisemptyset(const sigset_t *set)
+{
+    for (size_t i = 0; i < _SIGSET_SIZE; i++)
+    {
+        if (set->__bits[i])
+            return 0;
+    }
+
+    return 1;
+}
+
+static inline int sigorset(sigset_t *dest, const sigset_t *left, const sigset_t *right)
+{
+    unsigned long i = 0, *d = (unsigned long *) dest, *l = (unsigned long *) left,
+                  *r = (unsigned long *) right;
+    for (; i < _SIGSET_SIZE; i++)
+        d[i] = l[i] | r[i];
+    return 0;
+}
+
+static inline int sigandset(sigset_t *dest, const sigset_t *left, const sigset_t *right)
+{
+    unsigned long i = 0, *d = (unsigned long *) dest, *l = (unsigned long *) left,
+                  *r = (unsigned long *) right;
+    for (; i < _SIGSET_SIZE; i++)
+        d[i] = l[i] & r[i];
+    return 0;
+}
 void signotset(sigset_t *set);
 
 struct sigpending

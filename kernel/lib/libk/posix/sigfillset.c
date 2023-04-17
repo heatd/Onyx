@@ -1,5 +1,5 @@
 #include <limits.h>
-#include <signal.h>
+#include <uapi/signal.h>
 
 /* TODO: Fix if needed */
 int ______sigfillset(sigset_t *set)

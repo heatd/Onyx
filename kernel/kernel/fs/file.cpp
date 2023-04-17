@@ -8,13 +8,11 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <libgen.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/uio.h>
 #include <unistd.h>
 
 #include <onyx/compiler.h>
@@ -29,6 +27,10 @@
 #include <onyx/user.h>
 #include <onyx/vfs.h>
 #include <onyx/vm.h>
+
+#include <uapi/fcntl.h>
+#include <uapi/posix-types.h>
+#include <uapi/stat.h>
 
 bool is_absolute_filename(const char *file)
 {

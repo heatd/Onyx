@@ -10,7 +10,7 @@
 #define _ONYX_PROCESS_H
 
 #include <sys/resource.h>
-#include <sys/types.h>
+#include <onyx/types.h>
 
 #include <onyx/condvar.h>
 #include <onyx/cpu.h>
@@ -24,7 +24,6 @@
 #include <onyx/list.h>
 #include <onyx/mutex.h>
 #include <onyx/pid.h>
-#include <onyx/public/process.h>
 #include <onyx/registers.h>
 #include <onyx/rwlock.h>
 #include <onyx/scheduler.h>
@@ -35,6 +34,8 @@
 #include <onyx/vm.h>
 #include <onyx/vm_layout.h>
 #include <onyx/wait_queue.h>
+
+#include <uapi/process.h>
 
 #include <onyx/memory.hpp>
 #include <onyx/string_view.hpp>

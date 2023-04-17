@@ -59,4 +59,7 @@ typedef struct
     unsigned long long __reserved1[8];
 } mcontext_t;
 
+/* Include generic signal definitions, after our struct code */
+#include <uapi/signal-generic.h>
+
 #endif

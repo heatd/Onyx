@@ -8,12 +8,10 @@
 
 #include "ext2.h"
 
-#include <dirent.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
 
 #include <onyx/buffer.h>
 #include <onyx/compiler.h>
@@ -25,8 +23,11 @@
 #include <onyx/log.h>
 #include <onyx/pagecache.h>
 #include <onyx/panic.h>
+#include <onyx/types.h>
 #include <onyx/vfs.h>
 #include <onyx/vm.h>
+
+#include <uapi/dirent.h>
 
 struct inode *ext2_open(struct dentry *dir, const char *name);
 off_t ext2_getdirent(struct dirent *buf, off_t off, struct file *f);

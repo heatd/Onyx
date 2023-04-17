@@ -6,9 +6,8 @@
 #ifndef _ONYX_GROUPS_H
 #define _ONYX_GROUPS_H
 
-#include <sys/types.h>
-
 #include <onyx/refcount.h>
+#include <onyx/types.h>
 #include <onyx/vector.h>
 
 #include <onyx/utility.hpp>

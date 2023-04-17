@@ -14,8 +14,9 @@
 #include <onyx/net/inet_socket.h>
 #include <onyx/net/ip.h>
 #include <onyx/net/netif.h>
-#include <onyx/public/icmp.h>
 #include <onyx/scoped_lock.h>
+
+#include <uapi/icmp.h>
 
 #include <onyx/expected.hpp>
 

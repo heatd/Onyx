@@ -6,7 +6,7 @@
  * SPDX-License-Identifier: MIT
  */
 #include <errno.h>
-#include <signal.h>
+#include <uapi/signal.h>
 
 #include <onyx/riscv/signal.h>
 #include <onyx/signal.h>

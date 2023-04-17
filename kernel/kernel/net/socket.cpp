@@ -7,7 +7,7 @@
  */
 #include <errno.h>
 #include <net/if.h>
-#include <sys/ioctl.h>
+#include <uapi/ioctls.h>
 
 #include <onyx/dentry.h>
 #include <onyx/file.h>

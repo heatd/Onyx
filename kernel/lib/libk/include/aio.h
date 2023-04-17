@@ -6,7 +6,7 @@ extern "C" {
 #endif
 
 #include <features.h>
-#include <signal.h>
+#include <uapi/signal.h>
 #include <time.h>
 
 #define __NEED_ssize_t

@@ -6,7 +6,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
-#include <sys/types.h>
+#include <onyx/types.h>
 #include <netinet/if_ether.h>
 
 struct ether_addr {

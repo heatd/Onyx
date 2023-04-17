@@ -14,6 +14,8 @@
 #include <onyx/pagecache.h>
 #include <onyx/vfs.h>
 
+#include <uapi/fcntl.h>
+
 #include "ext2.h"
 
 /**

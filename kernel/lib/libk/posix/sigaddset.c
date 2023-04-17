@@ -1,2 +1,2 @@
 #include <errno.h>
-#include <signal.h>
+#include <uapi/signal.h>

@@ -14,7 +14,7 @@
 #include <istream>
 #include <system_error>
 
-#include <onyx/public/netkernel.h>
+#include <uapi/netkernel.h>
 
 #include <dhcpcd.hpp>
 #include <netctl.hpp>

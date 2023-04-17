@@ -21,10 +21,11 @@
 #include <onyx/page.h>
 #include <onyx/pagecache.h>
 #include <onyx/panic.h>
-#include <onyx/public/memstat.h>
 #include <onyx/spinlock.h>
 #include <onyx/utils.h>
 #include <onyx/vm.h>
+
+#include <uapi/memstat.h>
 
 #include <onyx/atomic.hpp>
 

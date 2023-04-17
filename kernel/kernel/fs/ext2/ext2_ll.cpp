@@ -5,12 +5,9 @@
  *
  * SPDX-License-Identifier: MIT
  */
-#include <dirent.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/types.h>
 
 #include <onyx/compiler.h>
 #include <onyx/dentry.h>
@@ -18,8 +15,12 @@
 #include <onyx/log.h>
 #include <onyx/pagecache.h>
 #include <onyx/panic.h>
+#include <onyx/types.h>
 #include <onyx/vfs.h>
 #include <onyx/vm.h>
+
+#include <uapi/dirent.h>
+#include <uapi/fcntl.h>
 
 #include "ext2.h"
 

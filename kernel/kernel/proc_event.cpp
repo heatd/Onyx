@@ -6,7 +6,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <fcntl.h>
+#include <uapi/fcntl.h>
 #include <proc_event.h>
 #include <stdint.h>
 #include <stdio.h>
