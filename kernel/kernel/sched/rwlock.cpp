@@ -315,7 +315,7 @@ void rwlock_wake(rwlock *lock)
 {
     scoped_lock g{lock->llock};
 
-    list_for_every (&lock->waiting_list)
+    list_for_every_safe (&lock->waiting_list)
     {
         rwlock_waiter *w = container_of(l, rwlock_waiter, head);
 
