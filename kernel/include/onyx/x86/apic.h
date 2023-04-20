@@ -47,10 +47,10 @@ struct smp_header;
  * @param s SMP header
  * @return True if woken up, else false.
  */
-bool apic_wake_up_processor(uint8_t lapic_id, struct smp_header *s);
+bool apic_wake_up_processor(uint32_t lapic_id, struct smp_header *s);
 void apic_set_irql(int irql);
 int apic_get_irql(void);
-void apic_send_ipi(uint8_t id, uint32_t type, uint32_t page);
+void apic_send_ipi(uint32_t id, uint32_t type, uint32_t page, uint32_t extra_flags = 0);
 void apic_send_ipi_all(uint32_t type, uint32_t page);
 void lapic_send_eoi(void);
 uint32_t apic_get_lapic_id(unsigned int cpu);
@@ -88,5 +88,9 @@ u32 cpu2lapicid(u32 cpu);
 #define ICR_DELIVERY_NMI    4
 #define ICR_DELIVERY_INIT   5
 #define ICR_DELIVERY_SIPI   6
+
+#define LAPIC_ICR_ASSERT       (1 << 14)
+#define LAPIC_ICR_SEND_PENDING (1 << 12)
+#define LAPIC_ICR_ALL          (2 << 18)
 
 #endif

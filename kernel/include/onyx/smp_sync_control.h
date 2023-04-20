@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #ifndef _ONYX_SMP_SYNC_CONTROL_H
@@ -13,10 +15,7 @@
 #include <onyx/atomic.hpp>
 #include <onyx/tuple.hpp>
 
-namespace smp
-{
-
-namespace internal
+namespace smp::internal
 {
 
 struct sync_call_cntrlblk
@@ -24,14 +23,21 @@ struct sync_call_cntrlblk
     sync_call_func f;
     void *ctx;
     atomic<unsigned long> waiting_for_completion;
-
-    sync_call_cntrlblk(sync_call_func f, void *ctx) : f{f}, ctx{ctx}, waiting_for_completion{}
+#ifdef DEBUG_SMP_SYNC_CALL
+    cpumask mask;
+#endif
+    sync_call_cntrlblk(sync_call_func f, void *ctx, cpumask &m)
+        : f{f}, ctx{ctx}, waiting_for_completion{}
+#ifdef DEBUG_SMP_SYNC_CALL
+          ,
+          mask{m}
+#endif
     {
     }
 
     void wait(sync_call_func local, void *context2);
 
-    void complete();
+    void complete(unsigned int curcpu);
 };
 
 struct sync_call_elem
@@ -44,8 +50,6 @@ struct sync_call_elem
     }
 };
 
-} // namespace internal
-
-} // namespace smp
+} // namespace smp::internal
 
 #endif
