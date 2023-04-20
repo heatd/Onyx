@@ -30,8 +30,7 @@
 
 // #define CONFIG_APIC_PERIODIC
 
-volatile uint32_t *bsp_lapic = NULL;
-volatile uint64_t core_stack = 0;
+PER_CPU_VAR(volatile uint32_t *lapic) = nullptr;
 PER_CPU_VAR(uint32_t lapic_id) = 0;
 
 /**
@@ -41,9 +40,9 @@ PER_CPU_VAR(uint32_t lapic_id) = 0;
  * @param addr Register to be written..
  * @param val Value to be written.
  */
-void lapic_write(volatile uint32_t *lapic, uint32_t addr, uint32_t val)
+void lapic_write(uint32_t addr, uint32_t val)
 {
-    volatile uint32_t *laddr = (volatile uint32_t *) ((volatile char *) lapic + addr);
+    volatile uint32_t *laddr = (volatile uint32_t *) ((volatile char *) get_per_cpu(lapic) + addr);
     *laddr = val;
 }
 
@@ -54,13 +53,11 @@ void lapic_write(volatile uint32_t *lapic, uint32_t addr, uint32_t val)
  * @param addr Register to be read..
  * @return The value of the register.
  */
-uint32_t lapic_read(volatile uint32_t *lapic, uint32_t addr)
+uint32_t lapic_read(uint32_t addr)
 {
-    volatile uint32_t *laddr = (volatile uint32_t *) ((volatile char *) lapic + addr);
+    volatile uint32_t *laddr = (volatile uint32_t *) ((volatile char *) get_per_cpu(lapic) + addr);
     return *laddr;
 }
-
-PER_CPU_VAR(volatile uint32_t *lapic) = NULL;
 
 /**
  * @brief Sends an EOI (end of interrupt) to the current LAPIC.
@@ -68,7 +65,7 @@ PER_CPU_VAR(volatile uint32_t *lapic) = NULL;
  */
 void lapic_send_eoi()
 {
-    lapic_write(get_per_cpu(lapic), LAPIC_EOI, 0);
+    lapic_write(LAPIC_EOI, 0);
 }
 
 extern struct clocksource tsc_clock;
@@ -79,25 +76,23 @@ static bool tsc_deadline_supported = false;
  * @brief Initialises the current CPU's LAPIC.
  *
  */
-void lapic_init(void)
+void lapic_init()
 {
     /* Enable the LAPIC by setting LAPIC_SPUINT to 0x100 OR'd with the default spurious IRQ(15) */
-    lapic_write(bsp_lapic, LAPIC_SPUINT, 0x100 | APIC_DEFAULT_SPURIOUS_IRQ);
+    lapic_write(LAPIC_SPUINT, 0x100 | APIC_DEFAULT_SPURIOUS_IRQ);
 
     /* Send an EOI because some interrupts might've gotten stuck when the interrupts weren't enabled
      */
-    lapic_write(bsp_lapic, LAPIC_EOI, 0);
+    lapic_write(LAPIC_EOI, 0);
 
     /* Set the task pri to 0 */
-    lapic_write(bsp_lapic, LAPIC_TSKPRI, 0);
+    lapic_write(LAPIC_TSKPRI, 0);
     tsc_deadline_supported = x86_has_cap(X86_FEATURE_TSC_DEADLINE);
 
     if (tsc_deadline_supported)
     {
         printf("tsc: TSC deadline mode supported\n");
     }
-
-    write_per_cpu(lapic, bsp_lapic);
 }
 
 volatile char *ioapic_base = NULL;
@@ -193,9 +188,8 @@ u32 cpu2lapicid(u32 cpu)
 
 static u32 x86_get_current_lapic_id()
 {
-    DCHECK(bsp_lapic != nullptr);
     DCHECK(get_cpu_nr() == 0);
-    return lapic_read(bsp_lapic, LAPIC_ID_REG);
+    return lapic_read(LAPIC_ID_REG);
 }
 
 /**
@@ -404,10 +398,12 @@ void ioapic_early_init(void)
     uint64_t addr = rdmsr(IA32_APIC_BASE);
     addr &= 0xFFFFF000;
     /* Map the BSP's LAPIC */
-    bsp_lapic =
+    auto bsp_lapic =
         (volatile uint32_t *) mmiomap((void *) addr, PAGE_SIZE, VM_READ | VM_WRITE | VM_NOCACHE);
 
-    assert(bsp_lapic != NULL);
+    CHECK(bsp_lapic != NULL);
+
+    write_per_cpu(lapic, bsp_lapic);
 }
 
 void ioapic_init()
@@ -488,7 +484,7 @@ void apic_calibration_setup_count(int try_)
 {
     (void) try_;
     /* 0xFFFFFFFF shouldn't overflow in 10ms */
-    lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, UINT32_MAX);
+    lapic_write(LAPIC_TIMER_INITCNT, UINT32_MAX);
 }
 
 void tsc_calibration_setup_count(int try_)
@@ -504,7 +500,7 @@ void tsc_calibration_end(int try_)
 void apic_calibration_end(int try_)
 {
     /* Get the ticks that passed in the time frame */
-    uint32_t ticks = UINT32_MAX - lapic_read(bsp_lapic, LAPIC_TIMER_CURRCNT);
+    uint32_t ticks = UINT32_MAX - lapic_read(LAPIC_TIMER_CURRCNT);
     if (ticks < calib.apic_ticks[try_])
         calib.apic_ticks[try_] = ticks;
 }
@@ -623,7 +619,7 @@ void apic_set_oneshot_tsc(hrtime_t deadline)
 {
     uint64_t future_tsc_counter = tsc_get_counter_from_ns(deadline);
 
-    lapic_write(get_per_cpu(lapic), LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_TSC_DEADLINE);
+    lapic_write(LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_TSC_DEADLINE);
     wrmsr(IA32_TSC_DEADLINE, future_tsc_counter);
 }
 
@@ -655,13 +651,11 @@ void apic_set_oneshot_apic(hrtime_t deadline)
         counter = 1;
     }
 
-    volatile uint32_t *this_lapic = get_per_cpu(lapic);
+    lapic_write(LAPIC_TIMER_INITCNT, 0);
 
-    lapic_write(this_lapic, LAPIC_TIMER_INITCNT, 0);
-
-    lapic_write(this_lapic, LAPIC_TIMER_DIV, 3);
-    lapic_write(this_lapic, LAPIC_LVT_TIMER, 34);
-    lapic_write(this_lapic, LAPIC_TIMER_INITCNT, counter);
+    lapic_write(LAPIC_TIMER_DIV, 3);
+    lapic_write(LAPIC_LVT_TIMER, 34);
+    lapic_write(LAPIC_TIMER_INITCNT, counter);
 }
 
 static bool should_use_tsc_deadline = false;
@@ -682,21 +676,13 @@ void apic_set_oneshot(hrtime_t deadline)
         apic_set_oneshot_apic(deadline);
 }
 
-void apic_set_periodic(uint32_t period_ms, volatile uint32_t *lapic)
-{
-    uint32_t counter = apic_rate * period_ms;
-
-    lapic_write(lapic, LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_PERIODIC);
-    lapic_write(lapic, LAPIC_TIMER_INITCNT, counter);
-}
-
 void apic_timer_set_periodic(hrtime_t period_ns)
 {
     hrtime_t period_ms = period_ns / NS_PER_MS;
     uint32_t counter = apic_rate * period_ms;
 
-    lapic_write(get_per_cpu(lapic), LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_PERIODIC);
-    lapic_write(get_per_cpu(lapic), LAPIC_TIMER_INITCNT, counter);
+    lapic_write(LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_PERIODIC);
+    lapic_write(LAPIC_TIMER_INITCNT, counter);
 }
 
 void platform_init_clockevents(void);
@@ -716,18 +702,18 @@ void apic_timer_init(void)
     driver_register_device(&apic_driver, &apic_timer_dev);
 
     /* Set the timer divisor to 16 */
-    lapic_write(bsp_lapic, LAPIC_TIMER_DIV, 3);
+    lapic_write(LAPIC_TIMER_DIV, 3);
 
     printf("apic: calculating APIC timer frequency\n");
 
     timer_calibrate();
 
-    lapic_write(bsp_lapic, LAPIC_LVT_TIMER, LAPIC_TIMER_IVT_MASK);
+    lapic_write(LAPIC_LVT_TIMER, LAPIC_TIMER_IVT_MASK);
 
     /* Initialize the APIC timer with IRQ2, periodic mode and an init count of
      * ticks_in_10ms/10(so we get a rate of 1000hz)
      */
-    lapic_write(bsp_lapic, LAPIC_TIMER_DIV, 3);
+    lapic_write(LAPIC_TIMER_DIV, 3);
 
     printf("apic: apic timer rate: %lu\n", apic_rate);
     us_apic_rate = INT_DIV_ROUND_CLOSEST(apic_rate, 1000);
@@ -753,30 +739,30 @@ void apic_timer_init(void)
     should_use_tsc_deadline = tsc_deadline_supported && get_main_clock() == &tsc_clock;
 }
 
-void apic_timer_smp_init(volatile uint32_t *lapic)
+void apic_timer_smp_init()
 {
     /* Enable the local apic */
-    lapic_write(lapic, LAPIC_SPUINT, 0x100 | APIC_DEFAULT_SPURIOUS_IRQ);
+    lapic_write(LAPIC_SPUINT, 0x100 | APIC_DEFAULT_SPURIOUS_IRQ);
 
     /* Flush pending interrupts */
-    lapic_write(lapic, LAPIC_EOI, 0);
+    lapic_write(LAPIC_EOI, 0);
 
     /* Set the task pri to 0 */
-    lapic_write(lapic, LAPIC_TSKPRI, 0);
+    lapic_write(LAPIC_TSKPRI, 0);
 
     /* Initialize the APIC timer with IRQ2, periodic mode and an init count of ticks_in_10ms/10(so
      * we get a rate of 1000hz)*/
-    lapic_write(lapic, LAPIC_TIMER_DIV, 3);
+    lapic_write(LAPIC_TIMER_DIV, 3);
 
     platform_init_clockevents();
 }
 
 void boot_send_ipi(uint8_t id, uint32_t type, uint32_t page)
 {
-    lapic_write(bsp_lapic, LAPIC_IPIID, (uint32_t) id << 24);
+    lapic_write(LAPIC_IPIID, (uint32_t) id << 24);
     uint64_t icr = type << 8 | (page & 0xff);
     icr |= (1 << 14);
-    lapic_write(bsp_lapic, LAPIC_ICR, (uint32_t) icr);
+    lapic_write(LAPIC_ICR, (uint32_t) icr);
 }
 
 PER_CPU_VAR(struct spinlock ipi_lock);
@@ -796,13 +782,13 @@ void apic_send_ipi(uint8_t id, uint32_t type, uint32_t page)
         return;
     }
 
-    while (lapic_read(this_lapic, LAPIC_ICR) & (1 << 12))
+    while (lapic_read(LAPIC_ICR) & (1 << 12))
         cpu_relax();
 
-    lapic_write(this_lapic, LAPIC_IPIID, (uint32_t) id << 24);
+    lapic_write(LAPIC_IPIID, (uint32_t) id << 24);
     uint64_t icr = type << 8 | (page & 0xff);
     icr |= (1 << 14);
-    lapic_write(this_lapic, LAPIC_ICR, (uint32_t) icr);
+    lapic_write(LAPIC_ICR, (uint32_t) icr);
 
     spin_unlock_irqrestore(lock, cpu_flags);
 }
@@ -822,12 +808,12 @@ void apic_send_ipi_all(uint32_t type, uint32_t page)
         return;
     }
 
-    while (lapic_read(this_lapic, LAPIC_ICR) & (1 << 12))
+    while (lapic_read(LAPIC_ICR) & (1 << 12))
         cpu_relax();
 
     uint64_t icr = 2 << 18 | type << 8 | (page & 0xff);
     icr |= (1 << 14);
-    lapic_write(this_lapic, LAPIC_ICR, (uint32_t) icr);
+    lapic_write(LAPIC_ICR, (uint32_t) icr);
 
     spin_unlock_irqrestore(lock, cpu_flags);
 }
@@ -839,7 +825,7 @@ bool apic_send_sipi_and_wait(uint8_t lapicid, struct smp_header *s)
     hrtime_t t0 = clocksource_get_time();
     while (clocksource_get_time() - t0 < 200 * NS_PER_MS)
     {
-        if (s->boot_done == true)
+        if (s->boot_done)
         {
             return true;
         }
@@ -886,14 +872,12 @@ bool apic_wake_up_processor(uint8_t lapicid, struct smp_header *s)
 
 void apic_set_irql(int irql)
 {
-    volatile uint32_t *this_lapic = get_per_cpu(lapic);
-    lapic_write(this_lapic, LAPIC_TSKPRI, irql);
+    lapic_write(LAPIC_TSKPRI, irql);
 }
 
 int apic_get_irql(void)
 {
-    volatile uint32_t *this_lapic = get_per_cpu(lapic);
-    return (int) lapic_read(this_lapic, LAPIC_TSKPRI);
+    return (int) lapic_read(LAPIC_TSKPRI);
 }
 
 uint32_t apic_get_lapic_id(unsigned int cpu)
@@ -917,7 +901,7 @@ void lapic_init_per_cpu(void)
 
     write_per_cpu(lapic, _lapic);
 
-    apic_timer_smp_init(get_per_cpu(lapic));
+    apic_timer_smp_init();
 }
 
 void apic_set_lapic_id(unsigned int cpu, uint32_t __lapic_id)
