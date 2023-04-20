@@ -28,10 +28,9 @@
 #include <onyx/x86/pit.h>
 #include <onyx/x86/tsc.h>
 
-// #define CONFIG_APIC_PERIODIC
-
 PER_CPU_VAR(volatile uint32_t *lapic) = nullptr;
 PER_CPU_VAR(uint32_t lapic_id) = 0;
+static bool x2apic_supported;
 
 /**
  * @brief Writes to a LAPIC register.
@@ -42,8 +41,16 @@ PER_CPU_VAR(uint32_t lapic_id) = 0;
  */
 void lapic_write(uint32_t addr, uint32_t val)
 {
-    volatile uint32_t *laddr = (volatile uint32_t *) ((volatile char *) get_per_cpu(lapic) + addr);
-    *laddr = val;
+    if (x2apic_supported)
+    {
+        wrmsr(IA32_X2APIC_BASE + (addr >> 4), val);
+    }
+    else
+    {
+        volatile uint32_t *laddr =
+            (volatile uint32_t *) ((volatile char *) get_per_cpu(lapic) + addr);
+        *laddr = val;
+    }
 }
 
 /**
@@ -55,6 +62,8 @@ void lapic_write(uint32_t addr, uint32_t val)
  */
 uint32_t lapic_read(uint32_t addr)
 {
+    if (x2apic_supported)
+        return rdmsr(IA32_X2APIC_BASE + (addr >> 4));
     volatile uint32_t *laddr = (volatile uint32_t *) ((volatile char *) get_per_cpu(lapic) + addr);
     return *laddr;
 }
@@ -288,6 +297,20 @@ static void parse_lapics()
             assert(lapic_ids.push_back(la->id) != false);
             nr_cpus++;
         }
+
+        if (i->type == ACPI_MADT_TYPE_LOCAL_X2APIC)
+        {
+            acpi_madt_local_x2apic *la = (acpi_madt_local_x2apic *) i;
+
+            if (!x86_has_cap(X86_FEATURE_X2APIC))
+            {
+                panic("x86/apic: Firmware bug: Found MADT LOCAL_X2APIC entry without CPU x2APIC "
+                      "support\n");
+            }
+
+            assert(lapic_ids.push_back(la->local_apic_id) != false);
+            nr_cpus++;
+        }
     }
 
     x86_fixup_lapic_list(x86_get_current_lapic_id());
@@ -386,13 +409,31 @@ void set_pin_handlers()
     }
 }
 
-void ioapic_early_init(void)
+#define APIC_BASE_X2APIC_EN (1 << 10)
+
+static void lapic_enable_x2apic()
+{
+    uint64_t addr = rdmsr(IA32_APIC_BASE);
+    addr |= (1 << 10);
+    wrmsr(IA32_APIC_BASE, addr);
+}
+
+void ioapic_early_init()
 {
     /* TODO: Detecting I/O APICs should be a good idea */
     /* Map the I/O APIC base */
     ioapic_base = (volatile char *) mmiomap((void *) IOAPIC_BASE_PHYS, PAGE_SIZE,
                                             VM_READ | VM_WRITE | VM_NOCACHE);
     assert(ioapic_base != NULL);
+
+    x2apic_supported = x86_has_cap(X86_FEATURE_X2APIC);
+
+    if (x2apic_supported)
+    {
+        lapic_enable_x2apic();
+        // No need to map the xAPIC
+        return;
+    }
 
     /* Get the BSP's LAPIC base address from the msr's */
     uint64_t addr = rdmsr(IA32_APIC_BASE);
@@ -687,14 +728,6 @@ void apic_timer_set_periodic(hrtime_t period_ns)
 
 void platform_init_clockevents(void);
 
-bool s = false;
-
-void signal_stuff()
-{
-    s = true;
-    printk("signaled\n");
-}
-
 int acpi_init_timer(void);
 
 void apic_timer_init(void)
@@ -757,70 +790,36 @@ void apic_timer_smp_init()
     platform_init_clockevents();
 }
 
-void boot_send_ipi(uint8_t id, uint32_t type, uint32_t page)
+void apic_send_ipi(uint32_t id, uint32_t type, uint32_t page, uint32_t extra_flags)
 {
-    lapic_write(LAPIC_IPIID, (uint32_t) id << 24);
-    uint64_t icr = type << 8 | (page & 0xff);
-    icr |= (1 << 14);
-    lapic_write(LAPIC_ICR, (uint32_t) icr);
-}
-
-PER_CPU_VAR(struct spinlock ipi_lock);
-
-void apic_send_ipi(uint8_t id, uint32_t type, uint32_t page)
-{
-    struct spinlock *lock = get_per_cpu_ptr(ipi_lock);
-    unsigned long cpu_flags = spin_lock_irqsave(lock);
-
-    volatile uint32_t *this_lapic = get_per_cpu(lapic);
-
-    if (unlikely(!this_lapic))
+    u64 val = ((u64) id << 32 | type << 8 | (page & 0xff) | LAPIC_ICR_ASSERT | extra_flags);
+    if (x2apic_supported)
     {
-        /* If we don't have a lapic yet, just return because we're in early boot
-         * and we don't need that right now.
-         */
+        // The top 32-bits of ICR in x2APIC mode have the destination field (32 bits, equivalent to
+        // LAPIC_IPIID). The rest keeps the same semantics.
+        wrmsr(IA32_X2APIC_BASE + (LAPIC_ICR >> 4), val);
         return;
     }
 
-    while (lapic_read(LAPIC_ICR) & (1 << 12))
+    const auto flags = irq_save_and_disable();
+
+    while (lapic_read(LAPIC_ICR) & LAPIC_ICR_SEND_PENDING)
         cpu_relax();
 
     lapic_write(LAPIC_IPIID, (uint32_t) id << 24);
-    uint64_t icr = type << 8 | (page & 0xff);
-    icr |= (1 << 14);
-    lapic_write(LAPIC_ICR, (uint32_t) icr);
+    lapic_write(LAPIC_ICR, (uint32_t) val);
 
-    spin_unlock_irqrestore(lock, cpu_flags);
+    irq_restore(flags);
 }
 
 void apic_send_ipi_all(uint32_t type, uint32_t page)
 {
-    struct spinlock *lock = get_per_cpu_ptr(ipi_lock);
-    unsigned long cpu_flags = spin_lock_irqsave(lock);
-
-    volatile uint32_t *this_lapic = get_per_cpu(lapic);
-
-    if (unlikely(!this_lapic))
-    {
-        /* If we don't have a lapic yet, just return because we're in early boot
-         * and we don't need that right now.
-         */
-        return;
-    }
-
-    while (lapic_read(LAPIC_ICR) & (1 << 12))
-        cpu_relax();
-
-    uint64_t icr = 2 << 18 | type << 8 | (page & 0xff);
-    icr |= (1 << 14);
-    lapic_write(LAPIC_ICR, (uint32_t) icr);
-
-    spin_unlock_irqrestore(lock, cpu_flags);
+    apic_send_ipi(0, type, page, LAPIC_ICR_ALL);
 }
 
 bool apic_send_sipi_and_wait(uint8_t lapicid, struct smp_header *s)
 {
-    boot_send_ipi(lapicid, ICR_DELIVERY_SIPI, 0);
+    apic_send_ipi(lapicid, ICR_DELIVERY_SIPI, 0);
 
     hrtime_t t0 = clocksource_get_time();
     while (clocksource_get_time() - t0 < 200 * NS_PER_MS)
@@ -842,9 +841,9 @@ bool apic_send_sipi_and_wait(uint8_t lapicid, struct smp_header *s)
  * @param s SMP header
  * @return True if woken up, else false.
  */
-bool apic_wake_up_processor(uint8_t lapicid, struct smp_header *s)
+bool apic_wake_up_processor(uint32_t lapicid, struct smp_header *s)
 {
-    boot_send_ipi(lapicid, ICR_DELIVERY_INIT, 0);
+    apic_send_ipi(lapicid, ICR_DELIVERY_INIT, 0);
 
     hrtime_t t0 = clocksource_get_time();
     while (clocksource_get_time() - t0 < 10 * NS_PER_MS)
@@ -890,16 +889,21 @@ volatile uint32_t *apic_get_lapic(unsigned int cpu)
     return get_per_cpu_any(lapic, cpu);
 }
 
-void lapic_init_per_cpu(void)
+void lapic_init_per_cpu()
 {
-    uint64_t addr = rdmsr(IA32_APIC_BASE);
-    addr &= 0xFFFFF000;
-    /* Map the BSP's LAPIC */
-    uintptr_t _lapic =
-        (uintptr_t) mmiomap((void *) addr, PAGE_SIZE, VM_READ | VM_WRITE | VM_NOCACHE);
-    assert(_lapic != 0);
+    if (x2apic_supported)
+        lapic_enable_x2apic();
+    else
+    {
+        uint64_t addr = rdmsr(IA32_APIC_BASE);
+        addr &= 0xFFFFF000;
+        /* Map the cpu's LAPIC */
+        uintptr_t _lapic =
+            (uintptr_t) mmiomap((void *) addr, PAGE_SIZE, VM_READ | VM_WRITE | VM_NOCACHE);
+        assert(_lapic != 0);
 
-    write_per_cpu(lapic, _lapic);
+        write_per_cpu(lapic, _lapic);
+    }
 
     apic_timer_smp_init();
 }

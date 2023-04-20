@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2019, 2020 Pedro Falcato
+ * Copyright (c) 2019 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <stdio.h>
 
@@ -41,11 +43,18 @@ constexpr unsigned long smp_trampoline_phys = 0x0;
 void set_number_of_cpus(unsigned int nr)
 {
     nr_cpus = nr;
+
+    if (nr_cpus > CONFIG_SMP_NR_CPUS)
+    {
+        printf("smp: Warning: clamping the real number of cpus (%u) to CONFIG_SMP_NR_CPUS (%u)\n",
+               nr_cpus, CONFIG_SMP_NR_CPUS);
+        nr_cpus = CONFIG_SMP_NR_CPUS;
+    }
 }
 
 void set_online(unsigned int cpu)
 {
-    online_cpus.set_cpu(cpu);
+    online_cpus.set_cpu_atomic(cpu);
     nr_online_cpus++;
 }
 
@@ -76,8 +85,11 @@ unsigned int get_online_cpus()
 namespace internal
 {
 
-void sync_call_cntrlblk::complete()
+void sync_call_cntrlblk::complete(unsigned int cpu)
 {
+#ifdef DEBUG_SMP_SYNC_CALL
+    mask.remove_cpu_atomic(cpu);
+#endif
     waiting_for_completion--;
 }
 
@@ -127,6 +139,7 @@ memory_pool<internal::sync_call_elem, MEMORY_POOL_USABLE_ON_IRQ> sync_call_pool;
 void sync_call_queue::handle_calls()
 {
     scoped_lock<spinlock, true> g{lock};
+    const unsigned int cpu = get_cpu_nr();
 
     list_for_every_safe (&elem_list)
     {
@@ -136,7 +149,7 @@ void sync_call_queue::handle_calls()
 
         elem->control_block.f(elem->control_block.ctx);
 
-        elem->control_block.complete();
+        elem->control_block.complete(cpu);
 
         sync_call_pool.free(elem);
     }
@@ -162,7 +175,7 @@ void sync_call_with_local(sync_call_func f, void *context, const cpumask &mask_,
 
     mask.remove_cpu(our_cpu);
 
-    internal::sync_call_cntrlblk control_block{f, context};
+    internal::sync_call_cntrlblk control_block{f, context, mask};
 
     mask.for_every_cpu([&](unsigned long cpu) -> bool {
         auto ptr = sync_call_pool.allocate();

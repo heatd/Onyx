@@ -58,10 +58,8 @@ void boot(unsigned int cpu)
 
     s->thread_stack = (unsigned long) thread_stack;
 
-    if (apic_wake_up_processor(static_cast<uint8_t>(cpu2lapicid(cpu)), s))
-    {
-        smp::set_online(cpu);
-    }
+    apic_wake_up_processor(static_cast<uint8_t>(cpu2lapicid(cpu)), s);
+    // The AP sets calls smp::set_online
 
     inited_cpus.set_cpu(cpu);
 }

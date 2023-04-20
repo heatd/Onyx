@@ -368,6 +368,8 @@ extern "C" void smpboot_main(unsigned long gs_base, volatile struct smp_header *
     /* Enable interrupts */
     ENABLE_INTERRUPTS();
 
+    smp::set_online(get_cpu_nr());
+
     sched_transition_to_idle();
 }
 
