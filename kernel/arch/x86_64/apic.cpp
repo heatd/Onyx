@@ -104,8 +104,8 @@ void lapic_init()
     }
 }
 
-volatile char *ioapic_base = NULL;
-acpi_table_madt *madt = NULL;
+volatile char *ioapic_base = nullptr;
+acpi_table_madt *madt = nullptr;
 
 /**
  * @brief Reads an IO APIC register.
@@ -414,7 +414,7 @@ void set_pin_handlers()
 static void lapic_enable_x2apic()
 {
     uint64_t addr = rdmsr(IA32_APIC_BASE);
-    addr |= (1 << 10);
+    addr |= APIC_BASE_X2APIC_EN;
     wrmsr(IA32_APIC_BASE, addr);
 }
 
@@ -424,7 +424,7 @@ void ioapic_early_init()
     /* Map the I/O APIC base */
     ioapic_base = (volatile char *) mmiomap((void *) IOAPIC_BASE_PHYS, PAGE_SIZE,
                                             VM_READ | VM_WRITE | VM_NOCACHE);
-    assert(ioapic_base != NULL);
+    assert(ioapic_base != nullptr);
 
     x2apic_supported = x86_has_cap(X86_FEATURE_X2APIC);
 
@@ -442,7 +442,7 @@ void ioapic_early_init()
     auto bsp_lapic =
         (volatile uint32_t *) mmiomap((void *) addr, PAGE_SIZE, VM_READ | VM_WRITE | VM_NOCACHE);
 
-    CHECK(bsp_lapic != NULL);
+    CHECK(bsp_lapic != nullptr);
 
     write_per_cpu(lapic, bsp_lapic);
 }
@@ -459,7 +459,7 @@ void ioapic_init()
 
 static uint64_t boot_ticks = 0;
 
-void apic_update_clock_monotonic(void)
+void apic_update_clock_monotonic()
 {
     struct clock_time time;
     time.epoch = boot_ticks / 1000;
@@ -589,7 +589,7 @@ void tsc_calibrate(int try_)
     }
 }
 
-unsigned long calculate_frequency(unsigned long *deltas, unsigned long x)
+unsigned long calculate_frequency(const unsigned long *deltas, unsigned long x)
 {
     /* Lets do a regression analysis. f(x) = mx + b */
 
@@ -617,7 +617,7 @@ unsigned long calculate_frequency(unsigned long *deltas, unsigned long x)
     return freq;
 }
 
-void timer_calibrate(void)
+void timer_calibrate()
 {
     /* After eyeballing results, I can tell that the PIT gives us better results in QEMU.
      * Should we switch?
@@ -653,8 +653,6 @@ void timer_calibrate(void)
 
     apic_rate = calculate_frequency(deltas, 1);
 }
-
-extern struct clocksource tsc_clock;
 
 void apic_set_oneshot_tsc(hrtime_t deadline)
 {
@@ -726,11 +724,11 @@ void apic_timer_set_periodic(hrtime_t period_ns)
     lapic_write(LAPIC_TIMER_INITCNT, counter);
 }
 
-void platform_init_clockevents(void);
+void platform_init_clockevents();
 
-int acpi_init_timer(void);
+int acpi_init_timer();
 
-void apic_timer_init(void)
+void apic_timer_init()
 {
     driver_register_device(&apic_driver, &apic_timer_dev);
 
@@ -874,7 +872,7 @@ void apic_set_irql(int irql)
     lapic_write(LAPIC_TSKPRI, irql);
 }
 
-int apic_get_irql(void)
+int apic_get_irql()
 {
     return (int) lapic_read(LAPIC_TSKPRI);
 }
@@ -916,7 +914,7 @@ void apic_set_lapic_id(unsigned int cpu, uint32_t __lapic_id)
 PER_CPU_VAR(bool timer_initialised);
 
 /* Should be called percpu */
-void platform_init_clockevents(void)
+void platform_init_clockevents()
 {
     struct timer *this_timer = get_per_cpu_ptr(lapic_timer);
     this_timer->set_oneshot = apic_set_oneshot;
@@ -938,7 +936,7 @@ void platform_init_clockevents(void)
     }
 }
 
-struct timer *platform_get_timer(void)
+struct timer *platform_get_timer()
 {
     struct timer *this_timer = get_per_cpu_ptr(lapic_timer);
 
