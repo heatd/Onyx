@@ -48,7 +48,6 @@ struct smp_header;
  * @return True if woken up, else false.
  */
 bool apic_wake_up_processor(uint8_t lapic_id, struct smp_header *s);
-void apic_timer_smp_init(volatile uint32_t *lapic);
 void apic_set_irql(int irql);
 int apic_get_irql(void);
 void apic_send_ipi(uint8_t id, uint32_t type, uint32_t page);

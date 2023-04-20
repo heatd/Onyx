@@ -29,11 +29,13 @@
 
 #define __PCPU_VAR ____PCPU_VAR("1")
 
-#define get_per_cpu_x86_internal(var, suffix, type)                                                \
-    ({                                                                                             \
-        type val;                                                                                  \
-        __asm__ __volatile__("mov" suffix __PCPU_VAR ", %0" : "=r"(val) : __PCPU_CONSTRAINT(var)); \
-        (__typeof__(var)) (unsigned long) val;                                                     \
+#define get_per_cpu_x86_internal(var, suffix, type)         \
+    ({                                                      \
+        type __val;                                         \
+        __asm__ __volatile__("mov" suffix __PCPU_VAR ", %0" \
+                             : "=r"(__val)                  \
+                             : __PCPU_CONSTRAINT(var));     \
+        (__typeof__(var)) (unsigned long) __val;            \
     })
 
 #define get_per_cpu_1(var) get_per_cpu_x86_internal(var, "b", uint8_t)
@@ -62,11 +64,11 @@
         v;                              \
     })
 
-#define get_per_cpu_no_cast(var)                                                             \
-    ({                                                                                       \
-        unsigned long val;                                                                   \
-        __asm__ __volatile__("movq" __PCPU_VAR ", %0" : "=r"(val) : __PCPU_CONSTRAINT(var)); \
-        val;                                                                                 \
+#define get_per_cpu_no_cast(var)                                                               \
+    ({                                                                                         \
+        unsigned long __val;                                                                   \
+        __asm__ __volatile__("movq" __PCPU_VAR ", %0" : "=r"(__val) : __PCPU_CONSTRAINT(var)); \
+        __val;                                                                                 \
     })
 
 #define write_per_cpu_internal(var, val, suffix, type)                                           \
