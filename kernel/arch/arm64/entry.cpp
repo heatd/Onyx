@@ -25,7 +25,7 @@ extern char percpu_base;
 void time_init();
 void riscv_cpu_init();
 void plic_init();
-void arm64_setup_trap_handling();
+extern "C" void arm64_setup_trap_handling();
 
 extern "C" void kernel_entry(void *fdt)
 {
