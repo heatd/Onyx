@@ -195,6 +195,8 @@ int process_alloc_stack(struct stack_info *info)
     return 0;
 }
 
+void paging_load_top_pt_kernel(PML *pml);
+
 namespace native
 {
 
@@ -225,19 +227,9 @@ void arch_load_thread(thread *thread, unsigned int cpu)
         // If we're a kernel thread, load the address space if its not &kernel_address_space
         // since it may be a special one like efi_aspace
         // This is not done for user threads since those get loaded later on
-        // auto kspace = thread->get_aspace();
-        // if (kspace != &kernel_address_space)
-        //     vm_load_aspace(kspace, cpu);
+        auto kspace = thread->get_aspace();
+        paging_load_top_pt_kernel((PML *) kspace->arch_mmu.top_pt);
     }
-
-    // Note: We know that abi data is guaranteed to be the first member of tp, so we can use it as
-    // an address
-#if 0
-    if (in_kernel_space_regs(regs))
-        riscv_write_csr(RISCV_SSCRATCH, 0);
-    else
-        riscv_write_csr(RISCV_SSCRATCH, data);
-#endif
 }
 
 void arch_load_process(process *process, thread *thread, unsigned int cpu)
