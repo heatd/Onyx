@@ -69,6 +69,13 @@ entry:
 
     ldr x1, =percpu_base
     msr tpidr_el1, x1
+
+    // XXX(pedro): fix
+    mrs    x1, cpacr_el1
+    mov    x2, #(3 << 20)
+    orr    x2, x1, x2
+    msr    cpacr_el1, x2
+
     bl kernel_entry
 
     bl runtime_call_constructors
@@ -84,6 +91,8 @@ entry:
 
 .balign 16
 
+.section .bss
+.balign 16
 stack_bottom:
-.skip 4096
+.skip 8192
 stack_top:

@@ -32,6 +32,8 @@
 
 #include <uapi/signal.h>
 
+#include <uapi/signal.h>
+
 const char *exception_msg[] = {"Division by zero exception",
                                "Debug Trap",
                                "Non-maskable interrupt",
@@ -713,8 +715,11 @@ extern "C" unsigned long x86_dispatch_interrupt(struct registers *regs)
 
     platform_send_eoi(vec_no - EXCEPTION_VECTORS_END);
 
-    if (vec_no == X86_MESSAGE_VECTOR)
-        result = INTERRUPT_STACK_ALIGN(cpu_handle_messages(regs));
+    if (vec_no == X86_KILL_VECTOR)
+    {
+        halt();
+        __builtin_unreachable();
+    }
     else if (vec_no == X86_RESCHED_VECTOR)
         result = INTERRUPT_STACK_ALIGN(cpu_resched(regs));
     else if (vec_no == X86_SYNC_CALL_VECTOR)

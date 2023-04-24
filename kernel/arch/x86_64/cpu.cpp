@@ -438,29 +438,8 @@ bool is_kernel_ip(uintptr_t ip)
     return ip >= VM_HIGHER_HALF;
 }
 
-void cpu_notify(unsigned int cpu_nr)
-{
-    apic_send_ipi(apic_get_lapic_id(cpu_nr), 0, X86_MESSAGE_VECTOR);
-}
-
-void cpu_wait_for_msg_ack(volatile struct cpu_message *msg)
-{
-    while (!msg->ack)
-        cpu_relax();
-    msg->ack = false;
-}
-
-PER_CPU_VAR(struct spinlock msg_queue_lock);
-PER_CPU_VAR(struct list_head message_queue);
-
 void cpu_messages_init(unsigned int cpu)
 {
-    struct list_head *h = get_per_cpu_ptr_any(message_queue, cpu);
-    INIT_LIST_HEAD(h);
-
-    struct spinlock *l = get_per_cpu_ptr_any(msg_queue_lock, cpu);
-    spinlock_init(l);
-
     do_init_level_percpu(INIT_LEVEL_CORE_PERCPU_CTOR, cpu);
 }
 
@@ -474,37 +453,10 @@ void cpu_send_sync_notif(unsigned int cpu)
     apic_send_ipi(apic_get_lapic_id(cpu), 0, X86_SYNC_CALL_VECTOR);
 }
 
-bool cpu_send_message(unsigned int cpu, unsigned long message, void *arg, bool should_wait)
-{
-    assert(cpu <= booted_cpus);
-    struct spinlock *message_queue_lock = get_per_cpu_ptr_any(msg_queue_lock, cpu);
-    struct list_head *queue = get_per_cpu_ptr_any(message_queue, cpu);
-
-    struct cpu_message msg;
-    msg.message = message;
-    msg.ptr = arg;
-    msg.sent = true;
-    msg.ack = false;
-
-    INIT_LIST_HEAD(&msg.node);
-
-    unsigned long cpu_flags = spin_lock_irqsave(message_queue_lock);
-
-    list_add_tail(&msg.node, queue);
-
-    spin_unlock_irqrestore(message_queue_lock, cpu_flags);
-
-    cpu_notify(cpu);
-
-    cpu_wait_for_msg_ack((volatile struct cpu_message *) &msg);
-
-    return true;
-}
-
 void cpu_kill(int cpu_num)
 {
-    pr_info("Killing cpu %u\n", cpu_num);
-    cpu_send_message(cpu_num, CPU_KILL, NULL, false);
+    printf("Killing cpu %u\n", cpu_num);
+    apic_send_ipi(apic_get_lapic_id(cpu_num), 0, X86_KILL_VECTOR);
 }
 
 void cpu_kill_other_cpus(void)
@@ -517,11 +469,6 @@ void cpu_kill_other_cpus(void)
     }
 }
 
-void cpu_handle_kill(void)
-{
-    halt();
-}
-
 unsigned long total_resched = 0;
 unsigned long success_resched = 0;
 
@@ -529,52 +476,6 @@ void cpu_try_resched(void)
 {
     __sync_add_and_fetch(&total_resched, 1);
     sched_should_resched();
-}
-
-void cpu_handle_message(struct cpu_message *msg)
-{
-    unsigned int this_cpu = get_cpu_nr();
-    const char *str = "";
-    switch (msg->message)
-    {
-        case CPU_KILL:
-            str = "CPU_KILL";
-            msg->ack = true;
-            cpu_handle_kill();
-            break;
-        case CPU_TRY_RESCHED:
-            str = "CPU_TRY_RESCHED";
-            cpu_try_resched();
-            msg->ack = true;
-            break;
-    }
-
-    (void) this_cpu;
-    (void) str;
-    // printf("cpu#%u handling %p, message type %s\n", this_cpu, msg, str);
-}
-
-void *cpu_handle_messages(void *stack)
-{
-    struct spinlock *cpu_msg_lock = get_per_cpu_ptr(msg_queue_lock);
-    struct list_head *list = get_per_cpu_ptr(message_queue);
-
-    unsigned long cpu_flags = spin_lock_irqsave(cpu_msg_lock);
-
-    list_for_every_safe (list)
-    {
-        struct cpu_message *msg = container_of(l, struct cpu_message, node);
-
-        list_remove(l);
-
-        COMPILER_BARRIER();
-
-        cpu_handle_message(msg);
-    }
-
-    spin_unlock_irqrestore(cpu_msg_lock, cpu_flags);
-
-    return stack;
 }
 
 void isr_undo_trap_stack();

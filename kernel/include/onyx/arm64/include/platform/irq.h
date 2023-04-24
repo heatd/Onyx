@@ -18,7 +18,7 @@
 #define PCI_MSI_APIC_ID_SHIFT    12
 #define PCI_MSI_REDIRECTION_HINT (1 << 3)
 
-#define CPU_FLAGS_NO_IRQ 0
+#define CPU_FLAGS_NO_IRQ (1 << 7)
 
 struct irq_context
 {
@@ -26,28 +26,34 @@ struct irq_context
     registers_t *registers;
 };
 
-void softirq_try_handle(void);
+void softirq_try_handle();
+
+static inline void irq_disable()
+{
+    __asm__ __volatile__("msr daifset, #3" ::: "memory");
+}
 
 static inline unsigned long irq_save_and_disable()
 {
-    return 0;
+    unsigned long flags = mrs("daif");
+    irq_disable();
+    return flags;
 }
 
 static inline void irq_restore(unsigned long flags)
 {
+    msr("daif", flags);
 }
 
-static inline void irq_enable(void)
+static inline void irq_enable()
 {
-}
-
-static inline void irq_disable(void)
-{
+    __asm__ __volatile__("msr daifclr, #3" ::: "memory");
 }
 
 inline bool irq_is_disabled()
 {
-    return true;
+    unsigned long flags = mrs("daif");
+    return flags & (1 << 7);
 }
 
 #endif

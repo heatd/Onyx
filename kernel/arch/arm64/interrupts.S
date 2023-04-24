@@ -168,9 +168,96 @@ lower_el_a32_spx_serror:
 
 .balign 16
 arm64_exception_out_el1:
+    msr daifset, #3
     restore_regs 1
     eret
 .balign 16
 arm64_exception_out_el0:
+    msr daifset, #3
     restore_regs 0
+    eret
+
+/* extern "C" 
+[[noreturn]]
+void arm64_context_switch(thread *prev **x0** , unsigned char *stack **x1**, bool needs_to_kill_prev **x2**);
+*/
+.global arm64_context_switch
+.type arm64_context_switch, @function
+arm64_context_switch:
+	/* First thing to do: switch the sp */
+	/* Then we can try to put the thread */
+	mov sp, x1
+    
+	cbnz x2, 2f 
+1:
+	restore_regs 0
+    eret
+2:
+	/* note that prev is already in x0, no need to move it in */
+	/* We also don't need to preserve any registers */
+	bl arm64_thread_put
+	b 1b
+
+.global platform_yield
+.type platform_yield,@function
+platform_yield:
+.cfi_startproc
+    /* Disable interrupts before messing with elr/spsr */
+    msr daifset, #3
+	/* Basically we need to set up an IRQ frame on the stack.
+	 * For future reference consult include/onyx/registers.h
+	*/
+    msr elr_el1, lr
+    /* Load a spsr with EL1h (since we're in the kernel). */
+    movk x0, #0b0101
+    msr spsr_el1, x0
+	save_regs 1
+    mov x0, sp
+	bl sched_schedule
+	mov sp, x0
+	restore_regs 0
+
+	eret
+.cfi_endproc
+
+/* int return_from_execve(void *entry, void *stack) */
+.global return_from_execve
+.type return_from_execve,@function
+return_from_execve:
+    mov x2, xzr
+    mov x3, xzr
+    mov x4, xzr
+    mov x5, xzr
+    mov x6, xzr
+    mov x7, xzr
+    mov x8, xzr
+    mov x9, xzr
+    mov x10, xzr
+    mov x11, xzr
+    mov x12, xzr
+    mov x13, xzr
+    mov x14, xzr
+    mov x15, xzr
+    mov x16, xzr
+    mov x17, xzr
+    mov x18, xzr
+    mov x19, xzr
+    mov x20, xzr
+    mov x21, xzr
+    mov x22, xzr
+    mov x23, xzr
+    mov x24, xzr
+    mov x25, xzr
+    mov x26, xzr
+    mov x27, xzr
+    mov x28, xzr
+    mov x29, xzr
+    mov x30, xzr
+    msr daifset, #3
+    msr elr_el1, x0
+    msr sp_el0, x1
+    msr spsr_el1, xzr
+    mov x0, xzr
+    mov x1, xzr
+
     eret

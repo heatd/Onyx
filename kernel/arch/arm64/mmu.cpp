@@ -1,6 +1,11 @@
 /*
+<<<<<<< HEAD
  * Copyright (c) 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
+=======
+ * Copyright (c) 2016 - 2023 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+>>>>>>> d8f1b50726ca (arm64: Get to userspace)
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: GPL-2.0-only
@@ -71,6 +76,7 @@ static inline void __native_tlb_invalidate_page(void *addr)
 {
     // TODO: ASIDs
     __asm__ __volatile__("tlbi vaae1is, %0" ::"r"(addr));
+    __native_tlb_invalidate_all();
 }
 
 bool pte_empty(uint64_t pte)
@@ -172,6 +178,8 @@ unsigned long placement_mappings_start = 0xffffffffffc00000;
 void __native_tlb_invalidate_all()
 {
     __asm__ __volatile__("tlbi vmalle1is");
+    dsb();
+    isb();
 }
 
 PML *arm64_get_kernel_page_table()
@@ -235,8 +243,9 @@ void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
 
     uint64_t page_prots = vm_prots_to_mmu(prot);
 #if 0
-    budget_printk("vm prots %c%c%c page prots %016lx\n", prot & VM_READ ? 'r' : '-',
-                  prot & VM_WRITE ? 'w' : '-', prot & VM_EXEC ? 'x' : '-', page_prots);
+    printk("mapping %016lx vm prots %c%c%c page %016lx prots %016lx\n", virt,
+           prot & VM_READ ? 'r' : '-', prot & VM_WRITE ? 'w' : '-', prot & VM_EXEC ? 'x' : '-',
+           phys, page_prots);
 #endif
     if (prot & VM_DONT_MAP_OVER && *ptentry & ARM64_MMU_VALID)
         return (void *) virt;
@@ -255,6 +264,7 @@ void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
     }
 
     dsb();
+    isb();
 
     return (void *) virt;
 }
@@ -340,7 +350,14 @@ void paging_load_top_pt(PML *pml)
     msr("ttbr1_el1", pml);
     isb();
     dsb();
+}
+
+void paging_load_top_pt(PML *pml)
+{
+    msr("ttbr0_el1", pml);
     __native_tlb_invalidate_all();
+    isb();
+    dsb();
 }
 
 bool arm64_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
@@ -382,7 +399,6 @@ bool arm64_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
             increment_vm_stat(mm, page_tables_size, PAGE_SIZE);
 
             pml->entries[indices[i - 1]] = arm64_make_pt_entry_page_table(pt);
-            //__asm__ __volatile__("sfence.vma zero, zero");
 
             pml = (PML *) PHYS_TO_VIRT(pt);
         }
@@ -507,7 +523,11 @@ void paging_protect_kernel()
                        VM_READ | VM_WRITE);
     percpu_map_master_copy();
 
-    paging_load_top_pt(pml);
+    paging_load_top_pt_kernel(pml);
+
+    // TODO(pedro): Disable the bottom half translation properly
+    auto zero_page = page_to_phys(vm_get_zero_page());
+    paging_load_top_pt((PML *) zero_page);
 }
 
 unsigned long total_shootdowns = 0;
@@ -655,7 +675,7 @@ void vm_load_arch_mmu(struct arch_mm_address_space *mm)
  */
 void vm_save_current_mmu(struct mm_address_space *mm)
 {
-    mm->arch_mmu.top_pt = get_current_page_tables();
+    mm->arch_mmu.top_pt = page_to_phys(alloc_page(0));
 }
 
 /**

@@ -183,5 +183,7 @@ void init_initrd(void *initrd, size_t length)
         str = try_decompress(initrd_src).unwrap();
     }
 
+    printk("unpacking\n");
+
     tar_unpack(*str);
 }

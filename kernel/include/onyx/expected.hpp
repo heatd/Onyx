@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2022 Pedro Falcato
+ * Copyright (c) 2020 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -18,6 +18,14 @@
 #endif
 
 #include <onyx/compiler.h>
+
+#if defined __has_include
+#if __has_include(<source_location>)
+/* Unfortunately we need the compiler's magic for <source_location>, so we can't roll our own */
+#include <source_location>
+#define EXPECTED_HAS_SOURCE_LOCATION
+#endif
+#endif
 
 #include <onyx/utility.hpp>
 
@@ -123,12 +131,22 @@ public:
         return unlikely(!_has_value);
     }
 
-    constexpr _Type&& unwrap()
+#ifdef EXPECTED_HAS_SOURCE_LOCATION
+    constexpr _Type&& unwrap(std::source_location loc = std::source_location::current())
     {
-        if (has_error())
-            panic("Expected %p does not have a value\n", this);
+        if (!_has_value)
+            panic("unwrap: Expected %p does not have a value, from %s:%u:%u::%s\n", this,
+                  loc.file_name(), loc.line(), loc.column(), loc.function_name());
         return cul::move(t);
     }
+#else
+    constexpr _Type&& unwrap()
+    {
+        if (!_has_value)
+            panic("unwrap: Expected %p does not have a value", this);
+        return cul::move(t);
+    }
+#endif
 
     constexpr _Type&& value()
     {

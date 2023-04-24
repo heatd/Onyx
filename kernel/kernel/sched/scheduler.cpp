@@ -1321,13 +1321,6 @@ void sched_handle_preempt(bool may_softirq)
     }
 }
 
-void __sched_kill_other(thread *thread, unsigned int cpu)
-{
-    MUST_HOLD_LOCK(get_per_cpu_ptr_any(scheduler_lock, thread->cpu));
-
-    cpu_send_message(cpu, CPU_KILL_THREAD, NULL, false);
-}
-
 pid_t sys_gettid()
 {
     return get_current_process()->pid_;
