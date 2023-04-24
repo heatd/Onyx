@@ -714,6 +714,20 @@ int get_phys_pages(void *addr, unsigned int flags, struct page **pages, size_t n
 void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots, int new_prots);
 
 /**
+ * @brief Directly mprotect a range in the paging tables.
+ *
+ * This function handles any edge cases like trying to re-apply write perms on
+ * a write-protected page. It also invalidates the TLB.
+ *
+ * @param as The target address space.
+ * @param address The virtual address of the range.
+ * @param nr_pgs Number of pages in the range
+ * @param old_prots The old protection flags.
+ * @param new_prots The new protection flags.
+ */
+void vm_do_mmu_mprotect(struct mm_address_space *as, void *address, size_t nr_pgs, int old_prots,
+                        int new_prots);
+/**
  * @brief Loads the fallback paging tables.
  *
  */

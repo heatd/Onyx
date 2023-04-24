@@ -83,8 +83,6 @@ void *virtual2phys(void *ptr);
 int paging_clone_as(struct mm_address_space *addr_space, struct mm_address_space *original);
 
 int paging_fork_tables(struct mm_address_space *addr_space);
-bool paging_change_perms(void *addr, int prot);
-bool __paging_change_perms(struct mm_address_space *mm, void *addr, int prot);
 int is_invalid_arch_range(void *address, size_t pages);
 void paging_protect_kernel(void);
 void paging_free_page_tables(struct mm_address_space *mm);

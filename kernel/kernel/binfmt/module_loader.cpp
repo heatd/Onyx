@@ -350,7 +350,8 @@ bool elf_load_module_sections(struct elf_loader_context *ctx, struct module *mod
     *addr_p = (unsigned long) mem;
 
     /* Enable write, we'll fix this up in a moment */
-    vm_change_perms(mem, vm_size_to_pages(region_size), VM_READ | VM_WRITE);
+    vm_do_mmu_mprotect(&kernel_address_space, mem, vm_size_to_pages(region_size),
+                       VM_READ | VM_WRITE, VM_READ | VM_WRITE);
 
     unsigned long addr = *addr_p;
     for (size_t i = 0; i < ctx->header->e_shnum; i++)
@@ -386,14 +387,17 @@ bool elf_load_module_sections(struct elf_loader_context *ctx, struct module *mod
 
 void elf_restore_module_perms(struct module *module)
 {
-    vm_change_perms((void *) module->layout.start_text, vm_size_to_pages(module->layout.text_size),
-                    module_prots[ELF_MODULE_TEXT]);
+    vm_do_mmu_mprotect(&kernel_address_space, (void *) module->layout.start_text,
+                       vm_size_to_pages(module->layout.text_size), VM_READ | VM_WRITE,
+                       module_prots[ELF_MODULE_TEXT]);
 
-    vm_change_perms((void *) module->layout.start_ro, vm_size_to_pages(module->layout.ro_size),
-                    module_prots[ELF_MODULE_RO]);
+    vm_do_mmu_mprotect(&kernel_address_space, (void *) module->layout.start_ro,
+                       vm_size_to_pages(module->layout.ro_size), VM_READ | VM_WRITE,
+                       module_prots[ELF_MODULE_RO]);
 
-    vm_change_perms((void *) module->layout.start_data, vm_size_to_pages(module->layout.data_size),
-                    module_prots[ELF_MODULE_DATA]);
+    vm_do_mmu_mprotect(&kernel_address_space, (void *) module->layout.start_data,
+                       vm_size_to_pages(module->layout.data_size), VM_READ | VM_WRITE,
+                       module_prots[ELF_MODULE_DATA]);
 }
 
 bool elf_setup_symtable(struct elf_loader_context *ctx, struct module *module)

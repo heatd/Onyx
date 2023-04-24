@@ -251,6 +251,61 @@ static void dump_pt(PML *pt)
         printk("%016lx\n", entry);
 }
 
+<<<<<<< HEAD
+=======
+bool riscv_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
+                        struct mm_address_space *mm)
+{
+    unsigned long virt = (unsigned long) addr;
+    unsigned int indices[riscv_max_paging_levels];
+
+    addr_to_indices(virt, indices);
+
+    PML *pml = (PML *) ((unsigned long) mm->arch_mmu.top_pt + PHYS_BASE);
+
+    for (unsigned int i = riscv_paging_levels; i != 1; i--)
+    {
+        uint64_t entry = pml->entries[indices[i - 1]];
+        if (entry & RISCV_MMU_VALID)
+        {
+            void *page = (void *) PML_EXTRACT_ADDRESS(entry);
+            pml = (PML *) PHYS_TO_VIRT(page);
+        }
+        else
+        {
+            if (!may_create_path)
+                return false;
+
+            PML *pt = alloc_pt();
+
+            if (!pt)
+                return false;
+            increment_vm_stat(mm, page_tables_size, PAGE_SIZE);
+
+            pml->entries[indices[i - 1]] = riscv_make_pt_entry_page_table(pt);
+            __asm__ __volatile__("sfence.vma zero, zero");
+
+            pml = (PML *) PHYS_TO_VIRT(pt);
+        }
+    }
+
+    *entry_ptr = &pml->entries[indices[0]];
+
+    return true;
+}
+
+bool paging_write_protect(void *addr, struct mm_address_space *mm)
+{
+    uint64_t *ptentry;
+    if (!riscv_get_pt_entry(addr, &ptentry, false, mm))
+        return false;
+
+    *ptentry = *ptentry & ~RISCV_MMU_WRITE;
+
+    return true;
+}
+
+>>>>>>> 8728584a6d0f (arm64: Improve TLB maintenance)
 int is_invalid_arch_range(void *address, size_t pages)
 {
     unsigned long addr = (unsigned long) address;
@@ -400,6 +455,188 @@ void vm_save_current_mmu(struct mm_address_space *mm)
     mm->arch_mmu.top_pt = get_current_page_tables();
 }
 
+<<<<<<< HEAD
+=======
+/**
+ * @brief Directly mprotect a page in the paging tables.
+ * Called by core MM code and should not be used outside of it.
+ * This function handles any edge cases like trying to re-apply write perms on
+ * a write-protected page.
+ *
+ * @param as The target address space.
+ * @param addr The virtual address of the page.
+ * @param old_prots The old protection flags.
+ * @param new_prots The new protection flags.
+ */
+void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots, int new_prots)
+{
+    uint64_t *ptentry;
+    if (!riscv_get_pt_entry(addr, &ptentry, false, as))
+        return;
+
+    if (!*ptentry)
+        return;
+
+    /* Make sure we don't accidentally mark a page as writable when
+     * it's write-protected and we're changing some other bits.
+     * For example: mprotect(PROT_EXEC) on a COW'd supposedly writable
+     * page would try to re-apply the writable permission.
+     */
+
+    /* In this function, we use the old_prots parameter to know whether it was a write-protected
+     * page.
+     */
+    bool is_wp_page = !(*ptentry & RISCV_MMU_WRITE) && old_prots & VM_WRITE;
+
+    if (is_wp_page)
+    {
+        new_prots &= ~VM_WRITE;
+        // printk("NOT VM_WRITING\n");
+    }
+
+    // printk("new prots: %x\n", new_prots);
+
+    unsigned long paddr = PML_EXTRACT_ADDRESS(*ptentry);
+
+    uint64_t page_prots = vm_prots_to_mmu(new_prots);
+    *ptentry = riscv_pt_page_mapping(paddr) | page_prots;
+}
+
+/**
+ * @brief Directly mprotect a range in the paging tables.
+ *
+ * This function handles any edge cases like trying to re-apply write perms on
+ * a write-protected page. It also invalidates the TLB.
+ *
+ * @param as The target address space.
+ * @param address The virtual address of the range.
+ * @param nr_pgs Number of pages in the range
+ * @param old_prots The old protection flags.
+ * @param new_prots The new protection flags.
+ */
+void vm_do_mmu_mprotect(struct mm_address_space *as, void *address, size_t nr_pgs, int old_prots,
+                        int new_prots)
+{
+    void *addr = address;
+
+    for (size_t i = 0; i < nr_pgs; i++)
+    {
+        vm_mmu_mprotect_page(as, address, old_prots, new_prots);
+
+        address = (void *) ((unsigned long) address + PAGE_SIZE);
+    }
+
+    vm_invalidate_range((unsigned long) addr, nr_pgs);
+}
+
+class page_table_iterator
+{
+private:
+    unsigned long curr_addr_;
+    size_t length_;
+
+public:
+    struct mm_address_space *as_;
+
+#ifdef CONFIG_PT_ITERATOR_HAVE_DEBUG
+    bool debug;
+#endif
+
+    page_table_iterator(unsigned long virt, size_t len, struct mm_address_space *as)
+        : curr_addr_{virt}, length_{len}, as_{as}
+
+#ifdef CONFIG_PT_ITERATOR_HAVE_DEBUG
+          ,
+          debug{false}
+#endif
+
+    {
+    }
+
+    size_t length() const
+    {
+        return length_;
+    }
+
+    unsigned long curr_addr() const
+    {
+        return curr_addr_;
+    }
+
+    void adjust_length(size_t size)
+    {
+        if (size > length_)
+        {
+            length_ = 0;
+            curr_addr_ += length_;
+        }
+        else
+        {
+            length_ -= size;
+            curr_addr_ += size;
+        }
+    }
+};
+
+struct tlb_invalidation_tracker
+{
+    unsigned long virt_start;
+    unsigned long virt_end;
+    bool is_started, is_flushed;
+
+    explicit tlb_invalidation_tracker() : virt_start{}, virt_end{}, is_started{}, is_flushed{}
+    {
+    }
+
+    void invalidate_tracker()
+    {
+        virt_start = 0xDEADDAD;
+        virt_end = 0xB0;
+        is_started = false;
+        is_flushed = false;
+    }
+
+    void flush()
+    {
+        if (!is_started)
+            return;
+
+        vm_invalidate_range(virt_start, (virt_end - virt_start) >> PAGE_SHIFT);
+        invalidate_tracker();
+    }
+
+    constexpr void init(unsigned long vaddr, size_t size)
+    {
+        is_started = true;
+        virt_start = vaddr;
+        virt_end = vaddr + size;
+        is_flushed = false;
+    }
+
+    void add_page(unsigned long vaddr, size_t size)
+    {
+        /* If we've already started on a run of pages and this one is contiguous, just set the tail
+         */
+        if (is_started && virt_end == vaddr)
+        {
+            virt_end = vaddr + size;
+        }
+        else
+        {
+            /* Else, try flushing if is_started == true and restart the page run */
+            flush();
+            init(vaddr, size);
+        }
+    }
+
+    ~tlb_invalidation_tracker()
+    {
+        if (is_started && !is_flushed)
+            flush();
+    }
+};
+
+>>>>>>> 8728584a6d0f (arm64: Improve TLB maintenance)
 enum page_table_levels : unsigned int
 {
     PT_LEVEL,

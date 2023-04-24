@@ -1,11 +1,6 @@
 /*
-<<<<<<< HEAD
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2022 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
-=======
- * Copyright (c) 2016 - 2023 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the MIT License
->>>>>>> d8f1b50726ca (arm64: Get to userspace)
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: GPL-2.0-only
@@ -75,8 +70,8 @@ void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
 static inline void __native_tlb_invalidate_page(void *addr)
 {
     // TODO: ASIDs
-    __asm__ __volatile__("tlbi vaae1is, %0" ::"r"(addr));
-    __native_tlb_invalidate_all();
+    __asm__ __volatile__("tlbi vaae1is, %0" ::"r"((unsigned long) addr >> 12));
+    isb();
 }
 
 bool pte_empty(uint64_t pte)
@@ -222,6 +217,28 @@ void paging_init()
     }
 }
 
+static void arm64_set_pte(void *vaddr, u64 *pte, u64 newpte)
+{
+    u64 old = read_once(*pte);
+
+    if (old != 0)
+    {
+        // If a valid entry, do BBM
+        write_once(*pte, (u64) 0);
+        // Now do a dsb to make sure the entry is written back
+        dsb();
+        // Invalidate the page, broadcast
+        __native_tlb_invalidate_page(vaddr);
+
+        // dsb will wait for the tlbi
+        dsb();
+    }
+
+    // Write the new pte entry and dsb
+    write_once(*pte, newpte);
+    dsb();
+}
+
 void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64_t phys,
                               uint64_t prot)
 {
@@ -250,20 +267,16 @@ void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
     if (prot & VM_DONT_MAP_OVER && *ptentry & ARM64_MMU_VALID)
         return (void *) virt;
 
-    uint64_t old = *ptentry;
+    uint64_t old = read_once(*ptentry);
 
-    *ptentry = phys | page_prots;
+    // set_pte properly invalidates the TLB, so we don't need to
+    arm64_set_pte((void *) virt, ptentry, page_prots | phys);
 
     if (pte_empty(old))
     {
         increment_vm_stat(as, resident_set_size, PAGE_SIZE);
     }
-    else
-    {
-        __native_tlb_invalidate_page((void *) PML_EXTRACT_ADDRESS(*ptentry));
-    }
 
-    dsb();
     isb();
 
     return (void *) virt;
@@ -409,27 +422,6 @@ bool arm64_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
     return true;
 }
 
-bool __paging_change_perms(struct mm_address_space *mm, void *addr, int prot)
-{
-    MUST_HOLD_MUTEX(&mm->vm_lock);
-
-    uint64_t *entry;
-    if (!arm64_get_pt_entry(addr, &entry, false, mm))
-    {
-        return false;
-    }
-
-    uint64_t pt_entry = *entry;
-    uint64_t perms = pt_entry & ARM64_MMU_FLAGS_TO_SAVE_ON_MPROTECT;
-    uint64_t page = PML_EXTRACT_ADDRESS(pt_entry);
-
-    perms |= vm_prots_to_mmu(prot);
-
-    *entry = perms | page;
-
-    return true;
-}
-
 bool paging_write_protect(void *addr, struct mm_address_space *mm)
 {
     uint64_t *ptentry;
@@ -531,17 +523,6 @@ void paging_protect_kernel()
 }
 
 unsigned long total_shootdowns = 0;
-
-void paging_invalidate(void *page, size_t pages)
-{
-    uintptr_t p = (uintptr_t) page;
-
-    for (size_t i = 0; i < pages; i++, p += PAGE_SIZE)
-    {
-        total_shootdowns++;
-        __native_tlb_invalidate_page((void *) p);
-    }
-}
 
 /**
  * @brief Directly maps a page into the paging tables.
@@ -718,9 +699,32 @@ void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots
     // printk("new prots: %x\n", new_prots);
 
     unsigned long paddr = PML_EXTRACT_ADDRESS(*ptentry);
-
     uint64_t page_prots = vm_prots_to_mmu(new_prots);
-    *ptentry = paddr | page_prots;
+
+    arm64_set_pte(addr, ptentry, paddr | page_prots);
+}
+
+/**
+ * @brief Directly mprotect a range in the paging tables.
+ *
+ * This function handles any edge cases like trying to re-apply write perms on
+ * a write-protected page. It also invalidates the TLB.
+ *
+ * @param as The target address space.
+ * @param address The virtual address of the range.
+ * @param nr_pgs Number of pages in the range
+ * @param old_prots The old protection flags.
+ * @param new_prots The new protection flags.
+ */
+void vm_do_mmu_mprotect(struct mm_address_space *as, void *address, size_t nr_pgs, int old_prots,
+                        int new_prots)
+{
+    for (size_t i = 0; i < nr_pgs; i++)
+    {
+        vm_mmu_mprotect_page(as, address, old_prots, new_prots);
+
+        address = (void *) ((unsigned long) address + PAGE_SIZE);
+    }
 }
 
 class page_table_iterator
@@ -990,30 +994,6 @@ static inline bool is_higher_half(unsigned long address)
 PER_CPU_VAR(unsigned long tlb_nr_invals) = 0;
 PER_CPU_VAR(unsigned long nr_tlb_shootdowns) = 0;
 
-struct mm_shootdown_info
-{
-    unsigned long addr;
-    size_t pages;
-    mm_address_space *mm;
-};
-
-void arm64_invalidate_tlb(void *context)
-{
-    auto info = (mm_shootdown_info *) context;
-    auto addr = info->addr;
-    auto pages = info->pages;
-    auto addr_space = info->mm;
-
-    auto curr_thread = get_current_thread();
-
-    if (is_higher_half(addr) ||
-        (curr_thread->owner && curr_thread->owner->get_aspace() == addr_space))
-    {
-        paging_invalidate((void *) addr, pages);
-        add_per_cpu(tlb_nr_invals, 1);
-    }
-}
-
 /**
  * @brief Invalidates a memory range.
  *
@@ -1023,23 +1003,15 @@ void arm64_invalidate_tlb(void *context)
  */
 void mmu_invalidate_range(unsigned long addr, size_t pages, mm_address_space *mm)
 {
-    add_per_cpu(nr_tlb_shootdowns, 1);
-    mm_shootdown_info info{addr, pages, mm};
+    dsb();
 
-    auto our_cpu = get_cpu_nr();
-    cpumask mask;
-
-    if (addr >= VM_HIGHER_HALF)
+    while (pages--)
     {
-        mask = cpumask::all_but_one(our_cpu);
-    }
-    else
-    {
-        mask = mm->active_mask;
-        mask.remove_cpu(our_cpu);
+        __native_tlb_invalidate_page((void *) addr);
+        addr += PAGE_SIZE;
     }
 
-    smp::sync_call_with_local(arm64_invalidate_tlb, &info, mask, arm64_invalidate_tlb, &info);
+    dsb();
 }
 
 struct mmu_acct
@@ -1093,127 +1065,4 @@ void mmu_verify_address_space_accounting(mm_address_space *as)
 
     assert(acct.page_table_size == as->page_tables_size);
     assert(acct.resident_set_size == as->resident_set_size);
-}
-
-static int arm64_mmu_fork(PML *parent_table, PML *child_table, unsigned int pt_level,
-                          page_table_iterator &it, struct vm_area_struct *old_region)
-{
-    unsigned int index = addr_get_index(it.curr_addr(), pt_level);
-
-    /* Get the size that each entry represents here */
-    auto entry_size = level_to_entry_size(pt_level);
-
-    unsigned int i;
-
-#ifdef CONFIG_PT_ITERATOR_HAVE_DEBUG
-    if (it.debug)
-    {
-        printk("level %u - index %x\n", pt_level, index);
-    }
-#endif
-    tlb_invalidation_tracker invd_tracker;
-
-    for (i = index; i < PAGE_TABLE_ENTRIES && it.length(); i++)
-    {
-        const u64 pt_entry = parent_table->entries[i];
-        bool pte_empty = pt_entry == 0;
-
-        if (pte_empty)
-        {
-
-#ifdef CONFIG_X86_MMU_UNMAP_DEBUG
-            if (it.debug)
-                printk("not present @ level %u\nentry size %lu\nlength %lu\n", pt_level, entry_size,
-                       it.length());
-#endif
-            auto to_skip = entry_size - (it.curr_addr() & (entry_size - 1));
-
-#ifdef CONFIG_PT_ITERATOR_HAVE_DEBUG
-            if (it.debug)
-            {
-                printk("[level %u]: Skipping from %lx to %lx\n", pt_level, it.curr_addr(),
-                       it.curr_addr() + to_skip);
-            }
-#endif
-
-            it.adjust_length(to_skip);
-            continue;
-        }
-
-        bool is_huge_page = is_huge_page_level(pt_level) && pt_entry_is_huge(pt_entry);
-
-        if (pt_level == PT_LEVEL || is_huge_page)
-        {
-            const bool should_cow = vma_private(old_region);
-            child_table->entries[i] = pt_entry | (should_cow ? ARM64_MMU_READ_ONLY : 0);
-            if (should_cow)
-            {
-                /* Write-protect the parent's page too. Make sure to invalidate the TLB if we
-                 * downgraded permissions.
-                 */
-                __atomic_store_n(&parent_table->entries[i], pt_entry | ARM64_MMU_READ_ONLY,
-                                 __ATOMIC_RELAXED);
-
-                if (!(pt_entry & ARM64_MMU_READ_ONLY))
-                    invd_tracker.add_page(it.curr_addr(), entry_size);
-            }
-
-            increment_vm_stat(it.as_, resident_set_size, entry_size);
-            it.adjust_length(entry_size);
-        }
-        else
-        {
-            assert((pt_entry & ARM64_MMU_VALID) != 0);
-
-            PML *old = (PML *) PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(pt_entry));
-            PML *child_pt = (PML *) PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(child_table->entries[i]));
-
-            if (child_table->entries[i] != 0)
-            {
-                /* Allocate a new page table for the child process */
-                PML *copy = (PML *) alloc_pt();
-                if (!copy)
-                    return -ENOMEM;
-
-                increment_vm_stat(it.as_, page_tables_size, PAGE_SIZE);
-
-                const unsigned long old_prots = pt_entry & ARM64_MMU_PERM_MASK;
-                /* Set the PTE */
-                child_table->entries[i] = (unsigned long) copy | old_prots;
-                child_pt = (PML *) PHYS_TO_VIRT(copy);
-            }
-
-            int st = arm64_mmu_fork(old, child_pt, pt_level - 1, it, old_region);
-
-            if (st < 0)
-            {
-                return st;
-            }
-        }
-    }
-
-    return 0;
-}
-
-/**
- * @brief Fork MMU page tables
- *
- * @param old_region Old vm_area_struct
- * @param addr_space Current address space
- * @return 0 on success, negative error codes
- */
-int mmu_fork_tables(struct vm_area_struct *old_region, struct mm_address_space *addr_space)
-{
-    page_table_iterator it{old_region->vm_start, vma_pages(old_region) << PAGE_SHIFT, addr_space};
-
-    return arm64_mmu_fork((PML *) PHYS_TO_VIRT(old_region->vm_mm->arch_mmu.top_pt),
-                          (PML *) PHYS_TO_VIRT(addr_space->arch_mmu.top_pt),
-                          arm64_paging_levels - 1, it, old_region);
-}
-
-unsigned int mmu_get_clear_referenced(struct mm_address_space *mm, void *addr, struct page *page)
-{
-    /* TODO: arm64 AF is way less trivial than riscv or x86, as we need to emulate AF (or not!
-     * depending on armv8.1 TTHM support). Implement later. */
-    return 0;
 }
