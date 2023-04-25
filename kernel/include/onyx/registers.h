@@ -142,6 +142,8 @@ typedef struct registers
     unsigned long sp;
     unsigned long pc;
     unsigned long pstate;
+    unsigned long orig_x0;
+    unsigned long syscall_nr;
 } registers_t;
 
 static inline bool in_kernel_space_regs(struct registers *regs)

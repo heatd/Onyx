@@ -18,7 +18,7 @@ void core_fill_regs(elf_gregset_t *set, struct process *thread)
     /* thread is alive and suspended (or is us. either way, task_regs will work ) */
     struct registers *regs = task_regs(thread);
     /* struct register layout = elf_gregset_t layout */
-    static_assert(sizeof(*regs) == sizeof(*set),
+    static_assert(offsetof(struct registers, orig_x0) == sizeof(*set),
                   "arm64 struct register layout must be similar to elf_gregset_t");
-    memcpy(set, regs, sizeof(*regs));
+    memcpy(set, regs, sizeof(elf_gregset_t));
 }

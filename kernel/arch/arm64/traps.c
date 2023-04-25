@@ -246,6 +246,8 @@ static void breakpoint_exception(registers_t *ctx)
     raise_sig_curthr(SIGTRAP, SIGNAL_FORCE, &info);
 }
 
+void handle_signal(struct registers *regs);
+
 void arm64_exception_sync(struct registers *regs)
 {
     unsigned long esr = mrs(REG_ESR);
@@ -291,13 +293,7 @@ void arm64_exception_sync(struct registers *regs)
             page_fault(regs, esr);
             break;
         case ESR_EC_SVC_AA64:
-            if (current->pid_ == 1)
-            {
-                // pr_warn("curr %s[%d]\n", current->comm, current->pid_);
-                // dump_exception_state(regs, esr);
-            }
             do_system_call(regs);
-            // dump_exception_state(regs, esr);
             break;
         case ESR_EC_UNKNOWN_REASON:
             unknown_reason_exception(regs);
@@ -315,6 +311,9 @@ void arm64_exception_sync(struct registers *regs)
             unknown_reason_exception(regs);
             break;
     }
+
+    if (signal_is_pending())
+        handle_signal(regs);
 }
 
 void arm64_exception_serror(struct registers *regs)
@@ -331,6 +330,8 @@ void arm64_exception_irq(struct registers *regs)
 
     unsigned long ret = irq_handler(regs);
     DCHECK(ret == (unsigned long) regs);
+    if (signal_is_pending())
+        handle_signal(regs);
 }
 
 void arm64_exception_fiq(struct registers *regs)

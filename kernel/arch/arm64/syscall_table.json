@@ -615,6 +615,14 @@
         "abi": "c"
     },
     {
+        "name": "sigreturn",
+        "nr": 37,
+        "nr_args": 0,
+        "args": [
+        ],
+        "return_type": "unsigned long"
+    },
+    {
         "name": "insmod",
         "nr": 38,
         "nr_args": 2,

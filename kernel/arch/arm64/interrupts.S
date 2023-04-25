@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 - 2025 Pedro Falcato
+ * Copyright (c) 2022 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -8,10 +8,10 @@
 
 .section .text
 
-#define STRUCT_REGS_SIZE 272
+#define STRUCT_REGS_SIZE 288
 
 .macro save_regs el
-    sub sp, sp, #32
+    sub sp, sp, #48
     stp x28, x29, [sp, #-16]!
     stp x26, x27, [sp, #-16]!
     stp x24, x25, [sp, #-16]!
@@ -29,15 +29,18 @@
     stp x0, x1, [sp, #-16]!
 
 .if \el == 0
-    mrs x0, sp_el0
+    mrs x3, sp_el0
 .else
-    add x0, sp, #STRUCT_REGS_SIZE
+    add x3, sp, #STRUCT_REGS_SIZE
 .endif
     mrs x1, elr_el1
     mrs x2, spsr_el1
 
-    stp x30, x0, [sp, #240]
+    stp x30, x3, [sp, #240]
     stp x1, x2, [sp, #256]
+    mov x1, -1
+    /* orig_x0, syscall_nr */
+    stp x0, x1, [sp, #272]
 .endm
 
 .macro restore_regs el
@@ -65,7 +68,7 @@
     ldp x26, x27, [sp], #16
     ldp x28, x29, [sp], #16
 
-    add sp, sp, #32
+    add sp, sp, #48
 .endm
 
 .global arm64_exception_vector_table

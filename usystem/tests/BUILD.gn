@@ -2,6 +2,7 @@ group("tests") {
   deps = [
     "iostress",
     "kernel_api_tests",
+    "kernel_cpu_tests",
     "kernelbuild-smoketest",
     "lru-scan",
     "regtests",

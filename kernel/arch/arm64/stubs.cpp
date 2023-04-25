@@ -47,12 +47,6 @@ extern "C" void arch_vm_init()
 {
 }
 
-int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigaction,
-                         struct registers *regs)
-{
-    UNIMPLEMENTED;
-}
-
 namespace smp
 {
 

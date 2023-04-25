@@ -29,6 +29,7 @@ long do_syscall64(registers_t *frame)
 
     proc_event_enter_syscall((struct syscall_frame *) frame, syscall_nr);
 
+    frame->syscall_nr = syscall_nr;
     if (likely(syscall_nr <= NR_SYSCALL_MAX))
     {
         ret = syscall_table_64[syscall_nr](frame->x[0], frame->x[1], frame->x[2], frame->x[3],
