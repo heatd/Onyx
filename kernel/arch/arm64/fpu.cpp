@@ -6,17 +6,11 @@
  * SPDX-License-Identifier: GPL-2.0-only
  */
 
+#include <onyx/arm64/fpu.h>
 #include <onyx/fpu.h>
 #include <onyx/init.h>
 #include <onyx/mm/slab.h>
 #include <onyx/types.h>
-
-struct fpstate
-{
-    u64 regs[64] __attribute__((aligned(16)));
-    u32 fpsr;
-    u32 fpcr;
-};
 
 void setup_fpu_area(unsigned char *address)
 {

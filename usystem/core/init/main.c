@@ -230,9 +230,6 @@ int main(int argc, char **argv)
     /* Setup the hostname */
     setup_hostname();
 
-    // signal_test();
-    // mmap_test();
-
     /* Execute daemons */
     int st;
 

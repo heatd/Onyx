@@ -27,7 +27,7 @@ long do_syscall64(registers_t *frame)
     unsigned long syscall_nr = frame->x[8];
 
     /* In case of a fork or sigreturn, adjust %rdi so it points to the frame */
-    if (syscall_nr == SYS_fork /*|| syscall_nr == SYS_sigreturn || syscall_nr == SYS_vfork*/)
+    if (syscall_nr == SYS_fork || syscall_nr == SYS_sigreturn /* || syscall_nr == SYS_vfork*/)
         frame->x[0] = (unsigned long) frame;
 
     /* sigaltstack's implementation requires the syscall frame as the 3rd argument */

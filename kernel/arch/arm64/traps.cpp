@@ -9,6 +9,7 @@
 
 #include <onyx/exceptions.h>
 #include <onyx/intrinsics.h>
+#include <onyx/process.h>
 #include <onyx/registers.h>
 #include <onyx/serial.h>
 #include <onyx/vm.h>
@@ -23,6 +24,8 @@ void arm64_setup_trap_handling()
 
 #define ESR_EC_CLASS(esr) ((esr) & (0b111111U << 26))
 
+#define ESR_EC_UNKNOWN_REASON            0
+#define ESR_EC_BREAKPOINT                (0b111100U << 26)
 #define ESR_EC_DATA_ABORT                (0b100100U << 26)
 #define ESR_EC_INSN_ABORT                (0b100000U << 26)
 #define ESR_INSN_DATA_ABORT_NO_EL_CHANGE (1U << 26)
@@ -118,10 +121,6 @@ static void page_fault(struct registers *regs, unsigned long esr)
         }
 
         vm_do_fatal_page_fault(&info);
-
-        // XXX(pedro): signals
-
-        panic_exception(regs, esr);
     }
 }
 
@@ -129,37 +128,86 @@ long do_syscall64(registers_t *frame);
 
 static void do_system_call(struct registers *regs)
 {
-    irq_restore(regs->pstate);
     regs->x[0] = do_syscall64(regs);
+}
+
+static void unknown_reason_exception(struct registers *regs)
+{
+    siginfo_t info = {};
+    info.si_code = ILL_ILLOPC;
+    info.si_addr = (void *) regs->pc;
+
+    kernel_raise_signal(SIGILL, get_current_process(), SIGNAL_FORCE, &info);
+}
+
+static void breakpoint_exception(registers_t *ctx)
+{
+    siginfo_t info = {};
+    info.si_code = TRAP_BRKPT;
+
+    kernel_tkill(SIGTRAP, get_current_thread(), SIGNAL_FORCE, &info);
 }
 
 extern "C" void arm64_exception_sync(struct registers *regs)
 {
     unsigned long esr = mrs(REG_ESR);
+    const auto eclass = ESR_EC_CLASS(esr);
 
-    switch (ESR_EC_CLASS(esr))
+    if (in_kernel_space_regs(regs))
+    {
+        if (eclass != (ESR_EC_DATA_ABORT | ESR_INSN_DATA_ABORT_NO_EL_CHANGE))
+        {
+            // If we cannot handle this fault with exception handlers (atm, data abort only)
+            // just panic.
+            panic_exception(regs, esr);
+        }
+    }
+
+    // Re-enable irqs
+    switch (eclass)
+    {
+        case ESR_EC_DATA_ABORT:
+        case ESR_EC_INSN_ABORT:
+        case ESR_EC_DATA_ABORT | ESR_INSN_DATA_ABORT_NO_EL_CHANGE:
+        case ESR_EC_INSN_ABORT | ESR_INSN_DATA_ABORT_NO_EL_CHANGE:
+            // Ugh, annoying... We must not re-enable irqs for page faults because they'll still
+            // grab FAR
+            // TODO(pedro): Related to the signals ESR and fault_address TODO
+            break;
+        default:
+            irq_restore(regs->pstate);
+    }
+
+    switch (eclass)
     {
         case ESR_EC_DATA_ABORT:
         case ESR_EC_INSN_ABORT:
         case ESR_EC_DATA_ABORT | ESR_INSN_DATA_ABORT_NO_EL_CHANGE:
         case ESR_EC_INSN_ABORT | ESR_INSN_DATA_ABORT_NO_EL_CHANGE:
             page_fault(regs, esr);
-            return;
+            break;
         case ESR_EC_SVC_AA64:
             // dump_exception_state(regs, esr);
             do_system_call(regs);
             // dump_exception_state(regs, esr);
-            return;
-        case 0b110010u << 26:
-        case 0b110011u << 26: {
-            irq_restore(regs->pstate);
-            dump_exception_state(regs, esr);
-            regs->pstate &= ~(1u << 21);
-            return;
-        }
+            break;
+        case ESR_EC_UNKNOWN_REASON:
+            unknown_reason_exception(regs);
+            break;
+        case ESR_EC_BREAKPOINT:
+            breakpoint_exception(regs);
+            break;
+        default:
+            // Linux seems to send SIGILL on ESRs it doesn't know about.
+            printf(
+                "arm64/trap: Unrecognized ESR %016lx on process %s (pid %d), sending SIGILL...\n",
+                esr, get_current_process()->name.data(), get_current_process()->pid_);
+            unknown_reason_exception(regs);
+            break;
     }
 
-    panic_exception(regs, esr);
+    if (signal_is_pending())
+        handle_signal(regs);
 }
 
 extern "C" void arm64_exception_serror(struct registers *regs)
@@ -173,6 +221,9 @@ extern "C" void arm64_exception_irq(struct registers *regs)
 {
     auto ret = irq_handler(regs);
     DCHECK(ret == (unsigned long) regs);
+
+    if (signal_is_pending())
+        handle_signal(regs);
 }
 
 extern "C" void arm64_exception_fiq(struct registers *regs)
