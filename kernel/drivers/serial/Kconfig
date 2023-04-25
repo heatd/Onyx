@@ -23,4 +23,11 @@ if SERIAL_UART8250
 
 endif
 
+config SERIAL_PL011
+    bool "PL011 serial support"
+    depends on DEVICE_TREE
+    help
+        PL011 support. Provides serial for many ARM devices and smaller boards.
+        When in doubt, say Y.
+
 endmenu
