@@ -2637,6 +2637,34 @@
         "return_type": "int"
     },
     {
+        "name": "vfork",
+        "nr": 150,
+        "nr_args": 1,
+        "args": [
+            [
+                "syscall_frame *",
+                "ctx"
+            ]
+        ],
+        "return_type": "pid_t"
+    },
+    {
+        "name": "pipe2",
+        "nr": 151,
+        "nr_args": 2,
+        "args": [
+            [
+                "int *",
+                "pipefds"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
         "name": "socketpair",
         "nr": 152,
         "nr_args": 4,
@@ -2677,7 +2705,6 @@
                 "u64 *",
                 "pagemap"
             ]
-        ],
-        "return_type": "int"
+        ]
     }
 ]
