@@ -81,7 +81,7 @@ static void page_fault(struct registers *regs, unsigned long esr)
     uintptr_t fault_address = mrs("far_el1");
 
     // IRQ restores need to be deferred after we collect all the state associated with the fault
-    // namely, CR2.
+    // namely, FAR_EL1.
     irq_restore(regs->pstate);
 
     bool write = false;
