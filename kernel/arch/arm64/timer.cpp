@@ -122,8 +122,15 @@ struct timer *platform_get_timer()
     return this_timer;
 }
 
+#define EL0VCTEN (1u << 1)
+
 static void clock_init()
 {
+    /* Enable direct access to the clock by userspace */
+    u64 val = mrs("cntkctl_el1");
+    val |= EL0VCTEN;
+    msr("cntkctl_el1", val);
+
     u64 freq = mrs(REG_CNTFRQ);
     printk("arm64: timer frequency: %luHz\n", freq);
 

@@ -22,11 +22,11 @@ static inline void mov_non_temporal(volatile Type *p, Type val)
 #define msr(reg, value) ({ __asm__ __volatile__("msr " reg ", %0" ::"r"((unsigned long) value)); })
 #define isb()           __asm__ __volatile__("isb" ::: "memory")
 
-#define mrs(reg)                                         \
-    ({                                                   \
-        unsigned long val;                               \
-        __asm__ __volatile__("mrs %0," reg : "=r"(val)); \
-        val;                                             \
+#define mrs(reg)                                             \
+    ({                                                       \
+        unsigned long ____val;                               \
+        __asm__ __volatile__("mrs %0," reg : "=r"(____val)); \
+        ____val;                                             \
     })
 
 #define REG_TTBR0  "ttbr0_el1"
