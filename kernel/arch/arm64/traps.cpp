@@ -30,6 +30,7 @@ void arm64_setup_trap_handling()
 #define ESR_EC_INSN_ABORT                (0b100000U << 26)
 #define ESR_INSN_DATA_ABORT_NO_EL_CHANGE (1U << 26)
 #define ESR_EC_SVC_AA64                  (0b010101U << 26)
+#define ESR_EC_TRAP_SYS_REG              (0b011000U << 26)
 
 #undef DEBUG_BUDGET_PRINTK
 #ifdef DEBUG_BUDGET_PRINTK
@@ -140,6 +141,29 @@ static void unknown_reason_exception(struct registers *regs)
     kernel_raise_signal(SIGILL, get_current_process(), SIGNAL_FORCE, &info);
 }
 
+#define TRAP_SYS_OP0(x) (((x) >> 20) & 3)
+#define TRAP_SYS_OP2(x) ((x) >> 17) & 7)
+#define TRAP_SYS_OP1(x) ((x) >> 14) & 7)
+#define TRAP_SYS_CRn(x) ((x) >> 10) & 0xf)
+#define TRAP_SYS_Rt(x) ((x) >> 5) & 0x1f)
+#define TRAP_SYS_CRm(x) ((x) >> 1) & 0x1f)
+#define TRAP_SYS_DIR(x) (x & 1)
+
+static void trap_sys_exception(struct registers *regs)
+{
+    /* TODO: Maybe decompose the ISS as specified in "ISS encoding for an exception from MSR, MRS,
+     * or System instruction execution in AArch64 state". Macros above. */
+    siginfo_t info = {};
+    info.si_code = ILL_PRVREG;
+    info.si_addr = (void *) regs->pc;
+    unsigned long esr = mrs(REG_ESR);
+
+    printf("trap: MSR/MRS/system exception ESR %08lx on process %s (pid %d)\n", esr,
+           get_current_process()->name.data(), get_current_process()->pid_);
+
+    kernel_raise_signal(SIGILL, get_current_process(), SIGNAL_FORCE, &info);
+}
+
 static void breakpoint_exception(registers_t *ctx)
 {
     siginfo_t info = {};
@@ -197,11 +221,13 @@ extern "C" void arm64_exception_sync(struct registers *regs)
         case ESR_EC_BREAKPOINT:
             breakpoint_exception(regs);
             break;
+        case ESR_EC_TRAP_SYS_REG:
+            trap_sys_exception(regs);
+            break;
         default:
             // Linux seems to send SIGILL on ESRs it doesn't know about.
-            printf(
-                "arm64/trap: Unrecognized ESR %016lx on process %s (pid %d), sending SIGILL...\n",
-                esr, get_current_process()->name.data(), get_current_process()->pid_);
+            printf("trap: Unrecognized ESR %016lx on process %s (pid %d), sending SIGILL...\n", esr,
+                   get_current_process()->name.data(), get_current_process()->pid_);
             unknown_reason_exception(regs);
             break;
     }
