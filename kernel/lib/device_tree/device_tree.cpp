@@ -431,6 +431,26 @@ void enumerate()
             return;
         }
 
+        u32 interrupt_parent;
+        int len;
+
+        if (const void *ptr = fdt_getprop(fdt_, offset, "interrupt-parent", &len); ptr)
+        {
+            const fdt32_t *p = (const fdt32_t *) ptr;
+            interrupt_parent = fdt32_to_cpu(*p);
+        }
+        else
+        {
+            // If we have no property there, inherit our parent's
+            if (depth > 0)
+                interrupt_parent = parents[depth - 1]->interrupt_parent;
+            else
+            {
+                // We have no parent, so set it to -1 just so it blows up if we ever try to use it
+                interrupt_parent = -1;
+            }
+        }
+
         if (depth > 0)
         {
             // Use the parent's cell sizes
@@ -466,6 +486,7 @@ void enumerate()
 
         dev_node->address_cells = address_cell_stack[depth];
         dev_node->size_cells = size_cell_stack[depth];
+        dev_node->interrupt_parent = interrupt_parent;
         dev_node->enumerate_resources();
 
         if (!parents[depth - 1]->children.push_back(dev_node))

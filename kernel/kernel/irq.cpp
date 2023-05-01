@@ -16,6 +16,7 @@
 #include <onyx/gen/trace_irq.h>
 #include <onyx/init.h>
 #include <onyx/irq.h>
+#include <onyx/irqchip.h>
 #include <onyx/percpu.h>
 #include <onyx/perf_probe.h>
 #include <onyx/platform.h>
