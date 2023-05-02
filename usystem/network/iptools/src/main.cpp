@@ -55,10 +55,13 @@ display_mode get_display_mode()
     return display_mode::normal;
 }
 
-struct option options[] = {
-    {"Version", no_argument, nullptr, 'V'},   {"help", no_argument, nullptr, 'h'},
-    {"json", no_argument, &option_json, 1},   {"family", required_argument, nullptr, 'f'},
-    {"color", no_argument, &option_color, 1}, {"pretty", no_argument, &option_pretty, 1}};
+const static struct option options[] = {{"Version", no_argument, nullptr, 'V'},
+                                        {"help", no_argument, nullptr, 'h'},
+                                        {"json", no_argument, &option_json, 1},
+                                        {"family", required_argument, nullptr, 'f'},
+                                        {"color", no_argument, &option_color, 1},
+                                        {"pretty", no_argument, &option_pretty, 1},
+                                        {}};
 
 static bool parse_family(char *arg)
 {
@@ -99,35 +102,35 @@ int main(int argc, char **argv)
     {
         switch (opt)
         {
-        case 'V':
-            print_version();
-            return 0;
-        case 'h':
-        case '?':
-            print_usage();
-            return opt == '?';
-        case '4':
-            fam = family::inet;
-            break;
-        case '6':
-            fam = family::inet6;
-            break;
-        case '0':
-            fam = family::link;
-            break;
-        case 'f':
-            if (!parse_family(optarg))
-                return 1;
-            break;
-        case 'j':
-            option_json = 1;
-            break;
-        case 'p':
-            option_pretty = 1;
-            break;
-        case 'c':
-            option_color = 1;
-            break;
+            case 'V':
+                print_version();
+                return 0;
+            case 'h':
+            case '?':
+                print_usage();
+                return opt == '?';
+            case '4':
+                fam = family::inet;
+                break;
+            case '6':
+                fam = family::inet6;
+                break;
+            case '0':
+                fam = family::link;
+                break;
+            case 'f':
+                if (!parse_family(optarg))
+                    return 1;
+                break;
+            case 'j':
+                option_json = 1;
+                break;
+            case 'p':
+                option_pretty = 1;
+                break;
+            case 'c':
+                option_color = 1;
+                break;
         }
     }
 

@@ -152,8 +152,8 @@ void register_test(const test *t)
     tests.push_back(t);
 }
 
-const static struct option options[] = {{"runs", required_argument, NULL, 'r'},
-                                        {"silent", no_argument, &option_silent, 1}};
+const static struct option options[] = {
+    {"runs", required_argument, NULL, 'r'}, {"silent", no_argument, &option_silent, 1}, {}};
 
 int main(int argc, char **argv, char **envp)
 {
