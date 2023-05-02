@@ -3,6 +3,7 @@ import("//build/app.gni")
 app_executable("printenv") {
     package_name = "printenv"
     output_name = "$package_name"
+    defines = ["_GNU_SOURCE"]
 
     sources = [ "main.c" ]
 }
