@@ -33,8 +33,8 @@ int mount_autodetect(const char *dev, const char *mpoint)
 
 int option_verbose = 0;
 
-const struct option options[] = {{"root", required_argument, NULL, 'r'},
-                                 {"verbose", no_argument, &option_verbose, 1}};
+const struct option options[] = {
+    {"root", required_argument, NULL, 'r'}, {"verbose", no_argument, &option_verbose, 1}, {}};
 
 int insmod(const char *path, const char *name)
 {
