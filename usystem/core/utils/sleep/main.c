@@ -30,7 +30,7 @@ void do_sleep(const char *arg)
     unsigned int timeunits;
     unsigned int seconds = 0;
 
-    int ret = sscanf(arg, "%u%c", &timeunits, unit_char);
+    int ret = sscanf(arg, "%u%c", &timeunits, &unit_char);
     if (ret == EOF || ret == 0)
     {
         print_help();
