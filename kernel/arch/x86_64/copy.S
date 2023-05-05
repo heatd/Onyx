@@ -84,28 +84,3 @@ __set_non_temporal:
     xor %rax, %rax
 
     RET
-
-.global __memset
-.type __memset, @function
-__memset:
-    push %rbp
-    mov %rsp, %rbp
-
-    /* Shuffle the registers around, rep stosb requires count to be in %rcx, and the fill byte in %rax.
-     * We then use the freed-register %rsi to hold the return value, which is the address itself.
-     */
-    mov %rdx, %rcx
-    mov %rsi, %rax
-    mov %rdi, %rsi
-
-    rep stosb
-
-    mov %rsi, %rax
-
-    pop %rbp
-    RET
-
-.size __memset, . - __memset 
-
-.weak memset
-.set memset, __memset
