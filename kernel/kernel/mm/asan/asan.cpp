@@ -23,6 +23,8 @@
 #include <onyx/vm.h>
 #include <onyx/vm_layout.h>
 
+#include <platform/kasan.h>
+
 #include <onyx/utility.hpp>
 
 #define KADDR_SPACE_SIZE 0x800000000000
@@ -37,17 +39,11 @@ bool kasan_is_init = false;
 
 #define ADDR_SPACE_SIZE (KADDR_SPACE_SIZE / 8)
 
-const unsigned long kasan_space = 0xffffec0000000000;
 unsigned long kasan_max = 0xfffffc0000000000;
-
-bool kasan_is_cleared_access(unsigned long addr, size_t size)
-{
-    return addr >= kasan_space && addr + size <= kasan_space + ADDR_SPACE_SIZE;
-}
 
 static inline char *kasan_get_ptr(unsigned long addr)
 {
-    return (char *) 0xdffffc0000000000 + (addr >> KASAN_SHIFT);
+    return (char *) KASAN_SHADOW_OFFSET + (addr >> KASAN_SHIFT);
 }
 
 void vterm_panic();
@@ -101,7 +97,7 @@ static void kasan_dump_shadow(unsigned long addr)
     printk("Shadow memory state around the buggy address %#lx:\n", shadow);
     // Print at least 0x30 bytes of the shadow map before and after the invalid access.
     uintptr_t start_addr = (shadow & ~0x07) - 0x30;
-    start_addr = cul::max(kasan_space, start_addr);
+    start_addr = cul::max(KASAN_VIRT_START, start_addr);
     // Print the shadow map memory state and look for the location to print a caret.
     bool caret = false;
     size_t caret_ind = 0;
@@ -225,7 +221,7 @@ void kasan_check_memory(unsigned long addr, size_t size, bool write)
 {
     size_t n_ = KASAN_MISALIGNMENT(addr);
 
-    if ((unsigned long) kasan_get_ptr(addr) < kasan_space)
+    if ((unsigned long) kasan_get_ptr(addr) < KASAN_VIRT_START)
         panic("Bad kasan pointer %lx -> %p\n", addr, kasan_get_ptr(addr));
 
     if (n_ + size <= 8 && n_ == 0)
@@ -414,7 +410,7 @@ ASAN_REPORT_ERROR(store, true, 8)
 ASAN_REPORT_ERROR(store, true, 16)
 
 USED int __asan_option_detect_stack_use_after_return = 0;
-USED unsigned long __asan_shadow_memory_dynamic_address = kasan_space;
+USED unsigned long __asan_shadow_memory_dynamic_address = KASAN_VIRT_START;
 
 #define DEFINE_ASAN_SET_SHADOW(byte)                                  \
     USED void __asan_set_shadow_##byte(const void *addr, size_t size) \

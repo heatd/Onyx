@@ -8,7 +8,6 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <uapi/fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <sys/mman.h>
@@ -41,6 +40,7 @@
 #include <onyx/vm_layout.h>
 
 #include <libdict/dict.h>
+#include <uapi/fcntl.h>
 #include <uapi/memstat.h>
 
 bool is_initialized = false;

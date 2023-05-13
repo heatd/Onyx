@@ -245,6 +245,12 @@ _start:
     push %rsi
 
 #ifdef CONFIG_KASAN
+    xor %edi, %edi
+    mov $1, %esi
+    /* Check if LA57 is enabled */
+    mov %cr4, %rax
+    and $CR4_LA57, %rax
+    cmovnz %esi, %edi
     call x86_bootstrap_kasan
 #endif
     pop %rsi
@@ -353,9 +359,22 @@ entry_point:
 
 .macro PAGE_TABLE_INDEX source_ptr, level
 
-mov $\level * 9, %cl
 mov 4(\source_ptr), %esi
 mov (\source_ptr), %ebx
+.if \level > 3
+/* We need an alternative insn sequence since shrdl only works
+ * with shifts 0 - 31 in 32-bit mode. This issue comes up in level 4
+ * since 4 * 9 = 36.
+ */
+/* No need to shift the first 32-bits */
+mov %esi, %ebx
+/* zero the "top" bits */
+xor %esi, %esi
+mov $(\level * 9 - 32), %cl
+.else
+mov $\level * 9, %cl
+.endif
+
 shrdl %esi, %ebx
 and $0x1ff, %ebx
 
@@ -405,19 +424,25 @@ setup_paging_and_longm:
     test $1 << 16, %ecx
     jz 1f
 
-    /* Enable PML5 on cr4 and set a flag */
+    /* Enable LA57 in cr4 */
     mov %cr4, %eax
-    or $1 << 12, %eax
+    or $CR4_LA57, %eax
     mov %eax, %cr4
-    mov $pml5, %edi
-
+    CALC_EFF_ADDRESS(pml5, %edi)
+    CALC_EFF_ADDRESS(pml4, %eax)
+    PAGE_TABLE_INDEX %esp, 4
+    orl $(X86_PAGING_PRESENT | X86_PAGING_WRITE), %eax
+    mov %eax, (%edi)
+    mov %eax, (%edi, %ebx, 8)
     jmp 2f
 1:
     CALC_EFF_ADDRESS(pml4, %edi)
 2:
+    
     CALC_EFF_ADDRESS(pdpt, %eax)
     orl $(X86_PAGING_PRESENT | X86_PAGING_WRITE), %eax
-    movl %eax, (%edi)
+    CALC_EFF_ADDRESS(pml4, %esi)
+    movl %eax, (%esi)
 
     PAGE_TABLE_INDEX %esp, 3
 
@@ -516,24 +541,45 @@ setup_paging_and_longm:
     RET
 
 .extern pml4
-.extern boot_pml4
+.extern boot_pgd
 .extern gdtr3
 .extern idt_ptr
 .code32
 /* Load bias in %ebp, ecx:edx for the 64-bit thread stack */
 .global startup_secondary_32
 startup_secondary_32:
-    /* Get the PML4 and load it */
+    /* Move ecx:edx to edi:esi due to us needing ecx for MSRs, cpuid and
+     * not having a stack yet. */
+    mov %ecx, %edi
+    mov %edx, %esi
+
+    /* Get the top paging structure and load it
+     * But first, check for LA57 using cpuid. */
+    mov $7, %eax
+    xor %ecx, %ecx
+    cpuid
+    test $1 << 16, %ecx
+    jz 1f
+
+    /* Enable LA57 in cr4 */
+    mov %cr4, %eax
+    or $CR4_LA57, %eax
+    mov %eax, %cr4
+
+    /* And load the PML5 into cr3 */
+    lea pml5(%ebp), %eax
+    mov %eax, %cr3
+    jmp 2f
+1:
+    /* PML4 path */
     lea pml4(%ebp), %eax
     mov %eax, %cr3
+2:
     /* Enable PAE and PSE, required for 64-bit paging */
     mov %cr4, %eax
     or $(CR4_PAE | CR4_PSE), %eax
-    mov %eax, %cr4
 
-    /* Move ecx:edx to edi:esi due to us needing ecx for MSRs and not having a stack yet. */
-    mov %ecx, %edi
-    mov %edx, %esi
+    mov %eax, %cr4
 
     /* Enable Long Mode in the MSR
      * Use this to enable NX as well */
@@ -577,7 +623,7 @@ startup_secondary_64:
 .section .text
 1:
     /* Load the actual current page tables */
-    mov boot_pml4(%rip), %rax
+    mov boot_pgd(%rip), %rax
     mov %rax, %cr3
 
     /* Load the IDT */
@@ -661,6 +707,6 @@ gdtr3:
 .align 4096
 .global kasan_shadow_page_tables
 kasan_shadow_page_tables:
-    .skip 4096 * 16
+    .skip 4096 * 18
 
 #endif

@@ -262,6 +262,12 @@ void x86_setup_standard_control_registers(void)
         cr4 |= CR4_SMEP;
     }
 
+    if (x86_has_cap(X86_FEATURE_LA57))
+    {
+        /* We *must* set this bit. Any change when EFER.LMA, and we #GP. */
+        cr4 |= CR4_LA57;
+    }
+
     /* Note that CR4_PGE could only be set at this point in time since Intel
      * strongly recommends for it to be set after enabling paging
      */
@@ -350,8 +356,6 @@ void cpu_init_late(void)
 }
 
 INIT_LEVEL_EARLY_PLATFORM_ENTRY(cpu_init_late);
-
-extern PML *boot_pml4;
 
 extern "C" void smpboot_main(unsigned long gs_base, volatile struct smp_header *header)
 {

@@ -13,7 +13,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/mman.h>
-#include <onyx/types.h>
 
 #include <onyx/list.h>
 #include <onyx/mutex.h>
@@ -21,6 +20,7 @@
 #include <onyx/refcount.h>
 #include <onyx/scheduler.h>
 #include <onyx/spinlock.h>
+#include <onyx/types.h>
 
 #include <platform/page.h>
 #include <platform/vm.h>
@@ -83,7 +83,13 @@ static inline unsigned long vm_prot_to_cache_type(uint64_t prot)
 #define VM_KERNEL       (1)
 #define VM_ADDRESS_USER (1 << 1)
 
-#define VM_HIGHER_HALF  0xffff800000000000
+#ifdef __x86_64__
+extern unsigned long __x86_vm_higher_half;
+#define VM_HIGHER_HALF __x86_vm_higher_half
+#else
+#define VM_HIGHER_HALF 0xffff800000000000
+#endif
+
 #define PHYS_TO_VIRT(x) (void *) ((uintptr_t) (x) + PHYS_BASE)
 
 #define VM_PFNMAP               (1 << 1)

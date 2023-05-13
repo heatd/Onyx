@@ -19,7 +19,32 @@
 #include <onyx/vm.h>
 #include <onyx/x86/pat.h>
 
-static const unsigned int x86_paging_levels = 4;
+#include <platform/kasan.h>
+
+#define SUPPORT_LA57
+#ifndef SUPPORT_LA57
+#define CONST_LA48 const
+#else
+#define CONST_LA48
+#endif
+
+#define X86_PHYS_BASE_4L       (0xffffd00000000000)
+#define X86_PHYS_BASE_LIMIT_4L (0xffffd08000000000)
+
+#define X86_PHYS_BASE_5L       0xff11000000000000
+#define X86_PHYS_BASE_LIMIT_5L 0xff91000000000000
+
+#define X86_VM_HIGHER_HALF_4L 0xffff800000000000
+#define X86_VM_HIGHER_HALF_5L 0xff00000000000000
+
+#define X86_VM_LOWER_HALF_5L 0x00ffffffffffffff
+
+unsigned long __x86_phys_base = X86_PHYS_BASE_4L;
+unsigned long __x86_phys_base_limit = X86_PHYS_BASE_LIMIT_4L;
+unsigned long __x86_vm_higher_half = X86_VM_HIGHER_HALF_4L;
+unsigned long __x86_low_half_max = arch_low_half_max;
+
+static CONST_LA48 unsigned int x86_paging_levels = 4;
 static const unsigned int x86_max_paging_levels = 5;
 
 #define X86_CACHING_BITS(index) ((((index) &0x3) << 3) | (((index >> 2) & 1) << 7))
@@ -45,6 +70,11 @@ static const unsigned int x86_max_paging_levels = 5;
 
 void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64_t phys,
                               uint64_t prot);
+
+__always_inline bool x86_is_pml5_enabled()
+{
+    return x86_paging_levels == 5;
+}
 
 static inline void __native_tlb_invalidate_page(void *addr)
 {
@@ -78,16 +108,6 @@ static inline uint64_t make_pml2e(uint64_t base, uint64_t nx, uint64_t avl, uint
                        (us << 2) | (rw << 1) | p);
 }
 
-typedef struct
-{
-    uint64_t offsetFromPage : 12;
-    uint64_t pt : 9;
-    uint64_t pd : 9;
-    uint64_t pdpt : 9;
-    uint64_t pml4 : 9;
-    uint64_t rest : 16;
-} decomposed_addr_t;
-
 unsigned long allocated_page_tables = 0;
 
 PML *alloc_pt(void)
@@ -101,13 +121,13 @@ PML *alloc_pt(void)
     return p != nullptr ? (PML *) pfn_to_paddr(page_to_pfn(p)) : nullptr;
 }
 
-PML *boot_pml4;
+PML *boot_pgd;
 
-PML *get_current_pml4(void)
+PML *get_current_pgd(void)
 {
     struct process *p = get_current_process();
     if (!p)
-        return boot_pml4;
+        return boot_pgd;
     return (PML *) p->address_space->arch_mmu.cr3;
 }
 
@@ -162,11 +182,12 @@ void *__virtual2phys(PML *__pml, void *ptr)
 
 void *virtual2phys(void *ptr)
 {
-    return __virtual2phys(get_current_pml4(), ptr);
+    return __virtual2phys(get_current_pgd(), ptr);
 }
 
 extern PML pdptphysical_map;
 static PML pdphysical_map[4] __attribute__((aligned(PAGE_SIZE)));
+static PML pml4physical_map __attribute__((aligned(PAGE_SIZE)));
 
 static PML placement_mappings_page_dir __attribute__((aligned(4096)));
 static PML placement_mappings_page_table __attribute__((aligned(4096)));
@@ -192,7 +213,7 @@ void *x86_placement_map(unsigned long _phys)
 
     /* I'm not sure that kernel_address_space has been initialised yet, so we'll fill this with the
      * cr3 */
-    kernel_address_space.arch_mmu.cr3 = get_current_pml4();
+    kernel_address_space.arch_mmu.cr3 = get_current_pgd();
 
     /* Map two pages so memory that spans both pages can get accessed */
     paging_map_phys_to_virt(&kernel_address_space, placement_mappings_start, phys,
@@ -212,7 +233,7 @@ void x86_setup_placement_mappings(void)
     unsigned int indices[x86_max_paging_levels];
     const unsigned long virt = placement_mappings_start;
 
-    PML *pml = (PML *) PA2VA(boot_pml4);
+    PML *pml = (PML *) PA2VA(boot_pgd);
 
     x86_addr_to_indices(virt, indices);
 
@@ -251,19 +272,43 @@ void x86_setup_placement_mappings(void)
 NO_ASAN
 void paging_init(void)
 {
+    if (x86_has_cap(X86_FEATURE_LA57))
+    {
+#ifndef SUPPORT_LA57
+        __asm__ __volatile__("int3");
+#else
+        x86_paging_levels = 5;
+        __x86_phys_base = X86_PHYS_BASE_5L;
+        __x86_phys_base_limit = X86_PHYS_BASE_LIMIT_5L;
+        __x86_vm_higher_half = X86_VM_HIGHER_HALF_5L;
+        __x86_low_half_max = X86_VM_LOWER_HALF_5L;
+#endif
+    }
+
     /* Get the current PML and store it */
-    __asm__ __volatile__("movq %%cr3, %%rax\t\nmovq %%rax, %0" : "=r"(boot_pml4)::"rax", "memory");
-    kernel_address_space.arch_mmu.cr3 = boot_pml4;
+    __asm__ __volatile__("movq %%cr3, %%rax\t\nmovq %%rax, %0" : "=r"(boot_pgd)::"rax", "memory");
+    kernel_address_space.arch_mmu.cr3 = boot_pgd;
 
     /* Bootstrap the first 4GB */
     uintptr_t virt = PHYS_BASE;
     PML *pml3 = (PML *) ((unsigned long) &pdptphysical_map + get_kernel_phys_offset());
-    PML *pml4 =
-        (PML *) ((unsigned long) boot_pml4 + KERNEL_VIRTUAL_BASE - get_kernel_phys_offset());
+    PML *pml4 = (PML *) PA2VA(boot_pgd);
+
     unsigned int indices[x86_max_paging_levels];
     x86_addr_to_indices(virt, indices);
 
-    pml4->entries[indices[x86_paging_levels - 1]] = make_pml4e((uint64_t) pml3, 0, 0, 0, 0, 1, 1);
+    if (x86_is_pml5_enabled())
+    {
+        /* if we're running under PML5, set up the PML4 level */
+        auto pml5 = pml4;
+        pml4 = &pml4physical_map;
+        pml5->entries[indices[x86_paging_levels - 1]] = VA2PA(&pml4physical_map) |
+                                                        X86_PAGING_WRITE | X86_PAGING_PRESENT |
+                                                        X86_PAGING_GLOBAL | X86_PAGING_NX;
+    }
+
+    pml4->entries[indices[x86_paging_levels - 1 - x86_is_pml5_enabled()]] =
+        make_pml4e((uint64_t) pml3, 0, 0, 0, 0, 1, 1);
     auto pdphysmap_phys = VA2PA(&pdphysical_map);
 
     pml3 = (PML *) ((unsigned long) &pdptphysical_map + KERNEL_VIRTUAL_BASE);
@@ -290,20 +335,17 @@ void paging_map_all_phys()
 
     printf("Is 1gb supported? %s\n", is_1gb_supported ? "yes" : "no");
     uintptr_t virt = PHYS_BASE;
-    decomposed_addr_t decAddr;
-    memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
-    PML *bpml = (PML *) PA2VA(boot_pml4);
-    uint64_t *entry = &bpml->entries[decAddr.pml4];
-    PML *pml3 = (PML *) ((unsigned long) &pdptphysical_map + get_kernel_phys_offset());
 
-    *entry = make_pml4e((uint64_t) pml3, 0, 0, 0, 0, 1, 1);
+    /* The PDPT is already hooked up to a PML4, so we only need to deal with the lower levels */
+    PML *pml3 = (PML *) ((unsigned long) &pdptphysical_map + KERNEL_VIRTUAL_BASE);
+    u64 *entry;
 
     if (is_1gb_supported)
     {
         for (size_t i = 0; i < 512; i++)
         {
             entry = &pml3->entries[i];
-            *entry = make_pml3e(i * 0x40000000, 1, 0, 1, 0, 0, 0, 1, 1);
+            *entry = make_pml3e(i * HUGE1GB_SIZE, 1, 0, 1, 0, 0, 0, 1, 1);
             *entry |= X86_PAGING_HUGE;
         }
     }
@@ -324,7 +366,7 @@ void paging_map_all_phys()
 
             for (size_t j = 0; j < 512; j++)
             {
-                uintptr_t p = i * 512 * 0x200000 + j * 0x200000;
+                uintptr_t p = (i << HUGE1GB_SHIFT) + (j << LARGE2MB_SHIFT);
 
                 pd->entries[j] = p | X86_PAGING_WRITE | X86_PAGING_PRESENT | X86_PAGING_GLOBAL |
                                  X86_PAGING_NX | X86_PAGING_HUGE;
@@ -501,29 +543,20 @@ int paging_clone_as(mm_address_space *addr_space, mm_address_space *original)
     return 0;
 }
 
-PML *paging_fork_pml(PML *pml, int entry, struct mm_address_space *as)
-{
-    uint64_t old_address = PML_EXTRACT_ADDRESS(pml->entries[entry]);
-    uint64_t perms = pml->entries[entry] & 0xF000000000000FFF;
-
-    void *new_pt = alloc_pt();
-    if (!new_pt)
-        return NULL;
-
-    increment_vm_stat(as, page_tables_size, PAGE_SIZE);
-
-    pml->entries[entry] = (uint64_t) new_pt | perms;
-    PML *new_pml = (PML *) PHYS_TO_VIRT(new_pt);
-    PML *old_pml = (PML *) PHYS_TO_VIRT(old_address);
-    memcpy(new_pml, old_pml, sizeof(PML));
-    return new_pml;
-}
+/**
+ * @brief Fork MMU page tables
+ *
+ * @param new_top New top page tabled, copy of the old one
+ * @param addr_space Current address space
+ * @return 0 on success, negative error codes
+ */
+static int mmu_fork_tables(PML *new_top, struct mm_address_space *addr_space);
 
 int paging_fork_tables(struct mm_address_space *addr_space)
 {
     struct page *page = alloc_page(0);
     if (!page)
-        return -1;
+        return -ENOMEM;
 
     __atomic_add_fetch(&allocated_page_tables, 1, __ATOMIC_RELAXED);
     increment_vm_stat(addr_space, page_tables_size, PAGE_SIZE);
@@ -532,47 +565,13 @@ int paging_fork_tables(struct mm_address_space *addr_space)
 
     unsigned long new_pml = pfn_to_paddr(page_to_pfn(page));
     PML *p = (PML *) PHYS_TO_VIRT(new_pml);
-    PML *curr = (PML *) PHYS_TO_VIRT(get_current_pml4());
+    PML *curr = (PML *) PHYS_TO_VIRT(get_current_pgd());
     memcpy(p, curr, sizeof(PML));
 
     PML *mod_pml = (PML *) PHYS_TO_VIRT(new_pml);
-    /* TODO: Destroy the page tables on failure */
-    for (int i = 0; i < 256; i++)
-    {
-        if (mod_pml->entries[i] & X86_PAGING_PRESENT)
-        {
-            PML *pml3 = (PML *) paging_fork_pml(mod_pml, i, addr_space);
-            if (!pml3)
-            {
-                return -1;
-            }
 
-            for (int j = 0; j < PAGE_TABLE_ENTRIES; j++)
-            {
-                if (pml3->entries[j] & X86_PAGING_PRESENT)
-                {
-                    PML *pml2 = (PML *) paging_fork_pml((PML *) pml3, j, addr_space);
-                    if (!pml2)
-                    {
-                        return -1;
-                    }
-
-                    for (int k = 0; k < PAGE_TABLE_ENTRIES; k++)
-                    {
-                        if (pml2->entries[k] & X86_PAGING_PRESENT &&
-                            !(pml2->entries[k] & X86_PAGING_HUGE))
-                        {
-                            PML *pml1 = (PML *) paging_fork_pml((PML *) pml2, k, addr_space);
-                            if (!pml1)
-                            {
-                                return -1;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    if (mmu_fork_tables(mod_pml, addr_space) < 0)
+        return -ENOMEM;
 
     addr_space->arch_mmu.cr3 = (void *) new_pml;
     return 0;
@@ -674,56 +673,20 @@ int is_invalid_arch_range(void *address, size_t pages)
     return 0;
 }
 
-void paging_walk(void *addr)
-{
-    decomposed_addr_t dec;
-    memcpy(&dec, &addr, sizeof(decomposed_addr_t));
-    PML *pml4 = (PML *) ((uint64_t) get_current_pml4() + PHYS_BASE);
-
-    uint64_t *entry = &pml4->entries[dec.pml4];
-    if (*entry == 0)
-    {
-        printk("isn't mapped(PML %p)\n", pml4);
-        return;
-    }
-    PML *pml3 = (PML *) ((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
-    entry = &pml3->entries[dec.pdpt];
-    if (*entry == 0)
-    {
-        printk("isn't mapped(PML %p)\n", pml3);
-        return;
-    }
-    PML *pml2 = (PML *) ((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
-    entry = &pml2->entries[dec.pd];
-    if (*entry == 0)
-    {
-        printk("isn't mapped(PML %p)\n", pml2);
-        return;
-    }
-    PML *pml1 = (PML *) ((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
-    entry = &pml1->entries[dec.pt];
-    if (*entry == 0)
-    {
-        printk("isn't mapped(PML %p)\n", pml1);
-        return;
-    }
-    uint32_t perms = *entry & 0xF00000000000FFF;
-    uint64_t page = PML_EXTRACT_ADDRESS(*entry);
-    printk("Perms: %08x\nPage: %016lx\n", perms, page);
-}
-
 extern char _text_start;
 extern char _text_end;
 extern char _data_start;
 extern char _data_end;
 extern struct mm_address_space kernel_address_space;
 
+void kasan_remap_shadow_la57(PML *pml, PML *bootpgd);
+
 void paging_protect_kernel(void)
 {
-    PML *original_pml = boot_pml4;
+    PML *original_pml = boot_pgd;
     PML *pml = alloc_pt();
     assert(pml != nullptr);
-    boot_pml4 = pml;
+    boot_pgd = pml;
 
     uintptr_t text_start = (uintptr_t) &_text_start;
     uintptr_t data_start = (uintptr_t) &_data_start;
@@ -742,6 +705,19 @@ void paging_protect_kernel(void)
     map_pages_to_vaddr((void *) data_start, (void *) VA2PA(data_start), size, VM_WRITE | VM_READ);
 
     percpu_map_master_copy();
+
+#ifdef CONFIG_KASAN
+    // On LA57, our KASAN shadow bleeds into the last PML5e
+    // so we must remap that bit. map_pages_to_vaddr will have populated this PML4e.
+    if (x86_is_pml5_enabled())
+    {
+        kasan_remap_shadow_la57((PML *) PHYS_TO_VIRT(pml), (PML *) PHYS_TO_VIRT(original_pml));
+    }
+#endif
+
+    // Report PML5 now that we have a log up
+    if (x86_is_pml5_enabled())
+        printf("x86: LA57 enabled\n");
 
     __asm__ __volatile__("movq %0, %%cr3" ::"r"(pml));
 }
@@ -851,7 +827,7 @@ void vm_load_arch_mmu(struct arch_mm_address_space *mm)
  */
 void vm_save_current_mmu(struct mm_address_space *mm)
 {
-    mm->arch_mmu.cr3 = get_current_pml4();
+    mm->arch_mmu.cr3 = get_current_pgd();
 }
 
 /**
@@ -1028,11 +1004,6 @@ enum x86_page_table_levels : unsigned int
     PML5_LEVEL
 };
 
-bool x86_is_pml5_enabled()
-{
-    return x86_paging_levels == 5;
-}
-
 static bool is_huge_page_level(unsigned int pt_level)
 {
     constexpr unsigned int pdpt_level = PDPT_LEVEL, pd_level = PD_LEVEL;
@@ -1181,6 +1152,107 @@ int vm_mmu_unmap(struct mm_address_space *as, void *addr, size_t pages)
     return 0;
 }
 
+static int x86_mmu_fork(PML *table, unsigned int pt_level, page_table_iterator &it)
+{
+    // TODO(pedro): We still can't destroy page tables if fork goes south.
+    // We have two options:
+    // 1) Make sure none of these page allocations die, using a page alloc flag (GFP_ATOMIC-like)
+    // 2) Either keep track of page tables we do allocate when forking, or do two sweeps:
+    // First, mark every page table with one of the available bits, then fork. If we fail, go
+    // through the ptes and free the ones which were not marked. At the moment, I'm tending more
+    // towards 1). Wrt 2), maybe having a linked list of struct pages for page tables is a good
+    // idea?
+    unsigned int index = addr_get_index(it.curr_addr(), pt_level);
+
+    /* Get the size that each entry represents here */
+    auto entry_size = level_to_entry_size(pt_level);
+
+    unsigned int i;
+
+#ifdef CONFIG_PT_ITERATOR_HAVE_DEBUG
+    if (it.debug)
+    {
+        printk("level %u - index %x\n", pt_level, index);
+    }
+#endif
+
+    for (i = index; i < PAGE_TABLE_ENTRIES && it.length(); i++)
+    {
+        auto &pt_entry = table->entries[i];
+        bool pte_empty = x86_pte_empty(pt_entry);
+
+        if (pte_empty)
+        {
+
+#ifdef CONFIG_X86_MMU_UNMAP_DEBUG
+            if (it.debug)
+                printk("not present @ level %u\nentry size %lu\nlength %lu\n", pt_level, entry_size,
+                       it.length());
+#endif
+            auto to_skip = entry_size - (it.curr_addr() & (entry_size - 1));
+
+#ifdef CONFIG_PT_ITERATOR_HAVE_DEBUG
+            if (it.debug)
+            {
+                printk("[level %u]: Skipping from %lx to %lx\n", pt_level, it.curr_addr(),
+                       it.curr_addr() + to_skip);
+            }
+#endif
+
+            it.adjust_length(to_skip);
+            continue;
+        }
+
+        bool is_huge_page = is_huge_page_level(pt_level) && pt_entry & X86_PAGING_HUGE;
+
+        if (pt_level == PT_LEVEL || is_huge_page)
+        {
+            /* We skip these PTEs, since forking them is done later. */
+            it.adjust_length(entry_size);
+        }
+        else
+        {
+            assert((pt_entry & X86_PAGING_PRESENT) != 0);
+
+            /* Allocate a new page table and copy */
+            PML *copy = (PML *) alloc_pt();
+            if (!copy)
+                return -ENOMEM;
+
+            increment_vm_stat(it.as_, page_tables_size, PAGE_SIZE);
+
+            PML *old = (PML *) PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(pt_entry));
+            const unsigned long old_prots = pt_entry & X86_PAGING_PROT_BITS;
+            memcpy(PHYS_TO_VIRT(copy), old, PAGE_SIZE);
+            /* Set the PTE */
+            pt_entry = (unsigned long) copy | old_prots;
+
+            int st = x86_mmu_fork((PML *) PHYS_TO_VIRT(copy), pt_level - 1, it);
+
+            if (st < 0)
+            {
+                return st;
+            }
+        }
+    }
+
+    return 0;
+}
+
+/**
+ * @brief Fork MMU page tables
+ *
+ * @param new_top New top page tabled, copy of the old one
+ * @param addr_space Current address space
+ * @return 0 on success, negative error codes
+ */
+static int mmu_fork_tables(PML *new_top, struct mm_address_space *addr_space)
+{
+    page_table_iterator it{0, __x86_low_half_max, addr_space};
+
+    return x86_mmu_fork(new_top, x86_paging_levels - 1, it);
+}
+
 static inline bool is_higher_half(unsigned long address)
 {
     return address >= VM_HIGHER_HALF;
@@ -1300,7 +1372,7 @@ void x86_remap_top_pgd_to_top_pgd(unsigned long source, unsigned long dest)
     unsigned int indices1[x86_max_paging_levels];
     x86_addr_to_indices(source, indices0);
     x86_addr_to_indices(dest, indices1);
-    auto top = (PML *) PHYS_TO_VIRT(get_current_pml4());
+    auto top = (PML *) PHYS_TO_VIRT(get_current_pgd());
     top->entries[indices1[x86_paging_levels - 1]] = top->entries[indices0[x86_paging_levels - 1]];
     top->entries[indices0[x86_paging_levels - 1]] = 0;
     __native_tlb_invalidate_all();
@@ -1385,37 +1457,115 @@ unsigned long __get_mapping_info(void *addr, struct mm_address_space *as)
 }
 
 #ifdef CONFIG_KASAN
-#define KASAN_VIRTUAL 0xffffec0000000000
+
+unsigned long __x86_kasan_virt;
+
+#define KASAN_VIRTUAL_5L 0xffdf000000000000
+#define KASAN_VIRTUAL_4L 0xffffec0000000000
+#define KASAN_4L_END     0xfffffbffffffffff
 
 extern "C" char x86_stack_bottom[];
 extern "C" char kasan_shadow_page_tables[];
-static PML *shadow_pdpt, *shadow_pd, *shadow_pt;
+static PML *shadow_pml4, *shadow_pdpt, *shadow_pd, *shadow_pt;
 static unsigned long *zero_shadow_map;
 
 static inline char *kasan_get_ptr(unsigned long addr)
 {
-    return (char *) 0xdffffc0000000000 + (addr >> 3);
+    return (char *) KASAN_SHADOW_OFFSET + (addr >> 3);
 }
 
-extern "C" NO_ASAN void x86_bootstrap_kasan()
+#define PTE_INDEX(virt, level) ((((virt) >> 12) >> (((level) -1) * 9)) & 0x1ff)
+
+void kasan_remap_shadow_la57(PML *top_pgd, PML *bootpgd)
 {
-    PML *pml4;
+    // Similar idea to kasan_map_shadow_la57, but we copy the boot pgd's entries instead.
+    // Why? Because we have un-cow'ed some PTEs (at least our stack).
+    constexpr unsigned int last_pml5e = PTE_INDEX(KASAN_4L_END, 5);
+    PML *old_pml4 = (PML *) PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(bootpgd->entries[last_pml5e]));
+    PML *last_pml4 = (PML *) PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(top_pgd->entries[last_pml5e]));
+    constexpr unsigned int last_pml4e = PTE_INDEX(KASAN_4L_END, 4) + 1;
+    for (unsigned int i = 0; i < last_pml4e; i++)
+    {
+        last_pml4->entries[i] = old_pml4->entries[i];
+    }
+}
+
+NO_ASAN void kasan_map_shadow_la57(PML *top_pgd, PML *new_pml4)
+{
+    /* "I wonder if we can use the same offset for both modes. If we use
+       0xFFDFFC0000000000 as start of shadow for 5 levels, then the same
+       offset that we use for 4 levels (0xdffffc0000000000) will also work
+       for 5 levels. Namely, ending of 5 level shadow will overlap with 4
+       level mapping (both end at 0xfffffbffffffffff), but 5 level mapping
+       extends towards lower addresses. The current 5 level start of shadow
+       is actually close -- 0xffd8000000000000 and it seems that the required
+       space after it is unused at the moment (at least looking at mm.txt).
+       So just try to move it to 0xFFDFFC0000000000?" - dvyukov, on Linux PML5 KASAN support
+
+       We follow the same approach. The last PML4 will have its [0, PTE_INDEX(KASAN_4L_END)]
+       occupied with shadow PDPTs.
+    */
+    PML *last_pml4 = (PML *) PML_EXTRACT_ADDRESS(top_pgd->entries[PTE_INDEX(KASAN_4L_END, 5)]);
+    constexpr unsigned int last_pml4e = PTE_INDEX(KASAN_4L_END, 4) + 1;
+
+    /* Since early ASM for identity mapping maps pml5[0] = pml5[511], we'll make a copy and use that
+     * one, since SMP bootstrap will require that same identity mapping, later.
+     */
+
+    for (unsigned int i = 0; i < last_pml4e; i++)
+    {
+        new_pml4->entries[i] =
+            VA2PA(shadow_pdpt) | X86_PAGING_PRESENT | X86_PAGING_GLOBAL | X86_PAGING_NX;
+    }
+
+    for (unsigned int i = last_pml4e; i < PAGE_TABLE_ENTRIES; i++)
+    {
+        new_pml4->entries[i] = last_pml4->entries[i];
+        COMPILER_BARRIER(); // Make sure the compiler doesn't transform this into a memcpy
+    }
+
+    top_pgd->entries[PTE_INDEX(KASAN_4L_END, 5)] =
+        VA2PA(new_pml4) | X86_PAGING_PRESENT | X86_PAGING_GLOBAL | X86_PAGING_WRITE;
+}
+
+extern "C" NO_ASAN void x86_bootstrap_kasan(bool la57)
+{
+    PML *top_pgd;
     PML *shadow_pts = (PML *) kasan_shadow_page_tables;
-    __asm__ __volatile__("mov %%cr3, %0" : "=r"(pml4));
+    __asm__ __volatile__("mov %%cr3, %0" : "=r"(top_pgd));
     unsigned int indices[x86_max_paging_levels];
+
+    x86_paging_levels = la57 ? 5 : 4;
+
+    __x86_kasan_virt = la57 ? KASAN_VIRTUAL_5L : KASAN_VIRTUAL_4L;
 
     for (unsigned int i = 0; i < x86_paging_levels; i++)
     {
-        indices[i] = (KASAN_VIRTUAL >> 12) >> (i * 9) & 0x1ff;
+        indices[i] = (__x86_kasan_virt >> 12) >> (i * 9) & 0x1ff;
     }
 
     for (unsigned int i = 0; i < 32; i++)
     {
-        pml4->entries[indices[x86_paging_levels - 1] + i] =
+        top_pgd->entries[indices[x86_paging_levels - 1] + i] =
             VA2PA(shadow_pts) | X86_PAGING_PRESENT | X86_PAGING_GLOBAL | X86_PAGING_NX;
     }
 
     shadow_pdpt = shadow_pts;
+
+    if (la57)
+    {
+        shadow_pml4 = shadow_pdpt;
+        shadow_pdpt = ++shadow_pts;
+        // Fill the shadow pml4
+        for (unsigned int i = 0; i < 512; i++)
+        {
+            shadow_pml4->entries[i] =
+                VA2PA(shadow_pdpt) | X86_PAGING_PRESENT | X86_PAGING_GLOBAL | X86_PAGING_NX;
+        }
+
+        kasan_map_shadow_la57(top_pgd, ++shadow_pts);
+    }
+
     shadow_pd = ++shadow_pts;
     for (unsigned int i = 0; i < 512; i++)
     {
@@ -1440,11 +1590,15 @@ extern "C" NO_ASAN void x86_bootstrap_kasan()
 
     // Map a page for the kernel stack, since the compiler generates code to write to it
 
-    unsigned long cowable_pagetables[4];
-    cowable_pagetables[0] = VA2PA(shadow_pdpt);
-    cowable_pagetables[1] = VA2PA(shadow_pd);
-    cowable_pagetables[2] = VA2PA(shadow_pt);
-    cowable_pagetables[3] = VA2PA(zero_shadow_map);
+    unsigned long cowable_pagetables[x86_max_paging_levels];
+    cowable_pagetables[0] = VA2PA(shadow_pml4);
+    cowable_pagetables[1] = VA2PA(shadow_pdpt);
+    cowable_pagetables[2] = VA2PA(shadow_pd);
+    cowable_pagetables[3] = VA2PA(shadow_pt);
+    cowable_pagetables[4] = VA2PA(zero_shadow_map);
+
+    // Used to offset in cowable_pagetables
+    const unsigned int no_la57 = !la57;
 
     /* Note: page table flags are different from page perms because a page table's
      * permissions apply throughout the whole table.
@@ -1459,7 +1613,7 @@ extern "C" NO_ASAN void x86_bootstrap_kasan()
         indices[i] = (virt >> 12) >> (i * 9) & 0x1ff;
     }
 
-    PML *pml = pml4;
+    PML *pml = top_pgd;
 
     for (unsigned int i = x86_paging_levels; i != 1; i--)
     {
@@ -1472,7 +1626,7 @@ extern "C" NO_ASAN void x86_bootstrap_kasan()
 
         void *page = (void *) PML_EXTRACT_ADDRESS(entry);
         pml = (PML *) PA2VA(page);
-        if ((unsigned long) page != cowable_pagetables[x86_paging_levels - i])
+        if ((unsigned long) page != cowable_pagetables[x86_paging_levels - i + no_la57])
             continue;
 
         auto newpml = ++shadow_pts;
@@ -1487,7 +1641,7 @@ extern "C" NO_ASAN void x86_bootstrap_kasan()
     auto &entry = pml->entries[indices[0]];
 
     assert(entry & X86_PAGING_PRESENT);
-    if (PML_EXTRACT_ADDRESS(entry) == cowable_pagetables[3])
+    if (PML_EXTRACT_ADDRESS(entry) == cowable_pagetables[4])
     {
         PML *p = ++shadow_pts;
         entry = (unsigned long) VA2PA(p) | X86_PAGING_WRITE | X86_PAGING_GLOBAL | X86_PAGING_NX |
@@ -1502,11 +1656,15 @@ extern "C" NO_ASAN void x86_bootstrap_kasan()
 int mmu_map_real_shadow(unsigned long virt)
 {
     unsigned int indices[x86_max_paging_levels];
-    unsigned long cowable_pagetables[4];
-    cowable_pagetables[0] = VA2PA(shadow_pdpt);
-    cowable_pagetables[1] = VA2PA(shadow_pd);
-    cowable_pagetables[2] = VA2PA(shadow_pt);
-    cowable_pagetables[3] = VA2PA(zero_shadow_map);
+    unsigned long cowable_pagetables[x86_max_paging_levels];
+    cowable_pagetables[0] = VA2PA(shadow_pml4);
+    cowable_pagetables[1] = VA2PA(shadow_pdpt);
+    cowable_pagetables[2] = VA2PA(shadow_pd);
+    cowable_pagetables[3] = VA2PA(shadow_pt);
+    cowable_pagetables[4] = VA2PA(zero_shadow_map);
+
+    // Used to offset in cowable_pagetables
+    const unsigned int no_la57 = !x86_is_pml5_enabled();
 
     /* Note: page table flags are different from page perms because a page table's
      * permissions apply throughout the whole table.
@@ -1516,7 +1674,7 @@ int mmu_map_real_shadow(unsigned long virt)
 
     x86_addr_to_indices(virt, indices);
 
-    PML *pml = (PML *) PHYS_TO_VIRT(get_current_pml4());
+    PML *pml = (PML *) PHYS_TO_VIRT(get_current_pgd());
 
     for (unsigned int i = x86_paging_levels; i != 1; i--)
     {
@@ -1529,7 +1687,7 @@ int mmu_map_real_shadow(unsigned long virt)
 
         void *page = (void *) PML_EXTRACT_ADDRESS(entry);
         pml = (PML *) PHYS_TO_VIRT(page);
-        if ((unsigned long) page != cowable_pagetables[x86_paging_levels - i])
+        if ((unsigned long) page != cowable_pagetables[x86_paging_levels - i + no_la57])
             continue;
 
         page = alloc_pt();
@@ -1547,7 +1705,7 @@ int mmu_map_real_shadow(unsigned long virt)
     auto &entry = pml->entries[indices[0]];
 
     assert(entry & X86_PAGING_PRESENT);
-    if (PML_EXTRACT_ADDRESS(entry) == cowable_pagetables[3])
+    if (PML_EXTRACT_ADDRESS(entry) == cowable_pagetables[4])
     {
         // Create a new shadow page
         struct page *p = alloc_page(0);

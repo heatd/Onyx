@@ -36,8 +36,7 @@ void arch_vm_init(void)
      */
     uint8_t vm_bits = (uint8_t) (eax >> 8);
 
-    (void) vm_bits;
-    vm_update_addresses(vm_calculate_virtual_address(VM_SUPPORTED_VM_BITS));
+    vm_update_addresses(vm_calculate_virtual_address(vm_bits));
 }
 
 size_t arch_heap_get_size(void)

@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #ifndef _PAGING_H
 #define _PAGING_H
@@ -29,6 +31,14 @@ typedef struct
 {
     uint64_t entries[512];
 } PML;
+
+#undef PHYS_BASE
+#undef PHYS_BASE_LIMIT
+
+extern unsigned long __x86_phys_base;
+extern unsigned long __x86_phys_base_limit;
+#define PHYS_BASE       __x86_phys_base
+#define PHYS_BASE_LIMIT __x86_phys_base_limit
 
 #elif __riscv
 

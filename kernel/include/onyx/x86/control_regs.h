@@ -56,6 +56,8 @@
 #define CR4_OSXMMEXCPT (1 << 10)
 /* User mode instruction prevention */
 #define CR4_UMIP       (1 << 11)
+/* Linear address 57-bit enable (LA57) - PML5 */
+#define CR4_LA57       (1 << 12)
 /* VMX enable */
 #define CR4_VMXE       (1 << 13)
 /* SMX enable */
