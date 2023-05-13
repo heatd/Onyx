@@ -42,7 +42,7 @@
 unsigned long __x86_phys_base = X86_PHYS_BASE_4L;
 unsigned long __x86_phys_base_limit = X86_PHYS_BASE_LIMIT_4L;
 unsigned long __x86_vm_higher_half = X86_VM_HIGHER_HALF_4L;
-unsigned long __x86_low_half_max = arch_low_half_max;
+unsigned long __x86_low_half_max = 0x00007fffffffffff;
 
 static CONST_LA48 unsigned int x86_paging_levels = 4;
 static const unsigned int x86_max_paging_levels = 5;

@@ -194,7 +194,8 @@ struct vm_region *vm_reserve_region(struct mm_address_space *as, unsigned long s
 #define DEBUG_VM_2 0
 #define DEBUG_VM_3 0
 
-unsigned long vm_allocate_base(struct mm_address_space *as, unsigned long min, size_t size)
+unsigned long vm_allocate_base(struct mm_address_space *as, unsigned long min, size_t size,
+                               u64 flags)
 {
     MUST_HOLD_MUTEX(&as->vm_lock);
 
@@ -274,6 +275,14 @@ done:
         printk("Ptr: %lx\nSize: %lx\n", last_end, size);
 #endif
     last_end = last_end < min ? min : last_end;
+
+    // We can't map something over the edge
+    if (last_end > as->end || last_end + size > as->end)
+        return -1;
+
+    // The architecture may have extra checks to do
+    if (!arch_vm_validate_mmap_region(last_end, size, flags))
+        return -1;
 #if DEBUG_VM_3
     if (as == &kernel_address_space && min == kstacks_addr)
         printk("Ptr: %lx\nSize: %lx\n", last_end, size);
@@ -282,12 +291,16 @@ done:
     return last_end;
 }
 
-struct vm_region *vm_allocate_region(struct mm_address_space *as, unsigned long min, size_t size)
+struct vm_region *vm_allocate_region(struct mm_address_space *as, unsigned long min, size_t size,
+                                     u64 flags)
 {
     if (!vm_test_vs_rlimit(as, size))
         return errno = ENOMEM, nullptr;
 
-    unsigned long new_base = vm_allocate_base(as, min, size);
+    unsigned long new_base = vm_allocate_base(as, min, size, flags);
+
+    if (new_base == (unsigned long) -1)
+        return nullptr;
 
     assert((new_base & (PAGE_SIZE - 1)) == 0);
 
@@ -630,7 +643,7 @@ struct vm_region *__vm_allocate_virt_region(uint64_t flags, size_t pages, uint32
 
     unsigned long base_addr = vm_get_base_address(flags, type);
 
-    struct vm_region *region = vm_allocate_region(as, base_addr, pages << PAGE_SHIFT);
+    struct vm_region *region = vm_allocate_region(as, base_addr, pages << PAGE_SHIFT, flags);
 
     if (region)
     {
@@ -1273,6 +1286,7 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
     struct vm_region *area = nullptr;
     bool is_file_mapping = file != nullptr;
     void *base = nullptr;
+    u64 extra_flags = 0;
 
     struct mm_address_space *mm = get_current_address_space();
 
@@ -1291,8 +1305,17 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
     int vm_prot = VM_USER | ((prot & PROT_READ) ? VM_READ : 0) |
                   ((prot & PROT_WRITE) ? VM_WRITE : 0) | ((prot & PROT_EXEC) ? VM_EXEC : 0);
 
-    /* Sanitize the address */
-    if (is_higher_half(addr) || (unsigned long) addr & (PAGE_SIZE - 1))
+    /* Sanitize the address and length */
+    const auto aligned_len = pages << PAGE_SHIFT;
+
+    if (aligned_len > arch_low_half_max)
+    {
+        st = -ENOMEM;
+        goto out_error;
+    }
+
+    if (is_higher_half(addr) || (unsigned long) addr & (PAGE_SIZE - 1) ||
+        (unsigned long) addr > arch_low_half_max - aligned_len)
     {
         if (flags & MAP_FIXED)
         {
@@ -1303,6 +1326,8 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
             addr = nullptr;
     }
 
+    extra_flags = arch_vm_interpret_mmap_hint_flags(addr, flags);
+
     if (!addr)
     {
         if (flags & MAP_FIXED)
@@ -1311,7 +1336,8 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
             goto out_error;
         }
         /* Specified by POSIX, if addr == nullptr, guess an address */
-        area = __vm_allocate_virt_region(VM_ADDRESS_USER, pages, VM_TYPE_SHARED, vm_prot);
+        area = __vm_allocate_virt_region(VM_ADDRESS_USER | extra_flags, pages, VM_TYPE_SHARED,
+                                         vm_prot);
     }
     else
     {
@@ -1329,7 +1355,8 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
                 goto out_error;
             }
 
-            area = __vm_allocate_virt_region(VM_ADDRESS_USER, pages, VM_TYPE_REGULAR, vm_prot);
+            area = __vm_allocate_virt_region(VM_ADDRESS_USER | extra_flags, pages, VM_TYPE_REGULAR,
+                                             vm_prot);
         }
     }
 
@@ -3224,8 +3251,9 @@ void *vm_remap_create_new_mapping_of_shared_pages(void *new_address, size_t new_
     }
     else
     {
-        new_mapping = vm_allocate_region(
-            current->get_aspace(), (unsigned long) current->address_space->mmap_base, new_size);
+        new_mapping = vm_allocate_region(current->get_aspace(),
+                                         (unsigned long) current->address_space->mmap_base,
+                                         new_size, VM_ADDRESS_USER);
         if (new_mapping)
         {
             new_mapping->type = VM_TYPE_REGULAR;
@@ -3284,7 +3312,8 @@ void *vm_remap_try(void *old_address, size_t old_size, void *new_address, size_t
         if (flags & MREMAP_MAYMOVE)
         {
             unsigned long new_base = vm_allocate_base(
-                current->get_aspace(), (unsigned long) current->address_space->mmap_base, new_size);
+                current->get_aspace(), (unsigned long) current->address_space->mmap_base, new_size,
+                VM_ADDRESS_USER);
             return vm_try_move(old_reg, new_base, new_size);
         }
 

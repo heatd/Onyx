@@ -14,13 +14,12 @@
 #include <string>
 #include <vector>
 
-#include <uapi/handle.h>
-#include <uapi/process.h>
-
 #include <gtest/gtest.h>
 #include <libonyx/handle.h>
 #include <libonyx/process.h>
 #include <libonyx/unique_fd.h>
+#include <uapi/handle.h>
+#include <uapi/process.h>
 
 static unsigned long page_size = sysconf(_SC_PAGESIZE);
 
@@ -268,3 +267,19 @@ TEST(Vm, MunmapSplitsProperly)
     ASSERT_FALSE(address_is_mapped(regions2, (unsigned long) ptr, page_size * 3));
     ASSERT_TRUE(memory_map_is_valid(regions2));
 }
+
+#ifdef __x86_64__
+TEST(Vm, DISABLED_x86_64_LA57)
+{
+    // This does not work, because we can't detect LA57 from userspace easily, unless we want
+    // to parse dmesg logs...
+
+    void* ptr = mmap((void*) nullptr, page_size, PROT_READ, MAP_ANON | MAP_PRIVATE, -1, 0);
+    ASSERT_NE(ptr, MAP_FAILED);
+    // Check that mmap did not give us a pointer to 57-bit space
+    ASSERT_LT((unsigned long) ptr, 0x00007fffffffffff);
+    ptr =
+        mmap((void*) (0x00007fffffffffff + 1), page_size, PROT_READ, MAP_ANON | MAP_PRIVATE, -1, 0);
+    ASSERT_GT((unsigned long) ptr, 0x00007fffffffffff);
+}
+#endif

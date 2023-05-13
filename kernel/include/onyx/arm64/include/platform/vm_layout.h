@@ -39,4 +39,7 @@ typedef enum
 
 #define DEFAULT_USER_STACK_LEN (0x100000)
 
+// TODO(pedro): This is not correct for ARM64 (49-bit address space)
+#define VM_HIGHER_HALF 0xffff800000000000
+
 #endif

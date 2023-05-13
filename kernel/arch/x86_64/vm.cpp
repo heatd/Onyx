@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2021 Pedro Falcato
+ * Copyright (c) 2017 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -48,4 +48,34 @@ size_t arch_heap_get_size(void)
 size_t arch_get_initial_heap_size(void)
 {
     return 0x400000;
+}
+
+/**
+ * @brief Interpret mmap's hint and flags in an architecture-dependent way
+ *
+ * @param hint Hint passed to mmap (but sanitized!)
+ * @param flags Flags given to mmap (but sanitized!)
+ * @return Extra flags
+ */
+u64 arch_vm_interpret_mmap_hint_flags(void *hint, int flags)
+{
+    u64 extra = 0;
+    unsigned long addr = (unsigned long) hint;
+
+    // Emulate linux's behavior here and only search through the whole
+    // address space if hint is > 47-bit
+    if (addr > 0x00007fffffffffff)
+        extra |= VM_FULL_ADDRESS_SPACE;
+    return extra;
+}
+
+bool arch_vm_validate_mmap_region(unsigned long start, unsigned long size, u64 flags)
+{
+    // Check if we can indeed return this region
+    if (start > 0x00007fffffffffff || start + size > 0x00007fffffffffff)
+    {
+        return flags & VM_FULL_ADDRESS_SPACE;
+    }
+
+    return true;
 }
