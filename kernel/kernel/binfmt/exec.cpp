@@ -557,8 +557,6 @@ error:;
 
 int exec_state_create(struct exec_state *state)
 {
-    int st = 0;
-
     auto ex = mm_address_space::create();
     if (ex.has_error())
         return ex.error();
@@ -568,15 +566,10 @@ int exec_state_create(struct exec_state *state)
     /* Swap address spaces. Good thing we saved argv and envp before */
     if (vm_create_address_space(state->new_address_space.get()) < 0)
     {
-        st = -ENOMEM;
-        goto error;
+        return -ENOMEM;
     }
 
-    return st;
-
-error:
-    vm_free_arch_mmu(&state->new_address_space->arch_mmu);
-    return st;
+    return 0;
 }
 
 void exec_state_destroy(struct exec_state *state)
