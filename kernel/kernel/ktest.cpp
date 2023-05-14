@@ -118,8 +118,6 @@ void page_alloc_perf(void)
 
 #endif
 
-void execute_vm_tests();
-
 static void (*tests[])(void) = {
 #ifdef CONFIG_KTEST_PAGE_ALLOC
     test_page_alloc,
@@ -129,9 +127,6 @@ static void (*tests[])(void) = {
 #endif
 #ifdef CONFIG_KTEST_MTX
     mutex_test,
-#endif
-#ifdef CONFIG_VM_TESTS
-    execute_vm_tests,
 #endif
 #ifdef CONFIG_KTEST_SPINLOCK
     spinlock_test,
