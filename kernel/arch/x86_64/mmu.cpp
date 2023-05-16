@@ -122,12 +122,13 @@ PML *alloc_pt(void)
 }
 
 PML *boot_pgd;
+PML *init_pgd;
 
 PML *get_current_pgd(void)
 {
     struct process *p = get_current_process();
     if (!p)
-        return boot_pgd;
+        return init_pgd;
     return (PML *) p->address_space->arch_mmu.cr3;
 }
 
@@ -233,7 +234,7 @@ void x86_setup_placement_mappings(void)
     unsigned int indices[x86_max_paging_levels];
     const unsigned long virt = placement_mappings_start;
 
-    PML *pml = (PML *) PA2VA(boot_pgd);
+    PML *pml = (PML *) PA2VA(init_pgd);
 
     x86_addr_to_indices(virt, indices);
 
@@ -287,12 +288,13 @@ void paging_init(void)
 
     /* Get the current PML and store it */
     __asm__ __volatile__("movq %%cr3, %%rax\t\nmovq %%rax, %0" : "=r"(boot_pgd)::"rax", "memory");
-    kernel_address_space.arch_mmu.cr3 = boot_pgd;
+    init_pgd = boot_pgd;
+    kernel_address_space.arch_mmu.cr3 = init_pgd;
 
     /* Bootstrap the first 4GB */
     uintptr_t virt = PHYS_BASE;
     PML *pml3 = (PML *) ((unsigned long) &pdptphysical_map + get_kernel_phys_offset());
-    PML *pml4 = (PML *) PA2VA(boot_pgd);
+    PML *pml4 = (PML *) PA2VA(init_pgd);
 
     unsigned int indices[x86_max_paging_levels];
     x86_addr_to_indices(virt, indices);
@@ -683,10 +685,10 @@ void kasan_remap_shadow_la57(PML *pml, PML *bootpgd);
 
 void paging_protect_kernel(void)
 {
-    PML *original_pml = boot_pgd;
+    PML *original_pml = init_pgd;
     PML *pml = alloc_pt();
     assert(pml != nullptr);
-    boot_pgd = pml;
+    init_pgd = pml;
 
     uintptr_t text_start = (uintptr_t) &_text_start;
     uintptr_t data_start = (uintptr_t) &_data_start;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -14,8 +14,15 @@
 #include <onyx/smbios.h>
 #include <onyx/vm.h>
 
-static struct smbios_table *tables = NULL;
+#include <efi/efi.h>
+
+// TODO: Move this to generic code when the opportunity presents itself
+// TODO: This code currently does not work properly (nr_structs not set, SMBIOS3.0 does not have
+// it.)
+static struct smbios_table *tables = nullptr;
 static size_t nr_structs = 0;
+
+#ifdef __x86_64__
 
 static inline void *__find_phys_mem(void *lower_boundary, void *upper_boundary, int alignment,
                                     const char *s)
@@ -29,31 +36,60 @@ static inline void *__find_phys_mem(void *lower_boundary, void *upper_boundary, 
             return (void *) ((uintptr_t) lower_boundary + i * alignment);
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 /* Finds the 32-bit entry point */
-struct smbios_entrypoint32 *smbios_find_entry32()
+static struct smbios_entrypoint32 *smbios_find_entry32()
 {
     return (smbios_entrypoint32 *) __find_phys_mem((void *) 0xF0000, (void *) 0xFFFFF, 16, "_SM_");
 }
 
 /* Finds the 64-bit entrypoint */
-struct smbios_entrypoint64 *smbios_find_entry64()
+static struct smbios_entrypoint64 *smbios_find_entry64()
 {
     return (smbios_entrypoint64 *) __find_phys_mem((void *) 0xF0000, (void *) 0xFFFFF, 16, "_SM3_");
 }
 
-extern bool efi64_present;
+#endif
+
+static unsigned long smbios_entry, smbios_entry64;
+
+/**
+ * @brief Set the tables for the SMBIOS subsystem.
+ * If 0 is given, the table is ignored and not set.
+ *
+ * @param smbios_table SMBIOS entrypoint
+ * @param smbios30_table SMBIOS30 entrypoint
+ */
+void smbios_set_tables(unsigned long smbios_table, unsigned long smbios30_table)
+{
+    if (smbios_table != 0)
+        smbios_entry = smbios_table;
+    if (smbios30_table != 0)
+        smbios_entry64 = smbios30_table;
+}
 
 /* Finds the SMBIOS tables, independently of the entry point */
-smbios_table *smbios_find_tables(void)
+smbios_table *smbios_find_tables()
 {
-    /* These tables can't be found like that in non BIOS systems */
-    if (efi64_present)
-        return NULL;
-    struct smbios_entrypoint32 *entry32 = smbios_find_entry32();
-    struct smbios_entrypoint64 *entry64 = smbios_find_entry64();
+    struct smbios_entrypoint32 *entry32 = (struct smbios_entrypoint32 *) smbios_entry;
+    struct smbios_entrypoint64 *entry64 = (struct smbios_entrypoint64 *) smbios_entry64;
+
+    /* If any of them were not found, and this is an x86 BIOS system, try and scan for them.
+     * EFI passes them directly, so what we have should already be set.
+     */
+#ifdef __x86_64__
+    if (!efi_enabled())
+    {
+        if (!entry32)
+            entry32 = smbios_find_entry32();
+
+        if (!entry64)
+            entry64 = smbios_find_entry64();
+    }
+#endif
+
     if (entry64)
     {
         LOG("smbios", "64-bit table: %p\n", entry64);
@@ -74,13 +110,13 @@ smbios_table *smbios_find_tables(void)
         return (smbios_table *) PHYS_TO_VIRT(entry32->addr);
     }
 
-    return NULL;
+    return nullptr;
 }
 
 struct smbios_table *smbios_get_table(int type)
 {
     if (!tables)
-        return NULL;
+        return nullptr;
     struct smbios_table *tab = tables;
     for (size_t i = 0; i < nr_structs; i++)
     {
@@ -95,7 +131,7 @@ struct smbios_table *smbios_get_table(int type)
         a += 2;
         tab = (struct smbios_table *) a;
     }
-    return NULL;
+    return nullptr;
 }
 
 char *smbios_get_string(struct smbios_table *t, uint8_t strndx)
@@ -111,7 +147,7 @@ char *smbios_get_string(struct smbios_table *t, uint8_t strndx)
 }
 
 /* Initializes the smbios */
-void smbios_init(void)
+void smbios_init()
 {
     LOG("smbios", "Initializing!\n");
 

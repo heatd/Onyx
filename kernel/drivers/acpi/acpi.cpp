@@ -233,11 +233,16 @@ uint8_t acpi_tb_checksum(uint8_t *buffer, uint32_t len);
 void acpi_find_rsdp()
 {
 #ifdef __x86_64__
-    if (ACPI_FAILURE(acpi_find_root_pointer(&rsdp)))
+    if (!rsdp)
     {
-        rsdp = get_rdsp_from_grub();
+        acpi_find_root_pointer(&rsdp);
     }
 #endif
+}
+
+void acpi_set_rsdp(uintptr_t root_pointer)
+{
+    rsdp = root_pointer;
 }
 
 uintptr_t acpi_get_rsdp()

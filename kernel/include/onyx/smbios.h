@@ -1,10 +1,12 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
-#ifndef _KERNEL_SMBIOS_H
-#define _KERNEL_SMBIOS_H
+#ifndef _ONYX_SMBIOS_H
+#define _ONYX_SMBIOS_H
 
 #include <stdint.h>
 
@@ -80,8 +82,17 @@ struct smbios_table_bios_info
     char strings[0];
 };
 
-void smbios_init(void);
+void smbios_init();
 char *smbios_get_string(struct smbios_table *t, uint8_t strndx);
 struct smbios_table *smbios_get_table(int type);
+
+/**
+ * @brief Set the tables for the SMBIOS subsystem.
+ * If 0 is given, the table is ignored and not set.
+ *
+ * @param smbios_table SMBIOS entrypoint
+ * @param smbios30_table SMBIOS30 entrypoint
+ */
+void smbios_set_tables(unsigned long smbios_table, unsigned long smbios30_table);
 
 #endif

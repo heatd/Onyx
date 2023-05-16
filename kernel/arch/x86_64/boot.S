@@ -11,6 +11,8 @@
 #include <onyx/x86/msr.h>
 #include <onyx/x86/segments.h>
 
+#include <multiboot2.h>
+
 #define KERNEL_VIRTUAL_BASE     0xffffffff80000000
 #define X86_PAGING_PRESENT		(1 << 0)
 #define X86_PAGING_WRITE		(1 << 1)
@@ -204,12 +206,163 @@ hdr_start:
     /* 2 = put us as high as you can */
     .long 2
 #endif
+#ifdef CONFIG_EFI
+    .align 8
+    .word MULTIBOOT_HEADER_TAG_ENTRY_ADDRESS_EFI64
+    .word 0
+    .long 12
+    .long efi_entry_multiboot2_64 - KERNEL_VIRTUAL_BASE
+    .align 8
+    .word MULTIBOOT_HEADER_TAG_EFI_BS
+    .word 0
+    .long 8
+#endif
     .align 8
     # Finish tag
     .word 0
     .word 0
     .long 8
-hdr_end: 
+hdr_end:
+
+.section .text
+.global efi_entry_multiboot2_64
+efi_entry_multiboot2_64:
+    /* Lets find the efi system table first */
+    /* rcx = EFI image handle, rdx = EFI system table, rsi = image base address */
+    xor %rcx, %rcx
+    xor %rdx, %rdx
+    lea 8(%rbx), %rdi
+0:
+    cmpl $MULTIBOOT_TAG_TYPE_END, (%rdi)
+    je 10f
+
+    /* Boot services? */
+    cmpl $MULTIBOOT_TAG_TYPE_EFI64, (%rdi)
+    cmove 8(%rdi), %rdx
+    cmpl $MULTIBOOT_TAG_TYPE_EFI64_IH, (%rdi)
+    cmove 8(%rdi), %rcx
+    cmpl $MULTIBOOT_TAG_TYPE_LOAD_BASE_ADDR, (%rdi)
+    cmovel 8(%rdi), %esi
+
+    /* Increment the pointer by size (rdi + 4) */
+    addl 4(%rdi), %edi
+    /* now lets align it to the next 8 byte boundary */
+    add $7, %rdi
+    and $-8, %rdi
+    jmp 0b
+10:
+    /* check if any of the tags were not set, and if so, int3 */
+    test %rcx, %rcx
+    jz 11f
+    test %rdx, %rdx
+    jz 11f
+
+    /* Preserve EFI_SYSTEM_TABLE for the future */
+    push %rdx
+
+    mov %rcx, %rdi
+    xchg %rsi, %rdx
+    lea efi_state(%rip), %rcx
+    mov $pml4, %r8
+    add %rdx, %r8
+    lea kernel_phys_offset(%rip), %r9
+    mov %rdx, (%r9)
+    call efi_handoff
+
+    /* We're in pure 64-bit mode, paging enabled, with LA57 if it exists, ints off */
+    mov $x86_start, %rax
+    mov $efi_entry_mb2, %rdx
+    /* First arg = multiboot2 info */
+    mov %rbx, %rdi
+    /* Second arg = EFI_SYSTEM_TABLE */
+    pop %rsi
+    jmp *%rax
+99:
+    hlt
+    jmp 99b
+
+11:
+    /* Bad bootloader, load a magic value to some regs. Hopefully firmware can
+     * get whoever needs to look at this a nice pretty debug output */
+    mov $0xdeadbeef, %eax
+    mov $0xdeadbeef, %r10d
+    mov $0xdeadbeef, %r11d
+    int3
+    hlt
+    jmp 11b
+
+.global x86_efi_switch_tables
+x86_efi_switch_tables:
+    /* We're still running in identity mode */
+    lea efi_gdtr(%rip), %rax
+    /* Fixup the gdtr's gdt address */
+    lea efi_gdt_begin(%rip), %rdi
+    mov %rdi, 2(%rax)
+    lgdt (%rax)
+    
+    mov $KERNEL_DS, %ax
+    mov %ax, %ds
+    mov %ax, %ss
+    mov %ax, %fs
+    mov %ax, %es
+    mov %ax, %gs
+    pop %rax
+    push $KERNEL_CS
+    push %rax
+    lretq
+
+.global x86_efi_enable_57_mmu
+x86_efi_enable_57_mmu:
+    /* PML5 is at %rdi */
+    // We need to drop from 64 bit to 32-bit compat, toggle CR4.LA57,
+    // then go back to 64-bit
+    pushq $0x48
+
+    /* Calculate the real, physical addresses of these labels
+     * rax is used right now, rdx is used later.
+     */
+    mov $1f, %rax
+    mov $2f, %rdx
+    mov $KERNEL_VIRTUAL_BASE, %rsi
+    sub %rsi, %rax
+    sub %rsi, %rdx
+    lea kernel_phys_offset(%rip), %rsi
+    mov (%rsi), %rsi
+    add %rsi, %rax
+    add %rsi, %rdx
+    push %rax
+    lretq
+1:
+.code32
+    /* We must switch ss to a 32-bit kernel DS, because push and lret will use it */
+    mov $0x50, %eax
+    mov %ax, %ss
+
+    /* Disable paging */
+    mov %cr0, %eax
+    btr $31, %eax
+    mov %eax, %cr0
+
+    /* Set LA57 */
+    mov %cr4, %eax
+    or $CR4_LA57, %eax
+    mov %eax, %cr4
+    mov %edi, %cr3
+
+    /* Re-enable paging */
+    mov %cr0, %eax
+    bts $31, %eax
+    mov %eax, %cr0
+
+    /* back to 64 we go */
+    pushl $KERNEL_CS
+    pushl %edx
+    lretl
+.code64
+2:
+    mov $KERNEL_DS, %eax
+    mov %ax, %ss
+    ret
 
 .section .bss
 
@@ -226,10 +379,15 @@ x86_stack_bottom:
 x86_stack_top:
 
 .section .text
-_start:
+x86_start:
+    /* boot protocol function to call is in rdx, rdi and rsi are reserved
+     * for boot protocol function args
+     */
     movq $x86_stack_top, %rsp
     pushq $0
     mov %rsp, %rbp
+
+    push %rdx
 
     /* Take the time to wrmsr the default GS_BASE */
     mov $percpu_base, %rdx
@@ -241,10 +399,10 @@ _start:
 
     mov %r11, %gs:__cpu_base
 
+#ifdef CONFIG_KASAN
     push %rdi
     push %rsi
 
-#ifdef CONFIG_KASAN
     xor %edi, %edi
     mov $1, %esi
     /* Check if LA57 is enabled */
@@ -252,11 +410,14 @@ _start:
     and $CR4_LA57, %rax
     cmovnz %esi, %edi
     call x86_bootstrap_kasan
-#endif
+
     pop %rsi
     pop %rdi
+#endif
 
-    call multiboot2_kernel_entry
+    pop %rdx
+
+    call *%rdx
     call _init
     call runtime_call_constructors
     # rdi = cpu nr
@@ -264,9 +425,9 @@ _start:
     call init_ssp_for_cpu
     call kernel_main
     cli
-_start.Lhang: 
+1: 
     hlt
-    jmp _start.Lhang
+    jmp 1b
 
 .section .boot, "ax"
 protectedmode_stack:
@@ -354,7 +515,8 @@ entry_point:
 #ifdef CONFIG_RELOCATABLE_PHYS
     mov %rbp, kernel_phys_offset
 #endif
-    movq $_start, %rax
+    movq $x86_start, %rax
+    movq $multiboot2_kernel_entry, %rdx
     jmp *%rax
 
 .macro PAGE_TABLE_INDEX source_ptr, level
@@ -541,7 +703,7 @@ setup_paging_and_longm:
     RET
 
 .extern pml4
-.extern boot_pgd
+.extern init_pgd
 .extern gdtr3
 .extern idt_ptr
 .code32
@@ -565,16 +727,15 @@ startup_secondary_32:
     mov %cr4, %eax
     or $CR4_LA57, %eax
     mov %eax, %cr4
-
-    /* And load the PML5 into cr3 */
-    lea pml5(%ebp), %eax
-    mov %eax, %cr3
-    jmp 2f
 1:
-    /* PML4 path */
-    lea pml4(%ebp), %eax
+    /* Load the *boot* PGD (with identity mappings) from PML *boot_pgd
+     * An annoying fixup must be done, since this resides in .data.
+     */
+    mov $(boot_pgd - KERNEL_VIRTUAL_BASE), %eax
+    add %ebp, %eax
+    mov (%eax), %eax
     mov %eax, %cr3
-2:
+
     /* Enable PAE and PSE, required for 64-bit paging */
     mov %cr4, %eax
     or $(CR4_PAE | CR4_PSE), %eax
@@ -594,6 +755,9 @@ startup_secondary_32:
     or $(CR0_PG | CR0_WP), %eax
     mov %eax, %cr0
     lea gdtr2(%ebp), %eax
+    /* Patch the gdtr with a correct address */
+    CALC_EFF_ADDRESS(gdt_begin, %edx)
+    mov %edx, 2(%eax)
     lgdt (%eax)
 
     CALC_EFF_ADDRESS(protectedmode_stack_top, %esp)
@@ -623,7 +787,7 @@ startup_secondary_64:
 .section .text
 1:
     /* Load the actual current page tables */
-    mov boot_pgd(%rip), %rax
+    mov init_pgd(%rip), %rax
     mov %rax, %cr3
 
     /* Load the IDT */
@@ -681,7 +845,6 @@ gdt_begin:
     .quad 0x00A0FA0000000000   # 0x28 - USER CS
     .quad 0x00A0F20000000000   # 0x30 - USER DS
                                # 0x38 - TSS
-tss_gdt: 
     .quad 0
     .quad 0
 .global gdt_end
@@ -700,6 +863,27 @@ gdtr2:
 gdtr3: 
     .word gdt_end - gdt_begin - 1
     .quad gdt_begin + 0xFFFFFFFF80000000
+
+.section .data
+efi_gdt_begin:
+    .quad 0x0000000000000000   # 0x0  - NULL segment
+    .quad 0x00A09A0000000000   # 0x8  - KERNEL CS
+    .quad 0x00A0920000000000   # 0x10 - KERNEL DS
+    .quad 0x00CFFA000000FFFF   # 0x18 - 32-bit user CS
+    .quad 0x00CFF2000000FFFF   # 0x20 - 32-bit user DS
+    .quad 0x00A0FA0000000000   # 0x28 - USER CS
+    .quad 0x00A0F20000000000   # 0x30 - USER DS
+                               # 0x38 - TSS
+    .quad 0
+    .quad 0
+    .quad 0x00cf9a000000ffff   # 0x48
+    .quad 0x00cf92000000ffff   # 0x50
+.global efi_gdt_end
+efi_gdt_end:
+
+efi_gdtr:
+    .word efi_gdt_end - efi_gdt_begin - 1
+    .quad efi_gdt_begin
 
 #ifdef CONFIG_KASAN
 

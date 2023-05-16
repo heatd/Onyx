@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 - 2022 Pedro Falcato
+ * Copyright (c) 2018 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -63,19 +63,12 @@
 #include <efi/efi.h>
 #include <uapi/fcntl.h>
 
-static struct multiboot_tag_module *initrd_tag = NULL;
+static struct multiboot_tag_module *initrd_tag;
 struct multiboot_tag_elf_sections *secs;
-struct multiboot_tag_mmap *mmap_tag = NULL;
+struct multiboot_tag_mmap *mmap_tag;
+struct multiboot_tag_framebuffer *tagfb;
 acpi_table_rsdp grub2_rsdp = {};
 bool grub2_rsdp_valid = false;
-
-uintptr_t get_rdsp_from_grub(void)
-{
-    if (grub2_rsdp_valid)
-        return ((uintptr_t) &grub2_rsdp) - KERNEL_VIRTUAL_BASE + get_kernel_phys_offset();
-    else
-        return 0;
-}
 
 void set_initrd_address(void *initrd_address, size_t length);
 
@@ -187,20 +180,23 @@ static struct multiboot_tag_efi_mmap efi_mmap_tag;
 static void *efi_mmap_ptr;
 static bool efi_mmap_present = false;
 
-extern "C" void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
+static void x86_very_early_init()
 {
-    assert(magic == MULTIBOOT2_BOOTLOADER_MAGIC);
-
     /* First off, identify the CPU its running on */
     cpu_identify();
 
     idt_init();
     vm_init();
 
-    struct multiboot_tag_framebuffer *tagfb = NULL;
-    size_t total_mem = 0;
-    unsigned long max_pfn = 0;
+    pat_init();
 
+    platform_serial_init();
+}
+
+#define MULTIBOOT2_IGNORE_ACPI (1 << 0)
+
+static void multiboot2_parse_tags(uintptr_t addr, unsigned int flags = 0)
+{
     struct multiboot_tag *tag;
     struct multiboot_tag *vtag;
     for (tag = (struct multiboot_tag *) (addr + 8),
@@ -258,11 +254,10 @@ extern "C" void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
         }
     }
 
-    platform_serial_init();
+    if (!(flags & MULTIBOOT2_IGNORE_ACPI) && grub2_rsdp_valid)
+        acpi_set_rsdp(((uintptr_t) &grub2_rsdp) - KERNEL_VIRTUAL_BASE + get_kernel_phys_offset());
 
-    total_mem = mb2_count_mem();
-    max_pfn = mb2_get_maxpfn();
-
+    // Reserve all of multiboot2 tags
     bootmem_reserve(addr, (unsigned long) tag - addr);
 
     elf_sections_reserve(secs);
@@ -270,19 +265,14 @@ extern "C" void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
     auto vinitrd_tag = (multiboot_tag_module *) x86_placement_map((unsigned long) initrd_tag);
     initrd.base = vinitrd_tag->mod_start;
     initrd.size = vinitrd_tag->mod_end - vinitrd_tag->mod_start;
-    initrd.next = NULL;
+    initrd.next = nullptr;
     bootmem_reserve(initrd.base, initrd.size);
 
-    pat_init();
-
-    paging_map_all_phys();
-
-    physical_mem_inited = true;
-
     set_initrd_address((void *) (uintptr_t) initrd.base, initrd.size);
+}
 
-    page_init(total_mem, max_pfn);
-
+static void x86_late_vm_init()
+{
     /* We need to get some early boot rtc data and initialize the entropy,
      * as it's vital to initialize some entropy sources for the memory map
      */
@@ -292,13 +282,63 @@ extern "C" void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
     vm_late_init();
 
     paging_protect_kernel();
+}
 
+static void mb2_init_fb()
+{
     if (tagfb)
     {
         init_multiboot2_framebuffer(
             (multiboot_tag_framebuffer *) x86_placement_map((unsigned long) tagfb));
     }
+}
 
+static void x86_init_early_tail()
+{
+#ifdef CONFIG_KASAN
+    kasan_init();
+#endif
+    kvm_init();
+}
+
+extern "C" void efi_entry_mb2(uintptr_t addr, EFI_SYSTEM_TABLE *system_table)
+{
+    x86_very_early_init();
+
+    multiboot2_parse_tags(addr, MULTIBOOT2_IGNORE_ACPI);
+
+    efi_boot_init(system_table);
+    x86_late_vm_init();
+
+    mb2_init_fb();
+
+    vterm_do_init();
+    init_elf_symbols(secs);
+
+    efi_boot_late_init(system_table);
+
+    x86_init_early_tail();
+}
+
+extern "C" void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
+{
+    assert(magic == MULTIBOOT2_BOOTLOADER_MAGIC);
+
+    x86_very_early_init();
+
+    multiboot2_parse_tags(addr);
+
+    size_t total_mem = 0;
+    unsigned long max_pfn = 0;
+
+    total_mem = mb2_count_mem();
+    max_pfn = mb2_get_maxpfn();
+
+    paging_map_all_phys();
+    page_init(total_mem, max_pfn);
+    x86_late_vm_init();
+
+    mb2_init_fb();
     vterm_do_init();
 
     init_elf_symbols(secs);
@@ -313,11 +353,7 @@ extern "C" void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
     }
 #endif
 
-#ifdef CONFIG_KASAN
-    kasan_init();
-#endif
-    /* TODO: Separate x86 specific initialization to another, boot protocol neutral, function */
-    kvm_init();
+    x86_init_early_tail();
 }
 
 void reclaim_initrd()

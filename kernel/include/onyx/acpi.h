@@ -69,6 +69,7 @@ unsigned int acpi_suspend(void);
 void acpi_bus_register_driver(struct driver *driver);
 
 acpi_resource *acpi_get_resource(struct acpi_device *device, uint32_t type, unsigned int index);
+void acpi_set_rsdp(uintptr_t root_pointer);
 
 extern struct clocksource acpi_timer_source;
 

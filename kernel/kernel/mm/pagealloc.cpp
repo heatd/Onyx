@@ -141,6 +141,9 @@ void page_init(size_t memory_size, unsigned long maxpfn)
     if (page_memory_size % arena_default_size)
         nr_arenas++;
 
+    // XXX Arena allocation sometimes struggles on highly fragmented memory maps
+    nr_arenas *= 2;
+
     size_t needed_memory = nr_arenas * sizeof(struct page_arena) + maxpfn * sizeof(struct page);
     void *ptr = alloc_boot_page(vm_size_to_pages(needed_memory), 0);
     if (!ptr)

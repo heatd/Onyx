@@ -301,8 +301,9 @@ void x86_init_percpu(void)
     /* Now initialize caching structures */
     pat_init();
 
+    /* NX was probably enabled earlier, but force it anyway */
     uint64_t efer = rdmsr(IA32_EFER);
-    efer |= IA32_EFER_SCE;
+    efer |= IA32_EFER_SCE | IA32_EFER_NXE;
     wrmsr(IA32_EFER, efer);
     /* and finally, syscall instruction MSRs */
     wrmsr(IA32_MSR_STAR, (((uint64_t) ((USER32_CS) << 16) | KERNEL_CS) << 32));

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2022 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -115,13 +115,15 @@ void efi_quirk_map_zero_region()
  */
 static void efi_print_info()
 {
-    efi_guard g;
-    auto st = g.system_table();
-    char16_t *fv = st->FirmwareVendor;
+    // XXX We cannot use efi_guard here as it blows up using asan. and disabling asan for the func
+    // doesn't work because we print it right away.
+    auto st = efi::internal::system_table;
+    char16_t *fv = (char16_t *) PHYS_TO_VIRT(st->FirmwareVendor);
     auto str = string_from_ucs2str((utf16_t *) fv).value_or("<error decoding ucs2>");
     str.append(" ");
 
-    const auto runtime_services_rev = st->RuntimeServices->Hdr.Revision;
+    const auto runtime_services_rev =
+        ((EFI_RUNTIME_SERVICES *) PHYS_TO_VIRT(st->RuntimeServices))->Hdr.Revision;
     printf("efi: EFI v%u.%u by %s rev %u.%u\n", runtime_services_rev >> 16,
            runtime_services_rev & 0xffff, str.c_str(), st->FirmwareRevision >> 16,
            st->FirmwareRevision & 0xffff);
@@ -136,9 +138,15 @@ static void efi_print_info()
  * @param descriptor_size Size of each descriptor, in bytes
  * @param descriptor_version Version of the memory map
  */
+NO_ASAN
 void efi_init(EFI_SYSTEM_TABLE *system_table, EFI_MEMORY_DESCRIPTOR *descriptors,
               uint32_t mmap_size, uint32_t descriptor_size, uint32_t descriptor_version)
 {
+    // XXX efi_guard is currently incompatible with ASAN. Maybe we could sync top-level PGD entries
+    // in the page fault handler, lazily?
+
+    efi_set_enabled();
+
     efi::internal::system_table = system_table;
     efi_aspace = mm_address_space::create().unwrap();
     // EFI firmware out in the wild frequently "accidentally" touch NULL,
@@ -165,4 +173,16 @@ void efi_init(EFI_SYSTEM_TABLE *system_table, EFI_MEMORY_DESCRIPTOR *descriptors
     }
 
     efi_print_info();
+}
+
+static bool enabled;
+
+bool efi_enabled()
+{
+    return enabled;
+}
+
+void efi_set_enabled()
+{
+    enabled = true;
 }

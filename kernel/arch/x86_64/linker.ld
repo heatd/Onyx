@@ -19,11 +19,10 @@ SECTIONS
 	.boot ALIGN(0x1000) :
 	{
 		*(.boot)
+		*(.boot.data)
 		. = ALIGN(4096);
 		PROVIDE_HIDDEN(__early_page_tables_start = .);
 		pml4 = .;
-		. += 0x1000;
-		pml4_higher = .;
 		. += 0x1000;
 		pdpt = .;
 		. += 0x1000;
