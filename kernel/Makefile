@@ -25,7 +25,8 @@ CFLAGS:=$(CFLAGS) -MMD -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-
 -Wno-unused-parameter -Wno-unused-function \
 -Werror -Wno-error=frame-address -Wno-address-of-packed-member \
 -Wno-error=invalid-offsetof -fno-sanitize=pointer-overflow -fvisibility=protected \
--Wno-missing-field-initializers -Wstrict-aliasing -fno-unwind-tables -fno-asynchronous-unwind-tables
+-Wno-missing-field-initializers -Wstrict-aliasing -fno-unwind-tables -fno-asynchronous-unwind-tables \
+-Wframe-larger-than=1280 -Wno-error=frame-larger-than=
 
 ifneq ($(ONYX_USING_CLANG), yes)
 # TODO: Find suitable alternatives for clang
