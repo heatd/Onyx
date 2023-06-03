@@ -75,7 +75,7 @@ struct netif
 
     struct sockaddr_in local_ip;
 
-    struct rwlock inet6_addr_list_lock;
+    struct rwslock inet6_addr_list_lock;
     struct list_head inet6_addr_list;
 
     int (*sendpacket)(packetbuf *buf, struct netif *nif);
