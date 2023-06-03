@@ -194,7 +194,7 @@ void proto_family::unbind(inet_socket *sock)
     sock->proto_info->get_socket_table()->remove_socket(sock, 0);
 }
 
-rwlock routing_table_lock;
+rwslock routing_table_lock;
 cul::vector<shared_ptr<inet6_route>> routing_table;
 
 static void print_v6_addr(const in6_addr &addr)
@@ -226,7 +226,7 @@ expected<inet_route, int> route_from_routing_table(const inet_sock_address &to,
 
     {
 
-        scoped_rwlock<rw_lock::read> g{routing_table_lock};
+        scoped_rwslock<rw_lock::read> g{routing_table_lock};
 
         for (auto &r : routing_table)
         {
@@ -365,7 +365,7 @@ expected<inet_route, int> proto_family::route(const inet_sock_address &from,
 
 bool add_route(inet6_route &route)
 {
-    rw_lock_write(&routing_table_lock);
+    scoped_rwslock<rw_lock::write> g{routing_table_lock};
 
     auto ptr = make_shared<inet6_route>();
     if (!ptr)
@@ -374,8 +374,6 @@ bool add_route(inet6_route &route)
     memcpy(ptr.get(), &route, sizeof(route));
 
     bool st = routing_table.push_back(ptr);
-
-    rw_unlock_write(&routing_table_lock);
 
     return st;
 }

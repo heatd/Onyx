@@ -9,7 +9,6 @@
 #include <errno.h>
 #include <net/if.h>
 #include <net/if_arp.h>
-#include <uapi/ioctls.h>
 
 #include <onyx/byteswap.h>
 #include <onyx/dev.h>
@@ -21,6 +20,8 @@
 #include <onyx/softirq.h>
 #include <onyx/spinlock.h>
 #include <onyx/vector.h>
+
+#include <uapi/ioctls.h>
 
 static struct spinlock netif_list_lock = {};
 cul::vector<netif *> netif_list;
@@ -123,7 +124,6 @@ void netif_register_loopback_route6(struct netif *netif)
 
 void netif_register_if(struct netif *netif)
 {
-    rwlock_init(&netif->inet6_addr_list_lock);
     INIT_LIST_HEAD(&netif->inet6_addr_list);
 
     assert(udp_init_netif(netif) == 0);
@@ -376,7 +376,7 @@ int netif_add_v6_address(netif *nif, const if_inet6_addr &addr_)
     addr->flags = addr_.flags;
     addr->prefix_len = addr_.prefix_len;
 
-    scoped_rwlock<rw_lock::write> g{nif->inet6_addr_list_lock};
+    scoped_rwslock<rw_lock::write> g{nif->inet6_addr_list_lock};
 
     list_add_tail(&addr->list_node, &nif->inet6_addr_list);
 
@@ -385,7 +385,7 @@ int netif_add_v6_address(netif *nif, const if_inet6_addr &addr_)
 
 in6_addr netif_get_v6_address(netif *nif, uint16_t flags)
 {
-    scoped_rwlock<rw_lock::read> g{nif->inet6_addr_list_lock};
+    scoped_rwslock<rw_lock::read> g{nif->inet6_addr_list_lock};
 
     list_for_every (&nif->inet6_addr_list)
     {
@@ -402,7 +402,7 @@ in6_addr netif_get_v6_address(netif *nif, uint16_t flags)
 
 int netif_remove_v6_address(netif *nif, const in6_addr &addr)
 {
-    scoped_rwlock<rw_lock::read> g{nif->inet6_addr_list_lock};
+    scoped_rwslock<rw_lock::read> g{nif->inet6_addr_list_lock};
 
     list_for_every (&nif->inet6_addr_list)
     {
@@ -420,7 +420,7 @@ int netif_remove_v6_address(netif *nif, const in6_addr &addr)
 
 bool netif_find_v6_address(netif *nif, const in6_addr &addr)
 {
-    scoped_rwlock<rw_lock::read> g{nif->inet6_addr_list_lock};
+    scoped_rwslock<rw_lock::read> g{nif->inet6_addr_list_lock};
 
     list_for_every (&nif->inet6_addr_list)
     {
