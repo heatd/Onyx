@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2022 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -11,12 +11,17 @@
 #include <stdlib.h>
 
 #include <onyx/kunit.h>
+#include <onyx/radix.h>
 #include <onyx/types.h>
 #include <onyx/vm.h>
 
 #include <onyx/expected.hpp>
 
-#undef RADIX_TREE_DEBUG
+using namespace radix;
+
+// #define RADIX_TREE_DEBUG
+//
+// #define RADIX_TREE_DYNAMIC_DEBUG
 #ifdef RADIX_TREE_DEBUG
 
 #ifdef RADIX_TREE_DYNAMIC_DEBUG
@@ -40,48 +45,9 @@ static bool should_print_debug = false;
 #define DPRINTF(...)
 #endif
 
-constexpr size_t max_order = 7;
-constexpr size_t nr_entries = 512;
-
-class radix_tree
+radix_tree_node *radix_tree::allocate_table()
 {
-    int order{0};
-    unsigned long *tree{nullptr};
-
-    int grow_radix_tree(int order);
-
-    class cursor
-    {
-        radix_tree *tree_;
-        unsigned long path_[max_order];
-
-        cursor(radix_tree *tree);
-    };
-
-    /**
-     * @brief Clear a level of the radix tree
-     * Note: Invokes itself recursively
-     *
-     * @param level Level (L0 is the base, Lorder-1 is the max)
-     */
-    void clear_level(int level, unsigned long *table);
-
-    unsigned long *allocate_table();
-
-public:
-    radix_tree() = default;
-
-    ~radix_tree();
-
-    int store(unsigned long index, unsigned long value);
-    expected<unsigned long, int> get(unsigned long index);
-
-    void clear();
-};
-
-unsigned long *radix_tree::allocate_table()
-{
-    return (unsigned long *) zalloc(PAGE_SIZE);
+    return (radix_tree_node *) zalloc(sizeof(radix_tree_node));
 }
 
 int radix_tree::grow_radix_tree(int to_order)
@@ -90,10 +56,12 @@ int radix_tree::grow_radix_tree(int to_order)
 
     for (int i = 0; i < order_diff; i++)
     {
-        unsigned long *table = allocate_table();
+        auto table = allocate_table();
         if (!table)
             return -ENOMEM;
-        table[0] = (unsigned long) tree;
+        table->entries[0] = (rt_entry_t) tree;
+        if (tree)
+            tree->parent = table;
         tree = table;
         order++;
     }
@@ -101,27 +69,38 @@ int radix_tree::grow_radix_tree(int to_order)
     return 0;
 }
 
-int radix_tree::store(unsigned long index, unsigned long value)
+/**
+ * @brief Store a value to an index
+ *
+ * @param index Index to store to
+ * @param value Value to store
+ * @return 0 on success, negative error codes
+ */
+int radix_tree::store(unsigned long index, rt_entry_t value)
 {
-    static_assert(PAGE_SIZE == 4096, "Radix calculations currently only work for PAGE_SIZE = 4096 "
-                                     "due to tables being page-sized");
-    unsigned int indices[max_order];
+    unsigned int indices[rt_max_order];
 
-    for (unsigned int i = 0; i < max_order; i++)
+    for (unsigned int i = 0; i < rt_max_order; i++)
     {
-        indices[i] = (index >> (i * 9)) & 0x1ff;
+        indices[i] = (index >> (i * rt_entry_shift)) & rt_entry_mask;
     }
 
     DPRINTF("indices: ");
 
     int max_order_set = 0;
 
-    for (unsigned int i = 0; i < max_order; i++)
+    for (unsigned int i = 0; i < rt_max_order; i++)
     {
         DPRINTF("%u ", indices[i]);
 
         if (indices[i])
             max_order_set = i + 1;
+    }
+
+    if (index == 0)
+    {
+        // Nothing is set, but we still need the next order
+        max_order_set++;
     }
 
     DPRINTF("\n");
@@ -134,42 +113,50 @@ int radix_tree::store(unsigned long index, unsigned long value)
             return -ENOMEM;
     }
 
-    unsigned long *tab = tree;
+    auto tab = tree;
+
+    DCHECK(order != 0);
 
     for (unsigned int i = order - 1; i != 0; i--)
     {
         DPRINTF("Going to index %u\n", indices[i]);
         auto index = indices[i];
-        unsigned long entry = tab[index];
+        rt_entry_t entry = tab->entries[index];
         if (!entry)
         {
-            tab[index] = (unsigned long) allocate_table();
-            if (!tab[index])
+            auto new_table = allocate_table();
+            if (!new_table)
                 return -ENOMEM;
-            entry = tab[index];
+            new_table->parent = tab;
+            tab->entries[index] = (rt_entry_t) new_table;
+            entry = tab->entries[index];
         }
-        tab = (unsigned long *) entry;
+        tab = (radix_tree_node *) entry;
     }
 
-    tab[indices[0]] = value;
+    tab->entries[indices[0]] = value;
 
     return 0;
 }
 
-expected<unsigned long, int> radix_tree::get(unsigned long index)
+/**
+ * @brief Fetch a value
+ *
+ * @param index  Index to fetch from
+ * @return Expected with the value, or negative error codes
+ */
+expected<rt_entry_t, int> radix_tree::get(unsigned long index)
 {
-    static_assert(PAGE_SIZE == 4096, "Radix calculations currently only work for PAGE_SIZE = 4096 "
-                                     "due to tables being page-sized");
-    unsigned int indices[max_order];
+    unsigned int indices[rt_max_order];
 
-    for (unsigned int i = 0; i < max_order; i++)
+    for (unsigned int i = 0; i < rt_max_order; i++)
     {
-        indices[i] = (index >> (i * 9)) & 0x1ff;
+        indices[i] = (index >> (i * rt_entry_shift)) & rt_entry_mask;
     }
 
     int max_order_set = 0;
 
-    for (unsigned int i = 0; i < max_order; i++)
+    for (unsigned int i = 0; i < rt_max_order; i++)
     {
         DPRINTF("%u ", indices[i]);
 
@@ -177,25 +164,31 @@ expected<unsigned long, int> radix_tree::get(unsigned long index)
             max_order_set = i + 1;
     }
 
+    if (index == 0)
+    {
+        // Nothing is set, but we still need the next order
+        max_order_set++;
+    }
+
     if (max_order_set > order)
         return unexpected{-ENOENT};
 
-    unsigned long *tab = tree;
+    auto tab = tree;
 
     for (unsigned int i = order - 1; i != 0; i--)
     {
         auto index = indices[i];
-        unsigned long entry = tab[index];
+        rt_entry_t entry = tab->entries[index];
         DPRINTF("Going to index %u\n", indices[i]);
         if (!entry)
         {
             return unexpected{-ENOENT};
         }
 
-        tab = (unsigned long *) entry;
+        tab = (radix_tree_node *) entry;
     }
 
-    const auto val = tab[indices[0]];
+    const auto val = tab->entries[indices[0]];
 
     if (!val)
         return unexpected{-ENOENT};
@@ -207,31 +200,36 @@ expected<unsigned long, int> radix_tree::get(unsigned long index)
  * Note: Invokes itself recursively
  *
  * @param level Level (L0 is the base, Lorder-1 is the max)
+ * @param table Table to clear
  */
-void radix_tree::clear_level(int level, unsigned long *table)
+void radix_tree::clear_level(int level, radix_tree_node *table)
 {
-    for (size_t i = 0; i < nr_entries; i++)
+    for (size_t i = 0; i < rt_nr_entries; i++)
     {
-        auto entry = table[i];
+        auto entry = table->entries[i];
 
         if (!entry)
             continue;
         if (level != order - 1)
         {
             DPRINTF("Deleting L%u table %lx\n", level + 1, entry);
-            clear_level(level + 1, (unsigned long *) entry);
+            clear_level(level + 1, (radix_tree_node *) entry);
         }
         else
         {
             DPRINTF("Deleting value entry %lx (table %p index %zu)\n", entry, table, i);
         }
 
-        table[i] = 0;
+        table->entries[i] = 0;
     }
 
     free(table);
 }
 
+/**
+ * @brief Clear a radix tree
+ *
+ */
 void radix_tree::clear()
 {
     if (tree)
@@ -244,6 +242,294 @@ void radix_tree::clear()
 radix_tree::~radix_tree()
 {
     clear();
+}
+
+/**
+ * @brief Copy a radix tree level
+ *
+ * @param level Level (L0 is the base, Lorder-1 is the max)
+ * @param table Original table
+ * @param cb Callback for entry copying
+ * @param ctx Context for entry copying's callback
+ * @return Expected containing new table, or negative error code
+ */
+expected<radix_tree_node *, int> radix_tree::copy_level(int level, const radix_tree_node *table,
+                                                        copy_cb_t cb, void *ctx)
+{
+    size_t i = 0;
+    radix_tree_node *t = allocate_table();
+    if (!t)
+        return unexpected{-ENOMEM};
+
+    for (i = 0; i < rt_nr_entries; i++)
+    {
+        t->entries[i] = table->entries[i];
+
+        const auto entry = table->entries[i];
+
+        if (!entry)
+            continue;
+
+        if (level != order - 1)
+        {
+            // Copy the next level
+            auto ex = copy_level(level + 1, (const radix_tree_node *) entry, cb, ctx);
+
+            if (ex.has_error())
+                goto out_err;
+
+            t->entries[i] = (rt_entry_t) ex.value();
+        }
+        else
+        {
+            t->entries[i] = cb(table->entries[i], ctx);
+        }
+    }
+
+    return t;
+
+out_err:
+    // Clear the levels we allocated
+
+    assert(level != order - 1);
+    for (; i-- > 0;)
+    {
+        radix_tree_node *entry = (radix_tree_node *) t->entries[i];
+
+        clear_level(level + 1, entry);
+    }
+
+    free(t);
+
+    return unexpected{-ENOMEM};
+}
+
+/**
+ * @brief Create a copy of a radix tree
+ *
+ * @param cb Callback called for entry copying
+ * @param ctx Context for the copy callback
+ * @return Expected containing the radix_tree, or error code.
+ */
+expected<radix_tree, int> radix_tree::copy(copy_cb_t cb, void *ctx)
+{
+    radix_tree t;
+
+    if (!tree) [[unlikely]]
+        return cul::move(t);
+
+    t.tree = tree;
+    t.order = order;
+
+    auto ex = copy_level(0, tree, cb, ctx);
+
+    if (ex.has_error())
+        return unexpected<int>{ex.error()};
+
+    t.tree = ex.value();
+
+    return cul::move(t);
+}
+
+radix_tree::cursor radix_tree::cursor::from_range(radix_tree *tree, unsigned long start,
+                                                  unsigned long end)
+{
+    radix_tree::cursor c{tree, end};
+    c.current_location = start;
+
+    unsigned int indices[rt_max_order];
+
+    for (unsigned int i = 0; i < rt_max_order; i++)
+    {
+        indices[i] = (start >> (i * rt_entry_shift)) & rt_entry_mask;
+    }
+
+    int max_order_set = 0;
+
+    for (unsigned int i = 0; i < rt_max_order; i++)
+    {
+        if (indices[i])
+            max_order_set = i + 1;
+    }
+
+    if (start == 0)
+    {
+        // Nothing is set, but we still need the next order
+        max_order_set++;
+    }
+
+    // If max_order_set > order, there's certainly no entry for us. So just return an empty iterator
+    if (max_order_set > tree->order)
+        return c;
+
+    auto tab = tree->tree;
+    int depth = 0;
+
+    for (unsigned int i = tree->order - 1; i != 0; i--, depth++)
+    {
+        auto index = indices[i];
+        rt_entry_t entry = tab->entries[index];
+        DPRINTF("Going to index %u\n", indices[i]);
+        if (!entry)
+            break;
+
+        tab = (radix_tree_node *) entry;
+    }
+
+    c.current = tab;
+    c.current_index = indices[tree->order - depth - 1];
+    c.depth = depth;
+
+    if (depth != tree->order - 1 || !tab->entries[c.current_index])
+    {
+        // Attempt to advance the iterator to the next one
+        c.advance();
+        DCHECK(c.is_end() || c.depth == tree->order - 1);
+    }
+
+    return c;
+}
+
+#define GET_RA_ENTRY_INDEX(index, level) (((index) >> ((level) *rt_entry_shift)) & rt_entry_mask)
+
+bool radix_tree::cursor::try_go_down(radix_tree_node *node, int depth)
+{
+    int curdepth;
+    for (curdepth = depth; curdepth < tree_->order; curdepth++)
+    {
+        DPRINTF("trygodown: Depth %u\n", curdepth);
+
+        bool found_table = false;
+
+        for (unsigned int i = 0; i < rt_nr_entries; i++)
+        {
+            if (node->entries[i])
+            {
+                node = (radix_tree_node *) node->entries[i];
+                found_table = true;
+                break;
+            }
+        }
+
+        if (!found_table)
+            return false;
+    }
+
+    return true;
+}
+
+void radix_tree::cursor::go_up_and_down()
+{
+    // Ok, we've ran out of entries in our current table, let's go up the tree,
+    // find some filled nodes, and then right down.
+    DCHECK(current != nullptr);
+    DCHECK(depth != 0);
+    DCHECK(current->parent != nullptr);
+
+    for (int i = depth; i >= 0; i--, current = current->parent)
+    {
+        unsigned int curindex = GET_RA_ENTRY_INDEX(current_location, depth);
+        const unsigned long level_increment = 1UL << rt_entry_shift;
+
+        if (current_location >= end)
+        {
+            goto no_iterator;
+        }
+
+        // Align current_location to a multiple of the entry size so increments go right
+        current_location &= -level_increment;
+        if (curindex == rt_nr_entries)
+        {
+            // No room for us
+            current_location += level_increment;
+            continue;
+        }
+    }
+
+no_iterator:
+    current = nullptr;
+}
+
+void radix_tree::cursor::advance()
+{
+    DCHECK(!is_end());
+
+    if (current_location == -1ul)
+    {
+        current = nullptr;
+        return;
+    }
+
+    // We can be entering this function when not-in-the-bottom, so calculate the starting increment
+    // for current_location.
+    const auto curr_level_inc = 1UL << (rt_entry_shift * (tree_->order - depth - 1));
+    current_index++;
+    current_location = (current_location + curr_level_inc) & -curr_level_inc;
+
+    while (current && current_location <= end)
+    {
+        DPRINTF("current %p, curidx %lx, tabidx %x, end %lx, depth %d\n", current, current_location,
+                current_index, end, depth);
+        DPRINTF("tree order %d\n", tree_->order);
+        const unsigned long level_increment = 1UL << (rt_entry_shift * (tree_->order - depth - 1));
+
+        if (current_index == rt_nr_entries)
+        {
+            DPRINTF("going up to depth %d\n", depth);
+            // Ok, we've ran out of entries in this node, lets go up. Let's calculate current_index
+            // out of the current location.
+            current_index = GET_RA_ENTRY_INDEX(current_location, tree_->order - depth);
+            depth--;
+            // ... and go up
+            current = current->parent;
+            DPRINTF("Current: %p\n", current);
+            continue;
+        }
+
+        auto entry = current->entries[current_index];
+
+        if (entry)
+        {
+            DPRINTF("Entry found\n");
+            // Great, we found an entry.
+            if (depth == tree_->order - 1)
+                return;
+            DPRINTF("...node table\n");
+            // Ok, this is a table, let's go down
+            current = (radix_tree_node *) entry;
+            depth++;
+            // Check if current_location has an aligned index
+            DCHECK(GET_RA_ENTRY_INDEX(current_location, tree_->order - depth - 1) == 0);
+            current_index = 0;
+            continue;
+        }
+
+        // Advance a single position in the current table
+        current_index++;
+        // The new location will be a level_increment aligned index. Note that we always align
+        // up, hence + level_increment (instead of level_increment - 1 as in a normal ALIGN_TO).
+        DPRINTF("level inc for depth %d: %lx\n", depth, level_increment);
+        const auto next = (current_location + level_increment) & -level_increment;
+
+        if (next < current_location)
+        {
+            // Ooops, we have overflowed when calculating this index. This means we've ran out
+            // of table.
+            current = nullptr;
+            return;
+        }
+
+        current_location = next;
+    }
+}
+
+void radix_tree::cursor::store(rt_entry_t new_val)
+{
+    DCHECK(!is_end());
+    current->entries[current_index] = new_val;
+    // TODO: If 0, free? We need to keep a counter of filled entries instead of scanning the whole
+    // table. We have a bunch of space we should use for XA marks, etc due to the slab allocator's
+    // allocation properties.
 }
 
 #ifdef CONFIG_KUNIT
@@ -265,6 +551,82 @@ TEST(radix, basic_store_test)
     EXPECT_EQ(out0.value(), 0x100100ul);
     EXPECT_EQ(out1.value(), 0x10000ul);
     EXPECT_EQ(out2.value(), 0x10000ul);
+}
+
+TEST(radix, iterator_test)
+{
+    radix_tree tree;
+    tree.store(10, 0x100100);
+    tree.store(0x401, 0x10000);
+    tree.store(0xffffffffffffffff, 0x10000);
+
+    auto out0 = tree.get(10);
+    auto out1 = tree.get(0x401);
+    auto out2 = tree.get(0xffffffffffffffff);
+    ASSERT_TRUE(out0.has_value());
+    ASSERT_TRUE(out1.has_value());
+    ASSERT_TRUE(out2.has_value());
+
+    auto cursor = radix_tree::cursor::from_range(&tree, 10);
+
+    ASSERT_FALSE(cursor.is_end());
+    ASSERT_EQ(10ul, cursor.current_idx());
+    ASSERT_EQ(0x100100ul, cursor.get());
+    cursor.advance();
+    ASSERT_FALSE(cursor.is_end());
+    ASSERT_EQ(0x401ul, cursor.current_idx());
+    ASSERT_EQ(0x10000ul, cursor.get());
+    cursor.advance();
+    ASSERT_FALSE(cursor.is_end());
+    ASSERT_EQ(0xfffffffffffffffful, cursor.current_idx());
+    ASSERT_EQ(0x10000ul, cursor.get());
+    cursor.advance();
+    ASSERT_TRUE(cursor.is_end());
+}
+
+TEST(radix, iterator_fast_forwards)
+{
+    // Test if from_range(&tree, 0) can get past the absence of index 0 and find 10
+    radix_tree tree;
+    tree.store(10, 0x100100);
+    tree.store(0x401, 0x10000);
+    tree.store(0xffffffffffffffff, 0x10000);
+
+    auto out0 = tree.get(10);
+    auto out1 = tree.get(0x401);
+    auto out2 = tree.get(0xffffffffffffffff);
+    ASSERT_TRUE(out0.has_value());
+    ASSERT_TRUE(out1.has_value());
+    ASSERT_TRUE(out2.has_value());
+
+    auto cursor = radix_tree::cursor::from_range(&tree, 0);
+
+    ASSERT_FALSE(cursor.is_end());
+    ASSERT_EQ(10ul, cursor.current_idx());
+    ASSERT_EQ(0x100100ul, cursor.get());
+    cursor.advance();
+    ASSERT_FALSE(cursor.is_end());
+    ASSERT_EQ(0x401ul, cursor.current_idx());
+    ASSERT_EQ(0x10000ul, cursor.get());
+    cursor.advance();
+    ASSERT_FALSE(cursor.is_end());
+    ASSERT_EQ(0xfffffffffffffffful, cursor.current_idx());
+    ASSERT_EQ(0x10000ul, cursor.get());
+    cursor.advance();
+    ASSERT_TRUE(cursor.is_end());
+
+    // Now test this functionality for depth != 0 here (where we need to traverse the tree up and
+    // down.)
+    cursor = radix_tree::cursor::from_range(&tree, 0x100);
+    ASSERT_FALSE(cursor.is_end());
+    ASSERT_EQ(0x401ul, cursor.current_idx());
+    ASSERT_EQ(0x10000ul, cursor.get());
+    cursor.advance();
+    ASSERT_FALSE(cursor.is_end());
+    ASSERT_EQ(0xfffffffffffffffful, cursor.current_idx());
+    ASSERT_EQ(0x10000ul, cursor.get());
+    cursor.advance();
+    ASSERT_TRUE(cursor.is_end());
 }
 
 #endif

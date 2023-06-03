@@ -287,18 +287,10 @@ ssize_t inode_sync(struct inode *inode)
 {
     if (!inode->i_pages)
         return 0;
-    struct rb_itor it;
-    it.node = nullptr;
     scoped_mutex g{inode->i_pages->page_lock};
 
-    it.tree = inode->i_pages->pages;
-
-    rb_itor_first(&it);
-
-    while (rb_itor_valid(&it))
-    {
-        void *datum = *rb_itor_datum(&it);
-        struct page *page = (struct page *) datum;
+    // TODO: This sucks
+    inode->i_pages->for_every_page([&](struct page *page, unsigned long off) -> bool {
         struct page_cache_block *b = page->cache;
 
         if (page->flags & PAGE_FLAG_DIRTY)
@@ -306,8 +298,8 @@ ssize_t inode_sync(struct inode *inode)
             flush_sync_one(&b->fobj);
         }
 
-        rb_itor_next(&it);
-    }
+        return true;
+    });
 
     return 0;
 }
