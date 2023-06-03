@@ -593,7 +593,7 @@ void proto_family::unbind(inet_socket *sock)
     sock->proto_info->get_socket_table()->remove_socket(sock, 0);
 }
 
-rwlock routing_table_lock;
+rwslock routing_table_lock;
 cul::vector<shared_ptr<inet4_route>> routing_table;
 
 expected<inet_route, int> proto_family::route(const inet_sock_address &from,
@@ -634,7 +634,7 @@ expected<inet_route, int> proto_family::route(const inet_sock_address &from,
         return r;
     }
 
-    rw_lock_read(&routing_table_lock);
+    routing_table_lock.lock_read();
 
     for (auto &r : routing_table)
     {
@@ -665,7 +665,7 @@ expected<inet_route, int> proto_family::route(const inet_sock_address &from,
         }
     }
 
-    rw_unlock_read(&routing_table_lock);
+    routing_table_lock.unlock_read();
 
     if (!best_route)
     {
@@ -710,7 +710,7 @@ expected<inet_route, int> proto_family::route(const inet_sock_address &from,
 
 bool add_route(inet4_route &route)
 {
-    rw_lock_write(&routing_table_lock);
+    routing_table_lock.lock_write();
 
     auto ptr = make_shared<inet4_route>();
     if (!ptr)
@@ -720,7 +720,7 @@ bool add_route(inet4_route &route)
 
     bool st = routing_table.push_back(ptr);
 
-    rw_unlock_write(&routing_table_lock);
+    routing_table_lock.unlock_write();
 
     return st;
 }
