@@ -152,7 +152,7 @@ qemu-arm64: fullbuild-plus-initrd
 
 qemu: iso
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) \
-	-s -trace pci_nvme* -cdrom Onyx.iso -drive file=hdd.img,format=raw,media=disk,id=drive,if=none -m 512M \
+	-s -cdrom Onyx.iso -drive file=hdd.img,format=raw,media=disk,id=drive,if=none -m 512M \
 	-monitor stdio -boot d -netdev user,id=u1 -device virtio-net,netdev=u1 \
 	-object filter-dump,id=f1,netdev=u1,file=net.pcap \
 	-enable-kvm -cpu host,migratable=on,+invtsc -smp 4 -vga qxl \
