@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 - 2022 Pedro Falcato
+ * Copyright (c) 2018 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -16,8 +16,7 @@
 #include <onyx/list.h>
 #include <onyx/mutex.h>
 #include <onyx/page.h>
-
-#include <libdict/rb_tree.h>
+#include <onyx/radix.h>
 
 enum vmo_type
 {
@@ -67,32 +66,34 @@ struct vm_object_ops
  */
 struct vm_object
 {
-    enum vmo_type type;
-    size_t size;
-    unsigned long flags;
+    vmo_type type{VMO_ANON};
+    size_t size{0};
+    unsigned long flags{0};
 
-    rb_tree *pages;
+    radix_tree vm_pages;
 
     /* Points to (or is) private data that may be needed by the backer of this VM */
-    void *priv;
+    void *priv{nullptr};
 
-    const struct vm_object_ops *ops;
+    const struct vm_object_ops *ops{nullptr};
 
     /* VM objects hold pointers to their mapping(s) */
     struct list_head mappings;
 
     /* We also hold a pointer to their COW clones */
-    struct vm_object *cow_clone;
+    struct vm_object *cow_clone{nullptr};
 
-    struct inode *ino;
+    struct inode *ino{nullptr};
     struct mutex page_lock;
 
     struct mutex mapping_lock;
 
-    unsigned long refcount;
-    struct vm_object *forked_from;
+    unsigned long refcount{1};
+    struct vm_object *forked_from{nullptr};
 
-    struct vm_object *prev_private, *next_private;
+    struct vm_object *prev_private{nullptr}, *next_private{nullptr};
+
+    vm_object();
 
     /**
      * @brief Unmaps a single page from every mapping
@@ -114,6 +115,23 @@ struct vm_object
         }
 
         return true;
+    }
+
+    /**
+     * @brief Insert a page into the vmo
+     *
+     * @param off Offset into the vmo, in bytes
+     * @param page struct page to insert
+     * @return 0 on success, negative error codes (ENOMEM)
+     */
+    int insert_page_unlocked(unsigned long off, struct page *page);
+
+    template <typename Callable>
+    bool for_every_page(Callable c)
+    {
+        return vm_pages.for_every_entry([&](rt_entry_t entry, unsigned long idx) -> bool {
+            return c((struct page *) entry, idx << PAGE_SHIFT);
+        });
     }
 };
 
@@ -262,16 +280,6 @@ void vmo_destroy(vm_object *vmo);
  * @return 0 on success, -1 on failure to map.
  */
 int vmo_add_page(size_t off, page *p, vm_object *vmo);
-
-/**
- * @brief Maps a page into the VMO, without holding the VMO lock.
- *
- * @param off Offset of the page inside the VMO.
- * @param p Page to be mapped on the vmo.
- * @param vmo The VMO.
- * @return 0 on success, -1 on failure to map.
- */
-int vmo_add_page_unlocked(size_t off, page *p, vm_object *vmo);
 
 /**
  * @brief Increments the reference counter on the VMO.

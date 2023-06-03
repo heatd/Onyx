@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 - 2022 Pedro Falcato
+ * Copyright (c) 2018 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -18,16 +18,13 @@
 #include <onyx/utils.h>
 #include <onyx/vm.h>
 
-#include <libdict/rb_tree.h>
-
 #include <onyx/utility.hpp>
 
-static int page_cmp(const void *k1, const void *k2)
+vm_object::vm_object()
 {
-    if (k1 == k2)
-        return 0;
-
-    return (unsigned long) k1 < (unsigned long) k2 ? -1 : 1;
+    INIT_LIST_HEAD(&mappings);
+    mutex_init(&page_lock);
+    mutex_init(&mapping_lock);
 }
 
 /**
@@ -39,25 +36,13 @@ static int page_cmp(const void *k1, const void *k2)
  */
 vm_object *vmo_create(size_t size, void *priv)
 {
-    vm_object *vmo = (vm_object *) zalloc(sizeof(*vmo));
+    vm_object *vmo = new vm_object;
     if (!vmo)
         return nullptr;
 
     /* Default to backed */
-    vmo->type = VMO_BACKED;
     vmo->size = cul::align_up2(size, PAGE_SIZE);
     vmo->priv = priv;
-    vmo->refcount = 1;
-    INIT_LIST_HEAD(&vmo->mappings);
-    vmo->pages = rb_tree_new(page_cmp);
-    mutex_init(&vmo->page_lock);
-    mutex_init(&vmo->mapping_lock);
-
-    if (!vmo->pages)
-    {
-        free(vmo);
-        return nullptr;
-    }
 
     return vmo;
 }
@@ -96,6 +81,23 @@ vm_object *vmo_create_phys(size_t size)
     return vmo;
 }
 
+/**
+ * @brief Insert a page into the vmo
+ *
+ * @param off Offset into the vmo, in bytes
+ * @param page struct page to insert
+ * @return 0 on success, negative error codes (ENOMEM)
+ */
+int vm_object::insert_page_unlocked(unsigned long off, struct page *page)
+{
+    if (int st0 = vm_pages.store(off >> PAGE_SHIFT, (unsigned long) page); st0 < 0)
+    {
+        return st0;
+    }
+
+    return 0;
+}
+
 /*
  * Populates a VMO
  */
@@ -121,8 +123,8 @@ vmo_status_t vmo_populate(vm_object *vmo, size_t off, page **ppage)
     }
 
     // hrtime_t end = get_main_clock()->get_ns();
-    dict_insert_result res = rb_tree_insert(vmo->pages, (void *) off);
-    if (!res.inserted)
+
+    if (int st0 = vmo->insert_page_unlocked(off, page); st0 < 0)
     {
         free_page(page);
         return VMO_STATUS_OUT_OF_MEM;
@@ -131,7 +133,6 @@ vmo_status_t vmo_populate(vm_object *vmo, size_t off, page **ppage)
     if (vmo->flags & VMO_FLAG_LOCK_FUTURE_PAGES)
         page->flags |= PAGE_FLAG_LOCKED;
 
-    *res.datum_ptr = page;
     *ppage = page;
 
     return VMO_STATUS_OK;
@@ -168,11 +169,10 @@ vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page
 
     scoped_mutex g{vmo->page_lock};
 
-    void **pp = rb_tree_search(vmo->pages, (const void *) off);
-
-    if (pp)
+    auto ex = vmo->vm_pages.get(off >> PAGE_SHIFT);
+    if (ex.has_value())
     {
-        p = (page *) *pp;
+        p = (struct page *) ex.value();
     }
 
     if (!p && is_cow && !may_not_implicit_cow)
@@ -200,14 +200,12 @@ vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page
 
         page_unpin(old_page);
 
-        dict_insert_result res = rb_tree_insert(vmo->pages, (void *) off);
-        if (!res.inserted)
+        int err = vmo->insert_page_unlocked(off, new_page);
+        if (err < 0)
         {
             free_page(new_page);
             return VMO_STATUS_OUT_OF_MEM;
         }
-
-        *res.datum_ptr = new_page;
 
         p = new_page;
     }
@@ -237,50 +235,6 @@ void vmo_rb_delete_func(void *key, void *data)
     // TODO: Memory leak here! We might be a special kind of VMO that needs to free other
     // structures. A good example of an object like this is inode vmos.
     free_page(p);
-}
-
-int vmo_fork_pages(vm_object *vmo)
-{
-    size_t pages = vm_size_to_pages(vmo->size);
-    if (!pages)
-        return 0;
-
-    rb_itor *it = rb_itor_new(vmo->pages);
-    if (!it)
-        return -1;
-
-    rb_tree *new_tree = rb_tree_new(page_cmp);
-    if (!new_tree)
-    {
-        free(it);
-        return -1;
-    }
-
-    scoped_mutex g{vmo->page_lock};
-
-    bool node_valid = rb_itor_first(it);
-
-    while (node_valid)
-    {
-        struct page *old_p = (page *) *rb_itor_datum(it);
-        size_t off = (size_t) rb_itor_key(it);
-
-        dict_insert_result res = rb_tree_insert(new_tree, (void *) off);
-        if (!res.inserted)
-        {
-            rb_itor_free(it);
-            return -1;
-        }
-
-        page_ref(old_p);
-
-        *res.datum_ptr = old_p;
-        node_valid = rb_itor_next(it);
-    }
-
-    vmo->pages = new_tree;
-
-    return 0;
 }
 
 /**
@@ -322,37 +276,32 @@ vm_object *vmo_fork(vm_object *vmo, bool shared, struct vm_region *reg)
     new_vmo->type = vmo->type;
     new_vmo->priv = vmo->priv;
 
-    /* We're setting pages to the old vmo's pages so vmo_fork_pages can use them.
-     * In reality, vmo_fork_pages will just iterate through the old tree and create a copy
-     * of it.
-     */
-    new_vmo->pages = vmo->pages;
+    scoped_mutex g{vmo->page_lock};
+
+    auto ex = vmo->vm_pages.copy(
+        [](unsigned long entry, void * /*ctx*/) -> unsigned long {
+            struct page *p = (struct page *) entry;
+            page_ref(p);
+            return entry;
+        },
+        nullptr);
+
+    if (ex.has_error())
+    {
+        delete new_vmo;
+        return nullptr;
+    }
+
+    new_vmo->vm_pages = ex.value();
+
+    g.unlock();
+
     new_vmo->cow_clone = vmo->cow_clone;
 
     if (new_vmo->cow_clone)
         vmo_ref(new_vmo->cow_clone);
 
-    scoped_mutex g{vmo->page_lock};
-
-    if (vmo_fork_pages(new_vmo) < 0)
-    {
-        free(new_vmo);
-        return nullptr;
-    }
-
     return new_vmo;
-}
-
-static void vmo_rollback_pages(struct page *begin, struct page *end, vm_object *vmo)
-{
-    struct page *p = begin;
-    size_t off = 0;
-    while (p != end)
-    {
-        rb_tree_remove(vmo->pages, (const void *) off);
-        p = p->next_un.next_allocation;
-        off += PAGE_SIZE;
-    }
 }
 
 /**
@@ -379,15 +328,13 @@ int vmo_prefault(vm_object *vmo, size_t size, size_t offset)
     struct page *_p = p;
     for (size_t i = 0; i < pages; i++, offset += PAGE_SIZE)
     {
-        dict_insert_result res = rb_tree_insert(vmo->pages, (void *) offset);
-        if (!res.inserted)
+        int err = vmo->insert_page_unlocked(offset, _p);
+        if (err < 0)
         {
-            vmo_rollback_pages(p, _p, vmo);
             free_pages(p);
-            return -1;
+            return err;
         }
 
-        *res.datum_ptr = _p;
         _p = _p->next_un.next_allocation;
     }
 
@@ -407,30 +354,7 @@ void vmo_destroy(vm_object *vmo)
     if (vmo->cow_clone)
         vmo_unref(vmo->cow_clone);
 
-    rb_tree_free(vmo->pages, vmo_rb_delete_func);
-
-    free(vmo);
-}
-
-/**
- * @brief Maps a page into the VMO, without holding the VMO lock.
- *
- * @param off Offset of the page inside the VMO.
- * @param p Page to be mapped on the vmo.
- * @param vmo The VMO.
- * @return 0 on success, -1 on failure to map.
- */
-int vmo_add_page_unlocked(size_t off, page *p, vm_object *vmo)
-{
-    dict_insert_result res = rb_tree_insert(vmo->pages, (void *) off);
-    if (!res.inserted)
-    {
-        return -1;
-    }
-
-    *res.datum_ptr = p;
-
-    return 0;
+    delete vmo;
 }
 
 /**
@@ -444,7 +368,7 @@ int vmo_add_page_unlocked(size_t off, page *p, vm_object *vmo)
 int vmo_add_page(size_t off, struct page *p, vm_object *vmo)
 {
     scoped_mutex g{vmo->page_lock};
-    return vmo_add_page_unlocked(off, p, vmo);
+    return vmo->insert_page_unlocked(off, p);
 }
 
 /**
@@ -489,10 +413,6 @@ int vmo_purge_pages(size_t lower_bound, size_t upper_bound, unsigned int flags, 
 {
     scoped_mutex g{vmo->page_lock, !(flags & PURGE_DO_NOT_LOCK)};
 
-    struct rb_itor it;
-    it.tree = vmo->pages;
-    it.node = nullptr;
-
     bool should_free = flags & PURGE_SHOULD_FREE;
     bool exclusive = flags & PURGE_EXCLUDE;
 
@@ -503,17 +423,16 @@ int vmo_purge_pages(size_t lower_bound, size_t upper_bound, unsigned int flags, 
     if (exclusive)
         compare_function = is_excluded;
 
-    bool node_valid = rb_itor_first(&it);
+    auto cursor = radix_tree::cursor::from_index(&vmo->vm_pages);
 
-    while (node_valid)
+    while (!cursor.is_end())
     {
-        struct page *p = (page *) *rb_itor_datum(&it);
-        size_t off = (size_t) rb_itor_key(&it);
+        struct page *p = (page *) cursor.get();
+        size_t off = cursor.current_idx() << PAGE_SHIFT;
 
         if (compare_function(lower_bound, upper_bound, off))
         {
-            rb_itor_remove(&it);
-            node_valid = rb_itor_search_ge(&it, (const void *) off);
+            cursor.store(0);
 
             struct page *old_p = p;
 
@@ -529,10 +448,8 @@ int vmo_purge_pages(size_t lower_bound, size_t upper_bound, unsigned int flags, 
             if (second)
                 vmo_add_page(off, old_p, second);
         }
-        else
-        {
-            node_valid = rb_itor_next(&it);
-        }
+
+        cursor.advance();
     }
 
     return 0;
@@ -632,6 +549,7 @@ void vmo_sanity_check(vm_object *vmo)
 {
     scoped_mutex g{vmo->page_lock};
 
+#if 0
     struct rb_itor *it = rb_itor_new(vmo->pages);
     assert(it != nullptr);
     bool node_valid = rb_itor_next(it);
@@ -655,6 +573,7 @@ void vmo_sanity_check(vm_object *vmo)
             panic("bad vmobject");
         }
     }
+#endif
 }
 
 /**
@@ -771,12 +690,11 @@ struct page *vmo_cow_on_page(vm_object *vmo, size_t off)
 {
     scoped_mutex g{vmo->page_lock};
 
-    void **datum = rb_tree_search(vmo->pages, (void *) off);
+    auto ex = vmo->vm_pages.get(off >> PAGE_SHIFT);
+    auto old_page = (struct page *) ex.unwrap();
 
-    if (datum == nullptr)
+    if (old_page == nullptr)
         panic("Fatal COW bug - page not found in VMO");
-
-    struct page *old_page = (page *) *datum;
 
     if (old_page->ref == 1)
     {
@@ -787,21 +705,21 @@ struct page *vmo_cow_on_page(vm_object *vmo, size_t off)
 
     struct page *new_page = alloc_page(PAGE_ALLOC_NO_ZERO);
     if (!new_page)
-        goto out_error;
+        return nullptr;
 
     copy_page_to_page(page_to_phys(new_page), page_to_phys(old_page));
 
     // printf("COW'd page %p to vmo %p (refs %lu)\n", page_to_phys(new_page), vmo, vmo->refcount);
 
-    *datum = new_page;
+    int st = vmo->vm_pages.store(off >> PAGE_SHIFT, (unsigned long) new_page);
+
+    DCHECK(st == 0);
 
     page_pin(new_page);
 
     page_unref(old_page);
 
     return new_page;
-out_error:
-    return nullptr;
 }
 
 /**
@@ -856,14 +774,9 @@ int vmo_truncate(vm_object *vmo, unsigned long size, unsigned long flags)
         }
     }
 
-    struct page *last_page = nullptr;
     auto last_page_off = cul::align_down2(original_size, PAGE_SIZE);
-    void **pp = rb_tree_search(vmo->pages, (const void *) last_page_off);
-
-    if (pp)
-    {
-        last_page = (page *) *pp;
-    }
+    auto ex = vmo->vm_pages.get(last_page_off >> PAGE_SHIFT);
+    struct page *last_page = (struct page *) ex.value_or((unsigned long) nullptr);
 
     if (last_page)
     {

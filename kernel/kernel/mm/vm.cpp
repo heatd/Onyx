@@ -846,31 +846,25 @@ int vm_flush_mapping(struct vm_region *mapping, struct mm_address_space *mm, uns
     size_t nr_pages = mapping->pages;
 
     size_t off = mapping->offset;
-    struct rb_itor it;
-    it.node = nullptr;
-
     scoped_mutex g{vmo->page_lock};
+    int err = 0;
 
-    it.tree = vmo->pages;
     int mapping_rwx = flags & VM_FLUSH_RWX_VALID ? (int) rwx : mapping->rwx;
 
-    bool node_valid = rb_itor_search_ge(&it, (void *) off);
-    while (node_valid)
-    {
-        struct page *p = (page *) *rb_itor_datum(&it);
-        size_t poff = (size_t) rb_itor_key(&it);
-
+    vmo->for_every_page([&](struct page *p, size_t poff) -> bool {
         if (poff >= off + (nr_pages << PAGE_SHIFT))
-            break;
+            return false;
         unsigned long reg_off = poff - off;
         if (!__map_pages_to_vaddr(mm, (void *) (mapping->base + reg_off), page_to_phys(p),
                                   PAGE_SIZE, mapping_rwx))
-            return -ENOMEM;
+        {
+            err = -ENOMEM;
+            return false;
+        }
+        return true;
+    });
 
-        node_valid = rb_itor_next(&it);
-    }
-
-    return 0;
+    return err;
 }
 
 /**
@@ -3459,77 +3453,6 @@ struct page *vm_commit_page(void *page)
     page_unpin(p);
 
     return p;
-}
-
-int vm_change_locks_range_in_region(struct vm_region *region, unsigned long addr, unsigned long len,
-                                    unsigned long flags)
-{
-    assert(region->vmo != nullptr);
-
-    scoped_mutex g{region->vmo->page_lock};
-
-    struct rb_itor it;
-    it.node = nullptr;
-    it.tree = region->vmo->pages;
-    unsigned long starting_off = region->offset + (addr - region->base);
-    unsigned long end_off = starting_off + len;
-    bool node_valid = rb_itor_search_ge(&it, (void *) starting_off);
-
-    while (node_valid)
-    {
-        struct page *p = (page *) *rb_itor_datum(&it);
-        size_t poff = (size_t) rb_itor_key(&it);
-
-        if (poff >= end_off)
-            return 0;
-        if (flags & VM_LOCK)
-            p->flags |= PAGE_FLAG_LOCKED;
-        else
-            p->flags &= ~(PAGE_FLAG_LOCKED);
-
-        node_valid = rb_itor_next(&it);
-    }
-
-    return 0;
-}
-
-int vm_change_region_locks(void *__start, unsigned long length, unsigned long flags)
-{
-    /* We don't need to do this with kernel addresses */
-
-    if (is_higher_half(__start))
-        return 0;
-
-    struct mm_address_space *as = get_current_process()->get_aspace();
-
-    unsigned long limit = (unsigned long) __start + length;
-    unsigned long addr = (unsigned long) __start;
-
-    scoped_mutex g{as->vm_lock};
-
-    while (addr < limit)
-    {
-        struct vm_region *region = vm_find_region((void *) addr);
-        if (!region)
-            return -EINVAL;
-
-        size_t len = min(length, region->pages << PAGE_SHIFT);
-        if (vm_change_locks_range_in_region(region, addr, len, flags) < 0)
-            return -ENOMEM;
-
-        if (flags & VM_FUTURE_PAGES)
-        {
-            if (flags & VM_LOCK)
-                region->vmo->flags |= VMO_FLAG_LOCK_FUTURE_PAGES;
-            else
-                region->vmo->flags &= ~VMO_FLAG_LOCK_FUTURE_PAGES;
-        }
-
-        addr += len;
-        length -= len;
-    }
-
-    return 0;
 }
 
 void vm_wp_page(struct mm_address_space *mm, void *vaddr)
