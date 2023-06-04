@@ -1,13 +1,13 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef _KERNEL_PAGE_H
-#define _KERNEL_PAGE_H
+#ifndef _ONYX_PAGE_H
+#define _ONYX_PAGE_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -17,6 +17,7 @@
 #include <onyx/ref.h>
 #include <onyx/spinlock.h>
 #include <onyx/vm.h>
+#include <onyx/wait.h>
 
 /* The default physical allocator is the buddy allocator */
 #define CONFIG_BUDDY_ALLOCATOR 1
@@ -55,6 +56,7 @@
 #define PAGE_FLAG_BUFFER      (1 << 4) /* Used by the filesystem code */
 #define PAGE_FLAG_FLUSHING    (1 << 5)
 #define PAGE_FLAG_FILESYSTEM1 (1 << 6) /* Filesystem private flag */
+#define PAGE_FLAG_WAITERS     (1 << 7)
 
 /* struct page - Represents every usable page on the system
  * Everything is native-word-aligned in order to allow atomic changes
@@ -223,6 +225,40 @@ static inline void page_pin(struct page *p)
 static inline void page_unpin(struct page *p)
 {
     page_unref(p);
+}
+
+__always_inline void page_set_waiters(page *p)
+{
+    __atomic_fetch_or(&p->flags, PAGE_FLAG_WAITERS, __ATOMIC_ACQUIRE);
+}
+
+__always_inline void page_clear_waiters(page *p)
+{
+    __atomic_fetch_and(&p->flags, ~PAGE_FLAG_WAITERS, __ATOMIC_RELEASE);
+}
+
+__always_inline bool try_lock_page(page *p)
+{
+    auto flags = __atomic_fetch_or(&p->flags, PAGE_FLAG_LOCKED, __ATOMIC_ACQUIRE);
+
+    return !(flags & PAGE_FLAG_LOCKED);
+}
+
+int __lock_page(page *p, bool interruptible);
+
+__always_inline void lock_page(page *p)
+{
+    if (!try_lock_page(p)) [[unlikely]]
+        __lock_page(p, false);
+}
+
+void __unlock_page(page *p);
+
+__always_inline void unlock_page(page *p)
+{
+    auto flags = __atomic_and_fetch(&p->flags, ~PAGE_FLAG_LOCKED, __ATOMIC_RELEASE);
+    if (flags & PAGE_FLAG_WAITERS) [[unlikely]]
+        __unlock_page(p);
 }
 
 void __reclaim_page(struct page *new_page);

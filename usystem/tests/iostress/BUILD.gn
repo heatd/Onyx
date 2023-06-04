@@ -1,0 +1,10 @@
+import("//build/app.gni")
+
+app_executable("iostress") {
+    include_dirs = [ "include" ]
+    package_name = "iostress"
+
+    output_name = "iostress"
+
+    sources = [ "main.c" ]
+}

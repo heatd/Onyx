@@ -145,14 +145,18 @@ ssize_t file_write_cache_unlocked(void *buffer, size_t len, struct inode *ino, s
         auto amount = len - wrote < rest ? len - wrote : rest;
         size_t aligned_off = offset & ~(PAGE_SIZE - 1);
 
+        lock_page(page);
+
         if (int st = ino->i_fops->prepare_write(ino, page, aligned_off, cache_off, amount); st < 0)
         {
+            unlock_page(page);
             page_unpin(page);
             return st;
         }
 
         if (copy_from_user((char *) cache->buffer + cache_off, (char *) buffer + wrote, amount) < 0)
         {
+            unlock_page(page);
             page_unpin(page);
             return -EFAULT;
         }
@@ -163,6 +167,7 @@ ssize_t file_write_cache_unlocked(void *buffer, size_t len, struct inode *ino, s
         }
 
         pagecache_dirty_block(cache);
+        unlock_page(page);
 
         page_unpin(page);
 

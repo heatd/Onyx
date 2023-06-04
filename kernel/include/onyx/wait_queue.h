@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2019 Pedro Falcato
+ * Copyright (c) 2019 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #ifndef _ONYX_WAIT_QUEUE_H
@@ -16,15 +18,24 @@
 #include <onyx/spinlock.h>
 #include <onyx/task_switching.h>
 
+#define WQ_TOKEN_EXCLUSIVE (1u << 0)
+
+/* Return values for wait_queue_token::wake */
+#define WQ_WAKE_DO_NOT_WAKE    -1
+#define WQ_WAKE_WAKE_EXCLUSIVE 0
+#define WQ_WAKE_DO_WAKE        1
+
 struct wait_queue_token
 {
-    struct thread *thread;
-    void (*callback)(void *context, struct wait_queue_token *token);
-    void *context;
-    bool signaled;
+    struct thread *thread{nullptr};
+    void (*callback)(void *context, struct wait_queue_token *token){nullptr};
+    int (*wake)(struct wait_queue_token *token, void *context){nullptr};
+    void *context{nullptr};
     struct list_head token_node;
+    unsigned short flags;
+    bool signaled{false};
 
-    constexpr wait_queue_token() : thread{}, callback{}, context{}, signaled{}, token_node{}
+    constexpr wait_queue_token() : token_node{}
     {
     }
 };
@@ -39,6 +50,48 @@ struct wait_queue
         INIT_LIST_HEAD(&token_list);
     }
 };
+
+#define WQ_WAKE_ONE (1u << 0)
+
+/**
+ * @brief Wake along a wait queue, internal version.
+ * This version does not have locking.
+ *
+ * @param queue Queue to wake up
+ * @param flags Flags for the wakeup
+ * @param context Optional context flag for wake()
+ * @param nr_exclusive Number of exclusive waiters to wake up.
+ * @return Number of waiters woken up.
+ */
+unsigned long __wait_queue_wake(struct wait_queue *queue, unsigned int flags, void *context,
+                                unsigned long nr_exclusive);
+
+/**
+ * @brief Add a waiter to the wait queue, unlocked
+ *
+ * @param queue Queue to add a waiter to
+ * @param token Waiter to add
+ */
+void __wait_queue_add(struct wait_queue *queue, struct wait_queue_token *token);
+
+/**
+ * @brief Remove a waiter from the wait queue, unlocked
+ *
+ * @param queue Queue to remove a waiter from
+ * @param token Waiter to remove
+ */
+void __wait_queue_remove(struct wait_queue *queue, struct wait_queue_token *token);
+
+/**
+ * @brief Check if the wait queue is empty, unlocked.
+ *
+ * @param queue Queue to check
+ * @return True if empty, else false.
+ */
+static inline bool __wait_queue_is_empty(const struct wait_queue *queue)
+{
+    return list_is_empty(&queue->token_list);
+}
 
 void wait_queue_wait(struct wait_queue *queue);
 void wait_queue_wake(struct wait_queue *queue);
