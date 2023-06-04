@@ -347,12 +347,6 @@ struct sb
 
 void block_buf_dirty(block_buf *buf)
 {
-    if (buf->block_nr == 0)
-    {
-        sb *s = (sb *) ((char *) block_buf_data(buf) + 1024);
-        assert(s->s_magic == 0xef53);
-    }
-
     // printk("Block number %lu dirty!\n", buf->block_nr);
 
     block_buf_set_dirty(true, &buf->flush_obj);
