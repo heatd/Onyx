@@ -1063,7 +1063,7 @@ void sched_handle_preempt(bool may_softirq)
     if (may_softirq && softirq_pending()) [[unlikely]]
         softirq_handle();
     auto curr = get_current_thread();
-    if (curr && curr->flags & THREAD_NEEDS_RESCHED) [[unlikely]]
+    if (curr && curr->flags & THREAD_NEEDS_RESCHED && curr->status == THREAD_RUNNABLE) [[unlikely]]
     {
         sched_yield();
         curr->flags &= ~THREAD_NEEDS_RESCHED;

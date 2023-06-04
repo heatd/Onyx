@@ -70,10 +70,23 @@ int rw_lock_tryread(rwlock *lock)
 
 int rw_lock_trywrite(rwlock *lock)
 {
-    unsigned long expected = 0;
-    unsigned long write_value = RDWR_LOCK_WRITE | thread_to_counter(get_current_thread());
-    return __atomic_compare_exchange_n(&lock->lock, &expected, write_value, false, __ATOMIC_ACQUIRE,
-                                       __ATOMIC_RELAXED);
+    unsigned long expected;
+    unsigned long write_value;
+    const auto counter_val = thread_to_counter(get_current_thread());
+
+    do
+    {
+        expected = __atomic_load_n(&lock->lock, __ATOMIC_RELAXED);
+        write_value = RDWR_LOCK_WRITE | counter_val;
+
+        if (expected & (RDWR_LOCK_WRITE | RDWR_LOCK_COUNTER_MASK))
+            return false;
+        if (expected & RDWR_LOCK_WAITERS)
+            write_value |= RDWR_LOCK_WAITERS;
+    } while (!__atomic_compare_exchange_n(&lock->lock, &expected, write_value, false,
+                                          __ATOMIC_ACQUIRE, __ATOMIC_RELAXED));
+
+    return true;
 }
 
 __always_inline void rwlock_prepare_sleep(rwlock *rwl, rwlock_waiter *w, int state)
@@ -169,6 +182,8 @@ __noinline int __rw_lock_write_slow(rwlock *lock, int state)
     thread *current = get_current_thread();
     const bool signals_allowed = state == THREAD_INTERRUPTIBLE;
 
+    DCHECK(counter_to_thread(read_once(lock->lock)) != current);
+
     /**
      * Slow path algorithm:
      * First, lock the queue and queue ourselves in. Then, under the lock, try again. If we fail,
@@ -180,7 +195,7 @@ __noinline int __rw_lock_write_slow(rwlock *lock, int state)
         spin_lock(&lock->llock);
         rwlock_prepare_sleep(lock, &w, state);
 
-        if (rw_lock_trywrite(lock) == 0)
+        if (rw_lock_trywrite(lock))
             break;
 
         if (signals_allowed && signal_is_pending())
@@ -192,7 +207,7 @@ __noinline int __rw_lock_write_slow(rwlock *lock, int state)
         spin_unlock(&lock->llock);
         sched_yield();
 
-        if (rw_lock_trywrite(lock) == 0)
+        if (rw_lock_trywrite(lock))
         {
             // If we must unqueue ourselves, remove
             if (w.flags & RW_WAITER_QUEUED)
@@ -223,7 +238,7 @@ __always_inline int __rw_lock_write(rwlock *lock, int state)
 {
     MAY_SLEEP();
     /* Try once before doing the whole preempt disable loop and all */
-    if (rw_lock_trywrite(lock) < 0 && !rw_lock_spin_write(lock)) [[unlikely]]
+    if (!rw_lock_trywrite(lock) && !rw_lock_spin_write(lock)) [[unlikely]]
         return __rw_lock_write_slow(lock, state);
     return 0;
 }
@@ -257,7 +272,7 @@ __noinline int __rw_lock_read_slow(rwlock *lock, int state)
         spin_unlock(&lock->llock);
         sched_yield();
 
-        if (rw_lock_trywrite(lock) == 0)
+        if (rw_lock_tryread(lock) == 0)
         {
             // If we must unqueue ourselves, remove
             if (w.flags & RW_WAITER_QUEUED)
