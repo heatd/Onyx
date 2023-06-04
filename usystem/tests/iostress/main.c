@@ -5,6 +5,7 @@
  *
  * SPDX-License-Identifier: MIT
  */
+#define _GNU_SOURCE
 
 #include <err.h>
 #include <errno.h>
@@ -15,22 +16,44 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 
+static int direct_io = 0;
+
 static int prepare_file(const char *filename, size_t size)
 {
-    int fd = open(filename, O_RDWR | O_TRUNC | O_CREAT | O_CLOEXEC, 0666);
+    int oflags = O_RDWR | O_TRUNC | O_CREAT | O_CLOEXEC;
+    bool notrunc = false;
+    struct stat buf;
+
+    if (stat(filename, &buf) < 0 && errno != ENOENT)
+        err(1, "prepare_file: stat");
+
+    if (S_ISBLK(buf.st_mode))
+    {
+        oflags &= ~(O_CREAT | O_TRUNC);
+        notrunc = true;
+    }
+
+    if (direct_io)
+        oflags |= O_DIRECT;
+
+    int fd = open(filename, oflags, 0666);
 
     if (fd < 0)
     {
         err(1, "open %s", filename);
     }
 
-    if (ftruncate(fd, size) < 0)
+    if (!notrunc)
     {
-        err(1, "ftruncate");
+        if (ftruncate(fd, size) < 0)
+        {
+            err(1, "ftruncate");
+        }
     }
 
     return fd;
@@ -60,9 +83,10 @@ static void test_alrm(int sig)
 
 static void stress(int fd, struct stress_options *opts)
 {
-    void *block = calloc(opts->io_chunk_size, 1);
+    void *block = aligned_alloc(opts->io_chunk_size, opts->io_chunk_size);
     if (!block)
         err(1, "malloc");
+    memset(block, 0, opts->io_chunk_size);
 
     struct stat buf0, buf1;
     off_t off = 0;
@@ -82,9 +106,12 @@ static void stress(int fd, struct stress_options *opts)
         {
             /* Calculate the number of blocks */
             size_t nr_blocks = opts->file_size / opts->io_chunk_size;
-            off = rand() % nr_blocks;
-            st = pwrite(fd, block, opts->io_chunk_size, off * opts->io_chunk_size);
+            off = (rand() % nr_blocks) * opts->io_chunk_size;
+            st = pwrite(fd, block, opts->io_chunk_size, off);
         }
+
+        if (st < 0)
+            err(1, "write");
 
         if (st != opts->io_chunk_size)
         {
@@ -93,19 +120,29 @@ static void stress(int fd, struct stress_options *opts)
             exit(1);
         }
 
-        if (st < 0)
-            err(1, "write");
         off += opts->io_chunk_size;
     }
 }
 
 static int sequential = 0;
 
+enum options
+{
+    OPT_FILESIZE = 1,
+    OPT_TIME,
+    OPT_IO_BLOCK_SIZE
+};
+
 const static struct option options[] = {
-    {"version", no_argument, NULL, 'v'},           {"help", no_argument, NULL, 'h'},
-    {"threads", required_argument, NULL, 't'},     {"sequential", no_argument, &sequential, 1},
-    {"file-size", required_argument, NULL, 1},     {"time", required_argument, NULL, 2},
-    {"io-block-size", required_argument, NULL, 3}, {}};
+    {"version", no_argument, NULL, 'v'},
+    {"help", no_argument, NULL, 'h'},
+    {"threads", required_argument, NULL, 't'},
+    {"sequential", no_argument, &sequential, 's'},
+    {"file-size", required_argument, NULL, OPT_FILESIZE},
+    {"time", required_argument, NULL, OPT_TIME},
+    {"io-block-size", required_argument, NULL, OPT_IO_BLOCK_SIZE},
+    {"direct", no_argument, &direct_io, 1},
+    {}};
 
 static int threads = 1;
 static unsigned long file_size = 0x400000;
@@ -119,11 +156,30 @@ static void *stress_thread_start(void *arg)
     return NULL;
 }
 
+void usage(void)
+{
+    printf("Usage: %s [options] FILENAME\n"
+           "    Stress I/O on a single file\n",
+           program_invocation_short_name);
+    printf("    --help                  Output this help message and exit\n"
+           "    --version               Output the version information and exit\n"
+           "    -t, --threads THREADS   Set the thread count (by default, the test is "
+           "single-threaded)\n"
+           "    -s, --sequential        Do IO sequentially on the file (incompatible with "
+           "multi-threaded)\n"
+           "    --file-size SIZE        Size of the file to create, in bytes (default = 4 MiB)\n"
+           "    --time TIME             Time to run the test for (default = 10 seconds)\n"
+           "    --io-block-size BLKSIZE Set the block size for I/O operations\n"
+           "    --direct                Use O_DIRECT to do direct I/O and bypass the page cache\n\n"
+           "If anything went wrong, exits with exit status 1.\n"
+           "If everything looks to completed successfully, exits with 0.\n");
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2)
     {
-        fprintf(stderr, "%s: usage: %s filename\n", argv[0], argv[0]);
+        usage();
         return 1;
     }
 
@@ -138,8 +194,8 @@ int main(int argc, char **argv)
                 return 0;
             case 'h':
             case '?':
-                printf("'help'\n");
-                return 0;
+                usage();
+                return opt == '?';
             case 't':
                 errno = 0;
                 threads = strtoul(optarg, NULL, 0);
@@ -153,7 +209,7 @@ int main(int argc, char **argv)
             case 's':
                 sequential = 1;
                 break;
-            case 1:
+            case OPT_FILESIZE:
                 // --file-size
                 errno = 0;
                 file_size = strtoul(optarg, NULL, 0);
@@ -164,7 +220,7 @@ int main(int argc, char **argv)
                 }
 
                 break;
-            case 2:
+            case OPT_TIME:
                 errno = 0;
                 timeout = strtoul(optarg, NULL, 0);
                 if (errno == ERANGE || file_size == 0)
@@ -174,7 +230,7 @@ int main(int argc, char **argv)
                 }
 
                 break;
-            case 3:
+            case OPT_IO_BLOCK_SIZE:
                 errno = 0;
                 io_block_size = strtoul(optarg, NULL, 0);
                 if (errno == ERANGE || io_block_size == 0)
@@ -200,9 +256,16 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    if (optind == argc)
+    {
+        warnx("Missing filename");
+        usage();
+        return 1;
+    }
+
     srand(time(NULL));
 
-    const char *filename = argv[1];
+    const char *filename = argv[optind];
 
     int fd = prepare_file(filename, file_size);
 
