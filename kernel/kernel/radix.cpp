@@ -128,6 +128,7 @@ int radix_tree::store(unsigned long index, rt_entry_t value)
             if (!new_table)
                 return -ENOMEM;
             new_table->parent = tab;
+            new_table->offset = index;
             tab->entries[index] = (rt_entry_t) new_table;
             entry = tab->entries[index];
         }
@@ -279,6 +280,7 @@ expected<radix_tree_node *, int> radix_tree::copy_level(int level, const radix_t
                 goto out_err;
 
             t->entries[i] = (rt_entry_t) ex.value();
+            ex.value()->offset = i;
         }
         else
         {
@@ -392,64 +394,6 @@ radix_tree::cursor radix_tree::cursor::from_range(radix_tree *tree, unsigned lon
 
 #define GET_RA_ENTRY_INDEX(index, level) (((index) >> ((level) *rt_entry_shift)) & rt_entry_mask)
 
-bool radix_tree::cursor::try_go_down(radix_tree_node *node, int depth)
-{
-    int curdepth;
-    for (curdepth = depth; curdepth < tree_->order; curdepth++)
-    {
-        DPRINTF("trygodown: Depth %u\n", curdepth);
-
-        bool found_table = false;
-
-        for (unsigned int i = 0; i < rt_nr_entries; i++)
-        {
-            if (node->entries[i])
-            {
-                node = (radix_tree_node *) node->entries[i];
-                found_table = true;
-                break;
-            }
-        }
-
-        if (!found_table)
-            return false;
-    }
-
-    return true;
-}
-
-void radix_tree::cursor::go_up_and_down()
-{
-    // Ok, we've ran out of entries in our current table, let's go up the tree,
-    // find some filled nodes, and then right down.
-    DCHECK(current != nullptr);
-    DCHECK(depth != 0);
-    DCHECK(current->parent != nullptr);
-
-    for (int i = depth; i >= 0; i--, current = current->parent)
-    {
-        unsigned int curindex = GET_RA_ENTRY_INDEX(current_location, depth);
-        const unsigned long level_increment = 1UL << rt_entry_shift;
-
-        if (current_location >= end)
-        {
-            goto no_iterator;
-        }
-
-        // Align current_location to a multiple of the entry size so increments go right
-        current_location &= -level_increment;
-        if (curindex == rt_nr_entries)
-        {
-            // No room for us
-            current_location += level_increment;
-            continue;
-        }
-    }
-
-no_iterator:
-    current = nullptr;
-}
-
 void radix_tree::cursor::advance()
 {
     DCHECK(!is_end());
@@ -478,7 +422,7 @@ void radix_tree::cursor::advance()
             DPRINTF("going up to depth %d\n", depth);
             // Ok, we've ran out of entries in this node, lets go up. Let's calculate current_index
             // out of the current location.
-            current_index = GET_RA_ENTRY_INDEX(current_location, tree_->order - depth);
+            current_index = current->offset + 1;
             depth--;
             // ... and go up
             current = current->parent;
@@ -627,6 +571,23 @@ TEST(radix, iterator_fast_forwards)
     ASSERT_EQ(0x10000ul, cursor.get());
     cursor.advance();
     ASSERT_TRUE(cursor.is_end());
+}
+
+TEST(radix, sixteen_mb)
+{
+    // Regression test for iteration: we were wrongly calculating the upper level's index when going
+    // upwards, which made for infinite loops when iterating.
+    radix_tree tree;
+    for (int i = 0; i < 4096; i++)
+        tree.store(i, i + 1);
+    int last = -1;
+    tree.for_every_entry([&last](rt_entry_t val, unsigned long off) -> bool {
+        DCHECK(last == (int) off - 1);
+        last = off;
+        DCHECK(val == off + 1);
+        DCHECK(off < 4096);
+        return true;
+    });
 }
 
 #endif

@@ -34,6 +34,7 @@ struct radix_tree_node
 {
     rt_entry_t entries[radix::rt_nr_entries];
     struct radix_tree_node *parent;
+    unsigned long offset;
 };
 
 class radix_tree
@@ -153,10 +154,6 @@ public:
         cursor(radix_tree *tree, unsigned long end = -1ul) : tree_{tree}, end{end}
         {
         }
-
-        void go_up_and_down();
-
-        bool try_go_down(radix_tree_node *node, int depth);
 
     public:
         static cursor from_range(radix_tree *tree, unsigned long start, unsigned long end = -1ul);

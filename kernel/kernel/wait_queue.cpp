@@ -85,21 +85,37 @@ void wait_queue_wake_all(struct wait_queue *queue)
     spin_unlock_irqrestore(&queue->lock, cpu_flags);
 }
 
+/**
+ * @brief Add a waiter to the wait queue, unlocked
+ *
+ * @param queue Queue to add a waiter to
+ * @param token Waiter to add
+ */
+void __wait_queue_add(struct wait_queue *queue, struct wait_queue_token *token)
+{
+    if (token->flags & WQ_TOKEN_EXCLUSIVE)
+        list_add_tail(&token->token_node, &queue->token_list);
+    else
+        list_add(&token->token_node, &queue->token_list);
+}
+
 void wait_queue_add(struct wait_queue *queue, struct wait_queue_token *token)
 {
     unsigned long cpu_flags = spin_lock_irqsave(&queue->lock);
 
-    list_add_tail(&token->token_node, &queue->token_list);
-
-    list_assert_correct(&queue->token_list);
+    __wait_queue_add(queue, token);
 
     spin_unlock_irqrestore(&queue->lock, cpu_flags);
 }
 
-void wait_queue_remove(struct wait_queue *queue, struct wait_queue_token *token)
+/**
+ * @brief Remove a waiter from the wait queue, unlocked
+ *
+ * @param queue Queue to remove a waiter from
+ * @param token Waiter to remove
+ */
+void __wait_queue_remove(struct wait_queue *queue, struct wait_queue_token *token)
 {
-    unsigned long cpu_flags = spin_lock_irqsave(&queue->lock);
-
     struct list_head *node = &token->token_node;
     if (node->next != LIST_REMOVE_POISON)
         list_remove(node);
@@ -109,7 +125,12 @@ void wait_queue_remove(struct wait_queue *queue, struct wait_queue_token *token)
     token->callback = NULL;
     token->signaled = false;
     token->context = NULL;
+}
 
+void wait_queue_remove(struct wait_queue *queue, struct wait_queue_token *token)
+{
+    unsigned long cpu_flags = spin_lock_irqsave(&queue->lock);
+    __wait_queue_remove(queue, token);
     spin_unlock_irqrestore(&queue->lock, cpu_flags);
 }
 
@@ -122,4 +143,60 @@ bool wait_queue_may_delete(struct wait_queue *queue)
     spin_unlock_irqrestore(&queue->lock, cpu_flags);
 
     return may;
+}
+
+/**
+ * @brief Wake along a wait queue, internal version.
+ * This version does not have locking.
+ *
+ * @param queue Queue to wake up
+ * @param flags Flags for the wakeup
+ * @param context Optional context flag for wake()
+ * @param nr_exclusive Number of exclusive waiters to wake up.
+ * @return Number of waiters woken up.
+ */
+unsigned long __wait_queue_wake(struct wait_queue *queue, unsigned int flags, void *context,
+                                unsigned long nr_exclusive)
+{
+    unsigned long woken = 0;
+    list_for_every_safe (&queue->token_list)
+    {
+        bool stop_afterwards = false;
+        struct wait_queue_token *token = container_of(l, struct wait_queue_token, token_node);
+
+        // The waiter may have some logic built in to check if we indeed must wake it.
+        if (token->wake)
+        {
+            int st = token->wake(token, context);
+            if (st == WQ_WAKE_DO_NOT_WAKE)
+                continue;
+            else if (st == WQ_WAKE_WAKE_EXCLUSIVE)
+            {
+                // token::wake wants us to wake up exclusively,
+                // as if WQ_TOKEN_EXCLUSIVE were set.
+                stop_afterwards = true;
+            }
+        }
+
+        if (token->flags & WQ_TOKEN_EXCLUSIVE)
+        {
+            if (nr_exclusive == 0)
+                break;
+            nr_exclusive--;
+        }
+
+        // Dequeue the token from the wait queue
+        list_remove(&token->token_node);
+        token->signaled = true;
+        if (token->callback)
+            token->callback(context, token);
+
+        thread_wake_up(token->thread);
+        woken++;
+
+        if (stop_afterwards) [[unlikely]]
+            break;
+    }
+
+    return woken;
 }
