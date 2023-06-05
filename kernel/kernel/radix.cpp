@@ -61,7 +61,16 @@ int radix_tree::grow_radix_tree(int to_order)
             return -ENOMEM;
         table->entries[0] = (rt_entry_t) tree;
         if (tree)
+        {
             tree->parent = table;
+            // Propagate tags by setting bits if the child's marks bitmap is not empty
+            for (unsigned int j = 0; j < nr_marks; j++)
+            {
+                if (!tree->mark_empty(j))
+                    table->marks[j][0] |= (1UL << 0);
+            }
+        }
+
         tree = table;
         order++;
     }
@@ -137,6 +146,11 @@ int radix_tree::store(unsigned long index, rt_entry_t value)
 
     tab->entries[indices[0]] = value;
 
+    if (!value)
+        clear_all_tags(tab, indices[0]);
+    else
+        propagate_tag(tab, indices[0], RA_MARK_PRESENT, true);
+
     return 0;
 }
 
@@ -148,48 +162,12 @@ int radix_tree::store(unsigned long index, rt_entry_t value)
  */
 expected<rt_entry_t, int> radix_tree::get(unsigned long index)
 {
-    unsigned int indices[rt_max_order];
-
-    for (unsigned int i = 0; i < rt_max_order; i++)
-    {
-        indices[i] = (index >> (i * rt_entry_shift)) & rt_entry_mask;
-    }
-
-    int max_order_set = 0;
-
-    for (unsigned int i = 0; i < rt_max_order; i++)
-    {
-        DPRINTF("%u ", indices[i]);
-
-        if (indices[i])
-            max_order_set = i + 1;
-    }
-
-    if (index == 0)
-    {
-        // Nothing is set, but we still need the next order
-        max_order_set++;
-    }
-
-    if (max_order_set > order)
+    radix_tree_node *tab;
+    unsigned int tabindex;
+    if (!get_table_entry(index, &tab, &tabindex))
         return unexpected{-ENOENT};
 
-    auto tab = tree;
-
-    for (unsigned int i = order - 1; i != 0; i--)
-    {
-        auto index = indices[i];
-        rt_entry_t entry = tab->entries[index];
-        DPRINTF("Going to index %u\n", indices[i]);
-        if (!entry)
-        {
-            return unexpected{-ENOENT};
-        }
-
-        tab = (radix_tree_node *) entry;
-    }
-
-    const auto val = tab->entries[indices[0]];
+    const auto val = tab->entries[tabindex];
 
     if (!val)
         return unexpected{-ENOENT};
@@ -333,11 +311,12 @@ expected<radix_tree, int> radix_tree::copy(copy_cb_t cb, void *ctx)
     return cul::move(t);
 }
 
-radix_tree::cursor radix_tree::cursor::from_range(radix_tree *tree, unsigned long start,
-                                                  unsigned long end)
+radix_tree::cursor radix_tree::cursor::from_range_on_marks(radix_tree *tree, unsigned int mark,
+                                                           unsigned long start, unsigned long end)
 {
     radix_tree::cursor c{tree, end};
     c.current_location = start;
+    c.mark = mark;
 
     unsigned int indices[rt_max_order];
 
@@ -382,7 +361,7 @@ radix_tree::cursor radix_tree::cursor::from_range(radix_tree *tree, unsigned lon
     c.current_index = indices[tree->order - depth - 1];
     c.depth = depth;
 
-    if (depth != tree->order - 1 || !tab->entries[c.current_index])
+    if (depth != tree->order - 1 || !tab->check_mark(mark, c.current_index))
     {
         // Attempt to advance the iterator to the next one
         c.advance();
@@ -393,6 +372,55 @@ radix_tree::cursor radix_tree::cursor::from_range(radix_tree *tree, unsigned lon
 }
 
 #define GET_RA_ENTRY_INDEX(index, level) (((index) >> ((level) *rt_entry_shift)) & rt_entry_mask)
+
+/**
+ * @brief Find the next index to the given mark
+ *
+ * @return Next index. If not found, returns radix::nr_entries.
+ */
+unsigned int radix_tree::cursor::find_next_index()
+{
+    static constexpr int bits_per_long = sizeof(unsigned long) * 8;
+    unsigned int bitmap_index = (current_index + 1) / bits_per_long;
+    unsigned int wordshift = (current_index + 1) % bits_per_long;
+    for (unsigned int i = bitmap_index; i < radix_tree_node::marks_nr_entries; i++, wordshift = 0)
+    {
+        unsigned long word = current->marks[mark][i] >> wordshift;
+
+        if (!word)
+            continue;
+        unsigned int first_set = __builtin_ffsl(word) - 1;
+        return first_set + wordshift + (i * bits_per_long);
+    }
+
+    return radix::rt_nr_entries;
+}
+
+/**
+ * @brief Move the index to the next valid one
+ *
+ */
+void radix_tree::cursor::move_index()
+{
+    const auto curr_level_inc = 1UL << (rt_entry_shift * (tree_->order - depth - 1));
+    const auto old_index = current_index;
+    current_index = find_next_index();
+    // The new location will be a level_increment aligned index. Note that we always align
+    // up, hence + level_increment (instead of level_increment - 1 as in a normal ALIGN_TO).
+    // Let's move up current_location by curr_level_inc * (curr_index - old_index) to properly take
+    // into account the entries we may have skipped.
+    auto next =
+        (current_location + (curr_level_inc * (current_index - old_index))) & -curr_level_inc;
+
+    if (next < current_location)
+    {
+        // Oops, overflow! We ran out of table
+        current = nullptr;
+        return;
+    }
+
+    current_location = next;
+}
 
 void radix_tree::cursor::advance()
 {
@@ -406,16 +434,13 @@ void radix_tree::cursor::advance()
 
     // We can be entering this function when not-in-the-bottom, so calculate the starting increment
     // for current_location.
-    const auto curr_level_inc = 1UL << (rt_entry_shift * (tree_->order - depth - 1));
-    current_index++;
-    current_location = (current_location + curr_level_inc) & -curr_level_inc;
+    move_index();
 
     while (current && current_location <= end)
     {
         DPRINTF("current %p, curidx %lx, tabidx %x, end %lx, depth %d\n", current, current_location,
                 current_index, end, depth);
         DPRINTF("tree order %d\n", tree_->order);
-        const unsigned long level_increment = 1UL << (rt_entry_shift * (tree_->order - depth - 1));
 
         if (current_index == rt_nr_entries)
         {
@@ -430,10 +455,10 @@ void radix_tree::cursor::advance()
             continue;
         }
 
-        auto entry = current->entries[current_index];
-
-        if (entry)
+        if (current->check_mark(mark, current_index))
         {
+            auto entry = current->entries[current_index];
+            DCHECK(entry != 0);
             DPRINTF("Entry found\n");
             // Great, we found an entry.
             if (depth == tree_->order - 1)
@@ -448,22 +473,9 @@ void radix_tree::cursor::advance()
             continue;
         }
 
-        // Advance a single position in the current table
-        current_index++;
-        // The new location will be a level_increment aligned index. Note that we always align
-        // up, hence + level_increment (instead of level_increment - 1 as in a normal ALIGN_TO).
+        // Advance positions in the current table
         DPRINTF("level inc for depth %d: %lx\n", depth, level_increment);
-        const auto next = (current_location + level_increment) & -level_increment;
-
-        if (next < current_location)
-        {
-            // Ooops, we have overflowed when calculating this index. This means we've ran out
-            // of table.
-            current = nullptr;
-            return;
-        }
-
-        current_location = next;
+        move_index();
     }
 }
 
@@ -474,6 +486,205 @@ void radix_tree::cursor::store(rt_entry_t new_val)
     // TODO: If 0, free? We need to keep a counter of filled entries instead of scanning the whole
     // table. We have a bunch of space we should use for XA marks, etc due to the slab allocator's
     // allocation properties.
+
+    // Note: we do not need to set here, because if the cursor is pointing at an entry, it must mean
+    // it exists.
+    if (!new_val)
+        clear_all_tags(current, current_index);
+}
+
+bool radix_tree_node::mark_empty(unsigned int mark)
+{
+    for (unsigned int i = 0; i < radix_tree_node::marks_nr_entries; i++)
+    {
+        if (marks[mark][i])
+            return false;
+    }
+
+    return true;
+}
+
+/**
+ * @brief Given a table and the index in that table, propagate a tag up the tree
+ *
+ * @param table Tree node
+ * @param tabindex Index in the table
+ * @param mark Mark to propagate
+ * @param set True if we should set, else unset
+ */
+void radix_tree::propagate_tag(radix_tree_node *table, unsigned int tabindex, unsigned int mark,
+                               bool set)
+{
+    // We can't set a tag on an empty entry
+    if (set && !table->entries[tabindex])
+        return;
+    static constexpr int bits_per_long = sizeof(unsigned long) * 8;
+
+    unsigned long index = tabindex;
+
+    while (table)
+    {
+        const unsigned int marks_index = index / bits_per_long;
+        const unsigned int marks_bit = index % bits_per_long;
+
+        if (set)
+        {
+            table->marks[mark][marks_index] |= 1UL << marks_bit;
+        }
+        else
+        {
+            table->marks[mark][marks_index] &= ~(1UL << marks_bit);
+
+            // If the marks for this node aren't empty, don't go up the tree
+            if (!table->mark_empty(mark))
+                break;
+        }
+
+        index = table->offset;
+        table = table->parent;
+    }
+}
+
+/**
+ * @brief Given a table and the index in that table, clear the tags and propagate them up the
+ * tree.
+ * Supposed to be used when clearing entries.
+ *
+ * @param table Tree node
+ * @param tabindex Index in the table
+ */
+void radix_tree::clear_all_tags(radix_tree_node *table, unsigned int tabindex)
+{
+    static constexpr int bits_per_long = sizeof(unsigned long) * 8;
+
+    unsigned long index = tabindex;
+    /* Algorithm: we keep a bitmap of bits that are supposed to get cleared. At the beginning, it's
+     * all-1s. As we go up the tree, we may find that some marks get completely emptied, others do
+     * not. If a mark is not empty, we clear it from the bitmask so we don't try to erroneously
+     * clear that up the tree.
+     */
+    u8 cleared_bits = (1U << radix::nr_marks) - 1;
+
+    while (table)
+    {
+        const unsigned int marks_index = index / bits_per_long;
+        const unsigned int marks_bit = index % bits_per_long;
+
+        for (unsigned int i = 0, j = cleared_bits; i < radix::nr_marks && j != 0; i++, j >>= 1)
+        {
+            // If the bit is unset, skip clearing this.
+            if (!(j & 1))
+                continue;
+            table->marks[i][marks_index] &= ~(1UL << marks_bit);
+            if (!table->mark_empty(i))
+            {
+                cleared_bits &= ~(1U << i);
+            }
+        }
+
+        if (cleared_bits == 0)
+        {
+            // No more bits to clear up the tree, break
+            break;
+        }
+
+        index = table->offset;
+        table = table->parent;
+    }
+}
+/**
+ * @brief Get the table entry for a given index
+ *
+ * @param index Radix tree index
+ * @param table Pointer to a pointer to a table. Gets filled on success.
+ * @param tabindex Pointer to a table index. Gets filled on success
+ * @return True if we got the entry, else false.
+ */
+bool radix_tree::get_table_entry(unsigned long index, radix_tree_node **table,
+                                 unsigned int *tabindex)
+{
+    unsigned int indices[rt_max_order];
+
+    for (unsigned int i = 0; i < rt_max_order; i++)
+    {
+        indices[i] = (index >> (i * rt_entry_shift)) & rt_entry_mask;
+    }
+
+    int max_order_set = 0;
+
+    for (unsigned int i = 0; i < rt_max_order; i++)
+    {
+        if (indices[i])
+            max_order_set = i + 1;
+    }
+
+    if (index == 0)
+    {
+        // Nothing is set, but we still need the next order
+        max_order_set++;
+    }
+
+    // If max_order_set > order, there's certainly no entry for us.
+    if (max_order_set > order)
+        return false;
+
+    radix_tree_node *tab = tree;
+
+    for (unsigned int i = order - 1; i != 0; i--)
+    {
+        auto index = indices[i];
+        rt_entry_t entry = tab->entries[index];
+        DPRINTF("Going to index %u\n", indices[i]);
+        if (!entry)
+            return false;
+
+        tab = (radix_tree_node *) entry;
+    }
+
+    *table = tab;
+    *tabindex = indices[0];
+
+    return true;
+}
+
+/**
+ * @brief Set a mark on an index
+ *
+ * @param index Index to mark
+ * @param mark The mark to set
+ */
+void radix_tree::set_mark(unsigned long index, unsigned int mark)
+{
+    radix_tree_node *table;
+    unsigned int tabindex;
+
+    // Note: If the table entry does not exist, or the entry is NULL, just return.
+    if (!get_table_entry(index, &table, &tabindex))
+        return;
+    if (!table->entries[tabindex])
+        return;
+
+    propagate_tag(table, tabindex, mark, true);
+}
+
+/**
+ * @brief Clear a mark on an index
+ *
+ * @param index Index to mark
+ * @param mark The mark to clear
+ */
+void radix_tree::clear_mark(unsigned long index, unsigned int mark)
+{
+    radix_tree_node *table;
+    unsigned int tabindex;
+
+    // Note: If the table entry does not exist, or the entry is NULL, just return.
+    if (!get_table_entry(index, &table, &tabindex))
+        return;
+    if (!table->entries[tabindex])
+        return;
+
+    propagate_tag(table, tabindex, mark, false);
 }
 
 #ifdef CONFIG_KUNIT
@@ -588,6 +799,117 @@ TEST(radix, sixteen_mb)
         DCHECK(off < 4096);
         return true;
     });
+}
+
+TEST(radix, check_present_tag_works)
+{
+    // Let's test if the present tagging works and is getting propagated up the tree
+    // To test these properties, we snoop the marks array in each node
+    // Note: We take advantage of certain current properties to make this test work atm.
+    // The main one relies on store(0) not freeing tables.
+    // We also more or less assume how the radix tree will look like and expand, but
+    // this is not so serious as it relies on main concepts of a radix tree.
+
+    radix_tree tree;
+
+    // Test 1: Entry at the first level
+    ASSERT_EQ(0, tree.store(1, 0x100));
+
+    radix_tree_node *tab;
+    unsigned int index;
+    ASSERT_TRUE(tree.get_table_entry(1, &tab, &index));
+    ASSERT_TRUE(tab->check_mark(RA_MARK_PRESENT, index));
+
+    // Now let's force a second level to appear. Note that the top level should have the mark set as
+    // well now, even after expanding the tree.
+    ASSERT_EQ(0, tree.store(radix::rt_nr_entries, 0x100));
+    ASSERT_NONNULL(tab->parent);
+    EXPECT_TRUE(tab->parent->check_mark(RA_MARK_PRESENT, tab->offset));
+
+    // Now check the radix::rt_nr_entries's present, plus the upper level too
+    ASSERT_TRUE(tree.get_table_entry(radix::rt_nr_entries, &tab, &index));
+    EXPECT_TRUE(tab->check_mark(RA_MARK_PRESENT, index));
+    EXPECT_TRUE(tab->parent->check_mark(RA_MARK_PRESENT, tab->offset));
+
+    // Now let's clear the entry and verify that the mark will be unset and properly propagated up
+    // the tree.
+    const auto upper_level = tab->parent;
+    const auto table_index = tab->offset;
+    ASSERT_EQ(0, tree.store(radix::rt_nr_entries, 0));
+    EXPECT_FALSE(upper_level->check_mark(RA_MARK_PRESENT, table_index));
+
+    // Now let's test that the tag does not get deleted accidentally if we clear an entry on a table
+    // that still has marks.
+    ASSERT_EQ(0, tree.store(0, 0x100));
+    ASSERT_TRUE(tree.get_table_entry(0, &tab, &index));
+    EXPECT_TRUE(tab->check_mark(RA_MARK_PRESENT, index));
+    ASSERT_EQ(0, tree.store(1, 0));
+    EXPECT_FALSE(tab->check_mark(RA_MARK_PRESENT, 1));
+    EXPECT_TRUE(upper_level->check_mark(RA_MARK_PRESENT, 0));
+
+    // Now clear the last entry, we should expect the mark to clear now
+    ASSERT_EQ(0, tree.store(0, 0));
+    EXPECT_FALSE(upper_level->check_mark(RA_MARK_PRESENT, 0));
+    EXPECT_TRUE(upper_level->mark_empty(RA_MARK_PRESENT));
+}
+
+TEST(radix, mark_traversal)
+{
+    // Test that traversing a radix tree based on marks works properly.
+    radix_tree tree;
+    tree.store(0, 0x100);
+    tree.store(10, 0x100100);
+    tree.store(0x401, 0x10000);
+    tree.store(0xffffffffffffffff, 0x10000);
+
+    auto out0 = tree.get(10);
+    auto out1 = tree.get(0x401);
+    auto out2 = tree.get(0xffffffffffffffff);
+    ASSERT_TRUE(out0.has_value());
+    ASSERT_TRUE(out1.has_value());
+    ASSERT_TRUE(out2.has_value());
+
+    tree.set_mark(10, RA_MARK_0);
+    tree.set_mark(0xffffffffffffffff, RA_MARK_0);
+    tree.set_mark(0, RA_MARK_1);
+
+    auto cursor = radix_tree::cursor::from_range_on_marks(&tree, RA_MARK_0, 0);
+
+    ASSERT_FALSE(cursor.is_end());
+    ASSERT_EQ(10ul, cursor.current_idx());
+    ASSERT_EQ(0x100100ul, cursor.get());
+    cursor.advance();
+    ASSERT_FALSE(cursor.is_end());
+    ASSERT_EQ(0xfffffffffffffffful, cursor.current_idx());
+    ASSERT_EQ(0x10000ul, cursor.get());
+    cursor.advance();
+    ASSERT_TRUE(cursor.is_end());
+
+    // Clear all entries with mark 0 and check that the iterator is empty
+    tree.store(10, 0);
+    tree.store(0xffffffffffffffff, 0);
+
+    cursor = radix_tree::cursor::from_range_on_marks(&tree, RA_MARK_0, 0);
+
+    ASSERT_TRUE(cursor.is_end());
+}
+
+TEST(radix, set_mark_clear_mark_works)
+{
+    radix_tree tree;
+    tree.store(0, 0x100);
+    tree.store(10, 0x100100);
+    tree.store(0x401, 0x10000);
+    tree.store(0xffffffffffffffff, 0x10000);
+
+    tree.set_mark(10, RA_MARK_0);
+    auto cursor = radix_tree::cursor::from_range_on_marks(&tree, RA_MARK_0, 0);
+
+    ASSERT_FALSE(cursor.is_end());
+    tree.clear_mark(10, RA_MARK_0);
+    cursor = radix_tree::cursor::from_range_on_marks(&tree, RA_MARK_0, 0);
+
+    ASSERT_TRUE(cursor.is_end());
 }
 
 #endif
