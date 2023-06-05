@@ -37,6 +37,8 @@ void test_register(onx::test* t);
 
 #define KUNIT_TEST_NAME(testsuite, name) __onyx_test_##testsuite##_##name
 
+#define FRIEND_TEST(testsuite, name) friend struct KUNIT_TEST_NAME(testsuite, name)
+
 #define TEST(test_suite_name, name)                                         \
     static struct KUNIT_TEST_NAME(test_suite_name, name) : public onx::test \
     {                                                                       \
