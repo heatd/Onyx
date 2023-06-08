@@ -133,8 +133,8 @@ int kcov_init_trace(unsigned long nr_elems, struct file *f)
         return -EINVAL;
 
     // We use a vmalloc region and set up a VMO for it. This VMO is then mmap'd.
-    auto buffer =
-        (unsigned long *) vmalloc(vm_size_to_pages(size), VM_TYPE_REGULAR, VM_READ | VM_WRITE);
+    auto buffer = (unsigned long *) vmalloc(vm_size_to_pages(size), VM_TYPE_REGULAR,
+                                            VM_READ | VM_WRITE, GFP_KERNEL);
 
     if (!buffer)
         return -ENOMEM;

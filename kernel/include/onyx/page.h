@@ -158,13 +158,24 @@ void page_init(size_t memory_size, unsigned long maxpfn);
 
 unsigned int page_hash(uintptr_t p);
 struct page *phys_to_page(uintptr_t phys);
+
+/**
+ * @brief Retrieve the struct page from a physical address
+ * This may fail if phys > maxpfn
+ * @param phys Physical address
+ * @return Struct page, or NULL if > maxpfn
+ */
+struct page *phys_to_page_mayfail(uintptr_t phys);
 struct page *page_add_page(void *paddr);
 struct page *page_add_page_late(void *paddr);
 
-#define PAGE_ALLOC_CONTIGUOUS     (1 << 0)
-#define PAGE_ALLOC_NO_ZERO        (1 << 1)
-#define PAGE_ALLOC_4GB_LIMIT      (1 << 2)
-#define PAGE_ALLOC_INTERNAL_DEBUG (1 << 3)
+#define PAGE_ALLOC_CONTIGUOUS          (1 << 0)
+#define PAGE_ALLOC_NO_ZERO             (1 << 1)
+#define PAGE_ALLOC_4GB_LIMIT           (1 << 2)
+#define PAGE_ALLOC_INTERNAL_DEBUG      (1 << 3)
+#define PAGE_ALLOC_NO_SANITIZER_SHADOW (1 << 4)
+
+#define GFP_KERNEL 0
 
 static inline bool __page_should_zero(unsigned long flags)
 {

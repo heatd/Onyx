@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -170,6 +170,7 @@ extern "C" void thread_finish_destruction(void *___thread)
 thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
 {
     thread *new_thread = new thread;
+    uintptr_t *thr_stack_alloc = nullptr;
 
     if (!new_thread)
         return NULL;
@@ -211,9 +212,10 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
 
     new_thread->refcount = 1;
 
-    new_thread->kernel_stack =
-        static_cast<uintptr_t *>(vmalloc(pages, VM_TYPE_STACK, VM_READ | VM_WRITE));
+    thr_stack_alloc =
+        static_cast<uintptr_t *>(vmalloc(pages, VM_TYPE_STACK, VM_READ | VM_WRITE, GFP_KERNEL));
 
+    new_thread->kernel_stack = thr_stack_alloc;
     if (!new_thread->kernel_stack)
     {
         goto error;

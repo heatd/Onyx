@@ -397,7 +397,7 @@ NO_ASAN static struct slab *kmem_cache_create_slab(struct slab_cache *cache, uns
     }
     else
     {
-        start = (char *) vmalloc(slab_size >> PAGE_SHIFT, VM_TYPE_HEAP, VM_READ | VM_WRITE);
+        start = (char *) vmalloc(slab_size >> PAGE_SHIFT, VM_TYPE_HEAP, VM_READ | VM_WRITE, flags);
         if (!start)
             return nullptr;
     }

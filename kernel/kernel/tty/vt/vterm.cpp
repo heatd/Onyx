@@ -12,8 +12,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <uapi/ioctls.h>
-#include <onyx/types.h>
 
 #include <onyx/dpc.h>
 #include <onyx/font.h>
@@ -24,13 +22,17 @@
 #include <onyx/input/keys.h>
 #include <onyx/input/state.h>
 #include <onyx/intrinsics.h>
+#include <onyx/page.h>
 #include <onyx/scheduler.h>
 #include <onyx/semaphore.h>
 #include <onyx/serial.h>
 #include <onyx/thread.h>
 #include <onyx/tty.h>
+#include <onyx/types.h>
 #include <onyx/utf8.h>
 #include <onyx/vm.h>
+
+#include <uapi/ioctls.h>
 
 #include <onyx/utility.hpp>
 
@@ -1374,7 +1376,7 @@ void vterm_init(struct tty *tty)
     vt->fb = fb;
     vt->cells =
         (console_cell *) vmalloc(vm_size_to_pages(vt->columns * vt->rows * sizeof(*vt->cells)),
-                                 VM_TYPE_REGULAR, VM_READ | VM_WRITE);
+                                 VM_TYPE_REGULAR, VM_READ | VM_WRITE, GFP_KERNEL);
     assert(vt->cells != NULL);
 
     vt->fg = default_fg;
