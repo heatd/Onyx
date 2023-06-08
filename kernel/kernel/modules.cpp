@@ -241,7 +241,7 @@ void *module_allocate_pages(size_t size, int prot)
 {
     size_t pages = vm_size_to_pages(size);
 
-    void *p = vmalloc(pages, VM_TYPE_MODULE, prot);
+    void *p = vmalloc(pages, VM_TYPE_MODULE, prot, GFP_KERNEL);
     return p;
 }
 

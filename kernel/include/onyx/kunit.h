@@ -28,7 +28,7 @@ struct test
     constexpr test(const char* name) : name_{name}
     {
     }
-    virtual void do_test();
+    virtual void do_test() = 0;
 };
 
 }; // namespace onx

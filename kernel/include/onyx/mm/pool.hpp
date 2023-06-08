@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #ifndef _ONYX_MM_POOL_HPP
@@ -310,7 +312,7 @@ public:
         seg->~memory_pool_segment<T, using_vm>();
     }
 
-    NO_ASAN bool expand_pool()
+    NO_ASAN bool expand_pool(unsigned int gfp_flags)
     {
         // std::cout << "Expanding pool.\n";
         auto allocation_size = memory_pool_segment<T, using_vm>::memory_pool_size();
@@ -320,8 +322,8 @@ public:
 
         if constexpr (using_vm)
         {
-            void *vmalloc_seg =
-                vmalloc(allocation_size >> PAGE_SHIFT, VM_TYPE_REGULAR, VM_READ | VM_WRITE);
+            void *vmalloc_seg = vmalloc(allocation_size >> PAGE_SHIFT, VM_TYPE_REGULAR,
+                                        VM_READ | VM_WRITE, gfp_flags);
             if (!vmalloc_seg)
                 return false;
             seg.set_vmalloc_seg(vmalloc_seg);
@@ -329,8 +331,9 @@ public:
         }
         else
         {
-            struct page *pages = alloc_pages(allocation_size >> PAGE_SHIFT,
-                                             PAGE_ALLOC_NO_ZERO | PAGE_ALLOC_CONTIGUOUS);
+            struct page *pages =
+                alloc_pages(allocation_size >> PAGE_SHIFT,
+                            PAGE_ALLOC_NO_ZERO | PAGE_ALLOC_CONTIGUOUS | gfp_flags);
             if (!pages)
                 return false;
             seg.set_pages(pages);
@@ -457,13 +460,13 @@ public:
     }
 
     NO_ASAN
-    T *allocate()
+    T *allocate(unsigned int gfp_flags = GFP_KERNEL)
     {
         scoped_lock<spinlock, usable_onirq> guard{lock};
 
         while (!free_chunk_head)
         {
-            if (!expand_pool())
+            if (!expand_pool(gfp_flags))
             {
                 // std::cout << "mmap failed\n";
                 return nullptr;

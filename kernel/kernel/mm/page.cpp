@@ -51,6 +51,20 @@ struct page *phys_to_page(uintptr_t phys)
     return page_map + pfn - base_pfn;
 }
 
+/**
+ * @brief Retrieve the struct page from a physical address
+ * This may fail if phys > maxpfn
+ * @param phys Physical address
+ * @return Struct page, or NULL if > maxpfn
+ */
+struct page *phys_to_page_mayfail(uintptr_t phys)
+{
+    unsigned long pfn = phys >> PAGE_SHIFT;
+    if (pfn > maxpfn)
+        return nullptr;
+    return page_map + pfn - base_pfn;
+}
+
 extern unsigned char kernel_start;
 extern unsigned char kernel_end;
 uint64_t kernel_phys_offset = 0;

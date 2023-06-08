@@ -351,9 +351,10 @@ void *vm_get_fallback_pgd();
  * @param pages The number of pages.
  * @param type The type of allocation.
  * @param perms The permissions on the allocation.
+ * @param gfp_flags GFP flags
  * @return A pointer to the new allocation, or NULL with errno set on failure.
  */
-void *vmalloc(size_t pages, int type, int perms);
+void *vmalloc(size_t pages, int type, int perms, unsigned int gfp_flags);
 
 /**
  * @brief Frees a region of memory previously allocated by vmalloc.
