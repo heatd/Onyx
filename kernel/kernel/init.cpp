@@ -226,6 +226,8 @@ extern "C" void kernel_main(void)
     if (sched_init())
         panic("sched: failed to initialize!");
 
+    irq_enable();
+
     /* Initalize multitasking */
     new_thread = sched_create_thread(kernel_multitasking, 1, nullptr);
 
@@ -233,8 +235,6 @@ extern "C" void kernel_main(void)
 
     /* Start the new thread */
     sched_start_thread(new_thread);
-
-    irq_enable();
 
     sched_transition_to_idle();
 }

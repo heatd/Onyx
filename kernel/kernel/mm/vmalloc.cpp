@@ -8,6 +8,7 @@
 
 #include <lib/binary_search_tree.h>
 
+#include <onyx/ktsan.h>
 #include <onyx/mm/kasan.h>
 #include <onyx/spinlock.h>
 #include <onyx/vm.h>
@@ -178,6 +179,12 @@ static struct vmalloc_region *vmalloc_insert_region(struct vmalloc_tree *tree, u
  */
 void *vmalloc(size_t pages, int type, int perms, unsigned int gfp_flags)
 {
+    if (gfp_flags & GFP_HACK_VMALLOC_TRY_LOCK)
+    {
+        if (spin_lock_held(&vmalloc_tree.lock))
+            return errno = ENOMEM, nullptr;
+    }
+
     scoped_lock g{vmalloc_tree.lock};
     auto start = vmalloc_allocate_base(&vmalloc_tree, 0, pages << PAGE_SHIFT);
 
@@ -202,6 +209,15 @@ void *vmalloc(size_t pages, int type, int perms, unsigned int gfp_flags)
     }
 #endif
 
+#ifdef CONFIG_KTSAN
+    // Ok, this is annoying. KTSAN internals require vmalloc, so alloc_pages would call
+    // kt_alloc_pages, which would call vmalloc, and we deadlock.
+    // The solution is to set PAGE_ALLOC_NO_SANITIZER_SHADOW so alloc_pages does not try to allocate
+    // and set a shadow, and then once we've allocated and mapped everything, we drop the vmalloc
+    // lock and attempt to get some shadow.
+    bool defer_shadow = !(gfp_flags & PAGE_ALLOC_NO_SANITIZER_SHADOW);
+    gfp_flags |= PAGE_ALLOC_NO_SANITIZER_SHADOW;
+#endif
     auto pgs = alloc_pages(pages, gfp_flags);
     if (!pgs)
     {
@@ -227,6 +243,14 @@ void *vmalloc(size_t pages, int type, int perms, unsigned int gfp_flags)
 
     vmal_reg->backing_pgs = pgs;
 
+#ifdef CONFIG_KTSAN
+    // Drop the lock explicitly, and try to map the shadow on these pages.
+    // Note: There should be no race here, even though we're touching pgs, since the caller
+    // has not seen this allocation yet, so it's virtually unreachable from vfree.
+    g.unlock();
+    if (defer_shadow)
+        kt_alloc_pages(pgs, pages);
+#endif
     return (void *) vmal_reg->addr;
 }
 

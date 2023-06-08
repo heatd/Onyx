@@ -37,6 +37,8 @@ struct kcov_data;
 #define THREAD_STRUCT_CANARY 0xcacacacafdfddead
 #define THREAD_DEAD_CANARY   0xdeadbeefbeefdead
 
+struct kt_thread;
+
 using thread_t = struct thread
 {
     unsigned long refcount;
@@ -73,6 +75,10 @@ using thread_t = struct thread
 
 #ifdef CONFIG_KCOV
     struct kcov_data *kcov_data{nullptr};
+#endif
+
+#ifdef CONFIG_KTSAN
+    kt_thread *ktsan_thr{nullptr};
 #endif
     /* And arch dependent stuff in this ifdef */
 #ifdef __x86_64__

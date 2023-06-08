@@ -10,6 +10,7 @@
 
 #include <onyx/compiler.h>
 #include <onyx/cpu.h>
+#include <onyx/ktsan.h>
 #include <onyx/scheduler.h>
 #include <onyx/spinlock.h>
 #include <onyx/task_switching.h>
@@ -19,6 +20,7 @@ __always_inline void post_lock_actions(struct spinlock *lock)
 #ifdef CONFIG_SPINLOCK_DEBUG
     lock->holder = (unsigned long) __builtin_return_address(1);
 #endif
+    kt_mutex_post_lock(lock);
 }
 
 __always_inline void post_release_actions(struct spinlock *lock)
@@ -26,16 +28,21 @@ __always_inline void post_release_actions(struct spinlock *lock)
 #ifdef CONFIG_SPINLOCK_DEBUG
     lock->holder = 0xDEADBEEFDEADBEEF;
 #endif
+    // kt_mutex_pre_release needs to be called before the lock is released.
+    // However, strangely, post_release_actions is actually pre_release... poor naming
+    // XXX should fix
+    kt_mutex_pre_release(lock);
 }
 
-__always_inline bool spin_lock_fast_path(struct spinlock *lock, raw_spinlock_t cpu_nr_plus_one)
+__always_inline __noktsan bool spin_lock_fast_path(struct spinlock *lock,
+                                                   raw_spinlock_t cpu_nr_plus_one)
 {
     raw_spinlock_t expected_val = 0;
     return __atomic_compare_exchange_n(&lock->lock, &expected_val, cpu_nr_plus_one, false,
                                        __ATOMIC_ACQUIRE, __ATOMIC_RELAXED);
 }
 
-__noinline void spin_lock_slow_path(struct spinlock *lock, raw_spinlock_t what_to_insert)
+__noinline __noktsan void spin_lock_slow_path(struct spinlock *lock, raw_spinlock_t what_to_insert)
 {
     raw_spinlock_t expected_val = 0;
 
@@ -54,7 +61,7 @@ __noinline void spin_lock_slow_path(struct spinlock *lock, raw_spinlock_t what_t
     }
 }
 
-void __spin_lock(struct spinlock *lock)
+__noktsan void __spin_lock(struct spinlock *lock)
 {
     raw_spinlock_t what_to_insert = get_cpu_nr() + 1;
     if (!spin_lock_fast_path(lock, what_to_insert)) [[unlikely]]
@@ -63,7 +70,7 @@ void __spin_lock(struct spinlock *lock)
     post_lock_actions(lock);
 }
 
-void __spin_unlock(struct spinlock *lock)
+__noktsan void __spin_unlock(struct spinlock *lock)
 {
 #ifdef CONFIG_SPINLOCK_DEBUG
     assert(lock->lock > 0);
@@ -74,7 +81,7 @@ void __spin_unlock(struct spinlock *lock)
     __atomic_store_n(&lock->lock, 0, __ATOMIC_RELEASE);
 }
 
-int spin_try_lock(struct spinlock *lock)
+__noktsan int spin_try_lock(struct spinlock *lock)
 {
     sched_disable_preempt();
 

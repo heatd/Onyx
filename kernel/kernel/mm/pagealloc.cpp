@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2022 Pedro Falcato
+ * Copyright (c) 2017 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -18,6 +18,7 @@
 
 #include <onyx/copy.h>
 #include <onyx/heap.h>
+#include <onyx/ktsan.h>
 #include <onyx/page.h>
 #include <onyx/pagecache.h>
 #include <onyx/panic.h>
@@ -289,6 +290,9 @@ struct page *page_node::allocate_pages(size_t nr_pgs, unsigned long flags)
             ptail = p;
         }
     }
+
+    if (!(flags & PAGE_ALLOC_NO_SANITIZER_SHADOW))
+        kt_alloc_pages(plist, nr_pgs);
 
     // printf("alloc pages %lu = %p, %p\n", nr_pgs, page_to_phys(plist),
     // __builtin_return_address(0));

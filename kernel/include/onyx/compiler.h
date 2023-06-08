@@ -166,4 +166,10 @@ inline void write_once(const Type& t, Type val)
 #define __nocov
 #endif
 
+#ifdef CONFIG_KTSAN
+#define __noktsan __attribute__((no_sanitize("thread")))
+#else
+#define __noktsan
+#endif
+
 #endif /* COMPILER_H */

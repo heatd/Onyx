@@ -15,6 +15,7 @@
 #include <onyx/cpu.h>
 #include <onyx/elf.h>
 #include <onyx/fpu.h>
+#include <onyx/ktsan.h>
 #include <onyx/panic.h>
 #include <onyx/percpu.h>
 #include <onyx/process.h>
@@ -237,6 +238,11 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
 
     x86::internal::thread_setup_stack(new_thread, is_user, regs);
 
+    if (kt_create_thread(new_thread) < 0)
+    {
+        goto error;
+    }
+
     new_thread->fs = fs;
 
     thread_append_to_global_list(new_thread);
@@ -254,6 +260,10 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
     return new_thread;
 
 error:
+    if (thr_stack_alloc)
+        vfree(thr_stack_alloc, pages);
+
+    kt_free_thread(new_thread);
     if (new_thread->fpu_area)
         free(new_thread->fpu_area);
 

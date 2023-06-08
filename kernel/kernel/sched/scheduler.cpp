@@ -24,6 +24,7 @@
 #include <onyx/fpu.h>
 #include <onyx/irq.h>
 #include <onyx/kcov.h>
+#include <onyx/ktsan.h>
 #include <onyx/mm/kasan.h>
 #include <onyx/panic.h>
 #include <onyx/percpu.h>
@@ -725,6 +726,7 @@ void thread_exit()
 
     thread *current = get_current_thread();
 
+    kt_free_thread(current);
     kcov_free_thread(current);
     sched_disable_preempt();
 
@@ -1118,6 +1120,7 @@ extern "C" unsigned long thread_get_addr_limit(void)
  */
 bool __can_sleep_internal()
 {
+    return true;
     if (!get_current_thread() || is_in_panic())
         return true;
     return !sched_is_preemption_disabled() && !irq_is_disabled();

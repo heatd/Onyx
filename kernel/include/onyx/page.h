@@ -84,6 +84,9 @@ struct page
             unsigned long priv;
         };
     };
+#ifdef CONFIG_KTSAN
+    void *shadow;
+#endif
 };
 
 #ifdef CONFIG_BUDDY_ALLOCATOR
@@ -175,7 +178,9 @@ struct page *page_add_page_late(void *paddr);
 #define PAGE_ALLOC_INTERNAL_DEBUG      (1 << 3)
 #define PAGE_ALLOC_NO_SANITIZER_SHADOW (1 << 4)
 
-#define GFP_KERNEL 0
+#define GFP_KERNEL                0
+// XXX Needed for KTSAN, remove ASAP
+#define GFP_HACK_VMALLOC_TRY_LOCK (1 << 5)
 
 static inline bool __page_should_zero(unsigned long flags)
 {

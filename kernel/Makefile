@@ -165,6 +165,19 @@ CFLAGS+=-fno-sanitize=function
 endif
 endif
 
+
+ifeq ($(CONFIG_KTSAN), y)
+CFLAGS+=-fsanitize=thread
+KERNEL_TAGS+=KTSAN
+endif
+
+
+ifeq ($(CONFIG_KTSAN)$(CONFIG_KASAN), yy)
+# We can't have both KTSAN and KASAN enabled...
+# error out
+$(error "KTSAN and KASAN are incompatible with each other, please disable one of them.")
+endif
+
 ifeq ($(CONFIG_RELOCATABLE), y)
 CFLAGS+=-fno-plt -fPIE
 else

@@ -112,7 +112,9 @@ unsigned long allocated_page_tables = 0;
 
 PML *alloc_pt(void)
 {
-    struct page *p = alloc_page(0);
+    // TODO: We currently can't sanitize this with KTSAN as it will try to map, and therefore
+    // recurse into this code, deadlocking
+    struct page *p = alloc_page(GFP_KERNEL | PAGE_ALLOC_NO_SANITIZER_SHADOW);
     if (p)
     {
         __atomic_add_fetch(&allocated_page_tables, 1, __ATOMIC_RELAXED);
