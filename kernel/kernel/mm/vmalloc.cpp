@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2022 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -131,12 +131,13 @@ static memory_pool<vmalloc_region> pool;
  * @param start Start of the region
  * @param pages Number of pages of the region
  * @param perms Permissions
+ * @param gfp_flags GFP flags
  * @return Pointer to a vmalloc_region, or nullptr
  */
-struct vmalloc_region *vmalloc_insert_region(struct vmalloc_tree *tree, unsigned long start,
-                                             size_t pages, int perms)
+static struct vmalloc_region *vmalloc_insert_region(struct vmalloc_tree *tree, unsigned long start,
+                                                    size_t pages, int perms, unsigned int gfp_flags)
 {
-    auto reg = pool.allocate();
+    auto reg = pool.allocate(gfp_flags);
     if (!reg)
         return nullptr;
     reg->addr = start;
@@ -172,9 +173,10 @@ struct vmalloc_region *vmalloc_insert_region(struct vmalloc_tree *tree, unsigned
  * @param pages The number of pages.
  * @param type The type of allocation.
  * @param perms The permissions on the allocation.
+ * @param gfp_flags GFP flags
  * @return A pointer to the new allocation, or NULL with errno set on failure.
  */
-void *vmalloc(size_t pages, int type, int perms)
+void *vmalloc(size_t pages, int type, int perms, unsigned int gfp_flags)
 {
     scoped_lock g{vmalloc_tree.lock};
     auto start = vmalloc_allocate_base(&vmalloc_tree, 0, pages << PAGE_SHIFT);
@@ -182,7 +184,8 @@ void *vmalloc(size_t pages, int type, int perms)
     if (start + (pages << PAGE_SHIFT) > vmalloc_tree.start + vmalloc_tree.length)
         return errno = ENOMEM, nullptr;
 
-    auto vmal_reg = vmalloc_insert_region(&vmalloc_tree, start, pages, perms);
+    auto vmal_reg = vmalloc_insert_region(&vmalloc_tree, start, pages, perms,
+                                          gfp_flags | PAGE_ALLOC_NO_SANITIZER_SHADOW);
     if (!vmal_reg)
         return errno = ENOMEM, nullptr;
 
@@ -199,7 +202,7 @@ void *vmalloc(size_t pages, int type, int perms)
     }
 #endif
 
-    auto pgs = alloc_pages(pages, 0);
+    auto pgs = alloc_pages(pages, gfp_flags);
     if (!pgs)
     {
         delvmr();
@@ -336,7 +339,8 @@ void *mmiomap(void *phys, size_t size, size_t flags)
     if (start + (pages << PAGE_SHIFT) > vmalloc_tree.start + vmalloc_tree.length)
         return errno = ENOMEM, nullptr;
 
-    auto vmal_reg = vmalloc_insert_region(&vmalloc_tree, start, pages, flags);
+    auto vmal_reg = vmalloc_insert_region(&vmalloc_tree, start, pages, flags,
+                                          GFP_KERNEL | PAGE_ALLOC_NO_SANITIZER_SHADOW);
     if (!vmal_reg)
         return errno = ENOMEM, nullptr;
 

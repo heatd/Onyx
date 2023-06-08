@@ -725,7 +725,7 @@ bool ahci_io_queue::init(ahci_hba_memory_regs_t *hba, ahci_port_t *port, ahci_po
         goto error;
 
     /* The fisb is 1024 bytes in size, with 1024 alignment */
-    virtual_fisb = vmalloc(1, VM_TYPE_REGULAR, VM_WRITE | VM_READ);
+    virtual_fisb = vmalloc(1, VM_TYPE_REGULAR, VM_WRITE | VM_READ, GFP_KERNEL);
 
     if (!virtual_fisb)
         goto error;

@@ -128,7 +128,7 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *tp)
     new_thread->refcount = 1;
 
     new_thread->kernel_stack =
-        static_cast<uintptr_t *>(vmalloc(pages, VM_TYPE_STACK, VM_READ | VM_WRITE));
+        static_cast<uintptr_t *>(vmalloc(pages, VM_TYPE_STACK, VM_READ | VM_WRITE, GFP_KERNEL));
 
     if (!new_thread->kernel_stack)
     {

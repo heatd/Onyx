@@ -60,7 +60,7 @@ expected<unique_ptr<decompression_stream>, int> create_decompression_stream(
 
 bool decompress_bytestream::init(size_t len)
 {
-    buf = vmalloc(vm_size_to_pages(len), VM_TYPE_REGULAR, VM_WRITE | VM_READ);
+    buf = vmalloc(vm_size_to_pages(len), VM_TYPE_REGULAR, VM_WRITE | VM_READ, GFP_KERNEL);
     if (!buf)
         return false;
     this->len = len;
