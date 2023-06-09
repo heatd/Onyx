@@ -144,6 +144,9 @@ BOOT_SECTION static void setup_mmu(PML *page_tables, unsigned long phys_base)
     auto lower = (u64 *) (page_tables + 3);
 
     pt->entries[0] = (unsigned long) lower | pt_flags;
+    pt->entries[1] = (unsigned long) (lower + 512) | pt_flags;
+    pt->entries[2] = (unsigned long) (lower + 1024) | pt_flags;
+    pt->entries[3] = (unsigned long) (lower + 1536) | pt_flags;
     pt->entries[PTE_INDEX(KERNEL_VIRTUAL_BASE, 3)] = (unsigned long) next | pt_flags;
 
     for (int i = 0; i < 2048; i++)
