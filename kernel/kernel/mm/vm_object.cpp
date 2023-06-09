@@ -228,15 +228,6 @@ vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page
     return st;
 }
 
-void vmo_rb_delete_func(void *key, void *data)
-{
-    struct page *p = (page *) data;
-
-    // TODO: Memory leak here! We might be a special kind of VMO that needs to free other
-    // structures. A good example of an object like this is inode vmos.
-    free_page(p);
-}
-
 /**
  * @brief Forks the VMO, performing any COW tricks that may be required.
  *
@@ -789,4 +780,19 @@ int vmo_truncate(vm_object *vmo, unsigned long size, unsigned long flags)
     vmo->size = size;
 
     return 0;
+}
+
+vm_object::~vm_object()
+{
+    auto cursor = radix_tree::cursor::from_index(&vm_pages);
+
+    while (!cursor.is_end())
+    {
+        auto page = (struct page *) cursor.get();
+        if (ops && ops->free_page)
+            ops->free_page(this, page);
+        else
+            free_page(page);
+        cursor.advance();
+    }
 }

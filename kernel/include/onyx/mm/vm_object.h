@@ -94,6 +94,7 @@ struct vm_object
     struct vm_object *prev_private{nullptr}, *next_private{nullptr};
 
     vm_object();
+    ~vm_object();
 
     /**
      * @brief Unmaps a single page from every mapping
