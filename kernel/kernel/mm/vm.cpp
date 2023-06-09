@@ -3472,7 +3472,17 @@ void vm_wp_page(struct mm_address_space *mm, void *vaddr)
 void vm_wp_page_for_every_region(page *page, size_t page_off, vm_object *vmo)
 {
     vmo->for_every_mapping([page_off](vm_region *region) -> bool {
-        scoped_mutex g{region->mm->vm_lock};
+        /* XXX Yuck. We can be called from such stacks such as ~mm_address_space() -> dentry_destroy
+         * -> inode_release -> inode_sync -> pagecache_set_dirty -> vm_wp_page_for_every_region.
+         * SHOULDFIX. In this case, it's no problem since we already hold the lock.
+         */
+        bool needs_release = false;
+        if (!mutex_holds_lock(&region->mm->vm_lock))
+        {
+            needs_release = true;
+            mutex_lock(&region->mm->vm_lock);
+        }
+
         const size_t mapping_off = (size_t) region->offset;
         const size_t mapping_size = region->pages << PAGE_SHIFT;
 
@@ -3482,6 +3492,9 @@ void vm_wp_page_for_every_region(page *page, size_t page_off, vm_object *vmo)
             const unsigned long vaddr = region->base + (page_off - mapping_off);
             vm_wp_page(region->mm, (void *) vaddr);
         }
+
+        if (needs_release)
+            mutex_unlock(&region->mm->vm_lock);
 
         return true;
     });
