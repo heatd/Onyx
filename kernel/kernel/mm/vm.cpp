@@ -3457,9 +3457,8 @@ struct page *vm_commit_page(void *page)
 
 void vm_wp_page(struct mm_address_space *mm, void *vaddr)
 {
-    assert(paging_write_protect(vaddr, mm) == true);
-
-    mmu_invalidate_range((unsigned long) vaddr, 1, mm);
+    if (paging_write_protect(vaddr, mm))
+        mmu_invalidate_range((unsigned long) vaddr, 1, mm);
 }
 
 /**
