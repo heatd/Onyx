@@ -17,6 +17,7 @@
 #include <onyx/process.h>
 #include <onyx/smp.h>
 #include <onyx/vm.h>
+#include <onyx/x86/control_regs.h>
 #include <onyx/x86/pat.h>
 
 #include <platform/kasan.h>
@@ -726,9 +727,32 @@ void paging_protect_kernel(void)
 
 unsigned long total_shootdowns = 0;
 
+static void __native_tlb_invalidate_global()
+{
+    // Disable IRQs, toggle CR4, enable IRQs is the sequence
+    // we need to safely flush all global mappings
+    const auto flags = irq_save_and_disable();
+
+    auto old = x86_read_cr4();
+    x86_write_cr4(old & ~CR4_PGE);
+    x86_write_cr4(old);
+
+    irq_restore(flags);
+}
+
 void paging_invalidate(void *page, size_t pages)
 {
     uintptr_t p = (uintptr_t) page;
+
+    // Determined from the default linux /sys/kernel/debug/x86/tlb_single_page_flush_ceiling
+    if (pages > 32)
+    {
+        if ((unsigned long) page >= VM_HIGHER_HALF)
+            __native_tlb_invalidate_global();
+        else
+            __native_tlb_invalidate_all();
+        return;
+    }
 
     for (size_t i = 0; i < pages; i++, p += PAGE_SIZE)
     {
