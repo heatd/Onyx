@@ -137,7 +137,7 @@ bool network_vdev::setup_rx()
     auto &vq = virtqueue_list[network_receiveq];
     auto qsize = vq->get_queue_size();
 
-    rx_pages = alloc_pages(vm_size_to_pages(rx_buf_size * qsize), PAGE_ALLOC_NO_ZERO);
+    rx_pages = alloc_page_list(vm_size_to_pages(rx_buf_size * qsize), PAGE_ALLOC_NO_ZERO);
     if (!rx_pages)
     {
         return false;
@@ -327,7 +327,7 @@ bool network_vdev::perform_subsystem_initialization()
 network_vdev::~network_vdev()
 {
     if (rx_pages)
-        free_pages(rx_pages);
+        free_page_list(rx_pages);
 }
 
 unique_ptr<vdev> create_network_device(pci::pci_device *dev)

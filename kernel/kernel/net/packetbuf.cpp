@@ -46,14 +46,14 @@ bool packetbuf::allocate_space(size_t length)
 
     auto nr_pages = vm_size_to_pages(length);
 
-    page *pages = alloc_pages(nr_pages, PAGE_ALLOC_NO_ZERO);
+    page *pages = alloc_page_list(nr_pages, PAGE_ALLOC_NO_ZERO);
     if (!pages)
         return false;
 
     vmo = vmo_create(length, nullptr);
     if (!vmo)
     {
-        free_pages(pages);
+        free_page_list(pages);
         return false;
     }
 
@@ -65,7 +65,7 @@ bool packetbuf::allocate_space(size_t length)
 
         if (vmo->insert_page_unlocked(i << PAGE_SHIFT, pages) < 0)
         {
-            free_pages(pages_head);
+            free_page_list(pages_head);
             vmo_destroy(vmo);
             return false;
         }

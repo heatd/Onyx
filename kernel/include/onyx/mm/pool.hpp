@@ -332,7 +332,7 @@ public:
         else
         {
             struct page *pages =
-                alloc_pages(allocation_size >> PAGE_SHIFT,
+                alloc_pages(pages2order(allocation_size >> PAGE_SHIFT),
                             PAGE_ALLOC_NO_ZERO | PAGE_ALLOC_CONTIGUOUS | gfp_flags);
             if (!pages)
                 return false;

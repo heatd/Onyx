@@ -446,7 +446,7 @@ void vm_late_init()
 struct page *vm_map_range(void *range, size_t nr_pages, uint64_t flags)
 {
     const unsigned long mem = (unsigned long) range;
-    struct page *pages = alloc_pages(nr_pages, 0);
+    struct page *pages = alloc_page_list(nr_pages, 0);
     struct page *p = pages;
     if (!pages)
         goto out_of_mem;
@@ -467,7 +467,7 @@ struct page *vm_map_range(void *range, size_t nr_pages, uint64_t flags)
 
 out_of_mem:
     if (pages)
-        free_pages(pages);
+        free_page_list(pages);
     return nullptr;
 }
 

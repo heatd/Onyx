@@ -374,7 +374,6 @@ bool file_is_executable(struct file *exec_file)
 
     return true;
 }
-extern size_t used_pages;
 
 int sys_execve(const char *p, const char **argv, const char **envp)
 {
