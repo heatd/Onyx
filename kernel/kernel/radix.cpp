@@ -11,6 +11,8 @@
 #include <stdlib.h>
 
 #include <onyx/kunit.h>
+#include <onyx/mm/slab.h>
+#include <onyx/page.h>
 #include <onyx/radix.h>
 #include <onyx/types.h>
 #include <onyx/vm.h>
@@ -45,9 +47,22 @@ static bool should_print_debug = false;
 #define DPRINTF(...)
 #endif
 
+static slab_cache *node_cache;
+
+__init static void radix_init_slab()
+{
+    node_cache = kmem_cache_create("radix_tree_node", sizeof(radix_tree_node), 0,
+                                   KMEM_CACHE_HWALIGN, nullptr);
+    CHECK(node_cache != nullptr);
+}
+
 radix_tree_node *radix_tree::allocate_table()
 {
-    return (radix_tree_node *) zalloc(sizeof(radix_tree_node));
+    auto node = kmem_cache_alloc(node_cache, GFP_KERNEL);
+    if (!node) [[unlikely]]
+        return nullptr;
+    memset(node, 0, sizeof(radix_tree_node));
+    return (radix_tree_node *) node;
 }
 
 int radix_tree::grow_radix_tree(int to_order)
@@ -202,7 +217,7 @@ void radix_tree::clear_level(int level, radix_tree_node *table)
         table->entries[i] = 0;
     }
 
-    free(table);
+    kmem_cache_free(node_cache, table);
 }
 
 /**
@@ -285,7 +300,7 @@ out_err:
         clear_level(level + 1, entry);
     }
 
-    free(t);
+    kmem_cache_free(node_cache, t);
 
     return unexpected{-ENOMEM};
 }
@@ -535,7 +550,11 @@ void radix_tree::propagate_tag(radix_tree_node *table, unsigned int tabindex, un
 
         if (set)
         {
-            table->marks[mark][marks_index] |= 1UL << marks_bit;
+            const unsigned long mask = 1UL << marks_bit;
+            // If already set, break here
+            if (table->marks[mark][marks_index] & mask)
+                break;
+            table->marks[mark][marks_index] |= mask;
         }
         else
         {
