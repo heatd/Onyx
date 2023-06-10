@@ -322,7 +322,7 @@ int e1000_init_rx(struct e1000_device *dev)
 {
     int st = 0;
     size_t needed_pages = vm_size_to_pages(sizeof(struct e1000_rx_desc) * number_rx_desc);
-    struct page *rx_pages = alloc_pages(needed_pages, PAGE_ALLOC_CONTIGUOUS);
+    struct page *rx_pages = alloc_pages(pages2order(needed_pages), PAGE_ALLOC_CONTIGUOUS);
 
     struct page_frag_alloc_info alloc_info;
     unsigned long rxd_base = 0;
@@ -332,7 +332,7 @@ int e1000_init_rx(struct e1000_device *dev)
         return -ENOMEM;
 
     struct page *rx_buf_pages =
-        alloc_pages(vm_size_to_pages(number_rx_desc * rx_buffer_size), PAGE_ALLOC_NO_ZERO);
+        alloc_page_list(vm_size_to_pages(number_rx_desc * rx_buffer_size), PAGE_ALLOC_NO_ZERO);
     if (!rx_buf_pages)
     {
         st = -ENOMEM;
@@ -342,6 +342,8 @@ int e1000_init_rx(struct e1000_device *dev)
     alloc_info.curr = alloc_info.page_list = rx_buf_pages;
     alloc_info.off = 0;
 
+    // FIXME: Stuff like this forces alloc_pages to chain the individual pages in higher order
+    // allocations
     rxdescs = (e1000_rx_desc *) map_page_list(rx_pages, needed_pages << PAGE_SHIFT,
                                               VM_READ | VM_WRITE | VM_READ);
     if (!rxdescs)
@@ -385,7 +387,7 @@ int e1000_init_rx(struct e1000_device *dev)
     return 0;
 
 error1:
-    free_pages(rx_buf_pages);
+    free_page_list(rx_buf_pages);
 error0:
     free_pages(rx_pages);
     return st;
@@ -400,7 +402,8 @@ int e1000_init_tx(struct e1000_device *dev)
     struct e1000_tx_desc *txdescs = NULL;
     int st = 0;
     size_t needed_pages = vm_size_to_pages(sizeof(struct e1000_tx_desc) * number_tx_desc);
-    struct page *tx_pages = alloc_pages(needed_pages, PAGE_ALLOC_CONTIGUOUS);
+    auto order = pages2order(needed_pages);
+    struct page *tx_pages = alloc_pages(order, PAGE_ALLOC_CONTIGUOUS);
     unsigned long txd_base = 0;
 
     if (!tx_pages)

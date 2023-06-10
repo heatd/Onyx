@@ -202,9 +202,10 @@ void *vmalloc(size_t pages, int type, int perms, unsigned int gfp_flags)
     }
 #endif
 
-    auto pgs = alloc_pages(pages, gfp_flags);
+    auto pgs = alloc_page_list(pages, gfp_flags);
     if (!pgs)
     {
+        halt();
         delvmr();
         return errno = ENOMEM, nullptr;
     }
@@ -216,7 +217,7 @@ void *vmalloc(size_t pages, int type, int perms, unsigned int gfp_flags)
                                    (uint64_t) page_to_phys(it), vmal_reg->perms) != nullptr;
         if (!success)
         {
-            free_pages(pgs);
+            free_page_list(pgs);
             vm_mmu_unmap(&kernel_address_space, (void *) vmal_reg->addr, i);
             delvmr();
             return errno = ENOMEM, nullptr;
@@ -299,7 +300,7 @@ static void __vfree(void *ptr, size_t pages, bool is_mmiounmap)
 
     // First, free the pages, then unmap the memory, then finally unlink it
     if (!is_mmiounmap && reg->backing_pgs)
-        free_pages(reg->backing_pgs);
+        free_page_list(reg->backing_pgs);
 
     vm_mmu_unmap(&kernel_address_space, (void *) reg->addr, reg->pages);
 

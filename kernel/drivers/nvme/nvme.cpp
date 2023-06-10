@@ -819,10 +819,12 @@ nvme_device::nvme_queue::nvme_queue(nvme_device *dev, uint16_t index, unsigned i
  */
 bool nvme_device::nvme_queue::init(bool needs_contiguous)
 {
-    sq_pages_ = alloc_pages(vm_size_to_pages(sq_size_ * sizeof(nvmesqe)), PAGE_ALLOC_CONTIGUOUS);
+    sq_pages_ = alloc_pages(pages2order(vm_size_to_pages(sq_size_ * sizeof(nvmesqe))),
+                            PAGE_ALLOC_CONTIGUOUS);
     if (!sq_pages_)
         return false;
-    cq_pages_ = alloc_pages(vm_size_to_pages(cq_size_ * sizeof(nvmecqe)), PAGE_ALLOC_CONTIGUOUS);
+    cq_pages_ = alloc_pages(pages2order(vm_size_to_pages(cq_size_ * sizeof(nvmecqe))),
+                            PAGE_ALLOC_CONTIGUOUS);
     if (!cq_pages_)
         return false;
 

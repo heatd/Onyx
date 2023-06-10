@@ -132,7 +132,7 @@ void ktracepoint::log_entry(unsigned long ip, unsigned long caller)
 
 bool ktracepoint::allocate_buffer()
 {
-    ring_buffer = alloc_pages(ring_buffer_size >> PAGE_SHIFT, PAGE_ALLOC_CONTIGUOUS);
+    ring_buffer = alloc_pages(pages2order(ring_buffer_size >> PAGE_SHIFT), PAGE_ALLOC_CONTIGUOUS);
     return ring_buffer != nullptr;
 }
 

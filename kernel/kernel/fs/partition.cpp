@@ -105,7 +105,8 @@ static struct page *read_disk(struct blockdev *dev, sector_t sector, size_t coun
     size_t nr_pages = vm_size_to_pages(count);
     struct page *p = nullptr;
     int st = 0;
-    struct page *pages = alloc_pages(nr_pages, PAGE_ALLOC_NO_ZERO | PAGE_ALLOC_CONTIGUOUS);
+    struct page *pages =
+        alloc_pages(pages2order(nr_pages), PAGE_ALLOC_NO_ZERO | PAGE_ALLOC_CONTIGUOUS);
     if (!pages)
         return nullptr;
 
@@ -224,8 +225,8 @@ int partition_setup_disk_gpt(struct blockdev *dev)
     }
 
     count = ALIGN_TO(gpt_header->num_partitions * gpt_header->part_entry_len, dev->sector_size);
-    part_tab_pages =
-        alloc_pages(vm_size_to_pages(count), PAGE_ALLOC_NO_ZERO | PAGE_ALLOC_CONTIGUOUS);
+    part_tab_pages = alloc_pages(pages2order(vm_size_to_pages(count)),
+                                 PAGE_ALLOC_NO_ZERO | PAGE_ALLOC_CONTIGUOUS);
     if (!part_tab_pages)
     {
         st = -ENOMEM;

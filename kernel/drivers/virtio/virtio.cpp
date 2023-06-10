@@ -273,7 +273,7 @@ bool virtq_split::init()
 
     completions.set_nr_elems(queue_size);
 
-    vq_pages = alloc_pages(total_pages, PAGE_ALLOC_CONTIGUOUS);
+    vq_pages = alloc_pages(pages2order(total_pages), PAGE_ALLOC_CONTIGUOUS);
     if (!vq_pages)
         return false;
 

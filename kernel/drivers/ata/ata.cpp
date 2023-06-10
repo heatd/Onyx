@@ -64,7 +64,8 @@ public:
 
     int init()
     {
-        prdt_page = alloc_pages(prdt_nr_pages, PAGE_ALLOC_4GB_LIMIT);
+        // TODO: order-N page allocation
+        prdt_page = alloc_page_list(prdt_nr_pages, PAGE_ALLOC_4GB_LIMIT);
         if (!prdt_page)
             return -ENOMEM;
 
@@ -83,7 +84,7 @@ public:
     ~ide_ata_bus()
     {
         mmiounmap(prdt, prdt_nr_pages << PAGE_SHIFT);
-        free_pages(prdt_page);
+        free_page_list(prdt_page);
     }
 
     void reset()
@@ -756,7 +757,7 @@ int ide_dev::submit_request(bio_req *req, ide_drive *drive)
     {
         size_t nr_pages = vm_size_to_pages(len);
 
-        struct page *pages = alloc_pages(nr_pages, PAGE_ALLOC_4GB_LIMIT);
+        struct page *pages = alloc_page_list(nr_pages, PAGE_ALLOC_4GB_LIMIT);
         if (!pages)
             return -ENOMEM;
 
@@ -764,7 +765,7 @@ int ide_dev::submit_request(bio_req *req, ide_drive *drive)
         hw_vec = (page_iov *) calloc(nr_pages, sizeof(page_iov));
         if (!hw_vec)
         {
-            free_pages(pages);
+            free_page_list(pages);
             return -ENOMEM;
         }
 
@@ -802,7 +803,7 @@ out:
         // TODO: Get a semi-generic bounce buffer infra. We can probably get by by using alloc_pages
         // instead of calloc or something. I don't think we need an IRQ-safe slab allocator portion.
         free(hw_vec);
-        free_pages(bounce_buffer_pages);
+        free_page_list(bounce_buffer_pages);
     }
 
     return st;

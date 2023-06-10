@@ -154,6 +154,7 @@ void bootmem_re_reserve_memory()
 void bootmem_reserve(unsigned long start, size_t size)
 {
     // Reservations align downwards on the start and upwards on the size
+    size += start & (PAGE_SIZE - 1);
     start &= -PAGE_SIZE;
     size = (size_t) page_align_up((void *) size);
 

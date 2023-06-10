@@ -309,7 +309,7 @@ int vmo_prefault(vm_object *vmo, size_t size, size_t offset)
 {
     size_t pages = vm_size_to_pages(size);
 
-    struct page *p = alloc_pages(pages, 0);
+    struct page *p = alloc_page_list(pages, 0);
     if (!p)
     {
         printk("alloc_pages failed: could not allocate %lu pages!\n", pages);
@@ -322,7 +322,7 @@ int vmo_prefault(vm_object *vmo, size_t size, size_t offset)
         int err = vmo->insert_page_unlocked(offset, _p);
         if (err < 0)
         {
-            free_pages(p);
+            free_page_list(p);
             return err;
         }
 

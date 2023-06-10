@@ -390,7 +390,8 @@ NO_ASAN static struct slab *kmem_cache_create_slab(struct slab_cache *cache, uns
 
     if (cache->flags & KMEM_CACHE_DIRMAP) [[unlikely]]
     {
-        pages = alloc_pages(slab_size >> PAGE_SHIFT, PAGE_ALLOC_NO_ZERO | PAGE_ALLOC_CONTIGUOUS);
+        pages = alloc_pages(pages2order(slab_size >> PAGE_SHIFT),
+                            PAGE_ALLOC_NO_ZERO | PAGE_ALLOC_CONTIGUOUS);
         if (!pages)
             return nullptr;
         start = (char *) PAGE_TO_VIRT(pages);

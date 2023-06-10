@@ -20,7 +20,6 @@
 #include <onyx/wait.h>
 
 /* The default physical allocator is the buddy allocator */
-#define CONFIG_BUDDY_ALLOCATOR 1
 #if defined(__x86_64__) || defined(__riscv) || defined(__aarch64__)
 
 #include <platform/page.h>
@@ -39,7 +38,10 @@
 #error "Define PAGES_PER_AREA and/or MAX_ORDER"
 #endif
 
-#define NR_ZONES            3
+#define NR_ZONES 2
+
+#define ZONE_DMA32          0
+#define ZONE_NORMAL         1
 #define IS_HUGE_ALIGNED(x)  (((unsigned long) x % HUGE_PAGE_SIZE) ? 0 : 1)
 #define IS_DMA_PTR(x)       x < DMA_UPPER_LIMIT
 #define IS_HIGHMEM_PTR(x)   x > HIGH_MEM_FLOOR &&x < HIGH_MEM_LIMIT
@@ -49,10 +51,15 @@
 
 #define PAGE_NO_RETRY (1 << 3)
 
-#define PAGE_FLAG_LOCKED      (1 << 0)
-#define PAGE_FLAG_DIRTY       (1 << 1)
-#define PAGE_FLAG_PINNED      (1 << 2)
-#define PAGE_FLAG_FREE        (1 << 3)
+#define PAGE_FLAG_LOCKED (1 << 0)
+#define PAGE_FLAG_DIRTY  (1 << 1)
+#define PAGE_FLAG_PINNED (1 << 2)
+
+/* PAGE_BUDDY - If set, it means the page is free AND inserted in one of the buddy allocator's
+ * orders. Note that not all free pages have PAGE_BUDDY; only the ones that are directly inserted
+ * into an order do. If PAGE_BUDDY, priv = order it's inserted into.
+ */
+#define PAGE_BUDDY            (1 << 3)
 #define PAGE_FLAG_BUFFER      (1 << 4) /* Used by the filesystem code */
 #define PAGE_FLAG_FLUSHING    (1 << 5)
 #define PAGE_FLAG_FILESYSTEM1 (1 << 6) /* Filesystem private flag */
@@ -80,51 +87,11 @@ struct page
                 struct page *next_allocation;
                 struct page *next_virtual_region;
             } next_un;
-
-            unsigned long priv;
         };
     };
+
+    unsigned long priv;
 };
-
-#ifdef CONFIG_BUDDY_ALLOCATOR
-/* A structure describing areas of size 2^order pages */
-typedef struct free_area
-{
-    /* Each of them contains a list of free pages */
-    struct extrusive_list_head free_list;
-    /* And a bitmap of buddies */
-    unsigned long *map;
-    /* Each "sub-zone" has a buddy, and to merge an area into a larger area,
-     * we need both buddies to be free; because of that, we use a bitmap of buddies to represent
-     * them. We use a bit for each buddy, if it's set, the buddy is allocated, if not, it's set to
-     * 0.
-     */
-} free_area_t;
-
-#else
-
-typedef struct page_zone
-{
-    /* We obviously need a lock to protect this page zone */
-    struct spinlock lock __attribute__((aligned(16)));
-    0t * free_areas __attribute__((aligned(16)));
-    /* The name of the page zone */
-    char *name;
-    /* The size of the page zone */
-    size_t size;
-    /* The allocated/free pages */
-    size_t allocated_pages, free_pages;
-
-} page_zone_t;
-
-typedef struct 0
-{
-    struct 0 * prev;
-    struct 0 * next;
-}
-0t;
-
-#endif /* CONFIG_BUDDY_ALLOCATOR */
 
 struct memstat;
 
@@ -184,12 +151,35 @@ static inline bool __page_should_zero(unsigned long flags)
 
 #define page_should_zero(x) likely(__page_should_zero(x))
 
-struct page *alloc_pages(size_t nr_pages, unsigned long flags);
+struct page *alloc_pages(unsigned int order, unsigned long flags);
 
 static inline struct page *alloc_page(unsigned long flags)
 {
-    return alloc_pages(1, flags);
+    return alloc_pages(0, flags);
 }
+
+__always_inline unsigned int pages2order(unsigned long pages)
+{
+    if (pages == 1)
+        return 0;
+    return ilog2(pages - 1) + 1;
+}
+
+/**
+ * @brief Allocate a list of pages
+ *
+ * @param nr_pages Number of pages to allocate
+ * @param gfp_flags GFP flags
+ * @return List of struct pages linked by next_un.next_allocation, or NULL
+ */
+struct page *alloc_page_list(size_t nr_pages, unsigned int gfp_flags);
+
+/**
+ * @brief Free a list of pages
+ *
+ * @param pages List of linked struct pages as retrieved from alloc_page_list
+ */
+void free_page_list(struct page *pages);
 
 void free_page(struct page *p);
 void free_pages(struct page *p);

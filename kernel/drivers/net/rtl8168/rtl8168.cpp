@@ -255,6 +255,7 @@ int rtl8168_device::configure_rx()
 
     auto desc_pages = vm_size_to_pages(number_rx_desc * sizeof(rtl8168_rx_desc));
     printk("Pages: %lu\n", desc_pages);
+    // FIXME: Fix and test
     struct page *p = alloc_pages(desc_pages, PAGE_ALLOC_CONTIGUOUS);
     if (!p)
     {

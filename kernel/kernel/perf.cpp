@@ -75,8 +75,6 @@ bool perf_probe_is_enabled_wait()
     return perf_probe_wait_enabled;
 }
 
-extern cul::atomic_size_t used_pages;
-
 /**
  * @brief Enable CPU perf probing
  *
