@@ -51,7 +51,7 @@ struct slab_cache
 };
 
 #define KMEM_CACHE_HWALIGN (1 << 0)
-#define KMEM_CACHE_DIRMAP  (1 << 1)
+#define KMEM_CACHE_VMALLOC (1 << 1)
 #define KMEM_CACHE_NOPCPU  (1 << 2)
 
 /**

@@ -322,6 +322,12 @@ static inline size_t kmem_calc_slab_nr_objs(struct slab_cache *cache)
  */
 struct page *kmem_pointer_to_page(void *mem)
 {
+    if ((unsigned long) mem >= PHYS_BASE && (unsigned long) mem < PHYS_BASE_LIMIT) [[likely]]
+    {
+        unsigned long phys = ((unsigned long) mem - PHYS_BASE);
+        return phys_to_page(phys);
+    }
+
     unsigned long info = get_mapping_info(mem);
     if (!(info & PAGE_PRESENT)) [[unlikely]]
     {
@@ -388,7 +394,7 @@ NO_ASAN static struct slab *kmem_cache_create_slab(struct slab_cache *cache, uns
 
     size_t slab_size = kmem_calc_slab_size(cache);
 
-    if (cache->flags & KMEM_CACHE_DIRMAP) [[unlikely]]
+    if (!(cache->flags & KMEM_CACHE_VMALLOC)) [[likely]]
     {
         pages = alloc_pages(pages2order(slab_size >> PAGE_SHIFT),
                             PAGE_ALLOC_NO_ZERO | PAGE_ALLOC_CONTIGUOUS);
@@ -867,7 +873,7 @@ static void kmem_cache_free_slab(struct slab *slab)
     list_remove(&slab->slab_list_node);
 
     // After freeing the slab we may no longer touch the struct slab
-    if (cache->flags & KMEM_CACHE_DIRMAP)
+    if (!(cache->flags & KMEM_CACHE_VMALLOC)) [[likely]]
     {
         free_pages(slab->pages);
     }
@@ -988,8 +994,16 @@ void kmalloc_init()
     {
         // We start at 16 bytes
         size_t size = 1UL << (4 + i);
+        unsigned int flags = KMEM_CACHE_VMALLOC;
+#if 0
+        // TODO: Toggling VMALLOC only for larger sizes is not working well...
+        // at least for will-it-scale/page_fault1, it results in major performance regressions.
+        // Is this a TLB issue? Maybe?
+        if (i >= 16)
+            flags |= KMEM_CACHE_VMALLOC;
+#endif
         snprintf(kmalloc_cache_names[i], 20, "kmalloc-%zu", size);
-        kmalloc_caches[i] = kmem_cache_create(kmalloc_cache_names[i], size, 0, 0, nullptr);
+        kmalloc_caches[i] = kmem_cache_create(kmalloc_cache_names[i], size, 0, flags, nullptr);
         if (!kmalloc_caches[i])
             panic("Early out of memory\n");
     }
