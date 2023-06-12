@@ -198,24 +198,24 @@ void page_add_used_pages(struct used_pages *pages);
 
 static inline unsigned long page_ref(struct page *p)
 {
-    return __atomic_add_fetch(&p->ref, 1, __ATOMIC_RELAXED);
+    return __atomic_add_fetch(&p->ref, 1, __ATOMIC_ACQUIRE);
 }
 
 static inline unsigned long page_ref_many(struct page *p, unsigned long c)
 {
-    return __atomic_add_fetch(&p->ref, c, __ATOMIC_RELAXED);
+    return __atomic_add_fetch(&p->ref, c, __ATOMIC_ACQUIRE);
 }
 
 static inline unsigned long __page_unref(struct page *p)
 {
-    return __atomic_sub_fetch(&p->ref, 1, __ATOMIC_RELAXED);
+    return __atomic_sub_fetch(&p->ref, 1, __ATOMIC_RELEASE);
 }
 
 #define page_unref(p) free_page(p)
 
 static inline unsigned long page_unref_many(struct page *p, unsigned long c)
 {
-    return __atomic_sub_fetch(&p->ref, c, __ATOMIC_RELAXED);
+    return __atomic_sub_fetch(&p->ref, c, __ATOMIC_RELEASE);
 }
 
 static inline void page_pin(struct page *p)
