@@ -92,7 +92,7 @@ dentry *dentry_open_from_cache(dentry *dent, std::string_view name)
 
 void dentry_remove_from_cache(dentry *dent, dentry *parent)
 {
-    auto hash = hash_dentry_fields(dent, std::string_view{dent->d_name, dent->d_name_length});
+    auto hash = hash_dentry_fields(parent, std::string_view{dent->d_name, dent->d_name_length});
     auto index = dentry_ht.get_hashtable_index(hash);
     scoped_rwslock<rw_lock::write> g{dentry_ht_locks[index]};
 
@@ -101,7 +101,7 @@ void dentry_remove_from_cache(dentry *dent, dentry *parent)
 
 static void dentry_add_to_cache(dentry *dent, dentry *parent)
 {
-    auto hash = hash_dentry_fields(dent, std::string_view{dent->d_name, dent->d_name_length});
+    auto hash = hash_dentry_fields(parent, std::string_view{dent->d_name, dent->d_name_length});
     auto index = dentry_ht.get_hashtable_index(hash);
     scoped_rwslock<rw_lock::write> g{dentry_ht_locks[index]};
 
