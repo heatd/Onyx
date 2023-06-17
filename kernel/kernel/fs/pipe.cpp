@@ -59,9 +59,17 @@ struct pipe_buffer
     CLASS_DISALLOW_COPY(pipe_buffer);
     CLASS_DISALLOW_MOVE(pipe_buffer);
 
+    struct page *steal_page()
+    {
+        auto ret = page_;
+        page_ = nullptr;
+        return ret;
+    }
+
     ~pipe_buffer()
     {
-        page_unref(page_);
+        if (page_)
+            page_unref(page_);
     }
 
     void *operator new(size_t len)
@@ -78,13 +86,15 @@ struct pipe_buffer
 class pipe : public refcountable
 {
 private:
+    struct page *cached_page{nullptr};
     struct list_head pipe_buffers;
-    size_t buf_size{default_pipe_size};
     size_t curr_len{0};
     mutex pipe_lock;
 
     wait_queue write_queue;
     wait_queue read_queue;
+
+    size_t buf_size{default_pipe_size};
 
     bool can_read() const
     {
@@ -256,6 +266,13 @@ ssize_t pipe::read(int flags, size_t len, void *buf)
         {
             // If its now empty, free the pipe buffer
             list_remove(&pbf->list_node);
+
+            // Check if we have a cached page. If not, cache this one, else let it go.
+            if (!cached_page)
+            {
+                cached_page = pbf->steal_page();
+            }
+
             delete pbf;
         }
 
@@ -327,20 +344,26 @@ ssize_t pipe::append(const void *ubuf, size_t len, bool atomic)
     // If we still have more to append and enough space, lets do so
     if (avail && len)
     {
-        page *p = alloc_page(PAGE_ALLOC_NO_ZERO);
-        if (!p)
+        page *p = cached_page;
+        if (!cached_page)
         {
-            ret = -ENOMEM;
-            goto out;
+            p = alloc_page(PAGE_ALLOC_NO_ZERO);
+            if (!p)
+            {
+                ret = -ENOMEM;
+                goto out;
+            }
+
+            cached_page = p;
         }
 
         auto blen = min(min(avail, len), PAGE_SIZE);
-        // Note: the page and its lifetime are now tied to the pipe buffer
+        // Note: the page and its lifetime are now tied to the pipe buffer, but we steal
+        // the page on error.
         auto buf = make_unique<pipe_buffer>(p, blen);
         if (!buf)
         {
             ret = -ENOMEM;
-            free_page(p);
             goto out;
         }
 
@@ -349,6 +372,7 @@ ssize_t pipe::append(const void *ubuf, size_t len, bool atomic)
         {
             if (atomic || !ret)
                 ret = -EFAULT;
+            buf->steal_page();
             goto out;
         }
 
@@ -357,6 +381,9 @@ ssize_t pipe::append(const void *ubuf, size_t len, bool atomic)
         ret += buf->len_;
         curr_len += buf->len_;
         to_restore = nullptr;
+
+        // Release the cached page, definitely no longer ours.
+        cached_page = nullptr;
 
         buf.release();
     }
