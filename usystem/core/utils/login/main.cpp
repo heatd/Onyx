@@ -196,7 +196,11 @@ int main(int argc, char **argv)
 
     for (int i = 0; i < 3; i++)
     {
-        dup(ttyfd);
+        if (dup(ttyfd) < 0)
+        {
+            write(ttyfd, "login: dup failed\n", strlen("login: dup failed\n"));
+            return 1;
+        }
     }
 
     close(ttyfd);
