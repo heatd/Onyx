@@ -78,11 +78,8 @@
 #define REGISTERS_UNUSED_OFF		16
 #define KERNEL_DS		0x10
 
-.global syscall_ENTRY64
 .align 64
-.type syscall_ENTRY64,@function
-syscall_ENTRY64:
-
+ENTRY(syscall_ENTRY64)
     .cfi_startproc
     .cfi_register rip, rcx
     .cfi_return_column rcx
@@ -210,14 +207,14 @@ syscall_signal_path:
 
     add $REGISTERS_UNUSED_OFF, %rsp
     iretq
+END(syscall_ENTRY64)
 
 .cfi_endproc
 
 .section .text
 
 .extern acpi_enter_sleep_state
-.global __enter_sleep_state
-__enter_sleep_state:
+ENTRY(__enter_sleep_state)
 #ifndef CONFIG_ACPI
     jne .failure
 #else
@@ -243,3 +240,4 @@ __enter_sleep_state:
 .failure:
     mov $-1, %rax
     jmp .return
+END(__enter_sleep_state)

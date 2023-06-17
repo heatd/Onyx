@@ -9,18 +9,18 @@
 
 .section .text
 
-.global tss_flush
-tss_flush:
+ENTRY(tss_flush)
     mov $0x3b, %ax
     ltr %ax
     RET
+END(tss_flush)
 
-.global gdt_flush
-gdt_flush:
+ENTRY(gdt_flush)
     lgdt (%rdi)
     RET
+END(gdt_flush)
 
-.global idt_flush
-idt_flush:
+ENTRY(idt_flush)
     lidt (%rdi)
     RET
+END(idt_flush)

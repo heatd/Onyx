@@ -20,10 +20,8 @@
  */
 # ssize_t copy_to_user(void *user, const void *data, size_t size);
 .section .text
-.global copy_to_user
-.type copy_to_user, @function
 .balign 32
-copy_to_user:
+ENTRY(copy_to_user)
     # Note: This is slow, but it's needed...
     # TODO: How can we access C structs from assembly safely?
     push %rdi
@@ -63,6 +61,7 @@ copy_to_user:
     .quad 1b
     .quad 3b
 .popsection
+END(copy_to_user)
 
 /**
  * @brief Copies data from user space.
@@ -74,10 +73,8 @@ copy_to_user:
  *         At the time of writing, the only possible error return is -EFAULT.
  */
 # ssize_t copy_from_user(void *data, const void *usr, size_t size);
-.global copy_from_user
-.type copy_from_user, @function
 .balign 32
-copy_from_user:
+ENTRY(copy_from_user)
     # Note: This is slow, but it's needed...
     # TODO: How can we access C structs from assembly safely?
     push %rdi
@@ -115,11 +112,10 @@ copy_from_user:
     .quad 1b
     .quad 3b
 .popsection
+END(copy_from_user)
 
-.global strlen_user
-.type strlen_user, @function
 .balign 32
-strlen_user:
+ENTRY(strlen_user)
     # Note: This is slow, but it's needed...
     # TODO: How can we access C structs from assembly safely?
     push %rdi
@@ -207,9 +203,9 @@ strlen_user:
     .quad 7b
 .popsection
 
-.global get_user32
-.type get_user32, @function
-get_user32:
+END(strlen_user)
+
+ENTRY(get_user32)
     # addr in %rdi, dest in %rsi, ret is 0 if good or -EFAULT if we faulted
     push %rdi
     push %rsi
@@ -237,9 +233,9 @@ get_user32:
     .quad 3b
 .popsection
 
-.global get_user64
-.type get_user64, @function
-get_user64:
+END(get_user32)
+
+ENTRY(get_user64)
     # addr in %rdi, dest in %rsi, ret is 0 if good or -EFAULT if we faulted
     push %rdi
     push %rsi
@@ -266,6 +262,7 @@ get_user64:
     .quad 1b
     .quad 3b
 .popsection
+END(get_user64)
 
 /**
  * @brief Memsets user spce memory.
@@ -277,10 +274,8 @@ get_user64:
  *         At the time of writing, the only possible error return is -EFAULT.
  */
 # ssize_t user_memset(void *data, int val, size_t len);
-.global user_memset
-.type user_memset, @function
 .balign 32
-user_memset:
+ENTRY(user_memset)
     push %rdi
     push %rsi
     push %rdx
@@ -320,3 +315,4 @@ user_memset:
     .quad 1b
     .quad 3b
 .popsection
+END(user_memset)

@@ -41,11 +41,9 @@
     add $8, %rsp
 .endm
 
-.section .text
-.global return_from_execve
-
+.text
 # Entry point is at RDI, stack at RSI
-return_from_execve:
+ENTRY(return_from_execve)
     # Wipe unused registers to avoid leaks
     xor %rbx, %rbx
     xor %rbp, %rbp
@@ -76,20 +74,19 @@ return_from_execve:
     push %rdi
 
     iretq
+END(return_from_execve)
 
-.global __cxa_atexit
-__cxa_atexit:
+ENTRY(__cxa_atexit)
     # NOTE: We can do this with __cxa_atexit because we, as the kernel, will never exit!
     xor %eax, %eax
     RET
+END(__cxa_atexit)
 
 /* extern "C" 
 [[noreturn]]
 void x86_context_switch(thread *prev **%rdi** , unsigned char *stack **%rsi**, bool needs_to_kill_prev **%dx**);
 */
-.global x86_context_switch
-.type x86_context_switch, @function
-x86_context_switch:
+ENTRY(x86_context_switch)
     cli
     /* First thing to do: switch the %rsp */
     /* Then we can try to put the thread */
@@ -105,3 +102,4 @@ x86_context_switch:
     /* We also don't need to preserve any registers */
     call x86_thread_put
     jmp 1b
+END(x86_context_switch)
