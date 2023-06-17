@@ -225,8 +225,7 @@ hdr_start:
 hdr_end:
 
 .section .text
-.global efi_entry_multiboot2_64
-efi_entry_multiboot2_64:
+ENTRY(efi_entry_multiboot2_64)
     /* Lets find the efi system table first */
     /* rcx = EFI image handle, rdx = EFI system table, rsi = image base address */
     xor %rcx, %rcx
@@ -290,9 +289,9 @@ efi_entry_multiboot2_64:
     int3
     hlt
     jmp 11b
+END(efi_entry_multiboot2_64)
 
-.global x86_efi_switch_tables
-x86_efi_switch_tables:
+ENTRY(x86_efi_switch_tables)
     /* We're still running in identity mode */
     lea efi_gdtr(%rip), %rax
     /* Fixup the gdtr's gdt address */
@@ -310,9 +309,9 @@ x86_efi_switch_tables:
     push $KERNEL_CS
     push %rax
     lretq
+END(x86_efi_switch_tables)
 
-.global x86_efi_enable_57_mmu
-x86_efi_enable_57_mmu:
+ENTRY(x86_efi_enable_57_mmu)
     /* PML5 is at %rdi */
     // We need to drop from 64 bit to 32-bit compat, toggle CR4.LA57,
     // then go back to 64-bit
@@ -363,6 +362,7 @@ x86_efi_enable_57_mmu:
     mov $KERNEL_DS, %eax
     mov %ax, %ss
     ret
+END(x86_efi_enable_57_mmu)
 
 .section .bss
 
@@ -379,7 +379,7 @@ x86_stack_bottom:
 x86_stack_top:
 
 .section .text
-x86_start:
+ENTRY_LOCAL(x86_start)
     /* boot protocol function to call is in rdx, rdi and rsi are reserved
      * for boot protocol function args
      */
@@ -428,6 +428,7 @@ x86_start:
 1: 
     hlt
     jmp 1b
+END(x86_start)
 
 .section .boot, "ax"
 protectedmode_stack:
@@ -441,8 +442,7 @@ protectedmode_stack_top:
 #endif
 
 .code32
-.global entry_point
-entry_point:
+ENTRY(entry_point)
     cli
 #ifdef CONFIG_RELOCATABLE_PHYS
     /* Calculate a possible load bias */
@@ -518,6 +518,7 @@ entry_point:
     movq $x86_start, %rax
     movq $multiboot2_kernel_entry, %rdx
     jmp *%rax
+END(entry_point)
 
 .macro PAGE_TABLE_INDEX source_ptr, level
 
@@ -544,14 +545,15 @@ and $0x1ff, %ebx
 
 .code32
 
-zero_page_tables:
+ENTRY_LOCAL(zero_page_tables)
     CALC_EFF_ADDRESS(__early_page_tables_start, %edi)
     mov $__early_page_tables_size, %ecx
     xor %al, %al
     rep stosb
     ret
+END(zero_page_tables)
 
-setup_paging_and_longm:
+ENTRY_LOCAL(setup_paging_and_longm)
     /* Register allocation:
      * edi - Top level page table
      * 
@@ -699,8 +701,8 @@ setup_paging_and_longm:
     movl %eax, %cr0
 
     add $8, %esp
-
-    RET
+    ret
+END(setup_paging_and_longm)
 
 .extern pml4
 .extern init_pgd
@@ -708,8 +710,7 @@ setup_paging_and_longm:
 .extern idt_ptr
 .code32
 /* Load bias in %ebp, ecx:edx for the 64-bit thread stack */
-.global startup_secondary_32
-startup_secondary_32:
+ENTRY(startup_secondary_32)
     /* Move ecx:edx to edi:esi due to us needing ecx for MSRs, cpuid and
      * not having a stack yet. */
     mov %ecx, %edi
@@ -765,8 +766,9 @@ startup_secondary_32:
     lea startup_secondary_64(%ebp), %eax
     push %eax
     lret
+END(startup_secondary_32)
 
-startup_secondary_64:
+ENTRY_LOCAL(startup_secondary_64)
 .code64
     /* Load the higher half GDT */
     lea gdtr3(%rip), %rbx
@@ -782,10 +784,12 @@ startup_secondary_64:
 
     /* Reload CS and jump to higher half in one go */
     push $KERNEL_CS
-    push $1f
+    push $__startup_secondary_64
     lretq
-.section .text
-1:
+END(startup_secondary_64)
+
+.text
+ENTRY_LOCAL(__startup_secondary_64)
     /* Load the actual current page tables */
     mov init_pgd(%rip), %rax
     mov %rax, %cr3
@@ -828,6 +832,7 @@ startup_secondary_64:
 
     jmp smpboot_main
     int3
+END(__startup_secondary_64)
 
 .section .boot,"ax"
 

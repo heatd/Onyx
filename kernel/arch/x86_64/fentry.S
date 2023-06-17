@@ -46,8 +46,7 @@
     pop %rax
 .endm
 
-.global __fentry__
-__fentry__:
+ENTRY(__fentry__)
     push %rbp
     mov %rsp, %rbp
 
@@ -75,7 +74,8 @@ __fentry__:
     pop %rbp
 
     RET
+END(__fentry__)
 
-.global __return__
-__return__:
+ENTRY(__return__)
     ud2
+END(__return__)

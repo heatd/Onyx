@@ -11,7 +11,7 @@
 /* TODO: Look at (https://www.amd.com/system/files/documents/technical-
 guidance-for-mitigating-branch-type-confusion.pdf) section 6.1 */
 .align 64
-.global __x86_return_thunk
-__x86_return_thunk:
+ENTRY(__x86_return_thunk)
     ret
     int3
+END(__x86_return_thunk)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2022 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -10,18 +10,20 @@
 
 // clang-format off
 
-#ifdef __ASSEMBLY__
+#ifdef __ASSEMBLER__
 
-.macro RET
 #ifdef CONFIG_X86_RETHUNK
-    jmp __x86_return_thunk
+#define RET jmp __x86_return_thunk
+#elif defined(CONFIG_X86_MITIGATE_SLS)
+#define RET ret; int3
 #else
-    ret
-#ifdef CONFIG_X86_MITIGATE_SLS
-    int3
+#define RET ret
 #endif
-#endif
-.endm
+
+#define ENTRY_LOCAL(name) .type name, @function; name:
+#define ENTRY(name) .global name; ENTRY_LOCAL(name)
+
+#define END(name) .size name, . - name
 
 #endif
 #endif

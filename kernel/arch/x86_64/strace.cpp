@@ -165,7 +165,11 @@ size_t stack_trace_get(unsigned long *stack, unsigned long *pcs, size_t nr_pcs)
 
         rbp = (uint64_t *) *rbp;
         if (!rbp)
+        {
+            /* So pc termination doesn't zero this entry, increment i */
+            i++;
             break;
+        }
     }
 
     if (i != unwinds_possible)

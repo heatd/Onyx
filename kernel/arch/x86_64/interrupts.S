@@ -121,13 +121,12 @@
 #define EXCEPTION_VECTORS_END       32
 
 .macro ISR_NOERRCODE num
-.global isr\num
-.type isr\num,@function
-isr\num:
+ENTRY(isr\num)
     cli
     sub $8, %rsp
     push $\num # Push the interrupt number
     jmp x86_interrupt_common # Go to the handler
+END(isr\num)
 
 .pushsection .rodata.isr_table
 .quad isr\num
@@ -136,13 +135,12 @@ isr\num:
 .endm
 
 .macro IRQ irq_num
-.global irq\irq_num
-.type irq\irq_num,@ function
-irq\irq_num:
+ENTRY(irq\irq_num)
     cli
     sub $8, %rsp
     push $(\irq_num + EXCEPTION_VECTORS_END)
     jmp x86_interrupt_common
+END(irq\irq_num)
 
 .pushsection .rodata.isr_table
 .quad irq\irq_num
@@ -151,11 +149,11 @@ irq\irq_num:
 .endm
 
 .macro ISR_ERRCODE num
-.global isr\num
-isr\num:
+ENTRY(isr\num)
     cli
     push $\num # Push the interrupt number to the intctx
     jmp x86_interrupt_common # Go to the handler
+END(isr\num)
 
 .pushsection .rodata.isr_table
 .quad isr\num
@@ -163,18 +161,15 @@ isr\num:
 
 .endm
 
-.global x86_interrupt_ret
-.type x86_interrupt_ret, @function
-x86_interrupt_ret:
+ENTRY(x86_interrupt_ret)
     call signal_is_pending
     cmp $1, %al
     je 1f
 
 2:
     INTERRUPT_STACK_RESTORE
-.global x86_scheduler_exit
-.type x86_scheduler_exit,@function
-x86_scheduler_exit:
+END(x86_interrupt_ret)
+ENTRY(x86_scheduler_exit)
     /* We'll use this bit of code as a trampoline to the new thread too */
     mov REGISTER_OFF_CS(%rsp), %rax
     test $3, %rax
@@ -195,14 +190,14 @@ x86_scheduler_exit:
     add $8, %rdi
     call handle_signal
     jmp 2b
+END(x86_scheduler_exit)
 
 .pushsection .text.x86_entry
 
 /* Everything past this point is permanently mapped */
 
-.type x86_interrupt_common,@function
 .align 64
-x86_interrupt_common:
+ENTRY(x86_interrupt_common)
     .cfi_startproc
     pushaq
     CFI_INTERRUPT_FRAME_BEFORE_DS
@@ -241,6 +236,7 @@ x86_interrupt_common:
     mov %rax, %rsp
 
     jmp x86_interrupt_ret
+END(x86_interrupt_common)
 
 .cfi_endproc
 
@@ -518,9 +514,7 @@ IRQ 225
 x86_isr_table_end:
 .popsection
 
-.global platform_yield
-.type platform_yield,@function
-platform_yield:
+ENTRY(platform_yield)
     .cfi_startproc
     /* Basically we need to set up an IRQ frame on the stack.
      * For future reference consult include/(carbon/onyx)/x86/registers.h
@@ -550,11 +544,9 @@ platform_yield:
 
     RET
     .cfi_endproc
-    
+END(platform_yield)
 
-.global __sigret_return
-.type __sigret_return,@function
-__sigret_return:
+ENTRY(__sigret_return)
     cli
 
     mov %rdi, %rsp
@@ -568,7 +560,8 @@ __sigret_return:
 
     add $REGISTERS_UNUSED_OFF, %rsp
     iretq
+END(__sigret_return)
 
-.global apic_spurious_irq
-apic_spurious_irq:
+ENTRY(apic_spurious_irq)
     iretq
+END(apic_spurious_irq)
