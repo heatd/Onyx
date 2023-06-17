@@ -156,7 +156,7 @@ uid_t sys_getuid(void)
 {
     struct creds *c = creds_get();
 
-    uid_t u = c->euid;
+    uid_t u = c->ruid;
 
     creds_put(c);
 
@@ -167,7 +167,7 @@ gid_t sys_getgid(void)
 {
     struct creds *c = creds_get();
 
-    gid_t g = c->egid;
+    gid_t g = c->rgid;
 
     creds_put(c);
 
