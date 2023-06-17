@@ -1,11 +1,12 @@
 /*
- * Copyright (c) 2017 - 2022 Pedro Falcato
+ * Copyright (c) 2017 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: MIT
  */
 
+#include <err.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <pwd.h>
@@ -177,13 +178,16 @@ int main(int argc, char **argv)
 
     const char *tty = argv[1];
 
-    int flags[] = {O_RDONLY, O_WRONLY, O_WRONLY};
+    int ttyfd = open(tty, O_RDWR);
+    if (ttyfd < 0)
+    {
+        err(1, "open: %s", tty);
+    }
 
     // Become a session leader, so we can get a new controlling terminal
     if (setsid() < 0)
     {
-        perror("setsid");
-        return 1;
+        err(1, "setsid");
     }
 
     close(0);
@@ -192,11 +196,10 @@ int main(int argc, char **argv)
 
     for (int i = 0; i < 3; i++)
     {
-        int fd = open(tty, flags[i]);
-
-        if (fd < 0)
-            return 1;
+        dup(ttyfd);
     }
+
+    close(ttyfd);
 
     program_name = argv[0];
     printf("%s: ", argv[0]);
