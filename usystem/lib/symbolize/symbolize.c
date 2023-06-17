@@ -65,8 +65,7 @@ static inline bool is_useful_symbol(Elf64_Sym *sym)
     if (sym->st_shndx == SHN_UNDEF || sym->st_shndx >= SHN_LORESERVE)
         return false;
 
-    if (ELF64_ST_TYPE(sym->st_info) == STT_FILE || ELF64_ST_TYPE(sym->st_info) == STT_SECTION ||
-        ELF64_ST_TYPE(sym->st_info) == STT_NOTYPE)
+    if (ELF64_ST_TYPE(sym->st_info) == STT_FILE || ELF64_ST_TYPE(sym->st_info) == STT_SECTION)
         return false;
 
     /* NOTE: We keep LOCAL symbols for debugging (i.e panic stack traces) */
@@ -99,6 +98,14 @@ static int setup_symbol(struct symbol *s, Elf64_Sym *sym, const char *name)
     if (!s->name)
         return -1;
 
+    /* Strip the (unsigned long arg, unsigned long arg2, ...) for readability
+     * TODO: But what about overloading? I guess you can make a case for overloading
+     * being a bad style in general...
+     */
+    char *paren = strchr(s->name, '(');
+    if (paren)
+        *paren = '\0';
+
     s->name_hash = fnv_hash(s->name, strlen(s->name));
 
     s->value = sym->st_value;
@@ -114,7 +121,8 @@ static int setup_symbol(struct symbol *s, Elf64_Sym *sym, const char *name)
            s->visibility & SYMBOL_VIS_WEAK ? "y" : "n", s->value);
 #endif
 
-    if (ELF64_ST_TYPE(sym->st_info) & STT_FUNC)
+    /* Note: We assume STT_NOTYPE may be a function (__x86_return_thunk for instance is NOTYPE) */
+    if (ELF64_ST_TYPE(sym->st_info) & STT_FUNC || ELF64_ST_TYPE(sym->st_info) == STT_NOTYPE)
         s->visibility |= SYMBOL_FUNCTION;
     else if (ELF64_ST_TYPE(sym->st_info) & STT_OBJECT)
         s->visibility |= SYMBOL_OBJECT;
@@ -149,7 +157,7 @@ void symbolize_free_symbols(struct symbol *table, size_t syms)
  */
 int symbolize_exec(int fd, struct symbolize_ctx *ctx)
 {
-    struct symbol *table;
+    struct symbol *table = NULL;
     int st = 0;
 
     struct stat buf;
@@ -257,9 +265,9 @@ struct symbol *symbolize_get_sym(struct symbolize_ctx *ctx, unsigned long addr)
         if (!(s->visibility & SYMBOL_FUNCTION))
             continue;
 
-        /* Check if it's inside the bounds of the symbol */
-
-        if (!((unsigned long) addr >= s->value && (unsigned long) addr < s->value + s->size))
+        /* Check if it's inside the bounds of the symbol, if the size is indeed filled */
+        if (!((unsigned long) addr >= s->value && (unsigned long) addr < s->value + s->size) &&
+            s->size > 0)
             continue;
 
         long diff = addr - s->value;
