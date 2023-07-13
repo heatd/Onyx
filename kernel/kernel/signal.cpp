@@ -4,7 +4,6 @@
  * check LICENSE at the root directory for more information
  */
 #include <errno.h>
-#include <uapi/signal.h>
 #include <stdio.h>
 
 #include <onyx/clock.h>
@@ -16,6 +15,8 @@
 #include <onyx/task_switching.h>
 #include <onyx/vm.h>
 #include <onyx/wait_queue.h>
+
+#include <uapi/signal.h>
 
 #include <onyx/memory.hpp>
 

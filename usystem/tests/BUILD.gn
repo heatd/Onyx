@@ -5,6 +5,7 @@ group("tests") {
         "testsuite",
         "kernelbuild-smoketest",
         "test-runner",
-        "regtests"
+        "regtests",
+        "kernel_cpu_tests"
     ]
 }

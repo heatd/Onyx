@@ -284,8 +284,7 @@ static void *elf_load(struct binfmt_args *args, elf_ehdr *header)
                        ((phdrs[i].p_flags & PF_W) ? PROT_WRITE : 0) |
                        ((phdrs[i].p_flags & PF_X) ? PROT_EXEC : 0);
 
-            // printk("mmaping [%lx, %lx]\n", aligned_address, aligned_address + (pages <<
-            // PAGE_SHIFT));
+            // printk("mmaping [%lx, %lx]\n", addr, (unsigned long) addr + (pages << PAGE_SHIFT));
             if (!vm_mmap((void *) addr, pages << PAGE_SHIFT, prot, MAP_PRIVATE | MAP_FIXED, fd,
                          offset))
             {

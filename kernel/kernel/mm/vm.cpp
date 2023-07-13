@@ -1125,42 +1125,6 @@ int vm_fork_address_space(struct mm_address_space *addr_space)
 }
 
 /**
- * @brief Changes permissions of a memory area.
- * Note: Deprecated and should not be used.
- * @param range Start of the range.
- * @param pages Number of pages.
- * @param perms New permissions.
- */
-void vm_change_perms(void *range, size_t pages, int perms)
-{
-    struct mm_address_space *as;
-    bool kernel = is_higher_half(range);
-    bool needs_release = false;
-    if (kernel)
-        as = &kernel_address_space;
-    else
-        as = get_current_process()->get_aspace();
-
-    if (mutex_owner(&as->vm_lock) != get_current_thread())
-    {
-        needs_release = true;
-        mutex_lock(&as->vm_lock);
-    }
-
-    for (size_t i = 0; i < pages; i++)
-    {
-        paging_change_perms(range, perms);
-
-        range = (void *) ((unsigned long) range + PAGE_SIZE);
-    }
-
-    vm_invalidate_range((unsigned long) range, pages);
-
-    if (needs_release)
-        mutex_unlock(&as->vm_lock);
-}
-
-/**
  * @brief Allocates a range of virtual memory for kernel purposes.
  * This memory is all prefaulted and cannot be demand paged nor paged out.
  *
@@ -1670,21 +1634,6 @@ int vm_mprotect_in_region(struct mm_address_space *as, struct vm_region *region,
     return 0;
 }
 
-void vm_do_mmu_mprotect(struct mm_address_space *as, void *address, size_t nr_pgs, int old_prots,
-                        int new_prots)
-{
-    void *addr = address;
-
-    for (size_t i = 0; i < nr_pgs; i++)
-    {
-        vm_mmu_mprotect_page(as, address, old_prots, new_prots);
-
-        address = (void *) ((unsigned long) address + PAGE_SIZE);
-    }
-
-    vm_invalidate_range((unsigned long) addr, nr_pgs);
-}
-
 /**
  * @brief Changes memory protection of a memory range.
  *
@@ -1863,46 +1812,6 @@ void vm_print_map(void)
 void vm_print_umap()
 {
     // rb_tree_traverse(get_current_address_space()->area_tree, vm_print, nullptr);
-}
-
-#define DEBUG_PRINT_MAPPING 0
-
-/**
- * @brief Map a specific number of pages onto a virtual address.
- * Should only be used by MM code since it does not touch vm_regions, only
- * MMU page tables.
- *
- * @param as   The target address space.
- * @param virt The virtual address.
- * @param phys The start of the physical range.
- * @param size The size of the mapping, in bytes.
- * @param flags The permissions on the mapping.
- *
- * @return NULL on error, virt on success.
- */
-void *__map_pages_to_vaddr(struct mm_address_space *as, void *virt, void *phys, size_t size,
-                           size_t flags)
-{
-    if (flags & VM_WRITE)
-        assert((unsigned long) phys != (unsigned long) page_to_phys(vm_zero_page));
-
-    size_t pages = vm_size_to_pages(size);
-
-#if DEBUG_PRINT_MAPPING
-    printk("__map_pages_to_vaddr: %p (phys %p) - %lx\n", virt, phys, (unsigned long) virt + size);
-#endif
-    void *ptr = virt;
-    for (uintptr_t virt = (uintptr_t) ptr, _phys = (uintptr_t) phys, i = 0; i < pages;
-         virt += PAGE_SIZE, _phys += PAGE_SIZE, ++i)
-    {
-        if (!vm_map_page(as, virt, _phys, flags))
-            return nullptr;
-    }
-
-    if (!(flags & VM_NOFLUSH))
-        vm_invalidate_range((unsigned long) virt, pages);
-
-    return ptr;
 }
 
 /**
@@ -2100,8 +2009,9 @@ int vm_handle_write_wb(struct vm_pf_context *ctx)
 
     pagecache_dirty_block(p->cache);
 
-    paging_change_perms((void *) ctx->vpage, ctx->page_rwx);
-    vm_invalidate_range(ctx->vpage, 1);
+    // Note: We and-out VM_WRITE so do_mmu_mprotect does the proper thing (un-wp's)
+    vm_do_mmu_mprotect(ctx->entry->mm, (void *) ctx->vpage, 1, ctx->entry->rwx & ~VM_WRITE,
+                       ctx->page_rwx);
 
     return 0;
 }

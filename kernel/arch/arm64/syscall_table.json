@@ -610,6 +610,18 @@
         "return_type": "void *"
     },
     {
+        "name": "sigreturn",
+        "nr": 37,
+        "nr_args": 1,
+        "args": [
+            [
+                "registers *",
+                "frame"
+            ]
+        ],
+        "return_type": "unsigned long"
+    },
+    {
         "name": "insmod",
         "nr": 38,
         "nr_args": 2,
@@ -950,6 +962,38 @@
             [
                 "const char *",
                 "path"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "clone",
+        "nr": 63,
+        "nr_args": 6,
+        "args": [
+            [
+                "void *",
+                "fn"
+            ],
+            [
+                "void *",
+                "child_stack"
+            ],
+            [
+                "int",
+                "flags"
+            ],
+            [
+                "void *",
+                "arg"
+            ],
+            [
+                "struct tid_out *",
+                "out"
+            ],
+            [
+                "void *",
+                "tls"
             ]
         ],
         "return_type": "int"
@@ -2590,5 +2634,34 @@
             ]
         ],
         "return_type": "int"
+    },
+    {
+        "name": "vfork",
+        "nr": 150,
+        "nr_args": 1,
+        "args": [
+            [
+                "syscall_frame *",
+                "ctx"
+            ]
+        ],
+        "return_type": "pid_t"
+    },
+    {
+        "name": "pipe2",
+        "nr": 151,
+        "nr_args": 2,
+        "args": [
+            [
+                "int *",
+                "pipefds"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int"
     }
+
 ]

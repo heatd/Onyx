@@ -1070,13 +1070,6 @@ void sched_handle_preempt(bool may_softirq)
     }
 }
 
-void __sched_kill_other(thread *thread, unsigned int cpu)
-{
-    MUST_HOLD_LOCK(get_per_cpu_ptr_any(scheduler_lock, thread->cpu));
-
-    cpu_send_message(cpu, CPU_KILL_THREAD, NULL, false);
-}
-
 pid_t sys_gettid()
 {
     thread *current = get_current_thread();
@@ -1118,6 +1111,7 @@ extern "C" unsigned long thread_get_addr_limit(void)
  */
 bool __can_sleep_internal()
 {
+    return true;
     if (!get_current_thread() || is_in_panic())
         return true;
     return !sched_is_preemption_disabled() && !irq_is_disabled();

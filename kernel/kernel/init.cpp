@@ -241,7 +241,6 @@ extern "C" void kernel_main(void)
 
 void kernel_multitasking(void *arg)
 {
-
 #ifdef CONFIG_DO_TESTS
     /* Execute ktests */
     do_ktests();
@@ -260,8 +259,13 @@ void kernel_multitasking(void *arg)
     /* Populate /sys */
     vm_sysfs_init();
 
+    // XXX HACK
+    auto roots = cmdline::get_root();
+
+    if (roots.empty())
+        roots = {"/dev/dummy0"};
     /* Pass the root partition to init */
-    auto root = cul::string(cmdline::get_root());
+    auto root = cul::string(roots);
     if (!root)
         panic("out of memory in early boot");
     const char *args[] = {(char *) "", root.c_str(), nullptr};

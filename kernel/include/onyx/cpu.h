@@ -232,7 +232,7 @@
 #define X86_FEATURE_PERFTSC              (219)
 #define X86_FEATURE_PCX_L2I              (220)
 
-#define X86_MESSAGE_VECTOR   (130)
+#define X86_KILL_VECTOR      (130)
 #define X86_RESCHED_VECTOR   (131)
 #define X86_SYNC_CALL_VECTOR (132)
 #define X86_PERFPROBE        (133)
@@ -300,24 +300,12 @@ static inline void cpu_sleep()
 
 #endif
 
-#define CPU_OUTGOING_MAX 5
-
-struct cpu_message
-{
-    unsigned long message;
-    void *ptr;
-    volatile bool ack;
-    volatile bool sent;
-    struct list_head node;
-};
-
 void cpu_identify();
 void cpu_init_late();
 unsigned int get_nr_cpus();
 bool is_kernel_ip(uintptr_t ip);
 void cpu_kill_other_cpus();
 void cpu_kill(int cpu_num);
-bool cpu_send_message(unsigned int cpu, unsigned long message, void *arg, bool should_wait);
 void cpu_send_resched(unsigned int cpu);
 void cpu_send_sync_notif(unsigned int cpu);
 void __cpu_resched();

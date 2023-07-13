@@ -59,15 +59,16 @@ struct node : public device
     node *parent;
     int offset, depth;
 
-    int address_cells, size_cells;
+    int address_cells{2}, size_cells{1};
+    int interrupt_parent{0};
 
-    driver *driver_;
+    driver *driver_{nullptr};
 
     list_head_cpp<node> list_node;
 
     node(cul::string &&name, int offset, int depth, node *parent = nullptr)
-        : device{"", nullptr, parent}, name{name}, children{}, parent{parent}, offset{offset},
-          depth{depth}, address_cells{2}, size_cells{1}, driver_{}, list_node{this}
+        : device{"", nullptr, parent}, name{name}, parent{parent}, offset{offset}, depth{depth},
+          list_node{this}
     {
     }
 

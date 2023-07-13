@@ -30,7 +30,7 @@ long do_syscall64(registers_t *frame)
 
     /* sigaltstack's implementation requires the syscall frame as the 3rd argument */
     if (frame->a7 == SYS_sigaltstack)
-        frame->a0 = (unsigned long) frame;
+        frame->a2 = (unsigned long) frame;
 
     unsigned long syscall_nr = frame->a7;
     long ret = 0;

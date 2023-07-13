@@ -1,0 +1,13 @@
+import("//build/app.gni")
+
+app_executable("kernel_cpu_tests") {
+    package_name = "kernel_cpu_tests"
+    output_name = "$package_name"
+
+    sources = []
+    if (target_cpu == "arm64") {
+        sources += [ "src/arm64/signal.cpp" ]
+    }
+
+    deps = [ "//googletest:gtest_main" ]
+}

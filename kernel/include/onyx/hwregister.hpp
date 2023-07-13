@@ -316,6 +316,11 @@ public:
     IOREGISTER_INTERNAL_WRITEx(16, write);
     IOREGISTER_INTERNAL_WRITEx(32, write);
     IOREGISTER_INTERNAL_WRITEx(64, write);
+
+    unsigned long base() const
+    {
+        return is_io ? io.as_ioport() : (unsigned long) mmio.as_ptr();
+    }
 };
 
 #endif

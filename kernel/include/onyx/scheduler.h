@@ -80,6 +80,8 @@ using thread_t = struct thread
     void *gs;
 #elif defined(__riscv)
     void *tp;
+#elif defined(__aarch64__)
+    void *tpidr;
 #endif
 
 #ifdef __cplusplus

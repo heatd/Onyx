@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -70,7 +70,8 @@ void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
 static inline void __native_tlb_invalidate_page(void *addr)
 {
     // TODO: ASIDs
-    __asm__ __volatile__("tlbi vaae1is, %0" ::"r"(addr));
+    __asm__ __volatile__("tlbi vaae1is, %0" ::"r"((unsigned long) addr >> 12));
+    isb();
 }
 
 bool pte_empty(uint64_t pte)
@@ -172,6 +173,8 @@ unsigned long placement_mappings_start = 0xffffffffffc00000;
 void __native_tlb_invalidate_all()
 {
     __asm__ __volatile__("tlbi vmalle1is");
+    dsb();
+    isb();
 }
 
 PML *arm64_get_kernel_page_table()
@@ -214,6 +217,28 @@ void paging_init()
     }
 }
 
+static void arm64_set_pte(void *vaddr, u64 *pte, u64 newpte)
+{
+    u64 old = read_once(*pte);
+
+    if (old != 0)
+    {
+        // If a valid entry, do BBM
+        write_once(*pte, (u64) 0);
+        // Now do a dsb to make sure the entry is written back
+        dsb();
+        // Invalidate the page, broadcast
+        __native_tlb_invalidate_page(vaddr);
+
+        // dsb will wait for the tlbi
+        dsb();
+    }
+
+    // Write the new pte entry and dsb
+    write_once(*pte, newpte);
+    dsb();
+}
+
 void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64_t phys,
                               uint64_t prot)
 {
@@ -235,26 +260,24 @@ void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
 
     uint64_t page_prots = vm_prots_to_mmu(prot);
 #if 0
-    budget_printk("vm prots %c%c%c page prots %016lx\n", prot & VM_READ ? 'r' : '-',
-                  prot & VM_WRITE ? 'w' : '-', prot & VM_EXEC ? 'x' : '-', page_prots);
+    printk("mapping %016lx vm prots %c%c%c page %016lx prots %016lx\n", virt,
+           prot & VM_READ ? 'r' : '-', prot & VM_WRITE ? 'w' : '-', prot & VM_EXEC ? 'x' : '-',
+           phys, page_prots);
 #endif
     if (prot & VM_DONT_MAP_OVER && *ptentry & ARM64_MMU_VALID)
         return (void *) virt;
 
-    uint64_t old = *ptentry;
+    uint64_t old = read_once(*ptentry);
 
-    *ptentry = phys | page_prots;
+    // set_pte properly invalidates the TLB, so we don't need to
+    arm64_set_pte((void *) virt, ptentry, page_prots | phys);
 
     if (pte_empty(old))
     {
         increment_vm_stat(as, resident_set_size, PAGE_SIZE);
     }
-    else
-    {
-        __native_tlb_invalidate_page((void *) PML_EXTRACT_ADDRESS(*ptentry));
-    }
 
-    dsb();
+    isb();
 
     return (void *) virt;
 }
@@ -410,12 +433,19 @@ int paging_fork_tables(struct mm_address_space *addr_space)
     return 0;
 }
 
-void paging_load_top_pt(PML *pml)
+void paging_load_top_pt_kernel(PML *pml)
 {
     msr("ttbr1_el1", pml);
     isb();
     dsb();
+}
+
+void paging_load_top_pt(PML *pml)
+{
+    msr("ttbr0_el1", pml);
     __native_tlb_invalidate_all();
+    isb();
+    dsb();
 }
 
 bool arm64_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
@@ -457,7 +487,6 @@ bool arm64_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
             increment_vm_stat(mm, page_tables_size, PAGE_SIZE);
 
             pml->entries[indices[i - 1]] = arm64_make_pt_entry_page_table(pt);
-            //__asm__ __volatile__("sfence.vma zero, zero");
 
             pml = (PML *) PHYS_TO_VIRT(pt);
         }
@@ -466,36 +495,6 @@ bool arm64_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
     *entry_ptr = &pml->entries[indices[i - 1]];
 
     return true;
-}
-
-bool __paging_change_perms(struct mm_address_space *mm, void *addr, int prot)
-{
-    MUST_HOLD_MUTEX(&mm->vm_lock);
-
-    uint64_t *entry;
-    if (!arm64_get_pt_entry(addr, &entry, false, mm))
-    {
-        return false;
-    }
-
-    uint64_t pt_entry = *entry;
-    uint64_t perms = pt_entry & ARM64_MMU_FLAGS_TO_SAVE_ON_MPROTECT;
-    uint64_t page = PML_EXTRACT_ADDRESS(pt_entry);
-
-    perms |= vm_prots_to_mmu(prot);
-
-    *entry = perms | page;
-
-    return true;
-}
-
-bool paging_change_perms(void *addr, int prot)
-{
-    struct mm_address_space *as = &kernel_address_space;
-    if ((unsigned long) addr < VM_HIGHER_HALF)
-        as = get_current_address_space();
-
-    return __paging_change_perms(as, addr, prot);
 }
 
 bool paging_write_protect(void *addr, struct mm_address_space *mm)
@@ -591,21 +590,14 @@ void paging_protect_kernel()
                        VM_READ | VM_WRITE);
     percpu_map_master_copy();
 
-    paging_load_top_pt(pml);
+    paging_load_top_pt_kernel(pml);
+
+    // TODO(pedro): Disable the bottom half translation properly
+    auto zero_page = page_to_phys(vm_get_zero_page());
+    paging_load_top_pt((PML *) zero_page);
 }
 
 unsigned long total_shootdowns = 0;
-
-void paging_invalidate(void *page, size_t pages)
-{
-    uintptr_t p = (uintptr_t) page;
-
-    for (size_t i = 0; i < pages; i++, p += PAGE_SIZE)
-    {
-        total_shootdowns++;
-        __native_tlb_invalidate_page((void *) p);
-    }
-}
 
 /**
  * @brief Directly maps a page into the paging tables.
@@ -746,7 +738,7 @@ void vm_load_arch_mmu(struct arch_mm_address_space *mm)
  */
 void vm_save_current_mmu(struct mm_address_space *mm)
 {
-    mm->arch_mmu.top_pt = get_current_page_tables();
+    mm->arch_mmu.top_pt = page_to_phys(alloc_page(0));
 }
 
 /**
@@ -789,9 +781,32 @@ void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots
     // printk("new prots: %x\n", new_prots);
 
     unsigned long paddr = PML_EXTRACT_ADDRESS(*ptentry);
-
     uint64_t page_prots = vm_prots_to_mmu(new_prots);
-    *ptentry = paddr | page_prots;
+
+    arm64_set_pte(addr, ptentry, paddr | page_prots);
+}
+
+/**
+ * @brief Directly mprotect a range in the paging tables.
+ *
+ * This function handles any edge cases like trying to re-apply write perms on
+ * a write-protected page. It also invalidates the TLB.
+ *
+ * @param as The target address space.
+ * @param address The virtual address of the range.
+ * @param nr_pgs Number of pages in the range
+ * @param old_prots The old protection flags.
+ * @param new_prots The new protection flags.
+ */
+void vm_do_mmu_mprotect(struct mm_address_space *as, void *address, size_t nr_pgs, int old_prots,
+                        int new_prots)
+{
+    for (size_t i = 0; i < nr_pgs; i++)
+    {
+        vm_mmu_mprotect_page(as, address, old_prots, new_prots);
+
+        address = (void *) ((unsigned long) address + PAGE_SIZE);
+    }
 }
 
 class page_table_iterator
@@ -1061,30 +1076,6 @@ static inline bool is_higher_half(unsigned long address)
 PER_CPU_VAR(unsigned long tlb_nr_invals) = 0;
 PER_CPU_VAR(unsigned long nr_tlb_shootdowns) = 0;
 
-struct mm_shootdown_info
-{
-    unsigned long addr;
-    size_t pages;
-    mm_address_space *mm;
-};
-
-void arm64_invalidate_tlb(void *context)
-{
-    auto info = (mm_shootdown_info *) context;
-    auto addr = info->addr;
-    auto pages = info->pages;
-    auto addr_space = info->mm;
-
-    auto curr_thread = get_current_thread();
-
-    if (is_higher_half(addr) ||
-        (curr_thread->owner && curr_thread->owner->get_aspace() == addr_space))
-    {
-        paging_invalidate((void *) addr, pages);
-        add_per_cpu(tlb_nr_invals, 1);
-    }
-}
-
 /**
  * @brief Invalidates a memory range.
  *
@@ -1094,23 +1085,15 @@ void arm64_invalidate_tlb(void *context)
  */
 void mmu_invalidate_range(unsigned long addr, size_t pages, mm_address_space *mm)
 {
-    add_per_cpu(nr_tlb_shootdowns, 1);
-    mm_shootdown_info info{addr, pages, mm};
+    dsb();
 
-    auto our_cpu = get_cpu_nr();
-    cpumask mask;
-
-    if (addr >= VM_HIGHER_HALF)
+    while (pages--)
     {
-        mask = cpumask::all_but_one(our_cpu);
-    }
-    else
-    {
-        mask = mm->active_mask;
-        mask.remove_cpu(our_cpu);
+        __native_tlb_invalidate_page((void *) addr);
+        addr += PAGE_SIZE;
     }
 
-    smp::sync_call_with_local(arm64_invalidate_tlb, &info, mask, arm64_invalidate_tlb, &info);
+    dsb();
 }
 
 struct mmu_acct
@@ -1164,4 +1147,38 @@ void mmu_verify_address_space_accounting(mm_address_space *as)
 
     assert(acct.page_table_size == as->page_tables_size);
     assert(acct.resident_set_size == as->resident_set_size);
+}
+
+#define DEBUG_PRINT_MAPPING 0
+
+/**
+ * @brief Map a specific number of pages onto a virtual address.
+ * Should only be used by MM code since it does not touch vm_regions, only
+ * MMU page tables.
+ *
+ * @param as   The target address space.
+ * @param virt The virtual address.
+ * @param phys The start of the physical range.
+ * @param size The size of the mapping, in bytes.
+ * @param flags The permissions on the mapping.
+ *
+ * @return NULL on error, virt on success.
+ */
+void *__map_pages_to_vaddr(struct mm_address_space *as, void *virt, void *phys, size_t size,
+                           size_t flags)
+{
+    size_t pages = vm_size_to_pages(size);
+
+#if DEBUG_PRINT_MAPPING
+    printk("__map_pages_to_vaddr: %p (phys %p) - %lx\n", virt, phys, (unsigned long) virt + size);
+#endif
+    void *ptr = virt;
+    for (uintptr_t virt = (uintptr_t) ptr, _phys = (uintptr_t) phys, i = 0; i < pages;
+         virt += PAGE_SIZE, _phys += PAGE_SIZE, ++i)
+    {
+        if (!vm_map_page(as, virt, _phys, flags))
+            return nullptr;
+    }
+
+    return ptr;
 }

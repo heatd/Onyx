@@ -448,40 +448,6 @@ bool riscv_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
     return true;
 }
 
-bool __paging_change_perms(struct mm_address_space *mm, void *addr, int prot)
-{
-    MUST_HOLD_MUTEX(&mm->vm_lock);
-
-    uint64_t *entry;
-    if (!riscv_get_pt_entry(addr, &entry, false, mm))
-    {
-        return false;
-    }
-
-    uint64_t pt_entry = *entry;
-    uint64_t perms = pt_entry & RISCV_MMU_FLAGS_TO_SAVE_ON_MPROTECT;
-    uint64_t page = PML_EXTRACT_ADDRESS(pt_entry);
-
-    if (prot & VM_EXEC)
-        perms |= RISCV_MMU_EXECUTE;
-    if (prot & VM_WRITE)
-        perms |= RISCV_MMU_WRITE;
-    if (prot & VM_READ)
-        perms |= RISCV_MMU_VALID | RISCV_MMU_READ;
-    *entry = perms | page;
-
-    return true;
-}
-
-bool paging_change_perms(void *addr, int prot)
-{
-    struct mm_address_space *as = &kernel_address_space;
-    if ((unsigned long) addr < VM_HIGHER_HALF)
-        as = get_current_address_space();
-
-    return __paging_change_perms(as, addr, prot);
-}
-
 bool paging_write_protect(void *addr, struct mm_address_space *mm)
 {
     uint64_t *ptentry;
@@ -744,6 +710,33 @@ void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots
 
     uint64_t page_prots = vm_prots_to_mmu(new_prots);
     *ptentry = riscv_pt_page_mapping(paddr) | page_prots;
+}
+
+/**
+ * @brief Directly mprotect a range in the paging tables.
+ *
+ * This function handles any edge cases like trying to re-apply write perms on
+ * a write-protected page. It also invalidates the TLB.
+ *
+ * @param as The target address space.
+ * @param address The virtual address of the range.
+ * @param nr_pgs Number of pages in the range
+ * @param old_prots The old protection flags.
+ * @param new_prots The new protection flags.
+ */
+void vm_do_mmu_mprotect(struct mm_address_space *as, void *address, size_t nr_pgs, int old_prots,
+                        int new_prots)
+{
+    void *addr = address;
+
+    for (size_t i = 0; i < nr_pgs; i++)
+    {
+        vm_mmu_mprotect_page(as, address, old_prots, new_prots);
+
+        address = (void *) ((unsigned long) address + PAGE_SIZE);
+    }
+
+    vm_invalidate_range((unsigned long) addr, nr_pgs);
 }
 
 class page_table_iterator
@@ -1118,4 +1111,41 @@ void mmu_verify_address_space_accounting(mm_address_space *as)
 
     assert(acct.page_table_size == as->page_tables_size);
     assert(acct.resident_set_size == as->resident_set_size);
+}
+
+#define DEBUG_PRINT_MAPPING 0
+
+/**
+ * @brief Map a specific number of pages onto a virtual address.
+ * Should only be used by MM code since it does not touch vm_regions, only
+ * MMU page tables.
+ *
+ * @param as   The target address space.
+ * @param virt The virtual address.
+ * @param phys The start of the physical range.
+ * @param size The size of the mapping, in bytes.
+ * @param flags The permissions on the mapping.
+ *
+ * @return NULL on error, virt on success.
+ */
+void *__map_pages_to_vaddr(struct mm_address_space *as, void *virt, void *phys, size_t size,
+                           size_t flags)
+{
+    size_t pages = vm_size_to_pages(size);
+
+#if DEBUG_PRINT_MAPPING
+    printk("__map_pages_to_vaddr: %p (phys %p) - %lx\n", virt, phys, (unsigned long) virt + size);
+#endif
+    void *ptr = virt;
+    for (uintptr_t virt = (uintptr_t) ptr, _phys = (uintptr_t) phys, i = 0; i < pages;
+         virt += PAGE_SIZE, _phys += PAGE_SIZE, ++i)
+    {
+        if (!vm_map_page(as, virt, _phys, flags))
+            return nullptr;
+    }
+
+    if (!(flags & VM_NOFLUSH))
+        vm_invalidate_range((unsigned long) virt, pages);
+
+    return ptr;
 }

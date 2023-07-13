@@ -1,11 +1,13 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
-#ifndef _IRQ_H
-#define _IRQ_H
+#ifndef _ONYX_IRQ_H
+#define _ONYX_IRQ_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -23,6 +25,8 @@
 #define IRQ_UNHANDLED -1
 
 #define IRQ_FLAG_REGULAR 0
+#define IRQ_FLAG_LOW     (1 << 0)
+#define IRQ_FLAG_LEVEL   (1 << 1)
 
 typedef int irqstatus_t;
 typedef irqstatus_t (*irq_t)(struct irq_context *context, void *cookie);

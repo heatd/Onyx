@@ -618,40 +618,6 @@ bool x86_get_pt_entry(void *addr, uint64_t **entry_ptr, struct mm_address_space 
     return true;
 }
 
-bool __paging_change_perms(struct mm_address_space *mm, void *addr, int prot)
-{
-    scoped_lock g{mm->page_table_lock};
-
-    uint64_t *entry;
-    if (!x86_get_pt_entry(addr, &entry, mm))
-    {
-        return false;
-    }
-
-    uint64_t pt_entry = *entry;
-    uint64_t perms = pt_entry & X86_PAGING_FLAGS_TO_SAVE_ON_MPROTECT;
-    uint64_t page = PML_EXTRACT_ADDRESS(pt_entry);
-
-    if (!(prot & VM_EXEC))
-        perms |= X86_PAGING_NX;
-    if (prot & VM_WRITE)
-        perms |= X86_PAGING_WRITE;
-    if (prot & VM_READ)
-        perms |= X86_PAGING_PRESENT;
-    *entry = perms | page;
-
-    return true;
-}
-
-bool paging_change_perms(void *addr, int prot)
-{
-    struct mm_address_space *as = &kernel_address_space;
-    if ((unsigned long) addr < VM_HIGHER_HALF)
-        as = get_current_address_space();
-
-    return __paging_change_perms(as, addr, prot);
-}
-
 bool paging_write_protect(void *addr, struct mm_address_space *mm)
 {
     scoped_lock g{mm->page_table_lock};
@@ -887,6 +853,33 @@ void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots
                           (user ? X86_PAGING_USER : 0) | (write ? X86_PAGING_WRITE : 0) |
                           X86_CACHING_BITS(caching_bits) | (readable ? X86_PAGING_PRESENT : 0);
     *ptentry = paddr | page_prots;
+}
+
+/**
+ * @brief Directly mprotect a range in the paging tables.
+ *
+ * This function handles any edge cases like trying to re-apply write perms on
+ * a write-protected page. It also invalidates the TLB.
+ *
+ * @param as The target address space.
+ * @param address The virtual address of the range.
+ * @param nr_pgs Number of pages in the range
+ * @param old_prots The old protection flags.
+ * @param new_prots The new protection flags.
+ */
+void vm_do_mmu_mprotect(struct mm_address_space *as, void *address, size_t nr_pgs, int old_prots,
+                        int new_prots)
+{
+    void *addr = address;
+
+    for (size_t i = 0; i < nr_pgs; i++)
+    {
+        vm_mmu_mprotect_page(as, address, old_prots, new_prots);
+
+        address = (void *) ((unsigned long) address + PAGE_SIZE);
+    }
+
+    vm_invalidate_range((unsigned long) addr, nr_pgs);
 }
 
 class page_table_iterator
@@ -1746,3 +1739,40 @@ int mmu_map_kasan_shadow(void *shadow_start, size_t pages)
 }
 
 #endif
+
+#define DEBUG_PRINT_MAPPING 0
+
+/**
+ * @brief Map a specific number of pages onto a virtual address.
+ * Should only be used by MM code since it does not touch vm_regions, only
+ * MMU page tables.
+ *
+ * @param as   The target address space.
+ * @param virt The virtual address.
+ * @param phys The start of the physical range.
+ * @param size The size of the mapping, in bytes.
+ * @param flags The permissions on the mapping.
+ *
+ * @return NULL on error, virt on success.
+ */
+void *__map_pages_to_vaddr(struct mm_address_space *as, void *virt, void *phys, size_t size,
+                           size_t flags)
+{
+    size_t pages = vm_size_to_pages(size);
+
+#if DEBUG_PRINT_MAPPING
+    printk("__map_pages_to_vaddr: %p (phys %p) - %lx\n", virt, phys, (unsigned long) virt + size);
+#endif
+    void *ptr = virt;
+    for (uintptr_t virt = (uintptr_t) ptr, _phys = (uintptr_t) phys, i = 0; i < pages;
+         virt += PAGE_SIZE, _phys += PAGE_SIZE, ++i)
+    {
+        if (!vm_map_page(as, virt, _phys, flags))
+            return nullptr;
+    }
+
+    if (!(flags & VM_NOFLUSH))
+        vm_invalidate_range((unsigned long) virt, pages);
+
+    return ptr;
+}

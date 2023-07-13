@@ -33,11 +33,6 @@ void arch_vm_init()
 {
 }
 
-bool cpu_send_message(unsigned int cpu, unsigned long message, void *arg, bool should_wait)
-{
-    UNIMPLEMENTED;
-}
-
 extern "C" void __enter_sleep_state()
 {
     UNIMPLEMENTED;
