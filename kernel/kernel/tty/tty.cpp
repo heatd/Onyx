@@ -19,7 +19,6 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <uapi/fcntl.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -42,6 +41,7 @@
 #include <onyx/tty.h>
 
 #include <bits/ioctl.h>
+#include <uapi/fcntl.h>
 
 void vterm_release_video(void *vterm);
 void vterm_get_video(void *vt);
@@ -235,7 +235,7 @@ ssize_t tty_has_input_available(unsigned int flags, struct tty *tty)
     return ret;
 }
 
-ssize_t tty_wait_for_line(unsigned int flags, struct tty *tty)
+ssize_t tty_wait_for_line(unsigned int flags, struct tty *tty) TRY_ACQUIRE(0, tty->input_lock)
 {
     mutex_lock(&tty->input_lock);
 
@@ -340,7 +340,7 @@ size_t ttydevfs_read(size_t offset, size_t count, void *buffer, struct file *thi
 
     int st = tty_wait_for_line(this_->f_flags, tty);
 
-    if (st < 0)
+    if (st != 0)
         return (size_t) st;
 
     size_t len = __tty_has_input_available(tty);

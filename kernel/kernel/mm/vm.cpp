@@ -323,7 +323,7 @@ void vm_addr_init()
     kernel_address_space.ref();
 }
 
-static inline void __vm_lock(bool kernel)
+static inline void __vm_lock(bool kernel) NO_THREAD_SAFETY_ANALYSIS
 {
     if (kernel)
         mutex_lock(&kernel_address_space.vm_lock);
@@ -331,7 +331,7 @@ static inline void __vm_lock(bool kernel)
         mutex_lock(&get_current_address_space()->vm_lock);
 }
 
-static inline void __vm_unlock(bool kernel)
+static inline void __vm_unlock(bool kernel) NO_THREAD_SAFETY_ANALYSIS
 {
     if (kernel)
         mutex_unlock(&kernel_address_space.vm_lock);
@@ -1125,7 +1125,7 @@ int vm_fork_address_space(struct mm_address_space *addr_space)
  * @param pages Number of pages.
  * @param perms New permissions.
  */
-void vm_change_perms(void *range, size_t pages, int perms)
+void vm_change_perms(void *range, size_t pages, int perms) NO_THREAD_SAFETY_ANALYSIS
 {
     struct mm_address_space *as;
     bool kernel = is_higher_half(range);
@@ -3470,7 +3470,7 @@ void vm_wp_page(struct mm_address_space *mm, void *vaddr)
  */
 void vm_wp_page_for_every_region(page *page, size_t page_off, vm_object *vmo)
 {
-    vmo->for_every_mapping([page_off](vm_region *region) -> bool {
+    vmo->for_every_mapping([page_off](vm_region *region) NO_THREAD_SAFETY_ANALYSIS -> bool {
         /* XXX Yuck. We can be called from such stacks such as ~mm_address_space() -> dentry_destroy
          * -> inode_release -> inode_sync -> pagecache_set_dirty -> vm_wp_page_for_every_region.
          * SHOULDFIX. In this case, it's no problem since we already hold the lock.

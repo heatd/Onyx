@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -172,13 +172,13 @@ void acpi_os_delete_mutex(acpi_mutex handle)
 }
 
 // TODO: Implement Timeout
-acpi_status acpi_os_acquire_mutex(acpi_mutex handle, u16 timeout)
+acpi_status acpi_os_acquire_mutex(acpi_mutex handle, u16 timeout) ACQUIRE(handle)
 {
     mutex_lock((mutex *) handle);
     return AE_OK;
 }
 
-void acpi_os_release_mutex(acpi_mutex handle)
+void acpi_os_release_mutex(acpi_mutex handle) RELEASE(handle)
 {
     mutex_unlock((mutex *) handle);
 }

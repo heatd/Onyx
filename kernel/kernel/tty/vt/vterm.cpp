@@ -154,7 +154,7 @@ private:
     void repeat_last(unsigned long nr);
 };
 
-void vterm_append_msg(struct vterm *vterm, struct vterm_message *msg)
+void vterm_append_msg(struct vterm *vterm, struct vterm_message *msg) ACQUIRE(vterm->condvar_mutex)
 {
     mutex_lock(&vterm->condvar_mutex);
 

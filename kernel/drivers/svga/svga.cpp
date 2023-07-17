@@ -148,7 +148,7 @@ void SvgaDevice::wait_for_fifo(size_t len)
 
 void SvgaDevice::send_command_fifo(void *command, size_t len)
 {
-    mutex_lock(&fifo_lock);
+    // mutex_lock(&fifo_lock);
 
     /* Firstly, we need to wait for the fifo to have enough space */
     wait_for_fifo(len);
@@ -159,7 +159,8 @@ void SvgaDevice::send_command_fifo(void *command, size_t len)
     command_buffer[SVGA_FIFO_STOP] += len;
 }
 
-extern "C" {
+extern "C"
+{
 
 int svga_probe(struct device *_dev)
 {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -12,13 +12,14 @@
 
 #include <onyx/assert.h>
 #include <onyx/list.h>
+#include <onyx/lock_annotations.h>
 #include <onyx/spinlock.h>
 #include <onyx/utils.h>
 
 struct mutex;
 CONSTEXPR static inline void mutex_init(struct mutex *mutex);
 
-struct mutex
+struct CAPABILITY("mutex") mutex
 {
     struct spinlock llock;
     struct list_head thread_list;
@@ -58,9 +59,9 @@ CONSTEXPR static inline void mutex_init(struct mutex *mutex)
     INIT_LIST_HEAD(&mutex->thread_list);
 }
 
-void mutex_lock(struct mutex *m);
-void mutex_unlock(struct mutex *m);
-int mutex_lock_interruptible(struct mutex *mutex);
+void mutex_lock(struct mutex *m) ACQUIRE(m);
+void mutex_unlock(struct mutex *m) RELEASE(m);
+int mutex_lock_interruptible(struct mutex *mutex) TRY_ACQUIRE(false, mutex);
 bool mutex_holds_lock(struct mutex *m);
 struct thread *mutex_owner(struct mutex *mtx);
 

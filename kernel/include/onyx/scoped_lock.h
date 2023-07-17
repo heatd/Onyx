@@ -1,13 +1,16 @@
 /*
- * Copyright (c) 2019 Pedro Falcato
- * This file is part of Carbon, and is released under the terms of the MIT License
+ * Copyright (c) 2019 - 2023 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #ifndef _ONYX_SCOPED_LOCK_H
 #define _ONYX_SCOPED_LOCK_H
 
 #include <onyx/enable_if.h>
+#include <onyx/lock_annotations.h>
 #include <onyx/mutex.h>
 #include <onyx/spinlock.h>
 
@@ -19,7 +22,7 @@ private:
     LockType& internal_lock;
 
 public:
-    void lock()
+    void lock() ACQUIRE(internal_lock)
     {
         if (irq_save)
             internal_lock.LockIrqsave();
@@ -28,7 +31,7 @@ public:
         IsLocked = true;
     }
 
-    void unlock()
+    void unlock() RELEASE(internal_lock)
     {
         if (irq_save)
             internal_lock.UnlockIrqrestore();
@@ -110,14 +113,14 @@ public:
 };
 
 template <bool interruptible = false>
-class scoped_mutex
+class SCOPED_CAPABILITY scoped_mutex
 {
 private:
     mutex& internal_lock;
     bool is_locked;
 
 public:
-    void lock()
+    void lock() ACQUIRE()
     {
         if constexpr (interruptible)
         {
@@ -130,25 +133,25 @@ public:
         is_locked = true;
     }
 
-    void unlock()
+    void unlock() RELEASE()
     {
         mutex_unlock(&internal_lock);
         is_locked = false;
     }
 
-    explicit scoped_mutex(mutex& lock) : internal_lock(lock), is_locked{false}
+    explicit scoped_mutex(mutex& lock) ACQUIRE(lock) : internal_lock(lock), is_locked{false}
     {
         this->lock();
     }
 
-    explicit scoped_mutex(mutex& lock, bool should_auto_lock)
+    explicit scoped_mutex(mutex& lock, bool should_auto_lock) ACQUIRE(lock)
         : internal_lock(lock), is_locked{false}
     {
         if (should_auto_lock)
             this->lock();
     }
 
-    ~scoped_mutex()
+    ~scoped_mutex() RELEASE()
     {
         if (is_locked) [[likely]]
             unlock();

@@ -905,7 +905,7 @@ int pipe::open_named(struct file *filp)
         wake_all(&read_queue);
         COMPILER_BARRIER();
         // Use a lambda to go around the multiple wait_for_event problem
-        st = [&]() -> ssize_t {
+        st = [&]() REQUIRES(pipe_lock) -> ssize_t {
             return wait_for_event_mutex_interruptible(&write_queue, reader_count != 0, &pipe_lock);
         }();
     }
