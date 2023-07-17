@@ -81,14 +81,16 @@ public:
         return block_load;
     }
 
-    void lock()
+    void lock() ACQUIRE(__lock)
     {
         mutex_lock(&__lock);
     }
-    void unlock()
+
+    void unlock() RELEASE(__lock)
     {
         mutex_unlock(&__lock);
     }
+
     bool called_from_sync();
 
     void init();

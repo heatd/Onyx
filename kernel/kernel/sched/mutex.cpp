@@ -135,7 +135,7 @@ static inline void mutex_postlock(mutex *mtx)
 {
 }
 
-int __mutex_lock(struct mutex *mutex, int state)
+int __mutex_lock(struct mutex *mutex, int state) ACQUIRE(mutex) NO_THREAD_SAFETY_ANALYSIS
 {
     MAY_SLEEP();
     int ret = 0;
@@ -160,7 +160,7 @@ int mutex_lock_interruptible(struct mutex *mutex)
     return __mutex_lock(mutex, THREAD_INTERRUPTIBLE);
 }
 
-void mutex_unlock(struct mutex *mutex)
+void mutex_unlock(struct mutex *mutex) NO_THREAD_SAFETY_ANALYSIS
 {
     // MAY_SLEEP();
     __atomic_store_n(&mutex->counter, 0, __ATOMIC_RELEASE);

@@ -933,7 +933,7 @@ void condvar_wait_unlocked(cond *var)
         irq_enable();
 }
 
-void condvar_wait(cond *var, mutex *mutex)
+void condvar_wait(cond *var, mutex *mutex) REQUIRES(mutex)
 {
     sched_disable_preempt();
 

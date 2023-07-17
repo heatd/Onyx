@@ -25,9 +25,14 @@
 
 #endif
 
+// #include <onyx/lock_annotations.h>
+#define __ACQUIRE(...)
+#define __RELEASE(...)
+#define __CAPABILITY(...)
+
 typedef unsigned int raw_spinlock_t;
 
-struct spinlock
+struct __CAPABILITY("spinlock") spinlock
 {
     /* TODO: Conditionally have these debug features, and have owner_cpu be in lock */
     raw_spinlock_t lock;
@@ -41,8 +46,8 @@ extern "C"
 {
 #endif
 
-void __spin_lock(struct spinlock *lock);
-void __spin_unlock(struct spinlock *lock);
+void __spin_lock(struct spinlock *lock) __ACQUIRE(lock);
+void __spin_unlock(struct spinlock *lock) __RELEASE(lock);
 int spin_try_lock(struct spinlock *lock);
 
 #ifndef __ONLY_INCLUDE_BASIC_C_DEFS
@@ -64,7 +69,7 @@ CONSTEXPR static inline void spinlock_init(struct spinlock *s)
     {                        \
     }
 
-static inline FUNC_NO_DISCARD unsigned long spin_lock_irqsave(struct spinlock *lock)
+static inline FUNC_NO_DISCARD unsigned long spin_lock_irqsave(struct spinlock *lock) __ACQUIRE(lock)
 {
     unsigned long flags = irq_save_and_disable();
     __spin_lock(lock);
@@ -72,6 +77,7 @@ static inline FUNC_NO_DISCARD unsigned long spin_lock_irqsave(struct spinlock *l
 }
 
 static inline void spin_unlock_irqrestore(struct spinlock *lock, unsigned long old_flags)
+    __RELEASE(lock)
 {
     __spin_unlock(lock);
     irq_restore(old_flags);
@@ -82,14 +88,14 @@ static inline bool spin_lock_held(struct spinlock *lock)
     return lock->lock == get_cpu_nr() + 1;
 }
 
-static inline void spin_lock(struct spinlock *lock)
+static inline void spin_lock(struct spinlock *lock) __ACQUIRE(lock)
 {
     sched_disable_preempt();
 
     __spin_lock(lock);
 }
 
-static inline void spin_unlock(struct spinlock *lock)
+static inline void spin_unlock(struct spinlock *lock) __RELEASE(lock)
 {
     __spin_unlock(lock);
     sched_enable_preempt();
@@ -111,22 +117,22 @@ public:
     {
         assert(lock.lock != 1);
     }
-    void Lock()
+    void Lock() __ACQUIRE(lock)
     {
         spin_lock(&lock);
     }
 
-    void LockIrqsave()
+    void LockIrqsave() __ACQUIRE(lock)
     {
         cpu_flags = spin_lock_irqsave(&lock);
     }
 
-    void Unlock()
+    void Unlock() __RELEASE(lock)
     {
         spin_unlock(&lock);
     }
 
-    void UnlockIrqrestore()
+    void UnlockIrqrestore() __RELEASE(lock)
     {
         spin_unlock_irqrestore(&lock, cpu_flags);
     }
