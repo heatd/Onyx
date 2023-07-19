@@ -282,22 +282,6 @@ void vm_addr_init()
     kernel_address_space.ref();
 }
 
-static inline void __vm_lock(bool kernel) NO_THREAD_SAFETY_ANALYSIS
-{
-    if (kernel)
-        mutex_lock(&kernel_address_space.vm_lock);
-    else
-        mutex_lock(&get_current_address_space()->vm_lock);
-}
-
-static inline void __vm_unlock(bool kernel) NO_THREAD_SAFETY_ANALYSIS
-{
-    if (kernel)
-        mutex_unlock(&kernel_address_space.vm_lock);
-    else
-        mutex_unlock(&get_current_address_space()->vm_lock);
-}
-
 static inline bool is_higher_half(void *address)
 {
     return (uintptr_t) address > VM_HIGHER_HALF;
@@ -642,31 +626,6 @@ return_:
 }
 
 /**
- * @brief Creates a new vm region at a specified address.
- * Should only be used by core MM code.
- *
- * @param addr Address of the mapping.
- * @param pages Number of pages.
- * @param type Type of the mapping.
- * @param prot Protection flags.
- * @return The new vm_region, or NULL in case of failure (check errno).
- */
-struct vm_region *vm_create_region_at(void *addr, size_t pages, uint32_t type, uint64_t prot)
-{
-    bool reserving_kernel = is_higher_half(addr);
-    struct vm_region *v = nullptr;
-
-    __vm_lock(reserving_kernel);
-
-    assert(prot & VM_USER && !reserving_kernel);
-    v = __vm_create_region_at(addr, pages, type, prot);
-
-    __vm_unlock(reserving_kernel);
-
-    return v;
-}
-
-/**
  * @brief Finds a vm region.
  *
  * @param addr An address inside the region.
@@ -929,14 +888,14 @@ int vm_fork_private_vmos(struct mm_address_space *mm)
  */
 int vm_fork_address_space(struct mm_address_space *addr_space)
 {
-    __vm_lock(false);
+    struct mm_address_space *current_mm = get_current_address_space();
+    scoped_mutex g{current_mm->vm_lock};
 
 #if CONFIG_DEBUG_ADDRESS_SPACE_ACCT
     mmu_verify_address_space_accounting(get_current_address_space());
 #endif
     if (vm_fork_private_vmos(addr_space) < 0)
     {
-        __vm_unlock(false);
         return -1;
     }
 
@@ -946,11 +905,8 @@ int vm_fork_address_space(struct mm_address_space *addr_space)
 
     if (paging_fork_tables(addr_space) < 0)
     {
-        __vm_unlock(false);
         return -1;
     }
-
-    struct mm_address_space *current_mm = get_current_address_space();
 
     bst_root_initialize(&addr_space->region_tree);
 
@@ -964,7 +920,6 @@ int vm_fork_address_space(struct mm_address_space *addr_space)
         if (!fork_vm_region(entry, &it))
         {
             tear_down_addr_space(addr_space);
-            __vm_unlock(false);
             return -1;
         }
     }
@@ -985,7 +940,6 @@ int vm_fork_address_space(struct mm_address_space *addr_space)
 
     mutex_init(&addr_space->vm_lock);
 
-    __vm_unlock(false);
     return 0;
 }
 
@@ -3051,8 +3005,8 @@ void *vm_remap_create_new_mapping_of_shared_pages(void *new_address, size_t new_
             goto out;
         }
 
-        new_mapping = vm_create_region_at(new_address, new_size >> PAGE_SHIFT, VM_TYPE_REGULAR,
-                                          old_region->rwx);
+        new_mapping = __vm_create_region_at(new_address, new_size >> PAGE_SHIFT, VM_TYPE_REGULAR,
+                                            old_region->rwx);
     }
     else
     {
