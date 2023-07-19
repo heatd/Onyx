@@ -431,22 +431,6 @@ void __vm_unmap_range(void *range, size_t pages)
     do_vm_unmap(range, pages);
 }
 
-/**
- * @brief Unmaps a range of pages on the current address space.
- *
- * @param range The start of the virtual range.
- * @param pages The number of pages.
- */
-void vm_unmap_range(void *range, size_t pages)
-{
-    bool kernel = is_higher_half(range);
-
-    __vm_lock(kernel);
-
-    __vm_unmap_range(range, pages);
-    __vm_unlock(kernel);
-}
-
 static inline bool inode_requires_wb(struct inode *i)
 {
     return i->i_type == VFS_TYPE_FILE;
