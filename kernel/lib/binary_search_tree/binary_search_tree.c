@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 LK Trusty Authors. All Rights Reserved.
+ * Copyright (c) 2023 Pedro Falcato
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files
@@ -110,6 +111,7 @@ static void bst_move_node(struct bst_root *root,
  * @up:                 Node to move up.
  * @down:               Node to move down.
  * @up_was_right_child: %true if @up was the right child of @down.
+ * @augmentcb:          Augmented ops for rotation.
  *
  * Swap nodes @up and @down (pictured for up_was_right_child==false):
  *
@@ -122,12 +124,27 @@ static void bst_move_node(struct bst_root *root,
  * Caller is responsible for updating the rank of the moved nodes.
  */
 static void bst_rotate(struct bst_root *root, struct bst_node *up,
-                       struct bst_node *down, bool up_was_right_child) {
+                       struct bst_node *down, bool up_was_right_child,
+                       const struct bst_augmented_ops *augmentcb) {
     DEBUG_ASSERT(down->child[up_was_right_child] == up);
     struct bst_node *move_subtree = up->child[!up_was_right_child];
+    struct bst_node *downp = down->parent;
     bst_move_node(root, down, up);
     bst_link_node(down, up_was_right_child, move_subtree);
     bst_link_node(up, !up_was_right_child, down);
+
+    if (augmentcb) {
+        /* re-augment every node that got things moved under it.
+         * Logically, we can skip recalculating A, B and C themselves as their augment is similar. */
+#if 0
+        /* TODO: Figure out if a ->rotate() ish scheme can be used here like in rb trees */
+        augmentcb->rotate(up, down); /* B used to be in up, now is in down */
+        if (downp)
+            augmentcb->rotate(downp, up); /* for the down node rotation */
+#endif
+        augmentcb->propagate(down, up);
+        augmentcb->propagate(up, downp);
+    }
 }
 
 /**
@@ -136,11 +153,13 @@ static void bst_rotate(struct bst_root *root, struct bst_node *up,
  * @up1:                Node to move up if a single rotate is enough.
  * @down:               Node to move down.
  * @up_was_right_child: %true if @up1 was the right child of @down.
+ * @augmentcb:          Augmented BST ops to call on rotation (may be null)
  *
  * Rotate sub-tree (once or twice) after insert and update ranks.
  */
 static void bst_rotate_insert(struct bst_root *root, struct bst_node *up1,
-                              struct bst_node *down, bool up_was_right_child) {
+                              struct bst_node *down, bool up_was_right_child,
+                              const struct bst_augmented_ops *augmentcb) {
     DEBUG_ASSERT(down->child[up_was_right_child] == up1);
     DEBUG_ASSERT(up1->rank == down->rank);
     DEBUG_ASSERT(down->rank >=
@@ -162,9 +181,9 @@ static void bst_rotate_insert(struct bst_root *root, struct bst_node *up1,
          */
         up2->rank++;
         DEBUG_ASSERT(up1->rank == up2->rank);
-        bst_rotate(root, up2, up1, !up_was_right_child);
+        bst_rotate(root, up2, up1, !up_was_right_child, augmentcb);
         up1->rank--;
-        bst_rotate(root, up2, down, up_was_right_child);
+        bst_rotate(root, up2, down, up_was_right_child, augmentcb);
         down->rank--;
     } else {
         /*
@@ -176,7 +195,7 @@ static void bst_rotate_insert(struct bst_root *root, struct bst_node *up1,
          *      /   \                /    \
          *     A     B              B      C
          */
-        bst_rotate(root, up1, down, up_was_right_child);
+        bst_rotate(root, up1, down, up_was_right_child, augmentcb);
         down->rank--;
     }
 }
@@ -188,7 +207,8 @@ static void bst_rotate_insert(struct bst_root *root, struct bst_node *up1,
  *
  * Promote nodes and/or rotate sub-trees to make @root a valid WAVL tree again.
  */
-void bst_update_rank_insert(struct bst_root *root, struct bst_node *node) {
+void bst_update_rank_insert(struct bst_root *root, struct bst_node *node,
+                            const struct bst_augmented_ops *augmentcb) {
     size_t rank;
     DEBUG_ASSERT(root);
     DEBUG_ASSERT(node);
@@ -251,7 +271,7 @@ void bst_update_rank_insert(struct bst_root *root, struct bst_node *node) {
              *       B    C       A0   B
              */
             bst_rotate_insert(root, node->child[is_right_child], node,
-                              is_right_child);
+                              is_right_child, augmentcb);
             return;
         }
         node->rank = rank;
@@ -264,11 +284,13 @@ void bst_update_rank_insert(struct bst_root *root, struct bst_node *node) {
  * @up1:                Node to move up if a single rotate is enough.
  * @down:               Node to move down.
  * @up_was_right_child: %true if @up1 was the right child of @down.
+ * @augmentcb:          Augment cb for rotation
  *
  * Rotate sub-tree (once or twice) after delete and update ranks.
  */
 static void bst_rotate_delete(struct bst_root *root, struct bst_node *up1,
-                              struct bst_node *down, bool up_was_right_child) {
+                              struct bst_node *down, bool up_was_right_child,
+                              const struct bst_augmented_ops *augmentcb) {
     DEBUG_ASSERT(down->child[up_was_right_child] == up1);
     DEBUG_ASSERT(up1->rank == down->rank - 1);
     DEBUG_ASSERT(down->rank ==
@@ -290,8 +312,8 @@ static void bst_rotate_delete(struct bst_root *root, struct bst_node *up1,
          */
         DEBUG_ASSERT(up1->rank == down->rank - 1);
         DEBUG_ASSERT(up2->rank == down->rank - 2);
-        bst_rotate(root, up2, up1, !up_was_right_child);
-        bst_rotate(root, up2, down, up_was_right_child);
+        bst_rotate(root, up2, up1, !up_was_right_child, augmentcb);
+        bst_rotate(root, up2, down, up_was_right_child, augmentcb);
         up2->rank += 2;
         up1->rank--;
         down->rank -= 2;
@@ -305,7 +327,7 @@ static void bst_rotate_delete(struct bst_root *root, struct bst_node *up1,
          *      /      \                       /        \
          *     A(-2)   B(-2/-3)               B(-2/-3)   C(-3)
          */
-        bst_rotate(root, up1, down, up_was_right_child);
+        bst_rotate(root, up1, down, up_was_right_child, augmentcb);
         up1->rank++;
         down->rank--;
         if (bst_node_rank(down->child[0]) == down->rank - 2 &&
@@ -328,7 +350,8 @@ static void bst_rotate_delete(struct bst_root *root, struct bst_node *up1,
  * Demote nodes and/or rotate sub-trees to make @root a valid WAVL tree again.
  */
 static void bst_update_rank_delete(struct bst_root *root, struct bst_node *node,
-                                   bool is_right_child) {
+                                   bool is_right_child,
+                                   const struct bst_augmented_ops *augmentcb) {
     DEBUG_ASSERT(root);
     DEBUG_ASSERT(node);
     DEBUG_ASSERT(bst_node_rank(node->child[is_right_child]) <=
@@ -378,7 +401,7 @@ static void bst_update_rank_delete(struct bst_root *root, struct bst_node *node,
                  */
                 node->rank++;
                 bst_rotate_delete(root, node->child[!is_right_child], node,
-                                  !is_right_child);
+                                  !is_right_child, augmentcb);
                 return;
             }
         }
@@ -419,7 +442,17 @@ void bst_delete_all_helper(struct bst_root *root, struct bst_node *node) {
     DEBUG_ASSERT(!node->child[0]);
     bst_move_node(root, node, node->child[1]);
 }
-void bst_delete(struct bst_root *root, struct bst_node *node) {
+
+/**
+ * bst_delete - Remove node from tree.
+ * @root:       Tree.
+ * @node:       Node to delete
+ * @augmentcb:  Augment callbacks for deletion.
+ *
+ * Delete @node from @root.
+ */
+void bst_delete_augmented(struct bst_root *root, struct bst_node *node,
+                          const struct bst_augmented_ops *augmentcb) {
     DEBUG_ASSERT(root);
     DEBUG_ASSERT(node);
     struct bst_node *new_child;
@@ -460,12 +493,21 @@ void bst_delete(struct bst_root *root, struct bst_node *node) {
         DEBUG_ASSERT(new_child);
         bst_link_node(new_child, 0, node->child[0]);
         bst_link_node(new_child, 1, node->child[1]);
+        if (augmentcb) {
+            augmentcb->propagate(new_child, NULL);
+            augmentcb->propagate(update_rank_start, NULL);
+        }
         new_child->rank = node->rank;
     }
+
+    struct bst_node *parent = node->parent;
     bst_move_node(root, node, new_child);
+
+    if (augmentcb)
+        augmentcb->propagate(parent, NULL);
     node->rank = 0;
     if (update_rank_start) {
-        bst_update_rank_delete(root, update_rank_start, update_rank_is_right_child);
+        bst_update_rank_delete(root, update_rank_start, update_rank_is_right_child, augmentcb);
     }
 }
 

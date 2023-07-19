@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 LK Trusty Authors. All Rights Reserved.
+ * Copyright (c) 2023 Pedro Falcato
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files
@@ -28,6 +29,7 @@
 #include <stddef.h>
 
 #include <onyx/compiler.h>
+#include <onyx/utils.h>
 
 /*
  * lk defines DEBUG_ASSERT for debug build asserts. Enable those checks for
@@ -53,6 +55,30 @@ struct bst_node {
 struct bst_root {
     struct bst_node *root;
 };
+
+struct bst_augmented_ops {
+    void (*rotate)(struct bst_node *old_root, struct bst_node *new_root);
+    void (*copy)(struct bst_node *old, struct bst_node *new_);
+    void (*propagate)(struct bst_node *cur, struct bst_node *stop);
+};
+
+#define BST_AUGMENTED(name, structname, field, augmentedtype, augmentedfield, compute) \
+    static inline void name##_propagate(struct bst_node *cur, struct bst_node *stop)   \
+    {                                                                                  \
+        while (cur != stop)                                                            \
+        {                                                                              \
+            structname *node = container_of(cur, structname, field);                   \
+            augmentedtype aug = compute(node);                                         \
+            if (aug == node->augmentedfield)                                           \
+                break;                                                                 \
+            node->augmentedfield = aug;                                                \
+            cur = cur->parent;                                                         \
+        }                                                                              \
+    }                                                                                  \
+    static const struct bst_augmented_ops name = {                                     \
+        .rotate = NULL, .copy = NULL, .propagate = name##_propagate}
+
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -135,21 +161,45 @@ static inline struct bst_node *bst_search(const struct bst_root *root,
                           member)
 
 /* Internal helper. Don't call directly */
-void bst_update_rank_insert(struct bst_root *root, struct bst_node *node);
+void bst_update_rank_insert(struct bst_root *root, struct bst_node *node,
+                            const struct bst_augmented_ops *augmentcb);
 
 /**
- * bst_insert - Insert node in tree.
+ * @brief Link a node to the tree
+ * This function does not update the rank after insertion, please call bst_update_rank_insert.
+ * 
+ * @param nodep Where to link to (pointer to pointer)
+ * @param parent Parent (if NULL, this is the root node)
+ * @param child Node we're linking
+ */
+__always_inline void bst_link(struct bst_node **nodep, struct bst_node *parent,
+                              struct bst_node *child)
+{
+    DEBUG_ASSERT(*nodep == NULL);
+    child->rank = 1;
+    child->parent = parent;
+    child->child[0] = child->child[1] = NULL;
+    *nodep = child;
+    /* Note: We do not update the rank here */
+}
+
+/**
+ * bst_insert_augmented - Insert node in tree.
  * @root:       Tree.
  * @node:       Node to insert.
  * @compare:    Compare function.
+ * @augmentcb:  Augmented callbacks (for node rotation)
  *
  * Insert @node in @root.
+ * @node will already have its augmented information filled in before getting
+ * linked, hence @augmentcb is only needed for rotation.
  *
  * Return: %true if @node was inserted. %false if a node matching @node is
  * already in @root.
  */
-static inline bool bst_insert(struct bst_root *root, struct bst_node *node,
-                              bst_compare_t compare) {
+static inline bool bst_insert_augmented(struct bst_root *root, struct bst_node *node,
+                              bst_compare_t compare,
+                              const struct bst_augmented_ops *augmentcb) {
     DEBUG_ASSERT(root);
     DEBUG_ASSERT(node);
     DEBUG_ASSERT(compare);
@@ -162,12 +212,8 @@ static inline bool bst_insert(struct bst_root *root, struct bst_node *node,
     while (true) {
         struct bst_node *tree_node = *parent_ptr;
         if (!tree_node) {
-            node->rank = 1;
-            node->parent = parent;
-            node->child[0] = NULL;
-            node->child[1] = NULL;
-            *parent_ptr = node;
-            bst_update_rank_insert(root, node);
+            bst_link(parent_ptr, parent, node);
+            bst_update_rank_insert(root, node, augmentcb);
             return true;
         }
         diff = compare(tree_node, node);
@@ -181,13 +227,44 @@ static inline bool bst_insert(struct bst_root *root, struct bst_node *node,
 }
 
 /**
+ * bst_insert - Insert node in tree.
+ * @root:       Tree.
+ * @node:       Node to insert.
+ * @compare:    Compare function.
+ *
+ * Insert @node in @root.
+ *
+ * Return: %true if @node was inserted. %false if a node matching @node is
+ * already in @root.
+ */
+__always_inline bool bst_insert(struct bst_root *root, struct bst_node *node,
+                              bst_compare_t compare)
+{
+    return bst_insert_augmented(root, node, compare, NULL);
+}
+
+/**
+ * bst_delete - Remove node from tree.
+ * @root:       Tree.
+ * @node:       Node to delete
+ * @augmentcb:  Augment callbacks for deletion.
+ *
+ * Delete @node from @root.
+ */
+void bst_delete_augmented(struct bst_root *root, struct bst_node *node,
+                          const struct bst_augmented_ops *augmentcb);
+
+/**
  * bst_delete - Remove node from tree.
  * @root:   Tree.
  * @node:   Node to delete
  *
  * Delete @node from @root.
  */
-void bst_delete(struct bst_root *root, struct bst_node *node);
+__always_inline void bst_delete(struct bst_root *root, struct bst_node *node)
+{
+    bst_delete_augmented(root, node, NULL);
+}
 
 /**
  * bst_prev - Get previous node.
