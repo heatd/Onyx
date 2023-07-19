@@ -9,6 +9,15 @@ app_executable("nameitests") {
     sources = [ "namei.c" ]
 }
 
+app_executable("fdlopen") {
+    include_dirs = [ "include" ]
+    package_name = "fdlopen"
+
+    output_name = "fdlopen"
+
+    sources = [ "fdlopen.c" ]
+}
+
 group("regtests") {
-    deps = [ ":nameitests" ]
+    deps = [ ":nameitests", ":fdlopen" ]
 }
