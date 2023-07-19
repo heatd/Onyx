@@ -205,7 +205,6 @@ void *vmalloc(size_t pages, int type, int perms, unsigned int gfp_flags)
     auto pgs = alloc_page_list(pages, gfp_flags);
     if (!pgs)
     {
-        halt();
         delvmr();
         return errno = ENOMEM, nullptr;
     }
