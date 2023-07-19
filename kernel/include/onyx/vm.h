@@ -244,14 +244,6 @@ void vm_late_init();
 struct page *vm_map_range(void *range, size_t pages, uint64_t flags);
 
 /**
- * @brief Finds a vm region.
- *
- * @param addr An address inside the region.
- * @return A pointer to the region, or NULL if it doesn't exist.
- */
-vm_region *vm_find_region(void *addr);
-
-/**
  * @brief Creates a new address space.
  *
  * @param addr_space A pointer to the new address space.
@@ -697,14 +689,6 @@ static inline size_t __vm_size_to_pages(size_t size, size_t page_size, size_t pa
 
 extern struct mm_address_space kernel_address_space;
 
-/**
- * @brief Calls the specified function \p func on every region of the address space \p as.
- *
- * @param as A pointer to the target address space.
- * @param func The callback.
- */
-void vm_for_every_region(struct mm_address_space *as, bool (*func)(struct vm_region *region));
-
 struct kernel_limits
 {
     uintptr_t start_phys, start_virt;
@@ -717,14 +701,6 @@ struct kernel_limits
  * @param l A pointer to a kernel_limits object where the limits will be placed.
  */
 void get_kernel_limits(struct kernel_limits *l);
-
-/**
- * @brief Commits a virtual page.
- *
- * @param page Pointer to the virtual address to be committed.
- * @return A pointer to the backing struct page.
- */
-[[deprecated]] struct page *vm_commit_page(void *page);
 
 /**
  * @brief Write-protects a page in each of its mappings.
