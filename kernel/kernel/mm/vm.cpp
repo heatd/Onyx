@@ -159,25 +159,7 @@ struct vm_region *vm_reserve_region(struct mm_address_space *as, unsigned long s
     region->rwx = 0;
     bst_node_initialize(&region->tree_node);
 
-    bool success =
-        bst_insert(&as->region_tree, &region->tree_node,
-                   [](struct bst_node *lhs_, struct bst_node *rhs_) -> int {
-                       auto lhs = container_of(lhs_, vm_region, tree_node);
-                       auto rhs = container_of(rhs_, vm_region, tree_node);
-
-                       if (check_for_overlap(lhs->base, lhs->base + (lhs->pages << PAGE_SHIFT) - 1,
-                                             rhs->base, rhs->base + (rhs->pages << PAGE_SHIFT) - 1))
-                       {
-                           panic("vm_reserve_region: Region [%lx, %lx] and [%lx, %lx] overlap\n",
-                                 lhs->base, lhs->base + (lhs->pages << PAGE_SHIFT), rhs->base,
-                                 rhs->base + (rhs->pages << PAGE_SHIFT));
-                           return 0;
-                       }
-                       else if (rhs->base > lhs->base)
-                           return 1;
-                       else
-                           return -1;
-                   });
+    bool success = vm_insert_region(as, region);
 
     if (!success)
     {
