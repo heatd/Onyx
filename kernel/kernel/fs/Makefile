@@ -4,4 +4,14 @@ fs-y:= block.o dentry.o dev.o file.o null.o pagecache.o partition.o pipe.o poll.
 include kernel/fs/ext2/Makefile
 include kernel/fs/block/Makefile
 
+include/onyx/gen/trace_%.h: trace/trace_$*.json trace/gentrace.py
+	python3 trace/gentrace.py $< include/onyx/gen/trace_$*.h kernel/fs/$*.trace.cpp
+
+kernel/fs/%.trace.cpp: trace/trace_%.json trace/gentrace.py
+	python3 trace/gentrace.py $< include/onyx/gen/trace_$*.h kernel/fs/$*.trace.cpp
+
+kernel/fs/vfs.o: include/onyx/gen/trace_writeback.h
+
+fs-y+= writeback.trace.o
+
 obj-y+= $(patsubst %, kernel/fs/%, $(fs-y))

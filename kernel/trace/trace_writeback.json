@@ -1,0 +1,15 @@
+[
+    {
+        "name": "dirty_inode",
+        "category": "wb",
+        "args": [
+            {"type": "ino_t", "name": "ino"},
+            {"type": "dev_t", "name": "dev"}
+        ],
+
+        "format": {
+            "ino": {"type": "u64"},
+            "dev": {"type": "u32"}
+        }
+    }
+]
