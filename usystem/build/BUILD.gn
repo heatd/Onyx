@@ -12,6 +12,11 @@ config("wall_extra") {
     cflags = ["-Wall", "-Wextra"]
 }
 
+config("pic") {
+    cflags = ["-fPIC"]
+    ldflags = ["-fPIC"]
+}
+
 config("compiler_defaults") {
     cflags = ["-O2", "-g", "-fdiagnostics-color=always", "-Wno-unused-parameter",
               "-fstack-protector-strong"]
