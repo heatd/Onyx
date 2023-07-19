@@ -29,13 +29,13 @@ set_defaults("app_executable") {
 }
 
 set_defaults("static_library") {
-  configs = default_compiler_configs
+  configs = default_compiler_configs + ["//build:pic"]
 }
 
 set_defaults("shared_library") {
-  configs = default_compiler_configs
+  configs = default_compiler_configs + ["//build:pic"]
 }
 
 set_defaults("source_set") {
-  configs = default_compiler_configs
+  configs = default_compiler_configs + ["//build:pic"]
 }
