@@ -95,7 +95,7 @@ struct slab_cache *kmem_cache_create(const char *name, size_t size, size_t align
 #else
     c->redzone = 0;
 #endif
-    c->flags = flags;
+    c->flags = flags | KMEM_CACHE_VMALLOC;
 
     // Minimum object alignment is 16
     c->alignment = alignment;
