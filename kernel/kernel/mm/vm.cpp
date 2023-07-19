@@ -84,31 +84,8 @@ bool vm_test_vs_rlimit(const mm_address_space *as, ssize_t diff)
            as->virtual_memory_size + (size_t) diff;
 }
 
-int imax(int x, int y)
-{
-    return x > y ? x : y;
-}
-
-uintptr_t max(uintptr_t x, uintptr_t y)
-{
-    return x > y ? x : y;
-}
-
-#define KADDR_SPACE_SIZE 0x800000000000
-#define KADDR_START      0xffff800000000000
-
 constinit struct mm_address_space kernel_address_space = {};
-
-int vm_cmp(const void *k1, const void *k2)
-{
-    if (k1 == k2)
-        return 0;
-
-    return (unsigned long) k1 < (unsigned long) k2 ? -1 : 1;
-}
-
 static struct page *vm_zero_page = nullptr;
-
 static struct slab_cache *vm_region_cache = nullptr;
 
 static inline vm_region *vm_alloc_vmregion()
@@ -298,7 +275,7 @@ struct vm_region *vm_allocate_region(struct mm_address_space *as, unsigned long 
 
 void vm_addr_init()
 {
-    kernel_address_space.start = KADDR_START;
+    kernel_address_space.start = VM_HIGHER_HALF;
     kernel_address_space.end = UINTPTR_MAX;
 
     // Permanent reference
@@ -351,12 +328,10 @@ void heap_set_start(uintptr_t start);
 void vm_late_init()
 {
     /* TODO: This should be arch specific stuff, move this to arch/ */
-    uintptr_t heap_addr_no_aslr = heap_addr;
     const auto vmalloc_noaslr = vmalloc_space;
 
     kstacks_addr = vm_randomize_address(kstacks_addr, KSTACKS_ASLR_BITS);
     vmalloc_space = vm_randomize_address(vmalloc_space, VMALLOC_ASLR_BITS);
-    heap_addr = vm_randomize_address(heap_addr, HEAP_ASLR_BITS);
 
     // Initialize vmalloc first. This will feed the rest of the allocators.
     const auto vmalloc_len = VM_VMALLOC_SIZE - (vmalloc_space - vmalloc_noaslr);
@@ -371,28 +346,16 @@ void vm_late_init()
     if (!vm_region_cache)
         panic("vm: early boot oom");
 
-    heap_set_start(heap_addr);
-
     vm_addr_init();
 
-    heap_size = arch_heap_get_size() - (heap_addr - heap_addr_no_aslr);
     scoped_mutex g{kernel_address_space.vm_lock};
 
     /* Start populating the address space */
-    struct vm_region *v = vm_reserve_region(&kernel_address_space, heap_addr, heap_size);
-    if (!v)
-    {
-        panic("vmm: early boot oom");
-    }
-
-    v->type = VM_TYPE_HEAP;
-    v->rwx = VM_WRITE | VM_READ;
-
     struct kernel_limits l;
     get_kernel_limits(&l);
     size_t kernel_size = l.end_virt - l.start_virt;
 
-    v = vm_reserve_region(&kernel_address_space, l.start_virt, kernel_size);
+    struct vm_region *v = vm_reserve_region(&kernel_address_space, l.start_virt, kernel_size);
     if (!v)
     {
         panic("vmm: early boot oom");
@@ -545,34 +508,6 @@ void vm_region_destroy(struct vm_region *region)
     memset_explicit(region, 0xfd, sizeof(struct vm_region));
 
     vm_free_vmregion(region);
-}
-
-/**
- * @brief Unmaps a region under a specified range.
- * Note: This function is deprecated.
- *
- * @param range Start of the range.
- * @param pages Number of pages.
- */
-void vm_destroy_mappings(void *range, size_t pages)
-{
-    struct mm_address_space *mm =
-        is_higher_half(range) ? &kernel_address_space : get_current_process()->get_aspace();
-
-    scoped_mutex g{mm->vm_lock};
-
-    struct vm_region *reg = vm_find_region(range);
-
-    vm_unmap_range(range, pages);
-
-    bst_delete(&mm->region_tree, &reg->tree_node);
-
-    if (is_mapping_shared(reg))
-        decrement_vm_stat(mm, shared_set_size, pages << PAGE_SHIFT);
-
-    vm_region_destroy(reg);
-
-    decrement_vm_stat(mm, virtual_memory_size, pages << PAGE_SHIFT);
 }
 
 unsigned long vm_get_base_address(uint64_t flags, uint32_t type)
@@ -2754,7 +2689,7 @@ void *map_page_list(struct page *pl, size_t size, uint64_t prot)
     {
         if (!map_pages_to_vaddr((void *) u, page_to_phys(pl), PAGE_SIZE, prot))
         {
-            vm_destroy_mappings(vaddr, vm_size_to_pages(size));
+            __vm_munmap(&kernel_address_space, vaddr, size);
             return nullptr;
         }
 
