@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -405,6 +405,9 @@ int getdents_vfs(unsigned int count, putdir_t putdir, struct dirent *dirp, off_t
         /* Error, return -1 with errno set */
         if (of < 0)
             return errno = -of, -1;
+
+        /* Align d_reclen to a size aligned to alignof(struct dirent) */
+        buf.d_reclen = ALIGN_TO(buf.d_reclen, alignof(struct dirent));
 
         /* Put the dirent in the user-space buffer */
         unsigned int written = putdir(&buf, dirp, count - pos);
