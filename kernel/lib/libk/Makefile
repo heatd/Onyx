@@ -12,7 +12,6 @@ string/memchr.o \
 stdlib/qsort.o \
 string/strtok.o \
 math/fabs.o \
-stdlib/malloc.o \
 string/wmemcpy.o \
 string/memccpy.o \
 string/strerror.o \

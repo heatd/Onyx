@@ -544,7 +544,7 @@ void page_get_stats(struct memstat *m)
     m->total_pages = nr_global_pages.load(mem_order::acquire);
     m->allocated_pages = page_get_used_pages();
     m->page_cache_pages = pagecache_get_used_pages();
-    m->kernel_heap_pages = heap_get_used_pages();
+    m->kernel_heap_pages = 0;
 }
 
 extern unsigned char kernel_end;

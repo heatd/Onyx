@@ -1,6 +1,8 @@
 #ifndef _STDLIB_H
 #define _STDLIB_H
 
+#include <onyx/compiler.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -42,7 +44,10 @@ void *realloc (void *, size_t);
 #ifdef __is_onyx_kernel
 
 __attribute__((malloc))
-void *zalloc(size_t);
+__always_inline void *zalloc(size_t len)
+{
+    return calloc(len, 1);
+}
 
 #endif
 
