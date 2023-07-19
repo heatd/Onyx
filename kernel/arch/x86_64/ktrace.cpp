@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2021 Pedro Falcato
+ * Copyright (c) 2020 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -118,13 +118,13 @@ void patch_code(unsigned long __ip, unsigned long func, patch_action action)
     irq_restore(f);
 }
 
-void ktracepoint::activate()
+void old_broken_ktracepoint::activate()
 {
     activated = true;
     patch_code(mcount_call_addr, (unsigned long) &__fentry__, patch_action::CALL);
 }
 
-void ktracepoint::deactivate()
+void old_broken_ktracepoint::deactivate()
 {
     activated = false;
     patch_code(mcount_call_addr, 0, patch_action::NOP);

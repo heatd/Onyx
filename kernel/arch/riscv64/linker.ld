@@ -119,6 +119,9 @@ SECTIONS
 
 	.data ALIGN(0x1000) : AT(ADDR(.data) - VIRT_BASE)
 	{
+		PROVIDE_HIDDEN(__data_trace_start = .);
+		*(.data.trace)
+		PROVIDE_HIDDEN(__data_trace_end = .);
 		*(.data*)
 		*(.gnu.linkonce.d*)
 	} : data

@@ -6,6 +6,7 @@ group("core") {
         "utils",
         "coredumpd",
         "bootstrap-init",
-        "flamegraph"
+        "flamegraph",
+        "trace"
     ]
 }

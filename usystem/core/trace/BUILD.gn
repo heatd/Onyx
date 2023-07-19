@@ -1,0 +1,18 @@
+import("//build/package.gni")
+
+executable("trace_bin") {
+    include_dirs = [ "include" ]
+
+    output_name = "trace"
+
+    sources = [ "trace.c" ]
+}
+
+package("trace") {
+    deps = [
+        ":trace_bin",
+    ]
+
+    is_system_binary = true
+    executables = [ "trace" ]
+}
