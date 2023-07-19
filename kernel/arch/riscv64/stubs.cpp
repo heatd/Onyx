@@ -24,11 +24,6 @@ int platform_allocate_msi_interrupts(unsigned int num_vectors, bool addr64,
     UNIMPLEMENTED;
 }
 
-size_t arch_heap_get_size(void)
-{
-    return 0x200000000000;
-}
-
 void arch_vm_init()
 {
 }

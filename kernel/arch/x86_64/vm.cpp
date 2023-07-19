@@ -39,17 +39,6 @@ void arch_vm_init(void)
     vm_update_addresses(vm_calculate_virtual_address(vm_bits));
 }
 
-size_t arch_heap_get_size(void)
-{
-    return 0x200000000000;
-}
-
-/* TODO: Is this needed? */
-size_t arch_get_initial_heap_size(void)
-{
-    return 0x400000;
-}
-
 /**
  * @brief Interpret mmap's hint and flags in an architecture-dependent way
  *

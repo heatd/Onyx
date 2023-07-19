@@ -40,7 +40,6 @@
 #include <onyx/driver.h>
 #include <onyx/elf.h>
 #include <onyx/exec.h>
-#include <onyx/heap.h>
 #include <onyx/init.h>
 #include <onyx/initrd.h>
 #include <onyx/irq.h>

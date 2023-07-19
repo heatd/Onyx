@@ -234,19 +234,6 @@ void vm_init();
 void vm_late_init();
 
 /**
- * @brief Allocates a new virtual region in the current address space.
- * This should *NOT* be used by non-mm code.
- *
- * @param flags Flags for the allocation (VM_KERNEL, VM_ADDRESS_USER).
- * @param pages Number of pages required.
- * @param type Type of the vm region; this affects the placement.
- * @param prot Protection of the vm region (VM_WRITE, NOEXEC, etc).
- * @return A pointer to the new vm region.
- */
-struct vm_region *vm_allocate_virt_region(uint64_t flags, size_t pages, uint32_t type,
-                                          uint64_t prot);
-
-/**
  * @brief Maps a range of memory with freshly allocated anonymous pages.
  * This should only be used by *very-specific* MM or MM related code.
  * @param range Virtual address.
@@ -255,35 +242,6 @@ struct vm_region *vm_allocate_virt_region(uint64_t flags, size_t pages, uint32_t
  * @return The list of allocated pages, or NULL if there was an out of memory scenario.
  */
 struct page *vm_map_range(void *range, size_t pages, uint64_t flags);
-
-/**
- * @brief Unmaps a range of pages on the current address space.
- *
- * @param range The start of the virtual range.
- * @param pages The number of pages.
- */
-void vm_unmap_range(void *range, size_t pages);
-
-/**
- * @brief Unmaps a region under a specified range.
- * Note: This function is deprecated.
- *
- * @param range Start of the range.
- * @param pages Number of pages.
- */
-[[deprecated]] void vm_destroy_mappings(void *range, size_t pages);
-
-/**
- * @brief Creates a new vm region at a specified address.
- * Should only be used by core MM code.
- *
- * @param addr Address of the mapping.
- * @param pages Number of pages.
- * @param type Type of the mapping.
- * @param prot Protection flags.
- * @return The new vm_region, or NULL in case of failure (check errno).
- */
-vm_region *vm_create_region_at(void *addr, size_t pages, uint32_t type, uint64_t prot);
 
 /**
  * @brief Finds a vm region.
