@@ -89,7 +89,7 @@ class pipe;
 #define INODE_FLAG_DONT_CACHE (1 << 0)
 #define INODE_FLAG_DIRTY      (1 << 1)
 #define INODE_FLAG_NO_SEEK    (1 << 2)
-#define INODE_FLAG_DIRTYING   (1 << 3)
+#define INODE_FLAG_WB         (1 << 3)
 #define INODE_FLAG_FREEING    (1 << 4)
 struct inode
 {

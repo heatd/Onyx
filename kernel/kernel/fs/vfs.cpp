@@ -19,6 +19,7 @@
 #include <onyx/dev.h>
 #include <onyx/file.h>
 #include <onyx/fnv.h>
+#include <onyx/gen/trace_writeback.h>
 #include <onyx/limits.h>
 #include <onyx/log.h>
 #include <onyx/mm/flush.h>
@@ -645,7 +646,7 @@ struct inode *inode_create(bool is_cached)
 
 void inode_wait_flush(struct inode *ino)
 {
-    while (ino->i_flags & INODE_FLAG_DIRTYING)
+    while (ino->i_flags & INODE_FLAG_WB)
         cpu_relax();
 }
 
@@ -673,11 +674,11 @@ int inode_flush(struct inode *ino)
     if (!sb || !sb->flush_inode)
         return 0;
 
-    __sync_fetch_and_or(&ino->i_flags, INODE_FLAG_DIRTYING);
+    __sync_fetch_and_or(&ino->i_flags, INODE_FLAG_WB);
 
     int st = sb->flush_inode(ino);
 
-    __sync_fetch_and_and(&ino->i_flags, ~(INODE_FLAG_DIRTYING | INODE_FLAG_DIRTY));
+    __sync_fetch_and_and(&ino->i_flags, ~(INODE_FLAG_WB | INODE_FLAG_DIRTY));
 
     return st;
 }
