@@ -54,6 +54,7 @@ static inline bool array_overflows(size_t n)
 #define __stringify(str) #str
 #define stringify(str)   __stringify(str)
 
+#ifdef __cplusplus
 /**
  * @brief Check if two (numeric, pointer, ...) ranges overlap.
  * These ranges are treated as X = [x1, x2] and Y = [y1, y2]
@@ -70,5 +71,7 @@ static inline constexpr bool check_for_overlap(Type x1, Type x2, Type y1, Type y
 {
     return x1 <= y2 && y1 <= x2;
 }
+
+#endif
 
 #endif
