@@ -17,7 +17,6 @@
 #include <unistd.h>
 
 #include <onyx/copy.h>
-#include <onyx/heap.h>
 #include <onyx/page.h>
 #include <onyx/pagecache.h>
 #include <onyx/panic.h>

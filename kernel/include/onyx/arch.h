@@ -11,8 +11,6 @@
 #include <onyx/process.h>
 #include <onyx/thread.h>
 
-size_t arch_heap_get_size(void);
-size_t arch_get_initial_heap_size(void);
 void arch_vm_init(void);
 
 #ifdef __cplusplus

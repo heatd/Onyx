@@ -47,11 +47,6 @@ bool platform_page_is_used(void *page)
     return false;
 }
 
-size_t arch_heap_get_size()
-{
-    return 0x200000000000;
-}
-
 void arch_vm_init()
 {
 }

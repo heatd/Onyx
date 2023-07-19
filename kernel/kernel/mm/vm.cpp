@@ -55,9 +55,6 @@ uintptr_t low_half_min = arch_low_half_min;
  * vm_update_addresses.
  */
 uintptr_t vmalloc_space = arch_vmalloc_off;
-uintptr_t kstacks_addr = arch_kstacks_off;
-uintptr_t heap_addr = arch_heap_off;
-size_t heap_size = 0;
 
 void kmalloc_init();
 int populate_shared_mapping(void *page, struct file *fd, struct vm_region *entry, size_t nr_pages);
@@ -229,10 +226,6 @@ unsigned long vm_allocate_base(struct mm_address_space *as, unsigned long min, s
     }
 
 done:
-#if DEBUG_VM_3
-    if (as == &kernel_address_space && min == kstacks_addr)
-        printk("Ptr: %lx\nSize: %lx\n", last_end, size);
-#endif
     last_end = last_end < min ? min : last_end;
 
     // We can't map something over the edge
@@ -242,10 +235,6 @@ done:
     // The architecture may have extra checks to do
     if (!arch_vm_validate_mmap_region(last_end, size, flags))
         return -1;
-#if DEBUG_VM_3
-    if (as == &kernel_address_space && min == kstacks_addr)
-        printk("Ptr: %lx\nSize: %lx\n", last_end, size);
-#endif
 
     return last_end;
 }
@@ -303,8 +292,6 @@ void vm_init()
     bootmem_reserve(limits.start_phys, limits.end_phys - limits.start_phys);
 }
 
-void heap_set_start(uintptr_t start);
-
 /**
  * @brief Initialises the architecture independent parts of the VM subsystem.
  *
@@ -313,8 +300,6 @@ void vm_late_init()
 {
     /* TODO: This should be arch specific stuff, move this to arch/ */
     const auto vmalloc_noaslr = vmalloc_space;
-
-    kstacks_addr = vm_randomize_address(kstacks_addr, KSTACKS_ASLR_BITS);
     vmalloc_space = vm_randomize_address(vmalloc_space, VMALLOC_ASLR_BITS);
 
     // Initialize vmalloc first. This will feed the rest of the allocators.
@@ -492,10 +477,8 @@ unsigned long vm_get_base_address(uint64_t flags, uint32_t type)
     {
         case VM_TYPE_SHARED:
         case VM_TYPE_STACK: {
-            if (is_kernel_map)
-                return kstacks_addr;
-            else
-                return (uintptr_t) mm->mmap_base;
+            DCHECK(!is_kernel_map);
+            return (uintptr_t) mm->mmap_base;
         }
 
         case VM_TYPE_MODULE: {
@@ -2320,8 +2303,6 @@ char *strcpy_from_user(const char *uptr)
 void vm_update_addresses(uintptr_t new_kernel_space_base)
 {
     vmalloc_space += new_kernel_space_base;
-    kstacks_addr += new_kernel_space_base;
-    heap_addr += new_kernel_space_base;
     high_half = new_kernel_space_base;
 }
 
@@ -2679,14 +2660,6 @@ int vm_create_brk(struct mm_address_space *mm)
     }
 
     return 0;
-}
-
-void validate_free(void *p)
-{
-    unsigned long ptr = (unsigned long) p;
-
-    assert(ptr >= heap_addr);
-    assert(ptr <= heap_addr + heap_size);
 }
 
 /**

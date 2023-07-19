@@ -465,21 +465,8 @@ USED void *__asan_memset(void *dst, int c, size_t n)
 }
 }
 
-static bool asan_visit_region(struct vm_region *region)
-{
-    unsigned long region_start = region->base;
-    unsigned long region_end = region->base + (region->pages << PAGE_SHIFT);
-
-    if (region->type != VM_TYPE_HEAP)
-        kasan_alloc_shadow(region_start, region_end - region_start, true);
-
-    return true;
-}
-
 void kasan_init()
 {
-    // vm_for_every_region(kernel_address_space, asan_visit_region);
-    // kasan_is_init = true;
 }
 
 [[gnu::weak]] int mmu_map_kasan_shadow(void *shadow_start, size_t pages)
