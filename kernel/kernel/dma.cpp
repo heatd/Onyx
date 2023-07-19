@@ -42,18 +42,6 @@ static bool try_to_merge(uintptr_t buf, size_t size, size_t max_size, struct phy
     return false;
 }
 
-uintptr_t dma_commit_page(uintptr_t virtual_buf, size_t size)
-{
-    /* TODO: Pin stuff. Applies to below too */
-    uintptr_t page = virtual_buf & ~(PAGE_SIZE - 1);
-    struct page *p = vm_commit_page((void *) page);
-
-    if (!p)
-        return -1;
-
-    return (uintptr_t) pfn_to_paddr(page_to_pfn(p)) + (virtual_buf & (PAGE_SIZE - 1));
-}
-
 int __dma_add_range(uintptr_t virtual_buf, size_t size, size_t max_size, struct phys_ranges *ranges)
 {
     struct page *p;
