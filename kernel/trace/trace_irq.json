@@ -1,0 +1,28 @@
+[
+    {
+        "name": "hardirq",
+        "category": "irq",
+        "args": [
+            {"type": "u64", "name": "ts"},
+            {"type": "unsigned int", "name": "irqn"}
+        ],
+
+        "format": {
+            "end_ts": {"type": "u64", "cond": "TIME"},
+            "irqn": {"type": "u32"}
+        }
+    },
+    {
+        "name": "softirq",
+        "category": "irq",
+        "type": "duration_ev",
+        "args": [
+            {"type": "unsigned int", "name": "vector"}
+        ],
+
+        "format": {
+            "end_ts": {"type": "u64", "cond": "TIME"},
+            "softirq_vector": {"type": "char[10]"}
+        }
+    }
+]

@@ -18,6 +18,8 @@ kern-$(CONFIG_KUNIT)+= kunit.o
 
 kern-$(CONFIG_KCOV)+= kcov.o
 
+kern-y+= irq.trace.o
+
 obj-y+= $(patsubst %, kernel/%, $(kern-y)) 
 
 include kernel/mm/Makefile
@@ -30,6 +32,14 @@ include kernel/sched/Makefile
 kernel/syscall_thunk.cpp: generate_syscall_bits.py $(ARCHDIR)/syscall_table.json
 	mkdir -p include/onyx/gen
 	python3 generate_syscall_bits.py $(ARCHDIR)/syscall_table.json kernel/syscall_thunk.cpp include/onyx/gen/syscall.h
+
+include/onyx/gen/trace_%.h: trace/trace_%.json trace/gentrace.py
+	python3 trace/gentrace.py $< include/onyx/gen/trace_$*.h kernel/$*.trace.cpp
+
+kernel/%.trace.cpp: trace/trace_%.json trace/gentrace.py
+	python3 trace/gentrace.py $< include/onyx/gen/trace_$*.h kernel/$*.trace.cpp
+
+kernel/irq.o: include/onyx/gen/trace_irq.h
 
 include/onyx/gen/syscall.h: kernel/syscall_thunk.cpp
 
