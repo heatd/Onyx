@@ -13,6 +13,7 @@
 
 #include <onyx/dev.h>
 #include <onyx/dpc.h>
+#include <onyx/gen/trace_irq.h>
 #include <onyx/init.h>
 #include <onyx/irq.h>
 #include <onyx/percpu.h>
@@ -118,6 +119,8 @@ PER_CPU_VAR(bool in_irq) = false;
 
 void dispatch_irq(unsigned int irq, struct irq_context *context)
 {
+    TRACE_EVENT_DURATION(irq_hardirq, irq);
+
     struct irq_line *line = &irq_lines[irq];
 
     write_per_cpu(in_irq, true);
@@ -143,7 +146,7 @@ void dispatch_irq(unsigned int irq, struct irq_context *context)
     write_per_cpu(in_irq, false);
 }
 
-void irq_init(void)
+void irq_init()
 {
     dpc_init();
 }
