@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #ifndef _ONYX_STRING_VIEW_HPP
@@ -10,6 +12,8 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+
+#include <onyx/utility.hpp>
 namespace std
 {
 
@@ -75,7 +79,7 @@ public:
 
     constexpr basic_string_view<_CharT> substr(size_type pos = 0, size_type count = npos) const
     {
-        return {data_ + pos, count};
+        return {data_ + pos, cul::min(count, length_ - pos)};
     }
 
     constexpr size_type find(_CharT c, size_type pos = 0) const
