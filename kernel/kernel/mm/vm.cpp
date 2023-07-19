@@ -638,36 +638,6 @@ struct vm_region *__vm_allocate_virt_region(uint64_t flags, size_t pages, uint32
     return region;
 }
 
-/**
- * @brief Allocates a new virtual region in the current address space.
- * This should *NOT* be used by non-mm code.
- *
- * @param flags Flags for the allocation (VM_KERNEL, VM_ADDRESS_USER).
- * @param pages Number of pages required.
- * @param type Type of the vm region; this affects the placement.
- * @param prot Protection of the vm region (VM_WRITE, NOEXEC, etc).
- * @return A pointer to the new vm region.
- */
-struct vm_region *vm_allocate_virt_region(uint64_t flags, size_t pages, uint32_t type,
-                                          uint64_t prot)
-{
-    if (pages == 0)
-        return nullptr;
-
-    /* Lock everything before allocating anything */
-    bool allocating_kernel = true;
-    if (flags & VM_ADDRESS_USER)
-        allocating_kernel = false;
-
-    __vm_lock(allocating_kernel);
-
-    struct vm_region *region = __vm_allocate_virt_region(flags, pages, type, prot);
-
-    __vm_unlock(allocating_kernel);
-
-    return region;
-}
-
 vm_region *vm_search(struct mm_address_space *mm, void *addr, size_t length)
 {
     struct search_type
@@ -1134,68 +1104,6 @@ void vm_change_perms(void *range, size_t pages, int perms) NO_THREAD_SAFETY_ANAL
 
     if (needs_release)
         mutex_unlock(&as->vm_lock);
-}
-
-/**
- * @brief Allocates a range of virtual memory for kernel purposes.
- * This memory is all prefaulted and cannot be demand paged nor paged out.
- *
- * @param pages The number of pages.
- * @param type The type of allocation.
- * @param perms The permissions on the allocation.
- * @return A pointer to the new allocation, or NULL with errno set on failure.
- */
-void *vmalloc_sleep(size_t pages, int type, int perms)
-{
-    struct vm_region *vm = vm_allocate_virt_region(VM_KERNEL, pages, type, perms);
-    if (!vm)
-        return nullptr;
-
-    struct vm_object *vmo = vmo_create_phys(pages << PAGE_SHIFT);
-    if (!vmo)
-    {
-        vm_destroy_mappings((void *) vm->base, pages);
-        return nullptr;
-    }
-
-    vmo_assign_mapping(vmo, vm);
-
-    vm->vmo = vmo;
-
-    if (vmo_prefault(vmo, pages << PAGE_SHIFT, 0) < 0)
-    {
-        /* FIXME: This code doesn't seem correct */
-        vmo_remove_mapping(vmo, vm);
-        vmo_unref(vmo);
-        vm->vmo = nullptr;
-        vm_destroy_mappings(vm, pages);
-        return nullptr;
-    }
-
-    if (vm_flush(vm, VM_FLUSH_RWX_VALID, vm->rwx | VM_NOFLUSH) < 0)
-    {
-        /* FIXME: Same as above */
-        vmo_remove_mapping(vmo, vm);
-        vmo_unref(vmo);
-        vm_destroy_mappings(vm, pages);
-        return nullptr;
-    }
-
-#ifdef CONFIG_KASAN
-    kasan_alloc_shadow(vm->base, pages << PAGE_SHIFT, true);
-#endif
-    return (void *) vm->base;
-}
-
-/**
- * @brief Frees a region of memory previously allocated by vmalloc.
- *
- * @param ptr A pointer to the allocation.
- * @param pages The number of pages it consists in.
- */
-void vfree_sleep(void *ptr, size_t pages)
-{
-    vm_munmap(&kernel_address_space, ptr, pages << PAGE_SHIFT);
 }
 
 bool vm_may_merge_with_adj(vm_region *reg)
@@ -2833,8 +2741,10 @@ bool is_file_backed(struct vm_region *region)
  */
 void *map_page_list(struct page *pl, size_t size, uint64_t prot)
 {
+    // TODO: Maybe also use vmalloc for this?
+    scoped_mutex g{kernel_address_space.vm_lock};
     struct vm_region *entry =
-        vm_allocate_virt_region(VM_KERNEL, vm_size_to_pages(size), VM_TYPE_REGULAR, prot);
+        __vm_allocate_virt_region(VM_KERNEL, vm_size_to_pages(size), VM_TYPE_REGULAR, prot);
     if (!entry)
         return nullptr;
     void *vaddr = (void *) entry->base;
