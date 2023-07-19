@@ -5,7 +5,6 @@
  *
  * SPDX-License-Identifier: MIT
  */
-#include <uapi/signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -13,6 +12,7 @@
 
 #include <onyx/compiler.h>
 #include <onyx/cpu.h>
+#include <onyx/dentry.h>
 #include <onyx/disassembler.h>
 #include <onyx/exceptions.h>
 #include <onyx/panic.h>
@@ -25,6 +25,8 @@
 #include <onyx/x86/isr.h>
 #include <onyx/x86/ktrace.h>
 #include <onyx/x86/mce.h>
+
+#include <uapi/signal.h>
 
 const char *exception_msg[] = {"Division by zero exception",
                                "Debug Trap",
@@ -214,6 +216,62 @@ void stack_segment_fault(struct registers *ctx)
     kernel_tkill(SIGSEGV, current, SIGNAL_FORCE, &info);
 }
 
+#ifdef ENABLE_SCREAM_EXCEPTION
+vm_region *vm_search(struct mm_address_space *mm, void *addr, size_t length)
+    REQUIRES_SHARED(mm->vm_lock);
+
+#define dumpprint printk
+mutex dumplock;
+
+static void attempt_map_pointer(unsigned long word)
+{
+    struct mm_address_space *mm = get_current_address_space();
+
+    scoped_mutex g{mm->vm_lock};
+    // Lets try to "symbolize" it
+    struct vm_region *vm = vm_search(mm, (void *) word, 1);
+    if (vm)
+    {
+        dumpprint(" --> refers to ");
+        if (vm->fd)
+        {
+            auto off = vm->mapping_type == MAP_PRIVATE ? (unsigned long) vm->vmo->priv : vm->offset;
+            dumpprint("%s+%lx", vm->fd->f_dentry->d_name, off + (word - vm->base));
+        }
+        else
+            dumpprint(" [anon region + %lx]", (word - vm->base));
+
+        if (vm->rwx & VM_EXEC)
+            dumpprint(" # executable (.text?)");
+    }
+}
+
+static void dumpstack(unsigned long rip, const void *stack)
+{
+    scoped_mutex g{dumplock};
+    unsigned long words[32] = {0, 0, 0, 0};
+
+    dumpprint("RIP: %016lx", rip);
+    attempt_map_pointer(rip);
+    dumpprint("\n");
+
+    copy_from_user(words, (const void *) stack, sizeof(words));
+    for (int i = 0; i < 32; i++)
+    {
+        unsigned long word = words[i];
+        // Lets try to "symbolize" it
+        dumpprint("stack#%d: %016lx", i, words[i]);
+
+        attempt_map_pointer(word);
+
+        dumpprint("\n");
+    }
+}
+
+#else
+#define dumpstack(a, b)
+#endif
+
 void general_protection_fault(struct registers *ctx)
 {
     if (is_kernel_exception(ctx))
@@ -258,6 +316,8 @@ void general_protection_fault(struct registers *ctx)
 
     siginfo_t info = {};
     info.si_code = SEGV_MAPERR;
+
+    dumpstack(ctx->rip, (const void *) ctx->rsp);
 
     kernel_tkill(SIGSEGV, current, SIGNAL_FORCE, &info);
 }
@@ -307,6 +367,7 @@ void page_fault_handler(struct registers *ctx)
         }
 
         vm_do_fatal_page_fault(&info);
+        dumpstack(ctx->rip, (const void *) ctx->rsp);
     }
 }
 
