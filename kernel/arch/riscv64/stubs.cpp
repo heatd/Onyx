@@ -88,12 +88,12 @@ void platform_init_acpi()
 namespace ktrace
 {
 
-void ktracepoint::activate()
+void old_broken_ktracepoint::activate()
 {
     UNIMPLEMENTED;
 }
 
-void ktracepoint::deactivate()
+void old_broken_ktracepoint::deactivate()
 {
     UNIMPLEMENTED;
 }

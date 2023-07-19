@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #ifndef _ONYX_KTRACE_H
@@ -38,7 +40,7 @@ struct ktrace_ftrace_data
 namespace ktrace
 {
 
-class ktracepoint
+class old_broken_ktracepoint
 {
 private:
     const char *function_name;
@@ -77,7 +79,7 @@ public:
         return mcount_call_addr;
     }
 
-    ktracepoint(const char *function_name, struct symbol *sym)
+    old_broken_ktracepoint(const char *function_name, struct symbol *sym)
         : function_name(function_name), ring_buffer{nullptr}, read_pointer{0}, write_pointer{0},
           nr_overruns{0}, buf_lock{}, sym(sym), mcount_call_addr{}, return_call_addr{}
     {
@@ -90,7 +92,7 @@ public:
     void deactivate();
     void log_entry(unsigned long ip, unsigned long caller);
 
-    static fnv_hash_t hash(unique_ptr<ktracepoint> &t);
+    static fnv_hash_t hash(unique_ptr<old_broken_ktracepoint> &t);
 };
 
 void log_func_entry(unsigned long ip, unsigned long caller);
