@@ -322,8 +322,8 @@ void paging_init(void)
         {
             uintptr_t p = (i << HUGE1GB_SHIFT) + (j << LARGE2MB_SHIFT);
 
-            pdphysical_map[i].entries[j] =
-                p | X86_PAGING_WRITE | X86_PAGING_PRESENT | X86_PAGING_NX | X86_PAGING_HUGE;
+            pdphysical_map[i].entries[j] = p | X86_PAGING_WRITE | X86_PAGING_PRESENT |
+                                           X86_PAGING_NX | X86_PAGING_HUGE | X86_PAGING_GLOBAL;
         }
     }
 
@@ -370,8 +370,8 @@ void paging_map_all_phys()
             {
                 uintptr_t p = (i << HUGE1GB_SHIFT) + (j << LARGE2MB_SHIFT);
 
-                pd->entries[j] =
-                    p | X86_PAGING_WRITE | X86_PAGING_PRESENT | X86_PAGING_NX | X86_PAGING_HUGE;
+                pd->entries[j] = p | X86_PAGING_WRITE | X86_PAGING_PRESENT | X86_PAGING_NX |
+                                 X86_PAGING_HUGE | X86_PAGING_GLOBAL;
             }
 
             entry++;
