@@ -281,6 +281,14 @@ ssize_t udp_socket::udp_sendmsg(const msghdr *msg, int flags, const inet_sock_ad
         }
     }
 
+    if (!bound)
+    {
+        auto fam = get_proto_fam();
+        int st = fam->bind_any(this);
+        if (st < 0)
+            return st;
+    }
+
     static_assert(our_domain == AF_INET || our_domain == AF_INET6,
                   "UDP only supports INET or INET6");
 
