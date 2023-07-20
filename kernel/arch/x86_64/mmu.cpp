@@ -305,9 +305,8 @@ void paging_init(void)
         /* if we're running under PML5, set up the PML4 level */
         auto pml5 = pml4;
         pml4 = &pml4physical_map;
-        pml5->entries[indices[x86_paging_levels - 1]] = VA2PA(&pml4physical_map) |
-                                                        X86_PAGING_WRITE | X86_PAGING_PRESENT |
-                                                        X86_PAGING_GLOBAL | X86_PAGING_NX;
+        pml5->entries[indices[x86_paging_levels - 1]] =
+            VA2PA(&pml4physical_map) | X86_PAGING_WRITE | X86_PAGING_PRESENT | X86_PAGING_NX;
     }
 
     pml4->entries[indices[x86_paging_levels - 1 - x86_is_pml5_enabled()]] =
@@ -323,8 +322,8 @@ void paging_init(void)
         {
             uintptr_t p = (i << HUGE1GB_SHIFT) + (j << LARGE2MB_SHIFT);
 
-            pdphysical_map[i].entries[j] = p | X86_PAGING_WRITE | X86_PAGING_PRESENT |
-                                           X86_PAGING_GLOBAL | X86_PAGING_NX | X86_PAGING_HUGE;
+            pdphysical_map[i].entries[j] =
+                p | X86_PAGING_WRITE | X86_PAGING_PRESENT | X86_PAGING_NX | X86_PAGING_HUGE;
         }
     }
 
@@ -371,8 +370,8 @@ void paging_map_all_phys()
             {
                 uintptr_t p = (i << HUGE1GB_SHIFT) + (j << LARGE2MB_SHIFT);
 
-                pd->entries[j] = p | X86_PAGING_WRITE | X86_PAGING_PRESENT | X86_PAGING_GLOBAL |
-                                 X86_PAGING_NX | X86_PAGING_HUGE;
+                pd->entries[j] =
+                    p | X86_PAGING_WRITE | X86_PAGING_PRESENT | X86_PAGING_NX | X86_PAGING_HUGE;
             }
 
             entry++;
@@ -1540,8 +1539,7 @@ NO_ASAN void kasan_map_shadow_la57(PML *top_pgd, PML *new_pml4)
 
     for (unsigned int i = 0; i < last_pml4e; i++)
     {
-        new_pml4->entries[i] =
-            VA2PA(shadow_pdpt) | X86_PAGING_PRESENT | X86_PAGING_GLOBAL | X86_PAGING_NX;
+        new_pml4->entries[i] = VA2PA(shadow_pdpt) | X86_PAGING_PRESENT | X86_PAGING_NX;
     }
 
     for (unsigned int i = last_pml4e; i < PAGE_TABLE_ENTRIES; i++)
@@ -1551,7 +1549,7 @@ NO_ASAN void kasan_map_shadow_la57(PML *top_pgd, PML *new_pml4)
     }
 
     top_pgd->entries[PTE_INDEX(KASAN_4L_END, 5)] =
-        VA2PA(new_pml4) | X86_PAGING_PRESENT | X86_PAGING_GLOBAL | X86_PAGING_WRITE;
+        VA2PA(new_pml4) | X86_PAGING_PRESENT | X86_PAGING_WRITE;
 }
 
 extern "C" NO_ASAN void x86_bootstrap_kasan(bool la57)
@@ -1573,7 +1571,7 @@ extern "C" NO_ASAN void x86_bootstrap_kasan(bool la57)
     for (unsigned int i = 0; i < 32; i++)
     {
         top_pgd->entries[indices[x86_paging_levels - 1] + i] =
-            VA2PA(shadow_pts) | X86_PAGING_PRESENT | X86_PAGING_GLOBAL | X86_PAGING_NX;
+            VA2PA(shadow_pts) | X86_PAGING_PRESENT | X86_PAGING_NX;
     }
 
     shadow_pdpt = shadow_pts;
@@ -1585,8 +1583,7 @@ extern "C" NO_ASAN void x86_bootstrap_kasan(bool la57)
         // Fill the shadow pml4
         for (unsigned int i = 0; i < 512; i++)
         {
-            shadow_pml4->entries[i] =
-                VA2PA(shadow_pdpt) | X86_PAGING_PRESENT | X86_PAGING_GLOBAL | X86_PAGING_NX;
+            shadow_pml4->entries[i] = VA2PA(shadow_pdpt) | X86_PAGING_PRESENT | X86_PAGING_NX;
         }
 
         kasan_map_shadow_la57(top_pgd, ++shadow_pts);
@@ -1595,16 +1592,14 @@ extern "C" NO_ASAN void x86_bootstrap_kasan(bool la57)
     shadow_pd = ++shadow_pts;
     for (unsigned int i = 0; i < 512; i++)
     {
-        shadow_pdpt->entries[i] =
-            VA2PA(shadow_pd) | X86_PAGING_PRESENT | X86_PAGING_GLOBAL | X86_PAGING_NX;
+        shadow_pdpt->entries[i] = VA2PA(shadow_pd) | X86_PAGING_PRESENT | X86_PAGING_NX;
     }
 
     shadow_pt = ++shadow_pts;
 
     for (unsigned int i = 0; i < 512; i++)
     {
-        shadow_pd->entries[i] =
-            VA2PA(shadow_pt) | X86_PAGING_PRESENT | X86_PAGING_GLOBAL | X86_PAGING_NX;
+        shadow_pd->entries[i] = VA2PA(shadow_pt) | X86_PAGING_PRESENT | X86_PAGING_NX;
     }
 
     zero_shadow_map = (unsigned long *) ++shadow_pts;
