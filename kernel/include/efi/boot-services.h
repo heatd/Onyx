@@ -141,7 +141,7 @@ typedef struct
     (EFI_HANDLE* handle, const EFI_GUID* protocol, EFI_INTERFACE_TYPE intf_type, void* intf) EFIAPI;
 
     EFI_STATUS(*ReinstallProtocolInterface)
-    (EFI_HANDLE hadle, const EFI_GUID* protocol, void* old_intf, void* new_intf) EFIAPI;
+    (EFI_HANDLE handle, const EFI_GUID* protocol, void* old_intf, void* new_intf) EFIAPI;
 
     EFI_STATUS(*UninstallProtocolInterface)
     (EFI_HANDLE handle, const EFI_GUID* protocol, void* intf) EFIAPI;
