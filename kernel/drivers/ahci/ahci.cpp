@@ -206,7 +206,8 @@ int ahci_io_queue::device_io_submit(bio_req *req)
     auto [list, list_index] = allocate_clist();
 
     list->desc_info =
-        fis_len | ((req->flags & BIO_REQ_OP_MASK) == BIO_REQ_READ_OP ? AHCI_COMMAND_LIST_WRITE : 0);
+        fis_len |
+        ((req->flags & BIO_REQ_OP_MASK) == BIO_REQ_WRITE_OP ? AHCI_COMMAND_LIST_WRITE : 0);
     list->prdbc = 0;
     command_table_t *table = (command_table_t *) PHYS_TO_VIRT(ctables[list_index]);
 
