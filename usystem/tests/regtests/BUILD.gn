@@ -18,6 +18,15 @@ app_executable("fdlopen") {
     sources = [ "fdlopen.c" ]
 }
 
+app_executable("afunix_test") {
+    include_dirs = [ "include" ]
+    package_name = "afunix_test"
+
+    output_name = "afunix_test"
+
+    sources = [ "afunix_test.c" ]
+}
+
 group("regtests") {
-    deps = [ ":nameitests", ":fdlopen" ]
+    deps = [ ":nameitests", ":fdlopen", ":afunix_test"]
 }
