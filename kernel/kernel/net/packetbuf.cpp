@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2022 Pedro Falcato
+ * Copyright (c) 2020 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -11,6 +11,7 @@
 #include <stdlib.h>
 
 #include <onyx/compiler.h>
+#include <onyx/kunit.h>
 #include <onyx/mm/vm_object.h>
 #include <onyx/packetbuf.h>
 
@@ -301,3 +302,218 @@ ssize_t packetbuf::expand_buffer(const void *ubuf_, unsigned int len)
 
     return ret;
 }
+
+/**
+ * @brief Copy the packetbuf (or whatever is left of it) to iter
+ *
+ * @param iter iovec iterator (in-out parameter)
+ * @param flags Copy iter flags
+ *
+ * @return Number of bytes copied, or negative error code
+ */
+ssize_t packetbuf::copy_iter(iovec_iter &iter, unsigned int flags)
+{
+    ssize_t copied = 0;
+    unsigned int last_vec = 1;
+    u8 *datap = data;
+    size_t in_body_data = tail - datap;
+
+    while (in_body_data)
+    {
+        if (iter.empty())
+            break;
+        auto iov = iter.curiovec();
+        size_t to_copy = min(iov.iov_len, in_body_data);
+
+        if (copy_to_user(iov.iov_base, datap, to_copy) < 0)
+        {
+            if (!copied)
+                copied = -EFAULT;
+            break;
+        }
+
+        datap += to_copy;
+        in_body_data -= to_copy;
+        copied += to_copy;
+        iter.advance(copied);
+        DCHECK(datap <= tail);
+
+        if (!(flags & PBF_COPY_ITER_PEEK))
+            data = datap;
+    }
+
+    if (copied < 0)
+        return copied;
+
+    // Used for page_iov iteration, to avoid messing with vec if PBF_COPY_ITER_PEEK
+    unsigned int current_iov_len = page_vec[1].length;
+    unsigned int current_iov_off = 0;
+
+    while (!iter.empty())
+    {
+        ssize_t to_copy = 0;
+        void *ptr = nullptr;
+        auto iov = iter.curiovec();
+        struct page_iov *vec = nullptr;
+
+        for (; last_vec < PACKETBUF_MAX_NR_PAGES + 1;
+             last_vec++, current_iov_len = page_vec[last_vec].length, current_iov_off = 0)
+        {
+            // Skip the first vec
+            if (last_vec == 0)
+                continue;
+
+            // We reached the end
+            if (!page_vec[last_vec].page)
+                break;
+
+            // Empty iov
+            if (current_iov_len == 0)
+                continue;
+
+            vec = &page_vec[last_vec];
+            to_copy = min(iov.iov_len, (size_t) current_iov_len);
+            ptr = (u8 *) (PAGE_TO_VIRT(vec->page)) + vec->page_off + current_iov_off;
+            break;
+        }
+
+        if (!vec)
+            break;
+
+        if (copy_to_user(iov.iov_base, ptr, to_copy) < 0)
+        {
+            if (!copied)
+                copied = -EFAULT;
+            break;
+        }
+
+        current_iov_len -= to_copy;
+        current_iov_off += to_copy;
+        copied += to_copy;
+        iter.advance(to_copy);
+
+        if (!(flags & PBF_COPY_ITER_PEEK))
+        {
+            // Adjust the page_iov
+            vec->page_off += to_copy;
+            vec->length -= to_copy;
+            current_iov_off = 0;
+            DCHECK(vec->page_off <= PAGE_SIZE);
+            DCHECK(vec->length <= PAGE_SIZE);
+            DCHECK(vec->page_off + vec->length <= PAGE_SIZE);
+        }
+    }
+
+    return copied;
+}
+
+#ifdef CONFIG_KUNIT
+
+static ref_guard<packetbuf> alloc_pbf(unsigned int length)
+{
+    ref_guard<packetbuf> buf = make_refc<packetbuf>();
+    CHECK(buf);
+    CHECK(buf->allocate_space(length));
+
+    {
+        auto_addr_limit a{VM_KERNEL_ADDR_LIMIT};
+        char cbuf[1000];
+        memset(cbuf, 'A', sizeof(buf));
+
+        while (length)
+        {
+            ssize_t to_add = min(sizeof(cbuf), (size_t) length);
+            CHECK(buf->expand_buffer(cbuf, to_add) == to_add);
+            length -= to_add;
+        }
+    }
+
+    return buf;
+}
+
+TEST(packetbuf, copy_iter_only_body)
+{
+    // Test if copy_iter correctly handles body copies
+    unique_page page = alloc_page(GFP_KERNEL);
+    CHECK(page.get() != nullptr);
+
+    auto_addr_limit a{VM_KERNEL_ADDR_LIMIT};
+    ref_guard<packetbuf> buf = alloc_pbf(PAGE_SIZE);
+
+    struct iovec v;
+    v.iov_base = PAGE_TO_VIRT(page.get());
+    v.iov_len = PAGE_SIZE;
+    iovec_iter it{{&v, 1}, PAGE_SIZE};
+
+    ASSERT_EQ((ssize_t) PAGE_SIZE, buf->copy_iter(it, 0));
+
+    it = {{&v, 1}, PAGE_SIZE};
+    // Should return nothing now (should be empty!)
+    EXPECT_EQ(0L, buf->copy_iter(it, 0));
+}
+
+TEST(packetbuf, copy_iter_peek_body)
+{
+    // Test if copy_iter correctly handles body copies with MSG_PEEK handling
+    unique_page page = alloc_page(GFP_KERNEL);
+    CHECK(page.get() != nullptr);
+
+    auto_addr_limit a{VM_KERNEL_ADDR_LIMIT};
+    ref_guard<packetbuf> buf = alloc_pbf(PAGE_SIZE);
+
+    struct iovec v;
+    v.iov_base = PAGE_TO_VIRT(page.get());
+    v.iov_len = PAGE_SIZE;
+    iovec_iter it{{&v, 1}, PAGE_SIZE};
+
+    ASSERT_EQ((ssize_t) PAGE_SIZE, buf->copy_iter(it, PBF_COPY_ITER_PEEK));
+    it = {{&v, 1}, PAGE_SIZE};
+    // Should not have discarded anything now
+    EXPECT_EQ((ssize_t) PAGE_SIZE, buf->copy_iter(it, 0));
+}
+
+TEST(packetbuf, copy_iter_peek_page_iov)
+{
+    // Test if copy_iter correctly handles body + page_iov copies with MSG_PEEK handling
+    unique_page page = alloc_pages(2, GFP_KERNEL);
+    CHECK(page.get() != nullptr);
+
+    auto_addr_limit a{VM_KERNEL_ADDR_LIMIT};
+    ref_guard<packetbuf> buf = alloc_pbf(PAGE_SIZE * 4);
+
+    struct iovec v;
+    v.iov_base = PAGE_TO_VIRT(page.get());
+    v.iov_len = PAGE_SIZE << 2;
+    iovec_iter it{{&v, 1}, PAGE_SIZE << 2};
+
+    ASSERT_EQ((ssize_t) PAGE_SIZE << 2, buf->copy_iter(it, PBF_COPY_ITER_PEEK));
+    it = {{&v, 1}, PAGE_SIZE << 2};
+    // Should not have discarded anything now
+    EXPECT_EQ((ssize_t) PAGE_SIZE << 2, buf->copy_iter(it, 0));
+    it = {{&v, 1}, PAGE_SIZE << 2};
+    EXPECT_EQ(0L, buf->copy_iter(it, 0));
+}
+
+TEST(packetbuf, copy_iter_page_iov_partial)
+{
+    // Test if copy_iter correctly handles partial page_iov copies
+    unique_page page = alloc_pages(1, GFP_KERNEL);
+    CHECK(page.get() != nullptr);
+
+    auto_addr_limit a{VM_KERNEL_ADDR_LIMIT};
+    ref_guard<packetbuf> buf = alloc_pbf(PAGE_SIZE * 4);
+
+    struct iovec v;
+    v.iov_base = PAGE_TO_VIRT(page.get());
+    v.iov_len = PAGE_SIZE << 1;
+    iovec_iter it{{&v, 1}, PAGE_SIZE << 1};
+
+    ASSERT_EQ((ssize_t) PAGE_SIZE << 1, buf->copy_iter(it, 0));
+    it = {{&v, 1}, PAGE_SIZE << 1};
+    // Should not have discarded anything now
+    EXPECT_EQ((ssize_t) PAGE_SIZE << 1, buf->copy_iter(it, 0));
+    it = {{&v, 1}, PAGE_SIZE << 1};
+    EXPECT_EQ(0L, buf->copy_iter(it, 0));
+}
+
+#endif

@@ -11,6 +11,7 @@
 
 #include <stddef.h>
 
+#include <onyx/iovec_iter.h>
 #include <onyx/limits.h>
 #include <onyx/net/inet_route.h>
 #include <onyx/page.h>
@@ -259,6 +260,18 @@ public:
 
         __builtin_unreachable();
     }
+
+#define PBF_COPY_ITER_PEEK (1 << 0)
+
+    /**
+     * @brief Copy the packetbuf (or whatever is left of it) to iter
+     *
+     * @param iter iovec iterator (in-out parameter)
+     * @param flags Copy iter flags
+     *
+     * @return Number of bytes copied, or negative error code
+     */
+    ssize_t copy_iter(iovec_iter &iter, unsigned int flags);
 };
 
 /**
