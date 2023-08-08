@@ -2590,5 +2590,29 @@
             ]
         ],
         "return_type": "int"
+    },
+    {
+        "name": "socketpair",
+        "nr": 152,
+        "nr_args": 4,
+        "args": [
+            [
+                "int",
+                "domain"
+            ],
+            [
+                "int",
+                "type"
+            ],
+            [
+                "int",
+                "protocol"
+            ],
+            [
+                "int *",
+                "sockfds"
+            ]
+        ],
+        "return_type": "int"
     }
 ]

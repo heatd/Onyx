@@ -7,7 +7,6 @@
  */
 #include <errno.h>
 #include <net/if.h>
-#include <uapi/ioctls.h>
 
 #include <onyx/dentry.h>
 #include <onyx/file.h>
@@ -18,6 +17,8 @@
 #include <onyx/scoped_lock.h>
 #include <onyx/utils.h>
 
+#include <uapi/ioctls.h>
+
 /**
  * @brief Create a UNIX socket
  *
@@ -26,6 +27,8 @@
  * @return Pointer to socket object, or nullptr with errno set
  */
 socket *unix_create_socket(int type, int protocol);
+
+expected<cul::pair<ref_guard<socket>, ref_guard<socket>>, int> unix_create_socketpair(int type);
 
 socket *file_to_socket(struct file *f)
 {
@@ -851,7 +854,7 @@ struct inode *socket_create_inode(socket *socket)
         return nullptr;
 
     inode->i_fops = &socket_ops;
-
+    inode->i_mode = 0666 | S_IFSOCK;
     inode->i_type = VFS_TYPE_UNIX_SOCK;
     inode->i_flags = INODE_FLAG_NO_SEEK;
     inode->i_helper = socket;
@@ -1464,4 +1467,104 @@ int sys_getpeername(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
         return st;
 
     return copy_sockaddr((sockaddr *) &kaddr, kaddrlen, addr, addrlen);
+}
+
+expected<cul::pair<file *, file *>, int> socket_create_filepair(ref_guard<socket> &sock0,
+                                                                ref_guard<socket> &sock1)
+{
+    struct inode *ino0, *ino1;
+    struct file *file0, *file1;
+
+    ino0 = socket_create_inode(sock0.release());
+    if (!ino0)
+        return unexpected{-ENOMEM};
+    ino1 = socket_create_inode(sock1.release());
+    if (!ino1)
+        return unexpected{-ENOMEM};
+
+    file0 = socket_inode_to_file(ino0);
+    if (!file0)
+    {
+        goto release_inodes_and_err;
+    }
+
+    ino0 = nullptr;
+
+    file1 = socket_inode_to_file(ino1);
+    if (!file1)
+    {
+        fd_put(file0);
+        goto release_inodes_and_err;
+    }
+
+    return cul::pair{file0, file1};
+
+release_inodes_and_err:
+    if (ino0)
+        inode_unref(ino0);
+    if (ino1)
+        inode_unref(ino1);
+    return unexpected{-ENOMEM};
+}
+
+int sys_socketpair(int domain, int type, int protocol, int *usockfds)
+{
+    int sockfd[2], flags = 0, st = 0;
+
+    if (domain != AF_UNIX)
+        return -EOPNOTSUPP;
+
+    if (protocol == 0)
+    {
+        if (protocol = net_autodetect_protocol(type, domain); protocol < 0)
+            return -EINVAL;
+    }
+
+    auto ex = unix_create_socketpair(type);
+    if (ex.has_error())
+        return ex.error();
+
+    auto [sock0, sock1] = ex.value();
+
+    auto ex1 = socket_create_filepair(sock0, sock1);
+    if (ex1.has_error())
+        return ex.error();
+
+    auto [file0, file1] = ex1.value();
+
+    if (type & SOCK_CLOEXEC)
+        flags |= O_CLOEXEC;
+    if (type & SOCK_NONBLOCK)
+        flags |= O_NONBLOCK;
+
+    sockfd[0] = sockfd[1] = -1;
+
+    sockfd[0] = open_with_vnode(file0, O_RDWR | flags);
+    if (sockfd[0] < 0)
+    {
+        st = sockfd[0];
+        goto out;
+    }
+
+    sockfd[1] = open_with_vnode(file1, O_RDWR | flags);
+    if (sockfd[1] < 0)
+    {
+        st = sockfd[1];
+        goto out;
+    }
+
+    if (copy_to_user(usockfds, sockfd, sizeof(int) * 2) < 0)
+    {
+        st = -EFAULT;
+        if (sockfd[0] >= 0)
+            file_close(sockfd[0]);
+        if (sockfd[1] >= 0)
+            file_close(sockfd[1]);
+        goto out;
+    }
+
+out:
+    fd_put(file0);
+    fd_put(file1);
+    return st;
 }
