@@ -162,6 +162,35 @@ static inline void list_move(struct list_head *dest, struct list_head *src)
     list_reset(src);
 }
 
+static inline void list_splice_internal(struct list_head *src, struct list_head *prev,
+                                        struct list_head *next)
+{
+    // First element in src is src->next, last is src->prev
+    struct list_head *first = src->next, *last = src->prev;
+
+    // Link last to next and first to prev
+    // [last] <---> [next]
+    last->next = next;
+    next->prev = last;
+
+    first->prev = prev;
+    prev->next = first;
+    // [prev] <---> [first]
+    // [prev] <---> [first] <--...--> [last] <---> [next]
+}
+
+static inline void list_splice(struct list_head *src, struct list_head *dst)
+{
+    if (!list_is_empty(src))
+        list_splice_internal(src, dst, dst->next);
+}
+
+static inline void list_splice_tail(struct list_head *src, struct list_head *dst)
+{
+    if (!list_is_empty(src))
+        list_splice_internal(src, dst->prev, dst);
+}
+
 /*
  * TODO: This code is weird, inconsistent, and needs to be rewritten
  * and re-thought.

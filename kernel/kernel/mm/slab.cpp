@@ -384,9 +384,11 @@ struct slab *kmem_pointer_to_slab_maybe(void *mem)
  *
  * @param cache Slab cache
  * @param flags Allocation flags
+ * @param no_add Don't add the new slab to the list
  * @return A pointer to the new slab, or nullptr in OOM situations.
  */
-NO_ASAN static struct slab *kmem_cache_create_slab(struct slab_cache *cache, unsigned int flags)
+NO_ASAN static struct slab *kmem_cache_create_slab(struct slab_cache *cache, unsigned int flags,
+                                                   bool no_add)
 {
     char *start = nullptr;
     struct page *pages = nullptr;
@@ -465,8 +467,12 @@ NO_ASAN static struct slab *kmem_cache_create_slab(struct slab_cache *cache, uns
         slab->start = start;
 
     slab->size = slab_size;
-    list_add_tail(&slab->slab_list_node, &cache->free_slabs);
-    cache->nfreeslabs++;
+
+    if (!no_add)
+    {
+        list_add_tail(&slab->slab_list_node, &cache->free_slabs);
+        cache->nfreeslabs++;
+    }
 
     // Setup pointers to the slab in the struct pages
     size_t nr_pages = slab_size >> PAGE_SHIFT;
@@ -493,7 +499,7 @@ NO_ASAN static struct slab *kmem_cache_create_slab(struct slab_cache *cache, uns
  */
 static void *kmem_cache_alloc_noslab(struct slab_cache *cache, unsigned int flags)
 {
-    struct slab *s = kmem_cache_create_slab(cache, flags);
+    struct slab *s = kmem_cache_create_slab(cache, flags, false);
     if (!s)
         return nullptr;
     return kmem_cache_alloc_from_slab(s, flags);
@@ -527,7 +533,15 @@ static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
                                        struct slab_cache_percpu_context *pcpu, unsigned int flags)
 {
     // Lets attempt to allocate a batch (half our stack)
+    // We keep two local partial and full lists that we splice at the end
+    // Because of this, we can drop the lock for a bit, while allocating "locally".
     scoped_lock g{cache->lock};
+    int ret = 0;
+
+    DEFINE_LIST(partials);
+    DEFINE_LIST(full_slabs);
+
+    size_t npartials = 0, nfull = 0;
 
     const auto objs_per_slab = kmem_calc_slab_nr_objs(cache);
     const auto batch_size = cache->mag_limit / 2;
@@ -535,31 +549,46 @@ static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
     if (objs_per_slab % batch_size)
         nr_slabs++;
 
+    bool allocating = false;
+
     for (size_t i = 0; i < nr_slabs; i++)
     {
         bool isfree = false;
         struct slab *slab;
-        if (cache->npartialslabs)
+
+        if (!allocating && (cache->npartialslabs || cache->nfreeslabs))
         {
-            assert(!list_is_empty(&cache->partial_slabs));
-            slab = container_of(list_first_element(&cache->partial_slabs), struct slab,
-                                slab_list_node);
-        }
-        else if (cache->nfreeslabs)
-        {
-            assert(!list_is_empty(&cache->free_slabs));
-            slab =
-                container_of(list_first_element(&cache->free_slabs), struct slab, slab_list_node);
-            isfree = true;
+            if (cache->npartialslabs)
+            {
+                DCHECK(!list_is_empty(&cache->partial_slabs));
+                slab = container_of(list_first_element(&cache->partial_slabs), struct slab,
+                                    slab_list_node);
+            }
+            else /* if (cache->nfreeslabs) */
+            {
+                DCHECK(!list_is_empty(&cache->free_slabs));
+                slab = container_of(list_first_element(&cache->free_slabs), struct slab,
+                                    slab_list_node);
+                isfree = true;
+            }
         }
         else
         {
-            slab = kmem_cache_create_slab(cache, flags);
+            // Drop the lock, all allocations are local state now.
+            if (!allocating)
+            {
+                g.unlock();
+                allocating = true;
+            }
+
+            slab = kmem_cache_create_slab(cache, flags, true);
             if (!slab)
             {
                 // Only fail on memory allocation failure if we were allocating extra
-                return i == 0 ? -1 : 0;
+                ret = i == 0 ? -1 : 0;
+                goto out;
             }
+
             isfree = true;
         }
 
@@ -574,7 +603,13 @@ static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
                 // If we're here, we're stopping in the middle of a slab
                 // because of that, move it to partial (from free) and get out.
                 if (isfree)
-                    kmem_move_slab_to_partial(slab, isfree);
+                {
+                    if (allocating)
+                        list_add_tail(&slab->slab_list_node, &partials), npartials++;
+                    else
+                        kmem_move_slab_to_partial(slab, isfree);
+                }
+
                 goto out;
             }
 
@@ -592,11 +627,24 @@ static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
         }
 
         // We used up the whole slab, move it to full
-        kmem_move_slab_to_full(slab, isfree);
+        if (allocating)
+            list_add_tail(&slab->slab_list_node, &full_slabs), nfull++;
+        else
+            kmem_move_slab_to_full(slab, isfree);
     }
 
 out:
-    return 0;
+    if (allocating)
+    {
+        // If allocating, merge our local state and the cache's state. But first, re-lock.
+        g.lock();
+        list_splice_tail(&partials, &cache->partial_slabs);
+        list_splice_tail(&full_slabs, &cache->full_slabs);
+        cache->npartialslabs += npartials;
+        cache->nfullslabs += nfull;
+    }
+
+    return ret;
 }
 /**
  * @brief Allocate an object from the slab
