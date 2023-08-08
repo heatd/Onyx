@@ -171,6 +171,9 @@ else
 CFLAGS+=-fno-pie
 endif
 
+ifeq ($(CONFIG_GC_SECTIONS), y)
+LDFLAGS+=-Wl,--gc-sections
+endif
 
 # TODO: Fix -Wno-mismatched-new-delete cases
 CXXFLAGS:=-fno-rtti -fno-exceptions -fcheck-new -Wno-mismatched-new-delete
@@ -269,6 +272,18 @@ all: onyx-vdso.so.0 vmonyx
 
 lib/libk/libk.a: $(libk-objs)
 	$(AR) rcs $@ $(libk-objs)
+
+include lib/stackdepot/Makefile
+kernel-archive-dirs:=lib/stackdepot
+kernel-archives:=$(foreach a, $(kernel-archive-dirs), $(a)/$(basename $(notdir $(a))).a)
+LIBS+=$(foreach lib, $(kernel-archive-dirs), $(lib)/$(basename $(notdir $(lib))).a)
+$(info $(kernel-archives))
+
+.SECONDEXPANSION:
+
+$(info $(stackdepot-y))
+$(kernel-archives): $$($$(basename $$(notdir $$@))-y)
+	$(AR) rcs $@ $($(basename $(notdir $@))-y)
 
 vmonyx: $(OBJ_DEPS) $(EXTRA_LIBK_OBJS) $(ARCHDIR)/linker.ld $(kernel-archives) $(GENERATED_HEADERS)
 	@echo [LD] $@
