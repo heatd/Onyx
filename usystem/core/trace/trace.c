@@ -17,6 +17,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <symbolize/symbolize.h>
 #include <uapi/ktrace.h>
 
 typedef uint8_t u8;
@@ -37,8 +38,8 @@ struct tracing_header
 enum traced_event_arg_type
 {
     ARG_INTEGER = 0,
-    ARG_STRING
-    // TODO: ARG_ARRAY
+    ARG_STRING,
+    ARG_ARRAY
 };
 
 struct traced_event_arg
@@ -46,9 +47,11 @@ struct traced_event_arg
     const char *name;
     enum traced_event_arg_type type;
     int size;
+    int elems;
     int offset;
     int signed_ : 1;
     int ignore : 1;
+    int arr : 1;
 };
 
 struct traced_event
@@ -84,6 +87,12 @@ struct trace_arg
     char val[TRACE_ARG_MAX];
 };
 
+struct stacktrace
+{
+    u64 *trace;
+    u8 trace_size;
+};
+
 static void output_complete_event(const char *name, const char *cat, pid_t pid, pid_t tid, u64 ts,
                                   u64 dur, struct trace_arg *args, size_t nr_args, FILE *file)
 {
@@ -109,13 +118,75 @@ static void output_complete_event(const char *name, const char *cat, pid_t pid, 
     fputc('}', file);
 }
 
+struct symbolize_ctx *ctx;
+
+int kfd = -1;
+
+static void maybe_init_symbols(void)
+{
+    ctx = malloc(sizeof *ctx);
+    if (!ctx)
+        err(1, "malloc");
+
+    kfd = open("/boot/vmonyx", O_RDONLY | O_CLOEXEC);
+    if (kfd < 0)
+    {
+        warn("error opening /boot/vmonyx");
+        warnx("symbols disabled");
+    }
+
+    if (symbolize_exec(kfd, ctx) < 0)
+    {
+        warn("error initializing symbolization");
+        warnx("symbols disabled");
+    }
+}
+
 static void output_inst_event(const char *name, const char *cat, pid_t pid, pid_t tid, u64 ts,
-                              struct trace_arg *args, size_t nr_args, FILE *file)
+                              struct trace_arg *args, size_t nr_args, struct stacktrace *trace,
+                              FILE *file)
 {
     fprintf(file,
             "{\"name\": \"%s\", \"cat\": \"%s\", \"ph\": \"i\", \"pid\": %d, \"tid\": %d, \"ts\": "
             "%lu",
             name, cat, pid, tid, ts);
+
+    if (trace)
+    {
+        maybe_init_symbols();
+        int printcomma = 0;
+        fprintf(file, ", \"stack\": [");
+        for (u8 i = 0; i < trace->trace_size; i++)
+        {
+            char symbuf[100];
+            int failed = kfd == -1;
+
+            if (printcomma == 1)
+                fputc(',', file);
+
+            if (!failed)
+            {
+                int st = symbolize_symbolize(ctx, trace->trace[i], symbuf, sizeof(symbuf));
+
+                if (st < 0)
+                {
+                    warn("symbolize_symbolize");
+                }
+                else
+                    failed = 0;
+            }
+
+            if (failed)
+                fprintf(file, "\"%#lx\"", trace->trace[i]);
+            else
+                fprintf(file, "\"%s\"", symbuf);
+
+            printcomma = 1;
+        }
+
+        fputc(']', file);
+    }
+
     if (nr_args > 0)
     {
         fprintf(file, ", \"args\": {");
@@ -147,11 +218,10 @@ struct traced_event *get_ev(u32 evid)
 void parse_format_args(struct traced_event *ev)
 {
     /* Ok, let's parse the fields in format
-     * example format: "field:u32 evtype;\nfield: u16 size;\nfield:u32 cpu;\nfield: u64 ts; cond:
-     * TIME\nfield:u64 end_ts; cond: TIME;\nfield:u32 irqn;\n"
-     * fields specify individual struct fields (header included), the types are straight forward,
-     * some fields may be conditional on certain flags, like TIME in this example. One line
-     * describes one field.
+     * example format: "field:u32 evtype;\nfield: u16 size;\nfield:u32 cpu;\nfield: u64 ts;
+     * cond: TIME\nfield:u64 end_ts; cond: TIME;\nfield:u32 irqn;\n" fields specify individual
+     * struct fields (header included), the types are straight forward, some fields may be
+     * conditional on certain flags, like TIME in this example. One line describes one field.
      */
 
     const char *s = ev->format;
@@ -188,6 +258,7 @@ void parse_format_args(struct traced_event *ev)
             err(1, "strdup");
 
         arg->offset = offset;
+        size_t type_len = strlen(type);
 
         if (!strcmp(type, "char["))
         {
@@ -197,8 +268,15 @@ void parse_format_args(struct traced_event *ev)
         }
         else
         {
-            // Probably a number, we only support sized u- and s- right now.
-            arg->type = ARG_INTEGER;
+            if (type[type_len - 1] == ']')
+            {
+                arg->type = ARG_ARRAY;
+                unsigned long elems;
+                elems = strtoul(strchr(type, '[') + 1, NULL, 10);
+                arg->elems = elems;
+            }
+            else
+                arg->type = ARG_INTEGER;
             if (type[0] == 's')
                 arg->signed_ = 1;
             arg->size = strtoul(type + 1, NULL, 10) / 8;
@@ -227,6 +305,8 @@ void output_ev(u8 *raw, struct traced_event *ev, FILE *file)
     struct tracing_header *header = (void *) raw;
     u64 start = header->ts;
     u64 end = 0;
+    u8 *trace = NULL;
+    u8 trace_size = 0;
 
     for (size_t i = 0; i < ev->nr_args; i++)
     {
@@ -246,6 +326,19 @@ void output_ev(u8 *raw, struct traced_event *ev, FILE *file)
             continue;
         }
 
+        if (!strcmp(arg->name, "stack_trace"))
+        {
+            trace = raw;
+            raw += arg->size * arg->elems;
+            continue;
+        }
+
+        if (!strcmp(arg->name, "trace_size"))
+        {
+            trace_size = *(u8 *) raw++;
+            continue;
+        }
+
         tas = reallocarray(tas, sizeof(struct trace_arg), nr_tas + 1);
         if (!tas)
             err(1, "reallocarray");
@@ -258,6 +351,23 @@ void output_ev(u8 *raw, struct traced_event *ev, FILE *file)
             memcpy(&max, raw, arg->size);
             sprintf(t->val, arg->signed_ ? "%lld" : "%llu", max);
         }
+        else if (arg->type == ARG_ARRAY)
+        {
+            char *val = t->val + 1;
+            t->val[0] = '[';
+            for (int j = 0; j < arg->elems; j++, raw += arg->size)
+            {
+                uintmax_t max = 0;
+                memcpy(&max, raw, arg->size);
+                val += sprintf(val, arg->signed_ ? "%lld" : "%llu", max);
+                if (j < arg->elems - 1)
+                    *val++ = ',';
+            }
+
+            *val++ = ']';
+
+            raw -= arg->size;
+        }
         else if (arg->type == ARG_STRING)
         {
             memcpy(t->val, raw, arg->size);
@@ -265,6 +375,10 @@ void output_ev(u8 *raw, struct traced_event *ev, FILE *file)
 
         raw += arg->size;
     }
+
+    struct stacktrace t;
+    t.trace = (u64 *) trace;
+    t.trace_size = trace_size;
 
     if (ev->is_duration)
     {
@@ -274,7 +388,7 @@ void output_ev(u8 *raw, struct traced_event *ev, FILE *file)
     }
     else
         output_inst_event(ev->name, ev->category, 0, header->cpu, start / NS_PER_US, tas, nr_tas,
-                          file);
+                          trace ? &t : NULL, file);
 }
 
 void output_json(u8 *buf, u8 *bufend, FILE *file)
@@ -285,19 +399,6 @@ void output_json(u8 *buf, u8 *bufend, FILE *file)
     while (buf != bufend)
     {
         struct tracing_header *header = (u8 *) buf;
-
-        /*if (header->evtype == TRACING_EVTYPE_HARDIRQ)
-        {
-            struct tracing_irq_hardirq *hirq = (struct tracing_irq_hardirq *) header;
-            u64 start = hirq->header.ts / NS_PER_US;
-            u64 end = hirq->end_ts / NS_PER_US;
-            u64 dur = end - start;
-            struct trace_arg a;
-            strcpy(a.name, "irqn");
-            sprintf(a.val, "%u", hirq->irq_nr);
-            output_complete_event("hardirq", "irq", 0, hirq->header.cpu, start, dur, &a, 1, file);
-        }
-        else*/
         struct traced_event *ev = get_ev(header->evtype);
 
         if (!ev)
@@ -379,7 +480,9 @@ int main(int argc, char **argv, char **envp)
         err(1, "open(/dev/ktrace)");
 
     // add_traced_event(fd, "irq.hardirq");
-    add_traced_event(fd, "wb.dirty_inode");
+    // add_traced_event(fd, "wb.dirty_inode");
+    add_traced_event(fd, "refcountable.ref");
+    add_traced_event(fd, "refcountable.unref");
 
     endbuf = mmap(NULL, 0x2000000 * 4, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
 

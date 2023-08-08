@@ -1,13 +1,36 @@
 /*
- * Copyright (c) 2019 Pedro Falcato
- * This file is part of Carbon, and is released under the terms of the MIT License
+ * Copyright (c) 2019 - 2023 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
-
 #ifndef _CARBON_REFCOUNT_H
 #define _CARBON_REFCOUNT_H
 
 #include <assert.h>
+
+// Note: CONFIG_REFCOUNT_ENABLE_TRACE has significant overhead (branch on every refcount op), so
+// only enable it if really needed
+#ifdef CONFIG_REFCOUNT_ENABLE_TRACE
+#include <onyx/gen/trace_refcount.h>
+
+#define TRACE_REFC_REF                    \
+    if (trace_refcountable_ref_enabled()) \
+    trace_refcountable_ref((unsigned long) this)
+
+#define TRACE_REFC_UNREF                    \
+    if (trace_refcountable_unref_enabled()) \
+    trace_refcountable_unref((unsigned long) this)
+
+#define REFCOUNT_INLINE
+#else
+
+#define TRACE_REFC_REF
+#define TRACE_REFC_UNREF
+
+#define REFCOUNT_INLINE [[gnu::always_inline]]
+#endif
 
 #include <onyx/atomic.hpp>
 #include <onyx/deleter.hpp>
@@ -33,18 +56,21 @@ public:
 #endif
     }
 
-    unsigned long ref()
+    REFCOUNT_INLINE unsigned long ref()
     {
+        TRACE_REFC_REF;
         return __refcount.add_fetch(1, mem_order::acquire);
     }
 
-    unsigned long refer_multiple(unsigned long n)
+    REFCOUNT_INLINE unsigned long refer_multiple(unsigned long n)
     {
+        TRACE_REFC_REF;
         return __refcount.add_fetch(n, mem_order::acquire);
     }
 
-    bool unref()
+    REFCOUNT_INLINE bool unref()
     {
+        TRACE_REFC_UNREF;
         bool was_deleted = false;
         if (__refcount.sub_fetch(1, mem_order::release) == 0)
         {
@@ -55,8 +81,9 @@ public:
         return was_deleted;
     }
 
-    bool unref_multiple(unsigned long n)
+    REFCOUNT_INLINE bool unref_multiple(unsigned long n)
     {
+        TRACE_REFC_UNREF;
         bool was_deleted = false;
         if (__refcount.sub_fetch(n, mem_order::release) == 0)
         {
@@ -83,7 +110,6 @@ class ref_guard
 {
 private:
     T* p;
-    atomic<unsigned long> refed_counter;
 
 public:
     void ref()
@@ -91,7 +117,6 @@ public:
         if (!p)
             return;
         p->ref();
-        refed_counter++;
     }
 
     void unref()
@@ -99,31 +124,21 @@ public:
         if (!p)
             return;
         p->unref();
-        refed_counter--;
-    }
-
-    void unref_everything()
-    {
-        if (!p)
-            return;
-        p->unref_multiple(refed_counter);
     }
 
     void disable()
     {
-        refed_counter = 0;
         p = nullptr;
     }
 
     T* release()
     {
-        refed_counter = 0;
         auto ret = p;
         p = nullptr;
         return ret;
     }
 
-    explicit ref_guard(T* p) : p(p), refed_counter{1}
+    explicit ref_guard(T* p) : p(p)
     {
     }
 
@@ -151,28 +166,24 @@ public:
         return *p;
     }
 
-    ref_guard(const ref_guard& r) : p(r.p), refed_counter(r.refed_counter)
+    ref_guard(const ref_guard& r) : p(r.p)
     {
-        if (!p)
-            return;
-        p->refer_multiple(refed_counter);
+        if (p)
+            p->ref();
     }
 
-    ref_guard(ref_guard&& r) : p(r.p), refed_counter(r.refed_counter)
+    ref_guard(ref_guard&& r) : p(r.p)
     {
         r.p = nullptr;
-        r.refed_counter = 0;
     }
 
     ref_guard& operator=(const ref_guard& r)
     {
         const auto p0 = p;
-        const auto og_refed = refed_counter;
         p = r.p;
-        refed_counter = r.refed_counter;
-        p->refer_multiple(refed_counter);
+        p->ref();
         if (p0)
-            p0->unref_multiple(og_refed);
+            p0->unref();
 
         return *this;
     }
@@ -180,20 +191,24 @@ public:
     ref_guard& operator=(ref_guard&& r)
     {
         const auto p0 = p;
-        const auto og_refed = refed_counter;
         p = r.p;
-        refed_counter = r.refed_counter;
         r.p = nullptr;
-        r.refed_counter = 0;
         if (p0)
-            p0->unref_multiple(og_refed);
+            p0->unref();
 
         return *this;
     }
 
     ~ref_guard()
     {
-        unref_everything();
+        if (p)
+            p->unref();
+    }
+
+    template <typename OtherType>
+    ref_guard<OtherType> cast()
+    {
+        return ref_guard<OtherType>{release()};
     }
 };
 

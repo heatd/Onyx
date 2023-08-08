@@ -98,13 +98,21 @@ class TraceEvent:
             file.write(f"\tif ({tesn}.flags & TRACE_EVENT_TIME)\n\t\t{{record.ts = ts; record.end_ts = clocksource_get_time();}}\n\n")
         file.write(f"\trecord.cpu = get_cpu_nr();\n")
         file.write("\trecord.size = sizeof(record);\n")
-        for arg_ in self.args:
-            arg = arg_['name']
+        print(self.format)
+        for arg, arg_ in self.format.items():
             if arg == "ts":
                 continue # Skip, already dealt with
-            if self.format.get(arg) != None:
-                file.write(f"\trecord.{arg} = {arg};\n")
-            # TODO: String copies, custom methods (i.e softirq vector -> string)
+            found_arg = False
+            
+            if arg_.get("custom_assign") != None:
+                file.write(f"\t{arg_['custom_assign']}")
+            else:
+                for a in self.args:
+                    if a["name"] == arg:
+                        file.write(f"\trecord.{arg} = {arg};\n")
+                        found_arg = True
+                        break
+
         file.write("\t__trace_write((u8*) &record, sizeof(record));\n")
         file.write("}\n")
 
