@@ -46,7 +46,7 @@ string/strchr.o \
 string/strtoul.o \
 $(LIBK_ARCH_OBJS)
 
-libk-objs:=$(patsubst %, lib/libk/%, $(LIBK_OBJS))
+libk-y:=$(patsubst %, lib/libk/%, $(LIBK_OBJS))
 
 kernel-archives:=$(kernel-archives) lib/libk/libk.a
 

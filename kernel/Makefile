@@ -270,14 +270,19 @@ all: onyx-vdso.so.0 vmonyx
 
 .PHONY: all clean install install-headers install-kernel kernel-modules
 
-lib/libk/libk.a: $(libk-objs)
-	$(AR) rcs $@ $(libk-objs)
-
 include lib/stackdepot/Makefile
-kernel-archive-dirs:=lib/stackdepot
+kernel-archive-dirs:=lib/stackdepot lib/libk
 kernel-archives:=$(foreach a, $(kernel-archive-dirs), $(a)/$(basename $(notdir $(a))).a)
 LIBS+=$(foreach lib, $(kernel-archive-dirs), $(lib)/$(basename $(notdir $(lib))).a)
-$(info $(kernel-archives))
+
+ifneq ($(ONYX_USING_CLANG), yes)
+# HACK! GNU linkers are struggling to link .a libs with LTO enabled. So add --whole-archive
+# and make them eat the whole .a and optimize it out using LTO
+ifeq ($(CONFIG_LTO), y)
+LIBS_START:=-Wl,--whole-archive
+LIBS_END:=-Wl,--no-whole-archive
+endif
+endif
 
 .SECONDEXPANSION:
 
@@ -287,7 +292,7 @@ $(kernel-archives): $$($$(basename $$(notdir $$@))-y)
 
 vmonyx: $(OBJ_DEPS) $(EXTRA_LIBK_OBJS) $(ARCHDIR)/linker.ld $(kernel-archives) $(GENERATED_HEADERS)
 	@echo [LD] $@
-	$(CC) $(LDFLAGS) -Wl,-T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS_FOR_LINK) $(OBJ_LINK_LIST) $(LIBS) -Wno-error $(LIBK_LINK)
+	$(CC) $(LDFLAGS) -Wl,-T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS_FOR_LINK) $(OBJ_LINK_LIST) $(LIBS_START) $(LIBS) $(LIBS_END) -Wno-error
 	cp vmonyx vmonyx-unstripped
 	$(STRIP) -g vmonyx
 ifeq ($(KERNEL_REQUIRES_FLATTENING), yes)

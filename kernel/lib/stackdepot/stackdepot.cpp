@@ -94,7 +94,7 @@ static depot_stack_handle_t stackdepot_trace_to_handle(struct stacktrace *trace,
     unsigned long p = (unsigned long) trace;
     u32 offset = p & (STACKDEPOT_SLAB_SIZE - 1);
 
-    return handle_details{.valid = 1, .offset = offset, .slab = slab_idx}.handle;
+    return handle_details{.valid = 1, .slab = slab_idx, .offset = offset}.handle;
 }
 
 static struct stacktrace *stackdepot_alloc_stack(unsigned long *entries, unsigned long nr_entries,
