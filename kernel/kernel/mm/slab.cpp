@@ -8,8 +8,11 @@
 
 #include <onyx/list.h>
 #include <onyx/mm/slab.h>
+#include <onyx/modules.h>
 #include <onyx/page.h>
+#include <onyx/perf_probe.h>
 #include <onyx/rwlock.h>
+#include <onyx/stackdepot.h>
 #include <onyx/vm.h>
 
 #include <onyx/mm/pool.hpp>
@@ -66,6 +69,16 @@ struct bufctl
 {
     void *next;
     unsigned int flags;
+};
+
+/**
+ * @brief Sits at the redzone and has debug information for KASAN support.
+ *
+ */
+struct kasan_slab_obj_info
+{
+    depot_stack_handle_t alloc_stack;
+    depot_stack_handle_t free_stack;
 };
 
 /**
@@ -646,6 +659,54 @@ out:
 
     return ret;
 }
+
+#ifdef CONFIG_KASAN
+
+#define KASAN_STACK_DEPTH 16
+
+__always_inline void kmem_cache_post_alloc_kasan(struct slab_cache *cache, unsigned int flags,
+                                                 void *object)
+{
+    struct kasan_slab_obj_info *info =
+        (struct kasan_slab_obj_info *) ((u8 *) object - (cache->redzone / 2));
+    unsigned long trace[KASAN_STACK_DEPTH];
+    unsigned long nr =
+        stack_trace_get((unsigned long *) __builtin_frame_address(0), trace, KASAN_STACK_DEPTH);
+    info->alloc_stack = stackdepot_save_stack(trace, nr);
+    info->free_stack = DEPOT_STACK_HANDLE_INVALID;
+
+    asan_unpoison_shadow((unsigned long) object, cache->actual_objsize);
+}
+
+__always_inline void kasan_register_free(void *ptr, struct slab_cache *cache)
+{
+    struct kasan_slab_obj_info *info =
+        (struct kasan_slab_obj_info *) ((u8 *) ptr - (cache->redzone / 2));
+    unsigned long trace[KASAN_STACK_DEPTH];
+    unsigned long nr =
+        stack_trace_get((unsigned long *) __builtin_frame_address(0), trace, KASAN_STACK_DEPTH);
+    info->free_stack = stackdepot_save_stack(trace, nr);
+}
+
+#else
+__always_inline void kmem_cache_post_alloc_kasan(struct slab_cache *cache, unsigned int flags,
+                                                 void *object)
+{
+}
+#endif
+/**
+ * @brief Called after a successful allocation for post-alloc handling
+ *
+ * @param cache SLAB cache
+ * @param flags Allocation flags
+ * @param object Object that was allocated
+ */
+__always_inline void kmem_cache_post_alloc(struct slab_cache *cache, unsigned int flags,
+                                           void *object)
+{
+    kmem_cache_post_alloc_kasan(cache, flags, object);
+}
+
 /**
  * @brief Allocate an object from the slab
  * This function call be called in nopreempt/softirq context.
@@ -661,9 +722,7 @@ void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
         auto ret = kmem_cache_alloc_nopcpu(cache, flags);
         if (ret)
         {
-#ifdef CONFIG_KASAN
-            asan_unpoison_shadow((unsigned long) ret, cache->actual_objsize);
-#endif
+            kmem_cache_post_alloc(cache, flags, ret);
         }
         return ret;
     }
@@ -692,12 +751,9 @@ void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
     ((bufctl *) ret)->flags = 0;
 
     pcpu->touched.store(0, mem_order::release);
-
     sched_enable_preempt();
 
-#ifdef CONFIG_KASAN
-    asan_unpoison_shadow((unsigned long) ret, cache->actual_objsize);
-#endif
+    kmem_cache_post_alloc(cache, flags, ret);
 
     return ret;
 }
@@ -844,7 +900,7 @@ static void kmem_cache_free_pcpu(struct slab_cache *cache, void *ptr)
 
 #ifdef CONFIG_KASAN
 
-void kasan_kfree(void *ptr, size_t chunk_size)
+void kasan_kfree(void *ptr, struct slab_cache *cache, size_t chunk_size)
 {
     bufctl *buf = (bufctl *) ptr;
 
@@ -855,7 +911,16 @@ void kasan_kfree(void *ptr, size_t chunk_size)
 
     buf->flags = BUFCTL_PATTERN_FREE;
     asan_poison_shadow((unsigned long) ptr, chunk_size, KASAN_FREED);
+    kasan_register_free(ptr, cache);
+#ifndef NOQUARANTINE
     kasan_quarantine_add_chunk(buf, chunk_size);
+#else
+    buf->flags = 0;
+    if (cache->flags & KMEM_CACHE_NOPCPU)
+        return kfree_nopcpu(ptr);
+
+    kmem_cache_free_pcpu(cache, ptr);
+#endif
 }
 
 #endif
@@ -873,7 +938,7 @@ void kfree(void *ptr)
     auto cache = slab->cache;
 
 #ifdef CONFIG_KASAN
-    kasan_kfree(ptr, cache->objsize);
+    kasan_kfree(ptr, cache, cache->objsize);
     return;
 #endif
 
@@ -896,7 +961,7 @@ void kmem_cache_free(struct slab_cache *cache, void *ptr)
         return;
 
 #ifdef CONFIG_KASAN
-    kasan_kfree(ptr, cache->objsize);
+    kasan_kfree(ptr, cache, cache->objsize);
     return;
 #endif
 
@@ -1172,6 +1237,21 @@ void kmem_free_kasan(void *ptr)
     kmem_free_to_slab(slab->cache, slab, ptr);
 }
 
+static void stack_trace_print(unsigned long *entries, unsigned long nr)
+{
+    printk("\n");
+    for (unsigned long i = 0; i < nr; i++)
+    {
+        char sym[SYM_SYMBOLIZE_BUFSIZ];
+        int st = sym_symbolize((void *) entries[i], cul::slice<char>{sym, sizeof(sym)});
+        if (st < 0)
+            break;
+        printk("\t%s\n", sym);
+    }
+
+    printk("\n");
+}
+
 /**
  * @brief Print KASAN-relevant info for this mem-slab
  *
@@ -1186,6 +1266,28 @@ void kmem_cache_print_slab_info_kasan(void *mem, struct slab *slab)
 
     printk("%p is apart of cache %s slab %p - slab status %s\n", mem, slab->cache->name, slab,
            status);
+    struct kasan_slab_obj_info *info =
+        (kasan_slab_obj_info *) ((u8 *) mem - (slab->cache->redzone / 2));
+    printk("%p was last allocated by: ", mem);
+
+    if (info->alloc_stack == DEPOT_STACK_HANDLE_INVALID)
+        printk("<no stack trace available>\n");
+    else
+    {
+        struct stacktrace *trace = stackdepot_from_handle(info->alloc_stack);
+        stack_trace_print(trace->entries, trace->size);
+    }
+
+    printk("%p was last freed by: ", mem);
+
+    if (info->free_stack == DEPOT_STACK_HANDLE_INVALID)
+        printk("<no stack trace available>\n");
+    else
+    {
+        struct stacktrace *trace = stackdepot_from_handle(info->free_stack);
+        stack_trace_print(trace->entries, trace->size);
+    }
+
     // Pad "Memory information: " for the next info dump
     printk("                    ");
 }
