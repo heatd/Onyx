@@ -134,7 +134,7 @@ public:
     size_t available_space() const;
     void close_read_end();
     void close_write_end();
-    short poll(void *poll_file, short events);
+    short poll(struct file *filp, void *poll_file, short events);
 
     void wake_all(wait_queue *wq)
     {
@@ -538,25 +538,43 @@ void pipe_close(struct inode *ino)
     p->unref();
 }
 
-short pipe::poll(void *poll_file, short events)
+short pipe::poll(struct file *filp, void *poll_file, short events)
 {
-    // printk("pipe poll\n");
     short revents = 0;
+    const bool wr = fd_may_access(filp, FILE_ACCESS_WRITE);
+    const bool rd = fd_may_access(filp, FILE_ACCESS_READ);
+
     scoped_mutex g{pipe_lock};
 
-    if (events & POLLIN)
+    if (rd)
     {
-        if (can_read())
-            revents |= POLLIN;
-        else
-            poll_wait_helper(poll_file, &read_queue);
+        if (events & (POLLIN | POLLRDNORM))
+        {
+            if (can_read())
+                revents |= (events & (POLLIN | POLLRDNORM));
+        }
+
+        if (writer_count == 0)
+            revents |= POLLHUP;
     }
 
-    if (events & POLLOUT)
+    if (wr)
     {
-        if (can_write())
-            revents |= POLLOUT;
-        else
+        if (events & (POLLOUT | POLLWRNORM))
+        {
+            if (can_write())
+                revents |= (events & (POLLOUT | POLLWRNORM));
+        }
+
+        if (reader_count == 0)
+            revents |= POLLERR;
+    }
+
+    if (revents == 0)
+    {
+        if (rd)
+            poll_wait_helper(poll_file, &read_queue);
+        if (wr)
             poll_wait_helper(poll_file, &write_queue);
     }
 
@@ -566,7 +584,7 @@ short pipe::poll(void *poll_file, short events)
 static short pipe_poll(void *poll_file, short events, struct file *f)
 {
     pipe *p = get_pipe(f->f_ino->i_pipe);
-    return p->poll(poll_file, events);
+    return p->poll(f, poll_file, events);
 }
 
 static unsigned int pipe_ioctl(int req, void *argp, struct file *f)
