@@ -123,7 +123,7 @@ TEST(augmented_bst, test_insert)
 
     // Tree looks like:
     //             [0x2000, 0x3000]
-    //            /                \
+    //            /                \.
     // [0x1000, 0x2000]        [0x3000, 0x4000]
     //                    |
     //           We should have a gap of 0x1000
@@ -145,7 +145,7 @@ TEST(augmented_bst, test_propagate)
 
     // Tree looks like:
     //             [0x2000, 0x3000]
-    //            /                \
+    //            /                \.
     // [0x1000, 0x2000]        [0x3000, 0x4000]
     //                    |
     //           We should have a gap of 0x1000
@@ -182,7 +182,7 @@ TEST(augmented_bst, test_insert_rotations)
 
     // Tree looks like:
     //      [0x10000, 0x11000]
-    //                   \
+    //                   \.
     //                 [0x13000, 0x14000] - no gap
     ASSERT_EQ(0UL, vma->vma_gap);
     ASSERT_EQ(0UL, rootvma->vma_gap);
@@ -192,7 +192,7 @@ TEST(augmented_bst, test_insert_rotations)
 
     // Tree looks like:
     //             [0x13000, 0x14000]
-    //            /                \
+    //            /                \.
     // [0x10000, 0x11000]        [0x120000, 0x121000]
     //                    |
     //           We should have a gap!
@@ -214,7 +214,7 @@ TEST(augmented_bst, test_delete0)
 
     // Tree looks like:
     //             [0x2000, 0x3000]
-    //            /                \
+    //            /                \.
     // [0x1000, 0x2000]        [0x3000, 0x4000]
     //                    |
     //           We should have a gap of 0x1000
@@ -241,7 +241,7 @@ TEST(augmented_bst, test_delete1)
 
     // Tree looks like:
     //             [0x2000, 0x3000]
-    //            /                \
+    //            /                \.
     // [0x1000, 0x2000]        [0x3000, 0x4000]
     //                    |
     //           We should have a gap of 0x1000
