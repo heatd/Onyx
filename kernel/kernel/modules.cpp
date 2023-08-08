@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <errno.h>
 #include <stdbool.h>
@@ -17,6 +19,8 @@
 #include <onyx/user.h>
 #include <onyx/vfs.h>
 #include <onyx/vm.h>
+
+#include <onyx/slice.hpp>
 
 bool mods_disabled = 0;
 #define DEFAULT_SIZE 100
@@ -339,4 +343,131 @@ static bool module_dump_each(struct module *m, void *ctx)
 void module_dump(void)
 {
     for_each_module(module_dump_each, NULL);
+}
+
+struct symbol_walk_context
+{
+    struct module *module;
+    unsigned long addr;
+    long diff;
+    struct symbol *sym;
+    bool free_after;
+};
+
+static bool sym_iterate_each_module(struct module *m, void *p)
+{
+    struct symbol_walk_context *c = (symbol_walk_context *) p;
+
+    const size_t nr_syms = m->nr_symtable_entries;
+
+    for (size_t i = 0; i < nr_syms; i++)
+    {
+        struct symbol *s = &m->symtable[i];
+
+        /* Skip if it's not a function */
+        if (!(s->visibility & SYMBOL_FUNCTION))
+            continue;
+
+        /* Check if it's inside the bounds of the symbol */
+
+        if (!((unsigned long) c->addr >= s->value && (unsigned long) c->addr < s->value + s->size))
+            continue;
+
+        long diff = c->addr - s->value;
+
+        /* If addr < symbol value, it can't be it */
+        if (diff < 0)
+            continue;
+        else if (diff == 0)
+        {
+            /* Found it! This is the one! Return. */
+            c->sym = s;
+            c->module = m;
+
+            return false;
+        }
+        else
+        {
+            if (diff < c->diff)
+            {
+                c->diff = diff;
+                c->sym = s;
+                c->module = m;
+            }
+        }
+    }
+
+    return true;
+}
+
+static struct symbol *iterate_symbols_struct_syms(struct symbol_walk_context *c)
+{
+    c->diff = LONG_MAX;
+
+    for_each_module(sym_iterate_each_module, c);
+
+    return c->sym;
+}
+
+static struct symbol *iterate_symbols(struct symbol_walk_context *c)
+{
+    bool struct_symbols_setup = core_kernel.symtable != NULL;
+
+    if (struct_symbols_setup)
+        return iterate_symbols_struct_syms(c);
+    return nullptr;
+}
+
+int sym_symbolize(void *address, cul::slice<char> buffer)
+{
+    struct symbol_walk_context c = {};
+    c.addr = (unsigned long) address;
+
+    if (!iterate_symbols(&c))
+    {
+        if ((unsigned int) snprintf(buffer.data(), buffer.size(), "%p", address) >= buffer.size())
+        {
+            return SYM_SYMBOLIZE_TRUNC | SYM_SYMBOLIZE_RAW_ADDR;
+        }
+
+        return SYM_SYMBOLIZE_RAW_ADDR;
+    }
+
+    const char *symbol_name = c.sym->name;
+    struct module *m = c.module;
+    const char *module_prefix = "";
+    unsigned int written = 0;
+    const char *separator = "";
+
+    if (m != &core_kernel)
+    {
+        module_prefix = m->name;
+        separator = "`";
+    }
+
+    if (c.diff)
+    {
+        // XXX Our snprintf has a horrendous bug where it completely ignores the passed size
+        // FIX!!!
+        written = snprintf(buffer.data(), buffer.size(), "%s%s%s + %lx", module_prefix, separator,
+                           symbol_name, c.diff);
+    }
+    else
+    {
+        written =
+            snprintf(buffer.data(), buffer.size(), "%s%s%s", module_prefix, separator, symbol_name);
+    }
+
+    if (written >= buffer.size())
+    {
+        // snprintf was truncated, replace the last bytes with [...]
+        if (buffer.size() >= sizeof("[...]"))
+        {
+            strcpy(buffer.end() - sizeof("[...]"), "[...]");
+        }
+
+        return SYM_SYMBOLIZE_TRUNC;
+    }
+
+    return 0;
 }

@@ -1,16 +1,18 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
-#ifndef _KERNEL_MODULES_H
-#define _KERNEL_MODULES_H
+#ifndef _ONYX_MODULES_H
+#define _ONYX_MODULES_H
 
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 
-#include <onyx/elf.h>
+#include <onyx/slice.hpp>
 
 struct module_layout
 {
@@ -66,5 +68,13 @@ bool module_try_resolve(struct module *m, void *ctx);
 void module_unmap(struct module *module);
 void module_remove(struct module *m, bool unmap_sections);
 void for_each_module(bool (*foreach_callback)(struct module *m, void *ctx), void *ctx);
+
+int sym_symbolize(void *address, cul::slice<char> buffer);
+
+#define SYM_SYMBOLIZE_TRUNC    1
+#define SYM_SYMBOLIZE_RAW_ADDR 2
+
+// Recommended bufsize for sym_symbolize
+#define SYM_SYMBOLIZE_BUFSIZ 150
 
 #endif
