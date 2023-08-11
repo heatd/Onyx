@@ -1260,14 +1260,34 @@ static void stack_trace_print(unsigned long *entries, unsigned long nr)
  */
 void kmem_cache_print_slab_info_kasan(void *mem, struct slab *slab)
 {
+    slab_cache *cache = slab->cache;
     const char *status =
         (slab->active_objects == 0 ? "free"
                                    : (slab->active_objects == slab->nobjects ? "full" : "partial"));
 
-    printk("%p is apart of cache %s slab %p - slab status %s\n", mem, slab->cache->name, slab,
-           status);
-    struct kasan_slab_obj_info *info =
-        (kasan_slab_obj_info *) ((u8 *) mem - (slab->cache->redzone / 2));
+    printk("%p is apart of cache %s slab %p - slab status %s\n", mem, cache->name, slab, status);
+
+    // Walk through the slab and find this object's starting redzone
+    const size_t nr_objects = slab->nobjects;
+    u8 *ptr = (u8 *) slab->start;
+
+    struct kasan_slab_obj_info *info = nullptr;
+    for (size_t i = 0; i < nr_objects; i++, ptr += cache->objsize + cache->redzone)
+    {
+        auto eff_size = cache->objsize + cache->redzone;
+        if (ptr <= (u8 *) mem && ptr + eff_size > (u8 *) mem)
+        {
+            info = (struct kasan_slab_obj_info *) ptr;
+            break;
+        }
+    }
+
+    if (!info)
+    {
+        printk("%p is not a pointer to a valid object in the slab!\n", ptr);
+        return;
+    }
+
     printk("%p was last allocated by: ", mem);
 
     if (info->alloc_stack == DEPOT_STACK_HANDLE_INVALID)
