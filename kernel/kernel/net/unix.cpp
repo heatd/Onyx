@@ -655,6 +655,7 @@ int un_socket::bind(sockaddr *addr, socklen_t addrlen)
 void un_socket::unbind()
 {
     un_sock_table.remove_socket(this, 0);
+    bound = false;
 }
 
 expected<un_name, int> sockaddr_to_un(sockaddr *addr, socklen_t addrlen)
