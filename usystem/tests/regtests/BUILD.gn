@@ -27,6 +27,15 @@ app_executable("afunix_test") {
     sources = [ "afunix_test.c" ]
 }
 
+app_executable("file_rcu") {
+    include_dirs = [ "include" ]
+    package_name = "file_rcu"
+
+    output_name = "file_rcu"
+
+    sources = [ "file_rcu.c" ]
+}
+
 group("regtests") {
-    deps = [ ":nameitests", ":fdlopen", ":afunix_test"]
+    deps = [ ":nameitests", ":fdlopen", ":afunix_test", ":file_rcu" ]
 }
