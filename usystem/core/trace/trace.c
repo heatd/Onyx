@@ -63,6 +63,8 @@ struct traced_event
     struct traced_event_arg *args;
     size_t nr_args;
     int is_duration : 1;
+    int is_begin : 1;
+    int is_end : 1;
     struct traced_event *next;
 };
 
@@ -144,12 +146,29 @@ static void maybe_init_symbols(void)
 
 static void output_inst_event(const char *name, const char *cat, pid_t pid, pid_t tid, u64 ts,
                               struct trace_arg *args, size_t nr_args, struct stacktrace *trace,
-                              FILE *file)
+                              struct traced_event *ev, FILE *file)
 {
+    char tbuf[256];
+    char type = 'i';
+    if (ev->is_begin)
+        type = 'B';
+    else if (ev->is_end)
+        type = 'E';
+
+    if (ev->is_begin || ev->is_end)
+    {
+        strcpy(tbuf, name);
+        *strrchr(tbuf, '_') = '\0';
+        name = tbuf;
+    }
+
+    if (!strcmp(cat, "rcu") && !strcmp(name, "grace_period"))
+        pid = 99, tid = 0;
+
     fprintf(file,
-            "{\"name\": \"%s\", \"cat\": \"%s\", \"ph\": \"i\", \"pid\": %d, \"tid\": %d, \"ts\": "
+            "{\"name\": \"%s\", \"cat\": \"%s\", \"ph\": \"%c\", \"pid\": %d, \"tid\": %d, \"ts\": "
             "%lu",
-            name, cat, pid, tid, ts);
+            name, cat, type, pid, tid, ts);
 
     if (trace)
     {
@@ -388,7 +407,7 @@ void output_ev(u8 *raw, struct traced_event *ev, FILE *file)
     }
     else
         output_inst_event(ev->name, ev->category, 0, header->cpu, start / NS_PER_US, tas, nr_tas,
-                          trace ? &t : NULL, file);
+                          trace ? &t : NULL, ev, file);
 }
 
 void output_json(u8 *buf, u8 *bufend, FILE *file)
@@ -415,6 +434,15 @@ void output_json(u8 *buf, u8 *bufend, FILE *file)
     }
 
     fprintf(file, "]\n");
+}
+
+static int ends_with(const char *string, const char *substr)
+{
+    size_t slen = strlen(string);
+    size_t slen2 = strlen(substr);
+    if (slen < slen2)
+        return 0;
+    return !strcmp(string + slen - slen2, substr);
 }
 
 void add_traced_event(int fd, const char *name)
@@ -453,6 +481,11 @@ void add_traced_event(int fd, const char *name)
     parse_format_args(ev);
     ev->next = NULL;
 
+    if (ends_with(name, "_begin"))
+        ev->is_begin = 1;
+    else if (ends_with(name, "_end"))
+        ev->is_end = 1;
+
     if (!events)
         events = ev;
     if (evtail)
@@ -481,8 +514,12 @@ int main(int argc, char **argv, char **envp)
 
     // add_traced_event(fd, "irq.hardirq");
     // add_traced_event(fd, "wb.dirty_inode");
-    add_traced_event(fd, "refcountable.ref");
-    add_traced_event(fd, "refcountable.unref");
+    // add_traced_event(fd, "rcu.call_rcu");
+    add_traced_event(fd, "rcu.rcu_work");
+    add_traced_event(fd, "rcu.rcu_do_callbacks");
+    add_traced_event(fd, "rcu.grace_period_begin");
+    add_traced_event(fd, "rcu.grace_period_end");
+    add_traced_event(fd, "rcu.ack_grace_period");
 
     endbuf = mmap(NULL, 0x2000000 * 4, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
 
