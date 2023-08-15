@@ -5,12 +5,12 @@
  *
  * SPDX-License-Identifier: MIT
  */
-#include <uapi/fcntl.h>
-
 #include <onyx/dentry.h>
 #include <onyx/file.h>
 #include <onyx/namei.h>
 #include <onyx/user.h>
+
+#include <uapi/fcntl.h>
 
 // XXX(heat): lookup root seems to leak
 
@@ -590,9 +590,66 @@ expected<file *, int> vfs_open(file *base, const char *name, unsigned int open_f
     return new_file;
 }
 
-#if 0
+static int do_lookup_parent_last(nameidata &data)
+{
+    dentry *cur = data.cur;
+    inode *curino = cur->d_inode;
+    int st = 0;
+    auto &path = data.paths[data.pdepth];
 
-// TODO(heat): End up finishing the namei refactor
+    DCHECK(data.lookup_flags & LOOKUP_INTERNAL_SAW_LAST_NAME);
+    data.lookup_flags &= ~LOOKUP_INTERNAL_SAW_LAST_NAME;
+
+    inode_lock_shared(curino);
+
+    auto last = get_token_from_path(path, true);
+    DCHECK(last.data() != nullptr);
+
+    st = namei_walk_component(last, data, NAMEI_UNLOCKED | NAMEI_NO_FOLLOW_SYM);
+
+    if (st >= 0)
+    {
+        /* Ok, we found the last component, great. */
+        /* Handle symlinks */
+        if (dentry_is_symlink(data.cur))
+        {
+            if (!(data.lookup_flags & LOOKUP_NOFOLLOW) || path.trailing_slash())
+            {
+                /* If we can/should follow, follow the symlink.
+                 * Since we are consuming this last token, re-call get_token_from_path.
+                 */
+                get_token_from_path(path, false);
+                st = dentry_follow_symlink(data, data.cur,
+                                           DENTRY_FOLLOW_SYMLINK_NOT_NAMEI_WALK_COMPONENT);
+
+                if (st == 0)
+                    st = 1; // 1 = caller should follow
+                goto out;
+            }
+        }
+
+        /* Not a symlink, use parent (cur = parent). */
+        dentry_put(data.cur);
+        data.cur = data.parent;
+        data.parent = nullptr;
+
+        goto out;
+    }
+
+out:
+    inode_unlock_shared(curino);
+
+    if (st == 0)
+    {
+        if (data.pdepth > 0)
+        {
+            data.pdepth--;
+            st = 1;
+        }
+    }
+
+    return st;
+}
 
 expected<dentry *, int> namei_lookup_parent(file *base, const char *name, unsigned int flags,
                                             struct path *outp)
@@ -615,11 +672,24 @@ expected<dentry *, int> namei_lookup_parent(file *base, const char *name, unsign
         return unexpected<int>{-ENOENT};
 
     lookup_start(namedata);
-    namedata.lookup_flags = flags;
+    namedata.lookup_flags = flags | LOOKUP_DONT_DO_LAST_NAME;
 
     /* Start the actual lookup loop. */
     dentry *dent;
-    int st = namei_resolve_path(namedata);
+    int st = 0;
+
+    for (;;)
+    {
+        st = namei_resolve_path(namedata);
+        if (namedata.lookup_flags & LOOKUP_INTERNAL_SAW_LAST_NAME)
+        {
+            st = do_lookup_parent_last(namedata);
+            if (st <= 0)
+                break;
+        }
+        else
+            break;
+    }
 
     if (st < 0)
     {
@@ -628,11 +698,10 @@ expected<dentry *, int> namei_lookup_parent(file *base, const char *name, unsign
     }
 
     dent = namedata.cur;
+    *outp = namedata.paths[namedata.pdepth];
 
-    return new_file;
+    return dent;
 }
-
-#endif
 
 struct file *open_vfs(struct file *dir, const char *path)
 {
@@ -958,76 +1027,91 @@ int sys_linkat(int olddirfd, const char *oldpath, int newdirfd, const char *newp
     return do_sys_link(olddirfd, oldpath, newdirfd, newpath, flags);
 }
 
-struct unlink_handling : public last_name_handling
+int unlink_vfs(const char *path, int flags, struct file *node)
 {
-    int flags;
-    unlink_handling(int _flags) : flags{_flags}
+    int st = 0;
+    struct path last_name;
+    dentry *child = nullptr, *dentry = nullptr;
+    inode *inode = nullptr;
+    char _name[NAME_MAX + 1] = {};
+
+    unsigned int lookup_flag = LOOKUP_NOFOLLOW;
+    auto ex = namei_lookup_parent(node, path, lookup_flag, &last_name);
+    if (ex.has_error())
+        return ex.error();
+
+    auto name = get_token_from_path(last_name, false);
+    if (!name.compare(".") || !name.compare(".."))
     {
+        st = -EINVAL;
+        goto out;
     }
 
-    expected<dentry *, int> operator()(nameidata &data, std::string_view &name) override
+    dentry = ex.value();
+    inode = dentry->d_inode;
+
+    if (!inode_can_access(inode, FILE_ACCESS_WRITE))
     {
-        /* Don't let the user unlink these two special entries */
-        if (!name.compare(".") || !name.compare(".."))
-            return unexpected<int>{-EINVAL};
+        st = -EACCES;
+        goto out;
+    }
 
-        auto dentry = data.cur;
-        auto inode = dentry->d_inode;
+    memcpy(_name, name.data(), name.length());
 
-        if (!inode_can_access(inode, FILE_ACCESS_WRITE))
-            return unexpected<int>{-EACCES};
+    child = dentry_lookup_internal(name, dentry);
+    if (!child)
+    {
+        st = -errno;
+        goto out;
+    }
 
-        char _name[NAME_MAX + 1] = {};
-        memcpy(_name, name.data(), name.length());
-
-        auto child = dentry_lookup_internal(name, dentry);
-        if (!child)
-            return unexpected<int>{-errno};
-
+    if (child)
+    {
         /* Can't do that... Note that dentry always exists if it's a mountpoint */
-        if (child && dentry_involved_with_mount(child))
-        {
-            dentry_put(child);
-            return unexpected<int>{-EBUSY};
-        }
+        if (dentry_involved_with_mount(child))
+            st = -EBUSY;
 
-        rw_lock_write(&inode->i_rwlock);
-        /* Do the actual fs unlink */
-        auto st = inode->i_fops->unlink(_name, flags, dentry);
+        /* Check if AT_REMOVEDIR and it's not a directory */
+        if (flags & AT_REMOVEDIR && !dentry_is_dir(child))
+            st = -ENOTDIR;
 
         if (st < 0)
         {
-            rw_unlock_write(&inode->i_rwlock);
             dentry_put(child);
-            return unexpected<int>{st};
+            goto out;
         }
-
-        /* The fs unlink succeeded! Lets change the dcache now that we can't fail! */
-        if (child)
-        {
-            scoped_rwslock<rw_lock::write> g{dentry->d_lock};
-
-            dentry_do_unlink(child);
-
-            g.unlock();
-            /* Release the reference that we got from dentry_lookup_internal */
-            dentry_put(child);
-        }
-
-        rw_unlock_write(&inode->i_rwlock);
-
-        /* Return the parent directory as a cookie so the calling code doesn't crash and die */
-        return dentry;
     }
-};
 
-int unlink_vfs(const char *path, int flags, struct file *node)
-{
-    unlink_handling h{flags};
-    auto dent = generic_last_name_helper(node->f_dentry, path, h, LOOKUP_NOFOLLOW);
-    if (!dent)
-        return -errno;
-    return 0;
+    rw_lock_write(&inode->i_rwlock);
+    /* Do the actual fs unlink */
+    st = inode->i_fops->unlink(_name, flags, dentry);
+
+    if (st < 0)
+    {
+        goto out2;
+    }
+
+    /* The fs unlink succeeded! Lets change the dcache now that we can't fail! */
+    if (child)
+    {
+        scoped_rwslock<rw_lock::write> g{dentry->d_lock};
+
+        dentry_do_unlink(child);
+
+        g.unlock();
+        /* Release the reference that we got from dentry_lookup_internal */
+        dentry_put(child);
+    }
+
+out2:
+    rw_unlock_write(&inode->i_rwlock);
+
+    /* Release the reference that we got from dentry_lookup_internal */
+    if (child)
+        dentry_put(child);
+out:
+    dentry_put(dentry);
+    return st;
 }
 
 #define VALID_UNLINKAT_FLAGS AT_REMOVEDIR
