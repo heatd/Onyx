@@ -31,6 +31,7 @@ struct tracing_header
 #define TRACE_EVENT_ENABLED (1 << 0)
 #define TRACE_EVENT_TIME    (1 << 1)
 
+#ifndef __TRACE_EVENT_DEFINED
 struct trace_event
 {
     const char* name;
@@ -39,6 +40,8 @@ struct trace_event
     u16 evid;
     u16 flags;
 };
+#define __TRACE_EVENT_DEFINED
+#endif
 
 void __trace_write(u8* buf, size_t len);
 
@@ -56,11 +59,19 @@ struct scope_guard
     }
 };
 
-#define TRACE_EVENT_DURATION(name, ...)                                                        \
-    u64 __trace_timestamp = trace_##name##_enabled() ? clocksource_get_time() : 0;             \
-    scope_guard __PASTE(__trace_scope_guard, __COUNTER__){[__trace_timestamp, __VA_ARGS__]() { \
-        if (__trace_timestamp)                                                                 \
-            trace_##name(__trace_timestamp, __VA_ARGS__);                                      \
+#define TRACE_EVENT_DURATION(name, ...)                                                 \
+    u64 __trace_timestamp = trace_##name##_enabled() ? clocksource_get_time() : 0;      \
+    scope_guard __PASTE(__trace_scope_guard,                                            \
+                        __COUNTER__){[__trace_timestamp __VA_OPT__(, ) __VA_ARGS__]() { \
+        if (__trace_timestamp)                                                          \
+            trace_##name(__trace_timestamp __VA_OPT__(, ) __VA_ARGS__);                 \
     }};
+
+#define TRACE_EVENT(name, ...)         \
+    do                                 \
+    {                                  \
+        if (trace_##name##_enabled())  \
+            trace_##name(__VA_ARGS__); \
+    } while (0);
 
 #endif

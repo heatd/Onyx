@@ -52,6 +52,8 @@ void sync_call_with_local(sync_call_func f, void *context, const cpumask &mask,
 
 void cpu_handle_sync_calls();
 
+cpumask get_online_cpumask();
+
 }; // namespace smp
 #endif
 

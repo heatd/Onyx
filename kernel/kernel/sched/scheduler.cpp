@@ -29,6 +29,7 @@
 #include <onyx/percpu.h>
 #include <onyx/perf_probe.h>
 #include <onyx/process.h>
+#include <onyx/rcupdate.h>
 #include <onyx/rwlock.h>
 #include <onyx/semaphore.h>
 #include <onyx/softirq.h>
@@ -302,6 +303,8 @@ NO_ASAN void sched_load_finish(thread *prev_thread, thread *next_thread)
 #endif
     sched_load_thread(next_thread, get_cpu_nr());
 
+    rcu_do_quiesc();
+
     if (prev_thread)
         prev_thread->flags &= ~THREAD_RUNNING;
 
@@ -320,16 +323,24 @@ unsigned long st_invoked = 0;
 
 extern "C" void *sched_schedule(void *last_stack)
 {
-    if (!is_initialized || sched_is_preemption_disabled())
+    if (!is_initialized)
     {
         add_per_cpu(sched_quantum, 1);
         return last_stack;
     }
 
+    thread_t *curr_thread = get_per_cpu(current_thread);
+
+    if (sched_is_preemption_disabled())
+    {
+        add_per_cpu(sched_quantum, 1);
+        if (likely(curr_thread))
+            sched_needs_resched(curr_thread);
+        return last_stack;
+    }
+
     if (perf_probe_is_enabled_wait())
         perf_probe_try_wait_trace((struct registers *) last_stack);
-
-    thread_t *curr_thread = get_per_cpu(current_thread);
 
     if (likely(curr_thread))
     {

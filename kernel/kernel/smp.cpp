@@ -33,7 +33,13 @@ PER_CPU_VAR(unsigned int cpu_nr) = 0;
 namespace smp
 {
 
-static cpumask online_cpus;
+cpumask online_cpus;
+
+cpumask get_online_cpumask()
+{
+    return online_cpus;
+}
+
 unsigned int nr_cpus = 1;
 unsigned int nr_online_cpus = 0;
 #if __x86_64__

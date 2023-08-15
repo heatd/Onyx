@@ -15,7 +15,8 @@ enum softirq_vector
 {
     SOFTIRQ_VECTOR_TIMER = 0,
     SOFTIRQ_VECTOR_NETRX,
-    SOFTIRQ_VECTOR_TASKLET
+    SOFTIRQ_VECTOR_TASKLET,
+    SOFTIRQ_VECTOR_RCU
 };
 
 void softirq_raise(enum softirq_vector vec);

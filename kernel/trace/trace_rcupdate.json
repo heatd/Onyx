@@ -1,0 +1,94 @@
+[
+    {
+        "name": "call_rcu",
+        "category": "rcu",
+        "args": [
+        ],
+
+        "format": {
+        }
+    },
+    {
+        "name": "rcu_work",
+        "category": "rcu",
+        "args": [
+            {"type": "u64", "name": "ts"}
+        ],
+
+        "format": {
+            "end_ts": {"type": "u64", "cond": "TIME"}
+        }
+    },
+    {
+        "name": "rcu_do_callbacks",
+        "category": "rcu",
+        "args": [
+            {"type": "u64", "name": "ts"},
+            {"type": "u32", "name": "processed"}
+        ],
+
+        "format": {
+            "end_ts": {"type": "u64", "cond": "TIME"},
+            "processed": {"type": "u32"}
+        }
+    },
+    {
+        "name": "grace_period_begin",
+        "category": "rcu",
+        "args": [
+            {"type": "u64", "name": "gen"},
+            {"type": "u64", "name": "maxgen"}
+        ],
+
+        "format": {
+            "gen": {"type": "u64"},
+            "maxgen": {"type": "u64"}
+        }
+    },
+    {
+        "name": "grace_period_end",
+        "category": "rcu",
+        "args": [
+        ],
+
+        "format": {
+        }
+    },
+    {
+        "name": "ack_grace_period",
+        "category": "rcu",
+        "args": [
+        ],
+
+        "format": {
+        }
+    },
+    {
+        "name": "rcu_do_quiesc",
+        "category": "rcu",
+        "args": [
+
+        ],
+        "format": {
+
+        }
+    },
+    {
+        "name": "preempt_off_begin",
+        "category": "rcu",
+        "args": [
+        ],
+
+        "format": {
+        }
+    },
+    {
+        "name": "preempt_off_end",
+        "category": "rcu",
+        "args": [
+        ],
+
+        "format": {
+        }
+    }
+]

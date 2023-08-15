@@ -4,7 +4,7 @@ kern-y+= arc4random.o binfmt.o compression.o copy.o cppnew.o cpprt.o crc32.o dev
 	power_management.o proc_event.o process.o pid.o ptrace.o random.o ref.o signal.o \
 	smp.o spinlock.o symbol.o tasklet.o time.o timer.o utils.o wait_queue.o \
 	worker.o cred.o list.o softirq.o cputime.o rlimit.o handle.o ctor.o internal_abi.o ssp.o \
-	cmdline.o syscall_thunk.o vdso.o sysinfo.o memstream.o perf.o radix.o
+	cmdline.o syscall_thunk.o vdso.o sysinfo.o memstream.o perf.o radix.o rcupdate.o
 
 kern-$(CONFIG_UBSAN)+= ubsan.o
 
@@ -18,7 +18,7 @@ kern-$(CONFIG_KUNIT)+= kunit.o
 
 kern-$(CONFIG_KCOV)+= kcov.o
 
-kern-y+= irq.trace.o refcount.trace.o
+kern-y+= irq.trace.o refcount.trace.o rcupdate.trace.o
 
 obj-y+= $(patsubst %, kernel/%, $(kern-y)) 
 
@@ -42,6 +42,8 @@ kernel/%.trace.cpp: trace/trace_%.json trace/gentrace.py
 kernel/irq.o: include/onyx/gen/trace_irq.h
 
 include/onyx/include/refcount.h: include/onyx/gen/trace_refcount.h
+
+kernel/rcupdate.o: include/onyx/gen/trace_rcupdate.h
 
 include/onyx/gen/syscall.h: kernel/syscall_thunk.cpp
 

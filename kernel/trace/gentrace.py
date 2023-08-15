@@ -84,7 +84,7 @@ class TraceEvent:
             first_arg = False
         
         # Hacky way to see if the current trace event is a duration event
-        duration_ev = self.args[0]["name"] == "ts"
+        duration_ev = len(self.args) > 0 and self.args[0]["name"] == "ts"
 
         # (terse name for trace_event_struct_name)
         tesn = self.trace_event_struct_name()

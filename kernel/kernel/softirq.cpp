@@ -10,6 +10,7 @@
 #include <onyx/net/netif.h>
 #include <onyx/panic.h>
 #include <onyx/percpu.h>
+#include <onyx/rcupdate.h>
 #include <onyx/softirq.h>
 #include <onyx/tasklet.h>
 #include <onyx/timer.h>
@@ -60,6 +61,12 @@ void softirq_handle()
     {
         tasklet_run();
         pending &= ~(1 << SOFTIRQ_VECTOR_TASKLET);
+    }
+
+    if (pending & (1 << SOFTIRQ_VECTOR_RCU))
+    {
+        rcu_work();
+        pending &= ~(1 << SOFTIRQ_VECTOR_RCU);
     }
 
     write_per_cpu(pending_vectors, pending);
