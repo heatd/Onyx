@@ -15,6 +15,7 @@
 
 #include <onyx/mm/vm_object.h>
 #include <onyx/object.h>
+#include <onyx/rcupdate.h>
 #include <onyx/rwlock.h>
 #include <onyx/superblock.h>
 #include <onyx/vm.h>
@@ -152,7 +153,10 @@ struct file
     struct inode *f_ino;
     unsigned int f_flags;
     struct dentry *f_dentry;
-    void *private_data;
+    union {
+        void *private_data;
+        struct rcu_head rcuhead;
+    };
 };
 
 int inode_create_vmo(struct inode *ino);
