@@ -407,7 +407,7 @@ int rwslock::try_write()
     return 0;
 }
 
-void rwslock::lock_read()
+void rwslock::lock_read() NO_THREAD_SAFETY_ANALYSIS
 {
     sched_disable_preempt();
     unsigned long l;
@@ -427,7 +427,7 @@ void rwslock::lock_read()
                                           __ATOMIC_RELAXED));
 }
 
-void rwslock::lock_write()
+void rwslock::lock_write() NO_THREAD_SAFETY_ANALYSIS
 {
     sched_disable_preempt();
     unsigned long expected = 0;
@@ -444,13 +444,13 @@ void rwslock::lock_write()
     }
 }
 
-void rwslock::unlock_read()
+void rwslock::unlock_read() NO_THREAD_SAFETY_ANALYSIS
 {
     __atomic_sub_fetch(&lock, 1, __ATOMIC_RELEASE);
     sched_enable_preempt();
 }
 
-void rwslock::unlock_write()
+void rwslock::unlock_write() NO_THREAD_SAFETY_ANALYSIS
 {
     __atomic_store_n(&lock, 0, __ATOMIC_RELEASE);
     sched_enable_preempt();

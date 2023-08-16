@@ -26,7 +26,7 @@ static struct creds *get_default_creds(void)
     return c;
 }
 
-struct creds *creds_get(void)
+struct creds *creds_get(void) NO_THREAD_SAFETY_ANALYSIS
 {
     struct creds *c = get_default_creds();
 
@@ -34,7 +34,7 @@ struct creds *creds_get(void)
     return c;
 }
 
-struct creds *creds_get_write(void)
+struct creds *creds_get_write(void) NO_THREAD_SAFETY_ANALYSIS
 {
     struct creds *c = get_default_creds();
 
@@ -42,17 +42,17 @@ struct creds *creds_get_write(void)
     return c;
 }
 
-void creds_put(struct creds *c)
+void creds_put(struct creds *c) NO_THREAD_SAFETY_ANALYSIS
 {
     c->lock.unlock_read();
 }
 
-void creds_put_write(struct creds *c)
+void creds_put_write(struct creds *c) NO_THREAD_SAFETY_ANALYSIS
 {
     c->lock.unlock_write();
 }
 
-struct creds *__creds_get(struct process *p)
+struct creds *__creds_get(struct process *p) NO_THREAD_SAFETY_ANALYSIS
 {
     struct creds *c = &p->cred;
 
@@ -60,7 +60,7 @@ struct creds *__creds_get(struct process *p)
     return c;
 }
 
-struct creds *__creds_get_write(struct process *p)
+struct creds *__creds_get_write(struct process *p) NO_THREAD_SAFETY_ANALYSIS
 {
     struct creds *c = &p->cred;
 

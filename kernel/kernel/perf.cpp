@@ -291,7 +291,7 @@ void perf_probe_setup_wait(struct flame_graph_entry *fge)
  *
  * @param fge flame_graph_entry, stack allocated
  */
-void perf_probe_commit_wait(const struct flame_graph_entry *fge)
+void perf_probe_commit_wait(const struct flame_graph_entry *fge) NO_THREAD_SAFETY_ANALYSIS
 {
     if (perf_lock.try_read() < 0)
         return;
@@ -350,7 +350,7 @@ bool perf_probe_is_enabled()
  *
  * @param regs Registers
  */
-void perf_probe_do(struct registers *regs)
+void perf_probe_do(struct registers *regs) NO_THREAD_SAFETY_ANALYSIS
 {
     // Give up if we can't grab the lock
     if (perf_lock.try_read() < 0)

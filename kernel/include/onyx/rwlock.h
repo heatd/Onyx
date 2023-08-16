@@ -11,6 +11,7 @@
 #include <onyx/compiler.h>
 #include <onyx/limits.h>
 #include <onyx/list.h>
+#include <onyx/lock_annotations.h>
 #include <onyx/spinlock.h>
 
 constexpr unsigned long ULONG_WIDTH = sizeof(unsigned long) * CHAR_BIT;
@@ -48,7 +49,7 @@ struct rwlock
     }
 };
 
-struct rwslock
+struct CAPABILITY("rwslock") rwslock
 {
 private:
     unsigned long lock{0};
@@ -56,14 +57,14 @@ private:
 public:
     constexpr rwslock() = default;
 
-    void lock_read();
-    void lock_write();
+    void lock_read() ACQUIRE_SHARED(this);
+    void lock_write() ACQUIRE(this);
 
-    void unlock_read();
-    void unlock_write();
+    void unlock_read() RELEASE_SHARED(this);
+    void unlock_write() RELEASE(this);
 
-    int try_read();
-    int try_write();
+    int try_read() TRY_ACQUIRE_SHARED(0, this);
+    int try_write() TRY_ACQUIRE(0, this);
 };
 
 int rw_lock_tryread(struct rwlock *lock);
@@ -144,7 +145,7 @@ public:
 };
 
 template <rw_lock lock_type>
-class scoped_rwslock
+class SCOPED_CAPABILITY scoped_rwslock
 {
 private:
     bool IsLocked;
@@ -161,7 +162,7 @@ public:
         return lock_type == rw_lock::write;
     }
 
-    void lock()
+    void lock() ACQUIRE()
     {
         if (read())
             internal_lock.lock_read();
@@ -170,7 +171,7 @@ public:
         IsLocked = true;
     }
 
-    void unlock()
+    void unlock() RELEASE()
     {
         if (read())
             internal_lock.unlock_read();
@@ -179,18 +180,18 @@ public:
         IsLocked = false;
     }
 
-    scoped_rwslock(rwslock &lock) : internal_lock(lock)
+    scoped_rwslock(rwslock &lock) ACQUIRE(lock) : internal_lock(lock)
     {
         this->lock();
     }
 
-    scoped_rwslock(rwslock &lock, bool autolock) : internal_lock(lock)
+    scoped_rwslock(rwslock &lock, bool autolock) ACQUIRE(lock) : internal_lock(lock)
     {
         if (autolock)
             this->lock();
     }
 
-    ~scoped_rwslock()
+    ~scoped_rwslock() RELEASE()
     {
         if (IsLocked)
             unlock();

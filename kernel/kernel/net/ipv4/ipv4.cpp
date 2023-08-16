@@ -710,7 +710,7 @@ expected<inet_route, int> proto_family::route(const inet_sock_address &from,
 
 bool add_route(inet4_route &route)
 {
-    routing_table_lock.lock_write();
+    scoped_rwslock<rw_lock::write> g{routing_table_lock};
 
     auto ptr = make_shared<inet4_route>();
     if (!ptr)
@@ -718,11 +718,7 @@ bool add_route(inet4_route &route)
 
     memcpy(ptr.get(), &route, sizeof(route));
 
-    bool st = routing_table.push_back(ptr);
-
-    routing_table_lock.unlock_write();
-
-    return st;
+    return routing_table.push_back(ptr);
 }
 
 static proto_family v4_protocol;
