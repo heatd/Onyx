@@ -456,8 +456,13 @@ static int do_last_open(nameidata &data, int open_flags, mode_t mode)
         inode_lock_shared(curino);
 
     auto last = get_token_from_path(path, false);
-
     DCHECK(last.data() != nullptr);
+
+    if (open_flags & O_CREAT && path.trailing_slash())
+    {
+        st = -ENOTDIR;
+        goto out;
+    }
 
     st = namei_walk_component(last, data, NAMEI_UNLOCKED | NAMEI_NO_FOLLOW_SYM);
 
@@ -1364,10 +1369,7 @@ int sys_renameat(int olddirfd, const char *uoldpath, int newdirfd, const char *u
     /* rename operates on the old and new symlinks and not their destination */
     auto_dentry old = dentry_do_open(olddir.get_file()->f_dentry, oldpath.data(), LOOKUP_NOFOLLOW);
     if (!old)
-    {
-        printk("bah\n");
         return -errno;
-    }
 
     /* Although this doesn't need to be an error, we're considering it as one in the meanwhile
      */
@@ -1380,10 +1382,7 @@ int sys_renameat(int olddirfd, const char *uoldpath, int newdirfd, const char *u
     unsigned int lookup_flag = LOOKUP_NOFOLLOW;
     auto ex = namei_lookup_parent(newdir.get_file(), newpath.data(), lookup_flag, &last_name);
     if (ex.has_error())
-    {
-        printk("bah2 %d\n", ex.error());
         return ex.error();
-    }
 
     return do_renameat(ex.value(), last_name, old.get_dentry());
 }
