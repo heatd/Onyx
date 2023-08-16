@@ -44,6 +44,30 @@
 
 #include "primitive_generic.h"
 
+/*
+ * Scale factor for scaled integers used to count %cpu time and load avgs.
+ *
+ * The number of CPU `tick's that map to a unique `%age' can be expressed
+ * by the formula (1 / (2 ^ (FSHIFT - 11))).  Since the intermediate
+ * calculation is done with 64-bit precision, the maximum load average that can
+ * be calculated is approximately 2^32 / FSCALE.
+ *
+ * For the scheduler to maintain a 1:1 mapping of CPU `tick' to `%age',
+ * FSHIFT must be at least 11.  This gives a maximum load avg of 2 million.
+ */
+#define FSHIFT 11 /* bits to right of fixed binary point */
+#define FSCALE (1 << FSHIFT)
+
+/*
+ * Constants for averages over 1, 5, and 15 minutes
+ * when sampling at 5 second intervals.
+ */
+static const u64 cexp[3] = {
+    1884, /* exp(-1/12) */
+    2014, /* exp(-1/60) */
+    2036, /* exp(-1/180) */
+};
+
 static bool is_initialized = false;
 
 void sched_append_to_queue(int priority, unsigned int cpu, thread_t *thread);
@@ -258,10 +282,28 @@ void sched_save_thread(thread *thread, void *stack)
     native::arch_save_thread(thread, stack);
 }
 
-#define SCHED_QUANTUM 10
+#define SCHED_QUANTUM                    10
+#define SCHED_TICKS_BETWEEN_LOADAVG_CALC 5000
 
 PER_CPU_VAR(uint32_t sched_quantum) = 0;
+PER_CPU_VAR(u16 ticks_to_loadavg_calc) = SCHED_TICKS_BETWEEN_LOADAVG_CALC;
 PER_CPU_VAR(clockevent *sched_pulse);
+PER_CPU_VAR(long runnable_delta) = 0;
+
+unsigned long avenrun[3];
+unsigned long nrun = 0;
+
+void calc_avenrun()
+{
+    unsigned long nr_runnable = 0;
+
+    for (unsigned int i = 0; i < get_nr_cpus(); i++)
+        nr_runnable += other_cpu_get(runnable_delta, i);
+    nrun = nr_runnable;
+
+    for (int i = 0; i < 3; i++)
+        avenrun[i] = (avenrun[i] * cexp[i] + nr_runnable * FSCALE * (FSCALE - cexp[i])) >> FSHIFT;
+}
 
 void sched_decrease_quantum(clockevent *ev)
 {
@@ -271,6 +313,16 @@ void sched_decrease_quantum(clockevent *ev)
     {
         thread *curr = get_current_thread();
         curr->flags |= THREAD_NEEDS_RESCHED;
+    }
+
+    if (get_cpu_nr() == 0)
+    {
+        add_per_cpu(ticks_to_loadavg_calc, -1);
+        if (get_per_cpu(ticks_to_loadavg_calc) == 0)
+        {
+            write_per_cpu(ticks_to_loadavg_calc, SCHED_TICKS_BETWEEN_LOADAVG_CALC);
+            calc_avenrun();
+        }
     }
 
     ev->deadline = clocksource_get_time() + NS_PER_MS;
@@ -347,12 +399,18 @@ extern "C" void *sched_schedule(void *last_stack)
         bool thread_blocked = curr_thread->status == THREAD_INTERRUPTIBLE ||
                               curr_thread->status == THREAD_UNINTERRUPTIBLE;
 
-        if (thread_blocked && curr_thread->flags & THREAD_ACTIVE)
+        if (thread_blocked)
         {
-            write_per_cpu(sched_quantum, 1);
-            curr_thread->flags &= ~THREAD_ACTIVE;
-            return last_stack;
+            if (curr_thread->flags & THREAD_ACTIVE)
+            {
+                write_per_cpu(sched_quantum, 1);
+                curr_thread->flags &= ~THREAD_ACTIVE;
+                return last_stack;
+            }
         }
+
+        if (curr_thread->status != THREAD_RUNNABLE)
+            add_per_cpu(runnable_delta, -1);
 
         curr_thread->flags &= ~THREAD_ACTIVE;
 
@@ -445,6 +503,8 @@ void sched_append_to_queue(int priority, unsigned int cpu, thread_t *thread)
     __sched_append_to_queue(priority, cpu, thread);
 
     spin_unlock(get_per_cpu_ptr_any(scheduler_lock, cpu));
+
+    add_per_cpu(runnable_delta, 1);
 }
 
 PER_CPU_VAR(unsigned long active_threads) = 0;
@@ -833,6 +893,7 @@ void __thread_wake_up(thread *thread, unsigned int cpu)
 
     thread->status = THREAD_RUNNABLE;
     __sched_append_to_queue(thread->priority, cpu, thread);
+    add_per_cpu(runnable_delta, 1);
 
     if (cpu == get_cpu_nr())
     {

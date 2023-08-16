@@ -13,6 +13,8 @@
 
 #include <uapi/memstat.h>
 
+extern unsigned long avenrun[3];
+
 struct sysinfo do_sys_sysinfo()
 {
     struct sysinfo sys;
@@ -39,10 +41,9 @@ struct sysinfo do_sys_sysinfo()
         sys.uptime = boottime.tv_sec;
     }
 
-    for (auto &load : sys.loads)
+    for (int i = 0; i < 3; i++)
     {
-        // TODO: Implement loadavg
-        load = 1;
+        sys.loads[i] = avenrun[i] << (SI_LOAD_SHIFT - 11);
     }
 
     return sys;
