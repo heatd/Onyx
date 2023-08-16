@@ -738,6 +738,9 @@ void dentry_rename(dentry *dent, const char *name)
 
     dent->d_name_length = name_length;
     dent->d_name_hash = fnv_hash(dent->d_name, dent->d_name_length);
+
+    dentry_remove_from_cache(dent, dent->d_parent);
+    dentry_add_to_cache(dent, dent->d_parent);
 }
 
 bool dentry_is_empty(dentry *dir)

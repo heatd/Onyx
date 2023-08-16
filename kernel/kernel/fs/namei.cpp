@@ -635,6 +635,11 @@ static int do_lookup_parent_last(nameidata &data)
 
         goto out;
     }
+    else
+    {
+        // Not found, no problem.
+        st = 0;
+    }
 
 out:
     inode_unlock_shared(curino);
@@ -1174,187 +1179,176 @@ int sys_symlink(const char *target, const char *linkpath)
     return sys_symlinkat(target, AT_FDCWD, linkpath);
 }
 
-struct rename_handling : public last_name_handling
+int do_renameat(struct dentry *dir, struct path &last, struct dentry *old)
 {
-    dentry *old;
-    rename_handling(dentry *_old) : old{_old}
+    std::string_view name = get_token_from_path(last, false);
+    if (!name.compare(".") || !name.compare(".."))
+        return -EINVAL;
+    // printk("location %s\n", dir->d_name);
+    // printk("last name %.*s\n", (int) name.length(), name.data());
+    auto inode = dir->d_inode;
+
+    /* We've got multiple cases to handle here:
+     * 1) name exists: We atomically replace them.
+     * 2) oldpath and newpath are the same inode: We return success.
+     * 3) Name doesn't exist: just link() the dentry.
+     */
+
+    dentry *__dir1, *__dir2;
+
+    /* Establish a locking order to avoid deadlocks */
+
+    if ((unsigned long) dir < (unsigned long) old)
     {
+        __dir1 = dir;
+        __dir2 = old;
+    }
+    else
+    {
+        __dir1 = old;
+        __dir2 = dir;
     }
 
-    expected<dentry *, int> operator()(nameidata &data, std::string_view &name) override
+    // printk("dir1 %s dir2 %s\n", __dir1->d_name, __dir2->d_name);
+
+    if (dir->d_inode->i_dev != old->d_inode->i_dev)
+        return -EXDEV;
+
+    if (old->d_inode == dir->d_inode)
+        return -EINVAL;
+
+    auto sb = inode->i_sb;
+
+    if (!inode_can_access(inode, FILE_ACCESS_WRITE))
+        return -EACCES;
+
+    scoped_mutex rename_lock_guard{sb->s_rename_lock};
+
+    char _name[NAME_MAX + 1] = {};
+    memcpy(_name, name.data(), name.length());
+
+    // printk("lookup0\n");
+    dentry *dest = dentry_lookup_internal(name, dir);
+    // printk("lookup1\n");
+
+    /* Can't do that... Note that dentry always exists if it's a mountpoint */
+    if (dest && dentry_involved_with_mount(dest))
     {
-        // printk("Here\n");
-        /* Don't let the user rename these two special entries */
-        if (!name.compare(".") || !name.compare(".."))
-            return unexpected<int>{-EINVAL};
+        dentry_put(dest);
+        return -EBUSY;
+    }
 
-        auto dir = data.cur;
-        // printk("location %s\n", dir->d_name);
-        // printk("last name %.*s\n", (int) name.length(), name.data());
-        auto inode = dir->d_inode;
+    scoped_rwlock<rw_lock::write> g{__dir1->d_inode->i_rwlock};
+    scoped_rwlock<rw_lock::write> g2{__dir2->d_inode->i_rwlock};
 
-        /* We've got multiple cases to handle here:
-         * 1) name exists: We atomically replace them.
-         * 2) oldpath and newpath are the same inode: We return success.
-         * 3) Name doesn't exist: just link() the dentry.
-         */
-
-        dentry *__dir1, *__dir2;
-
-        /* Establish a locking order to avoid deadlocks */
-
-        if ((unsigned long) dir < (unsigned long) old)
+    if (dest)
+    {
+        /* Case 2: dest inode = source inode */
+        if (dest->d_inode == old->d_inode)
         {
-            __dir1 = dir;
-            __dir2 = old;
-        }
-        else
-        {
-            __dir1 = old;
-            __dir2 = dir;
+            return 0;
         }
 
-        // printk("dir1 %s dir2 %s\n", __dir1->d_name, __dir2->d_name);
-
-        if (dir->d_inode->i_dev != old->d_inode->i_dev)
-            return unexpected<int>{-EXDEV};
-
-        if (old->d_inode == dir->d_inode)
-            return unexpected<int>{-EINVAL};
-
-        auto sb = inode->i_sb;
-
-        if (!inode_can_access(inode, FILE_ACCESS_WRITE))
-            return unexpected<int>{-EACCES};
-
-        scoped_mutex rename_lock_guard{sb->s_rename_lock};
-
-        char _name[NAME_MAX + 1] = {};
-        memcpy(_name, name.data(), name.length());
-
-        // printk("lookup0\n");
-        dentry *dest = dentry_lookup_internal(name, dir);
-        // printk("lookup1\n");
-
-        /* Can't do that... Note that dentry always exists if it's a mountpoint */
-        if (dest && dentry_involved_with_mount(dest))
+        /* Not sure if this is 100% correct */
+        if (dentry_is_dir(old) ^ dentry_is_dir(dest))
         {
             dentry_put(dest);
-            return unexpected<int>{-EBUSY};
+            return -EISDIR;
         }
-
-        scoped_rwlock<rw_lock::write> g{__dir1->d_inode->i_rwlock};
-        scoped_rwlock<rw_lock::write> g2{__dir2->d_inode->i_rwlock};
-
-        if (dest)
-        {
-            /* Case 2: dest inode = source inode */
-            if (dest->d_inode == old->d_inode)
-            {
-                return dest;
-            }
-
-            /* Not sure if this is 100% correct */
-            if (dentry_is_dir(old) ^ dentry_is_dir(dest))
-            {
-                dentry_put(dest);
-                return unexpected<int>{-EISDIR};
-            }
-        }
-
-        auto old_parent = __dentry_parent(old);
-
-        if (!old_parent)
-        {
-            if (dest)
-                dentry_put(dest);
-
-            return unexpected<int>{-ENOENT};
-        }
-
-        /* It's invalid to try to make a directory be a subdirectory of itself */
-        if (!dentry_does_not_have_parent(dir, old))
-        {
-            if (dest)
-                dentry_put(dest);
-            return unexpected<int>{-EINVAL};
-        }
-
-        /* Do the actual fs unlink(if dest exists) + link + unlink */
-        /* The overall strategy here is to do everything that may fail first - so, for example,
-         * everything that involves I/O or memory allocation. After that, we're left with the
-         * bookkeeping, which can't fail.
-         */
-        int st = 0;
-
-        // printk("Here3\n");
-
-        if (dest)
-        {
-            /* Unlink the name on disk first */
-            /* Note that i_fops->unlink() checks if the directory is empty, if it is one. */
-            st = inode->i_fops->unlink(_name, AT_REMOVEDIR, dir);
-        }
-
-        // printk("(may have) unlinked\n");
-
-        if (st < 0)
-        {
-            if (dest)
-                dentry_put(dest);
-            return unexpected<int>{st};
-        }
-
-        struct file f;
-        f.f_ino = old->d_inode;
-        f.f_dentry = old;
-
-        /* Now link the name on disk */
-        st = inode->i_fops->link(&f, _name, dir);
-
-        // printk("linked\n");
-
-        // printk("unlinking\n");
-
-        /* rename allows us to move a non-empty dir. Because of that we
-         * pass a special flag (UNLINK_VFS_DONT_TEST_EMPTY) to the fs, that allows us to do
-         * that.
-         */
-        st = old_parent->d_inode->i_fops->unlink(
-            old->d_name, AT_REMOVEDIR | UNLINK_VFS_DONT_TEST_EMPTY, old_parent);
-
-        // printk("done\n");
-
-        /* TODO: What should we do if we fail in the middle? */
-        if (st < 0)
-        {
-            if (dest)
-                dentry_put(dest);
-            return unexpected<int>{st};
-        }
-
-        /* The fs unlink succeeded! Lets change the dcache now that we can't fail! */
-        if (dest)
-            dentry_do_unlink(dest);
-
-        // printk("doing move\n");
-        /* No need to move if we're already under the same parent. */
-        if (old_parent != dir)
-            dentry_move(old, dir);
-
-        // printk("done\n");
-
-        dentry_rename(old, _name);
-
-        /* Return the parent directory as a cookie so the calling code doesn't crash and die */
-        return dir;
     }
-};
+
+    auto old_parent = __dentry_parent(old);
+
+    if (!old_parent)
+    {
+        if (dest)
+            dentry_put(dest);
+
+        return -ENOENT;
+    }
+
+    /* It's invalid to try to make a directory be a subdirectory of itself */
+    if (!dentry_does_not_have_parent(dir, old))
+    {
+        if (dest)
+            dentry_put(dest);
+        return -EINVAL;
+    }
+
+    /* Do the actual fs unlink(if dest exists) + link + unlink */
+    /* The overall strategy here is to do everything that may fail first - so, for example,
+     * everything that involves I/O or memory allocation. After that, we're left with the
+     * bookkeeping, which can't fail.
+     */
+    int st = 0;
+
+    // printk("Here3\n");
+
+    if (dest)
+    {
+        /* Unlink the name on disk first */
+        /* Note that i_fops->unlink() checks if the directory is empty, if it is one. */
+        st = inode->i_fops->unlink(_name, AT_REMOVEDIR, dir);
+    }
+
+    // printk("(may have) unlinked\n");
+
+    if (st < 0)
+    {
+        if (dest)
+            dentry_put(dest);
+        return st;
+    }
+
+    struct file f;
+    f.f_ino = old->d_inode;
+    f.f_dentry = old;
+
+    /* Now link the name on disk */
+    st = inode->i_fops->link(&f, _name, dir);
+
+    // printk("linked\n");
+
+    // printk("unlinking\n");
+
+    /* rename allows us to move a non-empty dir. Because of that we
+     * pass a special flag (UNLINK_VFS_DONT_TEST_EMPTY) to the fs, that allows us to do
+     * that.
+     */
+    st = old_parent->d_inode->i_fops->unlink(old->d_name, AT_REMOVEDIR | UNLINK_VFS_DONT_TEST_EMPTY,
+                                             old_parent);
+
+    // printk("done\n");
+
+    /* TODO: What should we do if we fail in the middle? */
+    if (st < 0)
+    {
+        if (dest)
+            dentry_put(dest);
+        return st;
+    }
+
+    /* The fs unlink succeeded! Lets change the dcache now that we can't fail! */
+    if (dest)
+        dentry_do_unlink(dest);
+
+    // printk("doing move\n");
+    /* No need to move if we're already under the same parent. */
+    if (old_parent != dir)
+        dentry_move(old, dir);
+
+    // printk("done\n");
+    dentry_rename(old, _name);
+
+    /* Return the parent directory as a cookie so the calling code doesn't crash and die */
+    return 0;
+}
 
 int sys_renameat(int olddirfd, const char *uoldpath, int newdirfd, const char *unewpath)
 {
     auto_file olddir, newdir;
     user_string oldpath, newpath;
+    struct path last_name;
 
     if (auto res = oldpath.from_user(uoldpath); res.has_error())
         return res.error();
@@ -1370,7 +1364,10 @@ int sys_renameat(int olddirfd, const char *uoldpath, int newdirfd, const char *u
     /* rename operates on the old and new symlinks and not their destination */
     auto_dentry old = dentry_do_open(olddir.get_file()->f_dentry, oldpath.data(), LOOKUP_NOFOLLOW);
     if (!old)
+    {
+        printk("bah\n");
         return -errno;
+    }
 
     /* Although this doesn't need to be an error, we're considering it as one in the meanwhile
      */
@@ -1380,12 +1377,15 @@ int sys_renameat(int olddirfd, const char *uoldpath, int newdirfd, const char *u
     if (!inode_can_access(old.get_dentry()->d_inode, FILE_ACCESS_WRITE))
         return -EACCES;
 
-    rename_handling h{old.get_dentry()};
+    unsigned int lookup_flag = LOOKUP_NOFOLLOW;
+    auto ex = namei_lookup_parent(newdir.get_file(), newpath.data(), lookup_flag, &last_name);
+    if (ex.has_error())
+    {
+        printk("bah2 %d\n", ex.error());
+        return ex.error();
+    }
 
-    auto_dentry dent = generic_last_name_helper(newdir.get_file()->f_dentry, newpath.data(), h);
-    if (!dent)
-        return -errno;
-    return 0;
+    return do_renameat(ex.value(), last_name, old.get_dentry());
 }
 
 int sys_rename(const char *oldpath, const char *newpath)
