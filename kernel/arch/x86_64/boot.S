@@ -177,10 +177,10 @@ efi_entry:
 jmp entry_point
 .align 4
 hdr_start: 
-    .long 0xe85250d6
+    .long MULTIBOOT2_HEADER_MAGIC
     .long 0
     .long hdr_end - hdr_start
-    .long 0x100000000 - (0xe85250d6 + 0 + (hdr_end - hdr_start))
+    .long 0x100000000 - (MULTIBOOT2_HEADER_MAGIC + 0 + (hdr_end - hdr_start))
     .align 8 # All tags need to be 8 byte aligned
     # Framebuffer tag
     .word MULTIBOOT_HEADER_TAG_FRAMEBUFFER
