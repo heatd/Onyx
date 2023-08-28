@@ -177,13 +177,13 @@ efi_entry:
 jmp entry_point
 .align 4
 hdr_start: 
-    .long 0xe85250d6
+    .long MULTIBOOT2_HEADER_MAGIC
     .long 0
     .long hdr_end - hdr_start
-    .long 0x100000000 - (0xe85250d6 + 0 + (hdr_end - hdr_start))
+    .long 0x100000000 - (MULTIBOOT2_HEADER_MAGIC + 0 + (hdr_end - hdr_start))
     .align 8 # All tags need to be 8 byte aligned
     # Framebuffer tag
-    .word 5
+    .word MULTIBOOT_HEADER_TAG_FRAMEBUFFER
     .word 0
     .long 20
     .long 1024
@@ -191,12 +191,12 @@ hdr_start:
     .long 32
     .align 8
     # Module alignment tag
-    .word 6
+    .word MULTIBOOT_HEADER_TAG_MODULE_ALIGN
     .word 0
     .long 8
 #ifdef CONFIG_RELOCATABLE_PHYS
     .align 8
-    .word 10
+    .word MULTIBOOT_HEADER_TAG_RELOCATABLE
     .word 0
     .long 24
     /* Use a minimum address of 16MiB, a max of 4GiB, alignment of 2MiB (so we can easily map ourselves) */
@@ -219,7 +219,7 @@ hdr_start:
 #endif
     .align 8
     # Finish tag
-    .word 0
+    .word MULTIBOOT_HEADER_TAG_END
     .word 0
     .long 8
 hdr_end:
