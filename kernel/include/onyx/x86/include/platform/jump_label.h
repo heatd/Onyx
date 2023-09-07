@@ -24,6 +24,12 @@ struct jump_label
 
 struct static_key;
 
+#ifndef __clang__
+#define __unlikely_branch __attribute__((cold))
+#else
+#define __unlikely_branch
+#endif
+
 template <bool is_likely>
 __always_inline bool jump_label_branch(struct static_key *key)
 {
@@ -31,13 +37,14 @@ __always_inline bool jump_label_branch(struct static_key *key)
                               ".pushsection .jump_label\n"
                               ".quad %=b\n"
                               ".quad %c0 + %c1\n"
-                              ".long %2 - %=b\n"
+                              ".long %c2 - %=b\n"
                               ".popsection\n" ::"i"(key),
                               "i"(!is_likely)
                               : "memory"
                               : branch);
     return is_likely;
 branch:
+    __unlikely_branch;
     return !is_likely;
 }
 
