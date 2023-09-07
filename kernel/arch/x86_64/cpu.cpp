@@ -41,6 +41,8 @@
 #include <onyx/x86/segments.h>
 #include <onyx/x86/tsc.h>
 
+#include <platform/jump_label.h>
+
 static cpu_t cpu;
 
 static unsigned int booted_cpus = 1;
@@ -241,6 +243,7 @@ void cpu_identify(void)
     __cpu_identify();
 
     x86_do_alternatives();
+    jump_label_init();
 }
 
 extern "C" void syscall_ENTRY64(void);

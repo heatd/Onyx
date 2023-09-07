@@ -17,6 +17,7 @@ kern-$(CONFIG_KTRACE)+= ktrace.o
 kern-$(CONFIG_KUNIT)+= kunit.o
 
 kern-$(CONFIG_KCOV)+= kcov.o
+kern-$(ARCH_HAS_JUMP_LABELS)+= jump_label.o
 
 kern-y+= irq.trace.o refcount.trace.o rcupdate.trace.o
 
