@@ -29,14 +29,17 @@ void boot_cpus();
 
 using sync_call_func = void (*)(void *context);
 
+#define SYNC_CALL_NOWAIT (1 << 0)
+
 /**
  * @brief Calls f on every CPU
  *
  * @param f The function to call on every cpu
  * @param context Context to get passed to f
  * @param mask Mask of cpus that will execute this
+ * @param flags Flags for the sync call
  */
-void sync_call(sync_call_func f, void *context, const cpumask &mask);
+void sync_call(sync_call_func f, void *context, const cpumask &mask, unsigned int flags = 0);
 
 /**
  * @brief Calls f on every CPU, and calls local on the local CPU
@@ -46,9 +49,10 @@ void sync_call(sync_call_func f, void *context, const cpumask &mask);
  * @param mask Mask of cpus that will execute this
  * @param local The function to get called on this cpu
  * @param context2 The context for the local function
+ * @param flags Flags for the sync call
  */
 void sync_call_with_local(sync_call_func f, void *context, const cpumask &mask,
-                          sync_call_func local, void *context2);
+                          sync_call_func local, void *context2, unsigned int flags = 0);
 
 void cpu_handle_sync_calls();
 
