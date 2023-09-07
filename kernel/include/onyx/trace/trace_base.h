@@ -32,11 +32,15 @@ struct tracing_header
 #define TRACE_EVENT_TIME    (1 << 1)
 
 #ifndef __TRACE_EVENT_DEFINED
+
+struct static_key;
+
 struct trace_event
 {
     const char* name;
     const char* category;
     const char* format;
+    struct static_key* key;
     u16 evid;
     u16 flags;
 };
@@ -67,11 +71,10 @@ struct scope_guard
             trace_##name(__trace_timestamp __VA_OPT__(, ) __VA_ARGS__);                 \
     }};
 
-#define TRACE_EVENT(name, ...)         \
-    do                                 \
-    {                                  \
-        if (trace_##name##_enabled())  \
-            trace_##name(__VA_ARGS__); \
+#define TRACE_EVENT(name, ...)     \
+    do                             \
+    {                              \
+        trace_##name(__VA_ARGS__); \
     } while (0);
 
 #endif

@@ -44,10 +44,12 @@ class TraceEvent:
         return format
 
     def output_trace_record_struct(self, file: TextIO):
+        file.write(f"DEFINE_STATIC_KEY_FALSE({self.trace_event_struct_name()}_key);\n")
         file.write(f"__tracing_section struct trace_event {self.trace_event_struct_name()} = {{\n")
         file.write(f"\t.name = \"{self.name}\",\n")
         file.write(f"\t.category = \"{self.category}\",\n")
-        file.write(f"\t.format = \"{self.calculate_format()}\"\n")
+        file.write(f"\t.format = \"{self.calculate_format()}\",\n")
+        file.write(f"\t.key = &{self.trace_event_struct_name()}_key\n")
         file.write("};\n");
 
     def output_format_struct(self, file: TextIO):
@@ -75,7 +77,7 @@ class TraceEvent:
         file.write("} __attribute__ ((packed));\n")
 
     def output_trace_func(self, file: TextIO):
-        file.write(f"void trace_{self.category}_{self.name}(");
+        file.write(f"void __trace_{self.category}_{self.name}(");
         first_arg = True
         for arg in self.args:
             if not first_arg:
@@ -119,9 +121,10 @@ class TraceEvent:
     def output_header(self, file: TextIO):
         file.write("\n")
         tesn = self.trace_event_struct_name()
-        file.write(f"extern struct trace_event {tesn};\n\n")
+        file.write(f"extern struct trace_event {tesn};\n")
+        file.write(f"extern struct static_key {tesn}_key;\n\n")
         # The trace func
-        file.write(f"void trace_{self.category}_{self.name}(");
+        file.write(f"void __trace_{self.category}_{self.name}(")
         first_arg = True
         for arg in self.args:
             if not first_arg:
@@ -131,8 +134,29 @@ class TraceEvent:
 
         file.write(");\n")
 
+        file.write(f"__always_inline void trace_{self.category}_{self.name}(")
+        first_arg = True
+        for arg in self.args:
+            if not first_arg:
+                file.write(',')
+            file.write(f"{arg['type']} {arg['name']}");
+            first_arg = False
+
+        file.write(")\n{\n")
+        file.write(f"\tif (static_branch_unlikely(&{tesn}_key))\n")
+        file.write(f"\t\t__trace_{self.category}_{self.name}(")
+        first_arg = True
+        for arg in self.args:
+            if not first_arg:
+                file.write(',')
+            file.write(arg['name'])
+            first_arg = False
+        file.write(");\n}\n\n")
+
         file.write(f"static inline bool trace_{self.category}_{self.name}_enabled()\n{{\n")
-        file.write(f"\treturn {tesn}.flags & TRACE_EVENT_ENABLED;\n}}\n")
+        file.write(f"\tif (static_branch_unlikely(&{tesn}_key))\n")
+        file.write(f"\t\treturn {tesn}.flags & TRACE_EVENT_ENABLED;\n")
+        file.write(f"\treturn false;\n}}\n")
         
 
 
@@ -145,8 +169,8 @@ def generate_trace(trace_desc_file: TextIO, trace_header: TextIO, trace_source: 
         events.append(TraceEvent(elem["name"], elem["category"], elem["args"], elem["format"]))
 
     hdr_guard = trace_desc[0]['category']
-    trace_header.write(f"//clang-format off\n#ifndef _TRACE_{hdr_guard}_H\n#define _TRACE_{hdr_guard}_H\n\n#include <onyx/trace/trace_base.h>\n\n")
-    trace_source.write("// clang-format off\n#include <onyx/trace/trace_base.h>\n\n")
+    trace_header.write(f"//clang-format off\n#ifndef _TRACE_{hdr_guard}_H\n#define _TRACE_{hdr_guard}_H\n\n#include <onyx/trace/trace_base.h>\n#include <onyx/static_key.h>\n\n")
+    trace_source.write("// clang-format off\n#include <onyx/trace/trace_base.h>\n#include <onyx/static_key.h>\n")
     for elem in events:
         elem.output_trace_record_struct(trace_source)
         trace_source.write("\n")

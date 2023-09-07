@@ -98,14 +98,8 @@
  */
 // clang-format on
 
+#define CONFIG_TRACE_RCU 1
 #ifndef CONFIG_TRACE_RCU
-// We can't always have tracing enabled for this, as it has high overhead as we do not have fancy
-// static keys with nops for any of this.
-// also:
-//    2190     592     128    2910     b5e kernel/kernel/rcupdate.o
-//                   vs
-//    2082     592     128    2802     af2 kernel/kernel/rcupdate.o
-// in size.
 #define trace_rcu_rcu_do_callbacks_enabled() 0
 #undef TRACE_EVENT
 #define TRACE_EVENT(...)

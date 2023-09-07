@@ -15,6 +15,7 @@
 #include <onyx/modules.h>
 #include <onyx/process.h>
 #include <onyx/spinlock.h>
+#include <onyx/static_key.h>
 #include <onyx/symbol.h>
 #include <onyx/trace/trace_base.h>
 #include <onyx/trace/tracing_buffer.h>
@@ -306,7 +307,7 @@ void ktrace_enable_on_every_cpu(const ktrace_enable &en)
     }
 }
 
-spinlock global_tracing_lock;
+mutex global_tracing_lock;
 int __tracing_enabled_counter;
 
 int ktrace_do_enable(struct ktrace_enable *uen)
@@ -316,7 +317,7 @@ int ktrace_do_enable(struct ktrace_enable *uen)
     if (copy_from_user(&en, uen, sizeof(en)) < 0)
         return -EFAULT;
 
-    scoped_lock g{global_tracing_lock};
+    scoped_mutex g{global_tracing_lock};
 
     if (en.status != KTRACE_ENABLE_STATUS_ENABLED && en.status != KTRACE_ENABLE_STATUS_DISABLED)
         return -EINVAL;
@@ -334,6 +335,10 @@ int ktrace_do_enable(struct ktrace_enable *uen)
     trace_event *ev = ktrace::find_event(en.evid);
     if (!ev)
         return -ENOENT;
+
+    // Before setting the enabled flag, enable all static keys
+    // so events all come out at the same time
+    static_branch_enable(ev->key);
 
     ev->flags |= TRACE_EVENT_ENABLED;
     ev->flags |= en.flags;
