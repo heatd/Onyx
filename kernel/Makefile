@@ -178,7 +178,8 @@ endif
 # TODO: Fix -Wno-mismatched-new-delete cases
 CXXFLAGS:=-fno-rtti -fno-exceptions -fcheck-new -Wno-mismatched-new-delete
 
-CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -D ACPI_LIBRARY -Wno-error=deprecated-declarations -DKERNEL_TAGS='"$(KERNEL_TAGS)"'
+CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -I include/onyx/generic -DACPI_LIBRARY \
+          -Wno-error=deprecated-declarations -DKERNEL_TAGS='"$(KERNEL_TAGS)"'
 LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS)
 LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
 ACPICA_CFLAGS:=$(filter-out -fsanitize=undefined -Werror, $(CFLAGS))
