@@ -113,6 +113,9 @@ SECTIONS
 		*(.code_patch*)
 		__end_code_patch = .;
 		*(.modinfo*)
+		PROVIDE_HIDDEN(__jump_label_start = .);
+		*(.jump_label);
+		PROVIDE_HIDDEN(__jump_label_end = .);
 		*(.eh_frame_hdr)
 		*(.eh_frame)
 	} : rodata
