@@ -12,12 +12,6 @@
 #include <stdbool.h>
 #include <sys/user.h>
 
-#ifdef __x86_64__
-
-extern bool avx_supported;
-
-#endif
-
 void setup_fpu_area(unsigned char *address);
 void save_fpu(void *address);
 void restore_fpu(void *address);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2021 Pedro Falcato
+ * Copyright (c) 2017 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -11,6 +11,7 @@
 
 #include <onyx/cpu.h>
 #include <onyx/fpu.h>
+#include <onyx/static_key.h>
 #include <onyx/x86/avx.h>
 #include <onyx/x86/control_regs.h>
 
@@ -28,8 +29,9 @@ static inline unsigned long xgetbv(unsigned long r)
 
 extern size_t fpu_area_size;
 extern size_t fpu_area_alignment;
+extern struct static_key avx_supported;
 
-void avx_init(void)
+void avx_init()
 {
     if (x86_has_cap(X86_FEATURE_XSAVE))
     {
@@ -54,7 +56,7 @@ void avx_init(void)
         fpu_area_size = ebx;
         fpu_area_alignment = AVX_SAVE_ALIGNMENT;
 
-        avx_supported = true;
+        static_branch_enable(&avx_supported);
     }
 
     fpu_init_cache();

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -12,10 +12,11 @@
 
 #include <onyx/fpu.h>
 #include <onyx/mm/slab.h>
+#include <onyx/static_key.h>
 #include <onyx/x86/avx.h>
 #include <onyx/x86/control_regs.h>
 
-bool avx_supported = false;
+DEFINE_STATIC_KEY_FALSE(avx_supported);
 
 #define EDX_EAX(var) "d"((uint32_t) (var >> 32)), "a"((uint32_t) var)
 
@@ -63,26 +64,18 @@ size_t fpu_get_save_alignment(void)
 
 void save_fpu(void *address)
 {
-    if (avx_supported == true)
-    {
+    if (static_branch_likely(&avx_supported))
         do_xsave(address, AVX_XCR0_FPU | AVX_XCR0_SSE | AVX_XCR0_AVX);
-    }
     else
-    {
         do_fxsave(address);
-    }
 }
 
 void restore_fpu(void *address)
 {
-    if (avx_supported == true)
-    {
+    if (static_branch_likely(&avx_supported))
         do_xrstor(address, AVX_XCR0_FPU | AVX_XCR0_SSE | AVX_XCR0_AVX);
-    }
     else
-    {
         do_fxrstor(address);
-    }
 }
 
 struct fpu_area
