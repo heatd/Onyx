@@ -23,11 +23,12 @@ struct sync_call_cntrlblk
     sync_call_func f;
     void *ctx;
     atomic<unsigned long> waiting_for_completion;
+    unsigned int flags;
 #ifdef DEBUG_SMP_SYNC_CALL
     cpumask mask;
 #endif
-    sync_call_cntrlblk(sync_call_func f, void *ctx, cpumask &m)
-        : f{f}, ctx{ctx}, waiting_for_completion{}
+    sync_call_cntrlblk(sync_call_func f, void *ctx, cpumask &m, unsigned int flags)
+        : f{f}, ctx{ctx}, waiting_for_completion{}, flags{flags}
 #ifdef DEBUG_SMP_SYNC_CALL
           ,
           mask{m}
@@ -42,10 +43,10 @@ struct sync_call_cntrlblk
 
 struct sync_call_elem
 {
-    sync_call_cntrlblk &control_block;
+    sync_call_cntrlblk *control_block;
     struct list_head node;
 
-    constexpr sync_call_elem(sync_call_cntrlblk &b) : control_block{b}, node{}
+    constexpr sync_call_elem(sync_call_cntrlblk *b) : control_block{b}, node{}
     {
     }
 };

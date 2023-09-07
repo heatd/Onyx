@@ -88,6 +88,9 @@ unsigned int get_online_cpus()
     return nr_online_cpus;
 }
 
+static memory_pool<internal::sync_call_elem, MEMORY_POOL_USABLE_ON_IRQ> sync_call_pool;
+static memory_pool<internal::sync_call_cntrlblk, MEMORY_POOL_USABLE_ON_IRQ> ctlblk_pool;
+
 namespace internal
 {
 
@@ -97,6 +100,12 @@ void sync_call_cntrlblk::complete(unsigned int cpu)
     mask.remove_cpu_atomic(cpu);
 #endif
     waiting_for_completion--;
+
+    if (flags & SYNC_CALL_NOWAIT && waiting_for_completion.load(mem_order::acquire) == 0)
+    {
+        // Free the control block, no one is waiting for us
+        ctlblk_pool.free(this);
+    }
 }
 
 void sync_call_cntrlblk::wait(sync_call_func local, void *context)
@@ -140,8 +149,6 @@ struct sync_call_queue
     void handle_calls();
 };
 
-memory_pool<internal::sync_call_elem, MEMORY_POOL_USABLE_ON_IRQ> sync_call_pool;
-
 void sync_call_queue::handle_calls()
 {
     scoped_lock<spinlock, true> g{lock};
@@ -150,12 +157,9 @@ void sync_call_queue::handle_calls()
     list_for_every_safe (&elem_list)
     {
         auto elem = container_of(l, internal::sync_call_elem, node);
-
         list_remove(&elem->node);
-
-        elem->control_block.f(elem->control_block.ctx);
-
-        elem->control_block.complete(cpu);
+        elem->control_block->f(elem->control_block->ctx);
+        elem->control_block->complete(cpu);
 
         sync_call_pool.free(elem);
     }
@@ -173,25 +177,50 @@ void smp_bring_up_percpu(unsigned int cpu)
 INIT_LEVEL_CORE_PERCPU_CTOR(smp_bring_up_percpu);
 
 void sync_call_with_local(sync_call_func f, void *context, const cpumask &mask_,
-                          sync_call_func local, void *context2)
+                          sync_call_func local, void *context2, unsigned int flags)
 {
     auto mask = mask_ & online_cpus;
     auto our_cpu = get_cpu_nr();
     bool execute_on_us = mask.is_cpu_set(our_cpu);
+    const bool nowait = flags & SYNC_CALL_NOWAIT;
 
     mask.remove_cpu(our_cpu);
 
-    internal::sync_call_cntrlblk control_block{f, context, mask};
+    if (mask.is_empty())
+    {
+        if (execute_on_us)
+            f(context);
+        if (local)
+            local(context2);
+        return;
+    }
+
+    internal::sync_call_cntrlblk *control_block = nullptr;
+
+    if (!nowait)
+    {
+        // Use stack allocation for this one, since we're waiting on the stack anyway
+        control_block =
+            (internal::sync_call_cntrlblk *) alloca(sizeof(internal::sync_call_cntrlblk));
+    }
+    else
+    {
+        /* TODO: GFP_ATOMIC, these allocations must not fail... */
+        control_block = ctlblk_pool.allocate(GFP_KERNEL);
+        if (!control_block)
+            panic("out of memory on sync_call_with_local");
+    }
+
+    new (control_block) internal::sync_call_cntrlblk{f, context, mask, flags};
 
     mask.for_every_cpu([&](unsigned long cpu) -> bool {
         auto ptr = sync_call_pool.allocate();
         if (!ptr)
             panic("Out of memory on sync call");
 
-        control_block.waiting_for_completion++;
+        control_block->waiting_for_completion++;
 
         auto elem = new (ptr) internal::sync_call_elem{control_block};
-
         auto queue = get_per_cpu_ptr_any(percpu_queue, cpu);
         queue->add_elem(elem);
 
@@ -202,13 +231,19 @@ void sync_call_with_local(sync_call_func f, void *context, const cpumask &mask_,
     if (execute_on_us)
         f(context);
 
-    control_block.wait(local, context2);
+    if (!nowait)
+        control_block->wait(local, context2);
+    else
+    {
+        if (local)
+            local(context2);
+    }
 }
 
-void sync_call(sync_call_func f, void *context, const cpumask &mask)
+void sync_call(sync_call_func f, void *context, const cpumask &mask, unsigned int flags)
 {
     sync_call_with_local(
-        f, context, mask, [](void *ctx) {}, nullptr);
+        f, context, mask, [](void *ctx) {}, nullptr, flags);
 }
 
 void cpu_handle_sync_calls()
