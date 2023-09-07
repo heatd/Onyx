@@ -25,10 +25,6 @@ namespace ktrace
 /* We're using this byte sequence as the nop instruction to replace calls.
  * Note that it's exactly the same size as a call instruction (0xe8 + 4-byte offset). */
 const uint8_t nop_5byte[] = {0x0f, 0x1f, 0x44, 0x00, 0x00};
-const uint8_t nop_4byte[] = {0x0f, 0x1f, 0x40, 0x00};
-const uint8_t nop_3byte[] = {0x0f, 0x1f, 0x00};
-const uint8_t nop_2byte[] = {0x66, 0x90};
-const uint8_t nop_1byte[] = {0x90};
 
 constexpr size_t hotpatch_site_len = 5;
 constexpr uint8_t int3_insn = 0xcc;
@@ -49,7 +45,7 @@ extern "C" void x86_ktrace_entry(struct registers *regs)
     ktrace::log_func_entry(regs->rip - hotpatch_site_len, caller);
 }
 
-void disable_writeprotect()
+static void disable_writeprotect()
 {
     unsigned long cr = x86_read_cr0();
     cr &= ~CR0_WP;
@@ -57,7 +53,7 @@ void disable_writeprotect()
     x86_write_cr0(cr);
 }
 
-void enable_writeprotect()
+static void enable_writeprotect()
 {
     unsigned long cr = x86_read_cr0();
     cr |= CR0_WP;
@@ -129,47 +125,4 @@ void old_broken_ktracepoint::deactivate()
     activated = false;
     patch_code(mcount_call_addr, 0, patch_action::NOP);
 }
-
-/* NOTE: We don't need to be as careful as above because this is early boot code, without
- * proper preemption or multi cpu stuff
- */
-
-void __replace_instructions(void *ip, const void *instructions, size_t size)
-{
-    unsigned long f = irq_save_and_disable();
-
-    disable_writeprotect();
-
-    memcpy(ip, instructions, size);
-
-    enable_writeprotect();
-
-    irq_restore(f);
-}
-
-#define REPLACE_INSTR_N(N)                                                          \
-    while (size >= N)                                                               \
-    {                                                                               \
-        __replace_instructions((void *) instr, __PASTE(__PASTE(nop_, N), byte), N); \
-        size -= N;                                                                  \
-        instr += N;                                                                 \
-    }
-
-void nop_out(void *ip, size_t size)
-{
-    char *instr = (char *) ip;
-    REPLACE_INSTR_N(5);
-    REPLACE_INSTR_N(4);
-    REPLACE_INSTR_N(3);
-    REPLACE_INSTR_N(2);
-    REPLACE_INSTR_N(1);
-}
-
-void replace_instructions(void *ip, const void *instructions, size_t size, size_t max)
-{
-    assert(size <= max);
-    __replace_instructions(ip, instructions, size);
-    nop_out((void *) ((char *) ip + size), max - size);
-}
-
 } // namespace ktrace
