@@ -15,6 +15,7 @@
 #include <x86intrin.h>
 
 #include <onyx/acpi.h>
+#include <onyx/code_patch.h>
 #include <onyx/compiler.h>
 #include <onyx/cpu.h>
 #include <onyx/fpu.h>
@@ -540,19 +541,19 @@ static const uint8_t clac[] = {0x0f, 0x01, 0xca};
 extern "C" void x86_smap_stac_patch(code_patch_location *loc)
 {
     if (x86_has_cap(X86_FEATURE_SMAP))
-        ktrace::replace_instructions(loc->address, stac, 3, loc->size);
+        code_patch::replace_instructions(loc->address, stac, 3, loc->size);
     else
     {
-        ktrace::nop_out(loc->address, loc->size);
+        code_patch::nop_out(loc->address, loc->size);
     }
 }
 
 extern "C" void x86_smap_clac_patch(code_patch_location *loc)
 {
     if (x86_has_cap(X86_FEATURE_SMAP))
-        ktrace::replace_instructions(loc->address, clac, 3, loc->size);
+        code_patch::replace_instructions(loc->address, clac, 3, loc->size);
     else
     {
-        ktrace::nop_out(loc->address, loc->size);
+        code_patch::nop_out(loc->address, loc->size);
     }
 }

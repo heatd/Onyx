@@ -272,6 +272,23 @@ static inline void cpu_sleep(void)
     __asm__ __volatile__("hlt");
 }
 
+__always_inline void serialize_insns()
+{
+    /* We don't cpuid because that's expensive and can cause a VMEXIT under a hypervisor. Instead,
+     * we do an iretq. Setup a stack frame on the stack and iretq away.
+     */
+    __asm__ __volatile__("mov %%rsp, %%rax\n\t"
+                         "pushq %1\n\t"
+                         "pushq %%rax\n\t"
+                         "pushf\n\t"
+                         "pushq %0\n\t"
+                         "pushq $%=f\n\t"
+                         "iretq\n\t"
+                         "%=:\n\t" ::"i"(KERNEL_CS),
+                         "i"(KERNEL_DS)
+                         : "memory", "rax");
+}
+
 #include <platform/irq.h>
 
 #elif __riscv
