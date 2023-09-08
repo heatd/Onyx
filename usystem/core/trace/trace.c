@@ -368,7 +368,12 @@ void output_ev(u8 *raw, struct traced_event *ev, FILE *file)
         {
             uintmax_t max = 0;
             memcpy(&max, raw, arg->size);
-            sprintf(t->val, arg->signed_ ? "%lld" : "%llu", max);
+
+            /* Heuristically print addresses in hex*/
+            if (!strcmp(arg->name, "addr"))
+                sprintf(t->val, "\"%#lx\"", max);
+            else
+                sprintf(t->val, arg->signed_ ? "%lld" : "%llu", max);
         }
         else if (arg->type == ARG_ARRAY)
         {
