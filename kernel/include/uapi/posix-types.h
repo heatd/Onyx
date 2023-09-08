@@ -59,4 +59,10 @@ struct iovec
 #define __DEFINED_struct_iovec
 #endif
 
+#if !defined(__DEFINED_ssize_t)
+typedef long __ssize_t;
+typedef long ssize_t;
+#define __DEFINED_ssize_t
+#endif
+
 #endif
