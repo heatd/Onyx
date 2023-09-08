@@ -89,7 +89,7 @@ kernel: install-headers
 	rm -f kernel/clang-tidy.out
 	$(MAKE) -C $@ install
 
-musl:
+musl: install-headers
 	scripts/check_reconf.sh musl --enable-debug --prefix=/usr --syslibdir=/usr/lib
 	$(MAKE) -C musl install-headers
 	$(MAKE) -C $@ install
