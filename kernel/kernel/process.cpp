@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -21,6 +21,7 @@
 #include <onyx/elf.h>
 #include <onyx/file.h>
 #include <onyx/futex.h>
+#include <onyx/gen/trace_vm.h>
 #include <onyx/id.h>
 #include <onyx/mutex.h>
 #include <onyx/page.h>
@@ -631,6 +632,7 @@ pid_t sys_fork_internal(syscall_frame *ctx, unsigned int flags)
     if (flags & FORK_SHARE_MM)
     {
         child->address_space = proc->address_space;
+        trace_vm_share_mm();
     }
     else
     {

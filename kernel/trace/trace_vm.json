@@ -1,0 +1,52 @@
+[
+    {
+        "name": "page_fault",
+        "category": "vm",
+        "args": [
+            {"type": "u64", "name": "ts"},
+            {"type": "u64", "name": "addr"},
+            {"type": "u32", "name": "pid"},
+            {"type": "u8", "name": "fault_read"},
+            {"type": "u8", "name": "fault_write"},
+            {"type": "u8", "name": "fault_execute"}
+        ],
+
+        "format": {
+            "end_ts": {"type": "u64", "cond": "TIME"},
+            "addr": {"type": "u64"},
+            "pid": {"type": "u32"},
+            "fault_read": {"type": "u8"},
+            "fault_write": {"type": "u8"},
+            "fault_execute": {"type": "u8"}
+        }
+    },
+    {
+        "name": "copy_on_write",
+        "category": "vm",
+        "args": [
+        ],
+
+        "format": {
+        }
+    },
+    {
+        "name": "fork_mm",
+        "category": "vm",
+        "args": [
+            {"type": "u64", "name": "ts"}
+        ],
+
+        "format": {
+            "end_ts": {"type": "u64", "cond": "TIME"}
+        }
+    },
+    {
+        "name": "share_mm",
+        "category": "vm",
+        "args": [
+        ],
+
+        "format": {
+        }
+    }
+]

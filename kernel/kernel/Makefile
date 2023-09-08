@@ -19,7 +19,7 @@ kern-$(CONFIG_KUNIT)+= kunit.o
 kern-$(CONFIG_KCOV)+= kcov.o
 kern-$(ARCH_HAS_JUMP_LABELS)+= jump_label.o
 
-kern-y+= irq.trace.o refcount.trace.o rcupdate.trace.o
+kern-y+= irq.trace.o refcount.trace.o rcupdate.trace.o vm.trace.o
 
 obj-y+= $(patsubst %, kernel/%, $(kern-y)) 
 
@@ -49,3 +49,5 @@ kernel/rcupdate.o: include/onyx/gen/trace_rcupdate.h
 include/onyx/gen/syscall.h: kernel/syscall_thunk.cpp
 
 kernel/kcov.o: CFLAGS+=-fno-sanitize-coverage=trace-pc
+
+kernel/mm/vm.o kernel/process.o: include/onyx/gen/trace_vm.h

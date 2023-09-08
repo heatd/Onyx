@@ -19,6 +19,7 @@
 #include <onyx/cpu.h>
 #include <onyx/dev.h>
 #include <onyx/file.h>
+#include <onyx/gen/trace_vm.h>
 #include <onyx/log.h>
 #include <onyx/mm/kasan.h>
 #include <onyx/mm/slab.h>
@@ -1844,7 +1845,7 @@ int vm_handle_present_cow(struct vm_pf_context *ctx)
 
     struct vm_region *entry = ctx->entry;
     size_t vmo_off = (ctx->vpage - entry->base) + entry->offset;
-
+    trace_vm_copy_on_write();
 #if 0
     printk("Re-mapping COW'd page %lx with perms %x\n", ctx->vpage, ctx->page_rwx);
     printk("fd: %p", entry->fd);
@@ -1909,6 +1910,12 @@ int vm_handle_present_pf(struct vm_pf_context *ctx)
 int __vm_handle_pf(struct vm_region *entry, struct fault_info *info)
 {
     assert(entry->vmo != nullptr);
+    const pid_t pid = get_current_process()->pid_;
+    const u64 addr = info->fault_address;
+    const u8 fault_read = info->read;
+    const u8 fault_write = info->write;
+    const u8 fault_exec = info->exec;
+    TRACE_EVENT_DURATION(vm_page_fault, addr, pid, fault_read, fault_write, fault_exec);
     struct vm_pf_context context;
     context.entry = entry;
     context.info = info;
@@ -3383,6 +3390,7 @@ expected<ref_guard<mm_address_space>, int> mm_address_space::create()
  */
 expected<ref_guard<mm_address_space>, int> mm_address_space::fork()
 {
+    TRACE_EVENT_DURATION(vm_fork_mm);
     ref_guard<mm_address_space> as = make_refc<mm_address_space>();
     if (!as)
         return unexpected<int>{-ENOENT};
