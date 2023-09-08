@@ -303,6 +303,11 @@ static inline void cpu_sleep()
     __asm__ __volatile__("wfi");
 }
 
+__always_inline void serialize_insns()
+{
+    __asm__ __volatile__("fence.i" ::: "memory");
+}
+
 #elif __aarch64__
 
 static inline void cpu_relax()

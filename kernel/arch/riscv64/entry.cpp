@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 - 2923 Pedro Falcato
+ * Copyright (c) 2022 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -22,6 +22,8 @@
 #include <onyx/vdso.h>
 #include <onyx/vm.h>
 
+#include <platform/jump_label.h>
+
 extern char percpu_base;
 
 void riscv_setup_trap_handling();
@@ -41,6 +43,10 @@ extern "C" void kernel_entry(unsigned long hartid, void *fdt)
     set_kernel_cmdline("--root=/dev/sda1");
     write_per_cpu(__cpu_base, &percpu_base);
     paging_init();
+
+    // Note: We need for code patching to be deferred to after paging_init in riscv due to it
+    // requiring aliases.
+    jump_label_init();
 
     platform_serial_init();
 
