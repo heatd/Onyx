@@ -11,6 +11,8 @@ Also you need development files for MPC, MPFR and GMP and texinfo package if you
 
 ## Step 1: Fetch submodules
 
+Either use `--recursive` flag while cloning Onyx repository, or issue these commands in repository:
+
 ```
 git submodule init
 git submodule update --recursive
@@ -20,7 +22,6 @@ git submodule update --recursive
 
 First, you'll need to download the minimal sysroot available in project's github actions artifacts.
 This allows you to have the toolchain build against a sane libc. Uncompress it into the project root.
-
 
 ## Step 3: Prepare build environment
 
@@ -45,12 +46,13 @@ directory toolchain. Target toolchain directory further will be referred as `$TO
 
 If using **gcc**: add `$TOOLCHAIN_TARGET_DIR/bin` to `$PATH`.
 
-If using **LLVM**: `export CLANG_PATH=$TOOLCHAIN_TARGET_DIR/bin`
+If using **LLVM**: `export CLANG_PATH=$TOOLCHAIN_TARGET_DIR`.
 
 ## Step 5: Build
 
-Do `make -j <nproc> iso` where nproc is the number of threads you want the build to use.
+Do `make -j <nproc> liveiso` where nproc is the number of threads you want the build to use.
 
-You may want to edit `scripts/iso.sh` to edit grub-mkrescue command name for your distro.
+Note that RHEL, Fedora and other RHEL-derived distributions install grub-mkrescue as
+grub2-mkrescue. Edit `scripts/iso.sh` appropriately.
 
 If everything went well, you will have a Onyx.iso under the base directory!
