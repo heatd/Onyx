@@ -14,6 +14,7 @@
 
 #include <onyx/fnv.h>
 #include <onyx/hybrid_lock.h>
+#include <onyx/iovec_iter.h>
 #include <onyx/net/netif.h>
 #include <onyx/net/proto_family.h>
 #include <onyx/object.h>
@@ -43,24 +44,6 @@ struct socket_conn_request
 };
 
 struct socket;
-
-static inline ssize_t iovec_count_length(iovec *vec, unsigned int n)
-{
-    ssize_t length = 0;
-
-    while (n--)
-    {
-        if ((ssize_t) vec->iov_len < 0)
-            return -EINVAL;
-
-        if (__builtin_saddl_overflow(length, vec->iov_len, &length))
-            return -EINVAL;
-
-        vec++;
-    }
-
-    return length;
-}
 
 struct recv_packet
 {

@@ -873,251 +873,142 @@ bool fd_may_access(struct file *f, unsigned int access)
     return true;
 }
 
+#define FASTIOV_NR 8
+struct iovec_guard
+{
+    struct iovec inline_vec[FASTIOV_NR];
+    struct iovec *vec{inline_vec};
+    size_t len{0};
+
+    ~iovec_guard()
+    {
+        if (vec != inline_vec)
+            kfree(vec);
+    }
+
+    /**
+     * @brief Make an iterator from an iovec_guard
+     *
+     * @param count Count (has been sanitized by fetch_iovec)
+     * @return iovec_iter
+     */
+    iovec_iter to_iter(int count) const
+    {
+        return iovec_iter{{vec, (size_t) count}, len, IOVEC_USER};
+    }
+};
+
+/**
+ * @brief Fetch iovecs from userspace and validate them
+ *
+ * @param uvec User pointer to iovecs
+ * @param count *Unsanitized* number of vecs
+ * @param guard Caller's iovec guard
+ * @return Total length of iovecs, or negative error code
+ */
+static ssize_t fetch_iovec(const struct iovec *uvec, int count, iovec_guard &guard)
+{
+    if (count < 0 || count > IOV_MAX)
+        return -EINVAL;
+
+    if (count > FASTIOV_NR)
+    {
+        guard.vec = (struct iovec *) calloc(count, sizeof(struct iovec));
+        if (!guard.vec)
+            return -ENOMEM;
+    }
+
+    if (copy_from_user(guard.vec, uvec, count * sizeof(struct iovec)) < 0)
+        return -EFAULT;
+    guard.len = iovec_count_length(guard.vec, count);
+
+    return guard.len;
+}
+
 ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 {
-    size_t read = 0;
-    ssize_t was_read = 0;
-
-    struct file *f = get_file_description(fd);
+    iovec_guard guard;
+    ssize_t st = -EBADF;
+    auto_file f = get_file_description(fd);
     if (!f)
-        goto error;
+        return st;
 
-    if (!vec)
-    {
-        errno = EINVAL;
-        goto error;
-    }
+    if (!fd_may_access(f.get_file(), FILE_ACCESS_READ))
+        return st;
 
-    if (veccnt == 0)
-    {
-        read = 0;
-        goto out;
-    }
+    if (st = fetch_iovec(vec, veccnt, guard); st < 0)
+        return st;
 
-    if (!fd_may_access(f, FILE_ACCESS_READ))
-    {
-        errno = EBADF;
-        goto error;
-    }
+    iovec_iter iter = guard.to_iter(veccnt);
 
-    for (int i = 0; i < veccnt; i++)
-    {
-        struct iovec v;
-        if (copy_from_user(&v, vec++, sizeof(struct iovec)) < 0)
-        {
-            errno = EFAULT;
-            goto error;
-        }
+    st = read_iter_vfs(f.get_file(), f.get_file()->f_seek, &iter, 0);
 
-        if (v.iov_len == 0)
-            continue;
-        was_read = read_vfs(f->f_seek, v.iov_len, v.iov_base, f);
-        if (was_read < 0)
-        {
-            goto error;
-        }
-
-        read += was_read;
-        f->f_seek += was_read;
-
-        if ((size_t) was_read != v.iov_len)
-        {
-            goto out;
-        }
-    }
-
-out:
-    fd_put(f);
-
-    return read;
-error:
-    if (f)
-        fd_put(f);
-    return was_read;
+    /* TODO: Fix f_seek atomicness by adding a mutex in struct file */
+    if (st > 0)
+        f.get_file()->f_seek += st;
+    return st;
 }
 
 ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 {
-    size_t written = 0;
-
-    struct file *f = get_file_description(fd);
+    iovec_guard guard;
+    ssize_t st = -EBADF;
+    auto_file f = get_file_description(fd);
     if (!f)
-        goto error;
+        return st;
 
-    if (!vec)
-    {
-        errno = EINVAL;
-        goto error;
-    }
+    if (!fd_may_access(f.get_file(), FILE_ACCESS_WRITE))
+        return st;
 
-    if (veccnt == 0)
-    {
-        written = 0;
-        goto out;
-    }
+    if (st = fetch_iovec(vec, veccnt, guard); st < 0)
+        return st;
 
-    if (!fd_may_access(f, FILE_ACCESS_WRITE))
-    {
-        errno = EBADF;
-        goto error;
-    }
+    iovec_iter iter = guard.to_iter(veccnt);
 
-    for (int i = 0; i < veccnt; i++)
-    {
-        struct iovec v;
-        if (copy_from_user(&v, vec++, sizeof(struct iovec)) < 0)
-        {
-            errno = EFAULT;
-            goto error;
-        }
+    st = write_iter_vfs(f.get_file(), f.get_file()->f_seek, &iter, 0);
 
-        if (v.iov_len == 0)
-            continue;
-
-        if (f->f_flags & O_APPEND)
-            f->f_seek = f->f_ino->i_size;
-
-        size_t was_written = write_vfs(f->f_seek, v.iov_len, v.iov_base, f);
-
-        written += was_written;
-        f->f_seek += was_written;
-
-        if (was_written != v.iov_len)
-        {
-            goto out;
-        }
-    }
-
-out:
-    fd_put(f);
-
-    return written;
-error:
-    if (f)
-        fd_put(f);
-    return -errno;
+    /* TODO: Fix f_seek atomicness by adding a mutex in struct file */
+    if (st > 0)
+        f.get_file()->f_seek += st;
+    return st;
 }
 
 ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 {
-    size_t read = 0;
-    ssize_t was_read = 0;
-
-    struct file *f = get_file_description(fd);
+    iovec_guard guard;
+    ssize_t st = -EBADF;
+    auto_file f = get_file_description(fd);
     if (!f)
-        goto error;
+        return st;
 
-    if (!vec)
-    {
-        errno = EINVAL;
-        goto error;
-    }
+    if (!fd_may_access(f.get_file(), FILE_ACCESS_READ))
+        return st;
 
-    if (veccnt == 0)
-    {
-        read = 0;
-        goto out;
-    }
+    if (st = fetch_iovec(vec, veccnt, guard); st < 0)
+        return st;
 
-    if (!fd_may_access(f, FILE_ACCESS_READ))
-    {
-        errno = EBADF;
-        goto error;
-    }
+    iovec_iter iter = guard.to_iter(veccnt);
 
-    for (int i = 0; i < veccnt; i++)
-    {
-        struct iovec v;
-        if (copy_from_user(&v, vec++, sizeof(struct iovec)) < 0)
-        {
-            errno = EFAULT;
-            goto error;
-        }
-
-        if (v.iov_len == 0)
-            continue;
-        was_read = read_vfs(offset, v.iov_len, v.iov_base, f);
-
-        if (was_read < 0)
-        {
-            goto error;
-        }
-
-        read += was_read;
-        offset += was_read;
-
-        if ((size_t) was_read != v.iov_len)
-        {
-            goto out;
-        }
-    }
-
-out:
-    fd_put(f);
-
-    return read;
-error:
-    if (f)
-        fd_put(f);
-    return was_read;
+    return read_iter_vfs(f.get_file(), offset, &iter, 0);
 }
 
 ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 {
-    size_t written = 0;
-
-    struct file *f = get_file_description(fd);
+    iovec_guard guard;
+    ssize_t st = -EBADF;
+    auto_file f = get_file_description(fd);
     if (!f)
-        goto error;
+        return -EBADF;
 
-    if (!vec)
-    {
-        errno = EINVAL;
-        goto error;
-    }
+    if (!fd_may_access(f.get_file(), FILE_ACCESS_WRITE))
+        return -EBADF;
 
-    if (veccnt == 0)
-    {
-        written = 0;
-        goto out;
-    }
+    if (st = fetch_iovec(vec, veccnt, guard); st < 0)
+        return st;
 
-    if (!fd_may_access(f, FILE_ACCESS_WRITE))
-    {
-        errno = EBADF;
-        goto error;
-    }
+    iovec_iter iter = guard.to_iter(veccnt);
 
-    for (int i = 0; i < veccnt; i++)
-    {
-        struct iovec v;
-        if (copy_from_user(&v, vec++, sizeof(struct iovec)) < 0)
-        {
-            errno = EFAULT;
-            goto error;
-        }
-
-        if (v.iov_len == 0)
-            continue;
-        size_t was_written = write_vfs(offset, v.iov_len, v.iov_base, f);
-
-        written += was_written;
-        offset += was_written;
-
-        if (was_written != v.iov_len)
-        {
-            goto out;
-        }
-    }
-
-out:
-    fd_put(f);
-
-    return written;
-error:
-    if (f)
-        fd_put(f);
-    return -errno;
+    return write_iter_vfs(f.get_file(), offset, &iter, 0);
 }
 
 unsigned int putdir(struct dirent *buf, struct dirent *ubuf, unsigned int count);

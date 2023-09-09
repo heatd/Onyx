@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -18,6 +18,7 @@
 #include <onyx/cred.h>
 #include <onyx/dentry.h>
 #include <onyx/dev.h>
+#include <onyx/filemap.h>
 #include <onyx/fs_mount.h>
 #include <onyx/limits.h>
 #include <onyx/log.h>
@@ -59,7 +60,9 @@ struct file_ops ext2_ops = {.open = ext2_open,
                             .fallocate = ext2_fallocate,
                             .readpage = ext2_readpage,
                             .writepage = ext2_writepage,
-                            .prepare_write = ext2_prepare_write};
+                            .prepare_write = ext2_prepare_write,
+                            .read_iter = filemap_read_iter,
+                            .write_iter = filemap_write_iter};
 
 void ext2_delete_inode(struct inode *inode_, uint32_t inum, struct ext2_superblock *fs)
 {

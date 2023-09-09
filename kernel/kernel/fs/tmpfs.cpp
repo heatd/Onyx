@@ -8,13 +8,13 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <uapi/fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <onyx/cred.h>
 #include <onyx/dentry.h>
 #include <onyx/dev.h>
+#include <onyx/filemap.h>
 #include <onyx/fs_mount.h>
 #include <onyx/log.h>
 #include <onyx/mutex.h>
@@ -22,6 +22,7 @@
 #include <onyx/tmpfs.h>
 #include <onyx/vfs.h>
 
+#include <uapi/fcntl.h>
 #include <uapi/memstat.h>
 
 #include <onyx/atomic.hpp>
@@ -218,7 +219,9 @@ struct file_ops tmpfs_fops = {.read = nullptr,
                               .fallocate = nullptr,
                               .readpage = tmpfs_readpage,
                               .writepage = tmpfs_writepage,
-                              .prepare_write = tmpfs_prepare_write};
+                              .prepare_write = tmpfs_prepare_write,
+                              .read_iter = filemap_read_iter,
+                              .write_iter = filemap_write_iter};
 
 tmpfs_inode *tmpfs_superblock::create_inode(mode_t mode, dev_t rdev)
 {

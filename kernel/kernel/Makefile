@@ -4,7 +4,7 @@ kern-y+= arc4random.o binfmt.o compression.o copy.o cppnew.o cpprt.o crc32.o dev
 	power_management.o proc_event.o process.o pid.o ptrace.o random.o ref.o signal.o \
 	smp.o spinlock.o symbol.o tasklet.o time.o timer.o utils.o wait_queue.o \
 	worker.o cred.o list.o softirq.o cputime.o rlimit.o handle.o ctor.o internal_abi.o ssp.o \
-	cmdline.o syscall_thunk.o vdso.o sysinfo.o memstream.o perf.o radix.o rcupdate.o
+	cmdline.o syscall_thunk.o vdso.o sysinfo.o memstream.o perf.o radix.o rcupdate.o iovec_iter.o
 
 kern-$(CONFIG_UBSAN)+= ubsan.o
 

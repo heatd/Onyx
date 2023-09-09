@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <onyx/iovec_iter.h>
 #include <onyx/mm/vm_object.h>
 #include <onyx/object.h>
 #include <onyx/rcupdate.h>
@@ -75,6 +76,8 @@ struct file_ops
                          size_t len);
     int (*fcntl)(struct file *filp, int cmd, unsigned long arg);
     void (*release)(struct file *filp);
+    ssize_t (*read_iter)(struct file *filp, size_t offset, iovec_iter *iter, unsigned int flags);
+    ssize_t (*write_iter)(struct file *filp, size_t offset, iovec_iter *iter, unsigned int flags);
 };
 
 struct getdents_ret
@@ -266,7 +269,7 @@ bool file_can_access(struct file *file, unsigned int perms);
 bool fd_may_access(struct file *f, unsigned int access);
 
 struct page_cache_block;
-struct page_cache_block *inode_get_page(struct inode *inode, off_t offset, long flags);
+struct page_cache_block *inode_get_page(struct inode *inode, size_t offset, long flags = 0);
 
 struct file *inode_to_file(struct inode *ino);
 int inode_truncate_range(struct inode *inode, size_t start, size_t end);
@@ -361,5 +364,27 @@ bool apply_sugid_permissions(file *f);
 void inode_trim_cache();
 
 int file_close(int fd);
+
+/**
+ * @brief Write to a file using iovec_iter
+ *
+ * @param filp File pointer
+ * @param off Offset
+ * @param iter Iterator
+ * @param flags Flags
+ * @return Written bytes, or negative error code
+ */
+ssize_t write_iter_vfs(struct file *filp, size_t off, iovec_iter *iter, unsigned int flags);
+
+/**
+ * @brief Read from a file using iovec_iter
+ *
+ * @param filp File pointer
+ * @param off Offset
+ * @param iter Iterator
+ * @param flags Flags
+ * @return Read bytes, or negative error code
+ */
+ssize_t read_iter_vfs(struct file *filp, size_t off, iovec_iter *iter, unsigned int flags);
 
 #endif
