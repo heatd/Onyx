@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2021 Pedro Falcato
+ * Copyright (c) 2021 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #ifndef _ONYX_STRING_H
 #define _ONYX_STRING_H
@@ -20,14 +22,14 @@ class basic_string
 {
 private:
     _Ty* data_;
-    size_t length_;
+    size_t length_{0};
 
     // TODO: Kind-of-broken math for non 1-byte types (i.e UCS-32 strings get a huge structure)
     static constexpr size_t inline_length = sizeof(size_t) + 8;
     static constexpr size_t inline_capacity = inline_length - 1;
 
     union {
-        size_t capacity_;
+        size_t capacity_{0};
         _Ty inline_data[inline_length];
     };
 
@@ -36,12 +38,12 @@ private:
         return length_ < inline_length;
     }
 
-    bool try_realloc_data(size_t new_length)
+    bool try_realloc_data(size_t new_cap)
     {
         // If we were using inline storage, allocate dynamic storage
         if (data_ == (_Ty*) &inline_data)
         {
-            auto new_data = malloc((new_length + 1) * sizeof(_Ty));
+            auto new_data = malloc(new_cap * sizeof(_Ty));
             if (!new_data)
                 return false;
             memcpy(new_data, inline_data, inline_length);
@@ -49,11 +51,15 @@ private:
             return true;
         }
 
-        auto new_data = realloc(data_, (new_length + 1) * sizeof(_Ty));
+        if (capacity_ >= new_cap)
+            return true;
+
+        auto new_data = realloc(data_, new_cap * sizeof(_Ty));
         if (!new_data)
             return false;
 
         data_ = (_Ty*) new_data;
+        capacity_ = new_cap;
 
         return true;
     }
@@ -70,12 +76,10 @@ private:
         }
         else
         {
-            auto new_cap = cul::align_up2(capacity_, new_size);
+            auto new_cap = cul::align_up2(new_size + 1, 2);
 
-            if (!try_realloc_data(new_size))
+            if (!try_realloc_data(new_cap))
                 return false;
-
-            capacity_ = new_cap;
         }
 
         return true;
@@ -98,7 +102,7 @@ public:
     using value_type = _Ty;
     using size_type = size_t;
 
-    constexpr basic_string() : data_{inline_data}, length_{}, capacity_{}
+    constexpr basic_string() : data_{inline_data}
     {
     }
 
@@ -107,12 +111,12 @@ public:
         clear();
     }
 
-    basic_string(const char* s) : data_{nullptr}, length_{}, capacity_{}
+    basic_string(const char* s) : data_{nullptr}
     {
         internal_construct({s, strlen(s)});
     }
 
-    explicit basic_string(const char* s, size_t strlength) : data_{nullptr}, length_{}, capacity_{}
+    explicit basic_string(const char* s, size_t strlength) : data_{nullptr}
     {
         internal_construct({s, strlength});
     }
