@@ -173,84 +173,194 @@ void inode_update_mtime(struct inode *ino)
     inode_mark_dirty(ino);
 }
 
-ssize_t do_actual_read(size_t offset, size_t len, void *buf, struct file *file)
+static size_t clamp_length(size_t len)
 {
-    if (!inode_is_cacheable(file->f_ino))
-        return file->f_ino->i_fops->read(offset, len, buf, file);
-
-    return file_read_cache(buf, len, file->f_ino, offset);
+    return cul::clamp(len, (size_t) SSIZE_MAX);
 }
 
-bool is_invalid_length(size_t len)
+/**
+ * @brief Write to a file using iovec_iter, but emulating it using file_operations::write
+ *
+ * @param filp File pointer
+ * @param off Offset
+ * @param iter Iterator
+ * @param flags Flags
+ * @return Written bytes, or negative error code
+ */
+static ssize_t write_iter_emul(struct file *filp, size_t off, iovec_iter *iter, unsigned int flags)
 {
-    return ((ssize_t) len) < 0;
+    bool undo;
+    ssize_t st;
+    struct inode *ino;
+    unsigned long addr_lim = 0;
+
+    undo = false;
+    st = 0;
+    ino = filp->f_ino;
+
+    if (iter->type == IOVEC_KERNEL)
+    {
+        addr_lim = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
+        undo = true;
+    }
+
+    while (!iter->empty())
+    {
+        const auto iov = iter->curiovec();
+        ssize_t status = ino->i_fops->write(off, iov.iov_len, iov.iov_base, filp);
+        if (status <= 0)
+        {
+            if (st == 0)
+                st = status;
+            break;
+        }
+
+        st += status;
+        if (status != (ssize_t) iov.iov_len)
+        {
+            /* Partial write, break now */
+            break;
+        }
+
+        iter->advance(status);
+    }
+
+    if (undo)
+        thread_change_addr_limit(addr_lim);
+    return st;
 }
 
-size_t clamp_length(size_t len)
+/**
+ * @brief Read from a file using iovec_iter, but emulating it using file_operations::read
+ *
+ * @param filp File pointer
+ * @param off Offset
+ * @param iter Iterator
+ * @param flags Flags
+ * @return Read bytes, or negative error code
+ */
+static ssize_t read_iter_emul(struct file *filp, size_t off, iovec_iter *iter, unsigned int flags)
 {
-    if (is_invalid_length(len))
-        len = SSIZE_MAX;
-    return len;
+    bool undo;
+    ssize_t st;
+    struct inode *ino;
+    unsigned long addr_lim = 0;
+
+    undo = false;
+    st = 0;
+    ino = filp->f_ino;
+
+    if (iter->type == IOVEC_KERNEL)
+    {
+        addr_lim = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
+        undo = true;
+    }
+
+    while (!iter->empty())
+    {
+        const auto iov = iter->curiovec();
+        ssize_t status = ino->i_fops->read(off, iov.iov_len, iov.iov_base, filp);
+        if (status <= 0)
+        {
+            if (st == 0)
+                st = status;
+            break;
+        }
+
+        st += status;
+        if (status != (ssize_t) iov.iov_len)
+        {
+            /* Partial read, break now */
+            break;
+        }
+
+        iter->advance(status);
+    }
+
+    if (undo)
+        thread_change_addr_limit(addr_lim);
+    return st;
 }
 
-ssize_t read_vfs(size_t offset, size_t len, void *buffer, struct file *file)
+/**
+ * @brief Read from a file using iovec_iter
+ *
+ * @param filp File pointer
+ * @param off Offset
+ * @param iter Iterator
+ * @param flags Flags
+ * @return Read bytes, or negative error code
+ */
+ssize_t read_iter_vfs(struct file *filp, size_t off, iovec_iter *iter, unsigned int flags)
 {
-    struct inode *ino = file->f_ino;
+    struct inode *ino = filp->f_ino;
+    ssize_t st = -EIO;
+
     if (S_ISDIR(ino->i_mode))
         return -EISDIR;
 
-    if (!ino->i_fops->readpage && !ino->i_fops->read)
-        return -EIO;
-
-    len = clamp_length(len);
-
-    ssize_t res = do_actual_read(offset, len, buffer, file);
-
-    if (res >= 0)
-    {
-        if (!(file->f_flags & O_NOATIME))
-            inode_update_atime(ino);
-    }
-
-    return res;
-}
-
-ssize_t do_actual_write(size_t offset, size_t len, void *buffer, struct file *f)
-{
-    ssize_t st = 0;
-    struct inode *ino = f->f_ino;
-
-    if (!inode_is_cacheable(ino))
-    {
-        st = ino->i_fops->write(offset, len, buffer, f);
-    }
-    else
-    {
-        st = file_write_cache(buffer, len, ino, offset);
-    }
+    if (ino->i_fops->read_iter)
+        st = ino->i_fops->read_iter(filp, off, iter, flags);
+    else if (ino->i_fops->read)
+        st = read_iter_emul(filp, off, iter, flags);
 
     if (st >= 0)
     {
-        inode_update_mtime(ino);
+        if (!(filp->f_flags & O_NOATIME))
+            inode_update_atime(ino);
     }
+
+    return st;
+}
+
+/**
+ * @brief Write to a file using iovec_iter
+ *
+ * @param filp File pointer
+ * @param off Offset
+ * @param iter Iterator
+ * @param flags Flags
+ * @return Written bytes, or negative error code
+ */
+ssize_t write_iter_vfs(struct file *filp, size_t off, iovec_iter *iter, unsigned int flags)
+{
+    ssize_t st = -EIO;
+    struct inode *ino = filp->f_ino;
+    if (S_ISDIR(ino->i_mode))
+        return -EISDIR;
+
+    if (ino->i_fops->write_iter) [[likely]]
+        st = ino->i_fops->write_iter(filp, off, iter, flags);
+    else if (ino->i_fops->write)
+        st = write_iter_emul(filp, off, iter, flags);
+
+    if (st >= 0)
+        inode_update_mtime(ino);
 
     return st;
 }
 
 ssize_t write_vfs(size_t offset, size_t len, void *buffer, struct file *f)
 {
-    struct inode *ino = f->f_ino;
-    if (S_ISDIR(ino->i_mode))
-        return errno = EISDIR, -1;
-
-    if (!ino->i_fops->writepage && !ino->i_fops->write)
-        return errno = EIO, -1;
-
     len = clamp_length(len);
+    iovec vec;
+    vec.iov_base = buffer;
+    vec.iov_len = len;
 
-    ssize_t res = do_actual_write(offset, len, buffer, f);
+    iovec_iter iter{{&vec, 1}, len};
+    return write_iter_vfs(f, offset, &iter, 0);
+}
 
-    return res;
+ssize_t read_vfs(size_t offset, size_t len, void *buffer, struct file *file)
+{
+    len = clamp_length(len);
+    iovec vec;
+    vec.iov_base = buffer;
+    vec.iov_len = len;
+
+    iovec_iter iter{{&vec, 1}, len};
+
+    return read_iter_vfs(file, offset, &iter, 0);
 }
 
 int ioctl_vfs(int request, char *argp, struct file *this_)
