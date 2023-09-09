@@ -1109,8 +1109,6 @@ int unlink_vfs(const char *path, int flags, struct file *node)
         dentry_do_unlink(child);
 
         g.unlock();
-        /* Release the reference that we got from dentry_lookup_internal */
-        dentry_put(child);
     }
 
 out2:
