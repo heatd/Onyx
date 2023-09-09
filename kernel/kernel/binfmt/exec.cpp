@@ -460,11 +460,8 @@ int sys_execve(const char *p, const char **argv, const char **envp)
     old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 
     /* Read the file signature */
-    if (read_vfs(0, BINFMT_SIGNATURE_LENGTH, file, exec_file) < 0)
-    {
-        st = -errno;
+    if (st = read_vfs(0, BINFMT_SIGNATURE_LENGTH, file, exec_file); st < 0)
         goto error;
-    }
 
     args.file_signature = file;
     args.filename = path;
