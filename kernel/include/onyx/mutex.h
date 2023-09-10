@@ -22,11 +22,11 @@ CONSTEXPR static inline void mutex_init(struct mutex *mutex);
 struct CAPABILITY("mutex") mutex
 {
     struct spinlock llock;
-    struct list_head thread_list;
+    struct list_head waiters;
     unsigned long counter;
 
 #ifdef __cplusplus
-    constexpr mutex() : llock{}, thread_list{}, counter{}
+    constexpr mutex() : llock{}, waiters{}, counter{}
     {
         mutex_init(this);
     }
@@ -43,20 +43,20 @@ struct CAPABILITY("mutex") mutex
 
 #else
 
-#define DECLARE_MUTEX(name) struct mutex name = {.thread_list = LIST_HEAD_INIT(name.thread_list)};
+#define DECLARE_MUTEX(name) struct mutex name = {.waiters = LIST_HEAD_INIT(name.waiters)};
 
 #endif
 
-#define MUTEX_INITIALIZER                          \
-    {                                              \
-        .thread_list = LIST_HEAD_INIT(thread_list) \
+#define MUTEX_INITIALIZER                  \
+    {                                      \
+        .waiters = LIST_HEAD_INIT(waiters) \
     }
 
 CONSTEXPR static inline void mutex_init(struct mutex *mutex)
 {
     spinlock_init(&mutex->llock);
     mutex->counter = 0;
-    INIT_LIST_HEAD(&mutex->thread_list);
+    INIT_LIST_HEAD(&mutex->waiters);
 }
 
 void mutex_lock(struct mutex *m) ACQUIRE(m);
