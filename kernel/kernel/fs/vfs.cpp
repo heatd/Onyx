@@ -798,6 +798,8 @@ struct file *inode_to_file(struct inode *ino)
     struct file *f = file_alloc();
     if (!f)
         return nullptr;
+
+    new (f) file;
     f->f_ino = ino;
     f->f_flags = 0;
     f->f_refcount = 1;

@@ -148,18 +148,16 @@ struct dentry;
 
 struct file
 {
-#ifndef __cplusplus
-    _Atomic
-#endif
-        unsigned long f_refcount;
+    unsigned long f_refcount;
     off_t f_seek;
     struct inode *f_ino;
-    unsigned int f_flags;
     struct dentry *f_dentry;
     union {
         void *private_data;
         struct rcu_head rcuhead;
     };
+    mutex f_seeklock;
+    unsigned int f_flags;
 };
 
 int inode_create_vmo(struct inode *ino);
