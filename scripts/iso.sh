@@ -8,7 +8,7 @@ mkdir -p isodir/boot/grub
 INITRD_GEN_SCRIPT=$1
 
 if [ "$INITRD_GEN_SCRIPT" = "" ]; then
-    INITRD_GEN_SCRIPT="scripts/default-initrd.sh"
+	INITRD_GEN_SCRIPT="scripts/default-initrd.sh"
 fi
 
 SYSTEM_ROOT=$DESTDIR scripts/geninitrd "$INITRD_GEN_SCRIPT"
@@ -21,7 +21,7 @@ echo "Compressing kernel"
 xz -9 -e -f isodir/boot/vmonyx
 #zstd -15 isodir/boot/vmonyx
 
-cat > isodir/boot/grub/grub.cfg << EOF
+cat >isodir/boot/grub/grub.cfg <<EOF
 set default="0"
 set timeout=5
 menuentry "Onyx" {
@@ -40,4 +40,16 @@ menuentry "Onyx" {
     boot
 }
 EOF
-grub-mkrescue -o Onyx.iso isodir # Change this acording to your distro/OS.
+
+GRUB_MKRESCUE=""
+
+if command -v grub-mkrescue; then
+	GRUB_MKRESCUE="grub-mkrescue"
+elif command -v grub2-mkrescue; then
+	GRUB_MKRESCUE="grub2-mkrescue"
+else
+	echo "grub-mkrescue not found! Please install it."
+	exit 1
+fi
+
+$GRUB_MKRESCUE -o Onyx.iso isodir
