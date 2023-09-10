@@ -621,9 +621,7 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
     auto fil = f.get_file();
 
     if (!fd_may_access(fil, FILE_ACCESS_WRITE))
-    {
         return -EBADF;
-    }
 
     if (fil->f_flags & O_APPEND)
         fil->f_seek = fil->f_ino->i_size;
@@ -1048,7 +1046,9 @@ ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
     if (!f)
         return st;
 
-    if (!fd_may_access(f.get_file(), FILE_ACCESS_WRITE))
+    struct file *filp = f.get_file();
+
+    if (!fd_may_access(filp, FILE_ACCESS_WRITE))
         return st;
 
     if (st = fetch_iovec(vec, veccnt, guard); st < 0)
@@ -1056,10 +1056,13 @@ ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 
     iovec_iter iter = guard.to_iter(veccnt);
 
-    st = write_iter_vfs(f.get_file(), f.get_file()->f_seek, &iter, 0);
+    if (filp->f_flags & O_APPEND)
+        filp->f_seek = filp->f_ino->i_size;
+
+    st = write_iter_vfs(filp, filp->f_seek, &iter, 0);
 
     if (st > 0)
-        f.get_file()->f_seek += st;
+        filp->f_seek += st;
     return st;
 }
 
@@ -1186,7 +1189,6 @@ int sys_fallocate(int fd, int mode, off_t offset, off_t len)
 
 off_t sys_lseek(int fd, off_t offset, int whence)
 {
-    /* TODO: Fix O_APPEND behavior */
     off_t ret = 0;
     auto_fd f = fdget_seek(fd);
     if (!f)
