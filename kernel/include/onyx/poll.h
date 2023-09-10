@@ -186,6 +186,16 @@ public:
         return fd;
     }
 
+    void set_revents(short new_revents)
+    {
+        revents = new_revents;
+    }
+
+    short get_revents() const
+    {
+        return revents;
+    }
+
     void signal();
 };
 
