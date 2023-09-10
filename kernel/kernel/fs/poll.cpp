@@ -234,19 +234,17 @@ int sys_ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *utimeout,
 
             if (revents != 0)
             {
-                struct pollfd pfd;
-                pfd.fd = pf->get_fd();
-                pfd.events = pf->get_event_mask();
-                pfd.revents = revents;
-
-                auto upollfd = pf->get_upollfd();
-                /* Flush the structure to userspace */
-                if (copy_to_user(upollfd, &pfd, sizeof(struct pollfd)) < 0)
-                    return -EFAULT;
-
+                pf->set_revents(revents);
                 nr_nonzero_revents++;
                 should_return = true;
             }
+        }
+
+        if (nr_nonzero_revents == 0 && signal_is_pending())
+        {
+            mask_guard.disable();
+            nr_nonzero_revents = -EINTR;
+            break;
         }
 
         if (should_return)
@@ -260,10 +258,20 @@ int sys_ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *utimeout,
         else if (res == sleep_result::timeout)
             break;
         else if (res == sleep_result::signal)
-        {
-            mask_guard.disable();
-            return -EINTR;
-        }
+            continue; /* signal handled above */
+    }
+
+    for (auto &pf : vec)
+    {
+        struct pollfd pfd;
+        pfd.fd = pf->get_fd();
+        pfd.events = pf->get_event_mask();
+        pfd.revents = pf->get_revents();
+
+        auto upollfd = pf->get_upollfd();
+        /* Flush the structure to userspace */
+        if (copy_to_user(upollfd, &pfd, sizeof(struct pollfd)) < 0)
+            return -EFAULT;
     }
 
     return nr_nonzero_revents;
