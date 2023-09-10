@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2021 Pedro Falcato
+ * Copyright (c) 2020 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -11,45 +11,73 @@
 #include <onyx/cpu.h>
 #include <onyx/mutex.h>
 #include <onyx/panic.h>
+#include <onyx/rcupdate.h>
 #include <onyx/scheduler.h>
 #include <onyx/scoped_lock.h>
 #include <onyx/task_switching.h>
 #include <onyx/thread.h>
 
+/*
+struct mutex
+{
+    struct spinlock llock;
+    struct list_head waiters;
+    unsigned long counter;
+};
+*/
+#define MUTEX_LOCKED      (1 << 0)
+#define MUTEX_HAS_WAITERS (1 << 1)
+#define MUTEX_FLAGS       (MUTEX_LOCKED | MUTEX_HAS_WAITERS)
+
 static unsigned long thread_to_lock_word(thread *t)
 {
-    return (unsigned long) t ^ 1;
+    return ((unsigned long) t | MUTEX_LOCKED);
 }
 
 static thread *lock_word_to_thread(unsigned long word)
 {
-    return (thread *) (word ^ 1);
+    return (thread *) (word & ~MUTEX_FLAGS);
 }
 
 thread *mutex_owner(mutex *mtx)
 {
     auto counter = read_once(mtx->counter);
-    return (counter == 0 ? nullptr : lock_word_to_thread(counter));
+    return (!(counter & MUTEX_LOCKED) ? nullptr : lock_word_to_thread(counter));
 }
 
-static void mutex_prepare_sleep(struct mutex *mtx, int state)
+#define MUTEX_WAITER_QUEUED (1 << 0)
+
+struct mutex_waiter
 {
-    scoped_lock g{mtx->llock};
+    struct thread *thread;
+    struct list_head list_node;
+    unsigned short flags;
+};
 
-    thread *t = get_current_thread();
-
-    set_current_state(state);
-
-    list_add_tail(&t->wait_list_head, &mtx->thread_list);
-}
-
-static void mutex_dequeue_thread(mutex *mtx, thread *thr)
+/**
+ * @brief Version of mutex_trylock that handles contended mutexes
+ *
+ * @param lock Lock
+ * @return true if acquired, else false
+ */
+static bool __mutex_trylock(mutex *lock)
 {
-    scoped_lock g{mtx->llock};
-    list_remove(&thr->wait_list_head);
+    /* When faced with a conteded mutex, attempt to lock it while keeping the MUTEX_HAS_WAITERS
+     * flag. This is palpably unfair to other waiters if we've just arrived. Oh well.
+     */
+    unsigned long expected, to_write;
+    do
+    {
+        expected = __atomic_load_n(&lock->counter, __ATOMIC_RELAXED);
+        if (expected & MUTEX_LOCKED)
+            return false;
+        to_write = thread_to_lock_word(get_current_thread()) | (expected & MUTEX_HAS_WAITERS);
+    } while (!__atomic_compare_exchange_n(&lock->counter, &expected, to_write, false,
+                                          __ATOMIC_ACQUIRE, __ATOMIC_RELAXED));
+    return true;
 }
 
-bool __mutex_trylock(mutex *lock)
+__always_inline bool __mutex_trylock_fastpath(mutex *lock)
 {
     unsigned long expected = 0;
     auto word = thread_to_lock_word(get_current_thread());
@@ -57,76 +85,122 @@ bool __mutex_trylock(mutex *lock)
                                        __ATOMIC_RELAXED);
 }
 
-bool mutex_optimistic_spin(mutex *lock)
+static bool mutex_spin(mutex *lock)
 {
     /* The algorithm goes like this: Try to always fetch the owner thread,
      * and if there's none try to acquire the lock. If in fact there is a thread,
-     * check if it's on the same CPU; if so, give up, if not, try to get the lock
-     * until we run out of budget. If the thread changes from under us, give up too.
+     * check if it's on the same CPU; if so, give up, if not, try to get the lock.
+     * RCU protects us here from threads going away.
      */
-    thread *last_thread = nullptr;
-    for (int i = 0; i < 500; i++)
+    rcu_read_lock();
+    bool success = false;
+    struct thread *current = get_current_thread();
+
+    for (;;)
     {
         auto thread = mutex_owner(lock);
 
         if (!thread)
-            return __mutex_trylock(lock);
+        {
+            success = __mutex_trylock(lock);
+            break;
+        }
 
-        if (last_thread && thread != last_thread)
-            return false;
+        /* Check if the thread is indeed running */
+        if (!(__atomic_load_n(&thread->flags, __ATOMIC_RELAXED) & THREAD_RUNNING))
+            break;
 
-        if (thread->cpu == get_cpu_nr())
-            return false;
-
-        last_thread = thread;
+        /* If *we* need to resched, stop wasting CPU time (and RCU wouldn't preempt us anyway...) */
+        if (sched_needs_resched(current))
+            break;
 
         cpu_relax();
     }
 
-    return false;
+    rcu_read_unlock();
+
+    return success;
 }
 
 bool mutex_trylock(mutex *lock)
 {
-    return __mutex_trylock(lock) || mutex_optimistic_spin(lock);
+    return __mutex_trylock_fastpath(lock) || __mutex_trylock(lock);
 }
 
-static void commit_sleep(void)
+static void mutex_prepare_sleep(struct mutex *mutex, int state, struct mutex_waiter *waiter)
 {
-    sched_yield();
+    MUST_HOLD_LOCK(&mutex->llock);
+    set_current_state(state);
+    DCHECK(!(waiter->flags & MUTEX_WAITER_QUEUED));
+
+    if (!(waiter->flags & MUTEX_WAITER_QUEUED))
+    {
+        if (list_is_empty(&mutex->waiters))
+            __atomic_or_fetch(&mutex->counter, MUTEX_HAS_WAITERS, __ATOMIC_RELEASE);
+
+        list_add_tail(&waiter->list_node, &mutex->waiters);
+        waiter->flags |= MUTEX_WAITER_QUEUED;
+    }
 }
 
 int mutex_lock_slow_path(struct mutex *mutex, int state)
 {
     int ret = 0;
     bool signals_allowed = state == THREAD_INTERRUPTIBLE;
-
     struct thread *current = get_current_thread();
 
-    mutex_prepare_sleep(mutex, state);
+    struct mutex_waiter waiter;
+    waiter.thread = current;
+    waiter.flags = 0;
 
-    while (!mutex_trylock(mutex))
+    auto owner = mutex_owner(mutex);
+    assert(owner != current);
+
+    /* Lock the queue, prepare the sleep, try one more time. If we can't get the lock, sleep. */
+    while (true)
     {
+        spin_lock(&mutex->llock);
+        mutex_prepare_sleep(mutex, state, &waiter);
+
+        if (__mutex_trylock(mutex))
+            break;
+
         if (signals_allowed && signal_is_pending())
         {
             ret = -EINTR;
             break;
         }
 
-        auto owner = mutex_owner(mutex);
+        spin_unlock(&mutex->llock);
 
-        assert(owner != current);
+        sched_yield();
+        /* We (may) have slept, try again (and try to spin, again) */
+        if (__mutex_trylock(mutex) || mutex_spin(mutex))
+        {
+            /* Check if we're still queued, if so, the exit path will take care of it */
+            if (waiter.flags & MUTEX_WAITER_QUEUED)
+            {
+                spin_lock(&mutex->llock);
+                /* Re-check under the lock, since wakers only touch it with this lock held. */
+                if (!(waiter.flags & MUTEX_WAITER_QUEUED))
+                    spin_unlock(&mutex->llock);
+            }
 
-        commit_sleep();
+            break;
+        }
+    }
 
-        mutex_dequeue_thread(mutex, current);
-
-        mutex_prepare_sleep(mutex, state);
+    if (waiter.flags & MUTEX_WAITER_QUEUED)
+    {
+        /* Note: If this condition is true, we *know* we hold llock */
+        list_remove(&waiter.list_node);
+        /* While here, check if the list is now empty, and if so clear the waiters flag */
+        if (list_is_empty(&mutex->waiters))
+            __atomic_and_fetch(&mutex->counter, ~MUTEX_HAS_WAITERS, __ATOMIC_RELEASE);
+        spin_unlock(&mutex->llock);
     }
 
     set_current_state(THREAD_RUNNABLE);
-
-    mutex_dequeue_thread(mutex, current);
 
     return ret;
 }
@@ -135,17 +209,17 @@ static inline void mutex_postlock(mutex *mtx)
 {
 }
 
-int __mutex_lock(struct mutex *mutex, int state) ACQUIRE(mutex) NO_THREAD_SAFETY_ANALYSIS
+__always_inline int __mutex_lock(struct mutex *mutex, int state)
+    ACQUIRE(mutex) NO_THREAD_SAFETY_ANALYSIS
 {
     MAY_SLEEP();
     int ret = 0;
     if (!mutex_trylock(mutex)) [[unlikely]]
-        ret = mutex_lock_slow_path(mutex, state);
+        if (!mutex_spin(mutex)) [[unlikely]]
+            ret = mutex_lock_slow_path(mutex, state);
 
     if (ret >= 0) [[likely]]
-    {
         mutex_postlock(mutex);
-    }
 
     return ret;
 }
@@ -160,21 +234,28 @@ int mutex_lock_interruptible(struct mutex *mutex)
     return __mutex_lock(mutex, THREAD_INTERRUPTIBLE);
 }
 
-void mutex_unlock(struct mutex *mutex) NO_THREAD_SAFETY_ANALYSIS
+[[gnu::noinline]] void mutex_unlock_wake(struct mutex *mutex)
 {
-    // MAY_SLEEP();
-    __atomic_store_n(&mutex->counter, 0, __ATOMIC_RELEASE);
-
     scoped_lock g{mutex->llock};
 
-    if (!list_is_empty(&mutex->thread_list))
+    if (!list_is_empty(&mutex->waiters))
     {
-        struct list_head *l = list_first_element(&mutex->thread_list);
-        assert(l != &mutex->thread_list);
-        struct thread *t = container_of(l, struct thread, wait_list_head);
+        struct list_head *l = list_first_element(&mutex->waiters);
+        mutex_waiter *w = container_of(l, mutex_waiter, list_node);
+        list_remove(&w->list_node);
+        w->flags = 0;
+        thread_wake_up(w->thread);
 
-        thread_wake_up(t);
+        if (list_is_empty(&mutex->waiters))
+            __atomic_and_fetch(&mutex->counter, ~MUTEX_HAS_WAITERS, __ATOMIC_RELEASE);
     }
+}
+
+void mutex_unlock(struct mutex *mutex) NO_THREAD_SAFETY_ANALYSIS
+{
+    unsigned long word = __atomic_and_fetch(&mutex->counter, MUTEX_HAS_WAITERS, __ATOMIC_RELEASE);
+    if (word & MUTEX_HAS_WAITERS) [[unlikely]]
+        mutex_unlock_wake(mutex);
 }
 
 bool mutex_holds_lock(struct mutex *m)
