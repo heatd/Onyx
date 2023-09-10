@@ -127,8 +127,6 @@ public:
     }
 };
 
-struct file *__get_file_description_unlocked(int fd, struct process *p);
-
 int sys_ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *utimeout,
               const sigset_t *usigmask, size_t sigsetsize)
 {
@@ -169,8 +167,6 @@ int sys_ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *utimeout,
     if (!vec.reserve(nfds))
         return -ENOMEM;
 
-    scoped_lock pfdg{get_current_process()->ctx.fdlock};
-
     /* First, we iterate through the file descriptors and add ourselves to wait queues */
     for (struct pollfd *it = fds; it != end; it++)
     {
@@ -188,7 +184,7 @@ int sys_ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *utimeout,
             continue;
         }
 
-        struct file *f = __get_file_description_unlocked(kpollfd.fd, get_current_process());
+        struct file *f = get_file_description(kpollfd.fd);
         if (!f)
         {
             kpollfd.revents = POLLNVAL;
@@ -206,15 +202,8 @@ int sys_ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *utimeout,
         }
 
         if (!vec.push_back(cul::move(pf)))
-        {
-            fd_put(f);
             return -ENOMEM;
-        }
-
-        fd_put(f);
     }
-
-    pfdg.unlock();
 
     bool should_return = false;
 
@@ -371,9 +360,7 @@ int sys_pselect(int nfds, fd_set *ureadfds, fd_set *uwritefds, fd_set *uexceptfd
 
         struct file *f = get_file_description(i);
         if (!f)
-        {
             return -EBADF;
-        }
 
         auto pf = make_unique<poll_file>(i, &pt, f, events, nullptr);
         if (!pf)
@@ -383,12 +370,7 @@ int sys_pselect(int nfds, fd_set *ureadfds, fd_set *uwritefds, fd_set *uexceptfd
         }
 
         if (!vec.push_back(cul::move(pf)))
-        {
-            fd_put(f);
             return -ENOMEM;
-        }
-
-        fd_put(f);
     }
 
     /* Test if they were zero'd previously - useful to save a bunch of work zeroing memory */
