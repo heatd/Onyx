@@ -259,6 +259,51 @@ struct file *get_file_description(int fd)
     return __get_file_description(fd, get_current_process());
 }
 
+/**
+ * @brief RAII wrapper for fd-getting that deals with seek unlocking
+ *
+ */
+class auto_file_seek
+{
+    /* TODO: In the presence of no threads and no shared file descriptors, we could skip locking it
+     */
+    struct file *f;
+
+public:
+    auto_file_seek(struct file *file) : f{file}
+    {
+        if (f)
+            mutex_lock(&f->f_seeklock);
+    }
+
+    ~auto_file_seek()
+    {
+        if (f)
+            mutex_unlock(&f->f_seeklock);
+    }
+
+    operator file *() const
+    {
+        return f;
+    }
+
+    struct file *get_file() const
+    {
+        return f;
+    }
+};
+
+/**
+ * @brief fdget and deal with seek locking
+ *
+ * @param fd File descriptor to grab
+ * @return auto_file_seek
+ */
+auto_file_seek fdget_seek(int fd)
+{
+    return auto_file_seek{get_file_description(fd)};
+}
+
 int copy_file_descriptors(struct process *process, struct ioctx *ctx)
 {
     fd_table *table = fdtable_alloc();
@@ -497,7 +542,7 @@ int file_alloc(struct file *f, struct ioctx *ioctx)
 
 ssize_t sys_read(int fd, const void *buf, size_t count)
 {
-    auto_file f = get_file_description(fd);
+    auto_file_seek f = fdget_seek(fd);
     if (!f)
         return -errno;
 
@@ -507,20 +552,16 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
         return -EBADF;
 
     ssize_t size = read_vfs(fil->f_seek, count, (char *) buf, fil);
-    if (size < 0)
-    {
-        return size;
-    }
 
-    /* TODO: Seek adjustments are required to be atomic */
-    __sync_add_and_fetch(&fil->f_seek, size);
+    if (size > 0)
+        fil->f_seek += size;
 
     return size;
 }
 
 ssize_t sys_write(int fd, const void *buf, size_t count)
 {
-    auto_file f = get_file_description(fd);
+    auto_file_seek f = fdget_seek(fd);
     if (!f)
         return -errno;
 
@@ -536,10 +577,8 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 
     auto written = write_vfs(fil->f_seek, count, (void *) buf, fil);
 
-    if (written == -1)
-        return -errno;
-
-    __sync_add_and_fetch(&fil->f_seek, written);
+    if (written > 0)
+        fil->f_seek += written;
 
     return written;
 }
@@ -929,7 +968,7 @@ ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 {
     iovec_guard guard;
     ssize_t st = -EBADF;
-    auto_file f = get_file_description(fd);
+    auto_file_seek f = fdget_seek(fd);
     if (!f)
         return st;
 
@@ -943,7 +982,6 @@ ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 
     st = read_iter_vfs(f.get_file(), f.get_file()->f_seek, &iter, 0);
 
-    /* TODO: Fix f_seek atomicness by adding a mutex in struct file */
     if (st > 0)
         f.get_file()->f_seek += st;
     return st;
@@ -953,7 +991,7 @@ ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 {
     iovec_guard guard;
     ssize_t st = -EBADF;
-    auto_file f = get_file_description(fd);
+    auto_file_seek f = fdget_seek(fd);
     if (!f)
         return st;
 
@@ -967,7 +1005,6 @@ ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 
     st = write_iter_vfs(f.get_file(), f.get_file()->f_seek, &iter, 0);
 
-    /* TODO: Fix f_seek atomicness by adding a mutex in struct file */
     if (st > 0)
         f.get_file()->f_seek += st;
     return st;
@@ -1019,11 +1056,9 @@ int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
     if (!count)
         return -EINVAL;
 
-    auto_file f = get_file_description(fd);
+    auto_file_seek f = fdget_seek(fd);
     if (!f)
-    {
         return -errno;
-    }
 
     auto fil = f.get_file();
 
@@ -1100,30 +1135,30 @@ off_t sys_lseek(int fd, off_t offset, int whence)
 {
     /* TODO: Fix O_APPEND behavior */
     off_t ret = 0;
-    struct file *f = get_file_description(fd);
+    auto_file_seek f = get_file_description(fd);
     if (!f)
         return -errno;
 
+    struct file *filp = f.get_file();
+
     /* TODO: Add a way for inodes to tell they don't support seeking */
-    if (f->f_ino->i_type == VFS_TYPE_FIFO || f->f_ino->i_flags & INODE_FLAG_NO_SEEK)
+    if (filp->f_ino->i_type == VFS_TYPE_FIFO || filp->f_ino->i_flags & INODE_FLAG_NO_SEEK)
     {
-        ret = -ESPIPE;
-        goto out;
+        return -ESPIPE;
     }
 
     if (whence == SEEK_CUR)
-        ret = __sync_add_and_fetch(&f->f_seek, offset);
-    else if (whence == SEEK_SET)
-        ret = f->f_seek = offset;
-    else if (whence == SEEK_END)
-        ret = f->f_seek = f->f_ino->i_size + offset;
-    else
     {
-        ret = -EINVAL;
+        filp->f_seek += offset;
+        ret = filp->f_seek;
     }
+    else if (whence == SEEK_SET)
+        ret = filp->f_seek = offset;
+    else if (whence == SEEK_END)
+        ret = filp->f_seek = filp->f_ino->i_size + offset;
+    else
+        ret = -EINVAL;
 
-out:
-    fd_put(f);
     return ret;
 }
 
