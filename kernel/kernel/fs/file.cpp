@@ -204,12 +204,110 @@ struct file *__get_file_description_unlocked(int fd, struct process *p)
     return nullptr;
 }
 
+#define FDGET_SHARED (1 << 0)
+#define FDGET_SEEK   (1 << 1)
+
+static inline bool needs_seek_lock(struct file *f)
+{
+    auto mode = f->f_ino->i_mode;
+    return S_ISDIR(mode) || S_ISREG(mode);
+}
+
+/**
+ * @brief RAII wrapper that neatly handles skipping fd_put and seek locks on files that *cannot* be
+ * shared
+ *
+ */
+class auto_fd
+{
+    struct file *f;
+    int flags;
+
+public:
+    auto_fd(struct file *file, int flags) : f{file}, flags{flags}
+    {
+        if (f) [[likely]]
+        {
+            if (flags & FDGET_SEEK)
+            {
+                /* We can skip locking seek if 1) the file type doesn't need it; and 2) we are not
+                 * sharing this file with anyone else.
+                 */
+                if (needs_seek_lock(file) && file->f_refcount > 1)
+                    mutex_lock(&f->f_seeklock);
+                else
+                    this->flags &= ~FDGET_SEEK;
+            }
+        }
+    }
+
+    ~auto_fd()
+    {
+        if (f) [[likely]]
+        {
+            if (flags & FDGET_SEEK)
+                mutex_unlock(&f->f_seeklock);
+            if (flags & FDGET_SHARED)
+                fd_put(f);
+        }
+    }
+
+    operator file *() const
+    {
+        return f;
+    }
+
+    struct file *get_file() const
+    {
+        return f;
+    }
+};
+
 struct file *__get_file_description(int fd, struct process *p)
 {
     rcu_read_lock();
     struct file *f = __get_file_description_unlocked(fd, p);
     rcu_read_unlock();
     return f;
+}
+
+__always_inline auto_fd __fdget(int fd, u8 extra_flags)
+{
+    struct process *p = get_current_process();
+
+    /* This is safe. nr_threads cannot increment from 1 as long as we're here (we are the only
+     * thread).
+     */
+    if (p->nr_threads > 1)
+        return auto_fd{__get_file_description(fd, p), extra_flags | FDGET_SHARED};
+
+    /* Cheap single threaded array access */
+    struct ioctx *ctx = &p->ctx;
+    struct fd_table *table = rcu_dereference(ctx->table);
+    if (!validate_fd_number(fd, table))
+        return errno = EBADF, auto_fd{nullptr, false};
+
+    struct file *f = rcu_dereference(table->file_desc[fd]);
+    if (!f)
+        return errno = EBADF, auto_fd{nullptr, false};
+
+    return auto_fd{f, extra_flags};
+}
+
+auto_fd fdget(int fd)
+{
+    return __fdget(fd, 0);
+}
+
+/**
+ * @brief fdget and deal with seek locking
+ *
+ * @param fd File descriptor to grab
+ * @return auto_fd
+ */
+auto_fd fdget_seek(int fd)
+{
+    return __fdget(fd, FDGET_SEEK);
 }
 
 expected<file *, int> __file_close_unlocked(int fd, struct process *p)
@@ -257,51 +355,6 @@ int file_close(int fd)
 struct file *get_file_description(int fd)
 {
     return __get_file_description(fd, get_current_process());
-}
-
-/**
- * @brief RAII wrapper for fd-getting that deals with seek unlocking
- *
- */
-class auto_file_seek
-{
-    /* TODO: In the presence of no threads and no shared file descriptors, we could skip locking it
-     */
-    struct file *f;
-
-public:
-    auto_file_seek(struct file *file) : f{file}
-    {
-        if (f)
-            mutex_lock(&f->f_seeklock);
-    }
-
-    ~auto_file_seek()
-    {
-        if (f)
-            mutex_unlock(&f->f_seeklock);
-    }
-
-    operator file *() const
-    {
-        return f;
-    }
-
-    struct file *get_file() const
-    {
-        return f;
-    }
-};
-
-/**
- * @brief fdget and deal with seek locking
- *
- * @param fd File descriptor to grab
- * @return auto_file_seek
- */
-auto_file_seek fdget_seek(int fd)
-{
-    return auto_file_seek{get_file_description(fd)};
 }
 
 int copy_file_descriptors(struct process *process, struct ioctx *ctx)
@@ -542,7 +595,7 @@ int file_alloc(struct file *f, struct ioctx *ioctx)
 
 ssize_t sys_read(int fd, const void *buf, size_t count)
 {
-    auto_file_seek f = fdget_seek(fd);
+    auto_fd f = fdget_seek(fd);
     if (!f)
         return -errno;
 
@@ -561,7 +614,7 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
 
 ssize_t sys_write(int fd, const void *buf, size_t count)
 {
-    auto_file_seek f = fdget_seek(fd);
+    auto_fd f = fdget_seek(fd);
     if (!f)
         return -errno;
 
@@ -968,7 +1021,7 @@ ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 {
     iovec_guard guard;
     ssize_t st = -EBADF;
-    auto_file_seek f = fdget_seek(fd);
+    auto_fd f = fdget_seek(fd);
     if (!f)
         return st;
 
@@ -991,7 +1044,7 @@ ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 {
     iovec_guard guard;
     ssize_t st = -EBADF;
-    auto_file_seek f = fdget_seek(fd);
+    auto_fd f = fdget_seek(fd);
     if (!f)
         return st;
 
@@ -1056,7 +1109,7 @@ int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
     if (!count)
         return -EINVAL;
 
-    auto_file_seek f = fdget_seek(fd);
+    auto_fd f = fdget_seek(fd);
     if (!f)
         return -errno;
 
@@ -1135,7 +1188,7 @@ off_t sys_lseek(int fd, off_t offset, int whence)
 {
     /* TODO: Fix O_APPEND behavior */
     off_t ret = 0;
-    auto_file_seek f = get_file_description(fd);
+    auto_fd f = fdget_seek(fd);
     if (!f)
         return -errno;
 
