@@ -102,8 +102,7 @@ public:
     poll_file(int fd, poll_table *pt, struct file *f, short events, struct pollfd *__u)
         : pt{pt}, file{f}, events{events}, revents{0}, upoll(__u), fd{fd}
     {
-        /* Get a reference to the file! */
-        fd_get(f);
+        /* file is already refe'd for us */
     }
 
     constexpr poll_file() : pt{}, file{}, events{}, revents{}, upoll{nullptr}, fd{-1}
