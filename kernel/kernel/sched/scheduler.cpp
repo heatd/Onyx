@@ -205,6 +205,8 @@ void sched_unlock(thread *thread, unsigned long cpu_flags)
     spin_unlock_irqrestore(l, cpu_flags);
 }
 
+PER_CPU_VAR(long runnable_delta) = 0;
+
 thread_t *__sched_find_next(unsigned int cpu)
 {
     thread_t *current_thread = get_current_thread();
@@ -227,6 +229,10 @@ thread_t *__sched_find_next(unsigned int cpu)
         {
             /* Re-append the last thread to the queue */
             __sched_append_to_queue(current_thread->priority, cpu, current_thread);
+        }
+        else
+        {
+            add_per_cpu(runnable_delta, -1);
         }
 
         spin_unlock_irqrestore(&current_thread->lock, cpu_flags);
@@ -288,7 +294,6 @@ void sched_save_thread(thread *thread, void *stack)
 PER_CPU_VAR(uint32_t sched_quantum) = 0;
 PER_CPU_VAR(u16 ticks_to_loadavg_calc) = SCHED_TICKS_BETWEEN_LOADAVG_CALC;
 PER_CPU_VAR(clockevent *sched_pulse);
-PER_CPU_VAR(long runnable_delta) = 0;
 
 unsigned long avenrun[3];
 unsigned long nrun = 0;
@@ -299,6 +304,9 @@ void calc_avenrun()
 
     for (unsigned int i = 0; i < get_nr_cpus(); i++)
         nr_runnable += other_cpu_get(runnable_delta, i);
+
+    if ((long) nr_runnable < 0)
+        panic("calc_avenrun: negative nr runnable %ld", nr_runnable);
     nrun = nr_runnable;
 
     for (int i = 0; i < 3; i++)
@@ -408,9 +416,6 @@ extern "C" void *sched_schedule(void *last_stack)
                 return last_stack;
             }
         }
-
-        if (curr_thread->status != THREAD_RUNNABLE)
-            add_per_cpu(runnable_delta, -1);
 
         curr_thread->flags &= ~THREAD_ACTIVE;
 
