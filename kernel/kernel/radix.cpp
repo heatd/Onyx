@@ -15,7 +15,6 @@
 #include <onyx/page.h>
 #include <onyx/radix.h>
 #include <onyx/types.h>
-#include <onyx/vm.h>
 
 #include <onyx/expected.hpp>
 
