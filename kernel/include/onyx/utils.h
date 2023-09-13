@@ -17,7 +17,8 @@ void *copy_page(void *vaddr, void *p2);
 void *copy_page_to_page(void *p1, void *p2);
 
 #define container_of(ptr, type, member) ((type *) ((char *) ptr - offsetof(type, member)))
-
+#define containerof_null_safe(ptr, type, member) \
+    ((ptr) == NULL ? NULL : container_of(ptr, type, member))
 #ifndef __cplusplus
 #define min(x, y) (x < y ? x : y)
 #else
