@@ -10,6 +10,13 @@
 
 #include <assert.h>
 
+#ifdef __is_onyx_kernel
+#include <onyx/panic.h>
+#else
+#include <stdlib.h>
+#define panic(...) abort()
+#endif
+
 #include <onyx/utility.hpp>
 
 template <typename _Errortype>
