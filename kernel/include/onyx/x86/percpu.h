@@ -29,19 +29,22 @@
 
 #define __PCPU_VAR ____PCPU_VAR("1")
 
-#define get_per_cpu_x86_internal(var, suffix, type)         \
-    ({                                                      \
-        type __val;                                         \
-        __asm__ __volatile__("mov" suffix __PCPU_VAR ", %0" \
-                             : "=r"(__val)                  \
-                             : __PCPU_CONSTRAINT(var));     \
-        (__typeof__(var)) (unsigned long) __val;            \
+#define get_per_cpu_x86_internal(var, suffix, type, qualifiers)                                    \
+    ({                                                                                             \
+        type __val;                                                                                \
+        __asm__ qualifiers("mov" suffix __PCPU_VAR ", %0" : "=r"(__val) : __PCPU_CONSTRAINT(var)); \
+        (__typeof__(var)) (unsigned long) __val;                                                   \
     })
 
-#define get_per_cpu_1(var) get_per_cpu_x86_internal(var, "b", uint8_t)
-#define get_per_cpu_2(var) get_per_cpu_x86_internal(var, "w", uint16_t)
-#define get_per_cpu_4(var) get_per_cpu_x86_internal(var, "l", uint32_t)
-#define get_per_cpu_8(var) get_per_cpu_x86_internal(var, "q", uint64_t)
+#define get_per_cpu_1(var) get_per_cpu_x86_internal(var, "b", uint8_t, __volatile__)
+#define get_per_cpu_2(var) get_per_cpu_x86_internal(var, "w", uint16_t, __volatile__)
+#define get_per_cpu_4(var) get_per_cpu_x86_internal(var, "l", uint32_t, __volatile__)
+#define get_per_cpu_8(var) get_per_cpu_x86_internal(var, "q", uint64_t, __volatile__)
+
+#define stable_get_per_cpu_1(var) get_per_cpu_x86_internal(var, "b", uint8_t, )
+#define stable_get_per_cpu_2(var) get_per_cpu_x86_internal(var, "w", uint16_t, )
+#define stable_get_per_cpu_4(var) get_per_cpu_x86_internal(var, "l", uint32_t, )
+#define stable_get_per_cpu_8(var) get_per_cpu_x86_internal(var, "q", uint64_t, )
 
 #define get_per_cpu(var)                \
     ({                                  \
@@ -62,6 +65,27 @@
                 break;                  \
         }                               \
         v;                              \
+    })
+
+#define get_per_cpu_stable(var)                \
+    ({                                         \
+        __typeof__(var) v;                     \
+        switch (sizeof(var))                   \
+        {                                      \
+            case 1:                            \
+                v = stable_get_per_cpu_1(var); \
+                break;                         \
+            case 2:                            \
+                v = stable_get_per_cpu_2(var); \
+                break;                         \
+            case 4:                            \
+                v = stable_get_per_cpu_4(var); \
+                break;                         \
+            case 8:                            \
+                v = stable_get_per_cpu_8(var); \
+                break;                         \
+        }                                      \
+        v;                                     \
     })
 
 #define get_per_cpu_no_cast(var)                                                               \
