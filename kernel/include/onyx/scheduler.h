@@ -131,9 +131,9 @@ void sched_remove_thread(thread_t *thread);
 /* This symbol is percpu, don't use. */
 extern struct thread *current_thread;
 
-static inline struct thread *get_current_thread(void)
+__attribute__((pure)) static inline struct thread *get_current_thread(void)
 {
-    return get_per_cpu(current_thread);
+    return get_per_cpu_stable(current_thread);
 }
 
 hrtime_t sched_sleep(unsigned long ns);

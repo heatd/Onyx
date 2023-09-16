@@ -10,7 +10,6 @@
 #define _ONYX_PROCESS_H
 
 #include <sys/resource.h>
-#include <onyx/types.h>
 
 #include <onyx/condvar.h>
 #include <onyx/cpu.h>
@@ -31,6 +30,7 @@
 #include <onyx/signal.h>
 #include <onyx/spinlock.h>
 #include <onyx/syscall.h>
+#include <onyx/types.h>
 #include <onyx/vm.h>
 #include <onyx/vm_layout.h>
 #include <onyx/wait_queue.h>
@@ -324,7 +324,7 @@ struct stack_info
 };
 
 int process_alloc_stack(struct stack_info *info);
-static inline struct process *get_current_process()
+__attribute__((pure)) static inline struct process *get_current_process()
 {
     thread_t *thread = get_current_thread();
     return (thread == NULL) ? NULL : (struct process *) thread->owner;
