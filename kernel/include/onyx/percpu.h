@@ -208,4 +208,9 @@ extern
 
 #define get_per_cpu_ptr(var) ({ (__typeof__(var) *) get_per_cpu_ptr_no_cast(var); })
 
+/* Fallback for architectures that do not implement stable reading */
+#ifndef get_per_cpu_stable
+#define get_per_cpu_stable(a) get_per_cpu(a)
+#endif
+
 #endif
