@@ -1,4 +1,4 @@
-mm-y:= bootmem.o page.o pagealloc.o vm_object.o vm.o flush.o vmalloc.o
+mm-y:= bootmem.o page.o pagealloc.o vm_object.o vm.o flush.o vmalloc.o reclaim.o
 mm-$(CONFIG_KUNIT)+= vm_tests.o
 
 ifeq ($(CONFIG_KASAN), y)

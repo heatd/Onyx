@@ -86,6 +86,8 @@ void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags);
  */
 void kmem_cache_free(struct slab_cache *cache, void *ptr);
 
+void *kmalloc(size_t size, int flags);
+
 /**
  * @brief Free a pointer to an object in a slab
  * This function panics on bad pointers. If NULL is given, it's a no-op.
@@ -133,5 +135,12 @@ struct slab *kmem_pointer_to_slab_maybe(void *mem);
  */
 void kmem_cache_print_slab_info_kasan(void *mem, struct slab *slab);
 #endif
+
+/**
+ * @brief Shrink caches in order to free pages
+ *
+ * @param target_freep Target free pages
+ */
+void slab_shrink_caches(unsigned long target_freep);
 
 #endif

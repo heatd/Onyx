@@ -17,17 +17,25 @@
 #include <unistd.h>
 
 #include <onyx/copy.h>
+#include <onyx/init.h>
+#include <onyx/mm/reclaim.h>
 #include <onyx/page.h>
 #include <onyx/pagecache.h>
 #include <onyx/panic.h>
 #include <onyx/spinlock.h>
 #include <onyx/utils.h>
 #include <onyx/vm.h>
+#include <onyx/wait_queue.h>
 
 #include <uapi/memstat.h>
 
 #include <onyx/atomic.hpp>
 
+/**
+ * @brief min_free_kbytes similar to linux, used to scale zone watermarks.
+ *
+ */
+static unsigned long min_free_kbytes = 1024;
 size_t page_memory_size;
 cul::atomic_size_t nr_global_pages;
 
@@ -91,6 +99,9 @@ struct page_zone
     const char *name;
     unsigned long start;
     unsigned long end;
+    unsigned long min_watermark;
+    unsigned long low_watermark;
+    unsigned long high_watermark;
     struct list_head pages[PAGEALLOC_NR_ORDERS];
     unsigned long total_pages;
     long used_pages;
@@ -117,6 +128,89 @@ __always_inline void page_make_buddy(page *page, unsigned int order)
     page->flags |= PAGE_BUDDY;
 }
 
+static struct pagedaemon_data
+{
+    /**
+     * @brief Order we tried to allocate. In case multiple allocations are in progress, this is set
+     * to the max order.
+     */
+    int order;
+    /**
+     * @brief Max attempt at reclaim. Desperate times call for desperate measures.
+     */
+    int attempt;
+    struct wait_queue paged_queue;
+    struct wait_queue paged_waiters_queue;
+    unsigned long reclaim_seq;
+    unsigned long request_seq;
+    thread_t *paged_thread;
+} paged_data;
+
+static unsigned long wake_up_pagedaemon(int order, int attempt = -1)
+{
+    if (paged_data.order < order)
+        __atomic_store_n(&paged_data.order, order, __ATOMIC_RELAXED);
+    if (paged_data.attempt < attempt)
+        __atomic_store_n(&paged_data.attempt, attempt, __ATOMIC_RELAXED);
+    unsigned long our_seq = __atomic_add_fetch(&paged_data.request_seq, 1, __ATOMIC_RELEASE);
+    wait_queue_wake_all(&paged_data.paged_queue);
+    return our_seq;
+}
+
+static bool page_has_low_memory();
+
+#define PAGEDAEMON_THROTTLE_MS 5000
+
+static void pagedaemon(void * /*arg*/)
+{
+    /* This thread is responsible for asynchronous reclamation of memory in low memory conditions.
+     * It is woken up when a zone reaches the low watermark, and sleeps after every zone reached the
+     * high watermark.
+     */
+    for (;;)
+    {
+        wait_for_event(&paged_data.paged_queue, paged_data.request_seq > paged_data.reclaim_seq);
+
+        int i = 0;
+        if (!page_has_low_memory())
+            goto wake;
+        /* Attempt to do reclaim a handful of times */
+        for (i = 0; i < 4; i++)
+        {
+            struct reclaim_data data;
+            data.attempt = paged_data.attempt + i;
+            data.failed_order = paged_data.order;
+            data.gfp_flags = GFP_KERNEL;
+            data.mode = RECLAIM_MODE_PAGEDAEMON;
+            int st = page_do_reclaim(&data);
+
+            if (st == 0)
+                break;
+        }
+
+    wake:
+        __atomic_add_fetch(&paged_data.reclaim_seq, 1, __ATOMIC_RELEASE);
+        /* Wake up anyone that may potentially be waiting for us */
+        wait_queue_wake_all(&paged_data.paged_waiters_queue);
+
+        if (i == 4)
+        {
+            /* Chill for some seconds, try again later */
+            sched_sleep_ms(PAGEDAEMON_THROTTLE_MS);
+        }
+    }
+}
+
+static void do_direct_reclaim(int order, int attempt, unsigned int gfp_flags)
+{
+    struct reclaim_data data;
+    data.attempt = attempt;
+    data.failed_order = order;
+    data.gfp_flags = gfp_flags;
+    data.mode = RECLAIM_MODE_DIRECT;
+    page_do_reclaim(&data);
+}
+
 static struct page *page_zone_alloc_core(page_zone *zone, unsigned int gfp_flags,
                                          unsigned int order)
 {
@@ -125,8 +219,13 @@ static struct page *page_zone_alloc_core(page_zone *zone, unsigned int gfp_flags
     unsigned int i;
     struct page *pages = nullptr;
     bool no_remove = false;
+    bool may_use_reserves = gfp_flags & __GFP_ATOMIC;
+    unsigned long free_pages = zone->total_pages - zone->used_pages;
 
-    if (zone->total_pages - zone->used_pages < nr_pgs)
+    if (free_pages < nr_pgs)
+        return nullptr;
+
+    if (!may_use_reserves && zone->min_watermark > free_pages - nr_pgs)
         return nullptr;
 
     if (!list_is_empty(&zone->pages[order])) [[likely]]
@@ -177,11 +276,19 @@ out:
     if (!no_remove)
         list_remove(&pages->page_allocator_node.list_node);
     zone->used_pages += nr_pgs;
+
+    if (gfp_flags & __GFP_WAKE_PAGEDAEMON &&
+        zone->total_pages - zone->used_pages <= zone->low_watermark)
+    {
+        /* Memory is getting low in this zone, preemptively wake up pagedaemon */
+        wake_up_pagedaemon(0);
+    }
+
     return pages;
 }
 
-struct page *page_zone_refill_pcpu(struct page_zone *zone, unsigned int gfp_flags,
-                                   page_pcpu_queue *queue)
+static struct page *page_zone_refill_pcpu(struct page_zone *zone, unsigned int gfp_flags,
+                                          page_pcpu_queue *queue)
 {
     unsigned int pages_collected = 0;
     struct page *ret = nullptr;
@@ -199,6 +306,10 @@ struct page *page_zone_refill_pcpu(struct page_zone *zone, unsigned int gfp_flag
         while (pages_collected < PCPU_REFILL_PAGES)
         {
             unsigned int i = 0;
+
+            /* If we have our allocation, do *not* use our reserves */
+            if (ret)
+                gfp_flags &= ~__GFP_ATOMIC;
             struct page *pages = page_zone_alloc_core(zone, gfp_flags, order);
             if (!pages)
                 break;
@@ -221,8 +332,6 @@ struct page *page_zone_refill_pcpu(struct page_zone *zone, unsigned int gfp_flag
         }
     }
 
-    // TODO: How will page reclaim fit into this? and into page_zone_alloc...
-
     return ret;
 }
 
@@ -234,10 +343,13 @@ struct page *page_zone_alloc(struct page_zone *zone, unsigned int gfp_flags, uns
         auto flags = irq_save_and_disable();
         page_pcpu_queue *queue = &zone->pcpu[get_cpu_nr()];
         auto pages = queue->alloc();
+
+        /* gfp_flags note: page_zone_refill_pcpu is careful enough to not use atomic reserves for
+         * pcpu refilling, by looking at the watermarks when doing allocation. We obviously do not
+         * want to exhaust memory reserves filling a silly pcpu cache.
+         */
         if (!pages) [[unlikely]]
-        {
             pages = page_zone_refill_pcpu(zone, gfp_flags, queue);
-        }
         else
             __atomic_add_fetch(&queue->nr_fast_path, 1, __ATOMIC_RELAXED);
 
@@ -369,6 +481,23 @@ static void page_zone_release_pcpu(page_zone *zone, page_pcpu_queue *queue)
     }
 }
 
+static void page_zone_drain_pcpu_local(page_zone *zone)
+{
+    /* Note: irqs are off */
+    scoped_lock<spinlock, true> g{zone->lock};
+    page_pcpu_queue *queue = &zone->pcpu[get_cpu_nr()];
+    while (queue->nr_pages > 0)
+    {
+        struct page *p = container_of(list_first_element(&queue->page_list), struct page,
+                                      page_allocator_node.list_node);
+        list_remove(&p->page_allocator_node.list_node);
+        queue->nr_pages--;
+
+        page_zone_free_core(zone, p, 0);
+    }
+    queue->nr_queue_reclaims++;
+}
+
 void page_zone_free(page_zone *zone, struct page *page, unsigned int order)
 {
     if (order == 0) [[likely]]
@@ -399,6 +528,7 @@ constexpr void page_zone_init(page_zone *zone, const char *name, unsigned long s
     zone->name = name;
     zone->start = start;
     zone->end = end;
+    zone->high_watermark = zone->min_watermark = zone->low_watermark = 0;
     spinlock_init(&zone->lock);
     for (auto &order : zone->pages)
     {
@@ -492,6 +622,67 @@ void page_node::add_region(uintptr_t base, size_t size)
     }
 }
 
+template <typename Callable>
+bool for_every_node(Callable c)
+{
+    return c(main_node);
+}
+
+static bool page_has_low_memory()
+{
+    bool result = false;
+    for_every_node([&](page_node &node) -> bool {
+        return node.for_every_zone([&](page_zone *zone) -> bool {
+            unsigned long freep = zone->total_pages - zone->used_pages;
+            result = result ? true : freep < zone->low_watermark;
+            return !result; /* if we found a low mem zone, break the iteration */
+        });
+    });
+    return result;
+}
+
+/**
+ * @brief Calculate the number of pages under the high watermark in every zone, for every node
+ *
+ * @return Number of pages under the high watermark
+ */
+unsigned long pages_under_high_watermark()
+{
+    unsigned long result = 0;
+    for_every_node([&](page_node &node) -> bool {
+        return node.for_every_zone([&](page_zone *zone) -> bool {
+            unsigned long freep = zone->total_pages - zone->used_pages;
+
+            if (freep <= zone->low_watermark)
+                result += zone->high_watermark - freep;
+            return false;
+        });
+    });
+    return result;
+}
+
+static void page_set_watermarks()
+{
+    /* Set each watermark scaled to the zone's size */
+    for_every_node([&](page_node &node) -> bool {
+        return node.for_every_zone([&](page_zone *zone) -> bool {
+            zone->min_watermark =
+                (zone->total_pages * min_free_kbytes / (page_memory_size / 1024)) /
+                (PAGE_SIZE / 1024);
+            zone->low_watermark = zone->min_watermark * 8;
+            zone->high_watermark = zone->low_watermark * 2;
+            printf("page: zone %s\n", zone->name);
+            printf("  min watermark %lu\n"
+                   "  low watermark %lu\n"
+                   "  high watermark %lu\n"
+                   "  total pages %lu\n",
+                   zone->min_watermark, zone->low_watermark, zone->high_watermark,
+                   zone->total_pages);
+            return true;
+        });
+    });
+}
+
 void page_init(size_t memory_size, unsigned long maxpfn)
 {
     main_node.init();
@@ -516,13 +707,12 @@ void page_init(size_t memory_size, unsigned long maxpfn)
         main_node.add_region(start, size);
     });
 
-    page_is_initialized = true;
-}
+    min_free_kbytes =
+        cul::max(min_free_kbytes, page_memory_size / 1024 / 60 /* 1.6% of the whole memory */);
 
-template <typename Callable>
-bool for_every_node(Callable c)
-{
-    return c(main_node);
+    page_set_watermarks();
+
+    page_is_initialized = true;
 }
 
 size_t page_get_used_pages()
@@ -653,25 +843,55 @@ __always_inline void prepare_pages_after_alloc(struct page *page, unsigned int o
     }
 }
 
+#define PAGE_ALLOC_MAX_RECLAIM_ATTEMPT 5
+
 struct page *page_node::alloc_order(unsigned int order, unsigned long flags)
 {
     struct page *page = nullptr;
-    int zone = ZONE_NORMAL;
+    unsigned int attempt = 0;
 
-    if (flags & PAGE_ALLOC_4GB_LIMIT)
-        zone = ZONE_DMA32;
-
-    while (zone >= 0)
+    for (;;)
     {
-        page = page_zone_alloc(&zones[zone], flags, order);
+        if (attempt == PAGE_ALLOC_MAX_RECLAIM_ATTEMPT)
+        {
+            /* Avoid locking up the system by just returning NULL */
+            return nullptr;
+        }
 
-        if (page)
-            goto out;
-        zone--;
+        int zone = ZONE_NORMAL;
+
+        if (flags & PAGE_ALLOC_4GB_LIMIT)
+            zone = ZONE_DMA32;
+
+        while (zone >= 0)
+        {
+            page = page_zone_alloc(&zones[zone], flags, order);
+
+            if (page)
+                goto out;
+            zone--;
+        }
+
+        if (likely(page))
+            break;
+
+        if (flags & __GFP_DIRECT_RECLAIM)
+            do_direct_reclaim(order, attempt, flags);
+        else if (flags & __GFP_WAKE_PAGEDAEMON)
+        {
+            unsigned long cur_seq = wake_up_pagedaemon(order, attempt);
+            if (!(flags & __GFP_ATOMIC))
+            {
+                wait_for_event(&paged_data.paged_waiters_queue, cur_seq < paged_data.reclaim_seq);
+            }
+            else
+                return nullptr; /* Since __GFP_ATOMIC cannot wait here, we simply fail. */
+        }
+        else
+            return nullptr; /* No reclaim, just fail */
+
+        attempt++;
     }
-
-    if (!page)
-        return nullptr;
 
 out:
     prepare_pages_after_alloc(page, order, flags);
@@ -733,3 +953,33 @@ void free_page_list(struct page *pages)
 {
     free_pages(pages);
 }
+
+static void page_drain_pcpu_local()
+{
+    for_every_node([](page_node &node) -> bool {
+        return node.for_every_zone([](page_zone *zone) -> bool {
+            page_zone_drain_pcpu_local(zone);
+            return true;
+        });
+    });
+}
+
+/**
+ * @brief Drain pages from all zones' pcpu caches
+ *
+ */
+void page_drain_pcpu()
+{
+    smp::sync_call_with_local([](void *ctx) { page_drain_pcpu_local(); }, nullptr, cpumask::all(),
+                              [](void *ctx) { page_drain_pcpu_local(); }, nullptr);
+}
+
+static void setup_pagedaemon()
+{
+    paged_data.paged_thread = sched_create_thread(pagedaemon, THREAD_KERNEL, nullptr);
+    CHECK(paged_data.paged_thread != nullptr);
+    paged_data.paged_thread->priority = SCHED_PRIO_VERY_HIGH - 2;
+    sched_start_thread(paged_data.paged_thread);
+}
+
+INIT_LEVEL_CORE_AFTER_SCHED_ENTRY(setup_pagedaemon);

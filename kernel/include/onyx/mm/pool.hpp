@@ -459,8 +459,10 @@ public:
         assert(used_objects == 0);
     }
 
+    static constexpr unsigned int default_gfp_flags = usable_onirq ? GFP_ATOMIC : GFP_KERNEL;
+
     NO_ASAN
-    T *allocate(unsigned int gfp_flags = GFP_KERNEL)
+    T *allocate(unsigned int gfp_flags = default_gfp_flags)
     {
         scoped_lock<spinlock, usable_onirq> guard{lock};
 
