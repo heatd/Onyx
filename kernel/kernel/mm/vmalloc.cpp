@@ -178,16 +178,26 @@ static struct vmalloc_region *vmalloc_insert_region(struct vmalloc_tree *tree, u
  */
 void *vmalloc(size_t pages, int type, int perms, unsigned int gfp_flags)
 {
+    auto pgs = alloc_page_list(pages, gfp_flags);
+    if (!pgs)
+        return errno = ENOMEM, nullptr;
+
     scoped_lock g{vmalloc_tree.lock};
     auto start = vmalloc_allocate_base(&vmalloc_tree, 0, pages << PAGE_SHIFT);
 
     if (start + (pages << PAGE_SHIFT) > vmalloc_tree.start + vmalloc_tree.length)
+    {
+        free_page_list(pgs);
         return errno = ENOMEM, nullptr;
+    }
 
     auto vmal_reg = vmalloc_insert_region(&vmalloc_tree, start, pages, perms,
                                           gfp_flags | PAGE_ALLOC_NO_SANITIZER_SHADOW);
     if (!vmal_reg)
+    {
+        free_page_list(pgs);
         return errno = ENOMEM, nullptr;
+    }
 
     auto delvmr = [vmal_reg]() {
         bst_delete(&vmalloc_tree.root, &vmal_reg->tree_node);
@@ -198,16 +208,10 @@ void *vmalloc(size_t pages, int type, int perms, unsigned int gfp_flags)
     if (kasan_alloc_shadow(vmal_reg->addr, pages << PAGE_SHIFT, true) < 0)
     {
         delvmr();
+        free_page_list(pgs);
         return errno = ENOMEM, nullptr;
     }
 #endif
-
-    auto pgs = alloc_page_list(pages, gfp_flags);
-    if (!pgs)
-    {
-        delvmr();
-        return errno = ENOMEM, nullptr;
-    }
 
     page *it = pgs;
     for (size_t i = 0; i < pages; i++, it = it->next_un.next_allocation)

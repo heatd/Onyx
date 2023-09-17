@@ -142,7 +142,12 @@ struct page *page_add_page_late(void *paddr);
 #define PAGE_ALLOC_INTERNAL_DEBUG      (1 << 3)
 #define PAGE_ALLOC_NO_SANITIZER_SHADOW (1 << 4)
 
-#define GFP_KERNEL 0
+#define __GFP_DIRECT_RECLAIM  (1 << 8)
+#define __GFP_WAKE_PAGEDAEMON (1 << 9)
+#define __GFP_ATOMIC          (1 << 10)
+#define __GFP_MAY_RECLAIM     (__GFP_DIRECT_RECLAIM | __GFP_WAKE_PAGEDAEMON)
+#define GFP_KERNEL            __GFP_MAY_RECLAIM
+#define GFP_ATOMIC            (__GFP_ATOMIC | __GFP_WAKE_PAGEDAEMON)
 
 static inline bool __page_should_zero(unsigned long flags)
 {
@@ -386,5 +391,18 @@ static inline uint64_t get_kernel_phys_offset()
 {
     return kernel_phys_offset;
 }
+
+/**
+ * @brief Calculate the number of pages under the high watermark in every zone, for every node
+ *
+ * @return Number of pages under the high watermark
+ */
+unsigned long pages_under_high_watermark();
+
+/**
+ * @brief Drain pages from all zones' pcpu caches
+ *
+ */
+void page_drain_pcpu();
 
 #endif

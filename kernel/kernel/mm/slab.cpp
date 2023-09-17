@@ -82,6 +82,14 @@ struct kasan_slab_obj_info
 };
 
 /**
+ * @brief Free a given slab and give it back to the page backend
+ * The given slab will be properly dissociated from its slab cache
+ *
+ * @param slab Slab to free
+ */
+static void kmem_cache_free_slab(struct slab *slab);
+
+/**
  * @brief Create a slab cache
  *
  * @param name Name of the slab cache
@@ -512,10 +520,21 @@ NO_ASAN static struct slab *kmem_cache_create_slab(struct slab_cache *cache, uns
  */
 static void *kmem_cache_alloc_noslab(struct slab_cache *cache, unsigned int flags)
 {
-    struct slab *s = kmem_cache_create_slab(cache, flags, false);
+    /* Release the lock (we need it for allocation from the backend) */
+    spin_unlock(&cache->lock);
+    struct slab *s = kmem_cache_create_slab(cache, flags, true);
+    spin_lock(&cache->lock);
+
     if (!s)
         return nullptr;
-    return kmem_cache_alloc_from_slab(s, flags);
+
+    /* TODO: This is redundant but alloc_from_slab insists on *moving* us from/to lists */
+    list_add_tail(&s->slab_list_node, &cache->free_slabs);
+    cache->nfreeslabs++;
+    void *obj = kmem_cache_alloc_from_slab(s, flags);
+    DCHECK(obj != nullptr);
+
+    return obj;
 }
 
 /**
@@ -545,6 +564,7 @@ void *kmem_cache_alloc_nopcpu(struct slab_cache *cache, unsigned int flags)
 static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
                                        struct slab_cache_percpu_context *pcpu, unsigned int flags)
 {
+    /* XXX I feel like this code is broken if and when it comes to CPU migration. TODO */
     // Lets attempt to allocate a batch (half our stack)
     // We keep two local partial and full lists that we splice at the end
     // Because of this, we can drop the lock for a bit, while allocating "locally".
@@ -588,9 +608,13 @@ static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
         else
         {
             // Drop the lock, all allocations are local state now.
+            // Also drop the preempt disable, we may need it for allocations
             if (!allocating)
             {
                 g.unlock();
+                /* Allocating (particularly when it comes to GFP_KERNEL) will need enabled
+                 * preemption */
+                sched_enable_preempt();
                 allocating = true;
             }
 
@@ -605,6 +629,21 @@ static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
             isfree = true;
         }
 
+        /* Disable preemption for a little bit, so we pin our CPU for a little, just so our
+         * reference to pcpu is stable
+         */
+        sched_disable_preempt();
+
+        auto new_pcpu = &cache->pcpu[get_cpu_nr()];
+
+        if (pcpu != new_pcpu)
+        {
+            /* If we migrated cpus, un-touch the old one and keep going */
+            pcpu->touched.store(0, mem_order::release);
+            pcpu = new_pcpu;
+            pcpu->touched.store(1, mem_order::release);
+        }
+
         // Fill up our magazine with a batch of objects
         bufctl *buf = slab->object_list;
         size_t avail = slab->nobjects - slab->active_objects;
@@ -613,6 +652,16 @@ static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
         {
             if (pcpu->size == batch_size)
             {
+                if (j == 0 && !slab->active_objects)
+                {
+                    /* This can happen if we have just allocated a new slab and CPU migration
+                     * happened, since our cache is now a different one that /may/ be full.
+                     * Just free the slab and return success.
+                     */
+                    kmem_cache_free_slab(slab);
+                    sched_enable_preempt();
+                    goto out;
+                }
                 // If we're here, we're stopping in the middle of a slab
                 // because of that, move it to partial (from free) and get out.
                 if (isfree)
@@ -623,6 +672,7 @@ static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
                         kmem_move_slab_to_partial(slab, isfree);
                 }
 
+                sched_enable_preempt();
                 goto out;
             }
 
@@ -638,6 +688,8 @@ static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
             buf = (bufctl *) buf->next;
             slab->active_objects++;
         }
+
+        sched_enable_preempt();
 
         // We used up the whole slab, move it to full
         if (allocating)
@@ -655,6 +707,8 @@ out:
         list_splice_tail(&full_slabs, &cache->full_slabs);
         cache->npartialslabs += npartials;
         cache->nfullslabs += nfull;
+        /* Restore our disabled preemption */
+        sched_disable_preempt();
     }
 
     return ret;
@@ -737,7 +791,10 @@ void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
     if (!pcpu->size) [[unlikely]]
     {
         // If our magazine is empty, lets refill it
-        if (kmem_cache_alloc_refill_mag(cache, pcpu, flags) < 0)
+        int st = kmem_cache_alloc_refill_mag(cache, pcpu, flags);
+        /* pcpu might've changed over refill_mag, so reload it */
+        pcpu = &cache->pcpu[get_cpu_nr()];
+        if (st < 0)
         {
             pcpu->touched.store(0, mem_order::release);
             sched_enable_preempt();
@@ -757,14 +814,6 @@ void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
 
     return ret;
 }
-
-/**
- * @brief Free a given slab and give it back to the page backend
- * The given slab will be properly dissociated from its slab cache
- *
- * @param slab Slab to free
- */
-static void kmem_cache_free_slab(struct slab *slab);
 
 /**
  * @brief Free an object to its slab
@@ -1053,6 +1102,44 @@ static void __kmem_cache_purge(struct slab_cache *cache)
 }
 
 /**
+ * @brief Shrink a slab cache by a number of pages
+ *
+ * @param cache Cache to shrink
+ * @param target_freep Target free pages
+ * @return Freed pages
+ */
+static unsigned long kmem_cache_shrink(struct slab_cache *cache, unsigned long target_freep)
+{
+    scoped_lock g{cache->lock};
+
+    sched_disable_preempt();
+
+    smp::sync_call_with_local([](void *ctx) { kmem_purge_local_cache((slab_cache *) ctx); }, cache,
+                              cpumask::all(),
+                              [](void *ctx) { kmem_purge_local_cache((slab_cache *) ctx); }, cache);
+
+    sched_enable_preempt();
+
+    if (!cache->nfreeslabs)
+        return 0;
+
+    unsigned long freed = 0;
+
+    list_for_every_safe (&cache->free_slabs)
+    {
+        auto s = container_of(l, struct slab, slab_list_node);
+        if (freed >= target_freep)
+            break;
+        size_t slab_pages = s->size >> PAGE_SHIFT;
+        kmem_cache_free_slab(s);
+        cache->nfreeslabs--;
+        freed += slab_pages;
+    }
+
+    return freed;
+}
+
+/**
  * @brief Purge a cache
  * This function goes through every free slab and gives it back to the page allocator.
  * It does NOT touch partial or full slabs.
@@ -1144,7 +1231,7 @@ void *kmalloc(size_t size, int flags)
     if (order < 0)
         return nullptr;
 
-    void *ret = kmem_cache_alloc(kmalloc_caches[order], 0);
+    void *ret = kmem_cache_alloc(kmalloc_caches[order], flags);
 
     if (ret)
     {
@@ -1313,3 +1400,22 @@ void kmem_cache_print_slab_info_kasan(void *mem, struct slab *slab)
 }
 
 #endif
+
+/**
+ * @brief Shrink caches in order to free pages
+ *
+ * @param target_freep Target free pages
+ */
+void slab_shrink_caches(unsigned long target_freep)
+{
+    scoped_lock g{cache_list_lock};
+    list_for_every (&cache_list)
+    {
+        struct slab_cache *cache = container_of(l, struct slab_cache, cache_list_node);
+        unsigned long pages_freed = kmem_cache_shrink(cache, target_freep);
+
+        if (pages_freed >= target_freep)
+            break;
+        target_freep -= pages_freed;
+    }
+}
