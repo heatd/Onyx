@@ -338,14 +338,13 @@ int e1000_init_rx(struct e1000_device *dev)
         st = -ENOMEM;
         goto error0;
     }
-
     alloc_info.curr = alloc_info.page_list = rx_buf_pages;
     alloc_info.off = 0;
 
     // FIXME: Stuff like this forces alloc_pages to chain the individual pages in higher order
     // allocations
-    rxdescs = (e1000_rx_desc *) map_page_list(rx_pages, needed_pages << PAGE_SHIFT,
-                                              VM_READ | VM_WRITE | VM_READ);
+    rxdescs = (e1000_rx_desc *) mmiomap(page_to_phys(rx_pages), needed_pages << PAGE_SHIFT,
+                                        VM_READ | VM_WRITE);
     if (!rxdescs)
     {
         st = -ENOMEM;
@@ -409,8 +408,8 @@ int e1000_init_tx(struct e1000_device *dev)
     if (!tx_pages)
         return -ENOMEM;
 
-    txdescs =
-        (e1000_tx_desc *) map_page_list(tx_pages, needed_pages << PAGE_SHIFT, VM_READ | VM_WRITE);
+    txdescs = (e1000_tx_desc *) mmiomap(page_to_phys(tx_pages), needed_pages << PAGE_SHIFT,
+                                        VM_READ | VM_WRITE);
     if (!txdescs)
     {
         st = -ENOMEM;
