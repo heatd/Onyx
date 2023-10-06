@@ -650,7 +650,7 @@ static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
 
         for (size_t j = 0; j < avail; j++)
         {
-            if (pcpu->size == batch_size)
+            if (pcpu->size >= batch_size)
             {
                 if (j == 0 && !slab->active_objects)
                 {
@@ -658,6 +658,9 @@ static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
                      * happened, since our cache is now a different one that /may/ be full.
                      * Just free the slab and return success.
                      */
+                    /* Note: kmem_cache_free_slab removes the slab from a "list", so add it to a
+                     * dummy partials */
+                    list_add_tail(&slab->slab_list_node, &partials);
                     kmem_cache_free_slab(slab);
                     sched_enable_preempt();
                     goto out;
