@@ -287,12 +287,12 @@ bool virtq_split::init()
     device->write_config<uint16_t>(pci_common_cfg::queue_size, queue_size);
     device->write_config<uint32_t>(pci_common_cfg::queue_desc_low, static_cast<uint32_t>(_descs));
     device->write_config<uint32_t>(pci_common_cfg::queue_desc_high,
-                                   static_cast<uint32_t>(_descs << 32));
+                                   static_cast<uint32_t>(_descs >> 32));
     device->write_config<uint32_t>(pci_common_cfg::queue_device_high,
-                                   static_cast<uint32_t>(_used << 32));
+                                   static_cast<uint32_t>(_used >> 32));
     device->write_config<uint32_t>(pci_common_cfg::queue_device_low, static_cast<uint32_t>(_used));
     device->write_config<uint32_t>(pci_common_cfg::queue_driver_high,
-                                   static_cast<uint32_t>(_avail << 32));
+                                   static_cast<uint32_t>(_avail >> 32));
     device->write_config<uint32_t>(pci_common_cfg::queue_driver_low, static_cast<uint32_t>(_avail));
 
     auto &notify = device->notify_cfg();
