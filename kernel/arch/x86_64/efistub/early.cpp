@@ -113,9 +113,11 @@ static bool check_la57()
     return ecx & (1 << 16);
 }
 
-BOOT_SECTION static void setup_mmu(PML *page_tables, unsigned long phys_base)
+BOOT_SECTION static void setup_mmu(PML *page_tables, unsigned long phys_base,
+                                   EFI_SYSTEM_TABLE *systable)
 {
     constexpr unsigned long pt_flags = X86_PAGING_PRESENT | X86_PAGING_WRITE;
+#define ZERO_PT(pt) systable->BootServices->SetMem(pt, PAGE_SIZE, 0)
 
     // Enable NX
     u64 efer = rdmsr(IA32_EFER);
@@ -126,18 +128,21 @@ BOOT_SECTION static void setup_mmu(PML *page_tables, unsigned long phys_base)
     {
         // Setup the PML5
         auto pml5 = page_tables++;
+        ZERO_PT(pml5);
         auto pml4 = (unsigned long) (page_tables);
         pml5->entries[0] = pml4 | pt_flags;
         pml5->entries[PTE_INDEX(KERNEL_VIRTUAL_BASE, 5)] = pml4 | pt_flags;
     }
 
     auto pt = page_tables;
+    ZERO_PT(pt);
     auto next = page_tables + 1;
 
     pt->entries[0] = (unsigned long) next | pt_flags;
     pt->entries[PTE_INDEX(KERNEL_VIRTUAL_BASE, 4)] = (unsigned long) next | pt_flags;
 
     pt = next;
+    ZERO_PT(pt);
     next = page_tables + 2;
 
     // Lets treat pdlowers as a u64 array since they're 4 page directories in a row
@@ -149,12 +154,13 @@ BOOT_SECTION static void setup_mmu(PML *page_tables, unsigned long phys_base)
     pt->entries[3] = (unsigned long) (lower + 1536) | pt_flags;
     pt->entries[PTE_INDEX(KERNEL_VIRTUAL_BASE, 3)] = (unsigned long) next | pt_flags;
 
-    for (int i = 0; i < 2048; i++)
+    for (unsigned int i = 0; i < 2048; i++)
     {
         lower[i] = (i << LARGE2MB_SHIFT) | pt_flags | X86_PAGING_HUGE;
     }
 
     auto index = PTE_INDEX(KERNEL_VIRTUAL_BASE, 2);
+    ZERO_PT(next);
 
     for (unsigned long i = index; i < 512; i++)
     {
@@ -215,7 +221,7 @@ extern "C" BOOT_SECTION void efi_handoff(EFI_HANDLE image_handle, EFI_SYSTEM_TAB
 
     map_size = 0;
 
-    setup_mmu(page_tables, phys_base);
+    setup_mmu(page_tables, phys_base, systable);
 
     // Finally, get the memory map
     do

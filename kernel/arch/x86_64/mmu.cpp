@@ -314,7 +314,7 @@ void paging_init(void)
     auto pdphysmap_phys = VA2PA(&pdphysical_map);
 
     pml3 = (PML *) ((unsigned long) &pdptphysical_map + KERNEL_VIRTUAL_BASE);
-    for (int i = 0; i < 4; i++)
+    for (unsigned int i = 0; i < 4; i++)
     {
         pml3->entries[i] = make_pml3e(pdphysmap_phys + 0x1000 * i, 0, 0, 1, 0, 0, 0, 1, 1);
 
