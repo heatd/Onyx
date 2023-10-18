@@ -261,6 +261,7 @@ ENTRY(efi_entry_multiboot2_64)
 
     mov %rcx, %rdi
     xchg %rsi, %rdx
+    sub $PHYS_BASE, %rdx
     lea efi_state(%rip), %rcx
     mov $pml4, %r8
     add %rdx, %r8
