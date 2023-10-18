@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <onyx/cpu.h>
 #include <onyx/elf.h>
 #include <onyx/modules.h>
 #include <onyx/page.h>
@@ -100,18 +101,29 @@ __attribute__((no_sanitize_undefined)) void stack_trace_ex(uint64_t *stack)
     uint64_t *rbp = stack;
     for (size_t i = 0; i < unwinds_possible; i++)
     {
-        /*if(thread)
+        if (thread)
         {
-            if((uint64_t*) *rbp >= thread->kernel_stack_top)
+            if ((uintptr_t) rbp & 0x7)
                 break;
-        }*/
+
+            unsigned long stack_base = ((unsigned long) thread->kernel_stack_top) - 0x4000;
+
+            if (rbp >= thread->kernel_stack_top)
+                break;
+            if (rbp + 1 >= thread->kernel_stack_top)
+                break;
+            if (rbp < (unsigned long *) stack_base)
+                break;
+        }
 
         char buffer[SYM_SYMBOLIZE_BUFSIZ];
 
-        if (!(void *) *(rbp + 1))
+        unsigned long ip = *(rbp + 1);
+
+        if (!is_kernel_ip(ip))
             break;
 
-        int st = sym_symbolize((void *) *(rbp + 1), cul::slice<char>{buffer, sizeof(buffer)});
+        int st = sym_symbolize((void *) ip, cul::slice<char>{buffer, sizeof(buffer)});
         if (st < 0)
             break;
 
