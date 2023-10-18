@@ -9,6 +9,10 @@
 #include <onyx/x86/alternatives.h>
 #include <onyx/x86/asm.h>
 
+#define MEMCPY_RET jmp L(user_ret)
+#define COPYINOUT
+#include "../../lib/libk/arch/x86_64/memcpy_impl.S"
+
 /**
  * @brief Copies data to user space.
  * 
@@ -41,26 +45,18 @@ ENTRY(copy_to_user)
     add %rdx, %r8
     cmp %rax, %r8
 
-    ja 3f
+    ja .Lfault_outout
+
     xor %rax, %rax
-    mov %rdx, %rcx
     __ASM_ALTERNATIVE_INSTRUCTION(x86_smap_stac_patch, 3, 0, 0)
-1:
-    rep movsb (%rsi), (%rdi)
-2:
+    memcpy_like 0 out 0
+
+.Luser_retout:
     __ASM_ALTERNATIVE_INSTRUCTION(x86_smap_clac_patch, 3, 0, 0)
     RET
-3:
-    # CBN_STATUS_SEGFAULT = -5
-    # These pieces of code were ported from Carbon but the principle applies
-    # We're returning -EFAULT = -14
+.Lfault_outout:
     mov $-14, %rax
-    jmp 2b
-
-.pushsection .ehtable
-    .quad 1b
-    .quad 3b
-.popsection
+    jmp .Luser_retout
 END(copy_to_user)
 
 /**
@@ -94,24 +90,18 @@ ENTRY(copy_from_user)
     add %rdx, %r8
     cmp %rax, %r8
 
-    ja 3f
+    ja .Lfault_outout
+
     xor %rax, %rax
-    mov %rdx, %rcx
     __ASM_ALTERNATIVE_INSTRUCTION(x86_smap_stac_patch, 3, 0, 0)
-1:
-    rep movsb (%rsi), (%rdi)
-2:
+    memcpy_like 0 in 1
+
+.Luser_retin:
     __ASM_ALTERNATIVE_INSTRUCTION(x86_smap_clac_patch, 3, 0, 0)
     RET
-3:
-    # CBN_STATUS_SEGFAULT = -5
+.Lfault_outin:
     mov $-14, %rax
-    jmp 2b
-
-.pushsection .ehtable
-    .quad 1b
-    .quad 3b
-.popsection
+    jmp .Luser_retin
 END(copy_from_user)
 
 .balign 32
