@@ -300,7 +300,6 @@ bool riscv_get_pt_entry_with_ptables(void *addr, uint64_t **entry_ptr, struct mm
  */
 int paging_clone_as(mm_address_space *addr_space, mm_address_space *original)
 {
-    scoped_mutex g{original->vm_lock};
     PML *new_pml = alloc_pt();
     if (!new_pml)
         return -ENOMEM;
@@ -316,81 +315,6 @@ int paging_clone_as(mm_address_space *addr_space, mm_address_space *original)
     memcpy(&p->entries[256], &curr->entries[256], 256 * sizeof(uint64_t));
 
     addr_space->arch_mmu.top_pt = new_pml;
-    return 0;
-}
-
-PML *paging_fork_pml(PML *pml, int entry, struct mm_address_space *as)
-{
-    uint64_t old_address = PML_EXTRACT_ADDRESS(pml->entries[entry]);
-    uint64_t perms = pml->entries[entry] & RISCV_PAGING_PROT_BITS;
-
-    void *new_pt = alloc_pt();
-    if (!new_pt)
-        return NULL;
-
-    increment_vm_stat(as, page_tables_size, PAGE_SIZE);
-
-    pml->entries[entry] = (uint64_t) riscv_make_pt_entry_page_table((PML *) new_pt) | perms;
-    PML *new_pml = (PML *) PHYS_TO_VIRT(new_pt);
-    PML *old_pml = (PML *) PHYS_TO_VIRT(old_address);
-    memcpy(new_pml, old_pml, sizeof(PML));
-    return new_pml;
-}
-
-int paging_fork_tables(struct mm_address_space *addr_space)
-{
-    struct page *page = alloc_page(0);
-    if (!page)
-        return -1;
-
-    __atomic_add_fetch(&allocated_page_tables, 1, __ATOMIC_RELAXED);
-    increment_vm_stat(addr_space, page_tables_size, PAGE_SIZE);
-
-    unsigned long new_pml = pfn_to_paddr(page_to_pfn(page));
-    PML *p = (PML *) PHYS_TO_VIRT(new_pml);
-    PML *curr = (PML *) PHYS_TO_VIRT(get_current_page_tables());
-    memcpy(p, curr, sizeof(PML));
-
-    PML *mod_pml = (PML *) PHYS_TO_VIRT(new_pml);
-    /* TODO: Destroy the page tables on failure */
-    for (int i = 0; i < 256; i++)
-    {
-        if (mod_pml->entries[i] & RISCV_MMU_VALID)
-        {
-            PML *pml3 = (PML *) paging_fork_pml(mod_pml, i, addr_space);
-            if (!pml3)
-            {
-                return -1;
-            }
-
-            for (int j = 0; j < PAGE_TABLE_ENTRIES; j++)
-            {
-                if (pml3->entries[j] & RISCV_MMU_VALID)
-                {
-                    PML *pml2 = (PML *) paging_fork_pml((PML *) pml3, j, addr_space);
-                    if (!pml2)
-                    {
-                        return -1;
-                    }
-
-                    for (int k = 0; k < PAGE_TABLE_ENTRIES; k++)
-                    {
-                        if (pml2->entries[k] & RISCV_MMU_VALID &&
-                            !pt_entry_is_huge(pml2->entries[k]))
-                        {
-                            PML *pml1 = (PML *) paging_fork_pml((PML *) pml2, k, addr_space);
-                            if (!pml1)
-                            {
-                                return -1;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    addr_space->arch_mmu.top_pt = (void *) new_pml;
     return 0;
 }
 
@@ -1118,4 +1042,120 @@ void mmu_verify_address_space_accounting(mm_address_space *as)
 
     assert(acct.page_table_size == as->page_tables_size);
     assert(acct.resident_set_size == as->resident_set_size);
+}
+
+static int riscv_mmu_fork(PML *parent_table, PML *child_table, unsigned int pt_level,
+                          page_table_iterator &it, struct vm_region *old_region)
+{
+    unsigned int index = addr_get_index(it.curr_addr(), pt_level);
+
+    /* Get the size that each entry represents here */
+    auto entry_size = level_to_entry_size(pt_level);
+
+    unsigned int i;
+
+#ifdef CONFIG_PT_ITERATOR_HAVE_DEBUG
+    if (it.debug)
+    {
+        printk("level %u - index %x\n", pt_level, index);
+    }
+#endif
+    tlb_invalidation_tracker invd_tracker;
+
+    for (i = index; i < PAGE_TABLE_ENTRIES && it.length(); i++)
+    {
+        const u64 pt_entry = parent_table->entries[i];
+        bool pte_empty = pt_entry == 0;
+
+        if (pte_empty)
+        {
+
+#ifdef CONFIG_X86_MMU_UNMAP_DEBUG
+            if (it.debug)
+                printk("not present @ level %u\nentry size %lu\nlength %lu\n", pt_level, entry_size,
+                       it.length());
+#endif
+            auto to_skip = entry_size - (it.curr_addr() & (entry_size - 1));
+
+#ifdef CONFIG_PT_ITERATOR_HAVE_DEBUG
+            if (it.debug)
+            {
+                printk("[level %u]: Skipping from %lx to %lx\n", pt_level, it.curr_addr(),
+                       it.curr_addr() + to_skip);
+            }
+#endif
+
+            it.adjust_length(to_skip);
+            continue;
+        }
+
+        bool is_huge_page = is_huge_page_level(pt_level) && pt_entry_is_huge(pt_entry);
+
+        if (pt_level == PT_LEVEL || is_huge_page)
+        {
+            const bool should_cow = old_region->mapping_type == MAP_PRIVATE;
+            child_table->entries[i] = pt_entry & (should_cow ? ~RISCV_MMU_WRITE : ~0UL);
+            if (should_cow)
+            {
+                /* Write-protect the parent's page too. Make sure to invalidate the TLB if we
+                 * downgraded permissions.
+                 */
+                __atomic_store_n(&parent_table->entries[i], pt_entry & ~RISCV_MMU_WRITE,
+                                 __ATOMIC_RELAXED);
+
+                if (pt_entry & RISCV_MMU_WRITE)
+                    invd_tracker.add_page(it.curr_addr(), entry_size);
+            }
+
+            increment_vm_stat(it.as_, resident_set_size, entry_size);
+            it.adjust_length(entry_size);
+        }
+        else
+        {
+            assert((pt_entry & RISCV_MMU_VALID) != 0);
+
+            PML *old = (PML *) PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(pt_entry));
+            PML *child_pt = (PML *) PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(child_table->entries[i]));
+
+            if (child_table->entries[i] != 0)
+            {
+                /* Allocate a new page table for the child process */
+                PML *copy = (PML *) alloc_pt();
+                if (!copy)
+                    return -ENOMEM;
+
+                increment_vm_stat(it.as_, page_tables_size, PAGE_SIZE);
+
+                const unsigned long old_prots = pt_entry & RISCV_PAGING_PROT_BITS;
+                /* Set the PTE */
+                child_table->entries[i] = (unsigned long) copy | old_prots;
+                child_pt = (PML *) PHYS_TO_VIRT(copy);
+            }
+
+            int st = riscv_mmu_fork(old, child_pt, pt_level - 1, it, old_region);
+
+            if (st < 0)
+            {
+                return st;
+            }
+        }
+    }
+
+    return 0;
+}
+
+/**
+ * @brief Fork MMU page tables
+ *
+ * @param old_region Old vm_region
+ * @param addr_space Current address space
+ * @return 0 on success, negative error codes
+ */
+int mmu_fork_tables(struct vm_region *old_region, struct mm_address_space *addr_space)
+{
+    page_table_iterator it{old_region->base, old_region->pages << PAGE_SHIFT, addr_space};
+
+    return riscv_mmu_fork((PML *) PHYS_TO_VIRT(old_region->mm->arch_mmu.top_pt),
+                          (PML *) PHYS_TO_VIRT(addr_space->arch_mmu.top_pt),
+                          riscv_paging_levels - 1, it, old_region);
 }
