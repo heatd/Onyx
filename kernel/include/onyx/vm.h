@@ -90,6 +90,31 @@ static inline unsigned long vm_prot_to_cache_type(uint64_t prot)
 #define VM_USING_MAP_SHARED_OPT (1 << 2)
 
 struct vm_object;
+struct amap;
+struct fault_info;
+
+struct vm_pf_context
+{
+    /* The vm region in question */
+    struct vm_region *entry;
+    /* This fault's info */
+    struct fault_info *info;
+    /* vpage - fault_address but page aligned */
+    unsigned long vpage;
+    /* Page permissions - is prefilled by calling code */
+    int page_rwx;
+    /* Mapping info if page was present */
+    unsigned long mapping_info;
+    /* The to-be-mapped page - filled by called code */
+    struct page *page;
+};
+
+struct vm_operations
+{
+    int (*fault)(struct vm_pf_context *ctx);
+};
+
+extern const struct vm_operations anon_vmops;
 
 /**
  * @brief A VM region is a segment of an address space which is mapped and has some
@@ -102,18 +127,16 @@ struct vm_region
 {
     uintptr_t base;
     size_t pages;
+    struct bst_node tree_node;
     int rwx;
-    int type;
     int mapping_type;
+    mm_address_space *mm;
+    const struct vm_operations *vm_ops;
     struct file *fd;
     off_t offset;
-    int flags;
     struct vm_object *vmo;
-    mm_address_space *mm;
-    struct bst_node tree_node;
-
+    struct amap *vm_amap;
     list_head vmo_head;
-    uintptr_t caller;
 };
 
 #define VM_OK      0x0

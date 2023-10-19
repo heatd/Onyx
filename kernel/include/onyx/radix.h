@@ -163,6 +163,15 @@ public:
     int store(unsigned long index, rt_entry_t value);
 
     /**
+     * @brief Exchange a value to an index
+     *
+     * @param index Index to store to
+     * @param value Value to store
+     * @return Old value on success, negative error codes
+     */
+    unsigned long xchg(unsigned long index, rt_entry_t value);
+
+    /**
      * @brief Fetch a value
      *
      * @param index  Index to fetch from
@@ -290,5 +299,10 @@ public:
      */
     void clear_mark(unsigned long index, unsigned int mark);
 };
+
+static inline bool radix_err(unsigned long ret)
+{
+    return ret >= -4096UL;
+}
 
 #endif

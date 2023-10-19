@@ -524,7 +524,6 @@ bool x86_get_pt_entry_with_ptables(void *addr, uint64_t **entry_ptr, struct mm_a
  */
 int paging_clone_as(mm_address_space *addr_space, mm_address_space *original)
 {
-    scoped_mutex g{original->vm_lock};
     scoped_lock g2{original->page_table_lock};
 
     PML *new_pml = alloc_pt();
@@ -542,40 +541,6 @@ int paging_clone_as(mm_address_space *addr_space, mm_address_space *original)
     memcpy(&p->entries[256], &curr->entries[256], 256 * sizeof(uint64_t));
 
     addr_space->arch_mmu.cr3 = new_pml;
-    return 0;
-}
-
-/**
- * @brief Fork MMU page tables
- *
- * @param new_top New top page tabled, copy of the old one
- * @param addr_space Current address space
- * @return 0 on success, negative error codes
- */
-static int mmu_fork_tables(PML *new_top, struct mm_address_space *addr_space);
-
-int paging_fork_tables(struct mm_address_space *addr_space)
-{
-    struct page *page = alloc_page(0);
-    if (!page)
-        return -ENOMEM;
-
-    __atomic_add_fetch(&allocated_page_tables, 1, __ATOMIC_RELAXED);
-    increment_vm_stat(addr_space, page_tables_size, PAGE_SIZE);
-
-    scoped_lock g{get_current_address_space()->page_table_lock};
-
-    unsigned long new_pml = pfn_to_paddr(page_to_pfn(page));
-    PML *p = (PML *) PHYS_TO_VIRT(new_pml);
-    PML *curr = (PML *) PHYS_TO_VIRT(get_current_pgd());
-    memcpy(p, curr, sizeof(PML));
-
-    PML *mod_pml = (PML *) PHYS_TO_VIRT(new_pml);
-
-    if (mmu_fork_tables(mod_pml, addr_space) < 0)
-        return -ENOMEM;
-
-    addr_space->arch_mmu.cr3 = (void *) new_pml;
     return 0;
 }
 
@@ -1177,16 +1142,9 @@ int vm_mmu_unmap(struct mm_address_space *as, void *addr, size_t pages)
     return 0;
 }
 
-static int x86_mmu_fork(PML *table, unsigned int pt_level, page_table_iterator &it)
+static int x86_mmu_fork(PML *parent_table, PML *child_table, unsigned int pt_level,
+                        page_table_iterator &it, struct vm_region *old_region)
 {
-    // TODO(pedro): We still can't destroy page tables if fork goes south.
-    // We have two options:
-    // 1) Make sure none of these page allocations die, using a page alloc flag (GFP_ATOMIC-like)
-    // 2) Either keep track of page tables we do allocate when forking, or do two sweeps:
-    // First, mark every page table with one of the available bits, then fork. If we fail, go
-    // through the ptes and free the ones which were not marked. At the moment, I'm tending more
-    // towards 1). Wrt 2), maybe having a linked list of struct pages for page tables is a good
-    // idea?
     unsigned int index = addr_get_index(it.curr_addr(), pt_level);
 
     /* Get the size that each entry represents here */
@@ -1200,10 +1158,11 @@ static int x86_mmu_fork(PML *table, unsigned int pt_level, page_table_iterator &
         printk("level %u - index %x\n", pt_level, index);
     }
 #endif
+    tlb_invalidation_tracker invd_tracker;
 
     for (i = index; i < PAGE_TABLE_ENTRIES && it.length(); i++)
     {
-        auto &pt_entry = table->entries[i];
+        const u64 pt_entry = parent_table->entries[i];
         bool pte_empty = x86_pte_empty(pt_entry);
 
         if (pte_empty)
@@ -1232,27 +1191,46 @@ static int x86_mmu_fork(PML *table, unsigned int pt_level, page_table_iterator &
 
         if (pt_level == PT_LEVEL || is_huge_page)
         {
-            /* We skip these PTEs, since forking them is done later. */
+            const bool should_cow = old_region->mapping_type == MAP_PRIVATE;
+            child_table->entries[i] = pt_entry & (should_cow ? ~X86_PAGING_WRITE : ~0UL);
+            if (should_cow)
+            {
+                /* Write-protect the parent's page too. Make sure to invalidate the TLB if we
+                 * downgraded permissions.
+                 */
+                __atomic_store_n(&parent_table->entries[i], pt_entry & ~X86_PAGING_WRITE,
+                                 __ATOMIC_RELAXED);
+
+                if (pt_entry & X86_PAGING_WRITE)
+                    invd_tracker.add_page(it.curr_addr(), entry_size);
+            }
+
+            increment_vm_stat(it.as_, resident_set_size, entry_size);
             it.adjust_length(entry_size);
         }
         else
         {
             assert((pt_entry & X86_PAGING_PRESENT) != 0);
 
-            /* Allocate a new page table and copy */
-            PML *copy = (PML *) alloc_pt();
-            if (!copy)
-                return -ENOMEM;
-
-            increment_vm_stat(it.as_, page_tables_size, PAGE_SIZE);
-
             PML *old = (PML *) PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(pt_entry));
-            const unsigned long old_prots = pt_entry & X86_PAGING_PROT_BITS;
-            memcpy(PHYS_TO_VIRT(copy), old, PAGE_SIZE);
-            /* Set the PTE */
-            pt_entry = (unsigned long) copy | old_prots;
+            PML *child_pt = (PML *) PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(child_table->entries[i]));
 
-            int st = x86_mmu_fork((PML *) PHYS_TO_VIRT(copy), pt_level - 1, it);
+            if (x86_pte_empty(child_table->entries[i]))
+            {
+                /* Allocate a new page table for the child process */
+                PML *copy = (PML *) alloc_pt();
+                if (!copy)
+                    return -ENOMEM;
+
+                increment_vm_stat(it.as_, page_tables_size, PAGE_SIZE);
+
+                const unsigned long old_prots = pt_entry & X86_PAGING_PROT_BITS;
+                /* Set the PTE */
+                child_table->entries[i] = (unsigned long) copy | old_prots;
+                child_pt = (PML *) PHYS_TO_VIRT(copy);
+            }
+
+            int st = x86_mmu_fork(old, child_pt, pt_level - 1, it, old_region);
 
             if (st < 0)
             {
@@ -1267,15 +1245,17 @@ static int x86_mmu_fork(PML *table, unsigned int pt_level, page_table_iterator &
 /**
  * @brief Fork MMU page tables
  *
- * @param new_top New top page tabled, copy of the old one
+ * @param old_region Old vm_region
  * @param addr_space Current address space
  * @return 0 on success, negative error codes
  */
-static int mmu_fork_tables(PML *new_top, struct mm_address_space *addr_space)
+int mmu_fork_tables(struct vm_region *old_region, struct mm_address_space *addr_space)
 {
-    page_table_iterator it{0, __x86_low_half_max, addr_space};
+    page_table_iterator it{old_region->base, old_region->pages << PAGE_SHIFT, addr_space};
 
-    return x86_mmu_fork(new_top, x86_paging_levels - 1, it);
+    return x86_mmu_fork((PML *) PHYS_TO_VIRT(old_region->mm->arch_mmu.cr3),
+                        (PML *) PHYS_TO_VIRT(addr_space->arch_mmu.cr3), x86_paging_levels - 1, it,
+                        old_region);
 }
 
 static inline bool is_higher_half(unsigned long address)

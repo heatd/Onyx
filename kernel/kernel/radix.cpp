@@ -168,6 +168,75 @@ int radix_tree::store(unsigned long index, rt_entry_t value)
     return 0;
 }
 
+unsigned long radix_tree::xchg(unsigned long index, rt_entry_t value)
+{
+    unsigned int indices[rt_max_order];
+
+    for (unsigned int i = 0; i < rt_max_order; i++)
+    {
+        indices[i] = (index >> (i * rt_entry_shift)) & rt_entry_mask;
+    }
+
+    DPRINTF("indices: ");
+
+    int max_order_set = 0;
+
+    for (unsigned int i = 0; i < rt_max_order; i++)
+    {
+        DPRINTF("%u ", indices[i]);
+
+        if (indices[i])
+            max_order_set = i + 1;
+    }
+
+    if (index == 0)
+    {
+        // Nothing is set, but we still need the next order
+        max_order_set++;
+    }
+
+    DPRINTF("\n");
+
+    DPRINTF("This requires an order %u\n", max_order_set);
+
+    if (order < max_order_set)
+    {
+        if (grow_radix_tree(max_order_set) < 0)
+            return -ENOMEM;
+    }
+
+    auto tab = tree;
+
+    DCHECK(order != 0);
+
+    for (unsigned int i = order - 1; i != 0; i--)
+    {
+        DPRINTF("Going to index %u\n", indices[i]);
+        auto index = indices[i];
+        rt_entry_t entry = tab->entries[index];
+        if (!entry)
+        {
+            auto new_table = allocate_table();
+            if (!new_table)
+                return -ENOMEM;
+            new_table->parent = tab;
+            new_table->offset = index;
+            tab->entries[index] = (rt_entry_t) new_table;
+            entry = tab->entries[index];
+        }
+        tab = (radix_tree_node *) entry;
+    }
+
+    unsigned long old = tab->entries[indices[0]];
+    tab->entries[indices[0]] = value;
+
+    if (!value)
+        clear_all_tags(tab, indices[0]);
+    else
+        propagate_tag(tab, indices[0], RA_MARK_PRESENT, true);
+
+    return old;
+}
 /**
  * @brief Fetch a value
  *
