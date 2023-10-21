@@ -80,9 +80,6 @@ struct vm_object
     /* VM objects hold pointers to their mapping(s) */
     struct list_head mappings;
 
-    /* We also hold a pointer to their COW clones */
-    struct vm_object *cow_clone{nullptr};
-
     struct inode *ino{nullptr};
     struct mutex page_lock;
 
@@ -198,29 +195,18 @@ vm_object *vmo_create(size_t size, void *priv);
  */
 vm_object *vmo_create_phys(size_t size);
 
-#define VMO_GET_MAY_POPULATE         (1 << 0)
-#define VMO_GET_MAY_NOT_IMPLICIT_COW (1 << 1)
+#define VMO_GET_MAY_POPULATE (1 << 0)
 
 /**
  * @brief Fetch a page from a VM object
  *
  * @param vmo
  * @param off The offset inside the vm object
- * @param flags The valid flags are defined above (may populate, may not implicit cow)
+ * @param flags The valid flags are defined above (may populate)
  * @param ppage Pointer to where the struct page will be placed
  * @return The vm_status_t of the request
  */
 vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page **ppage);
-
-/**
- * @brief Forks the VMO, performing any COW tricks that may be required.
- *
- * @param vmo The VMO to be forked.
- * @param shared True if the region is shared. This makes it skip all the work.
- * @param reg The new forked region.
- * @return The vm object to be refed and used by the new region.
- */
-vm_object *vmo_fork(vm_object *vmo, bool shared, struct vm_region *reg);
 
 /**
  * @brief Prefaults a region of a vm object with anonymous pages.
@@ -296,50 +282,5 @@ void vmo_ref(vm_object *vmo);
  * @return True if it is, false if not.
  */
 bool vmo_is_shared(vm_object *vmo);
-
-/**
- * @brief Does copy-on-write for MAP_PRIVATE mappings.
- *
- * @param vmo The new VMO.
- * @param target The copy-on-write master.
- */
-void vmo_do_cow(vm_object *vmo, vm_object *target);
-
-/**
- * @brief Gets a page from the copy-on-write master.
- *
- * @param vmo The VMO.
- * @param off Offset of the page.
- * @param ppage Pointer to a page * where the result will be placed.
- * @return Status of the vmo get().
- */
-vmo_status_t vmo_get_cow_page(vm_object *vmo, size_t off, page **ppage);
-
-/**
- * @brief Un-COW's a VMO.
- *
- * @param vmo The VMO to be uncowed.
- */
-void vmo_uncow(vm_object *vmo);
-
-/**
- * @brief Does copy-on-write of a page that is present and just got written to.
- *
- * @param vmo The VMO.
- * @param off Offset of the page.
- * @return The struct page of the new copied-to page.
- */
-struct page *vmo_cow_on_page(vm_object *vmo, size_t off);
-
-/**
- * @brief Determines whether the vmo is a COW copy.
- *
- * @param vmo The VMO.
- * @return True if it is, false if not.
- */
-static inline bool vmo_on_cow(vm_object *vmo)
-{
-    return vmo->cow_clone != NULL;
-}
 
 #endif

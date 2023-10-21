@@ -17,6 +17,7 @@
 #include <onyx/compiler.h>
 #include <onyx/copy.h>
 #include <onyx/cpu.h>
+#include <onyx/dentry.h>
 #include <onyx/dev.h>
 #include <onyx/file.h>
 #include <onyx/gen/trace_vm.h>
@@ -1663,48 +1664,6 @@ bool vm_mapping_is_cow(struct vm_region *entry)
     return entry->mapping_type == MAP_PRIVATE;
 }
 
-int vm_handle_non_present_copy_on_write(struct fault_info *info, struct vm_pf_context *ctx)
-{
-    bool is_write = info->write;
-
-    /* Let the vm_pf_get_page_from_vmo() do that */
-    if (is_write)
-        return 0;
-
-    struct vm_region *entry = ctx->entry;
-    size_t vmo_off = (ctx->vpage - entry->base) + entry->offset;
-
-    struct vm_object *vmo = entry->vmo;
-
-    /* If we don't have a COW clone, this means we're an anon mapping and we're just looking to
-     * COW-map the zero page
-     */
-    if (!vmo->cow_clone)
-    {
-        assert(*(volatile int *) PAGE_TO_VIRT(vm_zero_page) == 0);
-        page_ref(vm_zero_page);
-        ctx->page = vm_zero_page;
-        ctx->page_rwx &= ~VM_WRITE;
-        return 0;
-    }
-
-#if 0
-	printk("Vmo off: %lx\n", vmo_off);
-	printk("Faulting %lx in\n", ctx->vpage);
-#endif
-
-    vmo_status_t st = vmo_get_cow_page(vmo, vmo_off, &ctx->page);
-    if (st != VMO_STATUS_OK)
-    {
-        ctx->info->signal = vmo_error_to_vm_error(st);
-        return -1;
-    }
-
-    ctx->page_rwx &= ~VM_WRITE;
-
-    return 0;
-}
-
 int vm_handle_non_present_pf(struct vm_pf_context *ctx)
 {
     struct vm_region *entry = ctx->entry;
@@ -1713,11 +1672,6 @@ int vm_handle_non_present_pf(struct vm_pf_context *ctx)
     if (vm_mapping_requires_write_protect(entry))
     {
         if (vm_handle_non_present_wp(info, ctx) < 0)
-            return -1;
-    }
-    else if (vm_mapping_is_cow(entry))
-    {
-        if (vm_handle_non_present_copy_on_write(info, ctx) < 0)
             return -1;
     }
 
@@ -1766,45 +1720,6 @@ int vm_handle_write_wb(struct vm_pf_context *ctx)
     return 0;
 }
 
-#include <onyx/dentry.h>
-
-int vm_handle_present_cow(struct vm_pf_context *ctx)
-{
-    struct vm_object *vmo = ctx->entry->vmo;
-    struct fault_info *info = ctx->info;
-
-    struct vm_region *entry = ctx->entry;
-    size_t vmo_off = (ctx->vpage - entry->base) + entry->offset;
-    trace_vm_copy_on_write();
-#if 0
-    printk("Re-mapping COW'd page %lx with perms %x\n", ctx->vpage, ctx->page_rwx);
-    printk("fd: %p", entry->fd);
-
-    if (entry->fd)
-        printk(" (%s)\n", entry->fd->f_dentry->d_name);
-    else
-        printk("\n");
-#endif
-
-    struct page *new_page = vmo_cow_on_page(vmo, vmo_off);
-    if (!new_page)
-    {
-        info->signal = VM_SIGSEGV;
-        return -1;
-    }
-
-    if (!map_pages_to_vaddr((void *) ctx->vpage, page_to_phys(new_page), PAGE_SIZE, ctx->page_rwx))
-    {
-        page_unpin(new_page);
-        info->signal = VM_SIGSEGV;
-        return -1;
-    }
-
-    page_unpin(new_page);
-
-    return 0;
-}
-
 int vm_handle_present_pf(struct vm_pf_context *ctx)
 {
     struct vm_region *entry = ctx->entry;
@@ -1820,13 +1735,6 @@ int vm_handle_present_pf(struct vm_pf_context *ctx)
         {
             // printk("writeback!\n");
             return vm_handle_write_wb(ctx);
-        }
-        else if (vm_mapping_is_cow(entry))
-        {
-            // printk("C O W'ing page %lx, file backed: %s, pid %d\n", ctx->vpage, entry->fd ?
-            // "yes" : "no", get_current_process()->pid);
-            if (vm_handle_present_cow(ctx) < 0)
-                return -1;
         }
         else
         {
@@ -2349,34 +2257,6 @@ void *vm_map_vmo(size_t flags, uint32_t type, size_t pages, size_t prot, vm_obje
     }
 
     return (void *) reg->base;
-}
-
-vmo_status_t vm_commit_private(struct vm_object *vmo, size_t off, struct page **ppage)
-{
-    struct page *p = alloc_page(0);
-    if (!p)
-        return VMO_STATUS_OUT_OF_MEM;
-    p->priv = 0;
-
-    struct inode *ino = vmo->ino;
-    off_t file_off = (off_t) vmo->priv;
-
-    // printk("commit %lx\n", off + file_off);
-    unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
-    assert(ino->i_fops->readpage != nullptr);
-    ssize_t read = ino->i_fops->readpage(p, off + file_off, ino);
-
-    thread_change_addr_limit(old);
-
-    if (read < 0)
-    {
-        free_page(p);
-        return VMO_STATUS_BUS_ERROR;
-    }
-
-    *ppage = p;
-
-    return VMO_STATUS_OK;
 }
 
 /**
