@@ -85,9 +85,11 @@ static struct amap *amap_copy(struct amap *amap)
  * @param page Page to add
  * @param region Region to which the amap belongs
  * @param pgoff Page offset (in pfn, shifted right by PAGE_SHIFT)
+ * @param nocopy Don't copy if we find an old page
  * @return 0 on success, negative error codes
  */
-int amap_add(struct amap *amap, struct page *page, struct vm_region *region, size_t pgoff)
+int amap_add(struct amap *amap, struct page *page, struct vm_region *region, size_t pgoff,
+             bool nocopy)
 {
     if (amap->am_refc > 1) [[unlikely]]
     {
@@ -106,11 +108,29 @@ int amap_add(struct amap *amap, struct page *page, struct vm_region *region, siz
     if (radix_err(old))
         return old;
 
-    if (old != 0)
+    if (!nocopy && old != 0)
     {
         struct page *oldp = (struct page *) old;
         copy_page_to_page(page_to_phys(page), page_to_phys(oldp));
     }
 
     return 0;
+}
+
+/**
+ * @brief Get a page from the amap
+ *
+ * @param amap Amap to lookup from
+ * @param pgoff Page offset (in pfn, shifted right by PAGE_SHIFT)
+ * @return struct page in the amap, or NULL
+ */
+struct page *amap_get(struct amap *amap, size_t pgoff)
+{
+    scoped_lock g{amap->am_lock};
+    auto ex = amap->am_map.get(pgoff);
+    if (ex.has_error())
+        return nullptr;
+    struct page *page = (struct page *) ex.value();
+    page_ref(page);
+    return page;
 }

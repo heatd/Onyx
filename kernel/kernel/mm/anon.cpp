@@ -45,7 +45,7 @@ int vm_anon_fault(struct vm_pf_context *ctx)
         if (!page)
             goto enomem;
 
-        if (amap_add(region->vm_amap, page, region, pgoff) < 0)
+        if (amap_add(region->vm_amap, page, region, pgoff, false) < 0)
         {
             free_page(page);
             goto enomem;

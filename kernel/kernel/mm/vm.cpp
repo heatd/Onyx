@@ -62,8 +62,6 @@ void kmalloc_init();
 int populate_shared_mapping(void *page, struct file *fd, struct vm_region *entry, size_t nr_pages);
 void vm_remove_region(struct mm_address_space *as, struct vm_region *region);
 int vm_add_region(struct mm_address_space *as, struct vm_region *region);
-void remove_vmo_from_private_list(struct mm_address_space *mm, struct vm_object *vmo);
-void add_vmo_to_private_list(struct mm_address_space *mm, struct vm_object *vmo);
 int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size);
 bool limits_are_contained(struct vm_region *reg, unsigned long start, unsigned long limit);
 bool vm_mapping_is_cow(struct vm_region *entry);
@@ -463,12 +461,6 @@ void vm_region_destroy(struct vm_region *region)
 
     if (region->vmo)
     {
-        if (region->vmo->refcount == 1)
-        {
-            if (!is_mapping_shared(region) && !is_higher_half((void *) region->base))
-                remove_vmo_from_private_list(region->mm, region->vmo);
-        }
-
         vmo_remove_mapping(region->vmo, region);
         vmo_unref(region->vmo);
     }
@@ -717,27 +709,6 @@ struct fork_iteration
     bool success;
 };
 
-struct vm_object *find_forked_private_vmo(struct vm_object *old, struct mm_address_space *mm)
-{
-    scoped_mutex<false> g{mm->private_vmo_lock};
-
-    struct vm_object *vmo = mm->vmo_head;
-    struct vm_object *to_ret = nullptr;
-
-    while (vmo)
-    {
-        if (vmo->forked_from == old)
-        {
-            to_ret = vmo;
-            goto out;
-        }
-        vmo = vmo->next_private;
-    }
-
-out:
-    return to_ret;
-}
-
 #define DEBUG_FORK_VM 0
 static bool fork_vm_region(struct vm_region *region, struct fork_iteration *it)
 {
@@ -772,15 +743,13 @@ static bool fork_vm_region(struct vm_region *region, struct fork_iteration *it)
     if (needs_to_fork_memory)
     {
         /* No need to ref the vmo since it was a new vmo created for us while forking. */
-
         if (new_region->vmo)
         {
-            new_region->vmo = find_forked_private_vmo(new_region->vmo, it->target_mm);
-            assert(new_region->vmo != nullptr);
             vmo_assign_mapping(new_region->vmo, new_region);
             vmo_ref(new_region->vmo);
         }
-        else if (new_region->vm_amap)
+
+        if (new_region->vm_amap)
         {
             amap_ref(new_region->vm_amap);
         }
@@ -834,30 +803,6 @@ static void tear_down_addr_space(struct mm_address_space *addr_space)
     paging_free_page_tables(addr_space);
 }
 
-int vm_fork_private_vmos(struct mm_address_space *mm)
-{
-    struct mm_address_space *parent_mm = get_current_address_space();
-    scoped_mutex<false> g{parent_mm->private_vmo_lock};
-
-    struct vm_object *vmo = parent_mm->vmo_head;
-
-    while (vmo)
-    {
-        struct vm_object *new_vmo = vmo_fork(vmo, false, nullptr);
-        if (!new_vmo)
-        {
-            return -1;
-        }
-
-        new_vmo->refcount = 0;
-        add_vmo_to_private_list(mm, new_vmo);
-
-        vmo = vmo->next_private;
-    }
-
-    return 0;
-}
-
 /**
  * @brief Fork the current address space into a new address space.
  *
@@ -873,8 +818,6 @@ int vm_fork_address_space(struct mm_address_space *addr_space) EXCLUDES(addr_spa
 #if CONFIG_DEBUG_ADDRESS_SPACE_ACCT
     mmu_verify_address_space_accounting(get_current_address_space());
 #endif
-    if (vm_fork_private_vmos(addr_space) < 0)
-        return -ENOMEM;
 
     struct fork_iteration it = {};
     it.target_mm = addr_space;
@@ -2436,55 +2379,6 @@ vmo_status_t vm_commit_private(struct vm_object *vmo, size_t off, struct page **
     return VMO_STATUS_OK;
 }
 
-void add_vmo_to_private_list(struct mm_address_space *mm, struct vm_object *vmo)
-{
-    scoped_mutex<false> g{mm->private_vmo_lock};
-
-    if (!mm->vmo_head)
-    {
-        mm->vmo_head = mm->vmo_tail = vmo;
-        vmo->prev_private = vmo->next_private = nullptr;
-    }
-    else
-    {
-        struct vm_object *old_tail = mm->vmo_tail;
-        old_tail->next_private = vmo;
-        vmo->prev_private = old_tail;
-        vmo->next_private = nullptr;
-        mm->vmo_tail = vmo;
-    }
-}
-
-void remove_vmo_from_private_list(struct mm_address_space *mm, struct vm_object *vmo)
-{
-    scoped_mutex<false> g{mm->private_vmo_lock};
-
-    bool is_head = vmo->prev_private == nullptr;
-    bool is_tail = vmo->next_private == nullptr;
-
-    if (is_head && is_tail)
-        mm->vmo_head = mm->vmo_tail = nullptr;
-    else if (is_head)
-    {
-        mm->vmo_head = vmo->next_private;
-        if (mm->vmo_head)
-            mm->vmo_head->prev_private = nullptr;
-    }
-    else if (is_tail)
-    {
-        mm->vmo_tail = vmo->prev_private;
-        if (mm->vmo_tail)
-            mm->vmo_tail->next_private = nullptr;
-    }
-    else
-    {
-        vmo->prev_private->next_private = vmo->next_private;
-        vmo->next_private->prev_private = vmo->prev_private;
-    }
-}
-
-const struct vm_object_ops vm_private_file_map_ops = {.commit = vm_commit_private};
-
 /**
  * @brief Sets up backing for a newly-mmaped region.
  *
@@ -2496,7 +2390,6 @@ const struct vm_object_ops vm_private_file_map_ops = {.commit = vm_commit_privat
 int vm_region_setup_backing(struct vm_region *region, size_t pages, bool is_file_backed)
 {
     bool is_shared = is_mapping_shared(region);
-    bool is_kernel = is_higher_half((void *) region->base);
 
     struct vm_object *vmo;
 
@@ -2510,16 +2403,13 @@ int vm_region_setup_backing(struct vm_region *region, size_t pages, bool is_file
     }
     else if (is_file_backed && !is_shared)
     {
-        /* Alright, we're using COW to fault stuff in */
-        /* store the offset in vmo->priv */
-        vmo = vmo_create(pages * PAGE_SIZE, (void *) region->offset);
-        if (!vmo)
-            return -1;
-        vmo->ino = region->fd->f_ino;
-        vmo->ops = &vm_private_file_map_ops;
-        vmo_do_cow(vmo, region->fd->f_ino->i_pages);
+        /* COW private mapping */
+        struct inode *ino = region->fd->f_ino;
 
-        region->offset = 0;
+        assert(ino->i_pages != nullptr);
+        vmo_ref(ino->i_pages);
+        vmo = ino->i_pages;
+        region->vm_ops = &private_vmops;
     }
     else
     {
@@ -2531,14 +2421,6 @@ int vm_region_setup_backing(struct vm_region *region, size_t pages, bool is_file
     if (vmo)
     {
         vmo_assign_mapping(vmo, region);
-
-        if (!is_shared && !is_kernel)
-        {
-            struct mm_address_space *mm = get_current_process()->get_aspace();
-
-            add_vmo_to_private_list(mm, vmo);
-        }
-
         assert(region->vmo == nullptr);
         region->vmo = vmo;
     }
@@ -2763,7 +2645,7 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size) REQUIRES
                 new_region->offset = offset + to_shave_off;
                 new_region->mm = region->mm;
 
-                if (!is_mapping_shared(region) && !vmo_is_shared(region->vmo))
+                if (0 /* XXX */)
                 {
                     struct vm_object *second = vmo_split(offset, to_shave_off, region->vmo);
                     if (!second)
@@ -2772,9 +2654,6 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size) REQUIRES
                         /* TODO: Undo new_region stuff and free it */
                         return -ENOMEM;
                     }
-
-                    if (as != &kernel_address_space)
-                        add_vmo_to_private_list(as, second);
 
                     new_region->vmo = second;
                     vmo_assign_mapping(second, new_region);

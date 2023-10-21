@@ -115,6 +115,7 @@ struct vm_operations
 };
 
 extern const struct vm_operations anon_vmops;
+extern const struct vm_operations private_vmops;
 
 /**
  * @brief A VM region is a segment of an address space which is mapped and has some
@@ -185,8 +186,6 @@ struct mm_address_space : public refcountable
     size_t page_faults{};
     size_t page_tables_size{};
 
-    mutex private_vmo_lock{};
-    vm_object *vmo_head{}, *vmo_tail{};
     arch_mm_address_space arch_mmu{};
 
     // The active mask keeps track of where the address space is running.
@@ -207,8 +206,6 @@ struct mm_address_space : public refcountable
         shared_set_size = as.shared_set_size;
         page_faults = as.page_faults;
         page_tables_size = as.page_tables_size;
-        vmo_head = as.vmo_head;
-        vmo_tail = as.vmo_tail;
         arch_mmu = as.arch_mmu;
         active_mask = cul::move(as.active_mask);
         return *this;
