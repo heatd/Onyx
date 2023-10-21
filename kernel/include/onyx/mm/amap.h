@@ -67,10 +67,11 @@ __always_inline void amap_unref(struct amap *amap)
  * @param page Page to add
  * @param region Region to which the amap belongs
  * @param pgoff Page offset (in pfn, shifted right by PAGE_SHIFT)
+ * @param nocopy Don't copy if we find an old page
  * @return 0 on success, negative error codes
  */
-int amap_add(struct amap *amap, struct page *page, struct vm_region *region, size_t pgoff);
-
+int amap_add(struct amap *amap, struct page *page, struct vm_region *region, size_t pgoff,
+             bool nocopy);
 /**
  * @brief Add a page to an amap
  *
@@ -84,7 +85,16 @@ __always_inline int amap_ref_and_add(struct amap *amap, struct page *page, struc
                                      size_t pgoff)
 {
     page_ref(page);
-    return amap_add(amap, page, region, pgoff);
+    return amap_add(amap, page, region, pgoff, false);
 }
+
+/**
+ * @brief Get a page from the amap
+ *
+ * @param amap Amap to lookup from
+ * @param pgoff Page offset (in pfn, shifted right by PAGE_SHIFT)
+ * @return struct page in the amap, or NULL
+ */
+struct page *amap_get(struct amap *amap, size_t pgoff);
 
 #endif

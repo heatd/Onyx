@@ -7,8 +7,10 @@
  */
 
 #include <onyx/filemap.h>
+#include <onyx/mm/amap.h>
 #include <onyx/pagecache.h>
 #include <onyx/vfs.h>
+#include <onyx/vm.h>
 
 ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t offset)
 {
@@ -251,3 +253,87 @@ ssize_t filemap_write_iter(struct file *filp, size_t off, iovec_iter *iter, unsi
 
     return st;
 }
+
+int filemap_private_fault(struct vm_pf_context *ctx)
+{
+    struct vm_region *region = ctx->entry;
+    struct fault_info *info = ctx->info;
+    struct page *page = nullptr;
+    struct page *newp = nullptr;
+    int st = 0;
+    unsigned long pgoff = (ctx->vpage - region->base) >> PAGE_SHIFT;
+
+    /* Permission checks have already been handled before .fault() */
+    if (region->vm_amap)
+    {
+        /* Check if the amap has any kind of page. It's possible we may need to CoW that */
+        page = amap_get(region->vm_amap, pgoff);
+    }
+
+    if (!page)
+    {
+        vmo_status_t vst = vmo_get(region->vmo, region->offset + (pgoff << PAGE_SHIFT),
+                                   VMO_GET_MAY_NOT_IMPLICIT_COW | VMO_GET_MAY_POPULATE, &page);
+
+        if (vst != VMO_STATUS_OK)
+        {
+            st = -vmo_status_to_errno(vst);
+            goto err;
+        }
+    }
+
+    if (!info->write)
+    {
+        /* Write-protect the page */
+        ctx->page_rwx &= ~VM_WRITE;
+        goto map;
+    }
+
+    /* write-fault, let's CoW the page */
+
+    /* Lazily allocate the vm_amap struct */
+    if (!region->vm_amap)
+    {
+        region->vm_amap = amap_alloc(region->pages << PAGE_SHIFT);
+        if (!region->vm_amap)
+            goto enomem;
+    }
+
+    /* Allocate a brand new page and copy the old page */
+    newp = alloc_page(PAGE_ALLOC_NO_ZERO | GFP_KERNEL);
+    if (!newp)
+        goto enomem;
+
+    copy_page_to_page(page_to_phys(newp), page_to_phys(page));
+
+    if (amap_add(region->vm_amap, newp, region, pgoff, true) < 0)
+    {
+        free_page(newp);
+        goto enomem;
+    }
+
+    page_unref(page);
+    page = newp;
+
+map:
+    if (!vm_map_page(region->mm, ctx->vpage, (u64) page_to_phys(page), ctx->page_rwx))
+        goto enomem;
+
+    /* Only unref if this page is not new. When we allocate a new page - because of CoW, amap_add
+     * 'adopts' our reference. This works because amaps are inherently region-specific, and we have
+     * the address_space locked.
+     */
+    if (!newp)
+        page_unref(page);
+
+    return 0;
+enomem:
+    st = -ENOMEM;
+err:
+    info->error_info = VM_SIGSEGV;
+    if (page && !newp)
+        page_unref(page);
+    return st;
+}
+
+const struct vm_operations private_vmops = {.fault = filemap_private_fault};
