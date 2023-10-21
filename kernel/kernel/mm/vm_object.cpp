@@ -152,9 +152,6 @@ vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page
     vmo_status_t st = VMO_STATUS_OK;
 
     bool may_populate = flags & VMO_GET_MAY_POPULATE;
-    bool may_not_implicit_cow = flags & VMO_GET_MAY_NOT_IMPLICIT_COW;
-    bool is_cow = vmo->cow_clone != nullptr;
-
     struct page *p = nullptr;
 
 #if 0
@@ -175,41 +172,6 @@ vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page
         p = (struct page *) ex.value();
     }
 
-    if (!p && is_cow && !may_not_implicit_cow)
-    {
-        struct page *new_page = alloc_page(PAGE_ALLOC_NO_ZERO);
-        if (!new_page)
-        {
-            return VMO_STATUS_OUT_OF_MEM;
-        }
-
-        size_t vmo_off = (off_t) vmo->priv;
-        struct page *old_page;
-
-        // printk("clone size: %lx\n", vmo->cow_clone->ino->i_size);
-        auto st = vmo_get(vmo->cow_clone, off + vmo_off, flags & ~VMO_GET_MAY_NOT_IMPLICIT_COW,
-                          &old_page);
-        if (st != VMO_STATUS_OK)
-        {
-            // printk("failed\n");
-            free_page(new_page);
-            return st;
-        }
-
-        copy_page_to_page(page_to_phys(new_page), page_to_phys(old_page));
-
-        page_unpin(old_page);
-
-        int err = vmo->insert_page_unlocked(off, new_page);
-        if (err < 0)
-        {
-            free_page(new_page);
-            return VMO_STATUS_OUT_OF_MEM;
-        }
-
-        p = new_page;
-    }
-
     if (!p && may_populate)
     {
         st = vmo_populate(vmo, off, &p);
@@ -226,73 +188,6 @@ vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page
     }
 
     return st;
-}
-
-/**
- * @brief Forks the VMO, performing any COW tricks that may be required.
- *
- * @param vmo The VMO to be forked.
- * @param shared True if the region is shared. This makes it skip all the work.
- * @param reg The new forked region.
- * @return The vm object to be refed and used by the new region.
- */
-vm_object *vmo_fork(vm_object *vmo, bool shared, struct vm_region *reg)
-{
-    vm_object *new_vmo;
-
-    if (shared)
-    {
-        /* Shared mappings have the peculiarity of just being a atomic add to the refc,
-         * and an append to a mappings list. Therefore, we don't need to do anything here,
-         * since it will be handled by each vm region's forking(fork_vm_region, mm/vm.c).
-         */
-
-        return vmo;
-    }
-
-    /* Private mappings require a new copy of the vmo to be created, so we can fork it
-     * correctly. */
-
-    new_vmo = vmo_create(vmo->size, vmo->priv);
-    if (!new_vmo)
-        return nullptr;
-
-    new_vmo->flags = vmo->flags;
-    /* Locks are not inherited */
-    new_vmo->flags &= ~(VMO_FLAG_LOCK_FUTURE_PAGES);
-    new_vmo->prev_private = new_vmo->next_private = nullptr;
-    new_vmo->forked_from = vmo;
-    new_vmo->ino = vmo->ino;
-    new_vmo->ops = vmo->ops;
-    new_vmo->type = vmo->type;
-    new_vmo->priv = vmo->priv;
-
-    scoped_mutex g{vmo->page_lock};
-
-    auto ex = vmo->vm_pages.copy(
-        [](unsigned long entry, void * /*ctx*/) -> unsigned long {
-            struct page *p = (struct page *) entry;
-            page_ref(p);
-            return entry;
-        },
-        nullptr);
-
-    if (ex.has_error())
-    {
-        delete new_vmo;
-        return nullptr;
-    }
-
-    new_vmo->vm_pages = ex.value();
-
-    g.unlock();
-
-    new_vmo->cow_clone = vmo->cow_clone;
-
-    if (new_vmo->cow_clone)
-        vmo_ref(new_vmo->cow_clone);
-
-    return new_vmo;
 }
 
 /**
@@ -342,9 +237,6 @@ int vmo_prefault(vm_object *vmo, size_t size, size_t offset)
 void vmo_destroy(vm_object *vmo)
 {
     // No need to hold the lock considering we're the last reference.
-    if (vmo->cow_clone)
-        vmo_unref(vmo->cow_clone);
-
     delete vmo;
 }
 
@@ -484,7 +376,6 @@ vm_object *vmo_create_copy(vm_object *vmo)
         return nullptr;
 
     copy->flags = vmo->flags;
-    copy->cow_clone = vmo->cow_clone;
     copy->ino = vmo->ino;
     if (copy->ino)
         inode_ref(copy->ino);
@@ -492,8 +383,6 @@ vm_object *vmo_create_copy(vm_object *vmo)
     copy->type = vmo->type;
 
     copy->flags &= ~(VMO_FLAG_LOCK_FUTURE_PAGES);
-    if (copy->cow_clone)
-        vmo_ref(copy->cow_clone);
 
     return copy;
 }
@@ -612,62 +501,6 @@ void vmo_remove_mapping(vm_object *vmo, vm_region *region)
 bool vmo_is_shared(vm_object *vmo)
 {
     return vmo->refcount != 1;
-}
-
-/**
- * @brief Does copy-on-write for MAP_PRIVATE mappings.
- *
- * @param vmo The new VMO.
- * @param target The copy-on-write master.
- */
-void vmo_do_cow(vm_object *vmo, vm_object *target)
-{
-    assert(vmo->cow_clone == nullptr);
-    assert(target != nullptr);
-    vmo_ref(target);
-    vmo->cow_clone = target;
-}
-
-/**
- * @brief Gets a page from the copy-on-write master.
- *
- * @param vmo The VMO.
- * @param off Offset of the page.
- * @param ppage Pointer to a page * where the result will be placed.
- * @return Status of the vmo get().
- */
-vmo_status_t vmo_get_cow_page(vm_object *vmo, size_t off, struct page **ppage)
-{
-    size_t vmo_off = (off_t) vmo->priv;
-    struct page *p;
-
-    auto st = vmo_get(vmo->cow_clone, vmo_off + off, VMO_GET_MAY_POPULATE, &p);
-
-    if (st != VMO_STATUS_OK)
-        return st;
-
-    /* Don't forget to ref the page! */
-    page_ref(p);
-
-    /* TODO: Race condition here? */
-
-    if (vmo_add_page(off, p, vmo) < 0)
-        page_unpin(p);
-
-    *ppage = p;
-    return st;
-}
-
-/**
- * @brief Un-COW's a VMO.
- *
- * @param vmo The VMO to be uncowed.
- */
-void vmo_uncow(vm_object *vmo)
-{
-    // FIXME: This is weird. It never gets called.
-    vmo_unref(vmo->cow_clone);
-    vmo->cow_clone = nullptr;
 }
 
 /**

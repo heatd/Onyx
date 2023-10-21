@@ -273,7 +273,7 @@ int filemap_private_fault(struct vm_pf_context *ctx)
     if (!page)
     {
         vmo_status_t vst = vmo_get(region->vmo, region->offset + (pgoff << PAGE_SHIFT),
-                                   VMO_GET_MAY_NOT_IMPLICIT_COW | VMO_GET_MAY_POPULATE, &page);
+                                   VMO_GET_MAY_POPULATE, &page);
 
         if (vst != VMO_STATUS_OK)
         {
