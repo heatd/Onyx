@@ -123,7 +123,7 @@ static __inline tu_int make_tu(du_int h, du_int l) {
 
 // FreeBSD's boot environment does not support using floating-point and poisons
 // the float and double keywords.
-#if defined(__FreeBSD__) && defined(_STANDALONE)
+#if (defined(__FreeBSD__) && defined(_STANDALONE)) || defined(__is_onyx_kernel)
 #define CRT_HAS_FLOATING_POINT 0
 #else
 #define CRT_HAS_FLOATING_POINT 1
