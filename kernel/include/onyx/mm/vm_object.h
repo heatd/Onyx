@@ -107,7 +107,7 @@ struct vm_object
 
         list_for_every (&mappings)
         {
-            auto reg = container_of(l, vm_region, vmo_head);
+            auto reg = container_of(l, vm_area_struct, vm_objhead);
             if (!c(reg))
                 return false;
         }
@@ -159,7 +159,7 @@ int vmo_punch_range(vm_object *vmo, unsigned long start, unsigned long length);
  */
 int vmo_truncate(vm_object *vmo, unsigned long size, unsigned long flags);
 
-struct vm_region;
+struct vm_area_struct;
 
 /**
  * @brief Registers a new mapping on the VMO.
@@ -167,7 +167,7 @@ struct vm_region;
  * @param vmo The target VMO.
  * @param region The mapping's region.
  */
-void vmo_assign_mapping(vm_object *vmo, vm_region *region);
+void vmo_assign_mapping(vm_object *vmo, vm_area_struct *region);
 
 /**
  * @brief Removes a mapping on the VMO.
@@ -175,7 +175,7 @@ void vmo_assign_mapping(vm_object *vmo, vm_region *region);
  * @param vmo The target VMO.
  * @param region The mapping's region.
  */
-void vmo_remove_mapping(vm_object *vmo, vm_region *region);
+void vmo_remove_mapping(vm_object *vmo, vm_area_struct *region);
 
 /**
  * @brief Creates a new VMO.

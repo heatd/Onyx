@@ -224,7 +224,7 @@ public:
     unsigned int do_ioctl_get_bus_info(photon_bus_info *uinfo);
     unsigned int do_ioctl_get_bus_info_pci(photon_bus_info &info);
     unsigned int do_ioctls(int request, void *argp);
-    void *do_mmap(struct vm_region *area, struct file *f);
+    void *do_mmap(struct vm_area_struct *area, struct file *f);
 
     void set_dev(chardev *d)
     {

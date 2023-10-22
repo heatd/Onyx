@@ -345,13 +345,13 @@ int vmo_purge_pages(size_t lower_bound, size_t upper_bound, unsigned int flags, 
  */
 void vm_object::unmap_page(size_t offset)
 {
-    for_every_mapping([offset](vm_region *reg) -> bool {
+    for_every_mapping([offset](vm_area_struct *reg) -> bool {
         auto off = (off_t) offset;
-        const off_t vmregion_end = reg->offset + (reg->pages << PAGE_SHIFT);
-        if (reg->offset <= off && vmregion_end > off)
+        const off_t vmregion_end = reg->vm_offset + (vma_pages(reg) << PAGE_SHIFT);
+        if (reg->vm_offset <= off && vmregion_end > off)
         {
             // Unmap it
-            vm_mmu_unmap(reg->mm, (void *) (reg->base + offset - reg->offset), 1);
+            vm_mmu_unmap(reg->vm_mm, (void *) (reg->vm_start + offset - reg->vm_offset), 1);
         }
 
         return true;
@@ -472,11 +472,11 @@ void vmo_ref(vm_object *vmo)
  * @param vmo The target VMO.
  * @param region The mapping's region.
  */
-void vmo_assign_mapping(vm_object *vmo, vm_region *region)
+void vmo_assign_mapping(vm_object *vmo, vm_area_struct *region)
 {
     scoped_mutex g{vmo->mapping_lock};
 
-    list_add_tail(&region->vmo_head, &vmo->mappings);
+    list_add_tail(&region->vm_objhead, &vmo->mappings);
 }
 
 /**
@@ -485,11 +485,11 @@ void vmo_assign_mapping(vm_object *vmo, vm_region *region)
  * @param vmo The target VMO.
  * @param region The mapping's region.
  */
-void vmo_remove_mapping(vm_object *vmo, vm_region *region)
+void vmo_remove_mapping(vm_object *vmo, vm_area_struct *region)
 {
     scoped_mutex g{vmo->mapping_lock};
 
-    list_remove(&region->vmo_head);
+    list_remove(&region->vm_objhead);
 }
 
 /**

@@ -1260,12 +1260,12 @@ ssize_t process::query_vm_regions(void *ubuf, ssize_t len, unsigned long what, s
     scoped_mutex g{address_space->vm_lock};
     size_t needed_len = 0;
 
-    vm_for_every_region(*address_space, [&](vm_region *region) -> bool {
+    vm_for_every_region(*address_space, [&](vm_area_struct *region) -> bool {
         needed_len += sizeof(onx_process_vm_region);
 
         if (is_file_backed(region))
         {
-            auto path = dentry_to_file_name(region->fd->f_dentry);
+            auto path = dentry_to_file_name(region->vm_file->f_dentry);
 
             needed_len += strlen(path) + 1;
             free(path);
@@ -1298,34 +1298,34 @@ ssize_t process::query_vm_regions(void *ubuf, ssize_t len, unsigned long what, s
     // and so, we have no risk of overflowing the buffer with more data.
     char *ptr = &buf[0];
 
-    vm_for_every_region(*address_space, [&](vm_region *region) -> bool {
+    vm_for_every_region(*address_space, [&](vm_area_struct *region) -> bool {
         onx_process_vm_region *reg = (onx_process_vm_region *) ptr;
         reg->size = sizeof(onx_process_vm_region);
-        reg->mapping_type = region->mapping_type;
+        reg->mapping_type = region->vm_maptype;
         reg->protection = 0;
 
-        if (region->rwx & VM_READ)
+        if (region->vm_flags & VM_READ)
             reg->protection |= VM_REGION_PROT_READ;
-        if (region->rwx & VM_WRITE)
+        if (region->vm_flags & VM_WRITE)
             reg->protection |= VM_REGION_PROT_WRITE;
-        if (region->rwx & VM_EXEC)
+        if (region->vm_flags & VM_EXEC)
             reg->protection |= VM_REGION_PROT_EXEC;
-        if (region->rwx & VM_NOCACHE)
+        if (region->vm_flags & VM_NOCACHE)
             reg->protection |= VM_REGION_PROT_NOCACHE;
-        if (region->rwx & VM_WRITETHROUGH)
+        if (region->vm_flags & VM_WRITETHROUGH)
             reg->protection |= VM_REGION_PROT_WRITETHROUGH;
-        if (region->rwx & VM_WC)
+        if (region->vm_flags & VM_WC)
             reg->protection |= VM_REGION_PROT_WC;
-        if (region->rwx & VM_WP)
+        if (region->vm_flags & VM_WP)
             reg->protection |= VM_REGION_PROT_WP;
 
-        reg->offset = region->offset;
-        reg->start = region->base;
-        reg->length = region->pages << PAGE_SHIFT;
+        reg->offset = region->vm_offset;
+        reg->start = region->vm_start;
+        reg->length = region->vm_end - region->vm_start;
 
         if (is_file_backed(region))
         {
-            auto path = dentry_to_file_name(region->fd->f_dentry);
+            auto path = dentry_to_file_name(region->vm_file->f_dentry);
             strcpy(reg->name, path);
             reg->size += strlen(path) + 1;
         }

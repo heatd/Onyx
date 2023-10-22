@@ -28,14 +28,14 @@ size_t zero_write(size_t offset, size_t len, void *buf, file *f)
     return len;
 }
 
-void *zero_mmap(struct vm_region *area, struct file *node)
+void *zero_mmap(struct vm_area_struct *area, struct file *node)
 {
-    if (vm_region_setup_backing(area, area->pages, false) < 0)
+    if (vm_area_struct_setup_backing(area, vma_pages(area), false) < 0)
         return nullptr;
 
     vm_make_anon(area);
 
-    return (void *) area->base;
+    return (void *) area->vm_start;
 }
 
 const file_ops zero_fileops = {

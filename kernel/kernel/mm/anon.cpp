@@ -15,10 +15,10 @@ const struct vm_operations anon_vmops = {.fault = vm_anon_fault};
 
 int vm_anon_fault(struct vm_pf_context *ctx)
 {
-    struct vm_region *region = ctx->entry;
+    struct vm_area_struct *region = ctx->entry;
     struct fault_info *info = ctx->info;
     struct page *page = nullptr;
-    unsigned long pgoff = (ctx->vpage - region->base) >> PAGE_SHIFT;
+    unsigned long pgoff = (ctx->vpage - region->vm_start) >> PAGE_SHIFT;
 
     /* Permission checks have already been handled before .fault() */
     if (!info->write)
@@ -35,7 +35,7 @@ int vm_anon_fault(struct vm_pf_context *ctx)
         /* Lazily allocate the vm_amap struct */
         if (!region->vm_amap)
         {
-            region->vm_amap = amap_alloc(region->pages << PAGE_SHIFT);
+            region->vm_amap = amap_alloc(vma_pages(region) << PAGE_SHIFT);
             if (!region->vm_amap)
                 goto enomem;
         }
@@ -55,7 +55,7 @@ int vm_anon_fault(struct vm_pf_context *ctx)
     }
 
 map:
-    if (!vm_map_page(region->mm, ctx->vpage, (u64) page_to_phys(page), ctx->page_rwx))
+    if (!vm_map_page(region->vm_mm, ctx->vpage, (u64) page_to_phys(page), ctx->page_rwx))
         goto enomem;
 
     return 0;

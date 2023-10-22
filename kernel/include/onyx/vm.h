@@ -95,8 +95,8 @@ struct fault_info;
 
 struct vm_pf_context
 {
-    /* The vm region in question */
-    struct vm_region *entry;
+    /* The vm area in question */
+    struct vm_area_struct *entry;
     /* This fault's info */
     struct fault_info *info;
     /* vpage - fault_address but page aligned */
@@ -124,26 +124,31 @@ extern const struct vm_operations private_vmops;
  * munmap like functions (like vm_munmap).
  *
  */
-struct vm_region
+struct vm_area_struct
 {
-    uintptr_t base;
-    size_t pages;
+    unsigned long vm_start;
+    unsigned long vm_end;
 
     union {
-        struct bst_node tree_node;
+        struct bst_node vm_tree_node;
         struct list_head vm_detached_node;
     };
 
-    int rwx;
-    int mapping_type;
-    mm_address_space *mm;
+    int vm_flags;
+    int vm_maptype;
+    mm_address_space *vm_mm;
     const struct vm_operations *vm_ops;
-    struct file *fd;
-    off_t offset;
-    struct vm_object *vmo;
+    struct file *vm_file;
+    off_t vm_offset;
+    struct vm_object *vm_obj;
     struct amap *vm_amap;
-    list_head vmo_head;
+    list_head vm_objhead;
 };
+
+static inline unsigned long vma_pages(const struct vm_area_struct *vma)
+{
+    return (vma->vm_end - vma->vm_start) >> PAGE_SHIFT;
+}
 
 #define VM_OK      0x0
 #define VM_SIGBUS  SIGBUS
@@ -167,7 +172,7 @@ struct vm_object;
 
 /**
  * @brief An mm_address_space represents an address space inside the kernel and stores
- * all kinds of relevant data on it, like the owner process, a tree of vm_regions, locks
+ * all kinds of relevant data on it, like the owner process, a tree of vm_area_structs, locks
  * various statistics, etc.
  *
  */
@@ -456,12 +461,12 @@ ssize_t user_memset(void *data, int val, size_t len);
 /**
  * @brief Sets up backing for a newly-mmaped region.
  *
- * @param region A pointer to a vm_region.
+ * @param region A pointer to a vm_area_struct.
  * @param pages The size of the region, in pages.
  * @param is_file_backed True if file backed.
  * @return 0 on success, negative for errors.
  */
-int vm_region_setup_backing(struct vm_region *region, size_t pages, bool is_file_backed);
+int vm_area_struct_setup_backing(struct vm_area_struct *region, size_t pages, bool is_file_backed);
 
 /**
  * @brief Updates the memory map's ranges.
@@ -485,7 +490,7 @@ uintptr_t vm_randomize_address(uintptr_t base, uintptr_t bits);
 
 /**
  * @brief Map a specific number of pages onto a virtual address.
- * Should only be used by MM code since it does not touch vm_regions, only
+ * Should only be used by MM code since it does not touch vm_area_structs, only
  * MMU page tables.
  *
  * @param virt The virtual address.
@@ -499,7 +504,7 @@ void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags);
 
 /**
  * @brief Map a specific number of pages onto a virtual address.
- * Should only be used by MM code since it does not touch vm_regions, only
+ * Should only be used by MM code since it does not touch vm_area_structs, only
  * MMU page tables.
  *
  * @param as   The target address space.
@@ -515,33 +520,33 @@ void *__map_pages_to_vaddr(mm_address_space *as, void *virt, void *phys, size_t 
 /**
  * @brief Determines if a mapping is shared.
  *
- * @param region A pointer to the vm_region.
+ * @param region A pointer to the vm_area_struct.
  * @return True if shared, false if not.
  */
-bool is_mapping_shared(struct vm_region *region);
+bool is_mapping_shared(struct vm_area_struct *region);
 
 /**
  * @brief Determines if a mapping is file backed.
  *
- * @param region A pointer to the vm_region.
+ * @param region A pointer to the vm_area_struct.
  * @return True if file backed, false if not.
  */
-bool is_file_backed(struct vm_region *region);
+bool is_file_backed(struct vm_area_struct *region);
 
 #define VM_FLUSH_RWX_VALID (1 << 0)
 /**
- * @brief Remaps an entire vm_region.
- * Using flags, it remaps the entire vm_region by iterating through every page and
+ * @brief Remaps an entire vm_area_struct.
+ * Using flags, it remaps the entire vm_area_struct by iterating through every page and
  * re-mapping it. If VM_FLUSH_RWX_VALID, rwx is a valid combination of permission
- * flags and rwx overrides the pre-existing permissions in the vm_region (used in COW fork).
+ * flags and rwx overrides the pre-existing permissions in the vm_area_struct (used in COW fork).
  * Should only be used by MM code.
  *
- * @param entry A pointer to the vm_region.
+ * @param entry A pointer to the vm_area_struct.
  * @param flags Flag bitmask. Valid flags are (VM_FLUSH_RWX_VALID).
  * @param rwx If VM_FLUSH_RWX_VALID, rwx is a valid combination of permission flags.
  * @return 0 on success, negative error codes.
  */
-int vm_flush(struct vm_region *entry, unsigned int flags, unsigned int rwx);
+int vm_flush(struct vm_area_struct *entry, unsigned int flags, unsigned int rwx);
 
 /**
  * @brief Traverses the kernel's memory map and prints information.
@@ -863,9 +868,9 @@ struct page *vm_get_zero_page();
 /**
  * @brief Transforms a file-backed region into an anonymously backed one.
  *
- * @param region A pointer to the vm_region.
+ * @param region A pointer to the vm_area_struct.
  */
-void vm_make_anon(vm_region *region);
+void vm_make_anon(vm_area_struct *region);
 
 /**
  * @brief Calls the specified function \p func on every region of the address space \p as.
@@ -876,8 +881,8 @@ void vm_make_anon(vm_region *region);
 template <typename Callable>
 inline void vm_for_every_region(mm_address_space &as, Callable func)
 {
-    vm_region *entry;
-    bst_for_every_entry(&as.region_tree, entry, vm_region, tree_node)
+    vm_area_struct *entry;
+    bst_for_every_entry(&as.region_tree, entry, vm_area_struct, vm_tree_node)
     {
         if (!func(entry))
             break;

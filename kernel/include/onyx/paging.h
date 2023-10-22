@@ -97,11 +97,11 @@ void *x86_placement_map(unsigned long _phys);
 /**
  * @brief Fork MMU page tables
  *
- * @param old_region Old vm_region
+ * @param old_region Old vm_area_struct
  * @param addr_space Current address space
  * @return 0 on success, negative error codes
  */
-int mmu_fork_tables(struct vm_region *old_region, struct mm_address_space *addr_space);
+int mmu_fork_tables(struct vm_area_struct *old_region, struct mm_address_space *addr_space);
 
 #define PAGE_PRESENT    (1 << 0)
 #define PAGE_GLOBAL     (1 << 1)

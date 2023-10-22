@@ -70,7 +70,7 @@ __always_inline void amap_unref(struct amap *amap)
  * @param nocopy Don't copy if we find an old page
  * @return 0 on success, negative error codes
  */
-int amap_add(struct amap *amap, struct page *page, struct vm_region *region, size_t pgoff,
+int amap_add(struct amap *amap, struct page *page, struct vm_area_struct *region, size_t pgoff,
              bool nocopy);
 /**
  * @brief Add a page to an amap
@@ -81,8 +81,8 @@ int amap_add(struct amap *amap, struct page *page, struct vm_region *region, siz
  * @param pgoff Page offset (in pfn, shifted right by PAGE_SHIFT)
  * @return 0 on success, negative error codes
  */
-__always_inline int amap_ref_and_add(struct amap *amap, struct page *page, struct vm_region *region,
-                                     size_t pgoff)
+__always_inline int amap_ref_and_add(struct amap *amap, struct page *page,
+                                     struct vm_area_struct *region, size_t pgoff)
 {
     page_ref(page);
     return amap_add(amap, page, region, pgoff, false);
@@ -105,7 +105,7 @@ struct page *amap_get(struct amap *amap, size_t pgoff);
  * @param pgoff Page offset for the new amap
  * @return New amap, or NULL
  */
-struct amap *amap_split(struct amap *amap, struct vm_region *region, size_t pgoff);
+struct amap *amap_split(struct amap *amap, struct vm_area_struct *region, size_t pgoff);
 
 /**
  * @brief Truncate an amap
@@ -115,7 +115,7 @@ struct amap *amap_split(struct amap *amap, struct vm_region *region, size_t pgof
  * @param new_pgsize New size, in pages
  * @return 0 on success, negative error codes
  */
-int amap_truncate(struct amap *amap, struct vm_region *region, size_t new_pgsize);
+int amap_truncate(struct amap *amap, struct vm_area_struct *region, size_t new_pgsize);
 
 /**
  * @brief Punch a hole through an amap
@@ -126,6 +126,7 @@ int amap_truncate(struct amap *amap, struct vm_region *region, size_t new_pgsize
  * @param end_pg End of the hole
  * @return 0 on success, negative error codes
  */
-int amap_punch_hole(struct amap *amap, struct vm_region *region, size_t first_pg, size_t end_pg);
+int amap_punch_hole(struct amap *amap, struct vm_area_struct *region, size_t first_pg,
+                    size_t end_pg);
 
 #endif
