@@ -256,12 +256,12 @@ ssize_t filemap_write_iter(struct file *filp, size_t off, iovec_iter *iter, unsi
 
 int filemap_private_fault(struct vm_pf_context *ctx)
 {
-    struct vm_region *region = ctx->entry;
+    struct vm_area_struct *region = ctx->entry;
     struct fault_info *info = ctx->info;
     struct page *page = nullptr;
     struct page *newp = nullptr;
     int st = 0;
-    unsigned long pgoff = (ctx->vpage - region->base) >> PAGE_SHIFT;
+    unsigned long pgoff = (ctx->vpage - region->vm_start) >> PAGE_SHIFT;
 
     /* Permission checks have already been handled before .fault() */
     if (region->vm_amap)
@@ -272,7 +272,7 @@ int filemap_private_fault(struct vm_pf_context *ctx)
 
     if (!page)
     {
-        vmo_status_t vst = vmo_get(region->vmo, region->offset + (pgoff << PAGE_SHIFT),
+        vmo_status_t vst = vmo_get(region->vm_obj, region->vm_offset + (pgoff << PAGE_SHIFT),
                                    VMO_GET_MAY_POPULATE, &page);
 
         if (vst != VMO_STATUS_OK)
@@ -294,7 +294,7 @@ int filemap_private_fault(struct vm_pf_context *ctx)
     /* Lazily allocate the vm_amap struct */
     if (!region->vm_amap)
     {
-        region->vm_amap = amap_alloc(region->pages << PAGE_SHIFT);
+        region->vm_amap = amap_alloc(vma_pages(region) << PAGE_SHIFT);
         if (!region->vm_amap)
             goto enomem;
     }
@@ -316,7 +316,7 @@ int filemap_private_fault(struct vm_pf_context *ctx)
     page = newp;
 
 map:
-    if (!vm_map_page(region->mm, ctx->vpage, (u64) page_to_phys(page), ctx->page_rwx))
+    if (!vm_map_page(region->vm_mm, ctx->vpage, (u64) page_to_phys(page), ctx->page_rwx))
         goto enomem;
 
     /* Only unref if this page is not new. When we allocate a new page - because of CoW, amap_add

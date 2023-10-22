@@ -288,11 +288,11 @@ void kcov_free_thread(struct thread *thread)
     }
 }
 
-void *kcov_mmap(struct vm_region *area, struct file *node)
+void *kcov_mmap(struct vm_area_struct *area, struct file *node)
 {
-    if (area->offset != 0)
+    if (area->vm_offset != 0)
         return errno = EINVAL, nullptr;
-    if (area->mapping_type != MAP_SHARED)
+    if (area->vm_maptype != MAP_SHARED)
         return errno = EINVAL, nullptr;
 
     auto data = (struct kcov_data *) node->private_data;
@@ -305,14 +305,14 @@ void *kcov_mmap(struct vm_region *area, struct file *node)
         return errno = EINVAL, nullptr;
     }
 
-    area->vmo = data->vmo;
-    vmo_ref(area->vmo);
+    area->vm_obj = data->vmo;
+    vmo_ref(area->vm_obj);
 
     g.unlock();
 
-    vmo_assign_mapping(area->vmo, area);
+    vmo_assign_mapping(area->vm_obj, area);
 
-    return (void *) area->base;
+    return (void *) area->vm_start;
 }
 
 static const file_ops kcov_fops = {

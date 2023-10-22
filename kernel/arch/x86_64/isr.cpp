@@ -217,7 +217,7 @@ void stack_segment_fault(struct registers *ctx)
 }
 
 #ifdef ENABLE_SCREAM_EXCEPTION
-vm_region *vm_search(struct mm_address_space *mm, void *addr, size_t length)
+vm_area_struct *vm_search(struct mm_address_space *mm, void *addr, size_t length)
     REQUIRES_SHARED(mm->vm_lock);
 
 #define dumpprint printk
@@ -229,7 +229,7 @@ static void attempt_map_pointer(unsigned long word)
 
     scoped_mutex g{mm->vm_lock};
     // Lets try to "symbolize" it
-    struct vm_region *vm = vm_search(mm, (void *) word, 1);
+    struct vm_area_struct *vm = vm_search(mm, (void *) word, 1);
     if (vm)
     {
         dumpprint(" --> refers to ");

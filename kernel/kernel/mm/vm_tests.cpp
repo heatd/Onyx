@@ -10,7 +10,8 @@
 #include <onyx/vm.h>
 
 // Internal vm.cpp interfaces
-struct vm_region *vm_reserve_region(struct mm_address_space *as, unsigned long start, size_t size);
+struct vm_area_struct *vm_reserve_region(struct mm_address_space *as, unsigned long start,
+                                         size_t size);
 unsigned long vm_allocate_base(struct mm_address_space *as, unsigned long min, size_t size,
                                u64 flags);
 

@@ -419,68 +419,68 @@ unsigned int device::do_ioctls(int request, void *argp)
 {
     switch (request)
     {
-    case PHOTON_IOCTL_CREATE_DUMB_BUF: {
-        photon_dumb_buffer_info buf;
-        if (copy_from_user(&buf, argp, sizeof(buf)) < 0)
-            return -EFAULT;
+        case PHOTON_IOCTL_CREATE_DUMB_BUF: {
+            photon_dumb_buffer_info buf;
+            if (copy_from_user(&buf, argp, sizeof(buf)) < 0)
+                return -EFAULT;
 
-        int st = do_create_dumb_buffer(buf);
-        if (st < 0)
-            return st;
+            int st = do_create_dumb_buffer(buf);
+            if (st < 0)
+                return st;
 
-        if (copy_to_user(argp, &buf, sizeof(buf)) < 0)
-        {
-            close_object(buf.handle);
-            return -EFAULT;
+            if (copy_to_user(argp, &buf, sizeof(buf)) < 0)
+            {
+                close_object(buf.handle);
+                return -EFAULT;
+            }
+
+            return 0;
         }
 
-        return 0;
-    }
+        case PHOTON_IOCTL_SWAP_BUFS: {
+            photon_swap_buffer_args a;
+            if (copy_from_user(&a, argp, sizeof(a)) < 0)
+                return -EFAULT;
 
-    case PHOTON_IOCTL_SWAP_BUFS: {
-        photon_swap_buffer_args a;
-        if (copy_from_user(&a, argp, sizeof(a)) < 0)
-            return -EFAULT;
+            return do_swap_buffers(a);
+        }
 
-        return do_swap_buffers(a);
-    }
+        case PHOTON_IOCTL_CREATE_BUF_MAP: {
+            photon_create_buf_map_args args;
+            if (copy_from_user(&args, argp, sizeof(args)) < 0)
+                return -EFAULT;
 
-    case PHOTON_IOCTL_CREATE_BUF_MAP: {
-        photon_create_buf_map_args args;
-        if (copy_from_user(&args, argp, sizeof(args)) < 0)
-            return -EFAULT;
+            off_t offset = 0;
+            if ((offset = do_enable_buffer_mappings(args.handle)) < 0)
+                return offset;
 
-        off_t offset = 0;
-        if ((offset = do_enable_buffer_mappings(args.handle)) < 0)
-            return offset;
+            args.offset = offset;
 
-        args.offset = offset;
+            if (copy_to_user(argp, &args, sizeof(args)) < 0)
+                return -EFAULT;
+            return 0;
+        }
 
-        if (copy_to_user(argp, &args, sizeof(args)) < 0)
-            return -EFAULT;
-        return 0;
-    }
+        case PHOTON_IOCTL_SET_NAME:
+            return do_ioctl_set_name((photon_set_name_args *) argp);
 
-    case PHOTON_IOCTL_SET_NAME:
-        return do_ioctl_set_name((photon_set_name_args *) argp);
+        case PHOTON_IOCTL_OPEN_FROM_NAME:
+            return do_ioctl_open_from_name((photon_open_from_name_args *) argp);
 
-    case PHOTON_IOCTL_OPEN_FROM_NAME:
-        return do_ioctl_open_from_name((photon_open_from_name_args *) argp);
+        case PHOTON_IOCTL_CLOSE_OBJECT:
+            return do_ioctl_close_handle((photon_close_handle_args *) argp);
 
-    case PHOTON_IOCTL_CLOSE_OBJECT:
-        return do_ioctl_close_handle((photon_close_handle_args *) argp);
+        case PHOTON_IOCTL_GET_INFO:
+            return do_ioctl_get_info((photon_info *) argp);
 
-    case PHOTON_IOCTL_GET_INFO:
-        return do_ioctl_get_info((photon_info *) argp);
+        case PHOTON_IOCTL_GET_BUS_INFO:
+            return do_ioctl_get_bus_info((photon_bus_info *) argp);
 
-    case PHOTON_IOCTL_GET_BUS_INFO:
-        return do_ioctl_get_bus_info((photon_bus_info *) argp);
+        case PHOTON_IOCTL_PLATFORM_MIN ... PHOTON_IOCTL_PLATFORM_MAX:
+            return handle_platform_ioctls(request, argp);
 
-    case PHOTON_IOCTL_PLATFORM_MIN ... PHOTON_IOCTL_PLATFORM_MAX:
-        return handle_platform_ioctls(request, argp);
-
-    default:
-        return -EINVAL;
+        default:
+            return -EINVAL;
     }
 }
 
@@ -491,11 +491,11 @@ unsigned int photon_ioctl(int request, void *argp, struct file *file)
     return dev->do_ioctls(request, argp);
 }
 
-void *device::do_mmap(struct vm_region *area, struct file *f)
+void *device::do_mmap(struct vm_area_struct *area, struct file *f)
 {
     auto context = get_default_context();
 
-    auto mapping = context->get_mapping(area->offset);
+    auto mapping = context->get_mapping(area->vm_offset);
     if (!mapping)
         return nullptr;
 
@@ -506,7 +506,7 @@ void *device::do_mmap(struct vm_region *area, struct file *f)
 
     fd->f_ino = f->f_ino;
     inode_ref(f->f_ino);
-    area->offset = 0;
+    area->vm_offset = 0;
 
     auto dbuf = cast<dumb_buffer, object>(mapping->buf());
     auto buf_size = dbuf->get_size();
@@ -536,12 +536,12 @@ void *device::do_mmap(struct vm_region *area, struct file *f)
     vmo->ino = f->f_ino;
     vmo->flags |= VMO_FLAG_DEVICE_MAPPING;
 
-    area->vmo = vmo;
+    area->vm_obj = vmo;
 
-    return (void *) area->base;
+    return (void *) area->vm_start;
 }
 
-void *photon_mmap(struct vm_region *area, struct file *f)
+void *photon_mmap(struct vm_area_struct *area, struct file *f)
 {
     auto dev = photon_dev_from_file(f);
     return dev->do_mmap(area, f);

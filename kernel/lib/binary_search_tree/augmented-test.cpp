@@ -10,7 +10,7 @@
 #include <lib/binary_search_tree.h>
 #include <onyx/kunit.h>
 
-// Test augmented binary search trees using structures similar to vm_regions
+// Test augmented binary search trees using structures similar to vm_area_structs
 
 struct vma
 {

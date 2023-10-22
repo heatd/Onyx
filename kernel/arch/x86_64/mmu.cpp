@@ -1143,7 +1143,7 @@ int vm_mmu_unmap(struct mm_address_space *as, void *addr, size_t pages)
 }
 
 static int x86_mmu_fork(PML *parent_table, PML *child_table, unsigned int pt_level,
-                        page_table_iterator &it, struct vm_region *old_region)
+                        page_table_iterator &it, struct vm_area_struct *old_region)
 {
     unsigned int index = addr_get_index(it.curr_addr(), pt_level);
 
@@ -1191,7 +1191,7 @@ static int x86_mmu_fork(PML *parent_table, PML *child_table, unsigned int pt_lev
 
         if (pt_level == PT_LEVEL || is_huge_page)
         {
-            const bool should_cow = old_region->mapping_type == MAP_PRIVATE;
+            const bool should_cow = old_region->vm_maptype == MAP_PRIVATE;
             child_table->entries[i] = pt_entry & (should_cow ? ~X86_PAGING_WRITE : ~0UL);
             if (should_cow)
             {
@@ -1245,15 +1245,15 @@ static int x86_mmu_fork(PML *parent_table, PML *child_table, unsigned int pt_lev
 /**
  * @brief Fork MMU page tables
  *
- * @param old_region Old vm_region
+ * @param old_region Old vm_area_struct
  * @param addr_space Current address space
  * @return 0 on success, negative error codes
  */
-int mmu_fork_tables(struct vm_region *old_region, struct mm_address_space *addr_space)
+int mmu_fork_tables(struct vm_area_struct *old_region, struct mm_address_space *addr_space)
 {
-    page_table_iterator it{old_region->base, old_region->pages << PAGE_SHIFT, addr_space};
+    page_table_iterator it{old_region->vm_start, vma_pages(old_region) << PAGE_SHIFT, addr_space};
 
-    return x86_mmu_fork((PML *) PHYS_TO_VIRT(old_region->mm->arch_mmu.cr3),
+    return x86_mmu_fork((PML *) PHYS_TO_VIRT(old_region->vm_mm->arch_mmu.cr3),
                         (PML *) PHYS_TO_VIRT(addr_space->arch_mmu.cr3), x86_paging_levels - 1, it,
                         old_region);
 }

@@ -61,7 +61,7 @@ struct file_ops
     __stat stat;
     int (*link)(struct file *target_ino, const char *name, struct dentry *dir);
     __symlink symlink;
-    void *(*mmap)(struct vm_region *area, struct file *node);
+    void *(*mmap)(struct vm_area_struct *area, struct file *node);
     int (*ftruncate)(size_t length, struct file *node);
     struct inode *(*mkdir)(const char *name, mode_t mode, struct dentry *dir);
     struct inode *(*mknod)(const char *name, mode_t mode, dev_t dev, struct dentry *dir);
