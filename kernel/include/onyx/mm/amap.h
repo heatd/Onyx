@@ -97,4 +97,35 @@ __always_inline int amap_ref_and_add(struct amap *amap, struct page *page, struc
  */
 struct page *amap_get(struct amap *amap, size_t pgoff);
 
+/**
+ * @brief Split an amap into two
+ *
+ * @param amap Original amap
+ * @param region Region to which the amap belongs
+ * @param pgoff Page offset for the new amap
+ * @return New amap, or NULL
+ */
+struct amap *amap_split(struct amap *amap, struct vm_region *region, size_t pgoff);
+
+/**
+ * @brief Truncate an amap
+ *
+ * @param amap Amap
+ * @param region Region to which the amap belongs
+ * @param new_pgsize New size, in pages
+ * @return 0 on success, negative error codes
+ */
+int amap_truncate(struct amap *amap, struct vm_region *region, size_t new_pgsize);
+
+/**
+ * @brief Punch a hole through an amap
+ *
+ * @param amap Amap
+ * @param region Region to which the amap belongs
+ * @param first_pg First pfn of the hole
+ * @param end_pg End of the hole
+ * @return 0 on success, negative error codes
+ */
+int amap_punch_hole(struct amap *amap, struct vm_region *region, size_t first_pg, size_t end_pg);
+
 #endif

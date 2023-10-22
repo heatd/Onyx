@@ -128,7 +128,12 @@ struct vm_region
 {
     uintptr_t base;
     size_t pages;
-    struct bst_node tree_node;
+
+    union {
+        struct bst_node tree_node;
+        struct list_head vm_detached_node;
+    };
+
     int rwx;
     int mapping_type;
     mm_address_space *mm;
