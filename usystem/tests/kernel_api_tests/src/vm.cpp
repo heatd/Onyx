@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 - 2022 Pedro Falcato
+ * Copyright (c) 2021 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -7,6 +7,8 @@
  */
 
 #include <fcntl.h>
+#include <setjmp.h>
+#include <signal.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
@@ -283,3 +285,106 @@ TEST(Vm, DISABLED_x86_64_LA57)
     ASSERT_GT((unsigned long) ptr, 0x00007fffffffffff);
 }
 #endif
+
+TEST(Vm, MprotectSplitMiddle)
+{
+    onx::unique_fd handle = onx_process_open(getpid(), ONX_HANDLE_CLOEXEC);
+    ASSERT_TRUE(handle.valid());
+
+    void* ptr = mmap(nullptr, page_size * 3, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+    ASSERT_NE(ptr, MAP_FAILED);
+
+    /* ptr + 0    | vma0
+     * ptr + 4096 | vma0
+     * ptr + 8192 | vma0
+     */
+    auto regions = get_mm_regions(handle.get());
+    ASSERT_TRUE(
+        address_is_mapped(regions, (unsigned long) ptr, page_size,
+                          mapping_type{VM_REGION_PROT_READ | VM_REGION_PROT_WRITE, MAP_PRIVATE}));
+    ASSERT_EQ(0, mprotect((void*) ((unsigned long) ptr + page_size), page_size, PROT_READ));
+    regions = get_mm_regions(handle.get());
+
+    /* ptr + 0    | vma0
+     * ptr + 4096 | vma1
+     * ptr + 8192 | vma2
+     */
+    auto region0 = get_mapping(regions, (unsigned long) ptr, page_size);
+    auto region1 = get_mapping(regions, (unsigned long) ptr + page_size, page_size);
+    auto region2 = get_mapping(regions, (unsigned long) ptr + (page_size * 2), page_size);
+    ASSERT_NE(region0, nullptr);
+    ASSERT_NE(region1, nullptr);
+    ASSERT_NE(region2, nullptr);
+    ASSERT_NE(region0, region1);
+    ASSERT_NE(region0, region2);
+    ASSERT_NE(region1, region2);
+    ASSERT_EQ(region0->start + region0->length, (unsigned long) ptr + page_size);
+    ASSERT_EQ(region0->protection, VM_REGION_PROT_READ | VM_REGION_PROT_WRITE);
+    ASSERT_EQ(region1->start + region1->length, (unsigned long) ptr + (page_size * 2));
+    ASSERT_EQ(region1->protection, VM_REGION_PROT_READ);
+    ASSERT_EQ(region2->start, (unsigned long) ptr + (page_size * 2));
+    ASSERT_EQ(region2->start + region2->length, (unsigned long) ptr + (page_size * 3));
+    ASSERT_EQ(region2->protection, VM_REGION_PROT_READ | VM_REGION_PROT_WRITE);
+
+    munmap(ptr, page_size * 3);
+}
+
+TEST(Vm, MunmapOverManyVmas)
+{
+    constexpr int npgs = 5;
+    onx::unique_fd handle = onx_process_open(getpid(), ONX_HANDLE_CLOEXEC);
+    ASSERT_TRUE(handle.valid());
+
+    /* Test that a single munmap over many regions succeeds */
+    void* ptr = mmap(nullptr, page_size * npgs, PROT_NONE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+    ASSERT_NE(ptr, MAP_FAILED);
+    for (int i = 0; i < npgs; i++)
+    {
+        unsigned long addr = (unsigned long) ptr + (page_size * i);
+        int perm = i & 1 ? PROT_EXEC | PROT_READ : PROT_WRITE | PROT_READ;
+        ASSERT_EQ(mprotect((void*) addr, page_size, perm), 0);
+        *(volatile char*) addr;
+    }
+
+    ASSERT_EQ(munmap(ptr, page_size * npgs), 0);
+
+    auto regions = get_mm_regions(handle.get());
+    for (int i = 0; i < npgs; i++)
+    {
+        unsigned long addr = (unsigned long) ptr + (page_size * i);
+        ASSERT_FALSE(address_is_mapped(regions, addr, page_size));
+    }
+}
+
+TEST(Vm, MprotectOverManyVmas)
+{
+    /* Test that a single mprotect over many regions succeeds */
+
+    constexpr int npgs = 5;
+    onx::unique_fd handle = onx_process_open(getpid(), ONX_HANDLE_CLOEXEC);
+    ASSERT_TRUE(handle.valid());
+
+    void* ptr = mmap(nullptr, page_size * npgs, PROT_NONE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+    ASSERT_NE(ptr, MAP_FAILED);
+    for (int i = 0; i < npgs; i++)
+    {
+        unsigned long addr = (unsigned long) ptr + (page_size * i);
+        int perm = i & 1 ? PROT_EXEC | PROT_READ : PROT_WRITE | PROT_READ;
+        ASSERT_EQ(mprotect((void*) addr, page_size, perm), 0);
+    }
+
+    ASSERT_EQ(mprotect(ptr, page_size * npgs, PROT_NONE), 0);
+
+    auto regions = get_mm_regions(handle.get());
+    for (int i = 0; i < npgs; i++)
+    {
+        unsigned long addr = (unsigned long) ptr + (page_size * i);
+        auto mapping = get_mapping(regions, addr, page_size);
+        EXPECT_NE(mapping, nullptr);
+        EXPECT_EQ(mapping->protection &
+                      (VM_REGION_PROT_READ | VM_REGION_PROT_WRITE | VM_REGION_PROT_EXEC),
+                  0);
+    }
+
+    ASSERT_EQ(munmap(ptr, page_size * npgs), 0);
+}

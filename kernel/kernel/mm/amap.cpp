@@ -134,3 +134,132 @@ struct page *amap_get(struct amap *amap, size_t pgoff)
     page_ref(page);
     return page;
 }
+
+/**
+ * @brief Split an amap into two
+ *
+ * @param amap Original amap
+ * @param region Region to which the amap belongs
+ * @param pgoff Page offset for the new amap
+ * @return New amap, or NULL
+ */
+struct amap *amap_split(struct amap *amap, struct vm_region *region, size_t pgoff)
+{
+    if (amap->am_refc > 1) [[unlikely]]
+    {
+        /* Note: We do not need a lock here, no one can touch this amap while am_refc > 1 */
+        struct amap *namap = amap_copy(amap);
+        if (!namap)
+            return nullptr;
+
+        amap_unref(amap);
+        amap = namap;
+        region->vm_amap = amap;
+    }
+
+    struct amap *namap = amap_alloc(0);
+    if (!namap)
+        return nullptr;
+
+    /* Since we are the exclusive owners of this amap, and callers hold the mm address space lock,
+     * we do not need to lock. This saves us from GFP_ATOMIC.
+     */
+    auto cursor = radix_tree::cursor::from_range(&amap->am_map, pgoff);
+    while (!cursor.is_end())
+    {
+        /* Move pages from one amap to the other by storing to new and store(0). store(0) is done
+         * later in case of OOM.
+         */
+        unsigned long curr_idx = cursor.current_idx();
+        if (namap->am_map.store(curr_idx, cursor.get()) < 0)
+            goto err;
+        cursor.advance();
+    }
+
+    cursor = radix_tree::cursor::from_range(&amap->am_map, pgoff);
+    while (!cursor.is_end())
+    {
+        /* store(0) is done now..
+         */
+        cursor.store(0);
+        cursor.advance();
+    }
+
+    return namap;
+err:
+    /* Open-coded amap_free, to avoid page_ref/page_unref shenanigans. */
+    amap->~amap();
+    kfree(amap);
+    return nullptr;
+}
+
+/**
+ * @brief Truncate an amap
+ *
+ * @param amap Amap
+ * @param region Region to which the amap belongs
+ * @param new_pgsize New size, in pages
+ * @return 0 on success, negative error codes
+ */
+int amap_truncate(struct amap *amap, struct vm_region *region, size_t new_pgsize)
+{
+    if (amap->am_refc > 1) [[unlikely]]
+    {
+        /* Note: We do not need a lock here, no one can touch this amap while am_refc > 1 */
+        struct amap *namap = amap_copy(amap);
+        if (!namap)
+            return -ENOMEM;
+
+        amap_unref(amap);
+        amap = namap;
+        region->vm_amap = amap;
+    }
+
+    auto cursor = radix_tree::cursor::from_range(&amap->am_map, new_pgsize);
+
+    while (!cursor.is_end())
+    {
+        struct page *page = (struct page *) cursor.get();
+        page_unref(page);
+        cursor.store(0);
+        cursor.advance();
+    }
+
+    return 0;
+}
+
+/**
+ * @brief Punch a hole through an amap
+ *
+ * @param amap Amap
+ * @param region Region to which the amap belongs
+ * @param first_pg First pfn of the hole
+ * @param end_pg End of the hole
+ * @return 0 on success, negative error codes
+ */
+int amap_punch_hole(struct amap *amap, struct vm_region *region, size_t first_pg, size_t end_pg)
+{
+    if (amap->am_refc > 1) [[unlikely]]
+    {
+        /* Note: We do not need a lock here, no one can touch this amap while am_refc > 1 */
+        struct amap *namap = amap_copy(amap);
+        if (!namap)
+            return -ENOMEM;
+
+        amap_unref(amap);
+        amap = namap;
+        region->vm_amap = amap;
+    }
+
+    auto cursor = radix_tree::cursor::from_range(&amap->am_map, first_pg, end_pg);
+
+    while (!cursor.is_end())
+    {
+        struct page *page = (struct page *) cursor.get();
+        page_unref(page);
+        cursor.store(0);
+        cursor.advance();
+    }
+
+    return 0;
+}

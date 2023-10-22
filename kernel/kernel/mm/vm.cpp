@@ -1187,7 +1187,7 @@ int sys_munmap(void *addr, size_t length)
     return ret;
 }
 
-void vm_copy_region(const struct vm_region *source, struct vm_region *dest)
+void vm_copy_region(const struct vm_region *source, struct vm_region *dest, int copy_amap = 1)
 {
     dest->fd = source->fd;
     if (dest->fd)
@@ -1209,137 +1209,76 @@ void vm_copy_region(const struct vm_region *source, struct vm_region *dest)
         vmo_ref(dest->vmo);
     }
 
-    dest->vm_amap = source->vm_amap;
-    if (dest->vm_amap)
-        amap_ref(dest->vm_amap);
+    if (copy_amap)
+    {
+        dest->vm_amap = source->vm_amap;
+        if (dest->vm_amap)
+            amap_ref(dest->vm_amap);
+    }
+
     dest->vm_ops = source->vm_ops;
 }
 
-struct vm_region *vm_split_region(struct mm_address_space *as, struct vm_region *region,
-                                  unsigned long addr, size_t size, size_t *pto_shave_off)
-    REQUIRES(as->vm_lock)
+static struct vm_region *vm_split_region(struct mm_address_space *as, struct vm_region *vma,
+                                         unsigned long addr, bool below) REQUIRES(as->vm_lock)
 {
-    size_t region_size = region->pages << PAGE_SHIFT;
+    DCHECK((addr & (PAGE_SIZE - 1)) == 0);
+    size_t region_off = addr - vma->base;
+    size_t off_pages = region_off >> PAGE_SHIFT;
+    struct vm_region *newr = vm_alloc_vmregion();
+    if (!newr)
+        return nullptr;
 
-    size_t to_shave_off = 0;
-    if (region->base == addr)
+    vm_copy_region(vma, newr, 0);
+
+    if (vma->vm_amap)
     {
-        to_shave_off = size < region_size ? size : region_size;
-        *pto_shave_off = to_shave_off;
-
-        if (to_shave_off != region_size)
+        auto new_amap = amap_split(vma->vm_amap, vma, off_pages);
+        if (!new_amap)
         {
-            vm_remove_region(as, region);
+            vm_free_vmregion(newr);
+            return nullptr;
+        }
 
-            off_t old_off = region->offset;
-
-            region->base += to_shave_off;
-            region->pages -= to_shave_off >> PAGE_SHIFT;
-            region->offset += to_shave_off;
-            if (vm_add_region(as, region) < 0)
-            {
-                return errno = ENOMEM, nullptr;
-            }
-
-            struct vm_region *reg = vm_reserve_region(as, addr, to_shave_off);
-
-            if (!reg)
-            {
-                return errno = ENOMEM, nullptr;
-            }
-
-            /* Essentially, we create a carbon
-             * copy of the region and increment/decrement some values */
-            vm_copy_region(region, reg);
-            reg->base = addr;
-            reg->pages = to_shave_off >> PAGE_SHIFT;
-
-            /* Also, set the offset of the old region */
-            reg->offset = old_off;
-            return reg;
+        /* Below region gets the original 'vma->vm_amap', top gets the new */
+        if (below)
+        {
+            newr->vm_amap = vma->vm_amap;
+            vma->vm_amap = new_amap;
         }
         else
-        {
-            return region;
-        }
+            newr->vm_amap = new_amap;
     }
-    else if (region->base < addr)
+
+    DCHECK(vma->pages > off_pages);
+
+    if (below)
     {
-        unsigned long offset = addr - region->base;
-        unsigned long remainder = region_size - offset;
-        to_shave_off = size < remainder ? size : remainder;
-        *pto_shave_off = to_shave_off;
-
-        if (to_shave_off != remainder)
-        {
-            vm_remove_region(as, region);
-
-            unsigned long second_region_start = addr + to_shave_off;
-            unsigned long second_region_size = remainder - to_shave_off;
-
-            struct vm_region *new_region =
-                vm_reserve_region(as, second_region_start, second_region_size);
-
-            if (!new_region)
-            {
-                return errno = ENOMEM, nullptr;
-            }
-
-            vm_copy_region(region, new_region);
-            new_region->offset += offset + to_shave_off;
-
-            struct vm_region *to_ret = vm_reserve_region(as, addr, to_shave_off);
-            if (!to_ret)
-            {
-                vm_remove_region(as, new_region);
-                return errno = ENOMEM, nullptr;
-            }
-
-            vm_copy_region(region, to_ret);
-            to_ret->offset += offset;
-
-            /* The original region's size is offset */
-            region->pages = offset >> PAGE_SHIFT;
-
-            /* FIXME: it's not clear what we should do on OOM cases
-             * This code and munmap's code is riddled with these things. */
-            (void) vm_add_region(as, region);
-
-            return to_ret;
-        }
-        else
-        {
-            region->pages -= to_shave_off >> PAGE_SHIFT;
-
-            struct vm_region *to_ret = vm_reserve_region(as, addr, to_shave_off);
-            if (!to_ret)
-            {
-                return errno = ENOMEM, nullptr;
-            }
-
-            vm_copy_region(region, to_ret);
-            to_ret->offset += offset;
-
-            return to_ret;
-        }
+        newr->base = vma->base;
+        newr->pages = off_pages;
+        vma->base = addr;
+        vma->pages -= off_pages;
+        vma->offset += region_off;
+    }
+    else
+    {
+        newr->base = addr;
+        newr->pages = vma->pages - off_pages;
+        newr->offset += region_off;
+        vma->pages = off_pages;
     }
 
-    __builtin_unreachable();
+    vm_insert_region(as, newr);
+
+    return newr;
 }
 
-int vm_mprotect_in_region(struct mm_address_space *as, struct vm_region *region, unsigned long addr,
-                          size_t size, int *pprot, size_t *pto_shave_off) REQUIRES(as->vm_lock)
+static void vm_mprotect_handle_prot(struct vm_region *region, int *pprot)
 {
     int prot = *pprot;
-    // printk("mprotect %lx - %lx, prot %x\n", addr, addr + size, prot);
+    bool marking_write = (prot & VM_WRITE) && !(region->rwx & VM_WRITE);
 
-    struct vm_region *new_region = vm_split_region(as, region, addr, size, pto_shave_off);
-    if (!new_region)
-        return -ENOMEM;
-
-    bool marking_write = (prot & VM_WRITE) && !(new_region->rwx & VM_WRITE);
-
-    new_region->rwx = prot;
+    region->rwx = prot;
 
     if (marking_write && (vm_mapping_is_cow(region) || vm_mapping_requires_write_protect(region)))
     {
@@ -1348,8 +1287,6 @@ int vm_mprotect_in_region(struct mm_address_space *as, struct vm_region *region,
          */
         *pprot &= ~VM_WRITE;
     }
-
-    return 0;
 }
 
 void vm_do_mmu_mprotect(struct mm_address_space *as, void *address, size_t nr_pgs, int old_prots,
@@ -1385,11 +1322,33 @@ int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot
 
     scoped_mutex g{as->vm_lock};
 
-    while (addr < limit)
+    /* Note: vm_munmap has some vma detaching logic for the simple fact that POSIX does not
+     * allow for a partial unmap in case of an error. Whereas this is not the case for mprotect.
+     */
+
+    struct vm_region *region = vm_search(as, (void *) addr, PAGE_SIZE);
+    if (!region)
+        return -ENOMEM;
+
+    /* Split the head, if needed */
+    if (addr > region->base)
     {
-        struct vm_region *region = vm_search(as, __addr, size);
+        region = vm_split_region(as, region, addr, false);
         if (!region)
-            return -EINVAL;
+            return -ENOMEM;
+        DCHECK(addr == region->base);
+    }
+
+    while (region)
+    {
+        /* Split the tail, if needed */
+        if (limit < region->base + (region->pages << PAGE_SHIFT))
+        {
+            region = vm_split_region(as, region, limit, true);
+            if (!region)
+                return -ENOMEM;
+            DCHECK(limit == region->base + (region->pages << PAGE_SHIFT));
+        }
 
         if (region->mapping_type == MAP_SHARED && region->fd && prot & PROT_WRITE)
         {
@@ -1404,19 +1363,23 @@ int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot
                 return -EACCES;
         }
 
-        size_t to_shave_off = 0;
         int old_prots = region->rwx;
         int new_prots = prot;
+        unsigned long vma_end = region->base + (region->pages << PAGE_SHIFT);
+        unsigned long end = ALIGN_TO(min(addr + size, vma_end), 4096);
+        unsigned long mprotect_size = end - addr;
+        DCHECK((mprotect_size & (PAGE_SIZE - 1)) == 0);
 
-        int st = vm_mprotect_in_region(as, region, addr, size, &new_prots, &to_shave_off);
+        vm_mprotect_handle_prot(region, &new_prots);
+        vm_do_mmu_mprotect(as, (void *) addr, mprotect_size >> PAGE_SHIFT, old_prots, new_prots);
 
-        if (st < 0)
-            return st;
+        if (region->base + (region->pages << PAGE_SHIFT) == limit)
+            break;
 
-        vm_do_mmu_mprotect(as, (void *) addr, to_shave_off >> PAGE_SHIFT, old_prots, new_prots);
-
-        addr += to_shave_off;
-        size -= to_shave_off;
+        addr += mprotect_size;
+        size -= mprotect_size;
+        region = container_of(bst_next(&as->region_tree, &region->tree_node), struct vm_region,
+                              tree_node);
     }
 
     return 0;
@@ -1446,11 +1409,8 @@ int sys_mprotect(void *addr, size_t len, int prot)
     len = pages << PAGE_SHIFT; /* Align len on a page boundary */
 
     struct process *p = get_current_process();
-    // vm_print_umap();
-    int st = vm_mprotect(p->address_space.get(), addr, len, vm_prot);
-    // vm_print_umap();
-    // while(true) {}
-    return st;
+
+    return vm_mprotect(p->address_space.get(), addr, len, vm_prot);
 }
 
 int vm_expand_brk(struct mm_address_space *as, size_t nr_pages) REQUIRES(as->vm_lock);
@@ -2420,7 +2380,7 @@ void *vm_get_fallback_pgd()
     return vm_get_pgd(&kernel_address_space.arch_mmu);
 }
 
-void vm_remove_region(struct mm_address_space *as, struct vm_region *region)
+void vm_remove_region(struct mm_address_space *as, struct vm_region *region) REQUIRES(as->vm_lock)
 {
     MUST_HOLD_MUTEX(&as->vm_lock);
 
@@ -2436,133 +2396,83 @@ int vm_add_region(struct mm_address_space *as, struct vm_region *region)
 
 int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size) REQUIRES(as->vm_lock)
 {
-    unsigned long aligned_start = (unsigned long) __addr & -PAGE_SIZE;
+    unsigned long addr = (unsigned long) __addr & -PAGE_SIZE;
     unsigned long limit = ALIGN_TO(((unsigned long) __addr) + size, PAGE_SIZE);
-    size = limit - aligned_start;
-    // printk("munmap [%016lx, %016lx]\n", addr, limit - 1);
+    size = limit - addr;
+    struct list_head list = LIST_HEAD_INIT(list);
 
     MUST_HOLD_MUTEX(&as->vm_lock);
 
-    size_t found = 0;
+    struct vm_region *region = vm_search(as, (void *) addr, PAGE_SIZE);
+    if (!region)
+        return -EINVAL;
 
-    while (true)
+    /* Split the head, if needed */
+    if (addr > region->base)
     {
-        struct vm_region *region = vm_search(as, (void *) aligned_start, size);
+        region = vm_split_region(as, region, addr, false);
         if (!region)
+            return -ENOMEM;
+        DCHECK(addr == region->base);
+    }
+
+    /* Gather munmap regions into our local list. No permanent changes are done in this loop,
+     * while regions are live *except unlinking from the BST*.
+     */
+
+    while (region)
+    {
+        /* Split the tail, if needed */
+        if (limit < region->base + (region->pages << PAGE_SHIFT))
         {
-            return found ? 0 : -EINVAL;
+            region = vm_split_region(as, region, limit, true);
+            if (!region)
+                goto restore;
+            DCHECK(limit == region->base + (region->pages << PAGE_SHIFT));
         }
 
-        found++;
+        addr = region->base + (region->pages << PAGE_SHIFT);
 
-        // printk("Looking at region [%016lx, %016lx]\n", region->base,
-        //        region->base + (region->pages << PAGE_SHIFT) - 1);
+        struct vm_region *next = container_of(bst_next(&as->region_tree, &region->tree_node),
+                                              struct vm_region, tree_node);
+        /* Note: vm_detached_node and tree_node alias each other, so we need to remove first, add
+         * later.
+         */
+        vm_remove_region(as, region);
+        list_add_tail(&region->vm_detached_node, &list);
 
-        bool is_shared = is_mapping_shared(region);
+        if (limit == region->base + (region->pages << PAGE_SHIFT))
+            break;
+        region = next;
+    }
 
-        unsigned long reg_len = region->pages << PAGE_SHIFT;
-        unsigned long addr = region->base < aligned_start ? aligned_start : region->base;
-        unsigned long to_unmap = limit - addr < reg_len ? limit - addr : reg_len;
+    list_for_every_safe (&list)
+    {
+        struct vm_region *vma = container_of(l, struct vm_region, tree_node);
+        bool is_shared = is_mapping_shared(vma);
+        unsigned long sz = vma->pages << PAGE_SHIFT;
 
-        size_t pages_to_unmap = vm_size_to_pages(to_unmap);
+        vm_mmu_unmap(as, (void *) vma->base, vma->pages);
+        list_remove(&vma->vm_detached_node);
+        vm_region_destroy(vma);
 
-        vm_mmu_unmap(region->mm, (void *) addr, pages_to_unmap);
-
-        size_t region_size = region->pages << PAGE_SHIFT;
-
-        size_t to_shave_off = 0;
-        if (region->base == addr)
-        {
-            to_shave_off = size < region_size ? size : region_size;
-
-            if (to_shave_off != region_size)
-            {
-                /* If we're shaving off from the front, we'll need to adjust
-                 * both the base, the size *and* the mapping's offset in relation to the VMO.
-                 * TODO: Punch a whole through anonymous VMOs.
-                 */
-                region->base += to_shave_off;
-                region->pages -= to_shave_off >> PAGE_SHIFT;
-                region->offset += to_shave_off;
-            }
-            else
-            {
-                vm_remove_region(as, region);
-                vm_region_destroy(region);
-            }
-        }
-        else if (region->base < addr)
-        {
-            unsigned long offset = addr - region->base;
-            unsigned long remainder = region_size - offset;
-            to_shave_off = size < remainder ? size : remainder;
-
-            if (to_shave_off != remainder)
-            {
-                /* The original region's size is offset */
-                region->pages = offset >> PAGE_SHIFT;
-
-                unsigned long second_region_start = addr + to_shave_off;
-                unsigned long second_region_size = remainder - to_shave_off;
-
-                struct vm_region *new_region =
-                    vm_reserve_region(as, second_region_start, second_region_size);
-
-                if (!new_region)
-                {
-                    return -ENOMEM;
-                }
-
-                new_region->rwx = region->rwx;
-
-                if (region->fd)
-                {
-                    fd_get(region->fd);
-                    new_region->fd = region->fd;
-                }
-
-                new_region->mapping_type = region->mapping_type;
-                new_region->offset = offset + to_shave_off;
-                new_region->mm = region->mm;
-
-                if (0 /* XXX */)
-                {
-                    struct vm_object *second = vmo_split(offset, to_shave_off, region->vmo);
-                    if (!second)
-                    {
-                        vm_remove_region(as, new_region);
-                        /* TODO: Undo new_region stuff and free it */
-                        return -ENOMEM;
-                    }
-
-                    new_region->vmo = second;
-                    vmo_assign_mapping(second, new_region);
-                    /* We should need to do this */
-                    new_region->offset = 0;
-                }
-                else
-                {
-                    vmo_assign_mapping(region->vmo, new_region);
-
-                    vmo_ref(region->vmo);
-                    new_region->vmo = region->vmo;
-                }
-            }
-            else
-            {
-                region->pages -= to_shave_off >> PAGE_SHIFT;
-
-                if (!is_mapping_shared(region) && !vmo_is_shared(region->vmo))
-                    vmo_truncate(region->vmo, region->vmo->size - to_shave_off, 0);
-            }
-        }
-
-        decrement_vm_stat(as, virtual_memory_size, to_shave_off);
+        decrement_vm_stat(as, virtual_memory_size, sz);
         if (is_shared)
-            decrement_vm_stat(as, shared_set_size, to_shave_off);
+            decrement_vm_stat(as, shared_set_size, sz);
     }
 
     return 0;
+restore:
+    /* Something back there just failed, restore the old regions and -ENOMEM */
+    list_for_every_safe (&list)
+    {
+        struct vm_region *vma = container_of(l, struct vm_region, tree_node);
+        list_remove(&vma->vm_detached_node);
+        bst_node_initialize(&vma->tree_node);
+        vm_insert_region(as, vma);
+    }
+
+    return -ENOMEM;
 }
 
 /**
@@ -2585,8 +2495,7 @@ int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
     if (addr & (PAGE_SIZE - 1))
         return -EINVAL;
 
-    __vm_munmap(as, __addr, size);
-    return 0;
+    return __vm_munmap(as, __addr, size);
 }
 
 #if CONFIG_TRACK_TLB_DELTA
@@ -2768,11 +2677,10 @@ void *vm_try_move(struct mm_address_space *mm, struct vm_region *old_region, uns
 void *vm_remap_try(struct mm_address_space *as, void *old_address, size_t old_size,
                    void *new_address, size_t new_size, int flags) REQUIRES(as->vm_lock)
 {
-    size_t n;
     struct vm_region *reg = vm_find_region(as, old_address);
     if (!reg)
         return (void *) -EFAULT;
-
+#if 0
     struct vm_region *old_reg = vm_split_region(as, reg, (unsigned long) old_address, old_size, &n);
     if (!old_reg)
         return (void *) -ENOMEM;
@@ -2790,6 +2698,8 @@ void *vm_remap_try(struct mm_address_space *as, void *old_address, size_t old_si
     }
 
     return (void *) old_reg->base;
+#endif
+    return (void *) -ENOMEM;
 }
 
 bool limits_are_contained(struct vm_region *reg, unsigned long start, unsigned long limit)
@@ -2868,8 +2778,7 @@ void *sys_mremap(void *old_address, size_t old_size, size_t new_size, int flags,
             ret = (void *) -EFAULT;
             goto out;
         }
-        size_t n;
-
+#if 0
         struct vm_region *old_reg =
             vm_split_region(as, reg, (unsigned long) old_address, old_size, &n);
         if (!old_reg)
@@ -2881,6 +2790,7 @@ void *sys_mremap(void *old_address, size_t old_size, size_t new_size, int flags,
         __vm_munmap(as, new_address, new_size);
 
         ret = vm_try_move(as, old_reg, (unsigned long) new_address, new_size);
+#endif
     }
 
 out:
