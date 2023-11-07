@@ -9,6 +9,7 @@
 #define _ONYX_PANIC_H
 
 #include <multiboot2.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus

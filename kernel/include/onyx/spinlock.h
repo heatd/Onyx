@@ -8,11 +8,6 @@
 #ifndef _ONYX_SPINLOCK_H
 #define _ONYX_SPINLOCK_H
 
-#ifndef __cplusplus
-#define __ONLY_INCLUDE_BASIC_C_DEFS
-#endif
-
-#ifndef __ONLY_INCLUDE_BASIC_C_DEFS
 #include <assert.h>
 #include <stdbool.h>
 
@@ -22,8 +17,6 @@
 #include <onyx/utils.h>
 
 #include <platform/irq.h>
-
-#endif
 
 // #include <onyx/lock_annotations.h>
 #define __ACQUIRE(...)
@@ -50,7 +43,6 @@ void __spin_lock(struct spinlock *lock) __ACQUIRE(lock);
 void __spin_unlock(struct spinlock *lock) __RELEASE(lock);
 int spin_try_lock(struct spinlock *lock);
 
-#ifndef __ONLY_INCLUDE_BASIC_C_DEFS
 #ifdef __cplusplus
 }
 #endif
@@ -143,6 +135,5 @@ public:
     }
 };
 
-#endif
 #endif
 #endif

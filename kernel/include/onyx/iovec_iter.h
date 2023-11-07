@@ -12,18 +12,21 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <onyx/assert.h>
-#include <onyx/compiler.h>
 #include <onyx/types.h>
-
-#include <onyx/slice.hpp>
-#include <onyx/utility.hpp>
 
 enum iovec_type : u8
 {
     IOVEC_USER = 0,
     IOVEC_KERNEL
 };
+
+#ifdef __cplusplus
+
+#include <onyx/assert.h>
+#include <onyx/compiler.h>
+
+#include <onyx/slice.hpp>
+#include <onyx/utility.hpp>
 
 struct iovec_iter
 {
@@ -73,8 +76,14 @@ struct iovec_iter
         }
     }
 };
+#else
 
-static inline ssize_t iovec_count_length(iovec *vec, unsigned int n)
+/* Opaque definition of iovec_iter */
+struct iovec_iter;
+
+#endif
+
+static inline ssize_t iovec_count_length(struct iovec *vec, unsigned int n)
 {
     ssize_t length = 0;
 
@@ -100,7 +109,7 @@ static inline ssize_t iovec_count_length(iovec *vec, unsigned int n)
  * @param len Length
  * @return Bytes copied on success, or negative error codes
  */
-ssize_t copy_from_iter(iovec_iter *iter, void *buf, size_t len);
+ssize_t copy_from_iter(struct iovec_iter *iter, void *buf, size_t len);
 
 /**
  * @brief Copy data from the kernel to the iterator
@@ -110,6 +119,6 @@ ssize_t copy_from_iter(iovec_iter *iter, void *buf, size_t len);
  * @param len Length
  * @return Bytes copied on success, or negative error codes
  */
-ssize_t copy_to_iter(iovec_iter *iter, const void *buf, size_t len);
+ssize_t copy_to_iter(struct iovec_iter *iter, const void *buf, size_t len);
 
 #endif

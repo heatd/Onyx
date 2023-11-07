@@ -46,7 +46,7 @@ __always_inline void sched_enable_preempt()
 
     // If preemption is enabled, try to do various tasks
     // softirq, rescheduling, etc
-    if (counter == 0 && !irq_is_disabled()) [[unlikely]]
+    if (unlikely(counter == 0 && !irq_is_disabled()))
     {
         sched_handle_preempt(true);
     }
