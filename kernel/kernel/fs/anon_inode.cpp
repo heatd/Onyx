@@ -1,0 +1,85 @@
+/*
+ * Copyright (c) 2023 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
+#include <onyx/assert.h>
+#include <onyx/cred.h>
+#include <onyx/dentry.h>
+#include <onyx/file.h>
+#include <onyx/init.h>
+#include <onyx/superblock.h>
+
+#include <onyx/atomic.hpp>
+
+static struct superblock *anonsb;
+static atomic<ino_t> next_ino = 3;
+
+__init void anon_sb_init()
+{
+    anonsb = new superblock;
+    CHECK(anonsb != nullptr);
+    superblock_init(anonsb);
+    anonsb->s_flags |= SB_FLAG_NODIRTY | SB_FLAG_IN_MEMORY;
+}
+
+struct inode *anon_inode_alloc(mode_t file_type)
+{
+    DCHECK(anonsb != nullptr);
+
+    struct inode *ino = new inode;
+    if (!ino)
+        return ino;
+    if (inode_init(ino, true) < 0)
+    {
+        delete ino;
+        return nullptr;
+    }
+
+    ino->i_atime = ino->i_mtime = clock_get_posix_time();
+    ino->i_sb = anonsb;
+    ino->i_inode = next_ino.fetch_add(1);
+    ino->i_mode = file_type | S_IWUSR | S_IRUSR;
+
+    {
+        creds_guard<CGType::Read> c;
+        ino->i_uid = c.get()->euid;
+        ino->i_gid = c.get()->egid;
+    }
+
+    superblock_add_inode(anonsb, ino);
+
+    return ino;
+}
+
+struct file *anon_inode_open(mode_t file_type, struct file_ops *ops, const char *name)
+{
+    struct inode *ino = nullptr;
+    struct dentry *dentry = nullptr;
+    struct file *f = nullptr;
+
+    ino = anon_inode_alloc(file_type);
+    if (!ino)
+        return nullptr;
+
+    ino->i_fops = ops;
+
+    dentry = dentry_create(name, ino, nullptr);
+    if (!dentry)
+        goto err;
+
+    f = inode_to_file(ino);
+    if (!f)
+        goto err;
+
+    f->f_dentry = dentry;
+    return f;
+err:
+    if (dentry)
+        dentry_put(dentry);
+    if (ino)
+        inode_unref(ino);
+    return nullptr;
+}
