@@ -144,7 +144,7 @@ static inline void list_reset(struct list_head *head)
     for (struct list_head *l = (lh)->next, *____tmp = l->next; l != (lh); \
          l = ____tmp, ____tmp = l->next)
 
-static inline void list_copy(struct list_head *dest, const list_head *src)
+static inline void list_copy(struct list_head *dest, const struct list_head *src)
 {
     dest->prev = src->prev;
     dest->next = src->next;
