@@ -109,11 +109,11 @@ void inode_release(struct inode *inode)
 {
     bool should_die = inode_get_nlink(inode) == 0;
     // printk("Should die %u\n", should_die);
-    if (inode->i_sb)
+    if (inode->i_flags & I_HASHED)
     {
-        assert(inode->i_sb != nullptr);
+        CHECK(inode->i_sb != nullptr);
 
-        /* Remove the inode from its superblock */
+        /* Remove the inode from its superblock and the inode cache */
         superblock_remove_inode(inode->i_sb, inode);
     }
 
@@ -192,20 +192,37 @@ restart:
     return nullptr;
 }
 
+static inline void i_set_hashed(struct inode *inode)
+{
+    spin_lock(&inode->i_lock);
+    DCHECK((inode->i_flags & I_HASHED) == 0);
+    inode->i_flags |= I_HASHED;
+    spin_unlock(&inode->i_lock);
+}
+
+static inline void i_unhash(struct inode *inode)
+{
+    spin_lock(&inode->i_lock);
+    DCHECK(inode->i_flags & I_HASHED);
+    inode->i_flags &= ~I_HASHED;
+    spin_unlock(&inode->i_lock);
+}
+
 void superblock_add_inode_unlocked(struct superblock *sb, struct inode *inode)
 {
-    auto hash = inode_hash(sb->s_devnr, inode->i_inode);
-    auto index = inode_hashtable.get_hashtable_index(hash);
+    fnv_hash_t hash = inode_hash(sb->s_devnr, inode->i_inode);
+    size_t index = inode_hashtable.get_hashtable_index(hash);
+    struct list_head *head = inode_hashtable.get_hashtable(index);
 
     MUST_HOLD_LOCK(&inode_hashtable_locks[index]);
-
-    auto head = inode_hashtable.get_hashtable(index);
 
     list_add_tail(&inode->i_hash_list_node, head);
 
     scoped_lock g{sb->s_ilock};
     list_add_tail(&inode->i_sb_list_node, &sb->s_inodes);
     __atomic_add_fetch(&sb->s_ref, 1, __ATOMIC_ACQUIRE);
+
+    i_set_hashed(inode);
 
     spin_unlock(&inode_hashtable_locks[index]);
 }
@@ -224,16 +241,16 @@ void superblock_add_inode(struct superblock *sb, struct inode *inode)
 
 void superblock_remove_inode(struct superblock *sb, struct inode *inode)
 {
-    auto hash = inode_hash(sb->s_devnr, inode->i_inode);
-
-    auto index = inode_hashtable.get_hashtable_index(hash);
+    fnv_hash_t hash = inode_hash(sb->s_devnr, inode->i_inode);
+    size_t index = inode_hashtable.get_hashtable_index(hash);
 
     scoped_lock g1{inode_hashtable_locks[index]};
-
     scoped_lock g2{sb->s_ilock};
 
     list_remove(&inode->i_sb_list_node);
     list_remove(&inode->i_hash_list_node);
+
+    i_unhash(inode);
 
     __atomic_sub_fetch(&sb->s_ref, 1, __ATOMIC_RELAXED);
 }

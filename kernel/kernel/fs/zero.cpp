@@ -30,10 +30,10 @@ size_t zero_write(size_t offset, size_t len, void *buf, file *f)
 
 void *zero_mmap(struct vm_area_struct *area, struct file *node)
 {
+    vm_make_anon(area);
+
     if (vm_area_struct_setup_backing(area, vma_pages(area), false) < 0)
         return nullptr;
-
-    vm_make_anon(area);
 
     return (void *) area->vm_start;
 }

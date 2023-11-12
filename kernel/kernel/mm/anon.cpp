@@ -6,7 +6,10 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <onyx/dentry.h>
 #include <onyx/mm/amap.h>
+#include <onyx/mm/shmem.h>
+#include <onyx/tmpfs.h>
 #include <onyx/vm.h>
 
 int vm_anon_fault(struct vm_pf_context *ctx);
@@ -62,4 +65,48 @@ map:
 enomem:
     info->error_info = VM_SIGSEGV;
     return -ENOMEM;
+}
+
+static tmpfs_superblock *shmemfs_sb;
+
+__init void shmem_init()
+{
+    shmemfs_sb = new tmpfs_superblock();
+    CHECK(shmemfs_sb);
+}
+
+/**
+ * @brief Create a new shmem file
+ *
+ * @param len Length, in bytes
+ * @return Opened struct file, or NULL
+ */
+struct file *anon_get_shmem(size_t len)
+{
+    struct dentry *dentry;
+    struct file *f;
+    tmpfs_inode *ino = shmemfs_sb->alloc_inode(0777 | S_IFREG, 0);
+    if (!ino)
+        return nullptr;
+
+    /* Note for future me: While this solution basically works, it does not properly work if we care
+     * about merging of MAP_SHARED or mremap. That will take some more annoying codepaths that e.g
+     * properly adjust the length of the inode.
+     */
+    dentry = dentry_create("[anon_shmem]", ino, nullptr);
+    if (!dentry)
+        goto err;
+
+    f = inode_to_file(ino);
+    if (!f)
+        goto err;
+
+    f->f_dentry = dentry;
+    return f;
+err:
+    if (dentry)
+        dentry_put(dentry);
+    if (ino)
+        inode_unref(ino);
+    return nullptr;
 }
