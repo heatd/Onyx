@@ -11,13 +11,13 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <onyx/types.h>
 
 #include <onyx/culstring.h>
 #include <onyx/dev.h>
 #include <onyx/list.h>
 #include <onyx/page.h>
 #include <onyx/page_iov.h>
+#include <onyx/types.h>
 
 #include <onyx/slice.hpp>
 
@@ -60,6 +60,7 @@ using __blkflush = int (*)(struct blockdev *);
 using __blkpowermanagement = int (*)(int, struct blockdev *);
 
 struct superblock;
+struct inode;
 
 struct blockdev
 {
@@ -78,6 +79,10 @@ struct blockdev
     int (*submit_request)(struct blockdev *dev, struct bio_req *req){};
     /* This vmo serves as the buffer cache of the block device, exactly like the page cache */
     struct vm_object *vmo{};
+    /* Inode backing this block dev. This mostly matters when doing internal I/O to this block dev,
+     * without it being a device file that userspace opened.
+     */
+    struct inode *b_ino{};
     /* This will have the mounted superblock here if this block device is mounted */
     struct superblock *sb{};
 

@@ -115,12 +115,6 @@ vmo_status_t vmo_inode_commit(struct vm_object *vmo, size_t off, struct page **p
 
     zero_rest_of_page(page, to_read);
 
-    if (!pagecache_create_cache_block(page, read, off, i))
-    {
-        free_page(page);
-        return VMO_STATUS_OUT_OF_MEM;
-    }
-
     *ppage = page;
 
     return VMO_STATUS_OK;
@@ -128,17 +122,15 @@ vmo_status_t vmo_inode_commit(struct vm_object *vmo, size_t off, struct page **p
 
 void inode_free_page(struct vm_object *vmo, struct page *page)
 {
+#if 0
     struct page_cache_block *b = page->cache;
     if (page->flags & PAGE_FLAG_DIRTY)
     {
         flush_sync_one(&b->fobj);
     }
+#endif
 
     page_destroy_block_bufs(page);
-
-    page->cache = nullptr;
-    free(b);
-
     free_page(page);
 }
 
@@ -723,6 +715,9 @@ int fallocate_vfs(int mode, off_t offset, off_t len, struct file *file)
 
 int inode_init(struct inode *inode, bool is_cached)
 {
+    /* Note: (void *) to shut up GCC's -Wclass-memaccess */
+    memset((void *) inode, 0, sizeof(struct inode));
+
     inode->i_refc = 1;
     if (is_cached)
     {
@@ -754,27 +749,22 @@ struct inode *inode_create(bool is_cached)
     return inode;
 }
 
-void inode_wait_flush(struct inode *ino)
-{
-    while (ino->i_flags & INODE_FLAG_WB)
-        cpu_relax();
-}
-
-void inode_mark_dirty(struct inode *ino)
+void inode_mark_dirty(struct inode *ino, unsigned int flags)
 {
     if (ino->i_sb && ino->i_sb->s_flags & SB_FLAG_NODIRTY)
         return;
 
-    inode_wait_flush(ino);
-
-    unsigned long old_flags = __sync_fetch_and_or(&ino->i_flags, INODE_FLAG_DIRTY);
-
-    __sync_synchronize();
-
-    if (old_flags & INODE_FLAG_DIRTY)
+    /* Already dirty */
+    if ((ino->i_flags & flags) == flags)
         return;
 
-    flush_add_inode(ino);
+    spin_lock(&ino->i_lock);
+
+    ino->i_flags |= flags;
+    trace_wb_dirty_inode(ino->i_inode, ino->i_dev);
+    /* TODO: queue this somewhere */
+
+    spin_unlock(&ino->i_lock);
 }
 
 int inode_flush(struct inode *ino)

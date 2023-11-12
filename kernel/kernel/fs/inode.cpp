@@ -43,82 +43,6 @@ constexpr size_t inode_hashtable_size = 512;
 static cul::hashtable2<inode, inode_hashtable_size, fnv_hash_t, inode_hash> inode_hashtable;
 static struct spinlock inode_hashtable_locks[inode_hashtable_size];
 
-struct page_cache_block *inode_get_cache_block(struct inode *ino, size_t off, long flags)
-{
-    assert(ino->i_pages != nullptr);
-
-#if 0
-    if (flags & FILE_CACHING_WRITE)
-    {
-        printk("ino %lu off: %lu size %lu\n", ino->i_inode, off, ino->i_pages->size);
-    }
-#endif
-
-    if (flags & FILE_CACHING_WRITE && off >= ino->i_pages->size)
-    {
-        assert((off & (PAGE_SIZE - 1)) == 0);
-        vmo_truncate(ino->i_pages, cul::align_up2(off + 1, PAGE_SIZE), 0);
-        assert(ino->i_pages->size > off);
-
-        struct page *p = alloc_page(0);
-        if (!p)
-            return nullptr;
-
-        p->flags = PAGE_FLAG_BUFFER;
-        p->priv = 0;
-
-        auto block = pagecache_create_cache_block(p, PAGE_SIZE, off, ino);
-        if (!block)
-        {
-            free_page(p);
-            return nullptr;
-        }
-
-        if (vmo_add_page(off, p, ino->i_pages) < 0)
-        {
-            page_cache_destroy(block);
-            return nullptr;
-        }
-
-        page_pin(p);
-
-        // printk("Faulted!\n");
-
-        return block;
-    }
-
-    struct page *p;
-    auto st = vmo_get(ino->i_pages, off, VMO_GET_MAY_POPULATE, &p);
-
-    if (st != VMO_STATUS_OK)
-    {
-        errno = vmo_status_to_errno(st);
-        return nullptr;
-    }
-
-    assert(p->cache != nullptr);
-
-    return p->cache;
-}
-
-struct page_cache_block *__inode_get_page_internal(struct inode *inode, size_t offset, long flags)
-{
-    size_t aligned_off = offset & ~(PAGE_SIZE - 1);
-
-    struct page_cache_block *b = inode_get_cache_block(inode, aligned_off, flags);
-
-    return b;
-}
-
-struct page_cache_block *inode_get_page(struct inode *inode, size_t offset, long flags)
-{
-    struct page_cache_block *b = __inode_get_page_internal(inode, offset, flags);
-
-    /* No need to pin the page since it's already pinned by vmo_get */
-
-    return b;
-}
-
 int pipe_do_fifo(inode *ino);
 
 int inode_special_init(struct inode *ino)
@@ -162,6 +86,7 @@ ssize_t inode_sync(struct inode *inode)
         return 0;
     scoped_mutex g{inode->i_pages->page_lock};
 
+#if 0
     // TODO: This sucks
     inode->i_pages->for_every_page([&](struct page *page, unsigned long off) -> bool {
         struct page_cache_block *b = page->cache;
@@ -173,6 +98,7 @@ ssize_t inode_sync(struct inode *inode)
 
         return true;
     });
+#endif
 
     return 0;
 }
@@ -191,8 +117,8 @@ void inode_release(struct inode *inode)
         superblock_remove_inode(inode->i_sb, inode);
     }
 
-    if (inode->i_flags & INODE_FLAG_DIRTY)
-        flush_remove_inode(inode);
+    /*if (inode->i_flags & INODE_FLAG_DIRTY)
+        flush_remove_inode(inode);*/
 
     if (inode_is_cacheable(inode))
         inode_sync(inode);
@@ -349,12 +275,12 @@ void inode_add_hole_in_page(struct page *page, size_t page_offset, size_t end_of
 {
 #if 0
 	printk("adding hole in page, page offset %lu, end offset %lu\n", page_offset, end_offset);
-#endif
     struct page_cache_block *b = page->cache;
     if (page->flags & PAGE_FLAG_DIRTY)
     {
         flush_sync_one(&b->fobj);
     }
+#endif
 
     page_remove_block_buf(page, page_offset, end_offset);
     uint8_t *p = (uint8_t *) PAGE_TO_VIRT(page) + page_offset;

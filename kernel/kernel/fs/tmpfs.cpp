@@ -108,6 +108,7 @@ int tmpfs_unlink(const char *name, int flags, struct dentry *dir)
 ssize_t tmpfs_readpage(struct page *page, size_t offset, struct inode *ino)
 {
     memset(PAGE_TO_VIRT(page), 0, PAGE_SIZE);
+    page->flags |= PAGE_FLAG_UPTODATE;
     return PAGE_SIZE;
 }
 

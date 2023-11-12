@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <errno.h>
 #include <stdio.h>
@@ -9,6 +11,7 @@
 #include <onyx/block.h>
 #include <onyx/buffer.h>
 #include <onyx/cpu.h>
+#include <onyx/filemap.h>
 #include <onyx/mm/flush.h>
 
 #include <onyx/mm/pool.hpp>
@@ -285,9 +288,9 @@ struct block_buf *sb_read_block(const struct superblock *sb, unsigned long block
 
     struct page *page;
 
-    auto st = vmo_get(dev->vmo, aligned_off, VMO_GET_MAY_POPULATE, &page);
+    int st = filemap_find_page(dev->b_ino, real_off >> PAGE_SHIFT, FIND_PAGE_NO_CREATE, &page);
 
-    if (st != VMO_STATUS_OK)
+    if (st < 0)
         return nullptr;
 
     auto buf = reinterpret_cast<block_buf *>(page->priv);

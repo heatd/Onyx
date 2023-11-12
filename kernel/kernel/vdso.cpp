@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -12,8 +12,10 @@
 #include <stdint.h>
 #include <time.h>
 
+#include <onyx/anon_inode.h>
 #include <onyx/clock.h>
 #include <onyx/compiler.h>
+#include <onyx/file.h>
 #include <onyx/log.h>
 #include <onyx/mm/vm_object.h>
 #include <onyx/panic.h>
@@ -35,12 +37,14 @@ static char *elf_get_name(Elf64_Half off, char *buf)
     return buf + off;
 }
 
+static struct file_ops dummy_fops = {};
+
 class vdso
 {
 private:
     Elf64_Ehdr *vdso_start;
     size_t length;
-    vm_object *vmo;
+    struct file *vdso_file;
     bool vdso_setup;
     clock_time *clock_monotonic;
     clock_time *clock_realtime;
@@ -51,14 +55,13 @@ private:
 
     bool create_vmo()
     {
-        vmo = vmo_create(length, nullptr);
-        if (!vmo)
-        {
-            return false;
-        }
+        vdso_file = anon_inode_open(S_IFCHR, &dummy_fops, "[vdso]");
+        CHECK(vdso_file);
 
+        auto vmo = vdso_file->f_ino->i_pages;
         uintptr_t page = (uintptr_t) &__vdso_start;
         size_t vdso_size = (uintptr_t) &__vdso_end - page;
+        length = cul::align_up2(vdso_size, PAGE_SIZE);
         size_t vdso_pages = vm_size_to_pages(vdso_size);
 
         page -= KERNEL_VIRTUAL_BASE;
@@ -70,10 +73,10 @@ private:
 
             /* We ref 2 times - one for the vmo, and one because it's part of the kernel image */
             page_ref_many(p, 2);
+            p->flags |= PAGE_FLAG_UPTODATE;
 
             if (vmo_add_page(i << PAGE_SHIFT, p, vmo) < 0)
             {
-                vmo_unref(vmo);
                 return false;
             }
         }
@@ -83,21 +86,20 @@ private:
 
 public:
     vdso(Elf64_Ehdr *start, size_t length)
-        : vdso_start{start}, length{length}, vmo{nullptr}, vdso_setup{false},
+        : vdso_start{start}, length{length}, vdso_file{nullptr}, vdso_setup{false},
           clock_monotonic{nullptr}, clock_realtime{nullptr}
     {
     }
 
     vdso()
-        : vdso_start{nullptr}, length{0}, vmo{nullptr}, vdso_setup{false}, clock_monotonic{nullptr},
-          clock_realtime{nullptr}
+        : vdso_start{nullptr}, length{0}, vdso_file{nullptr}, vdso_setup{false},
+          clock_monotonic{nullptr}, clock_realtime{nullptr}
     {
     }
 
     ~vdso()
     {
-        if (vmo)
-            vmo_unref(vmo);
+        fd_put(vdso_file);
     }
 
     bool init();
@@ -181,8 +183,7 @@ __attribute__((no_sanitize_undefined)) bool vdso::init()
 
 void *vdso::map()
 {
-    return vm_map_vmo(VM_ADDRESS_USER, VM_TYPE_SHARED, vm_size_to_pages(length),
-                      VM_USER | VM_READ | VM_EXEC, vmo);
+    return vm_mmap(nullptr, length, PROT_READ | PROT_EXEC, MAP_PRIVATE, vdso_file, 0);
 }
 
 void *vdso_map(void)

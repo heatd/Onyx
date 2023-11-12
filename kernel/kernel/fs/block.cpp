@@ -1,12 +1,11 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: MIT
  */
 #include <errno.h>
-#include <uapi/fcntl.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -18,6 +17,8 @@
 #include <onyx/page.h>
 #include <onyx/page_iov.h>
 #include <onyx/rwlock.h>
+
+#include <uapi/fcntl.h>
 
 static struct rwlock dev_list_lock;
 static struct list_head dev_list = LIST_HEAD_INIT(dev_list);
@@ -267,8 +268,62 @@ const struct file_ops blkdev_ops = {
     .ioctl = blkdev_ioctl,
 };
 
+struct superblock *bdev_sb;
+
+/**
+ * @brief blockdevfs inode
+ *
+ */
+struct block_inode
+{
+    struct inode b_inode;
+
+    /**
+     * @brief Create a new blockdev inode
+     *
+     * @arg dev Block device
+     * @return Properly set up blockdev inode, or NULL
+     */
+    static unique_ptr<block_inode> create(const struct blockdev *dev);
+};
+
+/**
+ * @brief Create a new blockdev inode
+ *
+ * @arg dev Block device
+ * @return Properly set up blockdev inode, or NULL
+ */
+unique_ptr<block_inode> block_inode::create(const struct blockdev *dev)
+{
+    unique_ptr<block_inode> ino = make_unique<block_inode>();
+    if (!ino)
+        return nullptr;
+    auto &inode = ino->b_inode;
+
+    if (inode_init(&inode, true) < 0)
+        return nullptr;
+    inode.i_dev = dev->dev->dev();
+    inode.i_sb = bdev_sb;
+
+    superblock_add_inode(bdev_sb, &inode);
+    return ino;
+}
+
+/**
+ * @brief Set up a pseudo-fs (that we sometimes call blockdevfs) for caching and dirtying
+ *
+ */
+__init static void bdev_setup_fs()
+{
+    bdev_sb = new superblock;
+    CHECK(bdev_sb);
+
+    superblock_init(bdev_sb);
+}
+
 int blkdev_init(struct blockdev *blk)
 {
+    /* XXX replace with the blockdev inode */
     blk->vmo = vmo_create(blk->nr_sectors * blk->sector_size, blk);
     if (!blk->vmo)
         return -ENOMEM;
@@ -294,6 +349,15 @@ int blkdev_init(struct blockdev *blk)
     dev->show(BLOCK_DEVICE_PERMISSIONS);
 
     blk->dev = dev;
+
+    auto ino = block_inode::create(blk);
+    if (!ino)
+    {
+        dev_unregister_dev(dev, true);
+        return -ENOMEM;
+    }
+
+    blk->b_ino = (struct inode *) ino.release();
 
     if (!blkdev_is_partition(blk))
         partition_setup_disk(blk);

@@ -732,7 +732,7 @@ void page_get_stats(struct memstat *m)
 {
     m->total_pages = nr_global_pages.load(mem_order::acquire);
     m->allocated_pages = page_get_used_pages();
-    m->page_cache_pages = pagecache_get_used_pages();
+    m->page_cache_pages = 0; /* TODO */
     m->kernel_heap_pages = 0;
 }
 
@@ -918,7 +918,8 @@ void page_node::free_page(struct page *p)
 
     /* Reset the page */
     p->flags = 0;
-    p->cache = nullptr;
+    p->owner = nullptr;
+    p->pageoff = 0;
     p->next_un.next_allocation = nullptr;
     p->ref = 0;
 

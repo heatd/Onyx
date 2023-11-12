@@ -20,6 +20,7 @@
 #include <onyx/dentry.h>
 #include <onyx/dev.h>
 #include <onyx/file.h>
+#include <onyx/filemap.h>
 #include <onyx/gen/trace_vm.h>
 #include <onyx/log.h>
 #include <onyx/mm/amap.h>
@@ -1563,25 +1564,29 @@ void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags)
     return __map_pages_to_vaddr(nullptr, virt, phys, size, flags);
 }
 
-int vmo_error_to_vm_error(vmo_status_t st)
-{
-    switch (st)
-    {
-        case VMO_STATUS_OK:
-            return VM_OK;
-        case VMO_STATUS_OUT_OF_MEM:
-            return VM_SIGSEGV;
-        default:
-            return VM_SIGBUS;
-    }
-}
-
-vmo_status_t vm_pf_get_page_from_vmo(struct vm_pf_context *ctx)
+static int vm_pf_get_page_from_vmo(struct vm_pf_context *ctx)
 {
     struct vm_area_struct *entry = ctx->entry;
     size_t vmo_off = (ctx->vpage - entry->vm_start) + entry->vm_offset;
+    DCHECK(entry->vm_file != nullptr);
 
-    return vmo_get(entry->vm_obj, vmo_off, VMO_GET_MAY_POPULATE, &ctx->page);
+    return filemap_find_page(entry->vm_file->f_ino, vmo_off >> PAGE_SHIFT, 0, &ctx->page);
+}
+
+static int find_page_err_to_signal(int st)
+{
+    if (st == 0) [[unlikely]]
+        return 0;
+
+    switch (st)
+    {
+        case -ENOENT:
+        case -EIO:
+            return VM_SIGBUS;
+        case -ENOMEM:
+        default:
+            return VM_SIGSEGV;
+    }
 }
 
 int vm_handle_non_present_wp(struct fault_info *info, struct vm_pf_context *ctx)
@@ -1603,15 +1608,15 @@ int vm_handle_non_present_wp(struct fault_info *info, struct vm_pf_context *ctx)
         if (vm_mapping_requires_wb(entry))
         {
             /* else handle it differently(we'll need) */
-            vmo_status_t st = vm_pf_get_page_from_vmo(ctx);
+            int st = vm_pf_get_page_from_vmo(ctx);
 
-            if (st != VMO_STATUS_OK)
+            if (st < 0)
             {
-                info->signal = vmo_error_to_vm_error(st);
+                info->signal = find_page_err_to_signal(st);
                 return -1;
             }
 
-            pagecache_dirty_block(ctx->page->cache);
+            // FIXME: pagecache_dirty_block(ctx->page->cache);
         }
         else if (vm_mapping_is_anon(entry))
         {
@@ -1642,10 +1647,10 @@ int vm_handle_non_present_pf(struct vm_pf_context *ctx)
     if (ctx->page == nullptr)
     {
         DCHECK(entry->vm_obj != nullptr);
-        vmo_status_t st = vm_pf_get_page_from_vmo(ctx);
+        int st = vm_pf_get_page_from_vmo(ctx);
         if (st != VMO_STATUS_OK)
         {
-            info->signal = vmo_error_to_vm_error(st);
+            info->signal = find_page_err_to_signal(st);
             return -1;
         }
     }
@@ -1668,14 +1673,14 @@ int vm_handle_write_wb(struct vm_pf_context *ctx)
     unsigned long paddr = MAPPING_INFO_PADDR(ctx->mapping_info);
     struct page *p = phys_to_page(paddr);
     int st = 0;
+    struct inode *inode = p->owner->ino;
 
-    if ((st = p->cache->node->i_fops->prepare_write(p->cache->node, p, 0, p->cache->offset,
-                                                    PAGE_SIZE) < 0))
+    if ((st = inode->i_fops->prepare_write(inode, p, 0, p->pageoff << PAGE_SHIFT, PAGE_SIZE) < 0))
     {
         return st;
     }
 
-    pagecache_dirty_block(p->cache);
+    // TODO: pagecache_dirty_block(p->cache);
 
     paging_change_perms((void *) ctx->vpage, ctx->page_rwx);
     vm_invalidate_range(ctx->vpage, 1);
@@ -2168,58 +2173,6 @@ void vm_do_fatal_page_fault(struct fault_info *info)
     {
         panic("Kernel fatal segfault accessing %016lx at ip %lx\n", info->fault_address, info->ip);
     }
-}
-
-/**
- * @brief Map a given VMO.
-
- * @param flags Flags for the allocation (VM_KERNEL, VM_ADDRESS_USER).
- * @param type Type of the vm region; this affects the placement.
- * @param pages Number of pages required.
- * @param prot Protection of the vm region (VM_WRITE, NOEXEC, etc).
- * @param vmo  A pointer to the backing vm object.
- *
- * @return A pointer to the allocated virtual address, or NULL.
- */
-void *vm_map_vmo(size_t flags, uint32_t type, size_t pages, size_t prot, vm_object *vmo)
-{
-    bool kernel = !(flags & VM_ADDRESS_USER);
-    struct mm_address_space *mm = kernel ? &kernel_address_space : get_current_address_space();
-
-    scoped_mutex g{mm->vm_lock};
-
-    struct vm_area_struct *reg = __vm_allocate_virt_region(mm, flags, pages, type, prot);
-    if (!reg)
-        return nullptr;
-
-    vmo_ref(vmo);
-
-    reg->vm_obj = vmo;
-    vmo_assign_mapping(vmo, reg);
-    reg->vm_maptype = MAP_SHARED;
-
-    increment_vm_stat(mm, shared_set_size, pages << PAGE_SHIFT);
-
-    if (kernel)
-    {
-        if (vmo->type == VMO_ANON && vmo_prefault(reg->vm_obj, pages << PAGE_SHIFT, 0) < 0)
-        {
-            __vm_munmap(&kernel_address_space, (void *) reg->vm_start, pages << PAGE_SHIFT);
-            return nullptr;
-        }
-
-        if (vm_flush(reg, VM_FLUSH_RWX_VALID, reg->vm_flags | VM_NOFLUSH) < 0)
-        {
-            __vm_munmap(&kernel_address_space, (void *) reg->vm_start, pages << PAGE_SHIFT);
-            return nullptr;
-        }
-
-#ifdef CONFIG_KASAN
-        kasan_alloc_shadow(reg->vm_start, pages << PAGE_SHIFT, true);
-#endif
-    }
-
-    return (void *) reg->vm_start;
 }
 
 /**
