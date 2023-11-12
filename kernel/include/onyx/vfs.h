@@ -98,6 +98,7 @@ class pipe;
 #define I_DATADIRTY           (1 << 5)
 #define I_DIRTY               (1 << 1)
 #define I_WRITEBACK           (1 << 3)
+#define I_HASHED              (1 << 7)
 
 struct inode
 {

@@ -8,11 +8,10 @@
 #ifndef _ONYX_TMPFS_H
 #define _ONYX_TMPFS_H
 
-#include <onyx/types.h>
-
 #include <onyx/list.h>
 #include <onyx/mutex.h>
 #include <onyx/superblock.h>
+#include <onyx/types.h>
 #include <onyx/vfs.h>
 
 #include <onyx/atomic.hpp>
@@ -54,6 +53,17 @@ public:
     }
 
     tmpfs_inode *create_inode(mode_t mode, dev_t rdev = 0);
+
+    /**
+     * @brief Allocate a tmpfs inode
+     * Note: unlike create_inode, this function does not add an inode to the cache, set nlink to 1,
+     * etc.
+     *
+     * @param mode Inode's mode
+     * @param rdev rdev
+     * @return The created tmpfs_inode, or NULL
+     */
+    tmpfs_inode *alloc_inode(mode_t mode, dev_t rdev);
 
     /**
      * @brief Set the file_ops for all the inodes of this filesystem

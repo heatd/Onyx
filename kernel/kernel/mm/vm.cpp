@@ -25,6 +25,7 @@
 #include <onyx/log.h>
 #include <onyx/mm/amap.h>
 #include <onyx/mm/kasan.h>
+#include <onyx/mm/shmem.h>
 #include <onyx/mm/slab.h>
 #include <onyx/mm/vm_object.h>
 #include <onyx/page.h>
@@ -2187,29 +2188,30 @@ int vm_area_struct_setup_backing(struct vm_area_struct *region, size_t pages, bo
 {
     bool is_shared = is_mapping_shared(region);
 
+    if (!is_file_backed && is_shared)
+    {
+        region->vm_file = anon_get_shmem(pages << PAGE_SHIFT);
+        if (!region->vm_file)
+            return -ENOMEM;
+        is_file_backed = true;
+    }
+
     struct vm_object *vmo;
 
-    if (is_file_backed && is_shared)
+    if (is_file_backed)
     {
         struct inode *ino = region->vm_file->f_ino;
 
         assert(ino->i_pages != nullptr);
         vmo_ref(ino->i_pages);
         vmo = ino->i_pages;
-    }
-    else if (is_file_backed && !is_shared)
-    {
-        /* COW private mapping */
-        struct inode *ino = region->vm_file->f_ino;
 
-        assert(ino->i_pages != nullptr);
-        vmo_ref(ino->i_pages);
-        vmo = ino->i_pages;
-        region->vm_ops = &private_vmops;
+        if (!is_shared)
+            region->vm_ops = &private_vmops;
     }
     else
     {
-        /* Anonymous memory uses amaps now */
+        /* Anonymous, private memory uses amaps now */
         vmo = nullptr;
         region->vm_ops = &anon_vmops;
     }

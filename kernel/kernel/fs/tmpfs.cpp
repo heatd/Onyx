@@ -224,7 +224,16 @@ struct file_ops tmpfs_fops = {.read = nullptr,
                               .read_iter = filemap_read_iter,
                               .write_iter = filemap_write_iter};
 
-tmpfs_inode *tmpfs_superblock::create_inode(mode_t mode, dev_t rdev)
+/**
+ * @brief Allocate a tmpfs inode
+ * Note: unlike create_inode, this function does not add an inode to the cache, set nlink to 1,
+ * etc.
+ *
+ * @param mode Inode's mode
+ * @param rdev rdev
+ * @return The created tmpfs_inode, or NULL
+ */
+tmpfs_inode *tmpfs_superblock::alloc_inode(mode_t mode, dev_t rdev)
 {
     auto ino = make_unique<tmpfs_inode>();
     if (!ino)
@@ -237,7 +246,7 @@ tmpfs_inode *tmpfs_superblock::create_inode(mode_t mode, dev_t rdev)
 
     ino->i_fops = tmpfs_ops_;
 
-    ino->i_nlink = 1;
+    ino->i_nlink = 0;
 
     /* We're currently holding two refs: one for the user, and another for the simple fact
      * that we need this inode to remain in memory.
@@ -271,11 +280,19 @@ tmpfs_inode *tmpfs_superblock::create_inode(mode_t mode, dev_t rdev)
 
     ino_nr++;
 
-    superblock_add_inode(this, ino.get());
+    return ino.release();
+}
+
+tmpfs_inode *tmpfs_superblock::create_inode(mode_t mode, dev_t rdev)
+{
+    tmpfs_inode *inode = alloc_inode(mode, rdev);
+    if (!inode)
+        return nullptr;
+    inode->i_nlink = 1;
+    superblock_add_inode(this, inode);
 
     /* Now, refcount should equal 3, because the inode cache just grabbed it... */
-
-    return ino.release();
+    return inode;
 }
 
 static void tmpfs_append(tmpfs_superblock *fs)
