@@ -64,18 +64,24 @@
 #define PAGE_FLAG_FLUSHING    (1 << 5)
 #define PAGE_FLAG_FILESYSTEM1 (1 << 6) /* Filesystem private flag */
 #define PAGE_FLAG_WAITERS     (1 << 7)
+#define PAGE_FLAG_UPTODATE    (1 << 8)
+
+struct vm_object;
 
 /* struct page - Represents every usable page on the system
- * Everything is native-word-aligned in order to allow atomic changes
  * Careful adding fields in - they may increase the memory use exponentially
  */
 struct page
 {
     unsigned long ref;
     unsigned long flags;
-    struct page_cache_block *cache;
+    struct
+    {
+        /* page cache data */
+        struct vm_object *owner;
+        unsigned long pageoff;
+    };
 
-    /* Hmm, I'd love a way to get rid of next_un */
     union {
         struct
         {
@@ -265,6 +271,19 @@ __always_inline void unlock_page(page *p)
     auto flags = __atomic_and_fetch(&p->flags, ~PAGE_FLAG_LOCKED, __ATOMIC_RELEASE);
     if (flags & PAGE_FLAG_WAITERS) [[unlikely]]
         __unlock_page(p);
+}
+
+__always_inline bool page_test_set_flag(struct page *p, unsigned long flag)
+{
+    unsigned long word;
+    do
+    {
+        word = __atomic_load_n(&p->flags, __ATOMIC_ACQUIRE);
+        if (word & flag)
+            return false;
+    } while (__atomic_compare_exchange_n(&p->flags, &word, word | flag, false, __ATOMIC_RELEASE,
+                                         __ATOMIC_RELAXED));
+    return true;
 }
 
 void __reclaim_page(struct page *new_page);

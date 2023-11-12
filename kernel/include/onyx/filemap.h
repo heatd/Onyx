@@ -12,7 +12,10 @@
 
 #include <onyx/iovec_iter.h>
 #include <onyx/types.h>
+
 struct file;
+struct inode;
+struct page;
 
 /**
  * @brief Read from a generic file (using the page cache) using iovec_iter
@@ -35,5 +38,12 @@ ssize_t filemap_read_iter(struct file *filp, size_t off, iovec_iter *iter, unsig
  * @return Written bytes, or negative error code
  */
 ssize_t filemap_write_iter(struct file *filp, size_t off, iovec_iter *iter, unsigned int flags);
+
+#define FILEMAP_MARK_DIRTY RA_MARK_0
+
+#define FIND_PAGE_NO_CREATE (1 << 0)
+#define FIND_PAGE_LOCK      (1 << 1)
+
+int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags, struct page **outp);
 
 #endif

@@ -798,19 +798,6 @@ public:
     CLASS_DISALLOW_MOVE(auto_addr_limit);
 };
 
-/**
- * @brief Map a given VMO.
-
- * @param flags Flags for the allocation (VM_KERNEL, VM_ADDRESS_USER).
- * @param type Type of the vm region; this affects the placement.
- * @param pages Number of pages required.
- * @param prot Protection of the vm region (VM_WRITE, NOEXEC, etc).
- * @param vmo  A pointer to the backing vm object.
- *
- * @return A pointer to the allocated virtual address, or NULL.
- */
-void *vm_map_vmo(size_t flags, uint32_t type, size_t pages, size_t prot, vm_object *vmo);
-
 #define GPP_READ  (1 << 0)
 #define GPP_WRITE (1 << 1)
 #define GPP_USER  (1 << 2)

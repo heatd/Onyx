@@ -195,8 +195,6 @@ vm_object *vmo_create(size_t size, void *priv);
  */
 vm_object *vmo_create_phys(size_t size);
 
-#define VMO_GET_MAY_POPULATE (1 << 0)
-
 /**
  * @brief Fetch a page from a VM object
  *

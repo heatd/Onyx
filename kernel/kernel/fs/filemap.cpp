@@ -12,6 +12,86 @@
 #include <onyx/vfs.h>
 #include <onyx/vm.h>
 
+#define FILEMAP_MARK_DIRTY RA_MARK_0
+
+int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags, struct page **outp)
+{
+    struct page *p = nullptr;
+    int st = 0;
+    vmo_status_t vst = vmo_get(ino->i_pages, pgoff << PAGE_SHIFT, 0, &p);
+    if (vst != VMO_STATUS_OK)
+    {
+        if (vst == VMO_STATUS_BUS_ERROR)
+            return -ERANGE;
+        if (vst == VMO_STATUS_OUT_OF_MEM)
+            return -ENOMEM;
+        DCHECK(vst == VMO_STATUS_NON_EXISTENT);
+        /* non existent! let's continue */
+    }
+
+    if (vst == VMO_STATUS_NON_EXISTENT)
+    {
+        if (flags & FIND_PAGE_NO_CREATE) [[unlikely]]
+            return -ENOENT;
+        if (!ino->i_fops->readpage) [[unlikely]]
+        {
+            /* If there's no way to bring it up to date, ENOENT */
+            return -ENOENT;
+        }
+
+        /* Let's allocate a new page */
+        p = alloc_page(GFP_KERNEL);
+        if (!p)
+            return -ENOMEM;
+        p->owner = ino->i_pages;
+        p->pageoff = pgoff;
+        /* Add it in... */
+        if (st = vmo_add_page(pgoff << PAGE_SHIFT, p, ino->i_pages); st < 0)
+        {
+            free_page(p);
+            return st;
+        }
+
+        page_ref(p);
+
+        /* Added! Just not up to date... */
+    }
+
+    /* If the page is not up to date, read it in, but first lock the page. All pages under IO have
+     * the lock held.
+     */
+    if (!(p->flags & PAGE_FLAG_UPTODATE))
+    {
+        DCHECK(ino->i_fops->readpage != nullptr);
+
+        lock_page(p);
+        if (!(p->flags & PAGE_FLAG_UPTODATE))
+        {
+            ssize_t st2 = ino->i_fops->readpage(p, pgoff << PAGE_SHIFT, ino);
+
+            /* In case of errors, propagate... */
+            if (st2 < 0)
+                st = st2;
+        }
+
+        if (flags & FIND_PAGE_LOCK)
+            goto out;
+
+        unlock_page(p);
+    }
+
+out:
+    if (st == 0)
+        *outp = p;
+    else
+    {
+        if (p)
+            page_unref(p);
+    }
+
+    return st;
+}
+
 ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t offset)
 {
     if ((size_t) offset >= file->i_size)
@@ -21,12 +101,12 @@ ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t off
 
     while (read != len)
     {
-        struct page_cache_block *cache = inode_get_page(file, offset);
+        struct page *page = nullptr;
+        int st = filemap_find_page(file, offset >> PAGE_SHIFT, 0, &page);
 
-        if (!cache)
-            return read ?: -1;
-
-        struct page *page = cache->page;
+        if (st < 0)
+            return read ?: st;
+        void *buf = PAGE_TO_VIRT(page);
 
         auto cache_off = offset % PAGE_SIZE;
         auto rest = PAGE_SIZE - cache_off;
@@ -38,8 +118,7 @@ ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t off
         if (offset + amount > file->i_size)
         {
             amount = file->i_size - offset;
-            if (copy_to_user((char *) buffer + read, (char *) cache->buffer + cache_off, amount) <
-                0)
+            if (copy_to_user((char *) buffer + read, (char *) buf + cache_off, amount) < 0)
             {
                 page_unpin(page);
                 return -EFAULT;
@@ -50,8 +129,7 @@ ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t off
         }
         else
         {
-            if (copy_to_user((char *) buffer + read, (char *) cache->buffer + cache_off, amount) <
-                0)
+            if (copy_to_user((char *) buffer + read, (char *) buf + cache_off, amount) < 0)
             {
                 page_unpin(page);
                 return -EFAULT;
@@ -86,12 +164,12 @@ ssize_t filemap_read_iter(struct file *filp, size_t off, iovec_iter *iter, unsig
 
     while (!iter->empty())
     {
-        struct page_cache_block *cache = inode_get_page(ino, off);
+        struct page *page = nullptr;
+        int st2 = filemap_find_page(filp->f_ino, off >> PAGE_SHIFT, 0, &page);
 
-        if (!cache)
-            return st ?: -EIO /* XXX err code is wrong */;
-
-        struct page *page = cache->page;
+        if (st2 < 0)
+            return st ?: st2;
+        void *buffer = PAGE_TO_VIRT(page);
 
         auto cache_off = off % PAGE_SIZE;
         auto rest = PAGE_SIZE - cache_off;
@@ -101,7 +179,7 @@ ssize_t filemap_read_iter(struct file *filp, size_t off, iovec_iter *iter, unsig
             rest = ino->i_size - off;
 
         /* copy_to_iter advances the iter automatically */
-        ssize_t copied = copy_to_iter(iter, (const u8 *) cache->buffer + cache_off, rest);
+        ssize_t copied = copy_to_iter(iter, (const u8 *) buffer + cache_off, rest);
         page_unpin(page);
 
         if (copied <= 0)
@@ -115,6 +193,26 @@ ssize_t filemap_read_iter(struct file *filp, size_t off, iovec_iter *iter, unsig
     return st;
 }
 
+/**
+ * @brief Marks a page dirty in the filemap
+ *
+ * @param ino Inode to mark dirty
+ * @param page Page to mark dirty
+ * @param pgoff Page offset
+ */
+static void filemap_mark_dirty(struct inode *ino, struct page *page, size_t pgoff)
+{
+    if (ino->i_sb && ino->i_sb->s_flags & SB_FLAG_NODIRTY)
+        return;
+    if (!page_test_set_flag(page, PAGE_FLAG_DIRTY))
+        return; /* Already marked as dirty, not our problem! */
+
+    /* Set the DIRTY mark, for writeback */
+    ino->i_pages->vm_pages.set_mark(pgoff, FILEMAP_MARK_DIRTY);
+
+    inode_mark_dirty(ino, I_DATADIRTY);
+}
+
 ssize_t file_write_cache_unlocked(void *buffer, size_t len, struct inode *ino, size_t offset)
 {
     // printk("File cache write %lu off %lu\n", len, offset);
@@ -123,17 +221,13 @@ ssize_t file_write_cache_unlocked(void *buffer, size_t len, struct inode *ino, s
 
     while (wrote != len)
     {
-        struct page_cache_block *cache = inode_get_page(ino, offset, FILE_CACHING_WRITE);
+        struct page *page = nullptr;
+        int st = filemap_find_page(ino, offset >> PAGE_SHIFT, 0, &page);
 
-        if (cache == nullptr)
-        {
-            int err = -errno;
-            printk("Inode get page error offset %lu, size of inode %lu, vmo size %lu, err %d\n",
-                   offset, ino->i_size, ino->i_pages->size, err);
-            return wrote ?: err;
-        }
+        if (st < 0)
+            return wrote ?: st;
 
-        struct page *page = cache->page;
+        void *buf = PAGE_TO_VIRT(page);
 
         auto cache_off = offset & (PAGE_SIZE - 1);
         auto rest = PAGE_SIZE - cache_off;
@@ -143,26 +237,21 @@ ssize_t file_write_cache_unlocked(void *buffer, size_t len, struct inode *ino, s
 
         lock_page(page);
 
-        if (int st = ino->i_fops->prepare_write(ino, page, aligned_off, cache_off, amount); st < 0)
+        if (st = ino->i_fops->prepare_write(ino, page, aligned_off, cache_off, amount); st < 0)
         {
             unlock_page(page);
             page_unpin(page);
             return st;
         }
 
-        if (copy_from_user((char *) cache->buffer + cache_off, (char *) buffer + wrote, amount) < 0)
+        if (copy_from_user((char *) buf + cache_off, (char *) buffer + wrote, amount) < 0)
         {
             unlock_page(page);
             page_unpin(page);
             return -EFAULT;
         }
 
-        if (cache->size < cache_off + amount)
-        {
-            cache->size = cache_off + amount;
-        }
-
-        pagecache_dirty_block(cache);
+        filemap_mark_dirty(ino, page, offset >> PAGE_SHIFT);
         unlock_page(page);
 
         page_unpin(page);
@@ -209,12 +298,12 @@ ssize_t filemap_write_iter(struct file *filp, size_t off, iovec_iter *iter, unsi
 
     while (!iter->empty())
     {
-        struct page_cache_block *cache = inode_get_page(ino, off, FILE_CACHING_WRITE);
+        struct page *page = nullptr;
+        int st2 = filemap_find_page(filp->f_ino, off >> PAGE_SHIFT, 0, &page);
 
-        if (!cache)
-            return st ?: -EIO /* XXX err code is wrong */;
-
-        struct page *page = cache->page;
+        if (st2 < 0)
+            return st ?: st2;
+        void *buffer = PAGE_TO_VIRT(page);
 
         auto cache_off = off % PAGE_SIZE;
         size_t aligned_off = off & -PAGE_SIZE;
@@ -225,7 +314,7 @@ ssize_t filemap_write_iter(struct file *filp, size_t off, iovec_iter *iter, unsi
 
         lock_page(page);
 
-        if (int st2 = ino->i_fops->prepare_write(ino, page, aligned_off, cache_off, rest); st2 < 0)
+        if (st2 = ino->i_fops->prepare_write(ino, page, aligned_off, cache_off, rest); st2 < 0)
         {
             unlock_page(page);
             page_unpin(page);
@@ -233,10 +322,11 @@ ssize_t filemap_write_iter(struct file *filp, size_t off, iovec_iter *iter, unsi
         }
 
         /* copy_from_iter advances the iter automatically */
-        ssize_t copied = copy_from_iter(iter, (u8 *) cache->buffer + cache_off, rest);
+        ssize_t copied = copy_from_iter(iter, (u8 *) buffer + cache_off, rest);
 
         if (copied > 0)
-            pagecache_dirty_block(cache);
+            filemap_mark_dirty(ino, page, off >> PAGE_SHIFT);
+
         unlock_page(page);
         page_unpin(page);
 
@@ -272,14 +362,11 @@ int filemap_private_fault(struct vm_pf_context *ctx)
 
     if (!page)
     {
-        vmo_status_t vst = vmo_get(region->vm_obj, region->vm_offset + (pgoff << PAGE_SHIFT),
-                                   VMO_GET_MAY_POPULATE, &page);
+        st = filemap_find_page(region->vm_file->f_ino, (region->vm_offset >> PAGE_SHIFT) + pgoff, 0,
+                               &page);
 
-        if (vst != VMO_STATUS_OK)
-        {
-            st = -vmo_status_to_errno(vst);
+        if (st < 0)
             goto err;
-        }
     }
 
     if (!info->write)

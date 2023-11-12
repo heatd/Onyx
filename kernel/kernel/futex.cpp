@@ -248,20 +248,15 @@ int calculate_key(int *uaddr, int flags, futex_key &out_key)
 
     is_shared = st & GPP_ACCESS_SHARED;
 
-    /* VMO mappings are marked as MAP_SHARED BUT don't have page->cache filled out.
-     * TODO: We should be able to shared-wait on vmo mappings(maybe replace
-     * page->cache with a page->owning_vmo or something like that(or a union)). */
-    bool is_vmo_mapping = is_shared && page->cache == nullptr;
-
-    if (!is_shared || is_vmo_mapping)
+    if (!is_shared || !page->owner)
     {
         /* This is a private mapping, treat it like the above. */
         page_unpin(page);
         goto private_futex_out;
     }
 
-    auto inode = page->cache->node;
-    auto page_offset = page->cache->offset;
+    auto inode = page->owner->ino;
+    auto page_offset = page->pageoff << PAGE_SHIFT;
     auto vmo = inode->i_pages;
 
     out_key.shared.page_offset = page_offset;

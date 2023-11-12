@@ -95,6 +95,10 @@ class pipe;
 #define INODE_FLAG_NO_SEEK    (1 << 2)
 #define INODE_FLAG_WB         (1 << 3)
 #define INODE_FLAG_FREEING    (1 << 4)
+#define I_DATADIRTY           (1 << 5)
+#define I_DIRTY               (1 << 1)
+#define I_WRITEBACK           (1 << 3)
+
 struct inode
 {
     unsigned long i_refc;
@@ -123,7 +127,6 @@ struct inode
     struct list_head i_dirty_inode_node;
     void *i_flush_dev;
 
-    struct inode *i_next;
     void *i_helper;
     struct dentry *i_dentry; /* Only valid for directories */
     struct rwlock i_rwlock;
@@ -215,7 +218,7 @@ char *readlink_vfs(struct file *file);
 
 struct file *get_fs_base(const char *file, struct file *rel_base);
 
-void inode_mark_dirty(struct inode *ino);
+void inode_mark_dirty(struct inode *ino, unsigned int flags = I_DIRTY);
 
 int inode_flush(struct inode *ino);
 
@@ -265,9 +268,6 @@ __always_inline void inode_unlock_shared(inode *ino)
 bool inode_can_access(struct inode *file, unsigned int perms);
 bool file_can_access(struct file *file, unsigned int perms);
 bool fd_may_access(struct file *f, unsigned int access);
-
-struct page_cache_block;
-struct page_cache_block *inode_get_page(struct inode *inode, size_t offset, long flags = 0);
 
 struct file *inode_to_file(struct inode *ino);
 int inode_truncate_range(struct inode *inode, size_t start, size_t end);
