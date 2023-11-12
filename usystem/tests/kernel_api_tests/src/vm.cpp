@@ -388,3 +388,13 @@ TEST(Vm, MprotectOverManyVmas)
 
     ASSERT_EQ(munmap(ptr, page_size * npgs), 0);
 }
+
+TEST(Vm, MmapSharedFault)
+{
+    /* Simple test that tests MAP_SHARED faults */
+    void* ptr = mmap(nullptr, page_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
+    ASSERT_NE(ptr, MAP_FAILED);
+    *(volatile unsigned char*) ptr;
+    *(volatile unsigned char*) ptr = 10;
+    ASSERT_EQ(munmap(ptr, page_size), 0);
+}
