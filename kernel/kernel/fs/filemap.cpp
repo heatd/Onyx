@@ -7,14 +7,17 @@
  */
 
 #include <onyx/filemap.h>
+#include <onyx/gen/trace_filemap.h>
 #include <onyx/mm/amap.h>
+#include <onyx/page.h>
 #include <onyx/pagecache.h>
 #include <onyx/vfs.h>
 #include <onyx/vm.h>
 
 #define FILEMAP_MARK_DIRTY RA_MARK_0
 
-int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags, struct page **outp)
+int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags,
+                      struct page **outp) NO_THREAD_SAFETY_ANALYSIS
 {
     struct page *p = nullptr;
     int st = 0;
@@ -199,16 +202,22 @@ ssize_t filemap_read_iter(struct file *filp, size_t off, iovec_iter *iter, unsig
  * @param ino Inode to mark dirty
  * @param page Page to mark dirty
  * @param pgoff Page offset
+ * @invariant page is locked
  */
-static void filemap_mark_dirty(struct inode *ino, struct page *page, size_t pgoff)
+static void filemap_mark_dirty(struct inode *ino, struct page *page, size_t pgoff) REQUIRES(page)
 {
+    DCHECK(page_locked(page));
     if (ino->i_sb && ino->i_sb->s_flags & SB_FLAG_NODIRTY)
         return;
     if (!page_test_set_flag(page, PAGE_FLAG_DIRTY))
         return; /* Already marked as dirty, not our problem! */
 
+    trace_filemap_dirty_page(ino->i_inode, ino->i_dev, pgoff);
     /* Set the DIRTY mark, for writeback */
-    ino->i_pages->vm_pages.set_mark(pgoff, FILEMAP_MARK_DIRTY);
+    {
+        scoped_mutex g{ino->i_pages->page_lock};
+        ino->i_pages->vm_pages.set_mark(pgoff, FILEMAP_MARK_DIRTY);
+    }
 
     inode_mark_dirty(ino, I_DATADIRTY);
 }

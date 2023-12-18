@@ -14,6 +14,7 @@
 
 #include <onyx/block.h>
 #include <onyx/buffer.h>
+#include <onyx/filemap.h>
 #include <onyx/page.h>
 #include <onyx/page_iov.h>
 #include <onyx/rwlock.h>
@@ -61,212 +62,6 @@ unsigned int blkdev_ioctl(int request, void *argp, struct file *f)
             return -EINVAL;
     }
 }
-
-size_t blkdev_read_file(size_t offset, size_t len, void *buffer, struct file *f)
-{
-    if (f->f_flags & O_NONBLOCK)
-        return -EWOULDBLOCK;
-
-    auto d = (blockdev *) f->f_ino->i_helper;
-    /* align the offset first */
-    size_t misalignment = offset % d->sector_size;
-    ssize_t sector = offset / d->sector_size;
-    size_t read = 0;
-    char *buf = (char *) buffer;
-
-    if (misalignment != 0)
-    {
-        // printk("handling misalignment\n");
-        /* *sigh* yuck, we'll need to allocate a bounce buffer */
-        struct page *p = alloc_page(PAGE_ALLOC_NO_ZERO);
-        if (!p)
-        {
-            return -ENOMEM;
-        }
-
-        void *virt = PAGE_TO_VIRT(p);
-
-        // printk("reading sector %lu, %u bytes\n", sector, d->sector_size);
-
-        ssize_t s = blkdev_read(sector * d->sector_size, d->sector_size, virt, d);
-
-        size_t to_copy = min((d->sector_size - misalignment), len);
-
-        if (s < 0)
-        {
-            free_page(p);
-            return -errno;
-        }
-
-        memcpy(buf, (char *) virt + misalignment, to_copy);
-
-        free_page(p);
-
-        sector++;
-        read = to_copy;
-        buf += read;
-        len -= read;
-        // printk("len: %lu\n", len);
-    }
-
-    // printk("len: %lu\n", len);
-
-    if (len != 0 && len / d->sector_size)
-    {
-        size_t nr_sectors = len / d->sector_size;
-        size_t reading = nr_sectors * d->sector_size;
-
-        // printk("Read: %lu\n", read);
-        // printk("here, buf %p\n", buf);
-        ssize_t s = blkdev_read(sector * d->sector_size, reading, buf, d);
-        if (s < 0)
-        {
-            return -ENXIO;
-        }
-
-        len -= reading;
-        buf += reading;
-        read += reading;
-        sector += nr_sectors;
-    }
-
-    if (len != 0)
-    {
-        struct page *p = alloc_page(PAGE_ALLOC_NO_ZERO);
-        if (!p)
-        {
-            return -ENOMEM;
-        }
-
-        void *virt = PAGE_TO_VIRT(p);
-
-        ssize_t s = blkdev_read(sector * d->sector_size, d->sector_size, virt, d);
-
-        if (s < 0)
-        {
-            free_page(p);
-            return -errno;
-        }
-
-        memcpy(buf, (char *) virt, len);
-
-        free_page(p);
-
-        sector++;
-        read += len;
-        buf += len;
-        len -= len;
-    }
-
-    return read;
-}
-
-size_t blkdev_write_file(size_t offset, size_t len, void *buffer, struct file *f)
-{
-    auto d = (blockdev *) f->f_ino->i_helper; /* align the offset first */
-    size_t misalignment = offset % d->sector_size;
-    ssize_t sector = offset / d->sector_size;
-    size_t written = 0;
-    char *buf = (char *) buffer;
-
-    if (misalignment != 0)
-    {
-        /* *sigh* yuck, we'll need to allocate a bounce buffer */
-        struct page *p = alloc_page(PAGE_ALLOC_NO_ZERO);
-        if (!p)
-        {
-            return errno = ENOMEM, -1;
-        }
-
-        void *virt = PAGE_TO_VIRT(p);
-
-        ssize_t s = blkdev_read(sector * d->sector_size, d->sector_size, virt, d);
-
-        size_t to_copy = min((d->sector_size - misalignment), len);
-
-        if (s < 0)
-        {
-            free_page(p);
-            return -1;
-        }
-
-        memcpy((char *) virt + misalignment, buf, to_copy);
-
-        s = blkdev_write(sector * d->sector_size, d->sector_size, virt, d);
-        free_page(p);
-
-        if (s < 0)
-        {
-            return -1;
-        }
-
-        sector++;
-        written += to_copy;
-        buf += to_copy;
-        len -= to_copy;
-    }
-
-    if (len != 0)
-    {
-        size_t nr_sectors = len / d->sector_size;
-        size_t writing = nr_sectors * d->sector_size;
-
-        ssize_t s = blkdev_write(sector * d->sector_size, writing, buf, d);
-        if (s < 0)
-        {
-            return errno = ENXIO, -1;
-        }
-
-        len -= writing;
-        buf += writing;
-        written += writing;
-        sector += nr_sectors;
-    }
-
-    if (len != 0)
-    {
-        struct page *p = alloc_page(PAGE_ALLOC_NO_ZERO);
-        if (!p)
-        {
-            return errno = ENOMEM, -1;
-        }
-
-        void *virt = PAGE_TO_VIRT(p);
-
-        ssize_t s = blkdev_read(sector * d->sector_size, d->sector_size, virt, d);
-
-        if (s < 0)
-        {
-            free_page(p);
-            return -1;
-        }
-
-        memcpy(buf, (char *) virt, len);
-
-        s = blkdev_write(sector * d->sector_size, d->sector_size, virt, d);
-        free_page(p);
-
-        if (s < 0)
-        {
-            return -1;
-        }
-
-        sector++;
-        written += len;
-        buf += len;
-        len -= len;
-    }
-
-    return written;
-}
-
-const struct vm_object_ops blk_vmo_ops = {.commit = bbuffer_commit};
-
-const struct file_ops blkdev_ops = {
-    .read = blkdev_read_file,
-    .write = blkdev_write_file,
-    .ioctl = blkdev_ioctl,
-};
 
 struct superblock *bdev_sb;
 
@@ -321,22 +116,17 @@ __init static void bdev_setup_fs()
     superblock_init(bdev_sb);
 }
 
+extern struct file_ops buffer_ops;
+
 int blkdev_init(struct blockdev *blk)
 {
-    /* XXX replace with the blockdev inode */
-    blk->vmo = vmo_create(blk->nr_sectors * blk->sector_size, blk);
-    if (!blk->vmo)
-        return -ENOMEM;
-    blk->vmo->ops = &blk_vmo_ops;
-    blk->vmo->priv = blk;
-
     rw_lock_write(&dev_list_lock);
 
     list_add_tail(&blk->block_dev_head, &dev_list);
 
     rw_unlock_write(&dev_list_lock);
 
-    auto ex = dev_register_blockdevs(0, 1, 0, &blkdev_ops, cul::string{blk->name});
+    auto ex = dev_register_blockdevs(0, 1, 0, &buffer_ops, cul::string{blk->name});
 
     if (ex.has_error())
     {
@@ -357,6 +147,8 @@ int blkdev_init(struct blockdev *blk)
         return -ENOMEM;
     }
 
+    ino->b_inode.i_fops = &buffer_ops;
+    ino->b_inode.i_helper = (void *) blk;
     blk->b_ino = (struct inode *) ino.release();
 
     if (!blkdev_is_partition(blk))

@@ -18,52 +18,50 @@
 
 memory_pool<block_buf, 0> block_buf_pool;
 
-ssize_t block_buf_flush(flush_object *fo);
-bool block_buf_is_dirty(flush_object *fo);
-static void block_buf_set_dirty(bool dirty, flush_object *fo);
-
-const struct flush_ops blockbuf_fops = {
-    .flush = block_buf_flush, .is_dirty = block_buf_is_dirty, .set_dirty = block_buf_set_dirty};
-
-#define block_buf_from_flush_obj(fo) container_of(fo, block_buf, flush_obj)
-
-ssize_t block_buf_flush(flush_object *fo)
+ssize_t buffer_writepage(struct page *page, size_t offset, struct inode *ino)
 {
-    auto buf = block_buf_from_flush_obj(fo);
+    auto blkdev = reinterpret_cast<blockdev *>(ino->i_helper);
+    DCHECK(blkdev != nullptr);
 
-    sector_t disk_sect = (buf->block_nr * buf->block_size) / buf->dev->sector_size;
+    auto bufs = reinterpret_cast<block_buf *>(page->priv);
+    block_buf *first_dirty = nullptr, *last_dirty = nullptr;
+
+    /* Let's find the dirtied range in the page */
+    for (block_buf *it = bufs; it != nullptr; it = it->next)
+    {
+        if (it->flags & BLOCKBUF_FLAG_DIRTY)
+        {
+            if (!first_dirty)
+                first_dirty = it;
+            last_dirty = it;
+        }
+    }
+
+    DCHECK(first_dirty != nullptr);
+
+    sector_t disk_sect = (first_dirty->block_nr * first_dirty->block_size) / blkdev->sector_size;
 
     struct page_iov vec;
-    vec.length = buf->block_size;
-    vec.page_off = buf->page_off;
-    vec.page = buf->this_page;
+    vec.length = ((last_dirty->block_nr + 1) - first_dirty->block_nr) * first_dirty->block_size;
+    vec.page_off = first_dirty->page_off;
+    vec.page = first_dirty->this_page;
 
-    struct bio_req r
-    {
-    };
+    struct bio_req r = {};
     r.nr_vecs = 1;
     r.sector_number = disk_sect;
     r.flags = BIO_REQ_WRITE_OP;
 
     r.vec = &vec;
 
-    __atomic_fetch_or(&buf->flags, BLOCKBUF_FLAG_UNDER_WB, __ATOMIC_RELAXED);
     __atomic_fetch_or(&vec.page->flags, PAGE_FLAG_FLUSHING, __ATOMIC_RELAXED);
 
-    if (bio_submit_request(buf->dev, &r) < 0)
+    if (bio_submit_request(blkdev, &r) < 0)
         return -EIO;
 #if 0
 	printk("Flushed #%lu[sector %lu].\n", buf->block_nr, disk_sect);
 #endif
 
-    return buf->block_size;
-}
-
-bool block_buf_is_dirty(flush_object *fo)
-{
-    auto buf = block_buf_from_flush_obj(fo);
-
-    return buf->flags & BLOCKBUF_FLAG_DIRTY;
+    return vec.length;
 }
 
 block_buf *block_buf_from_page(struct page *p)
@@ -90,39 +88,6 @@ bool page_has_dirty_bufs(struct page *p)
     return has_dirty_buf;
 }
 
-static void block_buf_set_dirty(bool dirty, flush_object *fo)
-{
-    auto buf = block_buf_from_flush_obj(fo);
-    auto page = buf->this_page;
-
-    if (dirty)
-    {
-        while (buf->flags & BLOCKBUF_FLAG_UNDER_WB)
-            cpu_relax();
-
-        unsigned long old_flags =
-            __atomic_fetch_or(&buf->flags, BLOCKBUF_FLAG_DIRTY, __ATOMIC_RELAXED);
-        __atomic_fetch_or(&page->flags, PAGE_FLAG_DIRTY, __ATOMIC_RELAXED);
-
-        if (!(old_flags & BLOCKBUF_FLAG_DIRTY))
-        {
-            flush_add_buf(fo);
-        }
-    }
-    else
-    {
-
-#if 0
-		printk("unset dirty block #%lu\n", buf->block_nr);
-#endif
-        __atomic_and_fetch(&buf->flags, ~(BLOCKBUF_FLAG_DIRTY | BLOCKBUF_FLAG_UNDER_WB),
-                           __ATOMIC_RELAXED);
-        if (!page_has_dirty_bufs(page))
-            __atomic_and_fetch(&page->flags, ~(PAGE_FLAG_DIRTY | PAGE_FLAG_FLUSHING),
-                               __ATOMIC_RELAXED);
-    }
-}
-
 struct block_buf *page_add_blockbuf(struct page *page, unsigned int page_off)
 {
     assert(page->flags & PAGE_FLAG_BUFFER);
@@ -136,7 +101,6 @@ struct block_buf *page_add_blockbuf(struct page *page, unsigned int page_off)
     buf->page_off = page_off;
     buf->this_page = page;
     buf->next = nullptr;
-    buf->flush_obj.ops = &blockbuf_fops;
     buf->refc = 1;
     buf->flags = 0;
 
@@ -173,7 +137,7 @@ void block_buf_remove(struct block_buf *buf)
 
 void block_buf_writeback(struct block_buf *buf)
 {
-    flush_sync_one(&buf->flush_obj);
+    // flush_sync_one(&buf->flush_obj);
 }
 
 void block_buf_free(struct block_buf *buf)
@@ -188,6 +152,7 @@ void block_buf_free(struct block_buf *buf)
 
 void page_destroy_block_bufs(struct page *page)
 {
+    DCHECK(page_flag_set(page, PAGE_FLAG_BUFFER));
     auto b = reinterpret_cast<block_buf *>(page->priv);
 
     block_buf *next = nullptr;
@@ -206,25 +171,20 @@ void page_destroy_block_bufs(struct page *page)
  * block_size <= page_size here...
  */
 
-vmo_status_t bbuffer_commit(vm_object *vmo, size_t off, page **ppage)
+ssize_t bbuffer_readpage(struct page *p, size_t off, struct inode *ino)
 {
-    vmo_status_t st = VMO_STATUS_BUS_ERROR;
-
-    page *p = alloc_page(PAGE_ALLOC_NO_ZERO);
-    if (!p)
-        return VMO_STATUS_OUT_OF_MEM;
     p->flags |= PAGE_FLAG_BUFFER;
     p->priv = 0;
 
-    auto blkdev = reinterpret_cast<blockdev *>(vmo->priv);
+    auto blkdev = reinterpret_cast<blockdev *>(ino->i_helper);
+    DCHECK(blkdev != nullptr);
 
     sector_t sec_nr = off / blkdev->sector_size;
 
     if (off % blkdev->sector_size)
     {
-        free_page(p);
-        printf("bbuffer_commit: Cannot read unaligned offset %lu\n", off);
-        return VMO_STATUS_BUS_ERROR;
+        printf("bbuffer_readpage: Cannot read unaligned offset %lu\n", off);
+        return -EIO;
     }
 
     auto sb = blkdev->sb;
@@ -236,9 +196,7 @@ vmo_status_t bbuffer_commit(vm_object *vmo, size_t off, page **ppage)
     vec.page = p;
     vec.page_off = 0;
 
-    struct bio_req r
-    {
-    };
+    struct bio_req r = {};
     r.nr_vecs = 1;
     r.vec = &vec;
     r.sector_number = sec_nr;
@@ -252,7 +210,7 @@ vmo_status_t bbuffer_commit(vm_object *vmo, size_t off, page **ppage)
 
     int iost = bio_submit_request(blkdev, &r);
     if (iost < 0)
-        goto error;
+        return iost;
 
     for (size_t i = 0; i < nr_blocks; i++)
     {
@@ -260,8 +218,7 @@ vmo_status_t bbuffer_commit(vm_object *vmo, size_t off, page **ppage)
         if (!(b = page_add_blockbuf(p, curr_off)))
         {
             page_destroy_block_bufs(p);
-            st = VMO_STATUS_OUT_OF_MEM;
-            goto error;
+            return -ENOMEM;
         }
 
         b->block_nr = starting_block_nr + i;
@@ -271,14 +228,17 @@ vmo_status_t bbuffer_commit(vm_object *vmo, size_t off, page **ppage)
         curr_off += block_size;
     }
 
-    *ppage = p;
-
-    return VMO_STATUS_OK;
-
-error:
-    free_page(p);
-    return st;
+    p->flags |= PAGE_FLAG_UPTODATE;
+    return PAGE_SIZE;
 }
+
+struct file_ops buffer_ops = {
+    .readpage = bbuffer_readpage,
+    .writepage = buffer_writepage,
+    .prepare_write = noop_prepare_write,
+    .read_iter = filemap_read_iter,
+    .write_iter = filemap_write_iter,
+};
 
 struct block_buf *sb_read_block(const struct superblock *sb, unsigned long block)
 {
@@ -288,7 +248,7 @@ struct block_buf *sb_read_block(const struct superblock *sb, unsigned long block
 
     struct page *page;
 
-    int st = filemap_find_page(dev->b_ino, real_off >> PAGE_SHIFT, FIND_PAGE_NO_CREATE, &page);
+    int st = filemap_find_page(dev->b_ino, real_off >> PAGE_SHIFT, 0, &page);
 
     if (st < 0)
         return nullptr;
@@ -328,31 +288,9 @@ struct block_buf *sb_read_block(const struct superblock *sb, unsigned long block
     return buf;
 }
 
-struct sb
-{
-    uint32_t s_inodes_count;
-    uint32_t s_blocks_count;
-    uint32_t s_r_blocks_count;
-    uint32_t s_free_blocks_count;
-    uint32_t s_free_inodes_count;
-    uint32_t s_first_data_block;
-    uint32_t s_log_block_size;
-    uint32_t s_log_frag_size;
-    uint32_t s_blocks_per_group;
-    uint32_t s_frags_per_group;
-    uint32_t s_inodes_per_group;
-    uint32_t s_mtime;
-    uint32_t s_wtime;
-    uint16_t s_mnt_count;
-    uint16_t s_max_mnt_count;
-    uint16_t s_magic;
-};
-
 void block_buf_dirty(block_buf *buf)
 {
-    // printk("Block number %lu dirty!\n", buf->block_nr);
-
-    block_buf_set_dirty(true, &buf->flush_obj);
+    /* XXX */
 }
 
 void page_remove_block_buf(struct page *page, size_t offset, size_t end)

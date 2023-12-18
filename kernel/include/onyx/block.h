@@ -77,8 +77,6 @@ struct blockdev
     struct blockdev *actual_blockdev{}; // isn't null when blockdev is a partition
     size_t offset{};
     int (*submit_request)(struct blockdev *dev, struct bio_req *req){};
-    /* This vmo serves as the buffer cache of the block device, exactly like the page cache */
-    struct vm_object *vmo{};
     /* Inode backing this block dev. This mostly matters when doing internal I/O to this block dev,
      * without it being a device file that userspace opened.
      */

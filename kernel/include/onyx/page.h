@@ -14,6 +14,7 @@
 
 #include <onyx/compiler.h>
 #include <onyx/list.h>
+#include <onyx/lock_annotations.h>
 #include <onyx/ref.h>
 #include <onyx/spinlock.h>
 #include <onyx/vm.h>
@@ -71,7 +72,7 @@ struct vm_object;
 /* struct page - Represents every usable page on the system
  * Careful adding fields in - they may increase the memory use exponentially
  */
-struct page
+struct CAPABILITY("page") page
 {
     unsigned long ref;
     unsigned long flags;
@@ -239,34 +240,34 @@ static inline void page_unpin(struct page *p)
     page_unref(p);
 }
 
-__always_inline void page_set_waiters(page *p)
+__always_inline void page_set_waiters(struct page *p)
 {
     __atomic_fetch_or(&p->flags, PAGE_FLAG_WAITERS, __ATOMIC_ACQUIRE);
 }
 
-__always_inline void page_clear_waiters(page *p)
+__always_inline void page_clear_waiters(struct page *p)
 {
     __atomic_fetch_and(&p->flags, ~PAGE_FLAG_WAITERS, __ATOMIC_RELEASE);
 }
 
-__always_inline bool try_lock_page(page *p)
+__always_inline bool try_lock_page(struct page *p) TRY_ACQUIRE(true, p)
 {
     auto flags = __atomic_fetch_or(&p->flags, PAGE_FLAG_LOCKED, __ATOMIC_ACQUIRE);
 
     return !(flags & PAGE_FLAG_LOCKED);
 }
 
-int __lock_page(page *p, bool interruptible);
+int __lock_page(struct page *p, bool interruptible);
 
-__always_inline void lock_page(page *p)
+__always_inline void lock_page(struct page *p) ACQUIRE(p) NO_THREAD_SAFETY_ANALYSIS
 {
     if (!try_lock_page(p)) [[unlikely]]
         __lock_page(p, false);
 }
 
-void __unlock_page(page *p);
+void __unlock_page(struct page *p);
 
-__always_inline void unlock_page(page *p)
+__always_inline void unlock_page(struct page *p) RELEASE(p) NO_THREAD_SAFETY_ANALYSIS
 {
     auto flags = __atomic_and_fetch(&p->flags, ~PAGE_FLAG_LOCKED, __ATOMIC_RELEASE);
     if (flags & PAGE_FLAG_WAITERS) [[unlikely]]
@@ -281,9 +282,19 @@ __always_inline bool page_test_set_flag(struct page *p, unsigned long flag)
         word = __atomic_load_n(&p->flags, __ATOMIC_ACQUIRE);
         if (word & flag)
             return false;
-    } while (__atomic_compare_exchange_n(&p->flags, &word, word | flag, false, __ATOMIC_RELEASE,
-                                         __ATOMIC_RELAXED));
+    } while (!__atomic_compare_exchange_n(&p->flags, &word, word | flag, false, __ATOMIC_RELEASE,
+                                          __ATOMIC_RELAXED));
     return true;
+}
+
+__always_inline bool page_flag_set(struct page *p, unsigned long flag)
+{
+    return p->flags & flag;
+}
+
+__always_inline bool page_locked(struct page *p)
+{
+    return page_flag_set(p, PAGE_FLAG_LOCKED);
 }
 
 void __reclaim_page(struct page *new_page);

@@ -403,3 +403,9 @@ void inode::set_evicting()
 {
     i_flags |= INODE_FLAG_FREEING;
 }
+
+int noop_prepare_write(struct inode *ino, struct page *page, size_t page_off, size_t offset,
+                       size_t len)
+{
+    return 0;
+}

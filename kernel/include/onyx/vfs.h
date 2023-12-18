@@ -386,4 +386,6 @@ ssize_t write_iter_vfs(struct file *filp, size_t off, iovec_iter *iter, unsigned
  */
 ssize_t read_iter_vfs(struct file *filp, size_t off, iovec_iter *iter, unsigned int flags);
 
+int noop_prepare_write(struct inode *ino, struct page *page, size_t page_off, size_t offset,
+                       size_t len);
 #endif

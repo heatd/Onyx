@@ -12,6 +12,8 @@ kernel/fs/%.trace.cpp: trace/trace_%.json trace/gentrace.py
 
 kernel/fs/vfs.o: include/onyx/gen/trace_writeback.h
 
-fs-y+= writeback.trace.o
+kernel/fs/filemap.o: include/onyx/gen/trace_filemap.h
+
+fs-y+= writeback.trace.o filemap.trace.o
 
 obj-y+= $(patsubst %, kernel/fs/%, $(fs-y))

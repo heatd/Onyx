@@ -127,21 +127,19 @@ ssize_t ext2_writepage(page *page, size_t off, inode *ino)
 
 ssize_t ext2_readpage(struct page *page, size_t off, struct inode *ino)
 {
-    bool is_buffer = page->flags & PAGE_FLAG_BUFFER;
-
-    assert(is_buffer == true);
-
     auto raw_inode = ext2_get_inode_from_node(ino);
     auto sb = ext2_superblock_from_inode(ino);
     auto nr_blocks = PAGE_SIZE / sb->block_size;
     auto base_block_index = off / sb->block_size;
+
+    page->flags |= PAGE_FLAG_BUFFER;
 
     auto curr_off = 0;
 
     for (size_t i = 0; i < nr_blocks; i++)
     {
         struct block_buf *b = nullptr;
-        if (is_buffer && !(b = page_add_blockbuf(page, curr_off)))
+        if (!(b = page_add_blockbuf(page, curr_off)))
         {
             page_destroy_block_bufs(page);
             return -ENOMEM;
@@ -175,15 +173,14 @@ ssize_t ext2_readpage(struct page *page, size_t off, struct inode *ino)
             memset((char *) PAGE_TO_VIRT(page) + curr_off, 0, sb->block_size);
         }
 
-        if (is_buffer)
-        {
-            b->block_nr = res.value();
-            b->block_size = sb->block_size;
-            b->dev = sb->s_bdev;
-        }
+        b->block_nr = res.value();
+        b->block_size = sb->block_size;
+        b->dev = sb->s_bdev;
 
         curr_off += sb->block_size;
     }
+
+    page->flags |= PAGE_FLAG_UPTODATE;
 
     return min(PAGE_SIZE, ino->i_size - off);
 }
