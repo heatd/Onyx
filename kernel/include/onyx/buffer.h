@@ -28,8 +28,6 @@ struct block_buf
     unsigned int page_off;
     /* Various flags - see below */
     unsigned int flags;
-    /* The dirty list node, to be used when dirtying buffers */
-    struct flush_object flush_obj;
     /* The corresponding block device */
     struct blockdev *dev;
     /* The block number */
@@ -49,7 +47,6 @@ struct block_buf *page_add_blockbuf(struct page *page, unsigned int page_off);
 struct block_buf *sb_read_block(const struct superblock *sb, unsigned long block);
 void block_buf_free(struct block_buf *buf);
 void block_buf_writeback(struct block_buf *buf);
-vmo_status_t bbuffer_commit(struct vm_object *vmo, size_t off, struct page **ppage);
 void block_buf_dirty(struct block_buf *buf);
 struct block_buf *block_buf_from_page(struct page *p);
 void page_destroy_block_bufs(struct page *page);
@@ -157,8 +154,6 @@ public:
             block_buf_get(b);
 
         reset(b);
-
-        return;
     }
 
     ~auto_block_buf()

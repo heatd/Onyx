@@ -1,0 +1,17 @@
+[
+    {
+        "name": "dirty_page",
+        "category": "filemap",
+        "args": [
+            {"type": "ino_t", "name": "ino"},
+            {"type": "dev_t", "name": "dev"},
+             {"type": "u64", "name": "page_off"}
+        ],
+
+        "format": {
+            "ino": {"type": "u64"},
+            "dev": {"type": "u32"},
+            "page_off": {"type": "u64"}
+        }
+    }
+]

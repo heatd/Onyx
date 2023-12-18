@@ -130,7 +130,8 @@ void inode_free_page(struct vm_object *vmo, struct page *page)
     }
 #endif
 
-    page_destroy_block_bufs(page);
+    if (page_flag_set(page, PAGE_FLAG_BUFFER))
+        page_destroy_block_bufs(page);
     free_page(page);
 }
 

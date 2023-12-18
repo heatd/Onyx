@@ -168,7 +168,7 @@ static int do_lock_page_wake(struct wait_queue_token *token, void *wake_context)
     return WQ_WAKE_WAKE_EXCLUSIVE;
 }
 
-int __lock_page(page *p, bool interruptible)
+int __lock_page(page *p, bool interruptible) NO_THREAD_SAFETY_ANALYSIS
 {
     int st = 0;
     const int state = interruptible ? THREAD_INTERRUPTIBLE : THREAD_UNINTERRUPTIBLE;
