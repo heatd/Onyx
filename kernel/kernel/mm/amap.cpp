@@ -42,6 +42,7 @@ void amap_free(struct amap *amap)
     while (!cursor.is_end())
     {
         auto page = (struct page *) cursor.get();
+        dec_page_stat(page, NR_ANON);
         free_page(page);
         cursor.advance();
     }
@@ -114,6 +115,7 @@ int amap_add(struct amap *amap, struct page *page, struct vm_area_struct *region
         copy_page_to_page(page_to_phys(page), page_to_phys(oldp));
     }
 
+    inc_page_stat(page, NR_ANON);
     return 0;
 }
 
@@ -220,6 +222,7 @@ int amap_truncate(struct amap *amap, struct vm_area_struct *region, size_t new_p
     while (!cursor.is_end())
     {
         struct page *page = (struct page *) cursor.get();
+        dec_page_stat(page, NR_ANON);
         page_unref(page);
         cursor.store(0);
         cursor.advance();
@@ -257,6 +260,7 @@ int amap_punch_hole(struct amap *amap, struct vm_area_struct *region, size_t fir
     while (!cursor.is_end())
     {
         struct page *page = (struct page *) cursor.get();
+        dec_page_stat(page, NR_ANON);
         page_unref(page);
         cursor.store(0);
         cursor.advance();
