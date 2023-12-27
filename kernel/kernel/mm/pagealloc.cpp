@@ -50,16 +50,20 @@ __always_inline unsigned long pow2(unsigned int exp)
 #define PCPU_REFILL_PAGES 512
 #define PCPU_REFILL_ORDER 9
 
-struct page_pcpu_queue
+struct page_pcpu_data
 {
     struct list_head page_list;
     unsigned long nr_pages{0};
     unsigned long nr_fast_path{0};
     unsigned long nr_slow_path{0};
     unsigned long nr_queue_reclaims{0};
-    constexpr page_pcpu_queue()
+    long pagestats[PAGE_STATS_MAX];
+
+    constexpr page_pcpu_data()
     {
         INIT_LIST_HEAD(&page_list);
+        for (auto &stat : pagestats)
+            stat = 0;
     }
 
     /**
@@ -108,7 +112,7 @@ struct page_zone
     unsigned long splits;
     unsigned long merges;
     spinlock lock;
-    page_pcpu_queue pcpu[CONFIG_SMP_NR_CPUS] __align_cache;
+    page_pcpu_data pcpu[CONFIG_SMP_NR_CPUS] __align_cache;
 };
 
 __always_inline bool page_is_buddy(page *page)
@@ -288,7 +292,7 @@ out:
 }
 
 static struct page *page_zone_refill_pcpu(struct page_zone *zone, unsigned int gfp_flags,
-                                          page_pcpu_queue *queue)
+                                          page_pcpu_data *queue)
 {
     unsigned int pages_collected = 0;
     struct page *ret = nullptr;
@@ -341,7 +345,7 @@ struct page *page_zone_alloc(struct page_zone *zone, unsigned int gfp_flags, uns
     {
         // Let's use pcpu caching for order-0 pages
         auto flags = irq_save_and_disable();
-        page_pcpu_queue *queue = &zone->pcpu[get_cpu_nr()];
+        page_pcpu_data *queue = &zone->pcpu[get_cpu_nr()];
         auto pages = queue->alloc();
 
         /* gfp_flags note: page_zone_refill_pcpu is careful enough to not use atomic reserves for
@@ -468,7 +472,7 @@ static void page_zone_free_core(page_zone *zone, struct page *page, unsigned int
     list_add(&page->page_allocator_node.list_node, &zone->pages[order]);
 }
 
-static void page_zone_release_pcpu(page_zone *zone, page_pcpu_queue *queue)
+static void page_zone_release_pcpu(page_zone *zone, page_pcpu_data *queue)
 {
     scoped_lock<spinlock, true> g{zone->lock};
     while (queue->nr_pages > MAX_PCPU_PAGES / 2)
@@ -485,7 +489,7 @@ static void page_zone_drain_pcpu_local(page_zone *zone)
 {
     /* Note: irqs are off */
     scoped_lock<spinlock, true> g{zone->lock};
-    page_pcpu_queue *queue = &zone->pcpu[get_cpu_nr()];
+    page_pcpu_data *queue = &zone->pcpu[get_cpu_nr()];
     while (queue->nr_pages > 0)
     {
         struct page *p = container_of(list_first_element(&queue->page_list), struct page,
@@ -504,7 +508,7 @@ void page_zone_free(page_zone *zone, struct page *page, unsigned int order)
     {
         // Lets release this page into the pcpu queue
         auto flags = irq_save_and_disable();
-        page_pcpu_queue *queue = &zone->pcpu[get_cpu_nr()];
+        page_pcpu_data *queue = &zone->pcpu[get_cpu_nr()];
 
         queue->free(page);
 
@@ -549,9 +553,9 @@ private:
     unsigned long total_pages{0};
     struct page_zone zones[NR_ZONES];
 
-    struct page_zone *add_pick_zone(unsigned long page);
-
 public:
+    struct page_zone *pick_zone(unsigned long page);
+
     constexpr page_node() : node_lock{}, cpu_list_node{}
     {
         spinlock_init(&node_lock);
@@ -587,7 +591,7 @@ static bool page_is_initialized = false;
 
 page_node main_node;
 
-struct page_zone *page_node::add_pick_zone(unsigned long page)
+struct page_zone *page_node::pick_zone(unsigned long page)
 {
     if (page < UINT32_MAX)
         return &zones[ZONE_DMA32];
@@ -609,7 +613,7 @@ void page_node::add_region(uintptr_t base, size_t size)
     while (size)
     {
         // Check what zone we want to add stuff to
-        struct page_zone *zone = add_pick_zone(base);
+        struct page_zone *zone = pick_zone(base);
 
         unsigned long start = base;
         unsigned long end = cul::clamp(start + size, zone->end) + 1;
@@ -730,9 +734,11 @@ size_t page_get_used_pages()
 
 void page_get_stats(struct memstat *m)
 {
+    unsigned long pagestats[PAGE_STATS_MAX];
+    page_accumulate_stats(pagestats);
     m->total_pages = nr_global_pages.load(mem_order::acquire);
     m->allocated_pages = page_get_used_pages();
-    m->page_cache_pages = 0; /* TODO */
+    m->page_cache_pages = pagestats[NR_FILE];
     m->kernel_heap_pages = 0;
 }
 
@@ -926,7 +932,7 @@ void page_node::free_page(struct page *p)
     /* Add it at the beginning since it might be fresh in the cache */
     // list_add(&p->page_allocator_node.list_node, &page_list);
 
-    struct page_zone *z = add_pick_zone((unsigned long) page_to_phys(p));
+    struct page_zone *z = pick_zone((unsigned long) page_to_phys(p));
     // XXX Free higher order stuff directly
     page_zone_free(z, p, 0);
 
@@ -984,3 +990,44 @@ static void setup_pagedaemon()
 }
 
 INIT_LEVEL_CORE_AFTER_SCHED_ENTRY(setup_pagedaemon);
+
+static struct page_zone *page_to_zone(struct page *page)
+{
+    return main_node.pick_zone((unsigned long) page_to_phys(page));
+}
+
+void inc_page_stat(struct page *page, enum page_stat stat)
+{
+    struct page_zone *zone = page_to_zone(page);
+    sched_disable_preempt();
+    zone->pcpu[get_cpu_nr()].pagestats[stat]++;
+    sched_enable_preempt();
+}
+
+void dec_page_stat(struct page *page, enum page_stat stat)
+{
+    struct page_zone *zone = page_to_zone(page);
+    sched_disable_preempt();
+    zone->pcpu[get_cpu_nr()].pagestats[stat]--;
+    sched_enable_preempt();
+}
+
+void page_accumulate_stats(unsigned long pages[PAGE_STATS_MAX])
+{
+    for (unsigned int i = 0; i < PAGE_STATS_MAX; i++)
+        pages[i] = 0;
+
+    for_every_node([&pages](page_node &node) {
+        node.for_every_zone([&pages](struct page_zone *zone) {
+            for (auto &pcpu : zone->pcpu)
+            {
+                for (unsigned int j = 0; j < PAGE_STATS_MAX; j++)
+                    pages[j] += pcpu.pagestats[j];
+            }
+
+            return true;
+        });
+
+        return true;
+    });
+}

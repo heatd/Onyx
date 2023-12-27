@@ -435,4 +435,25 @@ unsigned long pages_under_high_watermark();
  */
 void page_drain_pcpu();
 
+enum page_stat
+{
+    NR_FILE = 0,
+    NR_ANON,
+    NR_DIRTY,
+    NR_WRITEBACK,
+    NR_SLAB_RECLAIMABLE,
+    NR_SLAB_UNRECLAIMABLE,
+    /* LRU currently not implemented */
+    NR_INACTIVE_FILE,
+    NR_ACTIVE_FILE,
+    NR_INACTIVE_ANON,
+    NR_ACTIVE_ANON,
+    PAGE_STATS_MAX,
+};
+
+void inc_page_stat(struct page *page, enum page_stat stat);
+void dec_page_stat(struct page *page, enum page_stat stat);
+
+void page_accumulate_stats(unsigned long pages[PAGE_STATS_MAX]);
+
 #endif
