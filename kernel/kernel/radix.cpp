@@ -566,6 +566,9 @@ void radix_tree::cursor::advance()
         DPRINTF("level inc for depth %d: %lx\n", depth, level_increment);
         move_index();
     }
+
+    if (current_index == rt_nr_entries)
+        DCHECK(current == nullptr);
 }
 
 void radix_tree::cursor::store(rt_entry_t new_val)
