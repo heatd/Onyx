@@ -619,6 +619,7 @@ vm_object::~vm_object()
     while (!cursor.is_end())
     {
         auto page = (struct page *) cursor.get();
+        dec_page_stat(page, NR_FILE);
         if (ops && ops->free_page)
             ops->free_page(this, page);
         else

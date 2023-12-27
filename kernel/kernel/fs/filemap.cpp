@@ -55,6 +55,7 @@ int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags,
             return st;
         }
 
+        inc_page_stat(p, NR_FILE);
         page_ref(p);
 
         /* Added! Just not up to date... */
