@@ -233,15 +233,15 @@ static void attempt_map_pointer(unsigned long word)
     if (vm)
     {
         dumpprint(" --> refers to ");
-        if (vm->fd)
+        if (vm->vm_file)
         {
-            auto off = vm->mapping_type == MAP_PRIVATE ? (unsigned long) vm->vmo->priv : vm->offset;
-            dumpprint("%s+%lx", vm->fd->f_dentry->d_name, off + (word - vm->base));
+            auto off = vm->vm_offset;
+            dumpprint("%s+%lx", vm->vm_file->f_dentry->d_name, off + (word - vm->vm_start));
         }
         else
-            dumpprint(" [anon region + %lx]", (word - vm->base));
+            dumpprint(" [anon region + %lx]", (word - vm->vm_start));
 
-        if (vm->rwx & VM_EXEC)
+        if (vm->vm_flags & VM_EXEC)
             dumpprint(" # executable (.text?)");
     }
 }
