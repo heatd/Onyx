@@ -38,7 +38,8 @@ struct iovec_iter
     iovec_iter(cul::slice<iovec> vec, size_t length, enum iovec_type type = IOVEC_USER)
         : vec{cul::move(vec)}, bytes{length}, type{type}
     {
-        skip_zero_len();
+        if (length > 0)
+            skip_zero_len();
     }
 
     void skip_zero_len()
