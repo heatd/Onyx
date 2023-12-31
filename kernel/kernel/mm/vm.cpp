@@ -1235,6 +1235,7 @@ static struct vm_area_struct *vm_split_region(struct mm_address_space *as,
     if (!newr)
         return nullptr;
 
+    memset(newr, 0, sizeof(*newr));
     vm_copy_region(vma, newr, 0);
 
     if (vma->vm_amap)
