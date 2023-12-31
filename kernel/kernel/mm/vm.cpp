@@ -104,7 +104,7 @@ static struct slab_cache *vm_area_struct_cache = nullptr;
 
 static inline vm_area_struct *vma_alloc()
 {
-    return (vm_area_struct *) kmem_cache_alloc(vm_area_struct_cache, 0);
+    return (vm_area_struct *) kmem_cache_alloc(vm_area_struct_cache, GFP_KERNEL);
 }
 
 static inline void vma_free(vm_area_struct *region)
