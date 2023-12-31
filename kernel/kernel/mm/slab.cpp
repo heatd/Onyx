@@ -171,6 +171,53 @@ struct slab_cache *kmem_cache_create(const char *name, size_t size, size_t align
 
 #define ALWAYS_INLINE __attribute__((always_inline))
 
+#ifdef SLAB_DEBUG_COUNTS
+/* Kept here and not in list.h, because this is a horrible pattern that should not be used for
+ * !DEBUG */
+static size_t list_calc_len(struct list_head *list)
+{
+    size_t len = 0;
+    list_for_every (list)
+        len++;
+    return len;
+}
+
+#define KMEM_DCHECK(check, cache)     \
+    if (!(check))                     \
+    {                                 \
+        kmem_dump_cache_debug(cache); \
+        DCHECK(check);                \
+    }
+
+static struct mutex dump_cache_lock;
+__noinline static void kmem_dump_cache_debug(struct slab_cache *cache)
+{
+    panic_start();
+    mutex_lock(&dump_cache_lock);
+    printk("slab: dumping cache %s - %p\n", cache->name, cache);
+    printk("      nfreeslabs %lu, calculated %lu\n", cache->nfreeslabs,
+           list_calc_len(&cache->free_slabs));
+    printk("      npartialslabs %lu, calculated %lu\n", cache->npartialslabs,
+           list_calc_len(&cache->partial_slabs));
+    printk("      nfullslabs %lu, calculated %lu\n", cache->nfullslabs,
+           list_calc_len(&cache->full_slabs));
+    panic("bah");
+}
+
+__attribute__((optimize("no-optimize-sibling-calls"))) __noinline static void
+kmem_assert_slab_count(struct slab_cache *cache)
+{
+    DCHECK(spin_lock_held(&cache->lock));
+    KMEM_DCHECK(cache->nfreeslabs == list_calc_len(&cache->free_slabs), cache);
+    KMEM_DCHECK(cache->npartialslabs == list_calc_len(&cache->partial_slabs), cache);
+    KMEM_DCHECK(cache->nfullslabs == list_calc_len(&cache->full_slabs), cache);
+}
+
+#define ASSERT_SLAB_COUNT(cache) kmem_assert_slab_count(cache)
+#else
+#define ASSERT_SLAB_COUNT(cache)
+#endif
+
 // Note: We can simplify the below slab state transitions to free <-> partial <-> full
 // since each slab always has more than a single object.
 
@@ -189,6 +236,7 @@ ALWAYS_INLINE static inline void kmem_move_slab_to_partial(struct slab *s, bool 
         s->cache->nfreeslabs--;
     else
         s->cache->nfullslabs--;
+    ASSERT_SLAB_COUNT(s->cache);
 }
 
 /**
@@ -205,6 +253,7 @@ ALWAYS_INLINE static inline void kmem_move_slab_to_full(struct slab *s, bool fre
     else
         s->cache->npartialslabs--;
     s->cache->nfullslabs++;
+    ASSERT_SLAB_COUNT(s->cache);
 }
 
 /**
@@ -218,6 +267,7 @@ ALWAYS_INLINE static inline void kmem_move_slab_to_free(struct slab *s)
     list_add_tail(&s->slab_list_node, &s->cache->free_slabs);
     s->cache->npartialslabs--;
     s->cache->nfreeslabs++;
+    ASSERT_SLAB_COUNT(s->cache);
 }
 
 /**
@@ -493,6 +543,7 @@ NO_ASAN static struct slab *kmem_cache_create_slab(struct slab_cache *cache, uns
     {
         list_add_tail(&slab->slab_list_node, &cache->free_slabs);
         cache->nfreeslabs++;
+        ASSERT_SLAB_COUNT(cache);
     }
 
     // Setup pointers to the slab in the struct pages
@@ -531,6 +582,7 @@ static void *kmem_cache_alloc_noslab(struct slab_cache *cache, unsigned int flag
     /* TODO: This is redundant but alloc_from_slab insists on *moving* us from/to lists */
     list_add_tail(&s->slab_list_node, &cache->free_slabs);
     cache->nfreeslabs++;
+    ASSERT_SLAB_COUNT(cache);
     void *obj = kmem_cache_alloc_from_slab(s, flags);
     DCHECK(obj != nullptr);
 
@@ -710,6 +762,7 @@ out:
         list_splice_tail(&full_slabs, &cache->full_slabs);
         cache->npartialslabs += npartials;
         cache->nfullslabs += nfull;
+        ASSERT_SLAB_COUNT(cache);
         /* Restore our disabled preemption */
         sched_disable_preempt();
     }
@@ -862,6 +915,7 @@ static void kmem_free_to_slab(struct slab_cache *cache, struct slab *slab, void 
             // usually are.
             kmem_cache_free_slab(slab);
             cache->npartialslabs--;
+            ASSERT_SLAB_COUNT(cache);
         }
         else
             // Move partial to free
@@ -1034,7 +1088,6 @@ static void kmem_cache_free_slab(struct slab *slab)
     auto cache = slab->cache;
 
     // Free it from the free list
-
     list_remove(&slab->slab_list_node);
 
     // After freeing the slab we may no longer touch the struct slab
@@ -1080,11 +1133,6 @@ static void kmem_purge_local_cache(struct slab_cache *cache)
  */
 static void __kmem_cache_purge(struct slab_cache *cache)
 {
-#ifdef CONFIG_KASAN
-    // Flushing the KASAN quarantine is important as to let objects go back to the slabs
-    kasan_flush_quarantine();
-#endif
-
     sched_disable_preempt();
 
     smp::sync_call_with_local([](void *ctx) { kmem_purge_local_cache((slab_cache *) ctx); }, cache,
@@ -1102,6 +1150,8 @@ static void __kmem_cache_purge(struct slab_cache *cache)
         kmem_cache_free_slab(s);
         cache->nfreeslabs--;
     }
+
+    ASSERT_SLAB_COUNT(cache);
 }
 
 /**
@@ -1122,6 +1172,8 @@ static unsigned long kmem_cache_shrink(struct slab_cache *cache, unsigned long t
                               [](void *ctx) { kmem_purge_local_cache((slab_cache *) ctx); }, cache);
 
     sched_enable_preempt();
+
+    ASSERT_SLAB_COUNT(cache);
 
     if (!cache->nfreeslabs)
         return 0;
@@ -1151,6 +1203,11 @@ static unsigned long kmem_cache_shrink(struct slab_cache *cache, unsigned long t
  */
 void kmem_cache_purge(struct slab_cache *cache)
 {
+#ifdef CONFIG_KASAN
+    // Flushing the KASAN quarantine is important as to let objects go back to the slabs
+    kasan_flush_quarantine();
+#endif
+
     scoped_lock g{cache->lock};
     __kmem_cache_purge(cache);
 }
@@ -1166,6 +1223,11 @@ void kmem_cache_destroy(struct slab_cache *cache)
 {
     // Note: lock the cache list lock first, since we don't want memory reclamation
     // to possibly get in the way. Reclamation will do cache_list_lock -> cache->lock.
+
+#ifdef CONFIG_KASAN
+    // Flushing the KASAN quarantine is important as to let objects go back to the slabs
+    kasan_flush_quarantine();
+#endif
 
     {
         scoped_lock g{cache_list_lock};
@@ -1251,7 +1313,7 @@ void *kmalloc(size_t size, int flags)
 
 void *malloc(size_t size)
 {
-    return kmalloc(size, 0);
+    return kmalloc(size, GFP_ATOMIC);
 }
 
 void free(void *ptr)
@@ -1324,6 +1386,7 @@ void kmem_free_kasan(void *ptr)
     auto slab = kmem_pointer_to_slab(ptr);
     assert(slab != nullptr);
     ((bufctl *) ptr)->flags = 0;
+    scoped_lock g{slab->cache->lock};
     kmem_free_to_slab(slab->cache, slab, ptr);
 }
 
