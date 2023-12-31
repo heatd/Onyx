@@ -843,6 +843,7 @@ __always_inline void prepare_pages_after_alloc(struct page *page, unsigned int o
     {
         __atomic_store_n(&page->ref, 1, __ATOMIC_RELEASE);
         page->flags = 0;
+        page->priv = 0;
         page->next_un.next_allocation = nullptr;
         if (last)
             last->next_un.next_allocation = page;
