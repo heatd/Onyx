@@ -109,6 +109,8 @@ struct quarantine_queue
      */
     void xfer_in(quarantine_queue &q)
     {
+        if (!q.global_queue_head_)
+            return;
         if (!global_queue_head_)
         {
             global_queue_head_ = q.global_queue_head_;
@@ -323,16 +325,8 @@ void quarantine::flush_pcpu()
     if (pcpu.touched)
         return;
 
-    quarantine_chunk *c = pcpu.queue.global_queue_head_;
-
-    while (c)
-    {
-        auto next = c->next;
-        kmem_free_kasan(c);
-        c = next;
-    }
-
-    pcpu.queue.reset();
+    scoped_lock g{queue_lock_};
+    queue_.xfer_in(pcpu.queue);
 }
 
 /**
