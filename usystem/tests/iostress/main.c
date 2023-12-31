@@ -11,6 +11,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <libgen.h>
+#include <limits.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -22,6 +24,8 @@
 #include <unistd.h>
 
 static int direct_io = 0;
+static int do_fsync;
+static int do_fsync_dir;
 
 static int prepare_file(const char *filename, size_t size)
 {
@@ -46,6 +50,21 @@ static int prepare_file(const char *filename, size_t size)
     if (fd < 0)
     {
         err(1, "open %s", filename);
+    }
+
+    if (do_fsync_dir)
+    {
+        /* Sync the directory - this lets us more easily isolate IO on the actual file, for testing
+         * purposes.
+         */
+        char path[PATH_MAX];
+        strcpy(path, filename);
+        int fd2 = open(dirname(path), O_RDONLY | O_CLOEXEC);
+        if (fd2 < 0)
+            err(1, "open %s", dirname(path));
+        if (fsync(fd2) < 0)
+            err(1, "fsync");
+        close(fd2);
     }
 
     if (!notrunc)
@@ -88,7 +107,7 @@ static void stress(int fd, struct stress_options *opts)
         err(1, "malloc");
     memset(block, 0, opts->io_chunk_size);
 
-    struct stat buf0, buf1;
+    struct stat buf0;
     off_t off = 0;
 
     if (fstat(fd, &buf0) < 0)
@@ -142,6 +161,8 @@ const static struct option options[] = {
     {"time", required_argument, NULL, OPT_TIME},
     {"io-block-size", required_argument, NULL, OPT_IO_BLOCK_SIZE},
     {"direct", no_argument, &direct_io, 1},
+    {"fsync", no_argument, &do_fsync, 1},
+    {"fsync-dir", no_argument, &do_fsync_dir, 1},
     {}};
 
 static int threads = 1;
@@ -170,7 +191,9 @@ void usage(void)
            "    --file-size SIZE        Size of the file to create, in bytes (default = 4 MiB)\n"
            "    --time TIME             Time to run the test for (default = 10 seconds)\n"
            "    --io-block-size BLKSIZE Set the block size for I/O operations\n"
-           "    --direct                Use O_DIRECT to do direct I/O and bypass the page cache\n\n"
+           "    --direct                Use O_DIRECT to do direct I/O and bypass the page cache\n"
+           "    --fsync                 Do fsync() after writing the file\n"
+           "    --fsync-dir             Do fsync() on the directory after creating the file\n\n"
            "If anything went wrong, exits with exit status 1.\n"
            "If everything looks to completed successfully, exits with 0.\n");
 }
@@ -293,5 +316,11 @@ int main(int argc, char **argv)
     for (int i = 0; i < threads - 1; i++)
     {
         pthread_join(ids[i], NULL);
+    }
+
+    if (do_fsync)
+    {
+        if (fsync(fd) < 0)
+            err(1, "fsync");
     }
 }
