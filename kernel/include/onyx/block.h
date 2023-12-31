@@ -55,8 +55,6 @@ struct bio_req
     unsigned long device_specific[4];
 };
 
-using __blkread = ssize_t (*)(size_t, size_t, void *, struct blockdev *);
-using __blkwrite = ssize_t (*)(size_t, size_t, void *, struct blockdev *);
 using __blkflush = int (*)(struct blockdev *);
 using __blkpowermanagement = int (*)(int, struct blockdev *);
 
@@ -65,8 +63,6 @@ struct inode;
 
 struct blockdev
 {
-    __blkread read{};
-    __blkwrite write{};
     __blkflush flush{};
     __blkpowermanagement power{};
     cul::string name;
@@ -119,20 +115,7 @@ struct blockdev *blkdev_search(const char *name);
  * errno values: EINVAL - invalid argument
  */
 int blkdev_init(struct blockdev *dev);
-/*
- * Function: size_t blkdev_read(size_t offset, size_t count, void *buffer, struct blockdev *dev);
- * Description: Reads 'count' bytes from 'dev' to 'buffer', with offset 'offset'
- * Return value: 0 on success, -1 on error. Sets errno properly.
- * errno values: EINVAL - invalid argument; ENOSYS - operation not supported on storage device 'dev'
- */
-ssize_t blkdev_read(size_t offset, size_t count, void *buffer, struct blockdev *dev);
-/*
- * Function: size_t blkdev_write(size_t offset, size_t count, void *buffer, struct blockdev *dev);
- * Description: Writes 'count' bytes from 'buffer' to 'dev', with offset 'offset'
- * Return value: 0 on success, -1 on error. Sets errno properly.
- * errno values: EINVAL - invalid argument; ENOSYS - operation not supported on storage device 'dev'
- */
-ssize_t blkdev_write(size_t offset, size_t count, void *buffer, struct blockdev *dev);
+
 /*
  * Function: int blkdev_flush(struct blockdev *dev);
  * Description: Flushes storage device 'dev'
