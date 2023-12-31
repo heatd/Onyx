@@ -81,7 +81,6 @@ struct packetbuf : public refcountable
 
     uint16_t *csum_offset;
     unsigned char *csum_start;
-    vm_object *vmo;
 
     unsigned int header_length;
     uint16_t gso_size;
@@ -118,7 +117,7 @@ public:
     packetbuf()
         : refcountable{}, page_vec{}, phy_header{}, link_header{}, net_header{},
           transport_header{}, data{}, tail{}, end{}, buffer_start{}, csum_offset{nullptr},
-          csum_start{nullptr}, vmo{}, header_length{}, gso_size{}, gso_flags{},
+          csum_start{nullptr}, header_length{}, gso_size{}, gso_flags{},
           needs_csum{0}, zero_copy{0}, domain{0}, list_node{this}
     {
     }

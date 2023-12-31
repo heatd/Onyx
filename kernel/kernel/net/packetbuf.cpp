@@ -51,26 +51,11 @@ bool packetbuf::allocate_space(size_t length)
     if (!pages)
         return false;
 
-    vmo = vmo_create(length, nullptr);
-    if (!vmo)
-    {
-        free_page_list(pages);
-        return false;
-    }
-
     auto pages_head = pages;
 
     for (size_t i = 0; i < nr_pages; i++)
     {
         page_ref(pages);
-
-        if (vmo->insert_page_unlocked(i << PAGE_SHIFT, pages) < 0)
-        {
-            free_page_list(pages_head);
-            vmo_destroy(vmo);
-            return false;
-        }
-
         page_vec[i].page = pages;
 
         if (i == 0)
@@ -87,26 +72,7 @@ bool packetbuf::allocate_space(size_t length)
         pages = pages->next_un.next_allocation;
     }
 
-#if 0
-	buffer_start = vm_map_vmo(VM_KERNEL, VM_TYPE_REGULAR, nr_pages, VM_WRITE | VM_READ, vmo);
-	if(!buffer_start)
-	{
-		free_pages(pages_head);
-
-		for(size_t i = 0; i < nr_pages; i++)
-		{
-			page_vec[i].reset();
-		}
-
-		vmo_destroy(vmo);
-		vmo = nullptr;
-
-		return false;
-	}
-#else
     buffer_start = PAGE_TO_VIRT(pages_head);
-#endif
-
     net_header = transport_header = nullptr;
     data = tail = (unsigned char *) buffer_start;
     end = (unsigned char *) buffer_start + PAGE_SIZE;
@@ -165,12 +131,6 @@ void *packetbuf::put(unsigned int size)
  */
 packetbuf::~packetbuf()
 {
-    // const auto mapping_length = end - (unsigned char *) buffer_start;
-
-    // if(buffer_start)   vm_munmap(&kernel_address_space, buffer_start, mapping_length);
-    if (vmo)
-        vmo_unref(vmo);
-
     for (auto &v : page_vec)
     {
         if (v.page)
