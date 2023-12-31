@@ -72,6 +72,7 @@ struct superblock *bdev_sb;
 struct block_inode
 {
     struct inode b_inode;
+    flush::writeback_dev *b_wbdev;
 
     /**
      * @brief Create a new blockdev inode
@@ -79,7 +80,7 @@ struct block_inode
      * @arg dev Block device
      * @return Properly set up blockdev inode, or NULL
      */
-    static unique_ptr<block_inode> create(const struct blockdev *dev);
+    static unique_ptr<block_inode> create(const struct blockdev *dev, flush::writeback_dev *wbdev);
 };
 
 /**
@@ -88,7 +89,7 @@ struct block_inode
  * @arg dev Block device
  * @return Properly set up blockdev inode, or NULL
  */
-unique_ptr<block_inode> block_inode::create(const struct blockdev *dev)
+unique_ptr<block_inode> block_inode::create(const struct blockdev *dev, flush::writeback_dev *wbdev)
 {
     unique_ptr<block_inode> ino = make_unique<block_inode>();
     if (!ino)
@@ -99,6 +100,7 @@ unique_ptr<block_inode> block_inode::create(const struct blockdev *dev)
         return nullptr;
     inode.i_dev = dev->dev->dev();
     inode.i_sb = bdev_sb;
+    ino->b_wbdev = wbdev;
 
     superblock_add_inode(bdev_sb, &inode);
     return ino;
@@ -140,7 +142,16 @@ int blkdev_init(struct blockdev *blk)
 
     blk->dev = dev;
 
-    auto ino = block_inode::create(blk);
+    blk->wbdev = make_unique<flush::writeback_dev>(blk);
+    if (!blk->wbdev)
+    {
+        dev_unregister_dev(dev, true);
+        return -ENOMEM;
+    }
+
+    blk->wbdev->init();
+
+    auto ino = block_inode::create(blk, blk->wbdev.get());
     if (!ino)
     {
         dev_unregister_dev(dev, true);
@@ -273,4 +284,25 @@ unique_ptr<blockdev> blkdev_create_scsi_like_dev()
         return errno = ENOMEM, nullptr;
 
     return cul::move(dev);
+}
+
+flush::writeback_dev *bdev_get_wbdev(struct inode *ino)
+{
+    flush::writeback_dev *dev;
+    DCHECK(ino->i_sb != nullptr);
+
+    if (ino->i_sb == bdev_sb)
+        dev = ((struct block_inode *) ino)->b_wbdev;
+    else
+    {
+        /* Find the block device, get the wbdev that way */
+        blockdev *bdev = ino->i_sb->s_bdev;
+        if (S_ISBLK(ino->i_mode))
+            bdev = (blockdev *) ino->i_helper;
+        DCHECK(bdev != nullptr);
+        dev = bdev->wbdev.get();
+    }
+
+    DCHECK(dev != nullptr);
+    return dev;
 }

@@ -12,9 +12,9 @@
 
 #include <onyx/iovec_iter.h>
 #include <onyx/types.h>
+#include <onyx/vfs.h>
 
 struct file;
-struct inode;
 struct page;
 
 /**
@@ -45,5 +45,28 @@ ssize_t filemap_write_iter(struct file *filp, size_t off, iovec_iter *iter, unsi
 #define FIND_PAGE_LOCK      (1 << 1)
 
 int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags, struct page **outp);
+
+void page_start_writeback(struct page *page, struct inode *inode)
+    EXCLUDES(inode->i_pages->page_lock) REQUIRES(page);
+
+void page_end_writeback(struct page *page, struct inode *inode) EXCLUDES(inode->i_pages->page_lock)
+    REQUIRES(page);
+
+/**
+ * @brief Marks a page dirty in the filemap
+ *
+ * @param ino Inode to mark dirty
+ * @param page Page to mark dirty
+ * @param pgoff Page offset
+ * @invariant page is locked
+ */
+void filemap_mark_dirty(struct inode *ino, struct page *page, size_t pgoff) REQUIRES(page);
+
+struct writepages_info;
+
+int filemap_writepages(struct inode *inode, struct writepages_info *wpinfo);
+
+#define FILEMAP_MARK_DIRTY     RA_MARK_0
+#define FILEMAP_MARK_WRITEBACK RA_MARK_1
 
 #endif

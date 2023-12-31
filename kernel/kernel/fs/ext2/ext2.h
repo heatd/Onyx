@@ -10,7 +10,6 @@
 
 #include <errno.h>
 #include <stdint.h>
-#include <uapi/stat.h>
 
 #include <onyx/block.h>
 #include <onyx/buffer.h>
@@ -20,6 +19,8 @@
 #include <onyx/spinlock.h>
 #include <onyx/vector.h>
 #include <onyx/vfs.h>
+
+#include <uapi/stat.h>
 
 #include <onyx/expected.hpp>
 #include <onyx/pair.hpp>
@@ -467,8 +468,10 @@ public:
      *
      * @param ino Pointer to ext2_inode
      * @param inode_no Inode number
+     * @param in_sync If this is part of a sync/fsync call (i.e do we need to write the buffer back
+     * immediately.)
      */
-    void update_inode(const ext2_inode *ino, ext2_inode_no inode_no);
+    void update_inode(const ext2_inode *ino, ext2_inode_no inode_no, bool in_sync = false);
 
     /**
      * @brief Reads metadata blocks from the filesystem using sb_read_block

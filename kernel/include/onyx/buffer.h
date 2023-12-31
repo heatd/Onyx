@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #ifndef _ONYX_BUFFER_H
 #define _ONYX_BUFFER_H
@@ -15,6 +17,8 @@
  * It keeps information like whether the block is dirty, the page it's stored on, the offset, etc.
  * It's supposed to be used by filesystems only, for metadata.
  */
+
+struct vm_object;
 
 struct block_buf
 {
@@ -34,10 +38,35 @@ struct block_buf
     sector_t block_nr;
     /* The block size */
     unsigned int block_size;
+    struct list_head assoc_buffers_node;
+    struct vm_object *assoc_buffers_obj;
 };
 
 #define BLOCKBUF_FLAG_DIRTY    (1 << 0)
 #define BLOCKBUF_FLAG_UNDER_WB (1 << 1)
+
+static inline bool bb_test_and_set(struct block_buf *buf, unsigned int flag)
+{
+    unsigned int old;
+    do
+    {
+        old = __atomic_load_n(&buf->flags, __ATOMIC_ACQUIRE);
+        if (old & flag)
+            return false;
+    } while (!__atomic_compare_exchange_n(&buf->flags, &old, old | flag, false, __ATOMIC_RELEASE,
+                                          __ATOMIC_RELAXED));
+    return true;
+}
+
+static inline bool bb_test_and_clear(struct block_buf *buf, unsigned int flag)
+{
+    return __atomic_fetch_and(&buf->flags, ~flag, __ATOMIC_RELEASE) & flag;
+}
+
+static inline void bb_clear_flag(struct block_buf *buf, unsigned int flag)
+{
+    __atomic_and_fetch(&buf->flags, ~flag, __ATOMIC_RELEASE);
+}
 
 #define MAX_BLOCK_SIZE PAGE_SIZE
 
@@ -46,7 +75,7 @@ struct superblock;
 struct block_buf *page_add_blockbuf(struct page *page, unsigned int page_off);
 struct block_buf *sb_read_block(const struct superblock *sb, unsigned long block);
 void block_buf_free(struct block_buf *buf);
-void block_buf_writeback(struct block_buf *buf);
+void block_buf_sync(struct block_buf *buf);
 void block_buf_dirty(struct block_buf *buf);
 struct block_buf *block_buf_from_page(struct page *p);
 void page_destroy_block_bufs(struct page *page);
@@ -70,6 +99,40 @@ static inline void *block_buf_data(struct block_buf *b)
 {
     return (void *) (((unsigned long) PAGE_TO_VIRT(b->this_page)) + b->page_off);
 }
+
+/**
+ * @brief Associate a block_buf with a vm_object
+ * This is used for e.g indirect blocks that want to be written back
+ * when doing fsync. The vm_object does *not* need to be the block device's.
+ *
+ * @param buf Block buf
+ * @param object Object
+ */
+void block_buf_associate(struct block_buf *buf, struct vm_object *object);
+
+/**
+ * @brief Sync all the associated buffers to this vm_object
+ *
+ * @param object VM object (of probably an fs's inode)
+ */
+void block_buf_sync_assoc(struct vm_object *object);
+
+/**
+ * @brief Dirty a block buffer and associate it with an inode
+ * The association will allow us to write this buffer back when syncing
+ * the inode's data.
+ *
+ * @param buf Buffer to dirty
+ * @param inode Inode to add it to
+ */
+void block_buf_dirty_inode(struct block_buf *buf, struct inode *inode);
+
+/**
+ * @brief Tear down a vm object's assoc list
+ *
+ * @param object Object to tear down
+ */
+void block_buf_tear_down_assoc(struct vm_object *object);
 
 #ifdef __cplusplus
 
@@ -177,22 +240,32 @@ class buf_dirty_trigger
 {
 private:
     auto_block_buf &buf;
+    struct inode *inode{nullptr};
     bool dont_dirty;
 
+    void do_dirty()
+    {
+        if (inode)
+            block_buf_dirty_inode(buf, inode);
+        else
+            block_buf_dirty(buf);
+    }
+
 public:
-    buf_dirty_trigger(auto_block_buf &b) : buf{b}, dont_dirty{false}
+    buf_dirty_trigger(auto_block_buf &b, struct inode *inode = nullptr)
+        : buf{b}, inode{inode}, dont_dirty{false}
     {
     }
 
     ~buf_dirty_trigger()
     {
         if (!dont_dirty)
-            block_buf_dirty(buf);
+            do_dirty();
     }
 
     void explicit_dirty()
     {
-        block_buf_dirty(buf);
+        do_dirty();
         dont_dirty = true;
     }
 

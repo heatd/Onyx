@@ -63,13 +63,27 @@ struct scope_guard
     }
 };
 
+#if defined(__GNUC__) && !defined(__clang__)
+/* This is annoying, but GCC likes complaining about __trace_timestamp. I don't have a good solution
+ * for it, except to kill the warning for a bit.
+ */
+#define IGNORE_SHADOWING            \
+    _Pragma("GCC diagnostic push"); \
+    _Pragma("GCC diagnostic ignored \"-Wshadow=compatible-local\"");
+#define IGNORE_SHADOWING_END _Pragma("GCC diagnostic pop");
+#else
+#define IGNORE_SHADOWING
+#define IGNORE_SHADOWING_END
+#endif
 #define TRACE_EVENT_DURATION(name, ...)                                                 \
+    IGNORE_SHADOWING                                                                    \
     u64 __trace_timestamp = trace_##name##_enabled() ? clocksource_get_time() : 0;      \
     scope_guard __PASTE(__trace_scope_guard,                                            \
                         __COUNTER__){[__trace_timestamp __VA_OPT__(, ) __VA_ARGS__]() { \
         if (__trace_timestamp)                                                          \
             trace_##name(__trace_timestamp __VA_OPT__(, ) __VA_ARGS__);                 \
-    }};
+    }};                                                                                 \
+    IGNORE_SHADOWING_END
 
 #define TRACE_EVENT(name, ...)     \
     do                             \

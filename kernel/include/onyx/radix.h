@@ -298,6 +298,19 @@ public:
      * @param mark The mark to clear
      */
     void clear_mark(unsigned long index, unsigned int mark);
+
+    /**
+     * @brief Check if a given mark is set (in the whole tree)
+     *
+     * @param mark Mark to check
+     * @return True if set, else false
+     */
+    bool mark_is_set(unsigned int mark)
+    {
+        if (!tree)
+            return false;
+        return !tree->mark_empty(mark);
+    }
 };
 
 static inline bool radix_err(unsigned long ret)

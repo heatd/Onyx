@@ -49,7 +49,7 @@ expected<cul::pair<ext2_inode_no, ext2_inode *>, int> ext2_superblock::allocate_
 
                 memset(ino, 0, inode_size);
 
-                update_inode(ino, res.value());
+                update_inode(ino, res.value(), false);
 
                 return cul::pair{res.value(), ino};
             }

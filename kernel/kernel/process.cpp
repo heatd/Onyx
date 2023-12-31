@@ -576,7 +576,7 @@ pid_t sys_wait4(pid_t pid, int *wstatus, int options, rusage *usage)
         wait_for_event_interruptible(&current->wait_child_event, wait_handle_processes(current, w));
 
 #if 0
-	printk("st %d w.status %d\n", st, w.status);
+    printk("st %d w.status %d\n", st, w.status);
 #endif
 
     if (st < 0)

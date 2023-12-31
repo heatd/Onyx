@@ -10,11 +10,11 @@
 #define _ONYX_SUPERBLOCK_H
 
 #include <sys/statfs.h>
-#include <onyx/types.h>
 
 #include <onyx/list.h>
 #include <onyx/mutex.h>
 #include <onyx/spinlock.h>
+#include <onyx/types.h>
 
 struct file;
 
@@ -29,7 +29,7 @@ struct superblock
     struct spinlock s_ilock;
     unsigned long s_ref;
     void *s_helper;
-    int (*flush_inode)(struct inode *inode);
+    int (*flush_inode)(struct inode *inode, bool in_sync);
     int (*kill_inode)(struct inode *inode);
     int (*statfs)(struct statfs *buf, superblock *sb);
     unsigned int s_block_size;

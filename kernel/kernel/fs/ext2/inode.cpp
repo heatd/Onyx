@@ -162,7 +162,7 @@ expected<ext2_block_no, int> ext2_create_path(struct inode *ino, ext2_block_no b
                 ino->i_blocks += sb->block_size >> 9;
 
                 if (buf)
-                    block_buf_dirty(buf);
+                    block_buf_dirty_inode(buf, ino);
                 else
                 {
                     inode_update_ctime(ino);
@@ -179,7 +179,7 @@ expected<ext2_block_no, int> ext2_create_path(struct inode *ino, ext2_block_no b
             if (should_zero_block) [[unlikely]]
             {
                 memset(curr_block, 0, sb->block_size);
-                block_buf_dirty(buf);
+                block_buf_dirty_inode(buf, ino);
             }
         }
         else
@@ -367,7 +367,7 @@ expected<ext2_trunc_result, int> ext2_trunc_indirect_block(ext2_block_no block,
         return unexpected<int>{-EIO};
     }
 
-    buf_dirty_trigger dirty_trig{buf};
+    buf_dirty_trigger dirty_trig{buf, ino};
 
     uint32_t *blockbuf = (uint32_t *) block_buf_data(buf);
 

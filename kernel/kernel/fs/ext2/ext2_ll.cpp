@@ -101,8 +101,10 @@ ext2_inode *ext2_superblock::get_inode(ext2_inode_no inode) const
  *
  * @param ino Pointer to ext2_inode
  * @param inode_no Inode number
+ * @param in_sync If this is part of a sync/fsync call (i.e do we need to write the buffer back
+ * immediately.)
  */
-void ext2_superblock::update_inode(const ext2_inode *ino, ext2_inode_no inode_no)
+void ext2_superblock::update_inode(const ext2_inode *ino, ext2_inode_no inode_no, bool in_sync)
 {
     assert(inode_no != 0);
     uint32_t bg_no = ext2_inode_number_to_bg(inode_no, this);
@@ -128,6 +130,9 @@ void ext2_superblock::update_inode(const ext2_inode *ino, ext2_inode_no inode_no
     memcpy(on_disk, ino, inode_size);
 
     block_buf_dirty(buf);
+
+    if (in_sync)
+        block_buf_sync(buf);
 }
 
 void ext2_dirty_sb(ext2_superblock *fs)

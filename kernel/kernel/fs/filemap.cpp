@@ -14,8 +14,6 @@
 #include <onyx/vfs.h>
 #include <onyx/vm.h>
 
-#define FILEMAP_MARK_DIRTY RA_MARK_0
-
 int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags,
                       struct page **outp) NO_THREAD_SAFETY_ANALYSIS
 {
@@ -205,11 +203,11 @@ ssize_t filemap_read_iter(struct file *filp, size_t off, iovec_iter *iter, unsig
  * @param pgoff Page offset
  * @invariant page is locked
  */
-static void filemap_mark_dirty(struct inode *ino, struct page *page, size_t pgoff) REQUIRES(page)
+void filemap_mark_dirty(struct inode *ino, struct page *page, size_t pgoff) REQUIRES(page)
 {
     DCHECK(page_locked(page));
-    if (ino->i_sb && ino->i_sb->s_flags & SB_FLAG_NODIRTY)
-        return;
+    // if (ino->i_sb && ino->i_sb->s_flags & SB_FLAG_NODIRTY)
+    //     return;
     if (!page_test_set_flag(page, PAGE_FLAG_DIRTY))
         return; /* Already marked as dirty, not our problem! */
 
@@ -219,6 +217,13 @@ static void filemap_mark_dirty(struct inode *ino, struct page *page, size_t pgof
         scoped_mutex g{ino->i_pages->page_lock};
         ino->i_pages->vm_pages.set_mark(pgoff, FILEMAP_MARK_DIRTY);
     }
+
+    /* TODO: This is horribly leaky and horrible and awful but it stops NR_DIRTY from leaking on
+     * tmpfs filesystems. I'll refrain from making a proper interface for this, because this really
+     * needs the axe.
+     */
+    if (!inode_no_dirty(ino, I_DATADIRTY))
+        inc_page_stat(page, NR_DIRTY);
 
     inode_mark_dirty(ino, I_DATADIRTY);
 }
@@ -352,6 +357,102 @@ ssize_t filemap_write_iter(struct file *filp, size_t off, iovec_iter *iter, unsi
     }
 
     return st;
+}
+
+static int filemap_get_tagged_pages(struct inode *inode, unsigned int mark, unsigned long start,
+                                    unsigned long end, struct page **batch, unsigned int batchlen)
+    EXCLUDES(inode->i_pages->page_lock)
+{
+    int batchidx = 0;
+    scoped_mutex g{inode->i_pages->page_lock};
+    radix_tree::cursor cursor =
+        radix_tree::cursor::from_range_on_marks(&inode->i_pages->vm_pages, mark, start, end);
+
+    while (!cursor.is_end())
+    {
+        if (!batchlen--)
+            break;
+        struct page *page = (struct page *) cursor.get();
+        batch[batchidx++] = page;
+        page_ref(page);
+    }
+
+    return batchidx;
+}
+
+void page_start_writeback(struct page *page, struct inode *inode)
+    EXCLUDES(inode->i_pages->page_lock) REQUIRES(page)
+{
+    struct vm_object *obj = inode->i_pages;
+    scoped_mutex g{obj->page_lock};
+    obj->vm_pages.set_mark(page->pageoff, FILEMAP_MARK_WRITEBACK);
+    page_set_writeback(page);
+    inc_page_stat(page, NR_WRITEBACK);
+}
+
+void page_end_writeback(struct page *page, struct inode *inode) EXCLUDES(inode->i_pages->page_lock)
+    REQUIRES(page)
+{
+    struct vm_object *obj = inode->i_pages;
+    scoped_mutex g{obj->page_lock};
+    obj->vm_pages.clear_mark(page->pageoff, FILEMAP_MARK_WRITEBACK);
+    page_clear_writeback(page);
+    dec_page_stat(page, NR_WRITEBACK);
+}
+
+static void page_clear_dirty(struct page *page) REQUIRES(page)
+{
+    /* Clear the dirty flag for IO */
+    /* TODO: Add mmap walking and write-protect those mappings */
+    struct vm_object *obj = page->owner;
+    __atomic_and_fetch(&page->flags, ~PAGE_FLAG_DIRTY, __ATOMIC_RELEASE);
+    scoped_mutex g{obj->page_lock};
+    obj->vm_pages.clear_mark(page->pageoff, FILEMAP_MARK_DIRTY);
+    /* TODO: I don't know if this (clearing the dirty mark *here*) is safe with regards to potential
+     * sync()'s running at the same time.
+     */
+    dec_page_stat(page, NR_DIRTY);
+}
+
+int filemap_writepages(struct inode *inode, struct writepages_info *wpinfo)
+{
+    const ino_t ino = inode->i_inode;
+    const dev_t dev = inode->i_dev;
+    TRACE_EVENT_DURATION(filemap_writepages, ino, dev);
+    unsigned long start = wpinfo->start;
+    struct page *page;
+    int found = 0;
+
+    /* TODO: When writepage turns async, handle WRITEPAGES_SYNC. Until then, it's a noop. */
+    (void) wpinfo->flags;
+
+    while ((found = filemap_get_tagged_pages(inode, FILEMAP_MARK_DIRTY, start, wpinfo->end, &page,
+                                             1)) > 0)
+    {
+        const unsigned long pageoff = page->pageoff;
+        /* Start the next iteration from the following page */
+        start = pageoff + 1;
+
+        TRACE_EVENT_DURATION(filemap_writepage, ino, dev, pageoff);
+        /* TODO: Make writepages asynchronous! This is a huge performance PITA */
+        lock_page(page);
+
+        page_clear_dirty(page);
+
+        ssize_t st = inode->i_fops->writepage(page, pageoff << PAGE_SHIFT, inode);
+        unlock_page(page);
+        if (st < 0)
+        {
+            /* Error! */
+            page_unref(page);
+            return st;
+        }
+
+        page_unref(page);
+        page = nullptr;
+    }
+
+    return 0;
 }
 
 int filemap_private_fault(struct vm_pf_context *ctx)
