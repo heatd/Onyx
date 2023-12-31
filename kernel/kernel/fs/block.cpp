@@ -15,6 +15,7 @@
 #include <onyx/block.h>
 #include <onyx/buffer.h>
 #include <onyx/filemap.h>
+#include <onyx/mm/slab.h>
 #include <onyx/page.h>
 #include <onyx/page_iov.h>
 #include <onyx/rwlock.h>
@@ -257,4 +258,33 @@ flush::writeback_dev *bdev_get_wbdev(struct inode *ino)
 
     DCHECK(dev != nullptr);
     return dev;
+}
+
+static struct slab_cache *bio_cache;
+
+__init static void bio_cache_init()
+{
+    bio_cache = kmem_cache_create("bio_req", sizeof(bio_req), 0, 0, nullptr);
+    CHECK(bio_cache != nullptr);
+}
+
+/**
+ * @brief Allocate a bio_req
+ *
+ * @param gfp_flags GFP flags
+ * @return The allocated, uninitialized bio_req
+ */
+struct bio_req *bio_alloc(unsigned int gfp_flags)
+{
+    return (struct bio_req *) kmem_cache_alloc(bio_cache, gfp_flags);
+}
+
+/**
+ * @brief Free a bio_req
+ *
+ * @param req Request to free
+ */
+void bio_free(struct bio_req *req)
+{
+    kmem_cache_free(bio_cache, req);
 }

@@ -103,6 +103,7 @@ static uuid_t unused_type = {0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0
 static struct page *read_disk(struct blockdev *dev, sector_t sector, size_t count)
 {
     size_t nr_pages = vm_size_to_pages(count);
+    struct bio_req *r = nullptr;
     struct page *p = nullptr;
     int st = 0;
     struct page *pages =
@@ -127,14 +128,21 @@ static struct page *read_disk(struct blockdev *dev, sector_t sector, size_t coun
         p = p->next_un.next_allocation;
     }
 
-    struct bio_req r;
-    r.curr_vec_index = 0;
-    r.flags = BIO_REQ_READ_OP;
-    r.nr_vecs = nr_pages;
-    r.sector_number = sector;
-    r.vec = vec;
+    r = bio_alloc_and_init(GFP_KERNEL);
+    if (!r)
+    {
+        st = -ENOMEM;
+        goto out;
+    }
 
-    st = bio_submit_request(dev, &r);
+    r->curr_vec_index = 0;
+    r->flags = BIO_REQ_READ_OP;
+    r->nr_vecs = nr_pages;
+    r->sector_number = sector;
+    r->vec = vec;
+
+    st = bio_submit_request(dev, r);
+    bio_free(r);
 out:
     if (st < 0)
         free_pages(pages);
@@ -192,6 +200,7 @@ int partition_setup_disk_gpt(struct blockdev *dev)
     struct page *p = nullptr;
     unsigned int nr_parts = 1;
     struct page *part_tab_pages = nullptr;
+    struct bio_req *r = nullptr;
 
     struct page *gpt_header_pages = read_disk(dev, 1, dev->sector_size);
     if (!gpt_header_pages)
@@ -252,19 +261,28 @@ int partition_setup_disk_gpt(struct blockdev *dev)
         p = p->next_un.next_allocation;
     }
 
-    struct bio_req r;
-    r.curr_vec_index = 0;
-    r.flags = BIO_REQ_READ_OP;
-    r.nr_vecs = vm_size_to_pages(count);
-    r.sector_number = 2;
-    r.vec = vec;
-
-    if (bio_submit_request(dev, &r) < 0)
+    r = bio_alloc_and_init(GFP_KERNEL);
+    if (!r)
     {
+        st = -ENOMEM;
+        goto out;
+    }
+
+    r->curr_vec_index = 0;
+    r->flags = BIO_REQ_READ_OP;
+    r->nr_vecs = vm_size_to_pages(count);
+    r->sector_number = 2;
+    r->vec = vec;
+
+    if (bio_submit_request(dev, r) < 0)
+    {
+        bio_free(r);
         printk("Error reading partition table\n");
         st = -EIO;
         goto out;
     }
+
+    bio_free(r);
 
     csum = gpt_header->partition_array_crc32;
 

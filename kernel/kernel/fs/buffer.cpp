@@ -64,18 +64,24 @@ ssize_t buffer_writepage(struct page *page, size_t offset, struct inode *ino) RE
     vec.page_off = first_dirty->page_off;
     vec.page = first_dirty->this_page;
 
-    struct bio_req r = {};
-    r.nr_vecs = 1;
-    r.sector_number = disk_sect;
-    r.flags = BIO_REQ_WRITE_OP;
-
-    r.vec = &vec;
+    struct bio_req *r = bio_alloc_and_init(GFP_NOIO);
+    if (!r)
+        return -EIO;
+    r->nr_vecs = 1;
+    r->sector_number = disk_sect;
+    r->flags = BIO_REQ_WRITE_OP;
+    r->vec = &vec;
 
     page_start_writeback(page, ino);
     __atomic_fetch_or(&vec.page->flags, PAGE_FLAG_WRITEBACK, __ATOMIC_RELAXED);
 
-    if (bio_submit_request(blkdev, &r) < 0)
+    if (bio_submit_request(blkdev, r) < 0)
+    {
+        bio_free(r);
         return -EIO;
+    }
+
+    bio_free(r);
     page_end_writeback(page, ino);
 
 #if 0
@@ -240,18 +246,22 @@ ssize_t bbuffer_readpage(struct page *p, size_t off, struct inode *ino)
     vec.page = p;
     vec.page_off = 0;
 
-    struct bio_req r = {};
-    r.nr_vecs = 1;
-    r.vec = &vec;
-    r.sector_number = sec_nr;
-    r.flags = BIO_REQ_READ_OP;
+    struct bio_req *r = bio_alloc_and_init(GFP_NOIO);
+    if (!r)
+        return -EIO;
+
+    r->nr_vecs = 1;
+    r->vec = &vec;
+    r->sector_number = sec_nr;
+    r->flags = BIO_REQ_READ_OP;
 
     auto nr_blocks = PAGE_SIZE / block_size;
     size_t starting_block_nr = off / block_size;
 
     size_t curr_off = 0;
 
-    int iost = bio_submit_request(blkdev, &r);
+    int iost = bio_submit_request(blkdev, r);
+    bio_free(r);
     if (iost < 0)
         return iost;
 

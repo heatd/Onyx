@@ -18,26 +18,32 @@ void superblock_init(struct superblock *sb)
 
 int sb_read_bio(struct superblock *sb, struct page_iov *vec, size_t nr_vecs, size_t block_number)
 {
-    struct bio_req r
-    {
-    };
-    r.nr_vecs = nr_vecs;
-    r.vec = vec;
-    r.sector_number = block_number * (sb->s_block_size / sb->s_bdev->sector_size);
-    r.flags = BIO_REQ_READ_OP;
+    struct bio_req *r = bio_alloc_and_init(GFP_NOFS);
+    if (!r)
+        return -ENOMEM;
 
-    return bio_submit_request(sb->s_bdev, &r);
+    r->nr_vecs = nr_vecs;
+    r->vec = vec;
+    r->sector_number = block_number * (sb->s_block_size / sb->s_bdev->sector_size);
+    r->flags = BIO_REQ_READ_OP;
+
+    int st = bio_submit_request(sb->s_bdev, r);
+    bio_free(r);
+    return st;
 }
 
 int sb_write_bio(struct superblock *sb, struct page_iov *vec, size_t nr_vecs, size_t block_number)
 {
-    struct bio_req r
-    {
-    };
-    r.nr_vecs = nr_vecs;
-    r.vec = vec;
-    r.sector_number = block_number * (sb->s_block_size / sb->s_bdev->sector_size);
-    r.flags = BIO_REQ_WRITE_OP;
+    struct bio_req *r = bio_alloc_and_init(GFP_NOFS);
+    if (!r)
+        return -ENOMEM;
 
-    return bio_submit_request(sb->s_bdev, &r);
+    r->nr_vecs = nr_vecs;
+    r->vec = vec;
+    r->sector_number = block_number * (sb->s_block_size / sb->s_bdev->sector_size);
+    r->flags = BIO_REQ_WRITE_OP;
+
+    int st = bio_submit_request(sb->s_bdev, r);
+    bio_free(r);
+    return st;
 }

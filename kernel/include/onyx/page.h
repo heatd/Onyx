@@ -153,9 +153,13 @@ struct page *page_add_page_late(void *paddr);
 #define __GFP_DIRECT_RECLAIM  (1 << 8)
 #define __GFP_WAKE_PAGEDAEMON (1 << 9)
 #define __GFP_ATOMIC          (1 << 10)
+#define __GFP_IO              (1 << 11)
+#define __GFP_FS              (1 << 12)
 #define __GFP_MAY_RECLAIM     (__GFP_DIRECT_RECLAIM | __GFP_WAKE_PAGEDAEMON)
-#define GFP_KERNEL            __GFP_MAY_RECLAIM
+#define GFP_KERNEL            (__GFP_MAY_RECLAIM | __GFP_IO)
 #define GFP_ATOMIC            (__GFP_ATOMIC | __GFP_WAKE_PAGEDAEMON)
+#define GFP_NOIO              (__GFP_MAY_RECLAIM)
+#define GFP_NOFS              (__GFP_MAY_RECLAIM | __GFP_IO)
 
 static inline bool __page_should_zero(unsigned long flags)
 {
