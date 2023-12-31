@@ -167,55 +167,7 @@ int blkdev_init(struct blockdev *blk)
 
     return 0;
 }
-/*
- * Function: size_t blkdev_read(size_t offset, size_t count, void *buffer, struct blockdev *dev);
- * Description: Reads 'count' bytes from 'dev' to 'buffer', with offset 'offset'
- * Return value: 0 on success, -1 on error. Sets errno properly.
- * errno values: EINVAL - invalid argument; ENOSYS - operation not supported on storage device 'dev'
- */
-ssize_t blkdev_read(size_t offset, size_t count, void *buffer, struct blockdev *dev)
-{
-    if (count == 0)
-        return 0;
 
-    if (blkdev_is_partition(dev))
-        return blkdev_read(dev->offset + offset, count, buffer, dev->actual_blockdev);
-
-    struct page_iov v;
-    unsigned long phys = (unsigned long) virtual2phys(buffer);
-
-    v.page = phys_to_page(phys);
-    v.length = (unsigned int) count;
-    v.page_off = phys & (PAGE_SIZE - 1);
-
-    struct bio_req r;
-    r.nr_vecs = 1;
-    r.vec = &v;
-    r.nr_vecs = 1;
-    r.sector_number = offset / dev->sector_size;
-    r.flags = BIO_REQ_READ_OP;
-    r.curr_vec_index = 0;
-
-    return bio_submit_request(dev, &r);
-}
-/*
- * Function: size_t blkdev_write(size_t offset, size_t count, void *buffer, struct blockdev *dev);
- * Description: Writes 'count' bytes from 'buffer' to 'dev', with offset 'offset'
- * Return value: 0 on success, -1 on error. Sets errno properly.
- * errno values: EINVAL - invalid argument; EIO - operation not supported on storage device 'dev'
- */
-ssize_t blkdev_write(size_t offset, size_t count, void *buffer, struct blockdev *dev)
-{
-    if (count == 0)
-        return 0;
-
-    if (blkdev_is_partition(dev))
-        return blkdev_write(dev->offset + offset, count, buffer, dev->actual_blockdev);
-    if (!dev->write)
-        return errno = EIO, -1;
-
-    return dev->write(offset, count, buffer, dev);
-}
 /*
  * Function: int blkdev_flush(struct blockdev *dev);
  * Description: Flushes storage device 'dev'
