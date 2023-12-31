@@ -372,16 +372,19 @@ long ahci_setup_prdt_bio(prdt_t *prdt, struct bio_req *r, size_t *size)
 
 bool ahci_do_command(struct ahci_port *ahci_port, struct ahci_command_ata *buf)
 {
-    struct bio_req r;
-    r.bdev = ahci_port->bdev.get();
-    r.curr_vec_index = 0;
-    r.flags = BIO_REQ_DEVICE_SPECIFIC;
-    r.device_specific[0] = buf->cmd;
-    r.sector_number = 0;
-    r.nr_vecs = buf->nr_iov;
-    r.vec = buf->iovec;
+    struct bio_req *r = bio_alloc_and_init(GFP_KERNEL);
+    if (!r)
+        return false;
 
-    if (ahci_port->io_queue->submit_request(&r) < 0)
+    r->bdev = ahci_port->bdev.get();
+    r->curr_vec_index = 0;
+    r->flags = BIO_REQ_DEVICE_SPECIFIC;
+    r->device_specific[0] = buf->cmd;
+    r->sector_number = 0;
+    r->nr_vecs = buf->nr_iov;
+    r->vec = buf->iovec;
+
+    if (ahci_port->io_queue->submit_request(r) < 0)
         return false;
 
     int st = wait_for(
@@ -392,7 +395,9 @@ bool ahci_do_command(struct ahci_port *ahci_port, struct ahci_command_ata *buf)
         },
         WAIT_FOR_FOREVER, 0);
 
-    return st == 0 && !(r.flags & BIO_REQ_EIO);
+    bool ret = st == 0 && !(r->flags & BIO_REQ_EIO);
+    bio_free(r);
+    return ret;
 }
 
 unsigned int ahci_check_drive_type(ahci_port_t *port)

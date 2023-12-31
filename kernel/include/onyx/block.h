@@ -55,6 +55,40 @@ struct bio_req
     unsigned long device_specific[4];
 };
 
+/**
+ * @brief Allocate a bio_req
+ *
+ * @param gfp_flags GFP flags
+ * @return The allocated, uninitialized bio_req
+ */
+struct bio_req *bio_alloc(unsigned int gfp_flags);
+
+/**
+ * @brief Free a bio_req
+ *
+ * @param req Request to free
+ */
+void bio_free(struct bio_req *req);
+
+static inline void bio_init(struct bio_req *req)
+{
+    *req = {};
+}
+
+/**
+ * @brief Allocate a bio_req and initialize it
+ *
+ * @param gfp_flags GFP flags
+ * @return The allocated, initialized bio_req
+ */
+static inline struct bio_req *bio_alloc_and_init(unsigned int gfp_flags)
+{
+    struct bio_req *bio = bio_alloc(gfp_flags);
+    if (likely(bio))
+        bio_init(bio);
+    return bio;
+}
+
 using __blkflush = int (*)(struct blockdev *);
 using __blkpowermanagement = int (*)(int, struct blockdev *);
 
