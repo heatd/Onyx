@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2022 Pedro Falcato
+ * Copyright (c) 2020 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -13,6 +13,7 @@
 #include <onyx/dev.h>
 #include <onyx/file.h>
 #include <onyx/fnv.h>
+#include <onyx/mm/slab.h>
 #include <onyx/page.h>
 #include <onyx/pagecache.h>
 #include <onyx/panic.h>
@@ -45,6 +46,29 @@ static struct spinlock inode_hashtable_locks[inode_hashtable_size];
 
 int pipe_do_fifo(inode *ino);
 
+struct slab_cache *inode_cache;
+
+__init static void inode_cache_init()
+{
+    inode_cache = kmem_cache_create("inode", sizeof(struct inode), 0, KMEM_CACHE_HWALIGN, nullptr);
+    CHECK(inode_cache != nullptr);
+}
+
+struct inode *inode_create(bool is_cached)
+{
+    struct inode *inode = (struct inode *) kmem_cache_alloc(inode_cache, GFP_KERNEL);
+    if (!inode)
+        return nullptr;
+
+    if (inode_init(inode, is_cached) < 0)
+    {
+        kmem_cache_free(inode_cache, inode);
+        return nullptr;
+    }
+
+    return inode;
+}
+
 int inode_special_init(struct inode *ino)
 {
     if (S_ISBLK(ino->i_mode) || S_ISCHR(ino->i_mode))
@@ -56,6 +80,12 @@ int inode_special_init(struct inode *ino)
 
         ino->i_fops = const_cast<file_ops *>(dev->fops());
         ino->i_helper = dev->private_;
+        if (S_ISBLK(ino->i_mode))
+        {
+            struct blockdev *bdev = (struct blockdev *) dev->private_;
+            ino->i_pages = bdev->b_ino->i_pages;
+            vmo_ref(ino->i_pages);
+        }
     }
     else if (S_ISFIFO(ino->i_mode))
     {
@@ -84,26 +114,87 @@ ssize_t inode_sync(struct inode *inode)
 {
     if (!inode->i_pages)
         return 0;
-    scoped_mutex g{inode->i_pages->page_lock};
 
-#if 0
-    // TODO: This sucks
-    inode->i_pages->for_every_page([&](struct page *page, unsigned long off) -> bool {
-        struct page_cache_block *b = page->cache;
+    unsigned int flags;
 
-        if (page->flags & PAGE_FLAG_DIRTY)
-        {
-            flush_sync_one(&b->fobj);
-        }
+    {
+        scoped_lock g{inode->i_lock};
+        flags = inode->i_flags;
+    }
 
-        return true;
-    });
-#endif
+    if (flags & I_DATADIRTY)
+    {
+        struct writepages_info info;
+        info.start = 0;
+        info.end = ULONG_MAX;
+        info.flags = WRITEPAGES_SYNC;
+        int st = inode->i_fops->fsyncdata ? inode->i_fops->fsyncdata(inode, &info) : 0;
+        if (st < 0)
+            return st;
+    }
+
+    if (flags & I_DIRTY)
+    {
+        int st = 0;
+        if (inode->i_sb && inode->i_sb->flush_inode)
+            st = inode->i_sb->flush_inode(inode, true);
+        if (st < 0)
+            return st;
+    }
 
     return 0;
 }
 
 bool inode_is_cacheable(struct inode *file);
+
+/**
+ * @brief Attempt to remove ourselves from wbdev IO queues.
+ * This function sleeps if I_WRITEBACK is set. The inode *may* be dirty after the function
+ * completes.
+ *
+ * @param inode Inode to remove
+ */
+static void inode_wait_for_wb_and_remove(struct inode *inode)
+{
+    /* Attempt to remove ourselves from wbdev IO queues. This function sleeps if I_WRITEBACK. */
+    spin_lock(&inode->i_lock);
+    for (;;)
+    {
+        if (!(inode->i_flags & (I_WRITEBACK | I_DIRTYALL)))
+            break;
+        if (inode->i_flags & I_WRITEBACK)
+        {
+            spin_unlock(&inode->i_lock);
+            /* Sleep and try again */
+            inode_wait_writeback(inode);
+            spin_lock(&inode->i_lock);
+            continue;
+        }
+
+        if (inode->i_flags & I_DIRTYALL)
+        {
+            /* Drop the inode lock, lock the wbdev, lock the inode again */
+            flush::writeback_dev *wbdev = bdev_get_wbdev(inode);
+            unsigned int old_flags = inode->i_flags;
+            spin_unlock(&inode->i_lock);
+            wbdev->lock();
+            spin_lock(&inode->i_lock);
+
+            if (inode->i_flags != old_flags)
+            {
+                /* Drop the wbdev lock and spin again */
+                wbdev->unlock();
+                continue;
+            }
+
+            wbdev->remove_inode(inode);
+            wbdev->unlock();
+            break;
+        }
+    }
+
+    spin_unlock(&inode->i_lock);
+}
 
 void inode_release(struct inode *inode)
 {
@@ -117,8 +208,9 @@ void inode_release(struct inode *inode)
         superblock_remove_inode(inode->i_sb, inode);
     }
 
-    /*if (inode->i_flags & INODE_FLAG_DIRTY)
-        flush_remove_inode(inode);*/
+    inode->set_evicting();
+
+    inode_wait_for_wb_and_remove(inode);
 
     if (inode_is_cacheable(inode))
         inode_sync(inode);
@@ -135,13 +227,18 @@ void inode_release(struct inode *inode)
         sb->kill_inode(inode);
     }
 
+    DCHECK((inode->i_flags & (I_DIRTYALL | I_WRITEBACK)) == 0);
+
     /* Destroy the page cache *after* kill inode, since kill_inode might need to access the vmo */
     inode_destroy_page_caches(inode);
 
     if (inode->i_fops->close != nullptr)
         inode->i_fops->close(inode);
 
-    free(inode);
+    /* Note: We use kfree here, and not kmem_cache_free, because <inode> in some filesystems is not
+     * allocated by inode_create.
+     */
+    kfree(inode);
 }
 
 void inode_unref(struct inode *ino)
@@ -173,7 +270,7 @@ restart:
 
         if (ino->i_dev == sb->s_devnr && ino->i_inode == ino_nr)
         {
-            if (ino->i_flags & INODE_FLAG_FREEING)
+            if (ino->i_flags & I_FREEING)
             {
                 g.unlock();
                 wait_for(
@@ -375,7 +472,7 @@ void inode_trim_cache()
             {
                 scoped_lock g2{ino->i_lock};
 
-                if (ino->i_flags & INODE_FLAG_FREEING)
+                if (ino->i_flags & I_FREEING)
                     continue; // Already being freed
 
                 // Evictable, so evict
@@ -401,11 +498,33 @@ void inode_trim_cache()
 
 void inode::set_evicting()
 {
-    i_flags |= INODE_FLAG_FREEING;
+    scoped_lock g{i_lock};
+    i_flags |= I_FREEING;
 }
 
 int noop_prepare_write(struct inode *ino, struct page *page, size_t page_off, size_t offset,
                        size_t len)
 {
     return 0;
+}
+
+void inode_wait_writeback(struct inode *ino)
+{
+    spin_lock(&ino->i_lock);
+    if (!(ino->i_flags & I_WRITEBACK))
+    {
+        spin_unlock(&ino->i_lock);
+        return;
+    }
+
+    spin_unlock(&ino->i_lock);
+
+    wait_for(
+        ino,
+        [](void *_ino) -> bool {
+            struct inode *ino_ = (struct inode *) _ino;
+            scoped_lock g{ino_->i_lock};
+            return !(ino_->i_flags & I_WRITEBACK);
+        },
+        WAIT_FOR_FOREVER, 0);
 }

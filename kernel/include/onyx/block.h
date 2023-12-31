@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -15,6 +15,7 @@
 #include <onyx/culstring.h>
 #include <onyx/dev.h>
 #include <onyx/list.h>
+#include <onyx/mm/flush.h>
 #include <onyx/page.h>
 #include <onyx/page_iov.h>
 #include <onyx/types.h>
@@ -88,6 +89,8 @@ struct blockdev
 
     // An optional partition prefix, like the 'p' in nvme0n1p1
     cul::string partition_prefix;
+
+    unique_ptr<flush::writeback_dev> wbdev{nullptr};
 
     constexpr blockdev() = default;
 };
@@ -178,7 +181,8 @@ unique_ptr<blockdev> blkdev_create_scsi_like_dev();
 // Read-write user and group, no permissions to others
 #define BLOCK_DEVICE_PERMISSIONS 0660
 
-struct blockdev;
 void partition_setup_disk(struct blockdev *dev);
+
+flush::writeback_dev *bdev_get_wbdev(struct inode *ino);
 
 #endif

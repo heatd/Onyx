@@ -112,7 +112,7 @@ ssize_t tmpfs_readpage(struct page *page, size_t offset, struct inode *ino)
     return PAGE_SIZE;
 }
 
-ssize_t tmpfs_writepage(struct page *page, size_t offset, struct inode *ino)
+ssize_t tmpfs_writepage(struct page *page, size_t offset, struct inode *ino) REQUIRES(page)
 {
     return PAGE_SIZE;
 }

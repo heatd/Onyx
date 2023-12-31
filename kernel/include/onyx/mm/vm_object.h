@@ -90,6 +90,10 @@ struct vm_object
 
     struct vm_object *prev_private{nullptr}, *next_private{nullptr};
 
+    /* See fs/buffer.cpp for example usage of these struct members */
+    struct spinlock private_lock;
+    struct list_head private_list;
+
     vm_object();
     ~vm_object();
 

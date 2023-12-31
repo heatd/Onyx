@@ -49,6 +49,17 @@ typedef int (*__stat)(struct stat *buf, struct file *node);
 typedef struct inode *(*__symlink)(const char *name, const char *linkpath, struct dentry *dir);
 typedef unsigned int (*putdir_t)(struct dirent *, struct dirent *ubuf, unsigned int count);
 
+struct writepages_info
+{
+    /* Start and end (inclusive) of writepages */
+    unsigned long start;
+    unsigned long end;
+    unsigned int flags;
+};
+
+/* Wait for writeback to complete (this is part of sync or fsync) */
+#define WRITEPAGES_SYNC (1 << 0)
+
 struct file_ops
 {
     __read read;
@@ -78,6 +89,8 @@ struct file_ops
     void (*release)(struct file *filp);
     ssize_t (*read_iter)(struct file *filp, size_t offset, iovec_iter *iter, unsigned int flags);
     ssize_t (*write_iter)(struct file *filp, size_t offset, iovec_iter *iter, unsigned int flags);
+    int (*writepages)(struct inode *ino, struct writepages_info *wpinfo);
+    int (*fsyncdata)(struct inode *ino, struct writepages_info *wpinfo);
 };
 
 struct getdents_ret
@@ -91,21 +104,18 @@ int inode_init(struct inode *ino, bool is_reg);
 class pipe;
 
 #define INODE_FLAG_DONT_CACHE (1 << 0)
-#define INODE_FLAG_DIRTY      (1 << 1)
 #define INODE_FLAG_NO_SEEK    (1 << 2)
-#define INODE_FLAG_WB         (1 << 3)
-#define INODE_FLAG_FREEING    (1 << 4)
+#define I_FREEING             (1 << 4)
 #define I_DATADIRTY           (1 << 5)
 #define I_DIRTY               (1 << 1)
 #define I_WRITEBACK           (1 << 3)
 #define I_HASHED              (1 << 7)
 
+#define I_DIRTYALL (I_DIRTY | I_DATADIRTY)
+
 struct inode
 {
     unsigned long i_refc;
-    /* TODO: We could use a lock here to protect i_flags to have
-     * thread-safe dirties, etc...
-     */
     unsigned int i_flags;
     ino_t i_inode;
     gid_t i_gid;
@@ -220,8 +230,6 @@ char *readlink_vfs(struct file *file);
 struct file *get_fs_base(const char *file, struct file *rel_base);
 
 void inode_mark_dirty(struct inode *ino, unsigned int flags = I_DIRTY);
-
-int inode_flush(struct inode *ino);
 
 int inode_special_init(struct inode *ino);
 
@@ -388,4 +396,8 @@ ssize_t read_iter_vfs(struct file *filp, size_t off, iovec_iter *iter, unsigned 
 
 int noop_prepare_write(struct inode *ino, struct page *page, size_t page_off, size_t offset,
                        size_t len);
+
+void inode_wait_writeback(struct inode *ino);
+bool inode_no_dirty(struct inode *ino, unsigned int flags);
+
 #endif

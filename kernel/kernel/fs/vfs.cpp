@@ -23,6 +23,7 @@
 #include <onyx/limits.h>
 #include <onyx/log.h>
 #include <onyx/mm/flush.h>
+#include <onyx/mm/slab.h>
 #include <onyx/mtable.h>
 #include <onyx/object.h>
 #include <onyx/pagecache.h>
@@ -734,54 +735,46 @@ int inode_init(struct inode *inode, bool is_cached)
     return 0;
 }
 
-struct inode *inode_create(bool is_cached)
+bool inode_no_dirty(struct inode *ino, unsigned int flags)
 {
-    struct inode *inode = (struct inode *) zalloc(sizeof(*inode));
+    if (!ino->i_sb)
+        return true;
+    if (!(ino->i_sb->s_flags & SB_FLAG_NODIRTY))
+        return false;
 
-    if (!inode)
-        return nullptr;
-
-    if (inode_init(inode, is_cached) < 0)
-    {
-        free(inode);
-        return nullptr;
-    }
-
-    return inode;
+    /* If NODIRTY, check if we are a block device, and that we are dirtying pages */
+    if (S_ISBLK(ino->i_mode))
+        return !(flags & I_DATADIRTY);
+    return true;
 }
 
 void inode_mark_dirty(struct inode *ino, unsigned int flags)
 {
-    if (ino->i_sb && ino->i_sb->s_flags & SB_FLAG_NODIRTY)
+    /* FIXME: Ugh, leaky abstractions... */
+    if (inode_no_dirty(ino, flags))
         return;
+
+    DCHECK(flags & I_DIRTYALL);
 
     /* Already dirty */
     if ((ino->i_flags & flags) == flags)
         return;
 
+    auto dev = bdev_get_wbdev(ino);
+    dev->lock();
     spin_lock(&ino->i_lock);
+
+    unsigned int old_flags = ino->i_flags;
 
     ino->i_flags |= flags;
     trace_wb_dirty_inode(ino->i_inode, ino->i_dev);
-    /* TODO: queue this somewhere */
+
+    /* The writeback code will take care of redirtying if need be */
+    if (!(old_flags & (I_WRITEBACK | I_DIRTYALL)))
+        dev->add_inode(ino);
 
     spin_unlock(&ino->i_lock);
-}
-
-int inode_flush(struct inode *ino)
-{
-    struct superblock *sb = ino->i_sb;
-
-    if (!sb || !sb->flush_inode)
-        return 0;
-
-    __sync_fetch_and_or(&ino->i_flags, INODE_FLAG_WB);
-
-    int st = sb->flush_inode(ino);
-
-    __sync_fetch_and_and(&ino->i_flags, ~(INODE_FLAG_WB | INODE_FLAG_DIRTY));
-
-    return st;
+    dev->unlock();
 }
 
 struct file *inode_to_file(struct inode *ino)

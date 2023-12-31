@@ -1,264 +1,234 @@
 /*
- * Copyright (c) 2019 Pedro Falcato
+ * Copyright (c) 2019 - 2023 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <errno.h>
 #include <stdio.h>
 
-#include <onyx/array.h>
+#include <onyx/block.h>
+#include <onyx/filemap.h>
+#include <onyx/gen/trace_writeback.h>
 #include <onyx/mm/flush.h>
 #include <onyx/scheduler.h>
 #include <onyx/vfs.h>
+
+/* Brief comment on lock ordering in this file:
+ * Lock ordering goes like this:
+ *  wbdev -> inode
+ * Any attempt to grab the wbdev with the inode lock must drop the inode lock beforehand.
+ */
 
 static void flush_thr_init(void *arg);
 
 namespace flush
 {
 
-static constexpr unsigned long nr_wb_threads = 4UL;
-array<flush::flush_dev, nr_wb_threads> thread_list;
+struct rwlock wbdev_list_lock;
+DEFINE_LIST(wbdev_list);
 
-void flush_dev::init()
+/* Run the writeback thread every 10s, if needed */
+static constexpr unsigned long wb_run_delta_ms = 10000;
+
+void writeback_dev::init()
 {
+    {
+        scoped_rwlock<rw_lock::write> g{wbdev_list_lock};
+        list_add_tail(&wbdev_list_node, &wbdev_list);
+    }
+
     thread = sched_create_thread(flush_thr_init, THREAD_KERNEL, (void *) this);
     assert(thread != nullptr);
     sched_start_thread(thread);
 }
 
-void flush_dev::sync()
+static int writeback_inode(struct inode *inode, unsigned int sync_flags)
 {
-    lock();
+    const ino_t inum = inode->i_inode;
+    const dev_t dev = inode->i_dev;
+    struct writepages_info winfo;
+    winfo.start = 0;
+    winfo.end = ULONG_MAX;
+    winfo.flags = 0;
 
-    // printk("Syncing\n");
-    /* We have to use list_for_every_safe because between clearing the dirty
-     * flag and going to the next buf some other cpu can see the flag is clear,
-     * and queue it up for another flush in another flush_dev (which isn't locked) */
-    list_for_every_safe (&dirty_bufs)
+    if (sync_flags & WB_FLAG_SYNC)
+        winfo.flags |= WRITEPAGES_SYNC;
+
+    CHECK(inode->i_fops->writepages != nullptr);
+    unsigned int flags;
+
+    DCHECK(inode->i_flags & I_WRITEBACK);
+
     {
-        flush_object *buf = container_of(l, flush_object, dirty_list);
-        /*printk("writeback file %p, size %lu, off %lu\n", blk->node,
-            blk->size, blk->offset);*/
-
-        buf->ops->flush(buf);
-
-        buf->ops->set_dirty(false, buf);
-
-        block_load--;
+        scoped_lock g{inode->i_lock};
+        flags = inode->i_flags & I_DIRTYALL;
+        // Note: We clear I_DIRTY here. Any posterior dirty will re-dirty the inode.
+        inode->i_flags &= ~I_DIRTY;
     }
 
-    list_for_every_safe (&dirty_inodes)
+    if (flags & I_DATADIRTY)
+    {
+        int st;
+        if (sync_flags & WB_FLAG_SYNC)
+            st = inode->i_fops->fsyncdata(inode, &winfo);
+        else
+            st = inode->i_fops->writepages(inode, &winfo);
+        if (st < 0)
+            return st;
+    }
+
+    if (flags & I_DIRTY)
+    {
+        TRACE_EVENT_DURATION(wb_write_inode, inum, dev);
+        int st = 0;
+        if (inode->i_sb && inode->i_sb->flush_inode)
+            st = inode->i_sb->flush_inode(inode, sync_flags & WB_FLAG_SYNC);
+        if (st < 0)
+            return st;
+    }
+
+    {
+        scoped_lock g{inode->i_lock};
+        // Note: we cleared I_DIRTY before, so don't do it again; that would lead to data loss.
+        inode->i_flags &= (~flags | I_DIRTY);
+
+        /* Re-dirty if FILEMAP_MARK_DIRTY is set */
+        /* XXX We're skipping the lock here, because we can't grab it as it is a mutex */
+        if (inode->i_pages->vm_pages.mark_is_set(FILEMAP_MARK_DIRTY))
+            inode->i_flags |= I_DATADIRTY;
+        // Ok, now we have the proper I_DIRTY flags set. end_inode_writeback will deal with
+        // requeuing it if need be.
+    }
+
+    return 0;
+}
+
+void writeback_dev::end_inode_writeback(struct inode *ino)
+{
+    lock();
+    spin_lock(&ino->i_lock);
+    DCHECK(ino->i_flags & I_WRITEBACK);
+    /* Unset I_WRITEBACK and re-queue the inode if need be */
+    ino->i_flags &= ~I_WRITEBACK;
+
+    if (ino->i_flags & I_DIRTYALL)
+        add_inode(ino);
+
+    wake_address(ino);
+    spin_unlock(&ino->i_lock);
+    unlock();
+}
+
+void writeback_dev::sync(unsigned int flags)
+{
+    DEFINE_LIST(io_list);
+    TRACE_EVENT_DURATION(wb_wbdev_run);
+    lock();
+
+    /* Go through the dirty inodes list, set I_WRITEBACK and then splice the list into io_list.
+     * We'll then work with that *without the lock*. Dirtying inode code will avoid
+     * putting I_WRITEBACK inodes into the dirty_inodes list, which saves our bacon here.
+     */
+    list_for_every (&dirty_inodes)
     {
         struct inode *ino = container_of(l, struct inode, i_dirty_inode_node);
-
-        __sync_fetch_and_and(&ino->i_flags, ~INODE_FLAG_DIRTY);
-        __sync_synchronize();
-
-        inode_flush(ino);
-        block_load--;
+        scoped_lock g{ino->i_lock};
+        DCHECK(!(ino->i_flags & I_WRITEBACK));
+        DCHECK(ino->i_flags & (I_DIRTY | I_DATADIRTY));
+        ino->i_flags |= I_WRITEBACK;
     }
 
-    /* reset the list */
-    list_reset(&dirty_bufs);
-    list_reset(&dirty_inodes);
-    assert(block_load == 0);
-
-    unlock();
-}
-
-ssize_t flush_dev::sync_one(struct flush_object *obj)
-{
-    lock();
-
-    size_t res = obj->ops->flush(obj);
-
-    obj->ops->set_dirty(false, obj);
-
-    list_remove(&obj->dirty_list);
-    block_load--;
-
+    list_move(&io_list, &dirty_inodes);
+    DCHECK(list_is_empty(&dirty_inodes));
+    /* dirty_inodes is now empty, all inodes are I_WRITEBACK. I_WRITEBACK inodes will not go away.
+     */
     unlock();
 
-    return res;
+    /* Now do writeback */
+    list_for_every_safe (&io_list)
+    {
+        struct inode *ino = container_of(l, struct inode, i_dirty_inode_node);
+        DCHECK(ino->i_flags & I_WRITEBACK);
+
+        list_remove(&ino->i_dirty_inode_node);
+        writeback_inode(ino, flags);
+        end_inode_writeback(ino);
+    }
 }
 
-void flush_dev::run()
+void writeback_dev::run()
 {
+    trace_wb_wbdev_create();
     while (true)
     {
-        while (this->get_load())
+        while (!list_is_empty(&dirty_inodes))
         {
-            sched_sleep_ms(flush_dev::wb_run_delta_ms);
-
-            // printk("Flushing data to disk\n");
-            sync();
+            sched_sleep_ms(wb_run_delta_ms);
+            sync(0);
         }
 
         sem_wait(&thread_sem);
     }
 }
 
-bool flush_dev::called_from_sync()
+void writeback_dev::add_inode(struct inode *ino)
 {
-    /* We detect this by testing if the current thread holds this lock */
-    return mutex_holds_lock(&__lock);
-}
-
-bool flush_dev::add_buf(struct flush_object *obj)
-{
-    /* It's very possible the flush code is calling us from sync and trying to
-     * lock the flush dev would cause a deadlock. Therefore, we want to sync it ourselves right now.
-     */
-    if (called_from_sync())
-    {
-        obj->ops->flush(obj);
-        obj->ops->set_dirty(false, obj);
-        return false;
-    }
-
-    lock();
-
-    list_add_tail(&obj->dirty_list, &dirty_bufs);
-    if (block_load++ == 0)
-    {
-        sem_signal(&thread_sem);
-    }
-
-    unlock();
-
-    return true;
-}
-
-void flush_dev::remove_buf(struct flush_object *obj)
-{
-    lock();
-
-    /* We do a last check here inside the lock to be sure it's actually still dirty */
-    if (obj->ops->is_dirty(obj))
-    {
-        /* TODO: I'm not sure this is 100% safe, because it might've gotten dirtied again
-         * to a different flushdev(but in that case, should we be removing it anyways?).
-         * This also applies to remove_inode().
-         */
-        block_load--;
-        list_remove(&obj->dirty_list);
-    }
-
-    unlock();
-}
-
-void flush_dev::add_inode(struct inode *ino)
-{
-    lock();
-
+    DCHECK(!(ino->i_flags & I_WRITEBACK));
+    bool should_wake = list_is_empty(&dirty_inodes);
     list_add_tail(&ino->i_dirty_inode_node, &dirty_inodes);
-
-    if (block_load++ == 0)
-    {
+    if (should_wake)
         sem_signal(&thread_sem);
-    }
-
-    unlock();
 }
 
-void flush_dev::remove_inode(struct inode *ino)
+void writeback_dev::remove_inode(struct inode *ino)
 {
-    lock();
-
-    /* We do a last check here inside the lock to be sure it's actually still dirty */
-    if (ino->i_flags & INODE_FLAG_DIRTY)
-    {
-        block_load--;
-        list_remove(&ino->i_dirty_inode_node);
-    }
-
-    unlock();
+    list_remove(&ino->i_dirty_inode_node);
 }
 
 } // namespace flush
 
 void flush_thr_init(void *arg)
 {
-    flush::flush_dev *b = reinterpret_cast<flush::flush_dev *>(arg);
+    flush::writeback_dev *b = reinterpret_cast<flush::writeback_dev *>(arg);
     b->run();
 }
 
-flush::flush_dev *flush_allocate_dev()
+void flush_init()
 {
-    flush::flush_dev *blk = nullptr;
-    unsigned long load = ~0UL;
-
-    for (auto &b : flush::thread_list)
-    {
-        if (b.get_load() < load)
-        {
-            load = b.get_load();
-            blk = &b;
-        }
-    }
-
-    return blk;
-}
-
-void flush_add_buf(struct flush_object *f)
-{
-    flush::flush_dev *blk = flush_allocate_dev();
-
-    /* wat */
-    assert(blk != nullptr);
-
-    /* If we were flushed right away, we're going to want to avoid setting f->blk_list */
-    if (!blk->add_buf(f))
-        return;
-
-    f->blk_list = (void *) blk;
-}
-
-void flush_remove_buf(struct flush_object *blk)
-{
-    flush::flush_dev *b = (flush::flush_dev *) blk->blk_list;
-
-    b->remove_buf(blk);
-}
-
-void flush_init(void)
-{
-    for (auto &b : flush::thread_list)
-    {
-        b.init();
-    }
 }
 
 void flush_add_inode(struct inode *ino)
 {
-    auto dev = flush_allocate_dev();
-
+    // HACK! the inode - file - vm_object scheme we have is currently so screwed up, that some
+    // inodes can end up with no i_sb. This is bad. Let's ignore this problem for the time being.
+    // One cannot writeback those inodes. Oh no! They were not supposed to be written back anyway.
+    if (!ino->i_sb)
+        return;
+    auto dev = bdev_get_wbdev(ino);
     ino->i_flush_dev = dev;
-
     dev->add_inode(ino);
 }
 
 void flush_remove_inode(struct inode *ino)
 {
-    auto dev = reinterpret_cast<flush::flush_dev *>(ino->i_flush_dev);
-
+    // HACK! See flush_add_inode()'s comment.
+    if (!ino->i_sb)
+        return;
+    auto dev = bdev_get_wbdev(ino);
     dev->remove_inode(ino);
-
     ino->i_flush_dev = nullptr;
-}
-
-ssize_t flush_sync_one(struct flush_object *obj)
-{
-    flush::flush_dev *b = (flush::flush_dev *) obj->blk_list;
-
-    return b->sync_one(obj);
 }
 
 void flush_do_sync()
 {
-    for (auto &w : flush::thread_list)
+    /* TODO: This sub-optimal and will need to be changed when writeback becomes async */
+    scoped_rwlock<rw_lock::read> g{flush::wbdev_list_lock};
+    list_for_every (&flush::wbdev_list)
     {
-        w.sync();
+        flush::writeback_dev *wbdev = flush::writeback_dev::from_list_head(l);
+        wbdev->sync(WB_FLAG_SYNC);
     }
 }
 

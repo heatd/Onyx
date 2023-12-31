@@ -158,7 +158,8 @@ static inline void list_copy(struct list_head *dest, const struct list_head *src
 
 static inline void list_move(struct list_head *dest, struct list_head *src)
 {
-    list_copy(dest, src);
+    if (!list_is_empty(src))
+        list_copy(dest, src);
     list_reset(src);
 }
 

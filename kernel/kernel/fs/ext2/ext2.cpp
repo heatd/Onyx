@@ -45,6 +45,7 @@ ssize_t ext2_writepage(struct page *page, size_t off, struct inode *ino);
 int ext2_prepare_write(inode *ino, struct page *page, size_t page_off, size_t offset, size_t len);
 int ext2_link(struct inode *target, const char *name, struct inode *dir);
 inode *ext2_symlink(const char *name, const char *dest, dentry *dir);
+static int ext2_fsyncdata(struct inode *ino, struct writepages_info *wpinfo);
 
 struct file_ops ext2_ops = {.open = ext2_open,
                             .close = ext2_close,
@@ -62,7 +63,9 @@ struct file_ops ext2_ops = {.open = ext2_open,
                             .writepage = ext2_writepage,
                             .prepare_write = ext2_prepare_write,
                             .read_iter = filemap_read_iter,
-                            .write_iter = filemap_write_iter};
+                            .write_iter = filemap_write_iter,
+                            .writepages = filemap_writepages,
+                            .fsyncdata = ext2_fsyncdata};
 
 void ext2_delete_inode(struct inode *inode_, uint32_t inum, struct ext2_superblock *fs)
 {
@@ -95,12 +98,13 @@ void ext2_close(struct inode *vfs_ino)
     free(inode);
 }
 
-ssize_t ext2_writepage(page *page, size_t off, inode *ino)
+ssize_t ext2_writepage(page *page, size_t off, inode *ino) REQUIRES(page)
 {
     auto buf = block_buf_from_page(page);
     auto sb = ext2_superblock_from_inode(ino);
+    DCHECK(buf != nullptr);
 
-    assert(buf != nullptr);
+    page_start_writeback(page, ino);
 
     while (buf)
     {
@@ -115,12 +119,15 @@ ssize_t ext2_writepage(page *page, size_t off, inode *ino)
 
         if (sb_write_bio(sb, v, 1, buf->block_nr) < 0)
         {
+            page_end_writeback(page, ino);
             sb->error("Error writing back page");
             return -EIO;
         }
 
         buf = buf->next;
     }
+
+    page_end_writeback(page, ino);
 
     return PAGE_SIZE;
 }
@@ -457,7 +464,7 @@ struct inode *ext2_creat(const char *name, int mode, struct dentry *dir)
     return i;
 }
 
-int ext2_flush_inode(struct inode *inode)
+int ext2_flush_inode(struct inode *inode, bool in_sync)
 {
     struct ext2_inode *ino = ext2_get_inode_from_node(inode);
     struct ext2_superblock *fs = ext2_superblock_from_inode(inode);
@@ -475,7 +482,7 @@ int ext2_flush_inode(struct inode *inode)
     ino->i_mode = inode->i_mode;
     ino->i_uid = inode->i_uid;
 
-    fs->update_inode(ino, (ext2_inode_no) inode->i_inode);
+    fs->update_inode(ino, (ext2_inode_no) inode->i_inode, in_sync);
 
     return 0;
 }
@@ -714,7 +721,7 @@ void ext2_superblock::error(const char *str) const
 
     sb->s_state = EXT2_ERROR_FS;
     block_buf_dirty(sb_bb);
-    block_buf_writeback(sb_bb);
+    block_buf_sync(sb_bb);
 
     if (sb->s_errors == EXT2_ERRORS_CONTINUE)
         return;
@@ -740,5 +747,16 @@ int ext2_superblock::stat_fs(struct statfs *buf)
     buf->f_files = sb->s_inodes_count;
     buf->f_ffree = sb->s_free_inodes_count;
 
+    return 0;
+}
+
+static int ext2_fsyncdata(struct inode *ino, struct writepages_info *wpinfo)
+{
+    /* Sync the actual pages, then writeback indirect blocks */
+    if (int st = filemap_writepages(ino, wpinfo); st < 0)
+        return st;
+    /* If not a block device, sync indirect blocks (that have been associated with the vm object) */
+    if (!S_ISBLK(ino->i_mode))
+        block_buf_sync_assoc(ino->i_pages);
     return 0;
 }

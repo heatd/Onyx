@@ -29,14 +29,9 @@ struct inode *anon_inode_alloc(mode_t file_type)
 {
     DCHECK(anonsb != nullptr);
 
-    struct inode *ino = new inode;
+    struct inode *ino = inode_create(true);
     if (!ino)
-        return ino;
-    if (inode_init(ino, true) < 0)
-    {
-        delete ino;
         return nullptr;
-    }
 
     ino->i_atime = ino->i_mtime = clock_get_posix_time();
     ino->i_sb = anonsb;

@@ -11,5 +11,39 @@
             "ino": {"type": "u64"},
             "dev": {"type": "u32"}
         }
+    },
+    {
+        "name": "wbdev_create",
+        "category": "wb",
+        "args": [
+        ],
+
+        "format": {
+        }
+    },
+    {
+        "name": "wbdev_run",
+        "category": "wb",
+        "args": [
+            {"type": "u64", "name": "ts"}
+        ],
+
+        "format": {
+            "end_ts": {"type": "u64", "cond": "TIME"}
+        }
+    },
+    {
+        "name": "write_inode",
+        "category": "wb",
+        "args": [
+            {"type": "u64", "name": "ts"},
+            {"type": "ino_t", "name": "ino"},
+            {"type": "dev_t", "name": "dev"}
+        ],
+        "format": {
+            "end_ts": {"type": "u64", "cond": "TIME"},
+            "ino": {"type": "u64"},
+            "dev": {"type": "u32"}
+        }
     }
 ]

@@ -62,10 +62,11 @@
  */
 #define PAGE_BUDDY            (1 << 3)
 #define PAGE_FLAG_BUFFER      (1 << 4) /* Used by the filesystem code */
-#define PAGE_FLAG_FLUSHING    (1 << 5)
+/* bit 5 is unused */
 #define PAGE_FLAG_FILESYSTEM1 (1 << 6) /* Filesystem private flag */
 #define PAGE_FLAG_WAITERS     (1 << 7)
 #define PAGE_FLAG_UPTODATE    (1 << 8)
+#define PAGE_FLAG_WRITEBACK   (1 << 9)
 
 struct vm_object;
 
@@ -295,6 +296,16 @@ __always_inline bool page_flag_set(struct page *p, unsigned long flag)
 __always_inline bool page_locked(struct page *p)
 {
     return page_flag_set(p, PAGE_FLAG_LOCKED);
+}
+
+__always_inline void page_set_writeback(struct page *p)
+{
+    __atomic_fetch_or(&p->flags, PAGE_FLAG_WRITEBACK, __ATOMIC_RELEASE);
+}
+
+__always_inline void page_clear_writeback(struct page *p)
+{
+    __atomic_fetch_and(&p->flags, ~PAGE_FLAG_WRITEBACK, __ATOMIC_RELEASE);
 }
 
 void __reclaim_page(struct page *new_page);

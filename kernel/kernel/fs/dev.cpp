@@ -11,7 +11,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <onyx/types.h>
 
 #include <onyx/compiler.h>
 #include <onyx/dentry.h>
@@ -23,6 +22,7 @@
 #include <onyx/majorminor.h>
 #include <onyx/panic.h>
 #include <onyx/tmpfs.h>
+#include <onyx/types.h>
 #include <onyx/vfs.h>
 
 #include <onyx/hashtable.hpp>
@@ -487,9 +487,8 @@ inode *devfs_mount(blockdev *dev)
     fops->getdirent = devfs_getdirent;
 
     new_fs->override_file_ops(fops.release());
-
-    superblock_init(new_fs.get());
     new_fs->s_devnr = ex.value()->dev();
+    new_fs->s_flags &= ~SB_FLAG_IN_MEMORY;
 
     auto node = new_fs->create_inode(S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
     if (!node)
