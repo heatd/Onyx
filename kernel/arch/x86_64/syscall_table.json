@@ -2730,5 +2730,25 @@
             ]
         ],
         "return_type": "int"
+    },
+    {
+        "name": "mpagemap",
+        "nr": 153,
+        "nr_args": 3,
+        "args": [
+            [
+                "void *",
+                "addr"
+            ],
+            [
+                "size_t",
+                "length"
+            ],
+            [
+                "u64 *",
+                "pagemap"
+            ]
+        ],
+        "return_type": "int"
     }
 ]
