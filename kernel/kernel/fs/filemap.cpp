@@ -463,6 +463,7 @@ int filemap_private_fault(struct vm_pf_context *ctx)
     struct page *newp = nullptr;
     int st = 0;
     unsigned long pgoff = (ctx->vpage - region->vm_start) >> PAGE_SHIFT;
+    bool amap = true;
 
     /* Permission checks have already been handled before .fault() */
     if (region->vm_amap)
@@ -473,6 +474,7 @@ int filemap_private_fault(struct vm_pf_context *ctx)
 
     if (!page)
     {
+        amap = false;
         st = filemap_find_page(region->vm_file->f_ino, (region->vm_offset >> PAGE_SHIFT) + pgoff, 0,
                                &page);
 
@@ -480,6 +482,19 @@ int filemap_private_fault(struct vm_pf_context *ctx)
             goto err;
     }
 
+    (void) amap;
+
+#ifdef FILEMAP_PARANOID
+    if (ctx->mapping_info & PAGE_PRESENT)
+    {
+        unsigned long mapped = MAPPING_INFO_PADDR(ctx->mapping_info);
+        unsigned long fetched = (unsigned long) page_to_phys(page);
+        if (mapped != fetched)
+            panic("%s[%d]: filemap: Mapped page %lx != fetched %lx %s\n",
+                  get_current_process()->name.data(), get_current_process()->pid_, mapped, fetched,
+                  amap ? "from amap" : "from filemap");
+    }
+#endif
     if (!info->write)
     {
         /* Write-protect the page */

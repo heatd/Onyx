@@ -36,6 +36,15 @@ app_executable("file_rcu") {
     sources = [ "file_rcu.c" ]
 }
 
+app_executable("forkcow") {
+    include_dirs = [ "include" ]
+    package_name = "forkcow"
+
+    output_name = "forkcow"
+
+    sources = [ "forkcow.cpp" ]
+}
+
 group("regtests") {
-    deps = [ ":nameitests", ":fdlopen", ":afunix_test", ":file_rcu" ]
+    deps = [ ":nameitests", ":fdlopen", ":afunix_test", ":file_rcu", ":forkcow" ]
 }

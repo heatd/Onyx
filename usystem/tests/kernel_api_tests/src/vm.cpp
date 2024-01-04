@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 - 2023 Pedro Falcato
+ * Copyright (c) 2021 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -10,6 +10,7 @@
 #include <setjmp.h>
 #include <signal.h>
 #include <sys/mman.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 #include <cstring>
@@ -21,6 +22,7 @@
 #include <libonyx/process.h>
 #include <libonyx/unique_fd.h>
 #include <uapi/handle.h>
+#include <uapi/mincore.h>
 #include <uapi/process.h>
 
 static unsigned long page_size = sysconf(_SC_PAGESIZE);
@@ -397,4 +399,271 @@ TEST(Vm, MmapSharedFault)
     *(volatile unsigned char*) ptr;
     *(volatile unsigned char*) ptr = 10;
     ASSERT_EQ(munmap(ptr, page_size), 0);
+}
+
+static int mpagemap(void* addr, size_t length, uint64_t* pagemap)
+{
+    return syscall(SYS_mpagemap, addr, length, pagemap);
+}
+
+#define FLAG(flagname)      \
+    {                       \
+        flagname, #flagname \
+    }
+
+static struct
+{
+    uint64_t flag;
+    const char* name;
+} pagemap_flags[] = {
+    FLAG(PAGE_PRESENT), FLAG(PAGE_GLOBAL),   FLAG(PAGE_WRITABLE), FLAG(PAGE_EXECUTABLE),
+    FLAG(PAGE_DIRTY),   FLAG(PAGE_ACCESSED), FLAG(PAGE_USER),     FLAG(PAGE_HUGE),
+};
+
+static void dump_pte(uint64_t pte)
+{
+    printf("pte: %016lx", MAPPING_INFO_PADDR(pte));
+
+    for (const auto& flag : pagemap_flags)
+    {
+        if (pte & flag.flag)
+        {
+            printf(" | %s", flag.name);
+        }
+    }
+
+    printf("\n");
+}
+
+static void dump_ptes(uint64_t ptes[2])
+{
+    dump_pte(ptes[0]);
+    dump_pte(ptes[1]);
+}
+
+TEST(Vm, MmapPrivateFileCow)
+{
+    /* TODO: In the future, mlock()ify this. This is currently not a problem, as we don't swap out
+     * yet.
+     */
+    uint64_t oldval;
+    uint64_t pages[2];
+    onx::unique_fd fd = open("/bin/kernel_api_tests", O_RDWR);
+    ASSERT_TRUE(fd.valid());
+
+    volatile unsigned int* ptr0 = (volatile unsigned int*) mmap(
+        (void*) nullptr, page_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd.get(), 0);
+    ASSERT_NE(ptr0, MAP_FAILED);
+    volatile unsigned int* ptr1 = (volatile unsigned int*) mmap(
+        (void*) nullptr, page_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd.get(), 0);
+    ASSERT_NE(ptr1, MAP_FAILED);
+
+    /* Fault these pages in */
+    *ptr0;
+    *ptr1;
+    /* Check if the PFNs are the same, and that it's read-only */
+    ASSERT_NE(mpagemap((void*) ptr0, page_size, pages), -1);
+    ASSERT_NE(mpagemap((void*) ptr1, page_size, &pages[1]), -1);
+
+    if (pages[0] != pages[1])
+        dump_ptes(pages);
+    ASSERT_EQ(pages[0], pages[1]);
+    EXPECT_FALSE(pages[0] & PAGE_WRITABLE);
+    EXPECT_TRUE(pages[0] & PAGE_PRESENT);
+    oldval = pages[1];
+
+    /* Write to one. The other should keep its read-only value */
+    *ptr0 = 10;
+    ASSERT_NE(mpagemap((void*) ptr0, page_size, pages), -1);
+    ASSERT_NE(mpagemap((void*) ptr1, page_size, &pages[1]), -1);
+    EXPECT_NE(pages[0], pages[1]);
+    EXPECT_TRUE(pages[0] & PAGE_WRITABLE);
+    EXPECT_FALSE(pages[1] & PAGE_WRITABLE);
+    EXPECT_EQ(MAPPING_INFO_PADDR(oldval), MAPPING_INFO_PADDR(pages[1]));
+
+    /* Write to the other one. Both should be writable and have different pfns */
+    *ptr1 = 11;
+    ASSERT_NE(mpagemap((void*) ptr0, page_size, pages), -1);
+    ASSERT_NE(mpagemap((void*) ptr1, page_size, &pages[1]), -1);
+    EXPECT_NE(pages[0], pages[1]);
+    EXPECT_TRUE(pages[0] & PAGE_WRITABLE);
+    EXPECT_TRUE(pages[1] & PAGE_WRITABLE);
+    EXPECT_NE(MAPPING_INFO_PADDR(oldval), MAPPING_INFO_PADDR(pages[1]));
+    EXPECT_NE(MAPPING_INFO_PADDR(pages[0]), MAPPING_INFO_PADDR(pages[1]));
+
+    munmap((void*) ptr0, page_size);
+    munmap((void*) ptr1, page_size);
+}
+
+TEST(Vm, MmapPrivateAnonCow)
+{
+    /* TODO: In the future, mlock()ify this. This is currently not a problem, as we don't swap out
+     * yet.
+     */
+    uint64_t oldval;
+    uint64_t pages[2];
+
+    volatile unsigned int* ptr0 = (volatile unsigned int*) mmap(
+        (void*) nullptr, page_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+    ASSERT_NE(ptr0, MAP_FAILED);
+    volatile unsigned int* ptr1 = (volatile unsigned int*) mmap(
+        (void*) nullptr, page_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+    ASSERT_NE(ptr1, MAP_FAILED);
+
+    /* Fault these pages in */
+    *ptr0;
+    *ptr1;
+    /* Check if the PFNs are the same, and that it's read-only */
+    ASSERT_NE(mpagemap((void*) ptr0, page_size, pages), -1);
+    ASSERT_NE(mpagemap((void*) ptr1, page_size, &pages[1]), -1);
+
+    if (pages[0] != pages[1])
+        dump_ptes(pages);
+    ASSERT_EQ(pages[0], pages[1]);
+    EXPECT_FALSE(pages[0] & PAGE_WRITABLE);
+    EXPECT_TRUE(pages[0] & PAGE_PRESENT);
+    oldval = pages[1];
+
+    /* Write to one. The other should keep its read-only value */
+    *ptr0 = 10;
+    ASSERT_NE(mpagemap((void*) ptr0, page_size, pages), -1);
+    ASSERT_NE(mpagemap((void*) ptr1, page_size, &pages[1]), -1);
+    EXPECT_NE(pages[0], pages[1]);
+    EXPECT_TRUE(pages[0] & PAGE_WRITABLE);
+    EXPECT_FALSE(pages[1] & PAGE_WRITABLE);
+    EXPECT_EQ(MAPPING_INFO_PADDR(oldval), MAPPING_INFO_PADDR(pages[1]));
+
+    /* Write to the other one. Both should be writable and have different pfns */
+    *ptr1 = 11;
+    ASSERT_NE(mpagemap((void*) ptr0, page_size, pages), -1);
+    ASSERT_NE(mpagemap((void*) ptr1, page_size, &pages[1]), -1);
+    EXPECT_NE(pages[0], pages[1]);
+    EXPECT_TRUE(pages[0] & PAGE_WRITABLE);
+    EXPECT_TRUE(pages[1] & PAGE_WRITABLE);
+    EXPECT_NE(MAPPING_INFO_PADDR(oldval), MAPPING_INFO_PADDR(pages[1]));
+    EXPECT_NE(MAPPING_INFO_PADDR(pages[0]), MAPPING_INFO_PADDR(pages[1]));
+
+    munmap((void*) ptr0, page_size);
+    munmap((void*) ptr1, page_size);
+}
+
+struct ipc_comm
+{
+    volatile int cmd;
+    volatile uint64_t page;
+    volatile unsigned int data;
+
+    static ipc_comm* create();
+    void wait_for(int cmd) const
+    {
+        while (this->cmd != cmd)
+            __asm__ __volatile__("" ::: "memory");
+        __atomic_thread_fence(__ATOMIC_SEQ_CST);
+    }
+};
+
+ipc_comm* ipc_comm::create()
+{
+    ipc_comm* commbuf = (ipc_comm*) mmap(nullptr, page_size, PROT_READ | PROT_WRITE,
+                                         MAP_ANONYMOUS | MAP_SHARED, -1, 0);
+    if (commbuf == MAP_FAILED)
+        return nullptr;
+    return commbuf;
+}
+
+enum class anon_fork_state
+{
+    NONE = 0,
+    CHILD0,
+    PARENT0,
+    CHILD1,
+    PARENT1,
+    CHILD2,
+    PARENT2
+};
+
+TEST(Vm, MmapPrivateAnonForkCow)
+{
+    ipc_comm* buf = ipc_comm::create();
+    ASSERT_NE(buf, nullptr);
+    /* Make sure it's present in the page tables. Not that it shouldn't work if we don't do this,
+     * but we're not testing MAP_SHARED at the moment.
+     */
+    buf->cmd = 0;
+
+    volatile unsigned int* ptr0 = (volatile unsigned int*) mmap(
+        (void*) nullptr, page_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+
+    /* Test if anon memory successfully cows and uncows itself after fork() */
+    *ptr0 = 10;
+
+    pid_t pid = fork();
+    ASSERT_NE(pid, -1);
+
+    if (pid == 0)
+    {
+        /* Retrieve ptr0's pagemap data */
+        mpagemap((void*) ptr0, page_size, (uint64_t*) &buf->page);
+        buf->data = *ptr0;
+        buf->cmd = (int) anon_fork_state::CHILD0;
+        buf->wait_for((int) anon_fork_state::PARENT0);
+        /* Parent has uncowed themselves, do mpagemap again, and reload the value */
+        mpagemap((void*) ptr0, page_size, (uint64_t*) &buf->page);
+        buf->data = *ptr0;
+        buf->cmd = (int) anon_fork_state::CHILD1;
+        buf->wait_for((int) anon_fork_state::PARENT1);
+        /* uncow ourselves */
+        *ptr0 = 0xb00;
+        mpagemap((void*) ptr0, page_size, (uint64_t*) &buf->page);
+        buf->data = *ptr0;
+        buf->cmd = (int) anon_fork_state::CHILD2;
+        buf->wait_for((int) anon_fork_state::PARENT2);
+        _exit(0);
+    }
+    else
+    {
+        uint64_t tmp, tmp2;
+        /* Parent. Here we actually test things */
+        buf->wait_for((int) anon_fork_state::CHILD0);
+
+        /* Check the CoW state */
+        mpagemap((void*) ptr0, page_size, &tmp);
+        if (buf->page & PAGE_PRESENT)
+        {
+            EXPECT_EQ(MAPPING_INFO_PADDR(buf->page), MAPPING_INFO_PADDR(tmp));
+            EXPECT_FALSE(buf->page & PAGE_WRITABLE);
+        }
+
+        EXPECT_FALSE(tmp & PAGE_WRITABLE);
+        EXPECT_EQ(*ptr0, 10);
+        EXPECT_EQ(buf->data, 10);
+
+        /* now un-CoW the parent's page */
+        *ptr0 = 0xbeef;
+        mpagemap((void*) ptr0, page_size, &tmp2);
+        EXPECT_NE(tmp, tmp2);
+        EXPECT_TRUE(tmp2 & PAGE_WRITABLE);
+        EXPECT_NE(MAPPING_INFO_PADDR(tmp), MAPPING_INFO_PADDR(tmp2));
+
+        /* Tmp now has the current pagemap, tmp2 has the old child's pagemap */
+        tmp = tmp2;
+        tmp2 = buf->page;
+        buf->cmd = (int) anon_fork_state::PARENT0;
+        buf->wait_for((int) anon_fork_state::CHILD1);
+        ASSERT_TRUE(buf->page & PAGE_PRESENT);
+        EXPECT_FALSE(buf->page & PAGE_WRITABLE);
+        EXPECT_NE(MAPPING_INFO_PADDR(tmp), MAPPING_INFO_PADDR(buf->page));
+        EXPECT_EQ(buf->data, 10);
+        EXPECT_EQ(*ptr0, 0xbeef);
+
+        buf->cmd = (int) anon_fork_state::PARENT1;
+        /* The child will now uncow itself */
+        buf->wait_for((int) anon_fork_state::CHILD2);
+        ASSERT_TRUE(buf->page & PAGE_PRESENT);
+        EXPECT_TRUE(buf->page & PAGE_WRITABLE);
+        EXPECT_NE(MAPPING_INFO_PADDR(tmp), MAPPING_INFO_PADDR(buf->page));
+        EXPECT_EQ(buf->data, 0xb00);
+        EXPECT_EQ(*ptr0, 0xbeef);
+        buf->cmd = (int) anon_fork_state::PARENT2;
+    }
 }

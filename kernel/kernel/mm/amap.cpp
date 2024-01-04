@@ -172,7 +172,7 @@ struct amap *amap_split(struct amap *amap, struct vm_area_struct *region, size_t
         /* Move pages from one amap to the other by storing to new and store(0). store(0) is done
          * later in case of OOM.
          */
-        unsigned long curr_idx = cursor.current_idx();
+        unsigned long curr_idx = cursor.current_idx() - pgoff;
         if (namap->am_map.store(curr_idx, cursor.get()) < 0)
             goto err;
         cursor.advance();
