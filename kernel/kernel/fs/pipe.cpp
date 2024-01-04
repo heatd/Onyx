@@ -135,6 +135,7 @@ public:
     void close_read_end();
     void close_write_end();
     short poll(struct file *filp, void *poll_file, short events);
+    ssize_t read_iter(iovec_iter *iter, unsigned int flags);
 
     void wake_all(wait_queue *wq)
     {
@@ -204,7 +205,7 @@ ssize_t pipe::read(int flags, size_t len, void *buf)
 
     scoped_mutex g{pipe_lock};
 
-    // Lets keep track if the pipe was full the last time we grabbed the lack
+    // Lets keep track if the pipe was full the last time we grabbed the lock
     // By doing so, we can know when to wake writers instead of wasting time trying to do so
     // for no reason.
     // Since PIPE_BUF atomic writes are complicated with this scheme, we add PIPE_BUF slack.
@@ -656,6 +657,107 @@ void pipe_release(struct file *filp)
         p->close_write_end();
 }
 
+ssize_t pipe::read_iter(iovec_iter *iter, unsigned int flags)
+{
+    ssize_t ret = 0;
+
+    scoped_mutex g{pipe_lock};
+
+    bool wasfull = available_space() < PIPE_BUF;
+
+    while (!iter->empty())
+    {
+        if (!can_read())
+        {
+            if (ret || writer_count == 0)
+            {
+                return ret;
+            }
+
+            if (flags & O_NONBLOCK)
+            {
+                if (!ret)
+                    ret = -EAGAIN;
+                break;
+            }
+
+            if (wait_for_event_mutex_interruptible(&read_queue, can_read_or_eof(), &pipe_lock) ==
+                -EINTR)
+            {
+                ret = ret ?: -EINTR;
+                break;
+            }
+
+            wasfull = available_space() < PIPE_BUF;
+
+            continue;
+        }
+
+        assert(!list_is_empty(&pipe_buffers));
+
+        // Consume the first buffer
+
+        auto pbf = first_buf();
+
+        u8 *page_buf = (u8 *) PAGE_TO_VIRT(pbf->page_) + pbf->offset_;
+
+        ssize_t copied = copy_to_iter(iter, page_buf, pbf->len_);
+
+        if (copied < 0)
+        {
+            if (!ret)
+                ret = -EFAULT;
+            break;
+        }
+
+        pbf->offset_ += copied;
+        pbf->len_ -= copied;
+
+        if (pbf->len_ == 0)
+        {
+            // If its now empty, free the pipe buffer
+            list_remove(&pbf->list_node);
+
+            // Check if we have a cached page. If not, cache this one, else let it go.
+            if (!cached_page)
+            {
+                cached_page = pbf->steal_page();
+            }
+
+            delete pbf;
+        }
+
+        // Decrement the length of the pipe
+        // No need to advance iter, since copy_to_iter does that
+        curr_len -= copied;
+        ret += copied;
+
+        if (!can_read())
+        {
+            // Nothing more to read
+            break;
+        }
+    }
+
+    g.unlock();
+
+    if (wasfull && ret > 0)
+    {
+        // If it was previously full and we read some, wake the writers
+        wake_all(&write_queue);
+    }
+
+    return ret;
+}
+
+ssize_t pipe_read_iter(struct file *filp, size_t off, iovec_iter *iter, unsigned int flags)
+{
+    (void) off;
+    (void) flags;
+    pipe *p = get_pipe(filp->f_ino->i_pipe);
+    return p->read_iter(iter, filp->f_flags);
+}
+
 const struct file_ops pipe_ops = {
     .read = pipe_read,
     .write = pipe_write,
@@ -664,6 +766,7 @@ const struct file_ops pipe_ops = {
     .poll = pipe_poll,
     .fcntl = pipe_fcntl,
     .release = pipe_release,
+    .read_iter = pipe_read_iter,
 };
 
 static int pipe_create(struct file **pipe_readable, struct file **pipe_writeable)
@@ -1038,6 +1141,30 @@ TEST(pipe, broken_pipe)
 
     EXPECT_EQ(st, -EPIPE);
     EXPECT_EQ(p->get_unread_len(), 0U);
+}
+
+TEST(pipe, readv_works)
+{
+    auto_addr_limit l_{VM_KERNEL_ADDR_LIMIT};
+    auto p = make_refc<pipe>();
+    p->reader_count = 1;
+    p->writer_count = 1;
+
+    char teststr[] = {'1', '1', '1', '1'};
+    p->write(0, 2, teststr);
+
+    iovec iov[2];
+    iov[0].iov_base = teststr;
+    iov[0].iov_len = 2;
+    iov[1].iov_base = teststr + 2;
+    iov[1].iov_len = 2;
+
+    cul::slice<iovec> sl(iov, 2);
+    iovec_iter iter(sl, 4, IOVEC_KERNEL);
+
+    ssize_t total_read = p->read_iter(&iter, O_NONBLOCK);
+
+    EXPECT_EQ(total_read, 2);
 }
 
 #endif
