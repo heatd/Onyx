@@ -208,7 +208,10 @@ ssize_t pipe::read(int flags, size_t len, void *buf)
 
 ssize_t pipe::append_iter(iovec_iter *iter, bool atomic)
 {
-    // Tricky logic, as in pipe::append()
+    // Logic here is a bit tricky. Try to append to the last pipe buf
+    // If we can do so, then do it. Then if we still have more data, allocate a new pipe buffer
+    // and append it. If we ever need to roll back (since it may be a PIPE_BUF write), do so using
+    // "to_restore" and "old_restore_len".
 
     pipe_buffer *to_restore = nullptr;
     size_t old_restore_len = 0;
