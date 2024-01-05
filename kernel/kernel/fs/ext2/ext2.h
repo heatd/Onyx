@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -11,7 +11,7 @@
 #include <errno.h>
 #include <stdint.h>
 
-#include <onyx/block.h>
+#include <onyx/bio.h>
 #include <onyx/buffer.h>
 #include <onyx/dentry.h>
 #include <onyx/mutex.h>

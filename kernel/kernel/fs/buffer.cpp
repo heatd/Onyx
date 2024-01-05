@@ -23,7 +23,15 @@ __init static void buffer_cache_init()
     CHECK(buffer_cache != nullptr);
 }
 
+static void buffer_writepage_end(struct bio_req *req)
+{
+    struct page *page = req->vec[0].page;
+    DCHECK(page != nullptr);
+    page_end_writeback(page, (struct inode *) req->b_private);
+}
+
 ssize_t buffer_writepage(struct page *page, size_t offset, struct inode *ino) REQUIRES(page)
+    RELEASE(page)
 {
     auto blkdev = reinterpret_cast<blockdev *>(ino->i_helper);
     DCHECK(blkdev != nullptr);
@@ -59,36 +67,40 @@ ssize_t buffer_writepage(struct page *page, size_t offset, struct inode *ino) RE
 
     sector_t disk_sect = (first_dirty->block_nr * first_dirty->block_size) / blkdev->sector_size;
 
-    struct page_iov vec;
+    struct bio_req *r = bio_alloc(GFP_NOIO, 1);
+    if (!r)
+    {
+        unlock_page(page);
+        return -EIO;
+    }
+
+    r->sector_number = disk_sect;
+    r->flags = BIO_REQ_WRITE_OP;
+    r->b_end_io = buffer_writepage_end;
+    r->b_private = ino;
+
+    struct page_iov &vec = r->vec[0];
     vec.length = ((last_dirty->block_nr + 1) - first_dirty->block_nr) * first_dirty->block_size;
     vec.page_off = first_dirty->page_off;
     vec.page = first_dirty->this_page;
 
-    struct bio_req *r = bio_alloc_and_init(GFP_NOIO);
-    if (!r)
-        return -EIO;
-    r->nr_vecs = 1;
-    r->sector_number = disk_sect;
-    r->flags = BIO_REQ_WRITE_OP;
-    r->vec = &vec;
-
     page_start_writeback(page, ino);
-    __atomic_fetch_or(&vec.page->flags, PAGE_FLAG_WRITEBACK, __ATOMIC_RELAXED);
+
+    unlock_page(page);
 
     if (bio_submit_request(blkdev, r) < 0)
     {
-        bio_free(r);
+        bio_put(r);
         return -EIO;
     }
 
-    bio_free(r);
-    page_end_writeback(page, ino);
+    bio_put(r);
 
 #if 0
 	printk("Flushed #%lu[sector %lu].\n", buf->block_nr, disk_sect);
 #endif
 
-    return vec.length;
+    return ((last_dirty->block_nr + 1) - first_dirty->block_nr) * first_dirty->block_size;
 }
 
 block_buf *block_buf_from_page(struct page *p)
@@ -113,6 +125,25 @@ bool page_has_dirty_bufs(struct page *p)
     }
 
     return has_dirty_buf;
+}
+
+bool page_has_writeback_bufs(struct page *p)
+{
+    auto buf = reinterpret_cast<block_buf *>(p->priv);
+    bool has_wb_buf = false;
+
+    while (buf)
+    {
+        if (buf->flags & BLOCKBUF_FLAG_WRITEBACK)
+        {
+            has_wb_buf = true;
+            break;
+        }
+
+        buf = buf->next;
+    }
+
+    return has_wb_buf;
 }
 
 struct block_buf *page_add_blockbuf(struct page *page, unsigned int page_off)
@@ -169,7 +200,6 @@ void block_buf_sync(struct block_buf *buf)
     struct page *page = buf->this_page;
     lock_page(page);
     buffer_writepage(page, page->pageoff << PAGE_SHIFT, buf->dev->b_ino);
-    unlock_page(page);
     /* TODO: This will need to be adapted for async... */
 }
 
@@ -241,27 +271,23 @@ ssize_t bbuffer_readpage(struct page *p, size_t off, struct inode *ino)
     if (sb)
         block_size = sb->s_block_size;
 
-    struct page_iov vec;
+    struct bio_req *r = bio_alloc(GFP_NOIO, 1);
+    if (!r)
+        return -EIO;
+    r->sector_number = sec_nr;
+    r->flags = BIO_REQ_READ_OP;
+    struct page_iov &vec = r->vec[0];
     vec.length = PAGE_SIZE;
     vec.page = p;
     vec.page_off = 0;
-
-    struct bio_req *r = bio_alloc_and_init(GFP_NOIO);
-    if (!r)
-        return -EIO;
-
-    r->nr_vecs = 1;
-    r->vec = &vec;
-    r->sector_number = sec_nr;
-    r->flags = BIO_REQ_READ_OP;
 
     auto nr_blocks = PAGE_SIZE / block_size;
     size_t starting_block_nr = off / block_size;
 
     size_t curr_off = 0;
 
-    int iost = bio_submit_request(blkdev, r);
-    bio_free(r);
+    int iost = bio_submit_req_wait(blkdev, r);
+    bio_put(r);
     if (iost < 0)
         return iost;
 

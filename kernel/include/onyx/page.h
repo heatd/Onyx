@@ -215,7 +215,9 @@ void page_add_used_pages(struct used_pages *pages);
 
 static inline unsigned long page_ref(struct page *p)
 {
-    return __atomic_add_fetch(&p->ref, 1, __ATOMIC_ACQUIRE);
+    unsigned long newrefs = __atomic_add_fetch(&p->ref, 1, __ATOMIC_ACQUIRE);
+    DCHECK(newrefs > 1);
+    return newrefs;
 }
 
 static inline unsigned long page_ref_many(struct page *p, unsigned long c)
@@ -262,21 +264,21 @@ __always_inline bool try_lock_page(struct page *p) TRY_ACQUIRE(true, p)
     return !(flags & PAGE_FLAG_LOCKED);
 }
 
-int __lock_page(struct page *p, bool interruptible);
+int page_wait_bit(struct page *p, unsigned int flags, bool interruptible);
 
 __always_inline void lock_page(struct page *p) ACQUIRE(p) NO_THREAD_SAFETY_ANALYSIS
 {
     if (!try_lock_page(p)) [[unlikely]]
-        __lock_page(p, false);
+        page_wait_bit(p, PAGE_FLAG_LOCKED, false);
 }
 
-void __unlock_page(struct page *p);
+void page_wake_bit(struct page *p, unsigned int bit);
 
 __always_inline void unlock_page(struct page *p) RELEASE(p) NO_THREAD_SAFETY_ANALYSIS
 {
     auto flags = __atomic_and_fetch(&p->flags, ~PAGE_FLAG_LOCKED, __ATOMIC_RELEASE);
     if (flags & PAGE_FLAG_WAITERS) [[unlikely]]
-        __unlock_page(p);
+        page_wake_bit(p, PAGE_FLAG_LOCKED);
 }
 
 __always_inline bool page_test_set_flag(struct page *p, unsigned long flag)
@@ -309,7 +311,15 @@ __always_inline void page_set_writeback(struct page *p)
 
 __always_inline void page_clear_writeback(struct page *p)
 {
-    __atomic_fetch_and(&p->flags, ~PAGE_FLAG_WRITEBACK, __ATOMIC_RELEASE);
+    unsigned long flags = __atomic_and_fetch(&p->flags, ~PAGE_FLAG_WRITEBACK, __ATOMIC_RELEASE);
+    if (flags & PAGE_FLAG_WAITERS) [[unlikely]]
+        page_wake_bit(p, PAGE_FLAG_WRITEBACK);
+}
+
+__always_inline void page_wait_writeback(struct page *p)
+{
+    while (page_flag_set(p, PAGE_FLAG_WRITEBACK))
+        page_wait_bit(p, PAGE_FLAG_WRITEBACK, false);
 }
 
 void __reclaim_page(struct page *new_page);

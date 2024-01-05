@@ -1,11 +1,12 @@
 /*
- * Copyright (c) 2020 - 2023 Pedro Falcato
+ * Copyright (c) 2020 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: MIT
  */
 
+#include <onyx/block.h>
 #include <onyx/irq.h>
 #include <onyx/net/netif.h>
 #include <onyx/panic.h>
@@ -38,11 +39,15 @@ void softirq_handle()
     sched_disable_preempt();
 
     bool is_disabled = irq_is_disabled();
+    /* Disable irqs, get a snapshot of the pending vectors, and clear them. Then reenable irqs. This
+     * deals with races, because no one can interrupt us between us getting and us clearing the
+     * softirq pending vectors.
+     */
+    irq_disable();
+    auto pending = get_per_cpu(pending_vectors);
+    write_per_cpu(pending_vectors, 0);
 
     irq_enable();
-
-    auto pending = get_per_cpu(pending_vectors);
-
     if (pending & (1 << SOFTIRQ_VECTOR_TIMER))
     {
         timer_handle_events(platform_get_timer());
@@ -63,13 +68,14 @@ void softirq_handle()
         pending &= ~(1 << SOFTIRQ_VECTOR_TASKLET);
     }
 
+    if (pending & (1 << SOFTIRQ_VECTOR_BLOCK))
+        block_handle_completion();
+
     if (pending & (1 << SOFTIRQ_VECTOR_RCU))
     {
         rcu_work();
         pending &= ~(1 << SOFTIRQ_VECTOR_RCU);
     }
-
-    write_per_cpu(pending_vectors, pending);
 
     if (is_disabled)
         irq_disable();

@@ -98,7 +98,16 @@ void ext2_close(struct inode *vfs_ino)
     free(inode);
 }
 
-ssize_t ext2_writepage(page *page, size_t off, inode *ino) REQUIRES(page)
+static void ext2_writepage_endio(struct bio_req *req)
+{
+    struct page *page = req->vec[0].page;
+    struct block_buf *buf = (struct block_buf *) req->b_private;
+    bb_clear_flag(buf, BLOCKBUF_FLAG_WRITEBACK);
+    if (!page_has_writeback_bufs(page))
+        page_end_writeback(page, page->owner->ino);
+}
+
+ssize_t ext2_writepage(page *page, size_t off, inode *ino) REQUIRES(page) RELEASE(page)
 {
     auto buf = block_buf_from_page(page);
     auto sb = ext2_superblock_from_inode(ino);
@@ -106,18 +115,22 @@ ssize_t ext2_writepage(page *page, size_t off, inode *ino) REQUIRES(page)
 
     page_start_writeback(page, ino);
 
+    unlock_page(page);
+
     while (buf)
     {
         page_iov v[1];
         v->length = buf->block_size;
         v->page = buf->this_page;
+        DCHECK(buf->this_page == page);
         v->page_off = buf->page_off;
+        buf->flags |= BLOCKBUF_FLAG_WRITEBACK;
 
 #if 0
 		printk("Writing to block %lu\n", buf->block_nr);
 #endif
 
-        if (sb_write_bio(sb, v, 1, buf->block_nr) < 0)
+        if (sb_write_bio(sb, v, 1, buf->block_nr, ext2_writepage_endio, buf) < 0)
         {
             page_end_writeback(page, ino);
             sb->error("Error writing back page");
@@ -126,8 +139,6 @@ ssize_t ext2_writepage(page *page, size_t off, inode *ino) REQUIRES(page)
 
         buf = buf->next;
     }
-
-    page_end_writeback(page, ino);
 
     return PAGE_SIZE;
 }

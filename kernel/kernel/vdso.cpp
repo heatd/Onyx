@@ -235,7 +235,7 @@ void vdso_init()
     for (size_t i = 0; i < vdso_pages; i++, page += PAGE_SIZE)
     {
         auto p = page_add_page((void *) page);
-        page_ref(p);
+        p->ref = 1;
     }
 
     main_vdso.init();

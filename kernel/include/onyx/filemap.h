@@ -49,8 +49,7 @@ int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags, struc
 void page_start_writeback(struct page *page, struct inode *inode)
     EXCLUDES(inode->i_pages->page_lock) REQUIRES(page);
 
-void page_end_writeback(struct page *page, struct inode *inode) EXCLUDES(inode->i_pages->page_lock)
-    REQUIRES(page);
+void page_end_writeback(struct page *page, struct inode *inode) EXCLUDES(inode->i_pages->page_lock);
 
 /**
  * @brief Marks a page dirty in the filemap

@@ -132,26 +132,46 @@ static wait_queue wait_queues[PAGE_WQ_SIZE];
 struct page_wait_info
 {
     struct page *page;
+    unsigned int bit;
 
     bool operator==(const page_wait_info &other) const
     {
-        return other.page == page;
+        return other.page == page && other.bit & bit;
     }
 
     bool operator!=(const page_wait_info &other) const
     {
         return !(*this == other);
     }
+
+    bool check_cond() const
+    {
+        /* This is annoying and hacky. If bit & PAGE_FLAG_LOCKED, try to lock it. Else, check if the
+         * flag is clear.
+         */
+        if (bit & PAGE_FLAG_LOCKED)
+            return try_lock_page(page);
+        return !(page->flags & bit);
+    }
 };
 
-static int do_lock_page_wake(struct wait_queue_token *token, void *wake_context)
+struct page_wake_info
 {
-    const struct page_wait_info *info = (struct page_wait_info *) wake_context;
+    struct page_wait_info winfo;
+    unsigned int saw_page;
+};
+
+static int do_page_wait_wake(struct wait_queue_token *token, void *wake_context)
+{
+    struct page_wake_info *info = (struct page_wake_info *) wake_context;
     const struct page_wait_info *info2 = (struct page_wait_info *) token->context;
 
-    if (*info != *info2)
+    if (info->winfo.page == info2->page)
+        info->saw_page = 1;
+
+    if (info->winfo != *info2)
     {
-        // Not our page, don't wake
+        // Not our page/bit, don't wake
         return WQ_WAKE_DO_NOT_WAKE;
     }
 
@@ -165,10 +185,11 @@ static int do_lock_page_wake(struct wait_queue_token *token, void *wake_context)
     // return WQ_WAKE_DO_NOT_WAKE;
     //}
 
-    return WQ_WAKE_WAKE_EXCLUSIVE;
+    /* Annoying hack: if bit == PAGE_FLAG_LOCKED, do it EXCLUSIVE. Else WQ_WAKE_DO_WAKE */
+    return info->winfo.bit == PAGE_FLAG_LOCKED ? WQ_WAKE_WAKE_EXCLUSIVE : WQ_WAKE_DO_WAKE;
 }
 
-int __lock_page(page *p, bool interruptible) NO_THREAD_SAFETY_ANALYSIS
+int page_wait_bit(struct page *p, unsigned int bit, bool interruptible) NO_THREAD_SAFETY_ANALYSIS
 {
     int st = 0;
     const int state = interruptible ? THREAD_INTERRUPTIBLE : THREAD_UNINTERRUPTIBLE;
@@ -177,6 +198,7 @@ int __lock_page(page *p, bool interruptible) NO_THREAD_SAFETY_ANALYSIS
 
     page_wait_info winfo;
     winfo.page = p;
+    winfo.bit = bit;
 
     struct wait_queue *wq = &wait_queues[index];
 
@@ -188,12 +210,14 @@ int __lock_page(page *p, bool interruptible) NO_THREAD_SAFETY_ANALYSIS
     token.context = &winfo;
     token.flags = 0;
     token.signaled = false;
-    token.wake = do_lock_page_wake;
+    token.wake = do_page_wait_wake;
 
     __wait_queue_add(wq, &token);
 
     set_current_state(state);
-    while (!try_lock_page(p))
+    page_set_waiters(p);
+
+    while (!winfo.check_cond())
     {
         if (interruptible && signal_is_pending())
         {
@@ -201,16 +225,11 @@ int __lock_page(page *p, bool interruptible) NO_THREAD_SAFETY_ANALYSIS
             break;
         }
 
-        page_set_waiters(p);
-
         spin_unlock_irqrestore(&wq->lock, flags);
-
         sched_yield();
 
         flags = spin_lock_irqsave(&wq->lock);
-
         __wait_queue_remove(wq, &token);
-
         set_current_state(state);
         // XXX: wait_queue_remove zeroes token.context. Why?
         token.context = &winfo;
@@ -223,6 +242,7 @@ int __lock_page(page *p, bool interruptible) NO_THREAD_SAFETY_ANALYSIS
     // Conditionally clear LOCK_CONTENTION if the queue is clear.
     // Note that this is not quite precise when we have multiple pages on a single queue.
     // Hopefully this is not common due to the hashtable.
+    // Could iterating through the queue once, looking for this page be a better option?
     if (__wait_queue_is_empty(wq))
         page_clear_waiters(p);
 
@@ -231,7 +251,7 @@ int __lock_page(page *p, bool interruptible) NO_THREAD_SAFETY_ANALYSIS
     return st;
 }
 
-void __unlock_page(struct page *p)
+void page_wake_bit(struct page *p, unsigned int bit)
 {
     // unlock_page, slow path (PAGE_FLAG_WAITERS).
     // Lets figure out what wait queue everyone is on, and try to wake em up
@@ -239,8 +259,10 @@ void __unlock_page(struct page *p)
     const auto hash = fnv_hash(&p, sizeof(page *));
     const auto index = hash & PAGE_WQ_MASK;
 
-    page_wait_info winfo;
-    winfo.page = p;
+    page_wake_info winfo;
+    winfo.winfo.page = p;
+    winfo.winfo.bit = bit;
+    winfo.saw_page = 0;
 
     struct wait_queue *wq = &wait_queues[index];
 
@@ -248,11 +270,10 @@ void __unlock_page(struct page *p)
 
     unsigned long waked = __wait_queue_wake(wq, 0, &winfo, ULONG_MAX);
 
-    if (waked == 0)
+    if (waked == 0 && !winfo.saw_page)
     {
-        // If we did not wake up anyone, clear WAITERS as it's spuriously set.
+        // If we did not see the page in the queue, clear WAITERS as it's spuriously set.
         // Other setters will be under the queue lock as well, so there's no race here.
-        // Note for future me: If we ever want to wait for arbitrary bits, this logic doesn't work.
         page_clear_waiters(p);
     }
 

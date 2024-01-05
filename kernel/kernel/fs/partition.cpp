@@ -9,7 +9,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include <onyx/block.h>
+#include <onyx/bio.h>
 #include <onyx/crc32.h>
 #include <onyx/fs_mount.h>
 #include <onyx/gpt.h>
@@ -111,24 +111,9 @@ static struct page *read_disk(struct blockdev *dev, sector_t sector, size_t coun
     if (!pages)
         return nullptr;
 
-    struct page_iov *vec = (page_iov *) calloc(nr_pages, sizeof(struct page_iov));
-    if (!vec)
-    {
-        st = -ENOMEM;
-        goto out;
-    }
-
     p = pages;
 
-    for (unsigned int i = 0; i < nr_pages; i++)
-    {
-        vec[i].page = p;
-        vec[i].length = PAGE_SIZE;
-        vec[i].page_off = 0;
-        p = p->next_un.next_allocation;
-    }
-
-    r = bio_alloc_and_init(GFP_KERNEL);
+    r = bio_alloc(GFP_KERNEL, nr_pages);
     if (!r)
     {
         st = -ENOMEM;
@@ -137,16 +122,21 @@ static struct page *read_disk(struct blockdev *dev, sector_t sector, size_t coun
 
     r->curr_vec_index = 0;
     r->flags = BIO_REQ_READ_OP;
-    r->nr_vecs = nr_pages;
     r->sector_number = sector;
-    r->vec = vec;
 
-    st = bio_submit_request(dev, r);
-    bio_free(r);
+    for (unsigned int i = 0; i < nr_pages; i++)
+    {
+        r->vec[i].page = p;
+        r->vec[i].length = PAGE_SIZE;
+        r->vec[i].page_off = 0;
+        p = p->next_un.next_allocation;
+    }
+
+    st = bio_submit_req_wait(dev, r);
+    bio_put(r);
 out:
     if (st < 0)
         free_pages(pages);
-    free(vec);
 
     if (st < 0)
         errno = -st;
@@ -195,12 +185,12 @@ int partition_setup_disk_gpt(struct blockdev *dev)
 {
     int st = 0;
     gpt_partition_entry_t *part_table = nullptr;
-    struct page_iov *vec = nullptr;
     size_t count = 0;
     struct page *p = nullptr;
     unsigned int nr_parts = 1;
     struct page *part_tab_pages = nullptr;
     struct bio_req *r = nullptr;
+    size_t nr_pages = 0;
 
     struct page *gpt_header_pages = read_disk(dev, 1, dev->sector_size);
     if (!gpt_header_pages)
@@ -234,8 +224,8 @@ int partition_setup_disk_gpt(struct blockdev *dev)
     }
 
     count = ALIGN_TO(gpt_header->num_partitions * gpt_header->part_entry_len, dev->sector_size);
-    part_tab_pages = alloc_pages(pages2order(vm_size_to_pages(count)),
-                                 PAGE_ALLOC_NO_ZERO | PAGE_ALLOC_CONTIGUOUS);
+    nr_pages = vm_size_to_pages(count);
+    part_tab_pages = alloc_pages(pages2order(nr_pages), PAGE_ALLOC_NO_ZERO | PAGE_ALLOC_CONTIGUOUS);
     if (!part_tab_pages)
     {
         st = -ENOMEM;
@@ -244,24 +234,9 @@ int partition_setup_disk_gpt(struct blockdev *dev)
 
     part_table = (gpt_partition_entry_t *) PAGE_TO_VIRT(part_tab_pages);
 
-    vec = (page_iov *) calloc(vm_size_to_pages(count), sizeof(struct page_iov));
-    if (!vec)
-    {
-        st = -ENOMEM;
-        goto out;
-    }
-
     p = part_tab_pages;
 
-    for (unsigned int i = 0; i < vm_size_to_pages(count); i++)
-    {
-        vec[i].page = p;
-        vec[i].length = PAGE_SIZE;
-        vec[i].page_off = 0;
-        p = p->next_un.next_allocation;
-    }
-
-    r = bio_alloc_and_init(GFP_KERNEL);
+    r = bio_alloc(GFP_KERNEL, nr_pages);
     if (!r)
     {
         st = -ENOMEM;
@@ -270,19 +245,25 @@ int partition_setup_disk_gpt(struct blockdev *dev)
 
     r->curr_vec_index = 0;
     r->flags = BIO_REQ_READ_OP;
-    r->nr_vecs = vm_size_to_pages(count);
     r->sector_number = 2;
-    r->vec = vec;
 
-    if (bio_submit_request(dev, r) < 0)
+    for (unsigned int i = 0; i < vm_size_to_pages(count); i++)
     {
-        bio_free(r);
+        r->vec[i].page = p;
+        r->vec[i].length = PAGE_SIZE;
+        r->vec[i].page_off = 0;
+        p = p->next_un.next_allocation;
+    }
+
+    if (bio_submit_req_wait(dev, r) < 0)
+    {
+        bio_put(r);
         printk("Error reading partition table\n");
         st = -EIO;
         goto out;
     }
 
-    bio_free(r);
+    bio_put(r);
 
     csum = gpt_header->partition_array_crc32;
 
@@ -314,7 +295,6 @@ out:
     free_pages(gpt_header_pages);
     if (part_tab_pages)
         free_pages(part_tab_pages);
-    free(vec);
     return st;
 }
 

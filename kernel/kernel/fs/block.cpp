@@ -13,12 +13,15 @@
 #include <string.h>
 
 #include <onyx/block.h>
+#include <onyx/block/io-queue.h>
 #include <onyx/buffer.h>
 #include <onyx/filemap.h>
+#include <onyx/init.h>
 #include <onyx/mm/slab.h>
 #include <onyx/page.h>
 #include <onyx/page_iov.h>
 #include <onyx/rwlock.h>
+#include <onyx/softirq.h>
 
 #include <uapi/fcntl.h>
 
@@ -208,6 +211,40 @@ int bio_submit_request(struct blockdev *dev, struct bio_req *req)
     return dev->submit_request(dev, req);
 }
 
+static void bio_submit_sync_end_io(struct bio_req *req)
+{
+    wake_address(req);
+}
+
+/**
+ * @brief Submit a bio_req and wait for it to end
+ *
+ * @param dev Block device
+ * @param req Request
+ * @return errno-like result of the bio_req
+ */
+int bio_submit_req_wait(struct blockdev *dev, struct bio_req *req)
+{
+    DCHECK(req->b_private == nullptr);
+    DCHECK(req->b_end_io == nullptr);
+
+    int st = bio_submit_request(dev, req);
+    if (st < 0)
+        return st;
+    req->b_end_io = bio_submit_sync_end_io;
+
+    wait_for(
+        req,
+        [](void *_req) -> bool {
+            struct bio_req *req_ = (struct bio_req *) _req;
+            return req_->flags & BIO_REQ_DONE;
+        },
+        WAIT_FOR_FOREVER, 0);
+    if (req->flags & (BIO_REQ_EIO | BIO_REQ_NOT_SUPP))
+        return -EIO;
+    return 0;
+}
+
 atomic<unsigned int> next_scsi_dev_num = 0;
 /**
  * @brief Create a SCSI-like(sdX) block device
@@ -260,23 +297,92 @@ flush::writeback_dev *bdev_get_wbdev(struct inode *ino)
     return dev;
 }
 
-static struct slab_cache *bio_cache;
+/* We provide two variants of the bio_req allocation. The first, common variant is bio_req + N
+ * inline page vecs. This has prior literature in the Windows Kernel (IRPs) and the Linux kernel.
+ * The second variant is the noinline bio_reqs, which simply allocate a struct bio_req, with nothing
+ * else added onto it. This is useful when we have surpassed BIO_MAX_INLINE_VECS, and need a
+ * separate heap allocation for it.
+ */
+static struct slab_cache *bio_cache_noinline;
+
+#define BIO_MAX_ORDER 4
+/* Provide 2^N inline vecs until we reach BIO_MAX_INLINE_VECS. For 8, we provide 1, 2, 4 and 8 */
+static struct slab_cache *bio_cache_inline[BIO_MAX_ORDER];
 
 __init static void bio_cache_init()
 {
-    bio_cache = kmem_cache_create("bio_req", sizeof(bio_req), 0, 0, nullptr);
-    CHECK(bio_cache != nullptr);
+    bio_cache_noinline = kmem_cache_create("bio_req_noinline", sizeof(bio_req), 0, 0, nullptr);
+    CHECK(bio_cache_noinline != nullptr);
+
+    for (int i = 0; i < BIO_MAX_ORDER; i++)
+    {
+        char name[30];
+        int inline_vecs = 1 << i;
+        sprintf(name, "bio_req-%d", inline_vecs);
+
+        char *slabname = strdup(name);
+        CHECK(slabname != nullptr);
+
+        bio_cache_inline[i] = kmem_cache_create(
+            slabname, sizeof(struct bio_req) + inline_vecs * sizeof(struct page_iov), 0, 0,
+            nullptr);
+        CHECK(bio_cache_inline[i] != nullptr);
+    }
+}
+
+static struct slab_cache *bio_pick_cache(size_t nr_vecs)
+{
+    DCHECK(nr_vecs != 0);
+    if (nr_vecs < 2)
+        return bio_cache_inline[0];
+    size_t order = ilog2(nr_vecs - 1) + 1;
+    DCHECK(order < BIO_MAX_ORDER);
+    return bio_cache_inline[order];
 }
 
 /**
  * @brief Allocate a bio_req
+ * The system will attempt to allocate a bio_req with an inline page_iov vector. If not possible, it
+ * will allocate them on the heap.
  *
  * @param gfp_flags GFP flags
- * @return The allocated, uninitialized bio_req
+ * @param nr_vecs Number of vectors
+ * @return The allocated, initialized bio_req
  */
-struct bio_req *bio_alloc(unsigned int gfp_flags)
+struct bio_req *bio_alloc(unsigned int gfp_flags, size_t nr_vectors)
 {
-    return (struct bio_req *) kmem_cache_alloc(bio_cache, gfp_flags);
+    struct bio_req *req;
+    struct slab_cache *cache;
+    bool no_inline_vecs = nr_vectors > BIO_MAX_INLINE_VECS;
+
+    if (no_inline_vecs)
+        cache = bio_cache_noinline;
+    else
+    {
+        cache = bio_pick_cache(nr_vectors);
+        DCHECK(cache->objsize >= sizeof(struct bio_req) + nr_vectors * sizeof(struct page_iov));
+    }
+
+    req = (struct bio_req *) kmem_cache_alloc(cache, gfp_flags);
+
+    if (!req)
+        return nullptr;
+    bio_init(req);
+
+    if (!no_inline_vecs)
+        req->vec = req->b_inline_vec;
+    else
+    {
+        req->vec = (struct page_iov *) kmalloc(sizeof(page_iov) * nr_vectors, gfp_flags);
+        if (!req->vec)
+        {
+            kmem_cache_free(cache, req);
+            return nullptr;
+        }
+    }
+
+    req->nr_vecs = nr_vectors;
+    return req;
 }
 
 /**
@@ -286,5 +392,98 @@ struct bio_req *bio_alloc(unsigned int gfp_flags)
  */
 void bio_free(struct bio_req *req)
 {
-    kmem_cache_free(bio_cache, req);
+    struct slab_cache *cache = bio_cache_noinline;
+    if (req->nr_vecs <= BIO_MAX_INLINE_VECS)
+        cache = bio_pick_cache(req->nr_vecs);
+    else
+        kfree(req->vec);
+    kmem_cache_free(cache, req);
+}
+
+/* Design note: We store io-queues with pending completed requests in per-cpu data. Those then
+ * are completed inside a softirq (SOFTIRQ_VECTOR_BLOCK). This lets the IRQ path be fast and
+ * latency free, and lets us do many more things inside b_end_io. Also lets us allocate and
+ * deallocate memory.
+ */
+struct block_pcpu_data
+{
+    /* We may not need a lock here... Think about it */
+    struct spinlock lock;
+    struct list_head pending_queues;
+    struct list_head pending_bios;
+    size_t completed_bios;
+    size_t completed_sq;
+};
+
+static PER_CPU_VAR(struct block_pcpu_data block_pcpu);
+
+static void block_pcpu_ctor(unsigned int cpu)
+{
+    struct block_pcpu_data *pcpu = get_per_cpu_ptr_any(block_pcpu, cpu);
+    spinlock_init(&pcpu->lock);
+    INIT_LIST_HEAD(&pcpu->pending_queues);
+    INIT_LIST_HEAD(&pcpu->pending_bios);
+}
+
+INIT_LEVEL_CORE_PERCPU_CTOR(block_pcpu_ctor);
+
+/**
+ * @brief Queue a pending io_queue to get looked at after the bio_reqs
+ * After completing bio requests, we want to see if we can start up the submission queues again.
+ * So we queue io_queues, and look at them after completing outstanding bio_reqs.
+ * @param queue Queue to complete
+ */
+void block_queue_pending_io_queue(io_queue *queue)
+{
+    struct block_pcpu_data *data = get_per_cpu_ptr(block_pcpu);
+    unsigned long flags = spin_lock_irqsave(&data->lock);
+    list_add_tail(&queue->pending_node_, &data->pending_queues);
+    spin_unlock_irqrestore(&data->lock, flags);
+    softirq_raise(SOFTIRQ_VECTOR_BLOCK);
+}
+
+/**
+ * @brief Queue a to-be-completed bio to get completed
+ *
+ * @param bio bio to complete
+ */
+void bio_queue_pending_bio(struct bio_req *bio)
+{
+    struct block_pcpu_data *data = get_per_cpu_ptr(block_pcpu);
+    unsigned long flags = spin_lock_irqsave(&data->lock);
+    list_add_tail(&bio->list_node, &data->pending_bios);
+    spin_unlock_irqrestore(&data->lock, flags);
+    softirq_raise(SOFTIRQ_VECTOR_BLOCK);
+}
+
+/**
+ * @brief Handle block IO completion (called from softirqs)
+ *
+ */
+void block_handle_completion()
+{
+    DEFINE_LIST(pending_queues);
+    DEFINE_LIST(pending_bios);
+    struct block_pcpu_data *data = get_per_cpu_ptr(block_pcpu);
+    unsigned long flags = spin_lock_irqsave(&data->lock);
+    list_move(&pending_queues, &data->pending_queues);
+    list_move(&pending_bios, &data->pending_bios);
+    spin_unlock_irqrestore(&data->lock, flags);
+
+    list_for_every_safe (&pending_bios)
+    {
+        struct bio_req *req = container_of(l, struct bio_req, list_node);
+        list_remove(&req->list_node);
+        req->b_queue->do_complete(req);
+        data->completed_bios++;
+    }
+
+    list_for_every_safe (&pending_queues)
+    {
+        io_queue *queue = list_head_cpp<io_queue>::self_from_list_head(l);
+        list_remove(&queue->pending_node_);
+        queue->clear_pending();
+        queue->restart_sq();
+        data->completed_sq++;
+    }
 }

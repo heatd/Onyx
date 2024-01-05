@@ -113,7 +113,9 @@ ssize_t tmpfs_readpage(struct page *page, size_t offset, struct inode *ino)
 }
 
 ssize_t tmpfs_writepage(struct page *page, size_t offset, struct inode *ino) REQUIRES(page)
+    RELEASE(page)
 {
+    unlock_page(page);
     return PAGE_SIZE;
 }
 
