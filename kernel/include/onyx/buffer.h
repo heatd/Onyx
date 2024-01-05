@@ -8,7 +8,7 @@
 #ifndef _ONYX_BUFFER_H
 #define _ONYX_BUFFER_H
 
-#include <onyx/block.h>
+#include <onyx/bdev_base_types.h>
 #include <onyx/list.h>
 #include <onyx/mm/flush.h>
 #include <onyx/page.h>
@@ -42,8 +42,8 @@ struct block_buf
     struct vm_object *assoc_buffers_obj;
 };
 
-#define BLOCKBUF_FLAG_DIRTY    (1 << 0)
-#define BLOCKBUF_FLAG_UNDER_WB (1 << 1)
+#define BLOCKBUF_FLAG_DIRTY     (1 << 0)
+#define BLOCKBUF_FLAG_WRITEBACK (1 << 1)
 
 static inline bool bb_test_and_set(struct block_buf *buf, unsigned int flag)
 {
@@ -67,6 +67,8 @@ static inline void bb_clear_flag(struct block_buf *buf, unsigned int flag)
 {
     __atomic_and_fetch(&buf->flags, ~flag, __ATOMIC_RELEASE);
 }
+
+bool page_has_writeback_bufs(struct page *p);
 
 #define MAX_BLOCK_SIZE PAGE_SIZE
 

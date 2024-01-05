@@ -16,7 +16,6 @@
 
 #include <onyx/acpi.h>
 #include <onyx/binfmt.h>
-#include <onyx/block.h>
 #include <onyx/bootmem.h>
 #include <onyx/clock.h>
 #include <onyx/cmdline.h>

@@ -372,31 +372,29 @@ long ahci_setup_prdt_bio(prdt_t *prdt, struct bio_req *r, size_t *size)
 
 bool ahci_do_command(struct ahci_port *ahci_port, struct ahci_command_ata *buf)
 {
-    struct bio_req *r = bio_alloc_and_init(GFP_KERNEL);
+    struct bio_req *r = bio_alloc(GFP_KERNEL, buf->nr_iov);
     if (!r)
         return false;
 
     r->bdev = ahci_port->bdev.get();
-    r->curr_vec_index = 0;
     r->flags = BIO_REQ_DEVICE_SPECIFIC;
     r->device_specific[0] = buf->cmd;
     r->sector_number = 0;
-    r->nr_vecs = buf->nr_iov;
-    r->vec = buf->iovec;
+    memcpy(r->vec, buf->iovec, buf->nr_iov * sizeof(struct page_iov));
 
     if (ahci_port->io_queue->submit_request(r) < 0)
         return false;
 
     int st = wait_for(
-        &r,
+        r,
         [](void *_req) -> bool {
-            struct bio_req *r = (struct bio_req *) _req;
-            return r->flags & (BIO_REQ_DONE | BIO_REQ_EIO);
+            struct bio_req *req = (struct bio_req *) _req;
+            return req->flags & (BIO_REQ_DONE | BIO_REQ_EIO);
         },
         WAIT_FOR_FOREVER, 0);
 
     bool ret = st == 0 && !(r->flags & BIO_REQ_EIO);
-    bio_free(r);
+    bio_put(r);
     return ret;
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2023 Pedro Falcato
+ * Copyright (c) 2020 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -9,10 +9,12 @@
 #include <errno.h>
 #include <stdio.h>
 
+#include <onyx/block.h>
 #include <onyx/buffer.h>
 #include <onyx/dev.h>
 #include <onyx/file.h>
 #include <onyx/fnv.h>
+#include <onyx/gen/trace_writeback.h>
 #include <onyx/mm/slab.h>
 #include <onyx/page.h>
 #include <onyx/pagecache.h>
@@ -211,9 +213,12 @@ void inode_release(struct inode *inode)
     inode->set_evicting();
 
     inode_wait_for_wb_and_remove(inode);
-
-    if (inode_is_cacheable(inode))
-        inode_sync(inode);
+    inode_sync(inode);
+    {
+        /* Clear dirty/writeback */
+        scoped_lock g{inode->i_lock};
+        inode->i_flags &= ~(I_DIRTYALL | I_WRITEBACK);
+    }
 
     /* Note that we require kill_inode to be called before close, at least for now,
      * because close may very well free resources that are needed to free the inode.
@@ -385,17 +390,9 @@ int sys_fsync(int fd)
     return 0;
 }
 
-void inode_add_hole_in_page(struct page *page, size_t page_offset, size_t end_offset)
+void inode_add_hole_in_page(struct page *page, size_t page_offset, size_t end_offset) REQUIRES(page)
 {
-#if 0
-	printk("adding hole in page, page offset %lu, end offset %lu\n", page_offset, end_offset);
-    struct page_cache_block *b = page->cache;
-    if (page->flags & PAGE_FLAG_DIRTY)
-    {
-        flush_sync_one(&b->fobj);
-    }
-#endif
-
+    page_wait_writeback(page);
     page_remove_block_buf(page, page_offset, end_offset);
     uint8_t *p = (uint8_t *) PAGE_TO_VIRT(page) + page_offset;
     memset(p, 0, end_offset - page_offset);
@@ -423,7 +420,9 @@ int inode_truncate_range(struct inode *inode, size_t start, size_t end)
 
         if (vmo_st == VMO_STATUS_OK)
         {
+            lock_page(page);
             inode_add_hole_in_page(page, start - start_aligned, PAGE_SIZE);
+            unlock_page(page);
             page_unref(page);
         }
     }
@@ -436,7 +435,9 @@ int inode_truncate_range(struct inode *inode, size_t start, size_t end)
         if (vmo_st == VMO_STATUS_OK)
         {
             /* TODO: I don't think the end here is correct for file hole cases, TOFIX */
+            lock_page(page);
             inode_add_hole_in_page(page, end - end_aligned, PAGE_SIZE);
+            unlock_page(page);
             page_unref(page);
         }
     }
@@ -527,4 +528,46 @@ void inode_wait_writeback(struct inode *ino)
             return !(ino_->i_flags & I_WRITEBACK);
         },
         WAIT_FOR_FOREVER, 0);
+}
+
+bool inode_no_dirty(struct inode *ino, unsigned int flags)
+{
+    if (!ino->i_sb)
+        return true;
+    if (!(ino->i_sb->s_flags & SB_FLAG_NODIRTY))
+        return false;
+
+    /* If NODIRTY, check if we are a block device, and that we are dirtying pages */
+    if (S_ISBLK(ino->i_mode))
+        return !(flags & I_DATADIRTY);
+    return true;
+}
+
+void inode_mark_dirty(struct inode *ino, unsigned int flags)
+{
+    /* FIXME: Ugh, leaky abstractions... */
+    if (inode_no_dirty(ino, flags))
+        return;
+
+    DCHECK(flags & I_DIRTYALL);
+
+    /* Already dirty */
+    if ((ino->i_flags & flags) == flags)
+        return;
+
+    auto dev = bdev_get_wbdev(ino);
+    dev->lock();
+    spin_lock(&ino->i_lock);
+
+    unsigned int old_flags = ino->i_flags;
+
+    ino->i_flags |= flags;
+    trace_wb_dirty_inode(ino->i_inode, ino->i_dev);
+
+    /* The writeback code will take care of redirtying if need be */
+    if (!(old_flags & (I_WRITEBACK | I_DIRTYALL)))
+        dev->add_inode(ino);
+
+    spin_unlock(&ino->i_lock);
+    dev->unlock();
 }

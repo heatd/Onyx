@@ -19,7 +19,6 @@
 #include <onyx/dev.h>
 #include <onyx/file.h>
 #include <onyx/fnv.h>
-#include <onyx/gen/trace_writeback.h>
 #include <onyx/limits.h>
 #include <onyx/log.h>
 #include <onyx/mm/flush.h>
@@ -733,48 +732,6 @@ int inode_init(struct inode *inode, bool is_cached)
     rwlock_init(&inode->i_rwlock);
 
     return 0;
-}
-
-bool inode_no_dirty(struct inode *ino, unsigned int flags)
-{
-    if (!ino->i_sb)
-        return true;
-    if (!(ino->i_sb->s_flags & SB_FLAG_NODIRTY))
-        return false;
-
-    /* If NODIRTY, check if we are a block device, and that we are dirtying pages */
-    if (S_ISBLK(ino->i_mode))
-        return !(flags & I_DATADIRTY);
-    return true;
-}
-
-void inode_mark_dirty(struct inode *ino, unsigned int flags)
-{
-    /* FIXME: Ugh, leaky abstractions... */
-    if (inode_no_dirty(ino, flags))
-        return;
-
-    DCHECK(flags & I_DIRTYALL);
-
-    /* Already dirty */
-    if ((ino->i_flags & flags) == flags)
-        return;
-
-    auto dev = bdev_get_wbdev(ino);
-    dev->lock();
-    spin_lock(&ino->i_lock);
-
-    unsigned int old_flags = ino->i_flags;
-
-    ino->i_flags |= flags;
-    trace_wb_dirty_inode(ino->i_inode, ino->i_dev);
-
-    /* The writeback code will take care of redirtying if need be */
-    if (!(old_flags & (I_WRITEBACK | I_DIRTYALL)))
-        dev->add_inode(ino);
-
-    spin_unlock(&ino->i_lock);
-    dev->unlock();
 }
 
 struct file *inode_to_file(struct inode *ino)

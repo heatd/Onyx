@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2022 Pedro Falcato
+ * Copyright (c) 2017 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -17,7 +17,7 @@
 #include <onyx/types.h>
 
 struct file;
-
+struct bio_req;
 struct blockdev;
 
 #define SB_FLAG_NODIRTY   (1 << 0)
@@ -49,6 +49,7 @@ void superblock_kill(struct superblock *sb);
 struct page_iov;
 
 int sb_read_bio(struct superblock *sb, struct page_iov *vec, size_t nr_vecs, size_t block_number);
-int sb_write_bio(struct superblock *sb, struct page_iov *vec, size_t nr_vecs, size_t block_number);
+int sb_write_bio(struct superblock *sb, struct page_iov *vec, size_t nr_vecs, size_t block_number,
+                 void (*endio)(struct bio_req *), void *b_private);
 
 #endif

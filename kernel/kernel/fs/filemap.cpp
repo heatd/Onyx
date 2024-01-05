@@ -387,16 +387,18 @@ void page_start_writeback(struct page *page, struct inode *inode)
     scoped_mutex g{obj->page_lock};
     obj->vm_pages.set_mark(page->pageoff, FILEMAP_MARK_WRITEBACK);
     page_set_writeback(page);
+    page_ref(page);
     inc_page_stat(page, NR_WRITEBACK);
 }
 
 void page_end_writeback(struct page *page, struct inode *inode) EXCLUDES(inode->i_pages->page_lock)
-    REQUIRES(page)
 {
     struct vm_object *obj = inode->i_pages;
-    scoped_mutex g{obj->page_lock};
+    // TODO: Race!
+    // scoped_mutex g{obj->page_lock};
     obj->vm_pages.clear_mark(page->pageoff, FILEMAP_MARK_WRITEBACK);
     page_clear_writeback(page);
+    page_unref(page);
     dec_page_stat(page, NR_WRITEBACK);
 }
 
@@ -414,17 +416,32 @@ static void page_clear_dirty(struct page *page) REQUIRES(page)
     dec_page_stat(page, NR_DIRTY);
 }
 
-int filemap_writepages(struct inode *inode, struct writepages_info *wpinfo)
+static void filemap_wait_writeback(struct inode *inode, unsigned long start, unsigned long end)
 {
+    struct page *page;
+    int found = 0;
+    while ((found = filemap_get_tagged_pages(inode, FILEMAP_MARK_WRITEBACK, start, end, &page, 1)) >
+           0)
+    {
+        const unsigned long pageoff = page->pageoff;
+        /* Start the next iteration from the following page */
+        start = pageoff + 1;
+        page_wait_writeback(page);
+        page_unref(page);
+        page = nullptr;
+    }
+}
+
+int filemap_writepages(struct inode *inode,
+                       struct writepages_info *wpinfo) NO_THREAD_SAFETY_ANALYSIS
+{
+    /* NO_THREAD_SAFETY_ANALYSIS: function pointers don't have the appropriate RELEASE(page) */
     const ino_t ino = inode->i_inode;
     const dev_t dev = inode->i_dev;
     TRACE_EVENT_DURATION(filemap_writepages, ino, dev);
     unsigned long start = wpinfo->start;
     struct page *page;
     int found = 0;
-
-    /* TODO: When writepage turns async, handle WRITEPAGES_SYNC. Until then, it's a noop. */
-    (void) wpinfo->flags;
 
     while ((found = filemap_get_tagged_pages(inode, FILEMAP_MARK_DIRTY, start, wpinfo->end, &page,
                                              1)) > 0)
@@ -434,13 +451,19 @@ int filemap_writepages(struct inode *inode, struct writepages_info *wpinfo)
         start = pageoff + 1;
 
         TRACE_EVENT_DURATION(filemap_writepage, ino, dev, pageoff);
-        /* TODO: Make writepages asynchronous! This is a huge performance PITA */
         lock_page(page);
+
+        if (page_flag_set(page, PAGE_FLAG_WRITEBACK))
+        {
+            unlock_page(page);
+            page_unref(page);
+            continue;
+        }
 
         page_clear_dirty(page);
 
         ssize_t st = inode->i_fops->writepage(page, pageoff << PAGE_SHIFT, inode);
-        unlock_page(page);
+
         if (st < 0)
         {
             /* Error! */
@@ -450,6 +473,12 @@ int filemap_writepages(struct inode *inode, struct writepages_info *wpinfo)
 
         page_unref(page);
         page = nullptr;
+    }
+
+    if (wpinfo->flags & WRITEPAGES_SYNC)
+    {
+        /* We have previously kicked off IO, now wait for writeback */
+        filemap_wait_writeback(inode, wpinfo->start, wpinfo->end);
     }
 
     return 0;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -12,12 +12,13 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include <onyx/bdev_base_types.h>
+#include <onyx/bio.h>
 #include <onyx/culstring.h>
 #include <onyx/dev.h>
 #include <onyx/list.h>
 #include <onyx/mm/flush.h>
 #include <onyx/page.h>
-#include <onyx/page_iov.h>
 #include <onyx/types.h>
 
 #include <onyx/slice.hpp>
@@ -26,68 +27,6 @@
 #define BLKDEV_PM_SLEEP    1
 #define BLKDEV_PM_SHUTDOWN 2
 #define BLKDEV_PM_RESET    3
-
-struct blockdev;
-
-using sector_t = uint64_t;
-
-#define BIO_REQ_OP_MASK         (0xff)
-#define BIO_REQ_READ_OP         0
-#define BIO_REQ_WRITE_OP        1
-#define BIO_REQ_DEVICE_SPECIFIC 2
-
-/* BIO flags start at bit 8 since bits 0 - 7 are reserved for operations */
-/* Note that we still have 24 bits for flags, which should be More Than Enough(tm) */
-#define BIO_REQ_DONE     (1 << 8)
-#define BIO_REQ_EIO      (1 << 9)
-#define BIO_REQ_TIMEOUT  (1 << 10)
-#define BIO_REQ_NOT_SUPP (1 << 11)
-
-struct bio_req
-{
-    uint32_t flags;
-    sector_t sector_number;
-    struct page_iov *vec;
-    size_t nr_vecs;
-    size_t curr_vec_index;
-    blockdev *bdev;
-    struct list_head list_node;
-    unsigned long device_specific[4];
-};
-
-/**
- * @brief Allocate a bio_req
- *
- * @param gfp_flags GFP flags
- * @return The allocated, uninitialized bio_req
- */
-struct bio_req *bio_alloc(unsigned int gfp_flags);
-
-/**
- * @brief Free a bio_req
- *
- * @param req Request to free
- */
-void bio_free(struct bio_req *req);
-
-static inline void bio_init(struct bio_req *req)
-{
-    *req = {};
-}
-
-/**
- * @brief Allocate a bio_req and initialize it
- *
- * @param gfp_flags GFP flags
- * @return The allocated, initialized bio_req
- */
-static inline struct bio_req *bio_alloc_and_init(unsigned int gfp_flags)
-{
-    struct bio_req *bio = bio_alloc(gfp_flags);
-    if (likely(bio))
-        bio_init(bio);
-    return bio;
-}
 
 using __blkflush = int (*)(struct blockdev *);
 using __blkpowermanagement = int (*)(int, struct blockdev *);
@@ -201,5 +140,26 @@ unique_ptr<blockdev> blkdev_create_scsi_like_dev();
 void partition_setup_disk(struct blockdev *dev);
 
 flush::writeback_dev *bdev_get_wbdev(struct inode *ino);
+
+/**
+ * @brief Handle block IO completion (called from softirqs)
+ *
+ */
+void block_handle_completion();
+
+/**
+ * @brief Queue a pending io_queue to get looked at after the bio_reqs
+ * After completing bio requests, we want to see if we can start up the submission queues again. So
+ * we queue io_queues, and look at them after completing outstanding bio_reqs.
+ * @param queue Queue to complete
+ */
+void block_queue_pending_io_queue(io_queue *queue);
+
+/**
+ * @brief Queue a to-be-completed bio to get completed
+ *
+ * @param bio bio to complete
+ */
+void bio_queue_pending_bio(struct bio_req *bio);
 
 #endif
