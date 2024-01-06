@@ -282,6 +282,24 @@ size_t socket_write(size_t offset, size_t len, void *buffer, struct file *file)
     return res;
 }
 
+ssize_t socket_write_iter(file *filp, size_t offset, iovec_iter *iter, unsigned int flags)
+{
+    (void) offset;
+    (void) flags;
+    socket *s = file_to_socket(filp);
+
+    msghdr msg;
+    msg.msg_control = nullptr;
+    msg.msg_controllen = 0;
+    msg.msg_flags = 0;
+    msg.msg_iov = iter->vec.data();
+    msg.msg_iovlen = iter->vec.size();
+    msg.msg_name = nullptr;
+    msg.msg_namelen = 0;
+
+    return s->sendmsg(&msg, fd_flags_to_msg_flags(filp));
+}
+
 size_t socket_read(size_t offset, size_t len, void *buffer, file *file)
 {
     socket *s = file_to_socket(file);
@@ -300,6 +318,24 @@ size_t socket_read(size_t offset, size_t len, void *buffer, file *file)
     msg.msg_namelen = 0;
 
     return s->recvmsg(&msg, fd_flags_to_msg_flags(file));
+}
+
+ssize_t socker_read_iter(file *filp, size_t offset, iovec_iter *iter, unsigned int flags)
+{
+    (void) offset;
+    (void) flags;
+    socket *s = file_to_socket(filp);
+
+    msghdr msg;
+    msg.msg_control = nullptr;
+    msg.msg_controllen = 0;
+    msg.msg_flags = 0;
+    msg.msg_iov = iter->vec.data();
+    msg.msg_iovlen = iter->vec.size();
+    msg.msg_name = nullptr;
+    msg.msg_namelen = 0;
+
+    return s->recvmsg(&msg, fd_flags_to_msg_flags(filp));
 }
 
 short socket::poll(void *poll_file, short events)
