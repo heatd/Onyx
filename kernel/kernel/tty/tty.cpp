@@ -334,6 +334,33 @@ ssize_t tty_consume_input(void *ubuf, size_t len, size_t buflen, struct tty *tty
     return to_read;
 }
 
+ssize_t tty_consume_input_iter(iovec_iter *iter, size_t buflen, struct tty *tty)
+{
+    bool consuming_from_eof = tty->input_buf[buflen - 1] == TTY_CC(tty, VEOF);
+
+    if (consuming_from_eof)
+        buflen--;
+
+    ssize_t copied = copy_to_iter(iter, tty->input_buf, buflen);
+    if (copied < 0)
+    {
+        return -EFAULT;
+    }
+
+    size_t to_remove_from_buf = copied;
+    if (consuming_from_eof)
+    {
+        /* Discord the EOF character too */
+        to_remove_from_buf++;
+    }
+
+    tty->input_buf_pos -= to_remove_from_buf;
+    memcpy(tty->input_buf, tty->input_buf + to_remove_from_buf,
+           sizeof(tty->input_buf) - to_remove_from_buf);
+
+    return copied;
+}
+
 size_t ttydevfs_read(size_t offset, size_t count, void *buffer, struct file *this_)
 {
     struct tty *tty = (struct tty *) this_->f_ino->i_helper;
@@ -345,6 +372,27 @@ size_t ttydevfs_read(size_t offset, size_t count, void *buffer, struct file *thi
 
     size_t len = __tty_has_input_available(tty);
     size_t read = tty_consume_input(buffer, count, len, tty);
+
+    mutex_unlock(&tty->input_lock);
+
+    return read;
+}
+
+ssize_t ttydevfs_read_iter(file *filp, size_t offset, iovec_iter *iter, unsigned int flags)
+{
+    (void) offset;
+    (void) flags;
+    struct tty *tty = (struct tty *) filp->f_ino->i_helper;
+
+    int st = tty_wait_for_line(filp->f_flags, tty);
+
+    if (st != 0)
+    {
+        return (size_t) st;
+    }
+
+    size_t len = __tty_has_input_available(tty);
+    size_t read = tty_consume_input_iter(iter, len, tty);
 
     mutex_unlock(&tty->input_lock);
 
@@ -653,6 +701,7 @@ const struct file_ops tty_fops = {
     .ioctl = tty_ioctl,
     .on_open = ttydev_open,
     .poll = tty_poll,
+    .read_iter = ttydevfs_read_iter
 };
 
 void tty_create_dev(tty *tty, const char *override_name)
