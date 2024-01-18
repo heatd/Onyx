@@ -103,46 +103,6 @@ int vm_object::insert_page_unlocked(unsigned long off, struct page *page)
     return 0;
 }
 
-/*
- * Populates a VMO
- */
-#include <onyx/timer.h>
-
-vmo_status_t vmo_populate(vm_object *vmo, size_t off, page **ppage)
-{
-    MUST_HOLD_MUTEX(&vmo->page_lock);
-    assert(vmo->ops != nullptr && vmo->ops->commit != nullptr);
-
-    // hrtime_t s = get_main_clock()->get_ns();
-    struct page *page;
-
-    vmo_status_t st = vmo->ops->commit(vmo, off, &page);
-
-    if (st != VMO_STATUS_OK)
-    {
-        return st;
-    }
-    else
-    {
-        assert(page != nullptr);
-    }
-
-    // hrtime_t end = get_main_clock()->get_ns();
-
-    if (int st0 = vmo->insert_page_unlocked(off, page); st0 < 0)
-    {
-        free_page(page);
-        return VMO_STATUS_OUT_OF_MEM;
-    }
-
-    if (vmo->flags & VMO_FLAG_LOCK_FUTURE_PAGES)
-        page->flags |= PAGE_FLAG_LOCKED;
-
-    *ppage = page;
-
-    return VMO_STATUS_OK;
-}
-
 /**
  * @brief Fetch a page from a VM object
  *
@@ -371,94 +331,6 @@ int vmo_resize(size_t new_size, vm_object *vmo)
     return 0;
 }
 
-vm_object *vmo_create_copy(vm_object *vmo)
-{
-    vm_object *copy = vmo_create(vmo->size, vmo->priv);
-
-    if (!copy)
-        return nullptr;
-
-    copy->flags = vmo->flags;
-    copy->ino = vmo->ino;
-    if (copy->ino)
-        inode_ref(copy->ino);
-    copy->ops = vmo->ops;
-    copy->type = vmo->type;
-
-    copy->flags &= ~(VMO_FLAG_LOCK_FUTURE_PAGES);
-
-    return copy;
-}
-
-/**
- * @brief Creates a new vmo and moves all pages in [split_point, split_point + hole_size] to it.
- *
- * @param split_point The start of the split point.
- * @param hole_size The size of the hole.
- * @param vmo The VMO to be split.
- * @return The new vmo populated with all pre-existing vmo pages in the range.
- */
-vm_object *vmo_split(size_t split_point, size_t hole_size, vm_object *vmo)
-{
-    vm_object *second_vmo = vmo_create_copy(vmo);
-
-    if (!second_vmo)
-        return nullptr;
-
-    second_vmo->size -= split_point + hole_size;
-    INIT_LIST_HEAD(&second_vmo->mappings);
-
-    unsigned long max = hole_size + split_point;
-
-    if (vmo_purge_pages(split_point, max, PURGE_SHOULD_FREE, nullptr, vmo) < 0 ||
-        vmo_purge_pages(max, vmo->size, 0, second_vmo, vmo) < 0)
-    {
-        vmo_destroy(second_vmo);
-        return nullptr;
-    }
-
-    vmo->size -= hole_size + second_vmo->size;
-
-    return second_vmo;
-}
-
-/**
- * @brief Does a brief sanity check on the VMO.
- * This is only present for debugging purposes and should not be called.
- *
- * @param vmo The VMO.
- */
-void vmo_sanity_check(vm_object *vmo)
-{
-    scoped_mutex g{vmo->page_lock};
-
-#if 0
-    struct rb_itor *it = rb_itor_new(vmo->pages);
-    assert(it != nullptr);
-    bool node_valid = rb_itor_next(it);
-    while (node_valid)
-    {
-        struct page *p = (page *) *rb_itor_datum(it);
-        size_t poff = (size_t) rb_itor_key(it);
-        if (poff > vmo->size)
-        {
-            printk("Bad vmobject: p->off > nr_pages << PAGE_SHIFT.\n");
-            printk("struct page: %p\n", p);
-            printk("Offset: %lx\n", poff);
-            printk("Size: %lx\n", vmo->size);
-            panic("bad vmobject");
-        }
-
-        if (p->ref == 0)
-        {
-            printk("Bad vmobject:: p->ref == 0.\n");
-            printk("struct page: %p\n", p);
-            panic("bad vmobject");
-        }
-    }
-#endif
-}
-
 /**
  * @brief Increments the reference counter on the VMO.
  *
@@ -504,49 +376,6 @@ void vmo_remove_mapping(vm_object *vmo, vm_area_struct *region)
 bool vmo_is_shared(vm_object *vmo)
 {
     return vmo->refcount != 1;
-}
-
-/**
- * @brief Does copy-on-write of a page that is present and just got written to.
- *
- * @param vmo The VMO.
- * @param off Offset of the page.
- * @return The struct page of the new copied-to page.
- */
-struct page *vmo_cow_on_page(vm_object *vmo, size_t off)
-{
-    scoped_mutex g{vmo->page_lock};
-
-    auto ex = vmo->vm_pages.get(off >> PAGE_SHIFT);
-    auto old_page = (struct page *) ex.unwrap();
-
-    if (old_page == nullptr)
-        panic("Fatal COW bug - page not found in VMO");
-
-    if (old_page->ref == 1)
-    {
-        page_ref(old_page);
-        // Great, we're the only ref, bail out and return this page
-        return old_page;
-    }
-
-    struct page *new_page = alloc_page(PAGE_ALLOC_NO_ZERO);
-    if (!new_page)
-        return nullptr;
-
-    copy_page_to_page(page_to_phys(new_page), page_to_phys(old_page));
-
-    // printf("COW'd page %p to vmo %p (refs %lu)\n", page_to_phys(new_page), vmo, vmo->refcount);
-
-    int st = vmo->vm_pages.store(off >> PAGE_SHIFT, (unsigned long) new_page);
-
-    DCHECK(st == 0);
-
-    page_pin(new_page);
-
-    page_unref(old_page);
-
-    return new_page;
 }
 
 /**

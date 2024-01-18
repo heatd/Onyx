@@ -234,24 +234,6 @@ bool vmo_unref(vm_object *vmo);
 int vmo_resize(size_t new_size, vm_object *vmo);
 
 /**
- * @brief Creates a new vmo and moves all pages in [split_point, split_point + hole_size] to it.
- *
- * @param split_point The start of the split point.
- * @param hole_size The size of the hole.
- * @param vmo The VMO to be split.
- * @return The new vmo populated with all pre-existing vmo pages in the range.
- */
-vm_object *vmo_split(size_t split_point, size_t hole_size, vm_object *vmo);
-
-/**
- * @brief Does a brief sanity check on the VMO.
- * This is only present for debugging purposes and should not be called.
- *
- * @param vmo The VMO.
- */
-void vmo_sanity_check(vm_object *vmo);
-
-/**
  * @brief Destroys the VMO, disregarding any refcount.
  * This should not be called arbitrarily and only in cases where it's certain
  * that we hold the only reference.
