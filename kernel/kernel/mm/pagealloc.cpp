@@ -921,8 +921,8 @@ void __reclaim_page(struct page *new_page)
 
 void page_node::free_page(struct page *p)
 {
+    CHECK(!(p->flags & PAGE_FLAG_WRITEBACK));
     unsigned long cpu_flags = spin_lock_irqsave(&node_lock);
-
     /* Reset the page */
     p->flags = 0;
     p->owner = nullptr;
