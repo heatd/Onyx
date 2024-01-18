@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Pedro Falcato
+ * Copyright (c) 2023 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the LGPL-2.0-only license.
  *
  * SPDX-License-Identifier: LGPL-2.0-only
@@ -41,6 +41,28 @@ void rcu_work();
         __atomic_thread_fence(__ATOMIC_RELEASE); \
         (ptr) = (val);                           \
     })
+
+#ifdef __cplusplus
+
+#include <onyx/utility.hpp>
+
+class auto_rcu_lock
+{
+public:
+    auto_rcu_lock()
+    {
+        rcu_read_lock();
+    }
+
+    ~auto_rcu_lock()
+    {
+        rcu_read_unlock();
+    }
+
+    CLASS_DISALLOW_COPY(auto_rcu_lock);
+    CLASS_DISALLOW_MOVE(auto_rcu_lock);
+};
+#endif
 
 #define __rcu
 
