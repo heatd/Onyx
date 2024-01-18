@@ -115,9 +115,8 @@ void writeback_dev::end_inode_writeback(struct inode *ino)
 
     if (ino->i_flags & I_DIRTYALL)
         add_inode(ino);
-
-    wake_address(ino);
     spin_unlock(&ino->i_lock);
+    wake_address(ino);
     unlock();
 }
 
