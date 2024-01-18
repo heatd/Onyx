@@ -127,7 +127,10 @@ void console_init();
 #define CSI_REP                    'b'
 #define CSI_DEVICE_ATTRIBUTES      'c'
 #define CSI_DEVICE_STATUS_REPORT   'n'
+#define CSI_SET_SCROLLING_REGION   'r'
 #define DEC_DECALN                 '8'
+#define ESC_SAVECUR                '7'
+#define ESC_RESTORECUR             '8'
 
 #define ANSI_SGR_RESET      0
 #define ANSI_SGR_BOLD       1
