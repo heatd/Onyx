@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 - 2022 Pedro Falcato
+ * Copyright (c) 2018 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -104,6 +104,7 @@ struct vterm
     unsigned int columns;
     unsigned int rows;
     unsigned int cursor_x, cursor_y;
+    unsigned int top, bottom; /* For the scrolling region */
     struct framebuffer *fb;
     struct console_cell *cells;
     struct color fg;
@@ -152,6 +153,9 @@ private:
     void do_generic_escape(char escape);
     void insert_lines(unsigned long nr);
     void repeat_last(unsigned long nr);
+    void do_ri();
+    void do_nl();
+    void do_cr();
 };
 
 void vterm_append_msg(struct vterm *vterm, struct vterm_message *msg) ACQUIRE(vterm->condvar_mutex)
@@ -267,12 +271,14 @@ void vterm_flush_all(struct vterm *vterm)
 
 void vterm_scroll(struct framebuffer *fb, struct vterm *vt)
 {
-    memcpy(vt->cells, vt->cells + vt->columns,
-           sizeof(struct console_cell) * (vt->rows - 1) * vt->columns);
+    unsigned int start = vt->columns * vt->top;
+    unsigned int dest = vt->columns * (vt->top + 1);
+    unsigned int end = vt->columns * (vt->bottom - 1);
+    memcpy(vt->cells + start, vt->cells + dest, sizeof(struct console_cell) * (end - start));
 
     for (unsigned int i = 0; i < vt->columns; i++)
     {
-        struct console_cell *c = &vt->cells[(vt->rows - 1) * vt->columns + i];
+        struct console_cell *c = &vt->cells[(vt->bottom - 1) * vt->columns + i];
         c->codepoint = ' ';
         c->bg = vt->bg;
         c->fg = vt->fg;
@@ -281,12 +287,14 @@ void vterm_scroll(struct framebuffer *fb, struct vterm *vt)
 
 void vterm_scroll_down(struct framebuffer *fb, struct vterm *vt)
 {
-    memmove(vt->cells + vt->columns, vt->cells,
-            sizeof(struct console_cell) * (vt->rows - 1) * vt->columns);
+    unsigned int start = vt->columns * (vt->top + 1);
+    unsigned int dest = vt->columns * vt->top;
+    unsigned int end = vt->columns * (vt->bottom - 1);
+    memmove(vt->cells + start, vt->cells + dest, sizeof(struct console_cell) * (end - start));
 
     for (unsigned int i = 0; i < vt->columns; i++)
     {
-        struct console_cell *c = &vt->cells[i];
+        struct console_cell *c = &vt->cells[dest + i];
         c->codepoint = ' ';
         c->bg = vt->bg;
         c->fg = vt->fg;
@@ -380,9 +388,10 @@ bool vterm_putc(utf32_t c, struct vterm *vt)
         vt->cursor_y++;
     }
 
-    if (vt->cursor_y == vt->rows)
+    if (vt->cursor_y == vt->bottom)
     {
-        vterm_scroll(fb, vt);
+        if (vt->cursor_y <= vt->bottom && vt->cursor_y >= vt->top)
+            vterm_scroll(fb, vt);
         vt->cursor_y--;
 
         return true;
@@ -863,21 +872,69 @@ void vterm::do_dec_command(char c)
     }
 }
 
+void vterm::do_ri()
+{
+    vterm_dirty_cell(cursor_x, cursor_y, this);
+    if (cursor_y == top)
+    {
+        vterm_scroll_down(fb, this);
+        vterm_flush_all(this);
+    }
+    else if (cursor_y)
+        cursor_y--;
+}
+
+void vterm::do_nl()
+{
+    vterm_dirty_cell(cursor_x, cursor_y, this);
+    cursor_y++;
+    if (cursor_y == bottom)
+    {
+        if (cursor_y <= bottom && cursor_y >= top)
+        {
+            vterm_scroll(fb, this);
+            vterm_flush_all(this);
+        }
+        cursor_y--;
+    }
+}
+
+void vterm::do_cr()
+{
+    vterm_dirty_cell(cursor_x, cursor_y, this);
+    cursor_x = 0;
+}
+
 void vterm::do_generic_escape(char escape)
 {
     switch (escape)
     {
         case 'D': {
-            vterm_ansi_adjust_cursor(ANSI_CURSOR_DOWN, 1, this);
+            /* 'D' = NL */
+            do_nl();
             break;
         }
         case 'M': {
-            vterm_ansi_adjust_cursor(ANSI_CURSOR_UP, 1, this);
+            /* 'M' == C1 RI (0x8d), move cursor up and scroll if needed */
+            do_ri();
             break;
         }
         case 'E': {
-            vterm_ansi_adjust_cursor(ANSI_CURSOR_DOWN, 1, this);
-            cursor_x = 0;
+            /* 'E' = CRNL */
+            do_cr();
+            do_nl();
+            break;
+        }
+
+        case ESC_SAVECUR: {
+            saved_x = cursor_x;
+            saved_y = cursor_y;
+            break;
+        }
+
+        case ESC_RESTORECUR: {
+            cursor_x = saved_x;
+            cursor_y = saved_y;
             break;
         }
     }
@@ -1194,6 +1251,25 @@ void vterm::do_csi_command(char escape)
             repeat_last(args[0]);
             break;
         }
+
+        case CSI_SET_SCROLLING_REGION: {
+            if (args[0] == 0)
+                args[0] = 1;
+            if (args[1] == 0)
+                args[1] = rows;
+            /* Check that bottom > top and that bottom <= rows */
+            if (args[1] > args[0] && args[1] <= rows)
+            {
+                top = args[0] - 1;
+                bottom = args[1];
+            }
+            break;
+        }
+
+        default: {
+            // printf("Unimplemented escape %c\n", escape);
+            break;
+        }
     }
 }
 
@@ -1373,6 +1449,8 @@ void vterm_init(struct tty *tty)
     struct font *font = get_font_data();
     vt->columns = fb->width / font->width;
     vt->rows = fb->height / font->height;
+    vt->top = 0;
+    vt->bottom = vt->rows;
     vt->fb = fb;
     vt->cells =
         (console_cell *) vmalloc(vm_size_to_pages(vt->columns * vt->rows * sizeof(*vt->cells)),
