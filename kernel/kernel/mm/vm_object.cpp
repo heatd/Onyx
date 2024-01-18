@@ -314,7 +314,11 @@ int vmo_purge_pages(size_t lower_bound, size_t upper_bound, unsigned int flags, 
 
         if (compare_function(lower_bound, upper_bound, off))
         {
+            lock_page(p);
+            page_wait_writeback(p);
+            p->owner = nullptr;
             cursor.store(0);
+            unlock_page(p);
 
             struct page *old_p = p;
 
