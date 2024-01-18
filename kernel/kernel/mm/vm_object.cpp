@@ -26,6 +26,7 @@ vm_object::vm_object()
     mutex_init(&page_lock);
     mutex_init(&mapping_lock);
     INIT_LIST_HEAD(&private_list);
+    spinlock_init(&private_lock);
 }
 
 /**
