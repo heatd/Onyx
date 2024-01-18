@@ -51,7 +51,6 @@ private:
         nvmecqe *cq_;
         volatile uint32_t *sq_tail_doorbell_;
         volatile uint32_t *cq_head_doorbell_;
-        spinlock lock_;
         uint32_t cq_head_{0};
         uint32_t sq_tail_{0};
         uint32_t sq_head_{0};
@@ -207,6 +206,15 @@ private:
          * @return 0 on sucess, negative error codes
          */
         int device_io_submit(bio_req *req) override;
+
+        /**
+         * @brief Complete a bio_req
+         * Called from softirq context. We need to override this function
+         * to free nvmecmd.
+         *
+         * @param req Request to comlete
+         */
+        void do_complete(bio_req *req) override;
     };
     page *identify_page_;
 

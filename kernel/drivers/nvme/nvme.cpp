@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 - 2023 Pedro Falcato
+ * Copyright (c) 2022 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -93,8 +93,6 @@ int nvme_device::nvme_queue::allocate_cid()
  */
 int nvme_device::nvme_queue::submit_command(nvmecmd *cmd)
 {
-    scoped_lock<spinlock, true> g{lock_};
-
     int cid = allocate_cid();
 
     if (cid < 0)
@@ -444,12 +442,14 @@ int nvme_device::submit_request(nvme_namespace *ns, struct bio_req *req)
             return -EOPNOTSUPP;
     }
 
-    nvmecmd cmd;
-    memset(&cmd, 0, sizeof(cmd));
-    cmd.cmd.cdw0.cdw0 = NVME_CMD_OPCODE(command) | NVME_CMD_FUSE_NORMAL | NVME_CMD_PSDT_PRP;
-    cmd.cmd.nsid = ns->nsid_;
-    cmd.cmd.cdw12 = 0;
-    cmd.req = req;
+    nvmecmd *cmd = (nvmecmd *) malloc(sizeof(*cmd));
+    if (!cmd)
+        return -ENOMEM;
+    memset(cmd, 0, sizeof(*cmd));
+    cmd->cmd.cdw0.cdw0 = NVME_CMD_OPCODE(command) | NVME_CMD_FUSE_NORMAL | NVME_CMD_PSDT_PRP;
+    cmd->cmd.nsid = ns->nsid_;
+    cmd->cmd.cdw12 = 0;
+    cmd->req = req;
 
     auto ex = setup_prp(req, ns);
 
@@ -462,47 +462,30 @@ int nvme_device::submit_request(nvme_namespace *ns, struct bio_req *req)
 
     const auto prp = ex.value();
 
-    cmd.cmd.dptr.prp[0] = prp->first;
+    cmd->cmd.dptr.prp[0] = prp->first;
 
     if (prp->nr_entries > 1)
-        cmd.cmd.dptr.prp[1] = (prp_entry_t) page_to_phys(prp->indirect_list[0]);
+        cmd->cmd.dptr.prp[1] = (prp_entry_t) page_to_phys(prp->indirect_list[0]);
 
     // Set up the starting LBA and number of sectors
-    cmd.cmd.cdw10 = (uint32_t) req->sector_number;
-    cmd.cmd.cdw11 = (uint32_t) (req->sector_number >> 32);
-    cmd.cmd.cdw12 = (uint16_t) prp->xfer_blocks - 1; // TODO: FUA
-    cmd.cmd.cdw13 = 0;
-    cmd.cmd.cdw14 = 0;
-
-    wait_queue wq;
-    init_wait_queue_head(&wq);
-    cmd.wq = &wq;
+    cmd->cmd.cdw10 = (uint32_t) req->sector_number;
+    cmd->cmd.cdw11 = (uint32_t) (req->sector_number >> 32);
+    cmd->cmd.cdw12 = (uint16_t) prp->xfer_blocks - 1; // TODO: FUA
+    cmd->cmd.cdw13 = 0;
+    cmd->cmd.cdw14 = 0;
 
     auto &queue = queues_[pick_io_queue(req)];
-    req->device_specific[0] = (unsigned long) &cmd;
+    req->device_specific[0] = (unsigned long) cmd;
     req->device_specific[1] = (unsigned long) prp;
 
+    bio_get(req);
     int st = queue->submit_request(req);
 
     if (st < 0)
     {
-        delete prp;
+        bio_put(req);
         return st;
     }
-
-    wait_for_event(&wq, cmd.has_response);
-
-    delete prp;
-
-    if (auto status = NVME_CQE_STATUS_CODE(cmd.response.dw3); status != 0)
-    {
-        printf("nvme%un%u: NVME_NVM_CMD_READ/WRITE: Status error %x\n", device_index_, ns->nsid_,
-               status);
-        req->flags |= BIO_REQ_EIO;
-        return -EIO;
-    }
-
-    req->flags |= BIO_REQ_DONE;
 
     return 0;
 }
@@ -803,7 +786,6 @@ nvme_device::nvme_queue::nvme_queue(nvme_device *dev, uint16_t index, unsigned i
                                     unsigned int cq_size)
     : io_queue{sq_size}, dev_{dev}, sq_size_{sq_size}, cq_size_{cq_size}, index_{index}
 {
-    spinlock_init(&lock_);
     const auto caps = dev->read_caps();
     sq_tail_doorbell_ = (volatile uint32_t *) (dev_->regs_.as_ptr() +
                                                NVME_REG_SQnTDBL(index_, NVME_CAP_DSTRD(caps)));
@@ -861,11 +843,12 @@ bool nvme_device::nvme_queue::handle_cq()
 
             memcpy(&command->response, cqe, sizeof(nvmecqe));
             command->has_response = true;
-            bio_req *next = nullptr;
 
-            if (command->req)
+            if (auto status = NVME_CQE_STATUS_CODE(cqe->dw3); status != 0)
             {
-                next = complete_request(command->req);
+                printf("nvme%u: NVME_NVM_CMD_READ/WRITE: Status error %x\n", dev_->device_index_,
+                       status);
+                command->req->flags |= BIO_REQ_EIO;
             }
 
             if (command->wq)
@@ -874,8 +857,8 @@ bool nvme_device::nvme_queue::handle_cq()
             queued_bitmap_.free_bit(cid);
             sq_head_ = NVME_CQE_SQHD(cqe->dw2);
 
-            if (next)
-                device_io_submit(next);
+            if (command->req)
+                complete_request2(command->req);
         }
         else
             break;
@@ -904,6 +887,24 @@ bool nvme_device::nvme_queue::handle_cq()
 int nvme_device::nvme_queue::device_io_submit(bio_req *req)
 {
     return submit_command((nvmecmd *) req->device_specific[0]);
+}
+
+/**
+ * @brief Complete a bio_req
+ * Called from softirq context. We need to override this function
+ * to free nvmecmd.
+ *
+ * @param req Request to comlete
+ */
+void nvme_device::nvme_queue::do_complete(bio_req *req)
+{
+    nvmecmd *cmd = (nvmecmd *) req->device_specific[0];
+    DCHECK(cmd != nullptr);
+    free(cmd);
+    prp_setup *setup = (prp_setup *) req->device_specific[1];
+    DCHECK(setup != nullptr);
+    delete setup;
+    bio_do_complete(req);
 }
 
 /**
