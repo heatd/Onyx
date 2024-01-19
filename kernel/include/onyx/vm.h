@@ -17,17 +17,19 @@
 #include <onyx/list.h>
 #include <onyx/mutex.h>
 #include <onyx/paging.h>
-#include <onyx/refcount.h>
 #include <onyx/scheduler.h>
 #include <onyx/spinlock.h>
 #include <onyx/types.h>
+
+#ifdef __cplusplus
+#include <onyx/mm_address_space.h>
+#endif
 
 #include <platform/page.h>
 #include <platform/vm.h>
 #include <platform/vm_layout.h>
 
-#include <onyx/memory.hpp>
-#include <onyx/utility.hpp>
+__BEGIN_CDECLS
 
 #if defined(__i386__)
 #define KERNEL_VIRTUAL_BASE 0xC0000000
@@ -136,13 +138,13 @@ struct vm_area_struct
 
     int vm_flags;
     int vm_maptype;
-    mm_address_space *vm_mm;
+    struct mm_address_space *vm_mm;
     const struct vm_operations *vm_ops;
     struct file *vm_file;
     off_t vm_offset;
     struct vm_object *vm_obj;
     struct amap *vm_amap;
-    list_head vm_objhead;
+    struct list_head vm_objhead;
 };
 
 static inline unsigned long vma_pages(const struct vm_area_struct *vma)
@@ -169,87 +171,7 @@ struct fault_info
 };
 
 struct vm_object;
-
-/**
- * @brief An mm_address_space represents an address space inside the kernel and stores
- * all kinds of relevant data on it, like the owner process, a tree of vm_area_structs, locks
- * various statistics, etc.
- *
- */
-struct mm_address_space : public refcountable
-{
-    /* Virtual address space WAVL tree */
-    struct bst_root region_tree;
-    unsigned long start{};
-    unsigned long end{};
-    mutex vm_lock{};
-
-    /* mmap(2) base */
-    void *mmap_base{};
-
-    /* Process' brk */
-    void *brk{};
-
-    size_t virtual_memory_size{};
-    size_t resident_set_size{};
-    size_t shared_set_size{};
-    size_t page_faults{};
-    size_t page_tables_size{};
-
-    arch_mm_address_space arch_mmu{};
-
-    // The active mask keeps track of where the address space is running.
-    // This serves as an optimisation when doing a TLB shootdown, as it lets us
-    // limit the shootdowns to CPUs where the address space is active instead of every CPU.
-    cpumask active_mask{};
-
-    spinlock page_table_lock{};
-
-    mm_address_space &operator=(mm_address_space &&as)
-    {
-        start = as.start;
-        end = as.end;
-        mmap_base = as.mmap_base;
-        brk = as.brk;
-        virtual_memory_size = as.virtual_memory_size;
-        resident_set_size = as.resident_set_size;
-        shared_set_size = as.shared_set_size;
-        page_faults = as.page_faults;
-        page_tables_size = as.page_tables_size;
-        arch_mmu = as.arch_mmu;
-        active_mask = cul::move(as.active_mask);
-        return *this;
-    }
-
-    constexpr mm_address_space()
-    {
-        spinlock_init(&page_table_lock);
-        bst_root_initialize(&region_tree);
-    }
-
-    /**
-     * @brief Creates a new standalone address space
-     *
-     * @return Ref guard to a mm_address_space, or a negative status code
-     */
-    static expected<ref_guard<mm_address_space>, int> create();
-
-    /**
-     * @brief Creates a new standalone address space by forking
-     *
-     * @return Ref guard to a mm_address_space, or a negative status code
-     */
-    static expected<ref_guard<mm_address_space>, int> fork();
-
-    /**
-     * @brief Destroys the mm_address_space object
-     *
-     */
-    ~mm_address_space() override;
-};
-
-#define increment_vm_stat(as, name, amount) __sync_add_and_fetch(&as->name, amount)
-#define decrement_vm_stat(as, name, amount) __sync_sub_and_fetch(&as->name, amount)
+struct mm_address_space;
 
 /**
  * @brief Initialises the early architecture dependent parts of the VM subsystem.
@@ -273,6 +195,8 @@ void vm_late_init();
  */
 struct page *vm_map_range(void *range, size_t pages, uint64_t flags);
 
+#ifdef __cplusplus
+
 /**
  * @brief Creates a new address space.
  *
@@ -280,7 +204,9 @@ struct page *vm_map_range(void *range, size_t pages, uint64_t flags);
  * @param original Original address space - defaults to the current one
  * @return 0 on success, negative on error.
  */
-int vm_clone_as(mm_address_space *addr_space, mm_address_space *original = nullptr);
+int vm_clone_as(struct mm_address_space *addr_space, struct mm_address_space *original = NULL);
+
+#endif
 
 /**
  * @brief Fork the current address space into a new address space.
@@ -296,7 +222,7 @@ int vm_fork_address_space(struct mm_address_space *addr_space);
  * @param aspace Address space to load
  * @param cpu CPU we're on
  */
-void vm_load_aspace(mm_address_space *aspace, unsigned int cpu = -1U);
+void vm_load_aspace(struct mm_address_space *aspace, unsigned int cpu);
 
 /**
  * @brief Sets the current address space, and returns the old one
@@ -304,7 +230,7 @@ void vm_load_aspace(mm_address_space *aspace, unsigned int cpu = -1U);
  * @param aspace Address space to set and load
  * @return The old address space
  */
-mm_address_space *vm_set_aspace(mm_address_space *aspace);
+struct mm_address_space *vm_set_aspace(struct mm_address_space *aspace);
 
 /**
  * @brief Changes permissions of a memory area.
@@ -313,7 +239,7 @@ mm_address_space *vm_set_aspace(mm_address_space *aspace);
  * @param pages Number of pages.
  * @param perms New permissions.
  */
-[[deprecated]] void vm_change_perms(void *range, size_t pages, int perms);
+__deprecated void vm_change_perms(void *range, size_t pages, int perms);
 
 /**
  * @brief Retrieves the fallback paging directories.
@@ -421,9 +347,6 @@ void *vm_gen_brk_base();
  */
 void vm_sysfs_init();
 
-extern "C"
-{
-
 /**
  * @brief Copies data to user space.
  *
@@ -456,7 +379,6 @@ ssize_t copy_from_user(void *data, const void *usr, size_t len);
  *         At the time of writing, the only possible error return is -EFAULT.
  */
 ssize_t user_memset(void *data, int val, size_t len);
-}
 
 /**
  * @brief Sets up backing for a newly-mmaped region.
@@ -515,7 +437,8 @@ void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags);
  *
  * @return NULL on error, virt on success.
  */
-void *__map_pages_to_vaddr(mm_address_space *as, void *virt, void *phys, size_t size, size_t flags);
+void *__map_pages_to_vaddr(struct mm_address_space *as, void *virt, void *phys, size_t size,
+                           size_t flags);
 
 /**
  * @brief Determines if a mapping is shared.
@@ -739,7 +662,7 @@ void get_kernel_limits(struct kernel_limits *l);
  * @param offset The offset of the page in the VMO.
  * @param vmo A pointer to its VMO.
  */
-void vm_wp_page_for_every_region(page *page, size_t offset, vm_object *vmo);
+void vm_wp_page_for_every_region(struct page *page, size_t offset, struct vm_object *vmo);
 
 /**
  * @brief Invalidates a memory range.
@@ -774,6 +697,7 @@ static inline unsigned long thread_change_addr_limit(unsigned long limit)
     return r;
 }
 
+#ifdef __cplusplus
 /**
  * @brief RAII wrapper for thread_change_addr_limit
  *
@@ -797,6 +721,8 @@ public:
     CLASS_DISALLOW_COPY(auto_addr_limit);
     CLASS_DISALLOW_MOVE(auto_addr_limit);
 };
+
+#endif
 
 #define GPP_READ  (1 << 0)
 #define GPP_WRITE (1 << 1)
@@ -857,31 +783,14 @@ struct page *vm_get_zero_page();
  *
  * @param region A pointer to the vm_area_struct.
  */
-void vm_make_anon(vm_area_struct *region);
-
-/**
- * @brief Calls the specified function \p func on every region of the address space \p as.
- *
- * @param as A reference to the target address space.
- * @param func The callback.
- */
-template <typename Callable>
-inline void vm_for_every_region(mm_address_space &as, Callable func)
-{
-    vm_area_struct *entry;
-    bst_for_every_entry(&as.region_tree, entry, vm_area_struct, vm_tree_node)
-    {
-        if (!func(entry))
-            break;
-    }
-}
+void vm_make_anon(struct vm_area_struct *region);
 
 /**
  * @brief Verifies the address space's accounting (RSS, PT Size)
  *
  * @param as The address space to verify.
  */
-void mmu_verify_address_space_accounting(mm_address_space *as);
+void mmu_verify_address_space_accounting(struct mm_address_space *as);
 
 struct sysfs_object;
 
@@ -907,5 +816,28 @@ void vmalloc_init(unsigned long start, unsigned long length);
  * @return List of pages
  */
 struct page *vmalloc_to_pages(void *ptr);
+
+__END_CDECLS
+
+#ifdef __cplusplus
+
+/**
+ * @brief Calls the specified function \p func on every region of the address space \p as.
+ *
+ * @param as A reference to the target address space.
+ * @param func The callback.
+ */
+template <typename Callable>
+inline void vm_for_every_region(mm_address_space &as, Callable func)
+{
+    vm_area_struct *entry;
+    bst_for_every_entry(&as.region_tree, entry, vm_area_struct, vm_tree_node)
+    {
+        if (!func(entry))
+            break;
+    }
+}
+
+#endif
 
 #endif

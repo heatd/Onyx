@@ -13,6 +13,10 @@
 #include <onyx/assert.h>
 #include <onyx/compiler.h>
 
+#ifndef __cplusplus
+#error "We (still) need C++ for radix"
+#endif
+
 #include <onyx/expected.hpp>
 
 namespace radix

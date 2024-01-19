@@ -241,7 +241,7 @@
 #define X86_CPU_MANUFACTURER_AMD     1
 #define X86_CPU_MANUFACTURER_UNKNOWN 3
 
-using cpu_t = struct cpu
+typedef struct cpu
 {
     char manuid[13];
     char brandstr[48];
@@ -254,7 +254,7 @@ using cpu_t = struct cpu
     unsigned long manufacturer;
     /* Add more as needed */
     uint64_t caps[8];
-};
+} cpu_t;
 
 __attribute__((hot)) bool x86_has_cap(int cap);
 bool x86_has_usable_tsc(void);

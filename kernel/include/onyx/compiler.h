@@ -166,4 +166,10 @@ inline void write_once(const Type& t, Type val)
 #define __nocov
 #endif
 
+#ifdef __cplusplus
+#define __deprecated [[deprecated]]
+#else
+#define __deprecated
+#endif
+
 #endif /* COMPILER_H */

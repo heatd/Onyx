@@ -104,8 +104,6 @@ int blkdev_flush(struct blockdev *dev);
  */
 int blkdev_power(int op, struct blockdev *dev);
 
-int bio_submit_request(struct blockdev *dev, struct bio_req *req);
-
 static inline bool block_get_device_letter_from_id(unsigned int id, cul::slice<char> buffer)
 {
     if (id > 26)

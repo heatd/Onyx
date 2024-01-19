@@ -33,7 +33,7 @@ void bio_free(struct bio_req *req);
 
 static inline void bio_init(struct bio_req *req)
 {
-    *req = {};
+    *req = (struct bio_req){};
     req->b_ref = 1;
 }
 
@@ -56,6 +56,8 @@ static inline void bio_put(struct bio_req *req)
  * @return errno-like result of the bio_req
  */
 int bio_submit_req_wait(struct blockdev *dev, struct bio_req *req);
+
+int bio_submit_request(struct blockdev *dev, struct bio_req *req);
 
 /**
  * @brief Complete a bio req

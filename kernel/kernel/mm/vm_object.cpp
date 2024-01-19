@@ -21,6 +21,7 @@
 #include <onyx/utility.hpp>
 
 vm_object::vm_object()
+    : type{VMO_ANON}, size{0}, flags{0}, priv{nullptr}, ops{nullptr}, ino{nullptr}, refcount{1}
 {
     INIT_LIST_HEAD(&mappings);
     mutex_init(&page_lock);

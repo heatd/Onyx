@@ -13,6 +13,8 @@
 #include <onyx/mm/flush.h>
 #include <onyx/page.h>
 
+__BEGIN_CDECLS
+
 /* block_buf represents a filesystem block(works kind of like a buffer_head in linux).
  * It keeps information like whether the block is dirty, the page it's stored on, the offset, etc.
  * It's supposed to be used by filesystems only, for metadata.
@@ -136,9 +138,11 @@ void block_buf_dirty_inode(struct block_buf *buf, struct inode *inode);
  */
 void block_buf_tear_down_assoc(struct vm_object *object);
 
-#ifdef __cplusplus
-
 void page_remove_block_buf(struct page *page, size_t offset, size_t end);
+
+__END_CDECLS
+
+#ifdef __cplusplus
 
 class auto_block_buf
 {

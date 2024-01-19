@@ -12,6 +12,8 @@
 
 #include <uapi/fcntl.h>
 
+#include <onyx/memory.hpp>
+
 // XXX(heat): lookup root seems to leak
 
 std::string_view get_token_from_path(path &path, bool no_consume_if_last)
