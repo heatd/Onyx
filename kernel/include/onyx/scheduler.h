@@ -29,7 +29,9 @@
 #define SCHED_PRIO_HIGH      30
 #define SCHED_PRIO_VERY_HIGH 39
 
-using thread_callback_t = void (*)(void *);
+__BEGIN_CDECLS
+
+typedef void (*thread_callback_t)(void *);
 struct process;
 struct mm_address_space;
 struct kcov_data;
@@ -37,7 +39,7 @@ struct kcov_data;
 #define THREAD_STRUCT_CANARY 0xcacacacafdfddead
 #define THREAD_DEAD_CANARY   0xdeadbeefbeefdead
 
-using thread_t = struct thread
+typedef struct thread
 {
     unsigned long refcount;
     unsigned long canary;
@@ -69,7 +71,7 @@ using thread_t = struct thread
     void *ctid;
 
     struct thread_cputime_info cputime_info;
-    mm_address_space *aspace{};
+    struct mm_address_space *aspace;
 
 #ifdef CONFIG_KCOV
     struct kcov_data *kcov_data{nullptr};
@@ -87,14 +89,13 @@ using thread_t = struct thread
         : refcount{}, canary{}, kernel_stack{}, kernel_stack_top{}, owner{}, entry{}, flags{}, id{},
           status{}, priority{}, cpu{}, next{}, prev_prio{}, next_prio{}, prev_wait{}, next_wait{},
           fpu_area{}, sem_prev{}, sem_next{}, lock{}, errno_val{}, thread_list_head{}, addr_limit{},
-          wait_list_head{}, ctid{}, cputime_info{}
+          wait_list_head{}, ctid{}, cputime_info{}, aspace{}
 #ifdef __x86_64__
           ,
           fs{}, gs{}
 #endif
     {
     }
-#endif
 
     /**
      * @brief Sets the address space for the thread
@@ -113,7 +114,9 @@ using thread_t = struct thread
     {
         return aspace;
     }
-};
+#endif
+
+} thread_t;
 
 #define THREAD_KERNEL        (1 << 0)
 #define THREAD_NEEDS_RESCHED (1 << 1)
@@ -178,7 +181,7 @@ void thread_remove_from_list(struct thread *t);
 
 struct thread *thread_get_from_tid(int tid);
 
-extern "C" unsigned long thread_get_addr_limit(void);
+unsigned long thread_get_addr_limit(void);
 
 void *sched_preempt_thread(void *current_stack);
 
@@ -247,5 +250,7 @@ int arch_transform_into_user_thread(thread *thread);
 }; // namespace native
 
 #endif
+
+__END_CDECLS
 
 #endif

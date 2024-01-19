@@ -14,7 +14,7 @@
 #include <onyx/lock_annotations.h>
 #include <onyx/spinlock.h>
 
-constexpr unsigned long ULONG_WIDTH = sizeof(unsigned long) * CHAR_BIT;
+#define ULONG_WIDTH (sizeof(unsigned long) * CHAR_BIT)
 
 #define RDWR_LOCK_WAITERS      (1UL << (ULONG_WIDTH - 2))
 #define RDWR_LOCK_WRITE        (1UL << (ULONG_WIDTH - 1))
@@ -38,33 +38,17 @@ constexpr unsigned long ULONG_WIDTH = sizeof(unsigned long) * CHAR_BIT;
 
 struct rwlock
 {
-    unsigned long lock{0};
+    unsigned long lock;
     struct list_head waiting_list;
     struct spinlock llock;
 
-    constexpr rwlock()
+#ifdef __cplusplus
+    constexpr rwlock() : lock{0}
     {
         spinlock_init(&llock);
         INIT_LIST_HEAD(&waiting_list);
     }
-};
-
-struct CAPABILITY("rwslock") rwslock
-{
-private:
-    unsigned long lock{0};
-
-public:
-    constexpr rwslock() = default;
-
-    void lock_read() ACQUIRE_SHARED(this);
-    void lock_write() ACQUIRE(this);
-
-    void unlock_read() RELEASE_SHARED(this);
-    void unlock_write() RELEASE(this);
-
-    int try_read() TRY_ACQUIRE_SHARED(0, this);
-    int try_write() TRY_ACQUIRE(0, this);
+#endif
 };
 
 int rw_lock_tryread(struct rwlock *lock);
@@ -83,6 +67,24 @@ static inline void rwlock_init(struct rwlock *lock)
 }
 
 #ifdef __cplusplus
+
+struct CAPABILITY("rwslock") rwslock
+{
+private:
+    unsigned long lock{0};
+
+public:
+    constexpr rwslock() = default;
+
+    void lock_read() ACQUIRE_SHARED(this);
+    void lock_write() ACQUIRE(this);
+
+    void unlock_read() RELEASE_SHARED(this);
+    void unlock_write() RELEASE(this);
+
+    int try_read() TRY_ACQUIRE_SHARED(0, this);
+    int try_write() TRY_ACQUIRE(0, this);
+};
 
 enum class rw_lock
 {

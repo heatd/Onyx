@@ -64,6 +64,7 @@ typedef struct
 
 struct mm_address_space;
 struct process;
+struct vm_area_struct;
 
 void paging_init(void);
 void paging_map_all_phys(void);
@@ -76,7 +77,7 @@ void *virtual2phys(void *ptr);
  * @param original The original address space
  * @return 0 on success, negative error codes
  */
-int paging_clone_as(mm_address_space *addr_space, mm_address_space *original);
+int paging_clone_as(struct mm_address_space *addr_space, struct mm_address_space *original);
 
 int paging_fork_tables(struct mm_address_space *addr_space);
 bool paging_change_perms(void *addr, int prot);

@@ -23,15 +23,14 @@ void ndelay(unsigned int ns);
 #define CLOCKEVENT_FLAG_POISON (1 << 3)
 
 struct timer;
+struct clockevent;
 
 void timer_cancel_event(struct clockevent *ev);
 
 struct clockevent
 {
     /* This lock protects the whole structure from concurrent access */
-    struct spinlock lock
-    {
-    };
+    struct spinlock lock;
     hrtime_t deadline;
     void *priv;
     unsigned int flags;
@@ -39,11 +38,18 @@ struct clockevent
     struct list_head list_node;
     struct timer *timer;
 
+#ifdef __cplusplus
+    clockevent() : deadline{0}, priv{nullptr}, flags{0}, callback{nullptr}, timer{nullptr}
+    {
+        spinlock_init(&lock);
+    }
+
     ~clockevent()
     {
         if (timer)
             timer_cancel_event(this);
     }
+#endif
 };
 
 #define TIMER_NEXT_EVENT_NOT_PENDING UINT64_MAX

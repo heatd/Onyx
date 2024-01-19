@@ -13,7 +13,12 @@
 
 struct arch_mm_address_space
 {
-    void *cr3{nullptr};
+    void *cr3;
+#ifdef __cplusplus
+    constexpr arch_mm_address_space() : cr3{nullptr}
+    {
+    }
+#endif
 };
 
 #define vm_get_pgd(arch_mmu)          (arch_mmu)->cr3

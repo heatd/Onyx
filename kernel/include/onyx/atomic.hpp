@@ -9,10 +9,6 @@
 
 #include <stddef.h>
 
-#include <onyx/conditional.h>
-#include <onyx/enable_if.h>
-#include <onyx/is_integral.h>
-
 #ifdef __GNUG__
 enum class mem_order : int
 {
@@ -38,16 +34,17 @@ enum class mem_order : int
 #endif
 
 template <typename type>
-class atomic_primitive
+class atomic
 {
 protected:
     type val;
 
 public:
-    constexpr atomic_primitive(type v) : val{v}
+    constexpr atomic(type v) : val{v}
     {
     }
-    constexpr atomic_primitive() : val{}
+
+    constexpr atomic() : val{}
     {
     }
 
@@ -133,47 +130,6 @@ public:
     {
         return __atomic_compare_exchange_n(&val, &expected, desired, false, (int) order,
                                            (int) order);
-    }
-};
-
-template <typename type>
-class atomic_complex_type
-{
-protected:
-    type val;
-
-public:
-    virtual type load(mem_order order = mem_order::seq_cst) = 0;
-
-    virtual void store(type t, mem_order order = mem_order::seq_cst) = 0;
-
-    virtual type add_fetch(type v, mem_order order = mem_order::seq_cst) = 0;
-    virtual type fetch_add(type v, mem_order order = mem_order::seq_cst) = 0;
-    virtual type sub_fetch(type v, mem_order order = mem_order::seq_cst) = 0;
-    virtual type fetch_sub(type v, mem_order order = mem_order::seq_cst) = 0;
-    virtual type and_fetch(type v, mem_order order = mem_order::seq_cst) = 0;
-    virtual type fetch_and(type v, mem_order order = mem_order::seq_cst) = 0;
-    virtual type or_fetch(type v, mem_order order = mem_order::seq_cst) = 0;
-    virtual type fetch_or(type v, mem_order order = mem_order::seq_cst) = 0;
-    virtual type xor_fetch(type v, mem_order order = mem_order::seq_cst) = 0;
-    virtual type fetch_xor(type v, mem_order order = mem_order::seq_cst) = 0;
-};
-
-template <typename type>
-class atomic : public conditional<is_integral_v<type>, atomic_primitive<type>,
-                                  atomic_complex_type<type>>::type
-{
-private:
-public:
-    constexpr atomic(type v)
-        : conditional<is_integral_v<type>, atomic_primitive<type>, atomic_complex_type<type>>::type(
-              v)
-    {
-    }
-    constexpr atomic()
-        : conditional<is_integral_v<type>, atomic_primitive<type>,
-                      atomic_complex_type<type>>::type()
-    {
     }
 
     /* pre increment */

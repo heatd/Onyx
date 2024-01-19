@@ -9,6 +9,8 @@
 #include <onyx/mm/slab.h>
 #include <onyx/page.h>
 
+#include <onyx/memory.hpp>
+
 __always_inline void amap_init(struct amap *amap)
 {
     new (amap) struct amap;

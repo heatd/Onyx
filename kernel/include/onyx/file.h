@@ -7,12 +7,15 @@
 #define _ONYX_FILE_H
 
 #include <errno.h>
-#include <uapi/fcntl.h>
 
 #include <onyx/panic.h>
 #include <onyx/vfs.h>
 
+#include <uapi/fcntl.h>
+
 struct ioctx;
+
+__BEGIN_CDECLS
 
 void file_do_cloexec(struct ioctx *ctx);
 int open_with_vnode(struct file *node, int flags);
@@ -31,7 +34,7 @@ void file_cache_init();
  *
  * @return Pointer to struct file, or nullptr
  */
-file *file_alloc();
+struct file *file_alloc();
 
 /**
  * @brief Free a struct file
@@ -43,7 +46,7 @@ void file_free(struct file *file);
 int allocate_file_descriptor_table(struct process *process);
 int copy_file_descriptors(struct process *process, struct ioctx *ctx);
 struct file *get_dirfd_file(int dirfd);
-void process_destroy_file_descriptors(process *process);
+void process_destroy_file_descriptors(struct process *process);
 
 #define OPEN_FLAGS_ACCESS_MODE(flags) (flags & 0x3)
 
@@ -63,6 +66,8 @@ static inline unsigned int open_to_file_access_flags(int open_flgs)
 }
 
 bool fd_may_access(struct file *f, unsigned int access);
+
+__END_CDECLS
 
 #ifdef __cplusplus
 

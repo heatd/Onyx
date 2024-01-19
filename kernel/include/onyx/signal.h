@@ -19,6 +19,8 @@
 #include <onyx/scoped_lock.h>
 #endif
 
+__BEGIN_CDECLS
+
 #define KERNEL_SIGRTMIN 32
 #define KERNEL_SIGRTMAX 64
 
@@ -287,10 +289,10 @@ public:
 struct process;
 struct thread;
 
-extern "C" bool signal_is_pending(void);
+bool signal_is_pending(void);
 int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigaction,
                          struct registers *regs);
-extern "C" void handle_signal(struct registers *regs);
+void handle_signal(struct registers *regs);
 
 #define SIGNAL_FORCE        (1 << 0)
 #define SIGNAL_IN_BROADCAST (1 << 1)
@@ -306,5 +308,7 @@ static inline bool signal_is_stopping(int sig)
 {
     return sig == SIGSTOP || sig == SIGTSTP || sig == SIGTTIN || sig == SIGTTOU;
 }
+
+__END_CDECLS
 
 #endif

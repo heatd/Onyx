@@ -16,7 +16,9 @@
 #include <onyx/list.h>
 #include <onyx/mutex.h>
 #include <onyx/page.h>
+#ifdef __cplusplus
 #include <onyx/radix.h>
+#endif
 
 enum vmo_type
 {
@@ -66,33 +68,41 @@ struct vm_object_ops
  */
 struct vm_object
 {
-    vmo_type type{VMO_ANON};
-    size_t size{0};
-    unsigned long flags{0};
+    enum vmo_type type;
+    size_t size;
+    unsigned long flags;
 
+    /* sigh... */
+#ifdef __cplusplus
     radix_tree vm_pages;
+#else
+    struct __dummy_radix
+    {
+        void *ptr;
+        int order;
+    } __dummy_vm_pages;
+#endif
 
     /* Points to (or is) private data that may be needed by the backer of this VM */
-    void *priv{nullptr};
+    void *priv;
 
-    const struct vm_object_ops *ops{nullptr};
+    const struct vm_object_ops *ops;
 
     /* VM objects hold pointers to their mapping(s) */
     struct list_head mappings;
 
-    struct inode *ino{nullptr};
+    struct inode *ino;
     struct mutex page_lock;
 
     struct mutex mapping_lock;
 
-    unsigned long refcount{1};
-    struct vm_object *forked_from{nullptr};
-
-    struct vm_object *prev_private{nullptr}, *next_private{nullptr};
+    unsigned long refcount;
 
     /* See fs/buffer.cpp for example usage of these struct members */
     struct spinlock private_lock;
     struct list_head private_list;
+
+#ifdef __cplusplus
 
     vm_object();
     ~vm_object();
@@ -135,7 +145,10 @@ struct vm_object
             return c((struct page *) entry, idx << PAGE_SHIFT);
         });
     }
+#endif
 };
+
+__BEGIN_CDECLS
 
 /**
  * @brief Punches a hole into the given vmo, using the optional parameter `func` as a free page
@@ -147,7 +160,7 @@ struct vm_object
  * @param func The function callback for freeing pages, IS OPTIONAL
  * @return 0 on success, negative error codes
  */
-int vmo_punch_range(vm_object *vmo, unsigned long start, unsigned long length);
+int vmo_punch_range(struct vm_object *vmo, unsigned long start, unsigned long length);
 
 #define VMO_TRUNCATE_DONT_PUNCH (1 << 0)
 
@@ -161,7 +174,7 @@ int vmo_punch_range(vm_object *vmo, unsigned long start, unsigned long length);
  *                                 the file to a smaller size.
  * @return 0 on success, negative error codes.
  */
-int vmo_truncate(vm_object *vmo, unsigned long size, unsigned long flags);
+int vmo_truncate(struct vm_object *vmo, unsigned long size, unsigned long flags);
 
 struct vm_area_struct;
 
@@ -171,7 +184,7 @@ struct vm_area_struct;
  * @param vmo The target VMO.
  * @param region The mapping's region.
  */
-void vmo_assign_mapping(vm_object *vmo, vm_area_struct *region);
+void vmo_assign_mapping(struct vm_object *vmo, struct vm_area_struct *region);
 
 /**
  * @brief Removes a mapping on the VMO.
@@ -179,7 +192,7 @@ void vmo_assign_mapping(vm_object *vmo, vm_area_struct *region);
  * @param vmo The target VMO.
  * @param region The mapping's region.
  */
-void vmo_remove_mapping(vm_object *vmo, vm_area_struct *region);
+void vmo_remove_mapping(struct vm_object *vmo, struct vm_area_struct *region);
 
 /**
  * @brief Creates a new VMO.
@@ -188,7 +201,7 @@ void vmo_remove_mapping(vm_object *vmo, vm_area_struct *region);
  * @param priv Pointer to private, optional.
  * @return A pointer to the new VMO, or NULL if out of memory.
  */
-vm_object *vmo_create(size_t size, void *priv);
+struct vm_object *vmo_create(size_t size, void *priv);
 
 /**
  * @brief Creates a new anonymously backed VMO.
@@ -197,7 +210,7 @@ vm_object *vmo_create(size_t size, void *priv);
  *
  * @return A pointer to the new VMO, or NULL if out of memory.
  */
-vm_object *vmo_create_phys(size_t size);
+struct vm_object *vmo_create_phys(size_t size);
 
 /**
  * @brief Fetch a page from a VM object
@@ -208,7 +221,7 @@ vm_object *vmo_create_phys(size_t size);
  * @param ppage Pointer to where the struct page will be placed
  * @return The vm_status_t of the request
  */
-vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page **ppage);
+vmo_status_t vmo_get(struct vm_object *vmo, size_t off, unsigned int flags, struct page **ppage);
 
 /**
  * @brief Prefaults a region of a vm object with anonymous pages.
@@ -220,7 +233,7 @@ vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page
  * @param offset The offset of the region to be prefaulted.
  * @return 0 on success, -1 on error.
  */
-int vmo_prefault(vm_object *vmo, size_t size, size_t offset);
+int vmo_prefault(struct vm_object *vmo, size_t size, size_t offset);
 
 /**
  * @brief Releases the vmo, and destroys it if it was the last reference.
@@ -228,10 +241,10 @@ int vmo_prefault(vm_object *vmo, size_t size, size_t offset);
  * @param vmo The VMO to be unrefed.
  * @return True if it was destroyed, false if it's still alive.
  */
-bool vmo_unref(vm_object *vmo);
+bool vmo_unref(struct vm_object *vmo);
 
 // TODO: This should be removed and replaced by vmo_truncate.
-int vmo_resize(size_t new_size, vm_object *vmo);
+int vmo_resize(size_t new_size, struct vm_object *vmo);
 
 /**
  * @brief Destroys the VMO, disregarding any refcount.
@@ -240,7 +253,7 @@ int vmo_resize(size_t new_size, vm_object *vmo);
  *
  * @param vmo The VMO to be destroyed.
  */
-void vmo_destroy(vm_object *vmo);
+void vmo_destroy(struct vm_object *vmo);
 
 /**
  * @brief Maps a page into the VMO.
@@ -250,14 +263,14 @@ void vmo_destroy(vm_object *vmo);
  * @param vmo The VMO.
  * @return 0 on success, -1 on failure to map.
  */
-int vmo_add_page(size_t off, page *p, vm_object *vmo);
+int vmo_add_page(size_t off, struct page *p, struct vm_object *vmo);
 
 /**
  * @brief Increments the reference counter on the VMO.
  *
  * @param vmo The VMO.
  */
-void vmo_ref(vm_object *vmo);
+void vmo_ref(struct vm_object *vmo);
 
 /**
  * @brief Determines whether or not the VMO is currently being shared.
@@ -265,6 +278,8 @@ void vmo_ref(vm_object *vmo);
  * @param vmo The VMO.
  * @return True if it is, false if not.
  */
-bool vmo_is_shared(vm_object *vmo);
+bool vmo_is_shared(struct vm_object *vmo);
+
+__END_CDECLS
 
 #endif

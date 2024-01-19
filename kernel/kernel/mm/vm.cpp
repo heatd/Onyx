@@ -3048,7 +3048,7 @@ mm_address_space *vm_set_aspace(mm_address_space *aspace)
         thread->set_aspace(aspace);
     }
 
-    vm_load_aspace(aspace);
+    vm_load_aspace(aspace, -1);
 
     return ret;
 }

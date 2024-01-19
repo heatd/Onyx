@@ -14,7 +14,16 @@
 #include <onyx/mm/kasan.h>
 #include <onyx/spinlock.h>
 
+#ifndef CONFIG_SMP_NR_CPUS
+#define CONFIG_SMP_NR_CPUS 64
+#endif
+
+#ifdef __cplusplus
 #include <onyx/atomic.hpp>
+#define ATOMIC_TYPE(type) atomic<type>
+#else
+#define ATOMIC_TYPE(type) type
+#endif
 
 #define SLAB_CACHE_PERCPU_MAGAZINE_SIZE 128
 
@@ -22,8 +31,10 @@ struct slab_cache_percpu_context
 {
     void *magazine[SLAB_CACHE_PERCPU_MAGAZINE_SIZE];
     int size;
-    atomic<int> touched;
+    ATOMIC_TYPE(int) touched;
 } __align_cache;
+
+#undef ATOMIC_TYPE
 
 struct slab_cache
 {
@@ -42,13 +53,15 @@ struct slab_cache
     size_t nfullslabs;
     struct list_head cache_list_node;
     unsigned int flags;
-    spinlock lock;
+    struct spinlock lock;
     void (*ctor)(void *);
     int mag_limit;
     // TODO: This is horrible. We need a way to allocate percpu memory,
     // and then either trim it or grow it when CPUs come online.
     struct slab_cache_percpu_context pcpu[CONFIG_SMP_NR_CPUS] __align_cache;
 };
+
+__BEGIN_CDECLS
 
 #define KMEM_CACHE_HWALIGN (1 << 0)
 #define KMEM_CACHE_VMALLOC (1 << 1)
@@ -142,5 +155,7 @@ void kmem_cache_print_slab_info_kasan(void *mem, struct slab *slab);
  * @param target_freep Target free pages
  */
 void slab_shrink_caches(unsigned long target_freep);
+
+__END_CDECLS
 
 #endif

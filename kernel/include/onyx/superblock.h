@@ -31,13 +31,15 @@ struct superblock
     void *s_helper;
     int (*flush_inode)(struct inode *inode, bool in_sync);
     int (*kill_inode)(struct inode *inode);
-    int (*statfs)(struct statfs *buf, superblock *sb);
+    int (*statfs)(struct statfs *buf, struct superblock *sb);
     unsigned int s_block_size;
     struct blockdev *s_bdev;
     dev_t s_devnr;
     unsigned long s_flags;
-    mutex s_rename_lock;
+    struct mutex s_rename_lock;
 };
+
+__BEGIN_CDECLS
 
 void superblock_init(struct superblock *sb);
 struct inode *superblock_find_inode(struct superblock *sb, ino_t inode);
@@ -51,5 +53,7 @@ struct page_iov;
 int sb_read_bio(struct superblock *sb, struct page_iov *vec, size_t nr_vecs, size_t block_number);
 int sb_write_bio(struct superblock *sb, struct page_iov *vec, size_t nr_vecs, size_t block_number,
                  void (*endio)(struct bio_req *), void *b_private);
+
+__END_CDECLS
 
 #endif

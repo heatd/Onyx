@@ -37,6 +37,9 @@
 struct inode;
 struct file;
 struct dentry;
+struct iovec_iter;
+
+__BEGIN_CDECLS
 
 typedef size_t (*__read)(size_t offset, size_t sizeofread, void *buffer, struct file *file);
 typedef size_t (*__write)(size_t offset, size_t sizeofwrite, void *buffer, struct file *file);
@@ -87,8 +90,10 @@ struct file_ops
                          size_t len);
     int (*fcntl)(struct file *filp, int cmd, unsigned long arg);
     void (*release)(struct file *filp);
-    ssize_t (*read_iter)(struct file *filp, size_t offset, iovec_iter *iter, unsigned int flags);
-    ssize_t (*write_iter)(struct file *filp, size_t offset, iovec_iter *iter, unsigned int flags);
+    ssize_t (*read_iter)(struct file *filp, size_t offset, struct iovec_iter *iter,
+                         unsigned int flags);
+    ssize_t (*write_iter)(struct file *filp, size_t offset, struct iovec_iter *iter,
+                          unsigned int flags);
     int (*writepages)(struct inode *ino, struct writepages_info *wpinfo);
     int (*fsyncdata)(struct inode *ino, struct writepages_info *wpinfo);
 };
@@ -101,7 +106,7 @@ struct getdents_ret
 
 int inode_init(struct inode *ino, bool is_reg);
 
-class pipe;
+struct pipe;
 
 #define INODE_FLAG_DONT_CACHE (1 << 0)
 #define INODE_FLAG_NO_SEEK    (1 << 2)
@@ -146,7 +151,7 @@ struct inode
     struct spinlock i_lock;
 
     // For FIFOs
-    pipe *i_pipe;
+    struct pipe *i_pipe;
 
 #ifdef __cplusplus
     int init(mode_t mode)
@@ -170,7 +175,7 @@ struct file
         void *private_data;
         struct rcu_head rcuhead;
     };
-    mutex f_seeklock;
+    struct mutex f_seeklock;
     unsigned int f_flags;
 };
 
@@ -229,7 +234,12 @@ char *readlink_vfs(struct file *file);
 
 struct file *get_fs_base(const char *file, struct file *rel_base);
 
+/* C does not support default args... */
+#ifdef __cplusplus
 void inode_mark_dirty(struct inode *ino, unsigned int flags = I_DIRTY);
+#else
+void inode_mark_dirty(struct inode *ino, unsigned int flags);
+#endif
 
 int inode_special_init(struct inode *ino);
 
@@ -241,31 +251,31 @@ int inode_special_init(struct inode *ino);
  * @param ino Pointer to the inode
  * @return True if special, else false
  */
-static inline bool inode_is_special(inode *ino)
+static inline bool inode_is_special(struct inode *ino)
 {
-    auto mode = ino->i_mode;
+    mode_t mode = ino->i_mode;
     if (S_ISREG(mode) || S_ISDIR(mode) || S_ISLNK(mode))
         return false;
     else
         return true;
 }
 
-__always_inline void inode_lock(inode *ino)
+__always_inline void inode_lock(struct inode *ino)
 {
     rw_lock_write(&ino->i_rwlock);
 }
 
-__always_inline void inode_unlock(inode *ino)
+__always_inline void inode_unlock(struct inode *ino)
 {
     rw_unlock_write(&ino->i_rwlock);
 }
 
-__always_inline void inode_lock_shared(inode *ino)
+__always_inline void inode_lock_shared(struct inode *ino)
 {
     rw_lock_read(&ino->i_rwlock);
 }
 
-__always_inline void inode_unlock_shared(inode *ino)
+__always_inline void inode_unlock_shared(struct inode *ino)
 {
     rw_unlock_read(&ino->i_rwlock);
 }
@@ -315,19 +325,19 @@ static inline void inode_set_size(struct inode *ino, size_t size)
 {
     ino->i_size = size;
     ino->i_pages->size = (size_t) page_align_up((void *) size);
-    inode_mark_dirty(ino);
+    inode_mark_dirty(ino, I_DIRTY);
 }
 
 static inline void inode_inc_nlink(struct inode *ino)
 {
     __atomic_add_fetch(&ino->i_nlink, 1, __ATOMIC_RELAXED);
-    inode_mark_dirty(ino);
+    inode_mark_dirty(ino, I_DIRTY);
 }
 
 static inline void inode_dec_nlink(struct inode *ino)
 {
     __atomic_sub_fetch(&ino->i_nlink, 1, __ATOMIC_RELAXED);
-    inode_mark_dirty(ino);
+    inode_mark_dirty(ino, I_DIRTY);
 }
 
 static inline nlink_t inode_get_nlink(struct inode *ino)
@@ -347,6 +357,7 @@ void inode_update_atime(struct inode *ino);
 void inode_update_ctime(struct inode *ino);
 void inode_update_mtime(struct inode *ino);
 
+#ifdef __cplusplus
 /**
  * @brief Getdirent helper
  *
@@ -354,7 +365,10 @@ void inode_update_mtime(struct inode *ino);
  * @param dentry Pointer to dentry
  * @param special_name Special name if the current dentry is "." or ".."
  */
-void put_dentry_to_dirent(struct dirent *buf, dentry *dentry, const char *special_name = nullptr);
+void put_dentry_to_dirent(struct dirent *buf, struct dentry *dentry,
+                          const char *special_name = nullptr);
+
+#endif
 
 /**
  * @brief Applies setuid and setgid permissions
@@ -362,7 +376,7 @@ void put_dentry_to_dirent(struct dirent *buf, dentry *dentry, const char *specia
  * @param f File
  * @return True if applied, else false
  */
-bool apply_sugid_permissions(file *f);
+bool apply_sugid_permissions(struct file *f);
 
 /**
  * @brief Trim the inode cache
@@ -381,7 +395,7 @@ int file_close(int fd);
  * @param flags Flags
  * @return Written bytes, or negative error code
  */
-ssize_t write_iter_vfs(struct file *filp, size_t off, iovec_iter *iter, unsigned int flags);
+ssize_t write_iter_vfs(struct file *filp, size_t off, struct iovec_iter *iter, unsigned int flags);
 
 /**
  * @brief Read from a file using iovec_iter
@@ -392,12 +406,14 @@ ssize_t write_iter_vfs(struct file *filp, size_t off, iovec_iter *iter, unsigned
  * @param flags Flags
  * @return Read bytes, or negative error code
  */
-ssize_t read_iter_vfs(struct file *filp, size_t off, iovec_iter *iter, unsigned int flags);
+ssize_t read_iter_vfs(struct file *filp, size_t off, struct iovec_iter *iter, unsigned int flags);
 
 int noop_prepare_write(struct inode *ino, struct page *page, size_t page_off, size_t offset,
                        size_t len);
 
 void inode_wait_writeback(struct inode *ino);
 bool inode_no_dirty(struct inode *ino, unsigned int flags);
+
+__END_CDECLS
 
 #endif

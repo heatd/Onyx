@@ -25,6 +25,7 @@
 #include <onyx/expected.hpp>
 #include <onyx/hashtable.hpp>
 #include <onyx/list.hpp>
+#include <onyx/memory.hpp>
 #include <onyx/string_view.hpp>
 
 static struct slab_cache *dentry_cache;

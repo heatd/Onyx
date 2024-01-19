@@ -83,7 +83,7 @@ struct pipe_buffer
     }
 };
 
-class pipe : public refcountable
+struct pipe : public refcountable
 {
 private:
     struct page *cached_page{nullptr};

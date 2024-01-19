@@ -16,6 +16,7 @@
 
 struct file;
 struct page;
+struct iovec_iter;
 
 /**
  * @brief Read from a generic file (using the page cache) using iovec_iter
@@ -26,7 +27,8 @@ struct page;
  * @param flags Flags
  * @return Read bytes, or negative error code
  */
-ssize_t filemap_read_iter(struct file *filp, size_t off, iovec_iter *iter, unsigned int flags);
+ssize_t filemap_read_iter(struct file *filp, size_t off, struct iovec_iter *iter,
+                          unsigned int flags);
 
 /**
  * @brief Write to a generic file (using the page cache) using iovec_iter
@@ -37,7 +39,8 @@ ssize_t filemap_read_iter(struct file *filp, size_t off, iovec_iter *iter, unsig
  * @param flags Flags
  * @return Written bytes, or negative error code
  */
-ssize_t filemap_write_iter(struct file *filp, size_t off, iovec_iter *iter, unsigned int flags);
+ssize_t filemap_write_iter(struct file *filp, size_t off, struct iovec_iter *iter,
+                           unsigned int flags);
 
 #define FILEMAP_MARK_DIRTY RA_MARK_0
 

@@ -20,6 +20,8 @@
 #include <onyx/vm.h>
 #include <onyx/wait.h>
 
+__BEGIN_CDECLS
+
 /* The default physical allocator is the buddy allocator */
 #if defined(__x86_64__) || defined(__riscv) || defined(__aarch64__)
 
@@ -259,7 +261,7 @@ __always_inline void page_clear_waiters(struct page *p)
 
 __always_inline bool try_lock_page(struct page *p) TRY_ACQUIRE(true, p)
 {
-    auto flags = __atomic_fetch_or(&p->flags, PAGE_FLAG_LOCKED, __ATOMIC_ACQUIRE);
+    unsigned long flags = __atomic_fetch_or(&p->flags, PAGE_FLAG_LOCKED, __ATOMIC_ACQUIRE);
 
     return !(flags & PAGE_FLAG_LOCKED);
 }
@@ -268,7 +270,7 @@ int page_wait_bit(struct page *p, unsigned int flags, bool interruptible);
 
 __always_inline void lock_page(struct page *p) ACQUIRE(p) NO_THREAD_SAFETY_ANALYSIS
 {
-    if (!try_lock_page(p)) [[unlikely]]
+    if (unlikely(!try_lock_page(p)))
         page_wait_bit(p, PAGE_FLAG_LOCKED, false);
 }
 
@@ -276,8 +278,8 @@ void page_wake_bit(struct page *p, unsigned int bit);
 
 __always_inline void unlock_page(struct page *p) RELEASE(p) NO_THREAD_SAFETY_ANALYSIS
 {
-    auto flags = __atomic_and_fetch(&p->flags, ~PAGE_FLAG_LOCKED, __ATOMIC_RELEASE);
-    if (flags & PAGE_FLAG_WAITERS) [[unlikely]]
+    unsigned long flags = __atomic_and_fetch(&p->flags, ~PAGE_FLAG_LOCKED, __ATOMIC_RELEASE);
+    if (unlikely(flags & PAGE_FLAG_WAITERS))
         page_wake_bit(p, PAGE_FLAG_LOCKED);
 }
 
@@ -312,7 +314,7 @@ __always_inline void page_set_writeback(struct page *p)
 __always_inline void page_clear_writeback(struct page *p)
 {
     unsigned long flags = __atomic_and_fetch(&p->flags, ~PAGE_FLAG_WRITEBACK, __ATOMIC_RELEASE);
-    if (flags & PAGE_FLAG_WAITERS) [[unlikely]]
+    if (unlikely(flags & PAGE_FLAG_WAITERS))
         page_wake_bit(p, PAGE_FLAG_WRITEBACK);
 }
 
@@ -326,6 +328,7 @@ void __reclaim_page(struct page *new_page);
 void reclaim_pages(unsigned long start, unsigned long end);
 void page_allocate_pagemap(unsigned long __maxpfn);
 
+#ifdef __cplusplus
 /**
  * @brief Unique_ptr<> like wrapper for pages
  *
@@ -431,10 +434,12 @@ static inline unique_page make_unique_page(unsigned long flags)
  * @param flags Flags passed to alloc_pages
  * @return A unique_page (may or may not be null)
  */
-static inline unique_page make_unique_page(unsigned long nr_pages, unsigned long flags)
+static inline unique_page make_unique_pages(unsigned long nr_pages, unsigned long flags)
 {
     return alloc_pages(nr_pages, flags);
 }
+
+#endif
 
 extern uint64_t kernel_phys_offset;
 /**
@@ -480,5 +485,7 @@ void inc_page_stat(struct page *page, enum page_stat stat);
 void dec_page_stat(struct page *page, enum page_stat stat);
 
 void page_accumulate_stats(unsigned long pages[PAGE_STATS_MAX]);
+
+__END_CDECLS
 
 #endif
