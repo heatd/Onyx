@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -14,6 +14,8 @@
 #include <time.h>
 
 #include <onyx/clock.h>
+#include <onyx/date.h>
+#include <onyx/kunit.h>
 #include <onyx/process.h>
 #include <onyx/timer.h>
 #include <onyx/vdso.h>
@@ -273,3 +275,60 @@ bool timeval_valid(const struct timeval *tv, bool may_be_negative)
 
     return true;
 }
+
+const int months[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+
+static bool is_leap_year(int year)
+{
+    if (year % 4)
+        return false;
+    // Every year divisible by 4 is a leap year, except when divisible by 100, except when divisible
+    // by 400.
+    return (year % 100) || ((year % 400) == 0);
+}
+
+u64 get_unix_time(const date_t *udate)
+{
+    u64 utime = 0;
+    for (int i = 1970; i < udate->year; i++)
+    {
+        if (is_leap_year(i))
+            utime += 366 * 24 * 60 * 60;
+        else
+            utime += 365 * 24 * 60 * 60;
+    }
+
+    // Calculate this year's POSIX time
+    int total_day = 0;
+    int month = udate->month - 1;
+    assert(month < 12);
+    for (int m = 0; m < month; m++)
+    {
+        if (m == 2 && is_leap_year(udate->year))
+            total_day++;
+        total_day += months[m];
+    }
+
+    total_day += udate->day;
+
+    utime += (total_day - 1) * 86400ULL;
+    utime += udate->hours * 60ULL * 60;
+    utime += udate->minutes * 60ULL;
+    utime += udate->seconds;
+
+    return utime;
+}
+
+#ifdef CONFIG_KUNIT
+
+TEST(date, is_leap_year_correct)
+{
+    EXPECT_TRUE(is_leap_year(1600));
+    EXPECT_TRUE(is_leap_year(2000));
+    EXPECT_FALSE(is_leap_year(1700));
+    EXPECT_FALSE(is_leap_year(1800));
+    EXPECT_FALSE(is_leap_year(1900));
+    EXPECT_FALSE(is_leap_year(2002));
+}
+
+#endif

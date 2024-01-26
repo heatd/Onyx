@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -12,6 +12,7 @@
 #include <onyx/acpi.h>
 #include <onyx/clock.h>
 #include <onyx/cpu.h>
+#include <onyx/date.h>
 #include <onyx/driver.h>
 #include <onyx/irq.h>
 #include <onyx/log.h>
@@ -80,57 +81,6 @@ int rtc_get_date_reg_early(uint8_t reg)
     }
     else
         return ret;
-}
-
-const int months[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-
-uint64_t get_unix_time(const date_t *const udate)
-{
-    uint64_t utime = 0;
-    for (int i = 1970; i < udate->year; i++)
-    {
-        if (i % 100 == 0)
-        {
-            utime += 365ULL * 24 * 60 * 60;
-        }
-        else if (i % 400 == 0)
-        {
-            utime += 366ULL * 24 * 60 * 60;
-        }
-        else if (i % 4 == 0)
-        {
-            utime += 366ULL * 24 * 60 * 60;
-        }
-        else
-        {
-            utime += 365ULL * 24 * 60 * 60;
-        }
-    }
-
-    // Calculate this year's POSIX time
-    int total_day = 0;
-    int month = udate->month - 1;
-    assert(month < 12);
-    for (int m = 0; m < month; m++)
-    {
-        total_day += months[m];
-    }
-    total_day += udate->day;
-    if (udate->year % 400 == 0)
-    {
-        total_day++;
-    }
-    else if (udate->year % 4 == 0)
-    {
-        total_day++;
-    }
-
-    utime += total_day * 86400ULL;
-    utime += udate->hours * 60ULL * 60;
-    utime += udate->minutes * 60ULL;
-    utime += udate->seconds;
-
-    return utime;
 }
 
 static date_t date;

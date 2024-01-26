@@ -24,17 +24,6 @@
 #define RTC_STATUS_REG_B  0xB
 #define RTC_STATUS_REG_C  0xC
 
-typedef struct date
-{
-    int seconds;
-    int minutes;
-    int hours;
-    int day;
-    int month;
-    int year;
-    time_t unixtime;
-} date_t;
-
 void early_boot_rtc(void);
 time_t get_posix_time(void);
 uint64_t get_posix_time_early(void);
