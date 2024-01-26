@@ -56,6 +56,18 @@ public:
     }
 };
 
+#define LIST_HEAD_CPP(type) list_head_cpp<type>
+
+#else
+
+struct list_head_c
+{
+    struct list_head __lh;
+    void *self;
+};
+
+#define LIST_HEAD_CPP(type) struct list_head_c
+
 #endif
 
 #define LIST_HEAD_INIT(lh) \

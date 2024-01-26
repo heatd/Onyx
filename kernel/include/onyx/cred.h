@@ -9,14 +9,13 @@
 #define _ONYX_CRED_H
 
 #include <string.h>
-#include <onyx/types.h>
 
-#include <onyx/groups.h>
 #include <onyx/rwlock.h>
+#include <onyx/types.h>
 
 struct creds
 {
-    struct rwslock lock;
+    RWSLOCK lock;
     uid_t ruid;
     uid_t euid;
     gid_t rgid;

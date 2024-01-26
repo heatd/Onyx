@@ -37,6 +37,8 @@
 #include <onyx/user.h>
 #include <onyx/utils.h>
 #include <onyx/vdso.h>
+#include <onyx/vector.h>
+#include <onyx/vfork_completion.h>
 #include <onyx/worker.h>
 
 ids *process_ids = nullptr;
@@ -101,6 +103,24 @@ process::process() : pgrp_node{this}, session_node{this}
     mutex_init(&condvar_mutex);
     spinlock_init(&ctx.fdlock);
     active_processes++;
+    refcount = 0;
+    flags = 0;
+    next = nullptr;
+    nr_threads = 0;
+    spinlock_init(&thread_list_lock);
+    pid_ = 0;
+    vdso = nullptr;
+    memset(sigtable, 0, sizeof(sigtable));
+    spinlock_init(&signal_lock);
+    signal_group_flags = 0;
+    exit_code = 0;
+    personality = 0;
+    parent = nullptr;
+    user_time = system_time = children_stime = children_utime = 0;
+    spinlock_init(&sub_queue_lock);
+    sub_queue = nullptr;
+    nr_acks = nr_subs = 0;
+    interp_base = image_base = nullptr;
 }
 
 process::~process()
@@ -133,7 +153,10 @@ bool process::set_cmdline(const std::string_view &path)
         last_slash++;
     }
 
-    name = std::string_view{cmd_line.cbegin() + last_slash, cmd_line.cend()};
+    std::string_view sv{cmd_line.cbegin() + last_slash, cmd_line.cend()};
+    size_t len = cul::max(sv.length(), (size_t) TASK_COMM_LEN - 1);
+    memcpy(comm, sv.data(), len);
+    comm[len] = '\0';
 
     return true;
 }
@@ -962,33 +985,12 @@ void process_kill_other_threads(void)
 
 int process_attach(process *tracer, process *tracee)
 {
-    /* You can't attach to yourself */
-    if (tracer == tracee)
-        return errno = ESRCH, -1;
-    /* TODO: Enforce process permissions */
-    if (!tracer->tracees.ptr)
-    {
-        tracer->tracees.ptr = tracee;
-    }
-    else
-    {
-        if (extrusive_list_add(&tracer->tracees, tracee) < 0)
-            return errno = ENOMEM, -1;
-    }
-    return 0;
+    return errno = ESRCH, -1;
 }
 
 /* Finds a pid that tracer is tracing */
 process *process_find_tracee(process *tracer, pid_t pid)
 {
-    extrusive_list_head *list = &tracer->tracees;
-    while (list && list->ptr)
-    {
-        process *tracee = (process *) list->ptr;
-        if (tracee->get_pid() == pid)
-            return tracee;
-        list = list->next;
-    }
     return nullptr;
 }
 
@@ -1145,7 +1147,7 @@ ssize_t process::query_get_strings(void *ubuf, ssize_t len, unsigned long what, 
     {
         case PROCESS_GET_NAME: {
             scoped_mutex g{name_lock};
-            ssize_t length = (ssize_t) name.length() + 1;
+            ssize_t length = (ssize_t) strlen(comm) + 1;
             *howmany = length;
 
             if (len < length)
@@ -1153,7 +1155,7 @@ ssize_t process::query_get_strings(void *ubuf, ssize_t len, unsigned long what, 
                 return -ENOSPC;
             }
 
-            if (copy_to_user(ubuf, name.data(), name.length()) < 0)
+            if (copy_to_user(ubuf, comm, length - 1) < 0)
             {
                 return -EFAULT;
             }
