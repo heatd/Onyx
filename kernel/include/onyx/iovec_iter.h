@@ -14,7 +14,7 @@
 
 #include <onyx/types.h>
 
-enum iovec_type : u8
+enum iovec_type
 {
     IOVEC_USER = 0,
     IOVEC_KERNEL
