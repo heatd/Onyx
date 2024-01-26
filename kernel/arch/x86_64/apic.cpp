@@ -21,6 +21,7 @@
 #include <onyx/registers.h>
 #include <onyx/task_switching.h>
 #include <onyx/timer.h>
+#include <onyx/vector.h>
 #include <onyx/vm.h>
 #include <onyx/x86/apic.h>
 #include <onyx/x86/idt.h>

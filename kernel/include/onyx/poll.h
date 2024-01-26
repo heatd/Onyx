@@ -34,6 +34,7 @@ private:
 public:
     constexpr poll_file_entry(poll_file *f, struct wait_queue *q) : f{f}, wait_token{}, queue{q}
     {
+        init_wq_token(&wait_token);
     }
 
     /* To keep vector happy */

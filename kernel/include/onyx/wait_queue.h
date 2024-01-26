@@ -27,28 +27,41 @@
 
 struct wait_queue_token
 {
-    struct thread *thread{nullptr};
-    void (*callback)(void *context, struct wait_queue_token *token){nullptr};
-    int (*wake)(struct wait_queue_token *token, void *context){nullptr};
-    void *context{nullptr};
+    struct thread *thread;
+    void (*callback)(void *context, struct wait_queue_token *token);
+    int (*wake)(struct wait_queue_token *token, void *context);
+    void *context;
     struct list_head token_node;
     unsigned short flags;
-    bool signaled{false};
-
-    constexpr wait_queue_token() : token_node{}
-    {
-    }
+    bool signaled;
 };
+
+// clang-format off
+#ifdef __cplusplus
+constexpr
+#endif
+static inline void init_wq_token(struct wait_queue_token *token)
+{
+    token->thread = NULL;
+    token->callback = NULL;
+    token->wake = NULL;
+    token->context = NULL;
+    token->signaled = false;
+}
+
+// clang-format on
 
 struct wait_queue
 {
     struct spinlock lock;
     struct list_head token_list;
 
+#ifdef __cplusplus
     constexpr wait_queue() : lock{}, token_list{}
     {
         INIT_LIST_HEAD(&token_list);
     }
+#endif
 };
 
 #define WQ_WAKE_ONE (1u << 0)
@@ -108,6 +121,7 @@ bool signal_is_pending();
         struct wait_queue_token token;                                \
         if (cond)                                                     \
             goto out_final;                                           \
+        init_wq_token(&token);                                        \
                                                                       \
         set_current_state(state);                                     \
         while (true)                                                  \
@@ -138,6 +152,7 @@ bool signal_is_pending();
         struct wait_queue_token token;                                  \
         if (cond)                                                       \
             goto out_final;                                             \
+        init_wq_token(&token);                                          \
                                                                         \
         set_current_state(state);                                       \
         while (true)                                                    \

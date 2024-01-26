@@ -7,6 +7,7 @@
 
 #include <onyx/compiler.h>
 #include <onyx/cred.h>
+#include <onyx/groups.h>
 #include <onyx/process.h>
 
 #include <uapi/cred.h>

@@ -7,9 +7,7 @@
 #ifndef _ONYX_PGRP_H
 #define _ONYX_PGRP_H
 
-#include <uapi/signal.h>
 #include <stdio.h>
-#include <onyx/types.h>
 
 #include <onyx/auto_resource.h>
 #include <onyx/fnv.h>
@@ -17,6 +15,9 @@
 #include <onyx/refcount.h>
 #include <onyx/scoped_lock.h>
 #include <onyx/spinlock.h>
+#include <onyx/types.h>
+
+#include <uapi/signal.h>
 
 enum pid_type
 {
@@ -27,7 +28,7 @@ enum pid_type
 
 struct process;
 
-class pid : public refcountable
+struct pid : public refcountable
 {
 private:
     pid_t pid_;

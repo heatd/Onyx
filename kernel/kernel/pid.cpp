@@ -38,7 +38,7 @@ pid::auto_pid pid::lookup(pid_t pid)
 
     list_for_every (list)
     {
-        auto pg = list_head_cpp<class pid>::self_from_list_head(l);
+        auto pg = list_head_cpp<struct pid>::self_from_list_head(l);
 
         /* If we're looking at a ghostly process group
          * that's about to get destroyed, ignore it. BOO!

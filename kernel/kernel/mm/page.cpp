@@ -206,6 +206,7 @@ int page_wait_bit(struct page *p, unsigned int bit, bool interruptible) NO_THREA
 
     wait_queue_token token;
 
+    init_wq_token(&token);
     token.thread = get_current_thread();
     token.context = &winfo;
     token.flags = 0;

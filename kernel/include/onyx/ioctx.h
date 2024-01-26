@@ -26,14 +26,22 @@ struct fd_table
     struct rcu_head rcuhead;
 };
 
+#ifdef __cplusplus
+// clang-format off
+#define CPP_DFLINIT {}
+// clang-format on
+#else
+#define CPP_DFLINIT
+#endif
+
 struct ioctx
 {
     /* Current working directory */
-    spinlock cwd_lock{};
-    file *cwd{};
-    spinlock fdlock{};
-    fd_table __rcu *table{};
-    mode_t umask{};
+    struct spinlock cwd_lock CPP_DFLINIT;
+    struct file *cwd CPP_DFLINIT;
+    struct spinlock fdlock CPP_DFLINIT;
+    struct fd_table __rcu *table CPP_DFLINIT;
+    mode_t umask CPP_DFLINIT;
 };
 
 #endif

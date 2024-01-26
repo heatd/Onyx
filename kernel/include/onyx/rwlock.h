@@ -86,6 +86,8 @@ public:
     int try_write() TRY_ACQUIRE(0, this);
 };
 
+#define RWSLOCK rwslock
+
 enum class rw_lock
 {
     read = 0,
@@ -200,6 +202,8 @@ public:
     }
 };
 
+#else
+#define RWSLOCK unsigned long
 #endif
 
 #endif

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -14,15 +14,12 @@
 #include <onyx/condvar.h>
 #include <onyx/cpu.h>
 #include <onyx/cred.h>
-#include <onyx/culstring.h>
 #include <onyx/elf.h>
-#include <onyx/handle.h>
 #include <onyx/ioctx.h>
 #include <onyx/itimer.h>
 #include <onyx/limits.h>
 #include <onyx/list.h>
 #include <onyx/mutex.h>
-#include <onyx/pid.h>
 #include <onyx/registers.h>
 #include <onyx/rwlock.h>
 #include <onyx/scheduler.h>
@@ -37,11 +34,21 @@
 
 #include <uapi/process.h>
 
+#ifdef __cplusplus
+#include <onyx/culstring.h>
+#include <onyx/handle.h>
+#include <onyx/pid.h>
+
 #include <onyx/memory.hpp>
 #include <onyx/string_view.hpp>
 
+#endif
+
+#define TASK_COMM_LEN 16
+
 struct proc_event_sub;
 struct tty;
+struct pid;
 
 static void process_get(struct process *process);
 static void process_put(struct process *process);
@@ -49,129 +56,131 @@ static void process_put(struct process *process);
 #define PROCESS_FORKED (1 << 0)
 #define PROCESS_SECURE (1 << 1)
 
-class vfork_completion
+struct vfork_completion;
+
+#ifdef __cplusplus
+// clang-format off
+#define CPP_DFLINIT {}
+// clang-format on
+#else
+#define CPP_DFLINIT
+#endif
+
+struct process
+#ifdef __cplusplus
+    : public onx::handle::handleable
+#endif
 {
-    wait_queue wq;
-    atomic<bool> done;
-    atomic<bool> may_exit;
-
-public:
-    vfork_completion()
-    {
-        init_wait_queue_head(&wq);
-        done = false;
-        may_exit = false;
-    }
-
-    int wait()
-    {
-        return wait_for_event(&wq, done);
-    }
-
-    void wake()
-    {
-        done = true;
-        wait_queue_wake_all(&wq);
-        may_exit = true;
-    }
-
-    void wait_to_exit()
-    {
-        while (!may_exit)
-            cpu_relax();
-    }
-};
-
-struct process : public onx::handle::handleable
-{
-    unsigned long refcount{};
+#ifndef __cplusplus
+    void *__vtable;
+#endif
+    unsigned long refcount;
 
     /* Program name points to the string in cmd_line */
-    cul::string cmd_line{};
-    std::string_view name{};
+#ifdef __cplusplus
+    cul::string cmd_line;
+    static_assert(sizeof(cmd_line) == 32);
+#else
+    char __cmd_line[32];
+#endif
+    char comm[TASK_COMM_LEN];
 
-    mutex name_lock{};
+    struct mutex name_lock;
 
-    unsigned long flags{};
+    unsigned long flags;
 
     /* The next process in the linked list */
-    process *next{};
+    struct process *next;
 
-    unsigned long nr_threads{};
+    unsigned long nr_threads;
 
-    list_head thread_list{};
-    spinlock thread_list_lock{};
+    struct list_head thread_list;
+    struct spinlock thread_list_lock;
 
+#ifdef __cplusplus
     ref_guard<mm_address_space> address_space{};
+#else
+    struct mm_address_space *address_space;
+#endif
 
     /* IO Context of the process */
-    ioctx ctx{};
+    struct ioctx ctx;
 
     /* Process ID */
-    pid_t pid_{};
+    pid_t pid_;
 
     /* Process' UID and GID */
-    creds cred{};
+    struct creds cred;
 
     /* Pointer to the VDSO */
-    void *vdso{};
+    void *vdso;
 
     /* Signal information */
-    spinlock signal_lock{};
-    k_sigaction sigtable[_NSIG]{};
-    unsigned int signal_group_flags{};
-    wait_queue wait_child_event{};
-    unsigned int exit_code{};
+    struct spinlock signal_lock;
+    struct k_sigaction sigtable[_NSIG];
+    unsigned int signal_group_flags;
+    struct wait_queue wait_child_event;
+    unsigned int exit_code;
 
     /* Process personality */
-    unsigned long personality{};
+    unsigned long personality;
 
     /* This process' parent */
-    struct process *parent{};
-
-    /* Linked list to the processes being traced */
-    extrusive_list_head tracees{};
+    struct process *parent;
 
     /* User time and system time consumed by the process */
-    hrtime_t user_time{};
-    hrtime_t system_time{};
-    hrtime_t children_utime{};
-    hrtime_t children_stime{};
+    hrtime_t user_time;
+    hrtime_t system_time;
+    hrtime_t children_utime;
+    hrtime_t children_stime;
 
     /* proc_event queue */
-    spinlock sub_queue_lock{};
-    struct proc_event_sub *sub_queue{};
-    unsigned long nr_subs{};
-    unsigned long nr_acks{};
+    struct spinlock sub_queue_lock;
+    struct proc_event_sub *sub_queue;
+    unsigned long nr_subs;
+    unsigned long nr_acks;
 
-    void *interp_base{};
-    void *image_base{};
+    void *interp_base;
+    void *image_base;
 
-    elf_info info{};
+    struct elf_info info CPP_DFLINIT;
 
-    cond syscall_cond{};
-    mutex condvar_mutex{};
+    struct cond syscall_cond CPP_DFLINIT;
+    struct mutex condvar_mutex CPP_DFLINIT;
 
-    spinlock children_lock{};
-    process *children{}, *prev_sibbling{}, *next_sibbling{};
+    struct spinlock children_lock CPP_DFLINIT;
+    struct process *children CPP_DFLINIT, *prev_sibbling CPP_DFLINIT, *next_sibbling CPP_DFLINIT;
 
-    itimer timers[ITIMER_COUNT]{};
+    struct itimer timers[ITIMER_COUNT] CPP_DFLINIT;
 
+#ifdef __cplusplus
     pid::auto_pid pid_struct{};
+#else
+    struct pid *pid_struct;
+#endif
 
-    spinlock pgrp_lock{};
-    list_head_cpp<process> pgrp_node;
+    struct spinlock pgrp_lock CPP_DFLINIT;
+    LIST_HEAD_CPP(process) pgrp_node;
+#ifdef __cplusplus
     pid::auto_pid process_group{};
-    list_head_cpp<process> session_node;
+#else
+    struct pid *process_group;
+#endif
+    LIST_HEAD_CPP(process) session_node;
+#ifdef __cplusplus
     pid::auto_pid session{};
+#else
+    struct pid *session;
+#endif
 
-    struct rlimit rlimits[RLIM_NLIMITS + 1]{};
-    rwslock rlimit_lock{};
+    struct rlimit rlimits[RLIM_NLIMITS + 1] CPP_DFLINIT;
+    RWSLOCK rlimit_lock CPP_DFLINIT;
 
-    tty *ctty{};
+    struct tty *ctty CPP_DFLINIT;
 
-    vfork_completion *vfork_compl{};
+    struct vfork_completion *vfork_compl CPP_DFLINIT;
 
+#ifdef __cplusplus
     process();
     virtual ~process();
 
@@ -272,10 +281,8 @@ private:
      */
     ssize_t query_vm_regions(void *ubuf, ssize_t len, unsigned long what, size_t *howmany,
                              void *arg);
+#endif
 };
-
-struct process *process_create(const std::string_view &cmd_line, struct ioctx *ctx,
-                               struct process *parent);
 
 struct thread *process_create_main_thread(struct process *proc, thread_callback_t callback,
                                           void *sp);
@@ -295,15 +302,6 @@ struct envarg_res
     int count;
     size_t total_size;
 };
-
-/**
- * @brief Copy environ/arguments from userspace to the kernel
- *
- * @param envarg NULL-terminated vector of char*
- * @param current_size Current size of args/environ (for ARG_MAX calculation)
- * @return Expected containing an envarg_res with the result, or negative error codes
- */
-expected<envarg_res, int> process_copy_envarg(const char **envarg, size_t current_size);
 
 static inline void process_get(struct process *process)
 {
@@ -328,12 +326,6 @@ __attribute__((pure)) static inline struct process *get_current_process()
 {
     thread_t *thread = get_current_thread();
     return (thread == NULL) ? NULL : (struct process *) thread->owner;
-}
-
-static inline mm_address_space *get_current_address_space()
-{
-    thread *t = get_current_thread();
-    return t ? t->get_aspace() : &kernel_address_space;
 }
 
 /**
@@ -382,6 +374,24 @@ void process_for_every_thread(process *p, Callable cb)
 }
 
 [[noreturn]] void process_exit_from_signal(int signum);
+
+struct process *process_create(const std::string_view &cmd_line, struct ioctx *ctx,
+                               struct process *parent);
+
+static inline mm_address_space *get_current_address_space()
+{
+    thread *t = get_current_thread();
+    return t ? t->get_aspace() : &kernel_address_space;
+}
+
+/**
+ * @brief Copy environ/arguments from userspace to the kernel
+ *
+ * @param envarg NULL-terminated vector of char*
+ * @param current_size Current size of args/environ (for ARG_MAX calculation)
+ * @return Expected containing an envarg_res with the result, or negative error codes
+ */
+expected<envarg_res, int> process_copy_envarg(const char **envarg, size_t current_size);
 
 #endif
 

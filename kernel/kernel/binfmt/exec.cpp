@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2023 Pedro Falcato
+ * Copyright (c) 2020 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -19,6 +19,8 @@
 #include <onyx/signal.h>
 #include <onyx/user.h>
 #include <onyx/vdso.h>
+#include <onyx/vector.h>
+#include <onyx/vfork_completion.h>
 
 void exec_state_destroy(struct exec_state *state);
 
