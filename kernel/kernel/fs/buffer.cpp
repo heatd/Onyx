@@ -474,3 +474,28 @@ void block_buf_tear_down_assoc(struct vm_object *object)
         list_remove(&bb->assoc_buffers_node);
     }
 }
+
+/**
+ * @brief Forget a block_buf's inode
+ * This will remove it from the assoc list
+ *
+ * @param buf Buffer
+ */
+void block_buf_forget_inode(struct block_buf *buf)
+{
+    struct vm_object *obj = buf->assoc_buffers_obj;
+    while (obj)
+    {
+        scoped_lock g{obj->private_lock};
+        /* I think this covers all races against sync_assoc... */
+        if (obj != buf->assoc_buffers_obj)
+        {
+            obj = buf->assoc_buffers_obj;
+            continue;
+        }
+
+        list_remove(&buf->assoc_buffers_node);
+        buf->assoc_buffers_obj = nullptr;
+        break;
+    }
+}
