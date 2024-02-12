@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 - 2023 Pedro Falcato
+ * Copyright (c) 2022 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -100,14 +100,19 @@ void io_queue::restart_sq()
 
     for (u32 i = 0; i < free_entries; i++)
     {
+        if (list_is_empty(&req_list_))
+            break;
+
         struct bio_req *request = container_of(list_first_element(&req_list_), bio_req, list_node);
         list_remove(&request->list_node);
+        used_entries_++;
         int st = device_io_submit(request);
         if (st < 0)
         {
             DCHECK(st == -EAGAIN);
             /* TODO: Try again later? Is this even a good idea? */
             list_add(&request->list_node, &req_list_);
+            used_entries_--;
             return;
         }
     }

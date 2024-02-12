@@ -227,11 +227,11 @@ int bio_submit_req_wait(struct blockdev *dev, struct bio_req *req)
 {
     DCHECK(req->b_private == nullptr);
     DCHECK(req->b_end_io == nullptr);
+    req->b_end_io = bio_submit_sync_end_io;
 
     int st = bio_submit_request(dev, req);
     if (st < 0)
         return st;
-    req->b_end_io = bio_submit_sync_end_io;
 
     wait_for(
         req,
