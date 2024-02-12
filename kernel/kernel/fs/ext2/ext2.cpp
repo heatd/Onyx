@@ -115,8 +115,6 @@ ssize_t ext2_writepage(page *page, size_t off, inode *ino) REQUIRES(page) RELEAS
 
     page_start_writeback(page, ino);
 
-    unlock_page(page);
-
     while (buf)
     {
         page_iov v[1];
@@ -134,11 +132,14 @@ ssize_t ext2_writepage(page *page, size_t off, inode *ino) REQUIRES(page) RELEAS
         {
             page_end_writeback(page, ino);
             sb->error("Error writing back page");
+            unlock_page(page);
             return -EIO;
         }
 
         buf = buf->next;
     }
+
+    unlock_page(page);
 
     return PAGE_SIZE;
 }
