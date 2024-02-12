@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2023 Pedro Falcato
+ * Copyright (c) 2017 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -19,10 +19,12 @@
 #include <onyx/copy.h>
 #include <onyx/init.h>
 #include <onyx/mm/reclaim.h>
+#include <onyx/modules.h>
 #include <onyx/page.h>
 #include <onyx/pagecache.h>
 #include <onyx/panic.h>
 #include <onyx/spinlock.h>
+#include <onyx/stackdepot.h>
 #include <onyx/utils.h>
 #include <onyx/vm.h>
 #include <onyx/wait_queue.h>
@@ -774,10 +776,62 @@ void free_pages(struct page *pages)
     }
 }
 
+static void stack_trace_print(u32 stackdepot_handle)
+{
+    if (stackdepot_handle == DEPOT_STACK_HANDLE_INVALID)
+    {
+        printk("<Information not available>\n");
+        return;
+    }
+
+    struct stacktrace *trace = stackdepot_from_handle(stackdepot_handle);
+    printk("\n");
+    for (unsigned long i = 0; i < trace->size; i++)
+    {
+        char sym[SYM_SYMBOLIZE_BUFSIZ];
+        int st = sym_symbolize((void *) trace->entries[i], cul::slice<char>{sym, sizeof(sym)});
+        if (st < 0)
+            break;
+        printk("\t%s\n", sym);
+    }
+
+    printk("\n");
+}
+
+#ifdef CONFIG_PAGE_OWNER
+static void dump_page_ownership(struct page *page)
+{
+    printk("page %p last locked by: ", page);
+    stack_trace_print(page->last_lock);
+    printk("        last unlocked by: ");
+    stack_trace_print(page->last_unlock);
+    printk("        last owned by: ");
+    stack_trace_print(page->last_owner);
+    printk("        last freed by: ");
+    stack_trace_print(page->last_free);
+}
+#endif
+
+static void debug_page(const char *message, struct page *page)
+{
+    panic_start();
+    printk("Assertion '%s' failed on page %p (pfn %lu)", message, page, page_to_pfn(page));
+#ifdef CONFIG_PAGE_OWNER
+    dump_page_ownership(page);
+#endif
+}
+
+#define PAGE_CHECK(cond, page) \
+    if (!(cond))               \
+    {                          \
+        debug_page(#cond, p);  \
+        panic(#cond);          \
+    }
+
 void free_page(struct page *p)
 {
     assert(p != NULL);
-    assert(p->ref != 0);
+    PAGE_CHECK(p->ref != 0, p);
 
     if (__page_unref(p) == 0)
     {
@@ -847,6 +901,10 @@ __always_inline void prepare_pages_after_alloc(struct page *page, unsigned int o
         page->next_un.next_allocation = nullptr;
         if (last)
             last->next_un.next_allocation = page;
+#ifdef CONFIG_PAGE_OWNER
+        if (!(flags & __GFP_NO_INSTRUMENT))
+            page_owner_owned(page);
+#endif
     }
 }
 
@@ -922,6 +980,10 @@ void __reclaim_page(struct page *new_page)
 void page_node::free_page(struct page *p)
 {
     CHECK(!(p->flags & PAGE_FLAG_WRITEBACK));
+#ifdef CONFIG_PAGE_OWNER
+    page_owner_freed(p);
+#endif
+
     unsigned long cpu_flags = spin_lock_irqsave(&node_lock);
     /* Reset the page */
     p->flags = 0;

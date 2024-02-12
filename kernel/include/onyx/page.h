@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -101,6 +101,9 @@ struct CAPABILITY("page") page
     };
 
     unsigned long priv;
+#ifdef CONFIG_PAGE_OWNER
+    u32 last_owner, last_lock, last_unlock, last_free;
+#endif
 };
 
 struct memstat;
@@ -157,6 +160,7 @@ struct page *page_add_page_late(void *paddr);
 #define __GFP_ATOMIC          (1 << 10)
 #define __GFP_IO              (1 << 11)
 #define __GFP_FS              (1 << 12)
+#define __GFP_NO_INSTRUMENT   (1 << 13)
 #define __GFP_MAY_RECLAIM     (__GFP_DIRECT_RECLAIM | __GFP_WAKE_PAGEDAEMON)
 #define GFP_KERNEL            (__GFP_MAY_RECLAIM | __GFP_IO)
 #define GFP_ATOMIC            (__GFP_ATOMIC | __GFP_WAKE_PAGEDAEMON)
@@ -259,9 +263,18 @@ __always_inline void page_clear_waiters(struct page *p)
     __atomic_fetch_and(&p->flags, ~PAGE_FLAG_WAITERS, __ATOMIC_RELEASE);
 }
 
+void page_owner_owned(struct page *p);
+void page_owner_freed(struct page *p);
+void page_owner_locked(struct page *p);
+void page_owner_unlocked(struct page *p);
+
 __always_inline bool try_lock_page(struct page *p) TRY_ACQUIRE(true, p)
 {
     unsigned long flags = __atomic_fetch_or(&p->flags, PAGE_FLAG_LOCKED, __ATOMIC_ACQUIRE);
+#ifdef CONFIG_PAGE_OWNER
+    if (!(flags & PAGE_FLAG_LOCKED))
+        page_owner_locked(p);
+#endif
 
     return !(flags & PAGE_FLAG_LOCKED);
 }
@@ -278,6 +291,9 @@ void page_wake_bit(struct page *p, unsigned int bit);
 
 __always_inline void unlock_page(struct page *p) RELEASE(p) NO_THREAD_SAFETY_ANALYSIS
 {
+#ifdef CONFIG_PAGE_OWNER
+    page_owner_unlocked(p);
+#endif
     unsigned long flags = __atomic_and_fetch(&p->flags, ~PAGE_FLAG_LOCKED, __ATOMIC_RELEASE);
     if (unlikely(flags & PAGE_FLAG_WAITERS))
         page_wake_bit(p, PAGE_FLAG_LOCKED);
