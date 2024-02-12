@@ -5,6 +5,8 @@ ifeq ($(CONFIG_KASAN), y)
 obj-y_NOKASAN+= kernel/mm/asan/asan.o kernel/mm/asan/quarantine.o
 endif
 
+mm-$(CONFIG_PAGE_OWNER)+= page_owner.o
+
 obj-y_NOKASAN+= kernel/mm/slab.o
 
 obj-y+= $(patsubst %, kernel/mm/%, $(mm-y))
