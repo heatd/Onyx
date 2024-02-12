@@ -132,6 +132,14 @@ void block_buf_sync_assoc(struct vm_object *object);
 void block_buf_dirty_inode(struct block_buf *buf, struct inode *inode);
 
 /**
+ * @brief Forget a block_buf's inode
+ * This will remove it from the assoc list
+ *
+ * @param buf Buffer
+ */
+void block_buf_forget_inode(struct block_buf *buf);
+
+/**
  * @brief Tear down a vm object's assoc list
  *
  * @param object Object to tear down
