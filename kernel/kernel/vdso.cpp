@@ -64,6 +64,8 @@ private:
         length = cul::align_up2(vdso_size, PAGE_SIZE);
         size_t vdso_pages = vm_size_to_pages(vdso_size);
 
+        vdso_file->f_ino->i_size = vdso_pages << PAGE_SHIFT;
+
         page -= KERNEL_VIRTUAL_BASE;
         page += get_kernel_phys_offset();
 

@@ -490,6 +490,7 @@ int filemap_private_fault(struct vm_pf_context *ctx)
     struct fault_info *info = ctx->info;
     struct page *page = nullptr;
     struct page *newp = nullptr;
+    struct inode *ino = region->vm_file->f_ino;
     int st = 0;
     unsigned long pgoff = (ctx->vpage - region->vm_start) >> PAGE_SHIFT;
     bool amap = true;
@@ -503,9 +504,15 @@ int filemap_private_fault(struct vm_pf_context *ctx)
 
     if (!page)
     {
+        unsigned long fileoff = (region->vm_offset >> PAGE_SHIFT) + pgoff;
         amap = false;
-        st = filemap_find_page(region->vm_file->f_ino, (region->vm_offset >> PAGE_SHIFT) + pgoff, 0,
-                               &page);
+        if (ino->i_size <= fileoff)
+        {
+            info->error_info = VM_SIGBUS;
+            return -EIO;
+        }
+
+        st = filemap_find_page(region->vm_file->f_ino, fileoff, 0, &page);
 
         if (st < 0)
             goto err;

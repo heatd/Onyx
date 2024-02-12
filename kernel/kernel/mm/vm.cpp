@@ -1569,10 +1569,15 @@ void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags)
 static int vm_pf_get_page_from_vmo(struct vm_pf_context *ctx)
 {
     struct vm_area_struct *entry = ctx->entry;
+    struct inode *ino = entry->vm_file->f_ino;
     size_t vmo_off = (ctx->vpage - entry->vm_start) + entry->vm_offset;
     DCHECK(entry->vm_file != nullptr);
 
-    return filemap_find_page(entry->vm_file->f_ino, vmo_off >> PAGE_SHIFT, 0, &ctx->page);
+    /* SIGBUS! */
+    if (vmo_off >= ino->i_size)
+        return -ENOENT;
+
+    return filemap_find_page(ino, vmo_off >> PAGE_SHIFT, 0, &ctx->page);
 }
 
 static int find_page_err_to_signal(int st)
