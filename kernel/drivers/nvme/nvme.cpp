@@ -94,14 +94,10 @@ int nvme_device::nvme_queue::allocate_cid()
 int nvme_device::nvme_queue::submit_command(nvmecmd *cmd)
 {
     int cid = allocate_cid();
-
-    if (cid < 0)
-        return -EAGAIN;
+    DCHECK(cid >= 0);
+    DCHECK(((sq_tail_ + 1) % sq_size_) != sq_head_);
 
     auto next_entry = sq_tail_;
-
-    if ((sq_tail_ + 1) % sq_size_ == sq_head_)
-        return -EAGAIN;
 
     sq_tail_ = (sq_tail_ + 1) % sq_size_;
     cmd->cmd.cdw0.cid = cid;
@@ -784,7 +780,7 @@ int nvme_device::identify_namespaces()
  */
 nvme_device::nvme_queue::nvme_queue(nvme_device *dev, uint16_t index, unsigned int sq_size,
                                     unsigned int cq_size)
-    : io_queue{sq_size}, dev_{dev}, sq_size_{sq_size}, cq_size_{cq_size}, index_{index}
+    : io_queue{sq_size - 1}, dev_{dev}, sq_size_{sq_size}, cq_size_{cq_size}, index_{index}
 {
     const auto caps = dev->read_caps();
     sq_tail_doorbell_ = (volatile uint32_t *) (dev_->regs_.as_ptr() +
@@ -858,7 +854,11 @@ bool nvme_device::nvme_queue::handle_cq()
             sq_head_ = NVME_CQE_SQHD(cqe->dw2);
 
             if (command->req)
-                complete_request2(command->req);
+            {
+                struct bio_req *breq = command->req;
+                DCHECK(breq->b_ref > 0);
+                complete_request2(breq);
+            }
         }
         else
             break;
@@ -905,6 +905,7 @@ void nvme_device::nvme_queue::do_complete(bio_req *req)
     DCHECK(setup != nullptr);
     delete setup;
     bio_do_complete(req);
+    restart_sq();
 }
 
 /**
