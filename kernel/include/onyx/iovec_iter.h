@@ -122,4 +122,13 @@ ssize_t copy_from_iter(struct iovec_iter *iter, void *buf, size_t len);
  */
 ssize_t copy_to_iter(struct iovec_iter *iter, const void *buf, size_t len);
 
+/**
+ * @brief Check if all buffers' addresses and lengths are aligned
+ *
+ * @param iter iovec iterateor
+ * @param alignment Alignment. Must be a power of 2
+ * @return True if aligned, else false
+ */
+bool iovec_is_aligned(struct iovec_iter *iter, unsigned long alignment);
+
 #endif
