@@ -215,6 +215,13 @@ private:
          * @param req Request to comlete
          */
         void do_complete(bio_req *req) override;
+
+        /**
+         * @brief Restart the submission queue by "pulling"
+         *
+         * @return Error code
+         */
+        int pull_sq() override;
     };
     page *identify_page_;
 
