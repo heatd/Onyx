@@ -23,9 +23,10 @@
 #include <time.h>
 #include <unistd.h>
 
-static int direct_io = 0;
+static int direct_io;
 static int do_fsync;
 static int do_fsync_dir;
+static int sync_io;
 
 static int prepare_file(const char *filename, size_t size)
 {
@@ -44,6 +45,9 @@ static int prepare_file(const char *filename, size_t size)
 
     if (direct_io)
         oflags |= O_DIRECT;
+
+    if (sync_io)
+        oflags |= O_SYNC;
 
     int fd = open(filename, oflags, 0666);
 
@@ -163,6 +167,7 @@ const static struct option options[] = {
     {"direct", no_argument, &direct_io, 1},
     {"fsync", no_argument, &do_fsync, 1},
     {"fsync-dir", no_argument, &do_fsync_dir, 1},
+    {"sync", no_argument, &sync_io, 1},
     {}};
 
 static int threads = 1;
@@ -192,6 +197,7 @@ void usage(void)
            "    --time TIME             Time to run the test for (default = 10 seconds)\n"
            "    --io-block-size BLKSIZE Set the block size for I/O operations\n"
            "    --direct                Use O_DIRECT to do direct I/O and bypass the page cache\n"
+           "    --sync                  Use O_SYNC to wait for IO to complete\n"
            "    --fsync                 Do fsync() after writing the file\n"
            "    --fsync-dir             Do fsync() on the directory after creating the file\n\n"
            "If anything went wrong, exits with exit status 1.\n"
