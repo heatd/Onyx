@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2023 Pedro Falcato
+ * Copyright (c) 2020 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -14,6 +14,8 @@
 #include <onyx/filemap.h>
 #include <onyx/mm/flush.h>
 #include <onyx/mm/slab.h>
+
+#include <uapi/fcntl.h>
 
 static struct slab_cache *buffer_cache = nullptr;
 
@@ -311,6 +313,110 @@ ssize_t bbuffer_readpage(struct page *p, size_t off, struct inode *ino)
     return PAGE_SIZE;
 }
 
+/* We can be fairly liberal in stack usage here. 128 * 8 = 1024, so we're still ways off of the
+ * stack limit. And the stack here is quite shallow, since sys_read -> read_iter_vfs ->
+ * buffer_directio.
+ */
+#define INLINE_GPP_BATCH 128
+
+static expected<struct bio_req *, int> iovec_to_bio(struct iovec_iter *iter, int op)
+{
+    /* We need total_bytes / PAGE_SIZE page_iovs. Unfortunately, we don't yet support page sg lists
+     * with more than a single page. :(
+     */
+    const auto nr_vecs = iter->bytes / PAGE_SIZE;
+    struct bio_req *req = bio_alloc(GFP_KERNEL, nr_vecs);
+    if (!req)
+        return unexpected{-ENOMEM};
+    bio_set_pinned(req);
+
+    const unsigned int gpp_flags = (op == DIRECT_IO_READ ? GPP_WRITE : 0) | GPP_USER;
+
+    size_t i = 0;
+
+    while (i < nr_vecs)
+    {
+        /* Fetch up to INLINE_GPP_BATCH pages at once. */
+        struct page *batch[INLINE_GPP_BATCH];
+        auto iov = iter->curiovec();
+        size_t to_fetch = cul::min(vm_size_to_pages(iov.iov_len), (unsigned long) INLINE_GPP_BATCH);
+        int result = get_phys_pages(iov.iov_base, gpp_flags, batch, to_fetch);
+        if (result & (GPP_ACCESS_FAULT | GPP_ACCESS_PFNMAP))
+        {
+            /* If we found a fault OR PFNMAP, return -EINVAL (for PFNMAP) or -EFAULT (for unmapped
+             * memory). */
+            bio_put(req);
+            return unexpected<int>{result & GPP_ACCESS_PFNMAP ? -EINVAL : -EFAULT};
+        }
+
+        DCHECK(i + to_fetch <= nr_vecs);
+        for (size_t j = 0; j < to_fetch; j++)
+        {
+            struct page_iov &piov = req->vec[i + j];
+            piov.page = batch[j];
+            piov.page_off = 0;
+            piov.length = PAGE_SIZE;
+
+            if (j == 0)
+            {
+                /* If we're at the start of the iov, correctly add the page_off */
+                piov.page_off = (unsigned long) iov.iov_base & (PAGE_SIZE - 1);
+            }
+            else if (j == to_fetch - 1)
+            {
+                /* If we're at the end, correctly set the length */
+                piov.length = iov.iov_len & (PAGE_SIZE - 1);
+                if (piov.length == 0)
+                    piov.length = PAGE_SIZE;
+            }
+        }
+
+        iter->advance(cul::min(iov.iov_len, (unsigned long) INLINE_GPP_BATCH << PAGE_SHIFT));
+        i += to_fetch;
+    }
+
+    DCHECK(iter->empty());
+
+    return req;
+}
+
+static ssize_t buffer_directio(struct file *filp, size_t off, iovec_iter *iter, unsigned int flags)
+{
+    struct inode *ino = filp->f_ino;
+    blockdev *blkdev = reinterpret_cast<blockdev *>(ino->i_helper);
+    DCHECK(blkdev != nullptr);
+    int st;
+    size_t to_read = iter->bytes;
+
+    if (!iovec_is_aligned(iter, blkdev->sector_size))
+        return -EINVAL;
+
+    if (off & (blkdev->sector_size - 1))
+        return -EINVAL;
+
+    auto ex = iovec_to_bio(iter, DIRECT_IO_OP(flags));
+    if (ex.has_error())
+        return ex.error();
+
+    struct bio_req *bio = ex.value();
+    bio->sector_number = off / blkdev->sector_size;
+    bio->flags |= (DIRECT_IO_OP(flags) == DIRECT_IO_READ ? BIO_REQ_READ_OP : BIO_REQ_WRITE_OP);
+    /* If O_SYNC, we need to wait for the request to finish. */
+    if (filp->f_flags & O_SYNC)
+        st = bio_submit_req_wait(blkdev, bio);
+    else
+        st = bio_submit_request(blkdev, bio);
+
+    if (bio->flags & BIO_REQ_EIO)
+        st = -EIO;
+
+    bio_put(bio);
+    if (st < 0)
+        return st;
+
+    return to_read;
+}
+
 struct file_ops buffer_ops = {
     .readpage = bbuffer_readpage,
     .writepage = buffer_writepage,
@@ -319,6 +425,7 @@ struct file_ops buffer_ops = {
     .write_iter = filemap_write_iter,
     .writepages = filemap_writepages,
     .fsyncdata = filemap_writepages,
+    .directio = buffer_directio,
 };
 
 struct block_buf *sb_read_block(const struct superblock *sb, unsigned long block)
