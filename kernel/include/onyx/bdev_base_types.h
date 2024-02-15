@@ -28,10 +28,11 @@ typedef u64 sector_t;
 
 /* BIO flags start at bit 8 since bits 0 - 7 are reserved for operations */
 /* Note that we still have 24 bits for flags, which should be More Than Enough(tm) */
-#define BIO_REQ_DONE     (1 << 8)
-#define BIO_REQ_EIO      (1 << 9)
-#define BIO_REQ_TIMEOUT  (1 << 10)
-#define BIO_REQ_NOT_SUPP (1 << 11)
+#define BIO_REQ_DONE         (1 << 8)
+#define BIO_REQ_EIO          (1 << 9)
+#define BIO_REQ_TIMEOUT      (1 << 10)
+#define BIO_REQ_NOT_SUPP     (1 << 11)
+#define BIO_REQ_PINNED_PAGES (1 << 12)
 
 struct bio_req
 {

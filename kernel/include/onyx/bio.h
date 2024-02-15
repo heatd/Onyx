@@ -73,4 +73,15 @@ static inline void bio_do_complete(struct bio_req *req)
     bio_put(req);
 }
 
+/**
+ * @brief Set the PINNED_PAGES flag in the bio req
+ * This makes it so bio completion unpins the pages in page_iov.
+ *
+ * @param req Request
+ */
+static inline void bio_set_pinned(struct bio_req *req)
+{
+    req->flags |= BIO_REQ_PINNED_PAGES;
+}
+
 #endif
