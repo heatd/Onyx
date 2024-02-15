@@ -1347,22 +1347,24 @@ void free(void *ptr)
     return kfree(ptr);
 }
 
-void *calloc(size_t nr, size_t size)
+void *kcalloc(size_t nr, size_t size, int flags)
 {
     if (array_overflows(nr, size))
         return errno = EOVERFLOW, nullptr;
 
     const auto len = nr * size;
 
-    void *ptr = malloc(len);
+    void *ptr = kmalloc(len, flags);
     if (!ptr) [[unlikely]]
-    {
         return errno = ENOMEM, nullptr;
-    }
 
     memset(ptr, 0, len);
-
     return ptr;
+}
+
+void *calloc(size_t nr, size_t size)
+{
+    return kcalloc(nr, size, GFP_ATOMIC);
 }
 
 void *realloc(void *ptr, size_t size)
