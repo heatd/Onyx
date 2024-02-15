@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2023 Pedro Falcato
+ * Copyright (c) 2017 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -13,6 +13,8 @@
 #include <onyx/pagecache.h>
 #include <onyx/vfs.h>
 #include <onyx/vm.h>
+
+#include <uapi/fcntl.h>
 
 int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags,
                       struct page **outp) NO_THREAD_SAFETY_ANALYSIS
@@ -147,6 +149,15 @@ ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t off
     return (ssize_t) read;
 }
 
+static inline ssize_t filemap_do_direct(struct file *filp, size_t off, iovec_iter *iter,
+                                        unsigned int flags)
+{
+    struct inode *ino = filp->f_ino;
+    if (!ino->i_fops->directio)
+        return -EIO;
+    return ino->i_fops->directio(filp, off, iter, flags);
+}
+
 /**
  * @brief Read from a generic file (using the page cache) using iovec_iter
  *
@@ -159,6 +170,10 @@ ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t off
 ssize_t filemap_read_iter(struct file *filp, size_t off, iovec_iter *iter, unsigned int flags)
 {
     struct inode *ino = filp->f_ino;
+
+    if (filp->f_flags & O_DIRECT)
+        return filemap_do_direct(filp, off, iter, flags);
+
     if ((size_t) off >= filp->f_ino->i_size)
         return 0;
 
@@ -307,6 +322,10 @@ ssize_t file_write_cache(void *buffer, size_t len, struct inode *ino, size_t off
 ssize_t filemap_write_iter(struct file *filp, size_t off, iovec_iter *iter, unsigned int flags)
 {
     struct inode *ino = filp->f_ino;
+
+    if (filp->f_flags & O_DIRECT)
+        return filemap_do_direct(filp, off, iter, DIRECT_IO_WRITE);
+
     scoped_rwlock<rw_lock::write> g{ino->i_rwlock};
 
     ssize_t st = 0;
