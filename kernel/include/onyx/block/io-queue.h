@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 - 2023 Pedro Falcato
+ * Copyright (c) 2022 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -42,7 +42,7 @@ protected:
 public:
     list_head_cpp<io_queue> pending_node_{this};
 
-    constexpr io_queue(unsigned int nr_entries) : nr_entries_{nr_entries}
+    io_queue(unsigned int nr_entries) : nr_entries_{nr_entries}, pending_node_{this}
     {
         INIT_LIST_HEAD(&req_list_);
         spinlock_init(&lock_);
@@ -99,6 +99,33 @@ public:
     virtual void do_complete(bio_req *req)
     {
         bio_do_complete(req);
+    }
+
+    /**
+     * @brief Restart the submission queue by "pulling"
+     *
+     * @return Error code
+     */
+    virtual int pull_sq()
+    {
+        return -ENOSYS;
+    }
+
+    /**
+     * @brief "Pull" a submission queue entry from req_list_
+     *
+     * @return A valid struct bio_req *, or nullptr
+     */
+    struct bio_req *pull_sqe()
+    {
+        if (list_is_empty(&req_list_))
+            return nullptr;
+
+        struct bio_req *bio =
+            container_of(list_first_element(&req_list_), struct bio_req, list_node);
+        list_remove(&bio->list_node);
+        used_entries_++;
+        return bio;
     }
 };
 
