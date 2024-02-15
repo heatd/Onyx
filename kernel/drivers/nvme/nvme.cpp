@@ -905,7 +905,37 @@ void nvme_device::nvme_queue::do_complete(bio_req *req)
     DCHECK(setup != nullptr);
     delete setup;
     bio_do_complete(req);
-    restart_sq();
+}
+
+/**
+ * @brief Restart the submission queue by "pulling"
+ *
+ * @return Error code
+ */
+int nvme_device::nvme_queue::pull_sq()
+{
+    for (u32 i = used_entries_; i < nr_entries_; i++)
+    {
+        struct bio_req *bio = pull_sqe();
+        if (!bio)
+            break;
+
+        nvmecmd *cmd = (nvmecmd *) bio->device_specific[0];
+        int cid = allocate_cid();
+        DCHECK(cid >= 0);
+        DCHECK(((sq_tail_ + 1) % sq_size_) != sq_head_);
+
+        auto next_entry = sq_tail_;
+
+        sq_tail_ = (sq_tail_ + 1) % sq_size_;
+        cmd->cmd.cdw0.cid = cid;
+        queued_commands_[cmd->cmd.cdw0.cid] = cmd;
+        memcpy(&sq_[next_entry], &cmd->cmd, sizeof(nvmesqe));
+    }
+
+    /* Queue is full, ring the doorbell */
+    *sq_tail_doorbell_ = sq_tail_;
+    return 0;
 }
 
 /**
