@@ -44,6 +44,7 @@ void io_queue::complete_request2(bio_req *req)
 {
     used_entries_--;
     bio_queue_pending_bio(req);
+    set_pending();
 }
 
 /**
@@ -75,7 +76,7 @@ void io_queue::set_pending()
     /* Someone else is/has queued it, no work to be done here. */
     if (!(__atomic_fetch_or(&flags_, IO_QUEUE_PENDING_SOFTIRQ, __ATOMIC_RELEASE) &
           IO_QUEUE_PENDING_SOFTIRQ))
-        return;
+        block_queue_pending_io_queue(this);
 }
 
 /**
