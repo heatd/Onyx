@@ -613,161 +613,188 @@ void *kmem_cache_alloc_nopcpu(struct slab_cache *cache, unsigned int flags)
     return kmem_cache_alloc_noslab(cache, flags);
 }
 
+/**
+ * @brief Pick a slab to refill from
+ * @pre @cache is locked
+ * @param cache Slab cache
+ * @return Chosen slab, or NULL if there's no available slab
+ */
+static inline struct slab *kmem_pick_slab_for_refill(struct slab_cache *cache)
+{
+    /* Cache is locked */
+    /* Pick out a slab from the partial list, or the free list. Prefer partial to reduce
+     * fragmentation. */
+    struct slab *slab = nullptr;
+    if (cache->npartialslabs)
+        slab = container_of(list_first_element(&cache->partial_slabs), struct slab, slab_list_node);
+    else if (cache->nfreeslabs)
+        slab = container_of(list_first_element(&cache->free_slabs), struct slab, slab_list_node);
+
+    return slab;
+}
+
+/**
+ * @brief Add a slab's objects to the pcpu magazine
+ *
+ * @pre cache is locked
+ * @pre Preemption is disabled (pcpu is pinned)
+ * @param cache Slab cache
+ * @param pcpu Slab pcpu cache
+ * @param slab Slab to add
+ */
+static void kmem_cache_reload_mag_with_slab(struct slab_cache *cache,
+                                            struct slab_cache_percpu_context *pcpu,
+                                            struct slab *slab)
+{
+    /* Preemption is off, cache is locked */
+    struct bufctl *buf = slab->object_list;
+    size_t avail = slab->nobjects - slab->active_objects;
+    const int batch_size = cache->mag_limit / 2;
+
+    for (size_t j = 0; j < avail; j++)
+    {
+        if (pcpu->size >= batch_size)
+            break;
+
+        if (buf->flags != BUFCTL_PATTERN_FREE)
+            panic("Bad buf %p, slab %p", buf, slab);
+
+        pcpu->magazine[pcpu->size++] = (void *) buf;
+        slab->object_list = (bufctl *) buf->next;
+
+        if (!buf->next && j + 1 != avail)
+            panic("Corrupted buf %p, slab %p", buf, slab);
+
+        buf = (bufctl *) buf->next;
+        slab->active_objects++;
+    }
+}
+
+/**
+ * @brief Refill a magazine purely from partial and free slabs
+ * This function does not allocate.
+ *
+ * @pre cache is locked
+ * @pre Preemption is disabled
+ * @param cache
+ * @param pcpu
+ * @return int
+ */
+static int kmem_cache_refill_mag_noalloc(struct slab_cache *cache,
+                                         struct slab_cache_percpu_context *pcpu)
+{
+    /* Preemption is off, cache is locked */
+    const size_t objs_per_slab = kmem_calc_slab_nr_objs(cache);
+    const int batch_size = cache->mag_limit / 2;
+
+    while (pcpu->size < batch_size)
+    {
+        bool is_partial;
+        struct slab *slab = kmem_pick_slab_for_refill(cache);
+        if (!slab)
+        {
+            int to_alloc = (batch_size - pcpu->size) / objs_per_slab;
+            if ((batch_size - pcpu->size) % objs_per_slab)
+                to_alloc++;
+            return to_alloc;
+        }
+
+        is_partial = slab->active_objects > 0;
+        /* Fill out the mags */
+        kmem_cache_reload_mag_with_slab(cache, pcpu, slab);
+
+        /* Note: three state changes are possible: PARTIAL -> FULL, FREE -> PARTIAL and FREE ->
+         * FULL. */
+        if (slab->active_objects == slab->nobjects)
+            kmem_move_slab_to_full(slab, !is_partial);
+        else if (!is_partial && slab->active_objects > 0)
+            kmem_move_slab_to_partial(slab, true);
+    }
+
+    return 0;
+}
+
+/**
+ * @brief Refill a magazine
+ * Refill a magazine using partial+free slabs and/or allocated slabs.
+ * This function may drop preemption (if allocating). Callers must re-fetch pcpu.
+ * Whatever pcpu is valid at the end of the function is guaranteed to have at least one object in
+ * the mag.
+ *
+ * @pre Preemption is off
+ * @pre cache is unlocked
+ * @param cache Slab cache
+ * @param pcpu Slab percpu cache
+ * @param flags GFP flags (see GFP_KERNEL, et al)
+ * @return 0 on success, negative error codes
+ */
 static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
                                        struct slab_cache_percpu_context *pcpu, unsigned int flags)
 {
-    /* XXX I feel like this code is broken if and when it comes to CPU migration. TODO */
-    // Lets attempt to allocate a batch (half our stack)
-    // We keep two local partial and full lists that we splice at the end
-    // Because of this, we can drop the lock for a bit, while allocating "locally".
-    scoped_lock g{cache->lock};
-    int ret = 0;
+    /* Preemption is off, cache is unlocked. The cache lock is only held in very specific points.
+     * The lock must *not* be held when allocating slabs, as page allocation can sleep. */
+    DEFINE_LIST(allocated_slabs);
+    int slabs_to_alloc;
+    int nslabs;
 
-    DEFINE_LIST(partials);
-    DEFINE_LIST(full_slabs);
-
-    size_t npartials = 0, nfull = 0;
-
-    const auto objs_per_slab = kmem_calc_slab_nr_objs(cache);
-    const auto batch_size = cache->mag_limit / 2;
-    auto nr_slabs = objs_per_slab / batch_size;
-    if (objs_per_slab % batch_size)
-        nr_slabs++;
-
-    bool allocating = false;
-
-    for (size_t i = 0; i < nr_slabs; i++)
+    spin_lock(&cache->lock);
+    slabs_to_alloc = kmem_cache_refill_mag_noalloc(cache, pcpu);
+    spin_unlock(&cache->lock);
+    if (slabs_to_alloc == 0)
     {
-        bool isfree = false;
-        struct slab *slab;
-
-        if (!allocating && (cache->npartialslabs || cache->nfreeslabs))
-        {
-            if (cache->npartialslabs)
-            {
-                DCHECK(!list_is_empty(&cache->partial_slabs));
-                slab = container_of(list_first_element(&cache->partial_slabs), struct slab,
-                                    slab_list_node);
-            }
-            else /* if (cache->nfreeslabs) */
-            {
-                DCHECK(!list_is_empty(&cache->free_slabs));
-                slab = container_of(list_first_element(&cache->free_slabs), struct slab,
-                                    slab_list_node);
-                isfree = true;
-            }
-        }
-        else
-        {
-            // Drop the lock, all allocations are local state now.
-            // Also drop the preempt disable, we may need it for allocations
-            if (!allocating)
-            {
-                g.unlock();
-                /* Allocating (particularly when it comes to GFP_KERNEL) will need enabled
-                 * preemption */
-                sched_enable_preempt();
-                allocating = true;
-            }
-
-            slab = kmem_cache_create_slab(cache, flags, true);
-            if (!slab)
-            {
-                // Only fail on memory allocation failure if we were allocating extra
-                ret = i == 0 ? -1 : 0;
-                goto out;
-            }
-
-            isfree = true;
-        }
-
-        /* Disable preemption for a little bit, so we pin our CPU for a little, just so our
-         * reference to pcpu is stable
-         */
-        sched_disable_preempt();
-
-        auto new_pcpu = &cache->pcpu[get_cpu_nr()];
-
-        if (pcpu != new_pcpu)
-        {
-            /* If we migrated cpus, un-touch the old one and keep going */
-            pcpu->touched.store(0, mem_order::release);
-            pcpu = new_pcpu;
-            pcpu->touched.store(1, mem_order::release);
-        }
-
-        // Fill up our magazine with a batch of objects
-        bufctl *buf = slab->object_list;
-        size_t avail = slab->nobjects - slab->active_objects;
-
-        for (size_t j = 0; j < avail; j++)
-        {
-            if (pcpu->size >= batch_size)
-            {
-                if (j == 0 && !slab->active_objects)
-                {
-                    /* This can happen if we have just allocated a new slab and CPU migration
-                     * happened, since our cache is now a different one that /may/ be full.
-                     * Just free the slab and return success.
-                     */
-                    /* Note: kmem_cache_free_slab removes the slab from a "list", so add it to a
-                     * dummy partials */
-                    list_add_tail(&slab->slab_list_node, &partials);
-                    kmem_cache_free_slab(slab);
-                    sched_enable_preempt();
-                    goto out;
-                }
-                // If we're here, we're stopping in the middle of a slab
-                // because of that, move it to partial (from free) and get out.
-                if (isfree)
-                {
-                    if (allocating)
-                        list_add_tail(&slab->slab_list_node, &partials), npartials++;
-                    else
-                        kmem_move_slab_to_partial(slab, isfree);
-                }
-
-                sched_enable_preempt();
-                goto out;
-            }
-
-            if (buf->flags != BUFCTL_PATTERN_FREE)
-                panic("Bad buf %p, slab %p", buf, slab);
-
-            pcpu->magazine[pcpu->size++] = (void *) buf;
-            slab->object_list = (bufctl *) buf->next;
-
-            if (!buf->next && j + 1 != avail)
-                panic("Corrupted buf %p, slab %p", buf, slab);
-
-            buf = (bufctl *) buf->next;
-            slab->active_objects++;
-        }
-
-        sched_enable_preempt();
-
-        // We used up the whole slab, move it to full
-        if (allocating)
-            list_add_tail(&slab->slab_list_node, &full_slabs), nfull++;
-        else
-            kmem_move_slab_to_full(slab, isfree);
+        /* This is good, preemption was never reenabled, so pcpu is definitely the same. We never
+         * needed to allocate more slabs. */
+        return 0;
     }
 
-out:
-    if (allocating)
+    /* Release the pcpu. We're going to effectively drop it in a bit */
+    pcpu->touched.store(0, mem_order::relaxed);
+
+    sched_enable_preempt();
+    /* Allocate N slabs and add them to allocated_slabs. These are temporarily isolated from the
+     * cache, but will be added to the slab cache system when allocation finishes. */
+
+    for (nslabs = 0; nslabs < slabs_to_alloc; nslabs++)
     {
-        // If allocating, merge our local state and the cache's state. But first, re-lock.
-        g.lock();
-        list_splice_tail(&partials, &cache->partial_slabs);
-        list_splice_tail(&full_slabs, &cache->full_slabs);
-        cache->npartialslabs += npartials;
-        cache->nfullslabs += nfull;
-        ASSERT_SLAB_COUNT(cache);
-        /* Restore our disabled preemption */
-        sched_disable_preempt();
+        struct slab *s = kmem_cache_create_slab(cache, flags, true);
+        if (!s)
+        {
+            /* If i == 0, this is definitely a failure. Else, just break the loop */
+            if (nslabs == 0)
+            {
+                sched_disable_preempt();
+                return -ENOMEM;
+            }
+
+            break;
+        }
+
+        /* For future allocations: it's *not* okay to use atomic reserves for batch filling. We just
+         * use __GFP_ATOMIC for the first slab, and anything else is very much extra, thus hardly
+         * "__GFP_ATOMIC". */
+        flags &= ~__GFP_ATOMIC;
+        list_add_tail(&s->slab_list_node, &allocated_slabs);
     }
 
-    return ret;
+    /* Pin ourselves again to a CPU and get its percpu cache. It may or may not be the same, and
+     * that's okay. If we switched CPUs and overallocated, the remaining slabs will stay in the
+     * cache's free slabs list. */
+    sched_disable_preempt();
+    pcpu = &cache->pcpu[get_cpu_nr()];
+    pcpu->touched.store(1, mem_order::relaxed);
+
+    spin_lock(&cache->lock);
+    /* Splice the allocated_slabs to free_slabs */
+    list_splice_tail(&allocated_slabs, &cache->free_slabs);
+    cache->nfreeslabs += nslabs;
+
+    kmem_cache_refill_mag_noalloc(cache, pcpu);
+    DCHECK(pcpu->size > 0);
+
+    spin_unlock(&cache->lock);
+
+    /* Preemption is disabled, cache is unlocked, mag should hold at least one object */
+    return 0;
 }
 
 #ifdef CONFIG_KASAN
@@ -852,7 +879,6 @@ void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
         pcpu = &cache->pcpu[get_cpu_nr()];
         if (st < 0)
         {
-            pcpu->touched.store(0, mem_order::release);
             sched_enable_preempt();
             return errno = ENOMEM, nullptr;
         }
