@@ -96,6 +96,16 @@ struct file_ops
                           unsigned int flags);
     int (*writepages)(struct inode *ino, struct writepages_info *wpinfo);
     int (*fsyncdata)(struct inode *ino, struct writepages_info *wpinfo);
+    ssize_t (*directio)(struct file *file, size_t off, struct iovec_iter *iter, unsigned int flags);
+};
+
+/* For directio's flags */
+#define DIRECT_IO_OP(op) ((op) << 0)
+
+enum
+{
+    DIRECT_IO_READ = 0,
+    DIRECT_IO_WRITE,
 };
 
 struct getdents_ret
