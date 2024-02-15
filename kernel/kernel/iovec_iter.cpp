@@ -95,3 +95,36 @@ ssize_t copy_to_iter(iovec_iter *iter, const void *buf, size_t len)
 
     return st;
 }
+
+/**
+ * @brief Check if all buffers' addresses and lengths are aligned
+ *
+ * @param iter iovec iterateor
+ * @param alignment Alignment. Must be a power of 2
+ * @return True if aligned, else false
+ */
+bool iovec_is_aligned(struct iovec_iter *iter, unsigned long alignment)
+{
+    bool first = true;
+    for (const iovec &v : iter->vec)
+    {
+        unsigned long addr = (unsigned long) v.iov_base;
+        unsigned long len = v.iov_len;
+
+        if (first)
+        {
+            /* If we're the first iov, take into account the pos_ (if we've iterated through this
+             * iov before). */
+            addr += iter->pos_;
+            len -= iter->pos_;
+        }
+
+        if (addr & (alignment - 1))
+            return false;
+        if (len & (alignment - 1))
+            return false;
+        first = false;
+    }
+
+    return true;
+}
