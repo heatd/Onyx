@@ -373,7 +373,7 @@ struct bio_req *bio_alloc(unsigned int gfp_flags, size_t nr_vectors)
         req->vec = req->b_inline_vec;
     else
     {
-        req->vec = (struct page_iov *) kmalloc(sizeof(page_iov) * nr_vectors, gfp_flags);
+        req->vec = (struct page_iov *) kcalloc(nr_vectors, sizeof(page_iov), gfp_flags);
         if (!req->vec)
         {
             kmem_cache_free(cache, req);
@@ -386,6 +386,25 @@ struct bio_req *bio_alloc(unsigned int gfp_flags, size_t nr_vectors)
 }
 
 /**
+ * @brief Unpin user pages and perform dirtying-related tasks (when destroying a bio)
+ *
+ * @param req Request whose pages to unpin
+ */
+static void bio_unpin_pages(struct bio_req *req)
+{
+    /* Ok, a bio_req is being destroyed. Unpin the pages (page_unref).
+     * TODO: In the future, worry about dirtying (when the given pages are in the page cache). */
+    for (size_t i = 0; i < req->nr_vecs; i++)
+    {
+        struct page *page = req->vec[i].page;
+        /* Sidenote: It's possible some pages are NULL, if we failed mid-bio-construction and are
+         * bio_put'ing that. So check for that. */
+        if (page)
+            page_unref(page);
+    }
+}
+
+/**
  * @brief Free a bio_req
  *
  * @param req Request to free
@@ -393,6 +412,9 @@ struct bio_req *bio_alloc(unsigned int gfp_flags, size_t nr_vectors)
 void bio_free(struct bio_req *req)
 {
     struct slab_cache *cache = bio_cache_noinline;
+    if (req->flags & BIO_REQ_PINNED_PAGES) [[unlikely]]
+        bio_unpin_pages(req);
+
     if (req->nr_vecs <= BIO_MAX_INLINE_VECS)
         cache = bio_pick_cache(req->nr_vecs);
     else
