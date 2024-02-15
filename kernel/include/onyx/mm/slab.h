@@ -109,6 +109,8 @@ void *kmalloc(size_t size, int flags);
  */
 void kfree(void *ptr);
 
+void *kcalloc(size_t nr, size_t size, int flags);
+
 /**
  * @brief Purge a cache
  * This function goes through every free slab and gives it back to the page allocator.
