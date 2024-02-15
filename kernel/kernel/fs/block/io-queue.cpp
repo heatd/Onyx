@@ -96,6 +96,10 @@ void io_queue::clear_pending()
 void io_queue::restart_sq()
 {
     scoped_lock<spinlock, true> g{lock_};
+
+    if (pull_sq() == 0)
+        return;
+
     u32 free_entries = nr_entries_ - used_entries_;
 
     for (u32 i = 0; i < free_entries; i++)
