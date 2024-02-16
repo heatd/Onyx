@@ -88,6 +88,7 @@ struct file *anon_get_shmem(size_t len)
     tmpfs_inode *ino = shmemfs_sb->alloc_inode(0777 | S_IFREG, 0);
     if (!ino)
         return nullptr;
+    ino->i_size = -1UL;
 
     /* Note for future me: While this solution basically works, it does not properly work if we care
      * about merging of MAP_SHARED or mremap. That will take some more annoying codepaths that e.g
