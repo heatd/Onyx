@@ -178,17 +178,13 @@ int main(int argc, char **argv)
 
     const char *tty = argv[1];
 
-    int ttyfd = open(tty, O_RDWR);
-    if (ttyfd < 0)
-    {
-        err(1, "open: %s", tty);
-    }
-
     // Become a session leader, so we can get a new controlling terminal
     if (setsid() < 0)
-    {
         err(1, "setsid");
-    }
+
+    int ttyfd = open(tty, O_RDWR);
+    if (ttyfd < 0)
+        err(1, "open: %s", tty);
 
     close(0);
     close(1);
