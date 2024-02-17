@@ -67,32 +67,25 @@ fs_mount *fs_mount_get(const char *fsname)
     return nullptr;
 }
 
-int partition_setup(cul::string name, struct blockdev *block, size_t first_sector,
-                    size_t last_sector)
+static int partition_setup(cul::string &&name, struct blockdev *block, size_t first_sector,
+                           size_t last_sector)
 {
     blockdev *d = new blockdev;
     if (!d)
         return -ENOMEM;
 
     d->offset = first_sector * block->sector_size;
-    d->name = name;
-
-    if (!d->name)
-    {
-        delete d;
-        return -ENOMEM;
-    }
-
+    d->name = cul::move(name);
     d->sector_size = block->sector_size;
     d->nr_sectors = (last_sector - first_sector) + 1;
     d->actual_blockdev = block;
     d->submit_request = block->submit_request;
     d->device_info = block->device_info;
 
-    if (blkdev_init(d) < 0)
+    if (int st = blkdev_init(d); st < 0)
     {
-        free(d);
-        return -1;
+        delete d;
+        return st;
     }
 
     return 0;
@@ -163,20 +156,14 @@ int partition_add(blockdev *dev, int nr_partition, uint64_t first_lba, uint64_t 
 
     cul::string name = dev->name;
     if (!name)
-    {
         return -ENOMEM;
-    }
 
     // Append the partition number
     if (!name.append(std::string_view{partition_num, strlen(partition_num)}))
-    {
         return -ENOMEM;
-    }
 
-    if (partition_setup(name, dev, first_lba, last_lba) < 0)
-    {
-        return -errno;
-    }
+    if (int st = partition_setup(cul::move(name), dev, first_lba, last_lba); st < 0)
+        return st;
 
     return 0;
 }
