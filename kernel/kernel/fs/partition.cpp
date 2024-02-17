@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -93,7 +93,7 @@ static int partition_setup(cul::string &&name, struct blockdev *block, size_t fi
 
 static uuid_t unused_type = {0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000};
 
-static struct page *read_disk(struct blockdev *dev, sector_t sector, size_t count)
+static expected<struct page *, int> read_disk(struct blockdev *dev, sector_t sector, size_t count)
 {
     size_t nr_pages = vm_size_to_pages(count);
     struct bio_req *r = nullptr;
@@ -102,7 +102,7 @@ static struct page *read_disk(struct blockdev *dev, sector_t sector, size_t coun
     struct page *pages =
         alloc_pages(pages2order(nr_pages), PAGE_ALLOC_NO_ZERO | PAGE_ALLOC_CONTIGUOUS);
     if (!pages)
-        return nullptr;
+        return unexpected{-ENOMEM};
 
     p = pages;
 
@@ -132,9 +132,9 @@ out:
         free_pages(pages);
 
     if (st < 0)
-        errno = -st;
+        return unexpected{st};
 
-    return st < 0 ? nullptr : pages;
+    return pages;
 }
 
 /**
@@ -179,10 +179,11 @@ int partition_setup_disk_gpt(struct blockdev *dev)
     struct bio_req *r = nullptr;
     size_t nr_pages = 0;
 
-    struct page *gpt_header_pages = read_disk(dev, 1, dev->sector_size);
-    if (!gpt_header_pages)
-        return -errno;
+    auto ex = read_disk(dev, 1, dev->sector_size);
+    if (ex.has_error())
+        return ex.error();
 
+    struct page *gpt_header_pages = ex.value();
     gpt_header_t *gpt_header = (gpt_header_t *) PAGE_TO_VIRT(gpt_header_pages);
     auto csum = gpt_header->crc32_checksum;
     uint32_t actual_csum = 0;
@@ -253,7 +254,6 @@ int partition_setup_disk_gpt(struct blockdev *dev)
     bio_put(r);
 
     csum = gpt_header->partition_array_crc32;
-
     actual_csum = crc32_calculate((uint8_t *) part_table, count);
 
     if (le32toh(csum) != actual_csum)
@@ -288,15 +288,15 @@ out:
 int partition_setup_disk_mbr(struct blockdev *dev)
 {
     int st = 0;
-    struct page *mbr_pages = read_disk(dev, 0, 512);
-    if (!mbr_pages)
-        return -errno;
+    auto ex = read_disk(dev, 0, 512);
+    if (ex.has_error())
+        return ex.error();
 
+    struct page *mbr_pages = ex.value();
     char *mbrbuf = (char *) PAGE_TO_VIRT(mbr_pages);
-
     mbrpart_t *part = (mbrpart_t *) ((char *) mbrbuf + 0x1BE);
-
     unsigned int nr_parts = 1;
+
     /* Cycle through all the partitions */
     for (int i = 0; i < 4; i++)
     {
