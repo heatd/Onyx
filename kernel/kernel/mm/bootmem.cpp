@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -36,7 +36,7 @@ void for_every_phys_region(void (*callback)(unsigned long start, size_t size))
         callback(phys_ranges[i].start, phys_ranges[i].size);
 }
 
-void __bootmem_add_range(unsigned long start, size_t size)
+static void __bootmem_add_range(unsigned long start, size_t size)
 {
     if (nr_phys_ranges == DEFAULT_NR_MEMORY_RANGES)
     {
@@ -58,7 +58,7 @@ void __bootmem_add_range(unsigned long start, size_t size)
     phys_ranges[nr_phys_ranges++] = memory_range{start, size};
 }
 
-void bootmem_re_reserve_memory();
+static void bootmem_re_reserve_memory();
 
 void bootmem_add_range(unsigned long start, size_t size)
 {
@@ -68,7 +68,7 @@ void bootmem_add_range(unsigned long start, size_t size)
     bootmem_re_reserve_memory();
 }
 
-void bootmem_remove_range(unsigned int index)
+static void bootmem_remove_range(unsigned int index)
 {
     auto tail_ranges = nr_phys_ranges - index - 1;
     memmove(&phys_ranges[index], &phys_ranges[index + 1], tail_ranges * sizeof(memory_range));
@@ -143,7 +143,7 @@ static void bootmem_reserve_memory_ranges(unsigned long start, size_t size)
  * @brief Run the reservation code on all the memory that has been registered
  *
  */
-void bootmem_re_reserve_memory()
+static void bootmem_re_reserve_memory()
 {
     for (unsigned int i = 0; i < nr_resv_ranges; i++)
     {
