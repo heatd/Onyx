@@ -33,6 +33,36 @@ using __blkpowermanagement = int (*)(int, struct blockdev *);
 
 struct superblock;
 struct inode;
+struct slab_cache;
+
+struct queue_properties
+{
+    /* Max SGL descriptors per request */
+    unsigned long max_sgls_per_request;
+    /* Max SGL descriptor length */
+    unsigned long max_sgl_desc_length;
+    /* DMA address mask */
+    unsigned long dma_address_mask;
+    /* Inter-SGL boundary mask - for internal SGL list boundaries */
+    unsigned long inter_sgl_boundary_mask;
+    /* Sectors per request */
+    sector_t max_sectors_per_request;
+    /* Extra headroom required for requests */
+    unsigned long request_extra_headroom;
+    /* Cache to-be-used for struct request allocation */
+    struct slab_cache *request_cache;
+};
+
+constexpr void bdev_set_default_queue_properties(struct queue_properties &props)
+{
+    props.dma_address_mask = 511;
+    props.max_sectors_per_request = -1ULL;
+    props.inter_sgl_boundary_mask = 0;
+    props.request_cache = nullptr;
+    props.request_extra_headroom = 0;
+    props.max_sgls_per_request = -1UL;
+    props.max_sgl_desc_length = -1UL;
+}
 
 struct blockdev
 {
@@ -44,7 +74,8 @@ struct blockdev
     uint64_t nr_sectors{};
     void *device_info{};
     struct list_head block_dev_head;
-    struct blockdev *actual_blockdev{}; // isn't null when blockdev is a partition
+    /* isn't null when blockdev is a partition */
+    struct blockdev *actual_blockdev{};
     size_t offset{};
     int (*submit_request)(struct blockdev *dev, struct bio_req *req){};
     /* Inode backing this block dev. This mostly matters when doing internal I/O to this block dev,
@@ -59,9 +90,14 @@ struct blockdev
     // An optional partition prefix, like the 'p' in nvme0n1p1
     cul::string partition_prefix;
 
-    unique_ptr<flush::writeback_dev> wbdev{nullptr};
+    unique_ptr<flush::writeback_dev> wbdev{};
 
-    constexpr blockdev() = default;
+    struct queue_properties bdev_queue_properties;
+
+    constexpr blockdev()
+    {
+        bdev_set_default_queue_properties(bdev_queue_properties);
+    }
 };
 
 static inline bool blkdev_is_partition(struct blockdev *dev)
