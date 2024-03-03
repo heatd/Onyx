@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -207,6 +207,9 @@ int bio_submit_request(struct blockdev *dev, struct bio_req *req)
 {
     if (unlikely(dev->submit_request == nullptr))
         return -EIO;
+
+    req->bdev = dev;
+    bio_reset_vec_index(req);
 
     return dev->submit_request(dev, req);
 }
