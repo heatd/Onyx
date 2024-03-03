@@ -304,17 +304,17 @@ private:
     }
 
 public:
-    unique_ptr() : p(nullptr)
+    constexpr unique_ptr() : p(nullptr)
     {
     }
 
     typedef decltype(nullptr) nullptr_t;
 
-    unique_ptr(nullptr_t data) : p(nullptr)
+    constexpr unique_ptr(nullptr_t data) : p(nullptr)
     {
     }
 
-    explicit unique_ptr(T* data) : p(data)
+    constexpr explicit unique_ptr(T* data) : p(data)
     {
     }
 
