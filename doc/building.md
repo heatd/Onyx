@@ -59,6 +59,8 @@ If using **LLVM**: `export CLANG_PATH=$TOOLCHAIN_TARGET_DIR`.
 
 First, run `scripts/setup_build.sh`
 
+If you build Onyx on openSUSE, unexport HOST variable: `unset HOST`.
+
 Then do `make -j <nproc> liveiso` where nproc is the number of threads you want the build to use.
 
 If everything went well, you will have a Onyx.iso under the base directory!
