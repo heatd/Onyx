@@ -95,45 +95,4 @@ static inline void spin_unlock(struct spinlock *lock) __RELEASE(lock)
 
 #define MUST_HOLD_LOCK(lock) assert(spin_lock_held(lock) != false)
 
-#ifdef __cplusplus
-
-class Spinlock
-{
-private:
-    struct spinlock lock;
-    unsigned long cpu_flags;
-
-public:
-    constexpr Spinlock() : lock{}, cpu_flags{} {};
-    ~Spinlock()
-    {
-        assert(lock.lock != 1);
-    }
-    void Lock() __ACQUIRE(lock)
-    {
-        spin_lock(&lock);
-    }
-
-    void LockIrqsave() __ACQUIRE(lock)
-    {
-        cpu_flags = spin_lock_irqsave(&lock);
-    }
-
-    void Unlock() __RELEASE(lock)
-    {
-        spin_unlock(&lock);
-    }
-
-    void UnlockIrqrestore() __RELEASE(lock)
-    {
-        spin_unlock_irqrestore(&lock, cpu_flags);
-    }
-
-    bool IsLocked()
-    {
-        return lock.lock == 1;
-    }
-};
-
-#endif
 #endif
