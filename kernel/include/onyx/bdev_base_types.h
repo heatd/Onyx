@@ -91,4 +91,10 @@ static inline void *b_request_to_data(struct request *req)
     return req + 1;
 }
 
+struct blk_plug
+{
+    struct list_head request_list;
+    unsigned int nr_requests;
+};
+
 #endif

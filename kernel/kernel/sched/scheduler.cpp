@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -16,6 +16,7 @@
 #include <string.h>
 
 #include <onyx/arch.h>
+#include <onyx/block/blk_plug.h>
 #include <onyx/clock.h>
 #include <onyx/condvar.h>
 #include <onyx/cpu.h>
@@ -315,9 +316,11 @@ void calc_avenrun()
 
 void sched_decrease_quantum(clockevent *ev)
 {
-    add_per_cpu(sched_quantum, -1);
+    unsigned int quantum = get_per_cpu(sched_quantum);
+    if (quantum > 0)
+        add_per_cpu(sched_quantum, -1);
 
-    if (get_per_cpu(sched_quantum) == 0)
+    if (quantum == 1)
     {
         thread *curr = get_current_thread();
         curr->flags |= THREAD_NEEDS_RESCHED;
@@ -618,6 +621,11 @@ void sched_yield(void)
     struct flame_graph_entry *fge = nullptr;
     const bool waiting = get_current_thread()->status == THREAD_INTERRUPTIBLE ||
                          get_current_thread()->status == THREAD_UNINTERRUPTIBLE;
+
+    /* Flush the plug if we're going to sleep */
+    if (waiting && get_current_thread()->plug)
+        blk_flush_plug(get_current_thread()->plug);
+
     if (perf_probe_is_enabled_wait() && waiting)
     {
         fge = (struct flame_graph_entry *) alloca(sizeof(*fge));

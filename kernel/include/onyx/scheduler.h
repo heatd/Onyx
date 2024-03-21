@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -35,6 +35,7 @@ typedef void (*thread_callback_t)(void *);
 struct process;
 struct mm_address_space;
 struct kcov_data;
+struct blk_plug;
 
 #define THREAD_STRUCT_CANARY 0xcacacacafdfddead
 #define THREAD_DEAD_CANARY   0xdeadbeefbeefdead
@@ -73,6 +74,9 @@ typedef struct thread
     struct thread_cputime_info cputime_info;
     struct mm_address_space *aspace;
 
+    /* Used by the block subsystem to plug up incoming requests */
+    struct blk_plug *plug;
+
 #ifdef CONFIG_KCOV
     struct kcov_data *kcov_data{nullptr};
 #endif
@@ -89,7 +93,7 @@ typedef struct thread
         : refcount{}, canary{}, kernel_stack{}, kernel_stack_top{}, owner{}, entry{}, flags{}, id{},
           status{}, priority{}, cpu{}, next{}, prev_prio{}, next_prio{}, prev_wait{}, next_wait{},
           fpu_area{}, sem_prev{}, sem_next{}, lock{}, errno_val{}, thread_list_head{}, addr_limit{},
-          wait_list_head{}, ctid{}, cputime_info{}, aspace{}
+          wait_list_head{}, ctid{}, cputime_info{}, aspace{}, plug{}
 #ifdef __x86_64__
           ,
           fs{}, gs{}

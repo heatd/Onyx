@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: MIT
  */
 #include <onyx/block.h>
+#include <onyx/block/blk_plug.h>
 #include <onyx/block/request.h>
 #include <onyx/mm/slab.h>
 #ifdef CONFIG_KUNIT
@@ -189,6 +190,81 @@ int block_attempt_merge(struct request *req, struct bio_req *bio, size_t bio_siz
     }
 
     return block_do_merge(req, bio, bio_sectors, merge);
+}
+
+/**
+ * @brief Check if it *may* be possible to merge with a request, without doing it
+ *
+ * @param req Request to check against
+ * @param bio Bio to attempt to merge
+ * @return True if possible, else false
+ */
+static bool block_may_merge(struct request *req, struct bio_req *bio, size_t bio_size)
+{
+    size_t bio_sectors = bio_size / 512;
+
+    if (!(bio->sector_number == req->r_sector - bio_sectors) &&
+        !(bio->sector_number == req->r_sector + req->r_nsectors))
+        return false;
+
+    if (req->r_bdev != bio->bdev)
+        return false;
+
+    if ((req->r_flags & BIO_REQ_OP_MASK) != (bio->flags & BIO_REQ_OP_MASK))
+        return false;
+    return true;
+}
+
+#define PLUG_ALL_CHECK_TOO_EXPENSIVE_CUTOFF 32
+
+static size_t bio_calc_size(struct bio_req *bio)
+{
+    /* TODO: Calculate the size continuously in the bio when adding pages */
+    size_t len = 0;
+    for (size_t i = 0; i < bio->nr_vecs; i++)
+        len += bio->vec[i].length;
+    return len;
+}
+
+/**
+ * @brief Attempt to merge a bio with a plug
+ *
+ * @param plug Plug to merge with
+ * @param bio Bio to merge
+ * @return If successful, return true, else false
+ */
+bool blk_merge_plug(struct blk_plug *plug, struct bio_req *bio)
+{
+    if (plug->nr_requests == 0)
+        return false;
+
+    size_t bio_size = bio_calc_size(bio);
+
+    /* Try to merge with the plug. We improvise a random cutoff point to which we'll only check
+     * against the head and the tail of the plug. */
+    if (plug->nr_requests < PLUG_ALL_CHECK_TOO_EXPENSIVE_CUTOFF)
+    {
+        list_for_every (&plug->request_list)
+        {
+            struct request *req = list_head_to_request(l);
+            if (block_may_merge(req, bio, bio_size) && !block_attempt_merge(req, bio, bio_size))
+                return true;
+        }
+    }
+    else
+    {
+        /* nr_requests is too large, check only the head and the tail */
+        struct request *head = list_head_to_request(list_first_element(&plug->request_list));
+        struct request *tail = list_head_to_request(list_last_element(&plug->request_list));
+
+        if (head != tail && block_may_merge(head, bio, bio_size) &&
+            !block_attempt_merge(head, bio, bio_size))
+            return true;
+        if (block_may_merge(tail, bio, bio_size) && !block_attempt_merge(tail, bio, bio_size))
+            return true;
+    }
+
+    return false;
 }
 
 #ifdef CONFIG_KUNIT
