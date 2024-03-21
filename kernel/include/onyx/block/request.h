@@ -26,6 +26,8 @@ struct request *bio_req_to_request(struct bio_req *bio);
  */
 void block_request_free(struct request *req);
 
+#define list_head_to_request(l) (container_of(l, struct request, r_queue_list_node))
+
 #ifdef __cplusplus
 template <typename Callable>
 void for_every_bio(struct request *req, Callable cb)
@@ -45,7 +47,11 @@ void for_every_bio(struct request *req, Callable cb)
  */
 static inline void block_request_complete(struct request *req)
 {
-    for_every_bio(req, bio_do_complete);
+    for_every_bio(req, [req](struct bio_req *bio) {
+        bio->flags |= (req->r_flags & BIO_STATUS_MASK);
+        bio_do_complete(bio);
+    });
+
     block_request_free(req);
 }
 

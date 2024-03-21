@@ -205,16 +205,16 @@ private:
          * @param req bio_req to submit
          * @return 0 on sucess, negative error codes
          */
-        int device_io_submit(bio_req *req) override;
+        int device_io_submit(struct request *req) override;
 
         /**
-         * @brief Complete a bio_req
+         * @brief Complete a block request
          * Called from softirq context. We need to override this function
          * to free nvmecmd.
          *
          * @param req Request to comlete
          */
-        void do_complete(bio_req *req) override;
+        void do_complete(struct request *req) override;
 
         /**
          * @brief Restart the submission queue by "pulling"
@@ -304,38 +304,18 @@ private:
                                        uint16_t interrupt_vector);
 
     /**
-     * @brief Submit an IO request
-     *
-     * @param namespace NVMe namespace to submit an IO request to
-     * @param req BIO req to serve
-     * @return 0 on success, negative error codes
-     */
-    int submit_request(nvme_namespace *ns, struct bio_req *req);
-
-    struct prp_setup
-    {
-        size_t xfer_blocks;
-        size_t nr_entries;
-        uint64_t first;
-        cul::vector<unique_page> indirect_list;
-    };
-
-    /**
      * @brief Setup a PRP for a bio request
      *
      * @param req Request
      * @param ns NVMe namespace
-     * @return Expected object containing a prp_setup, or a negative error code
+     * @return 0, or negative error code
      */
-    expected<prp_setup *, int> setup_prp(bio_req *req, nvme_namespace *ns);
+    static int setup_prp(struct request *breq, nvme_namespace *ns);
 
-    /**
-     * @brief Pick an IO queue for this request
-     *
-     * @param r BIO request
-     * @return IO queue index
-     */
-    uint16_t pick_io_queue(bio_req *r);
+    static int prepare_nvme_request(u8 bio_command, nvmecmd *cmd, struct request *breq,
+                                    nvme_namespace *ns);
+
+    static void set_queue_properties(blockdev *bdev);
 
 public:
     nvme_device(pci::pci_device *dev) : dev_{dev}
@@ -386,6 +366,14 @@ public:
      * @return Caps
      */
     uint64_t read_caps() const;
+
+    /**
+     * @brief Pick an IO queue for a request
+     *
+     * @param bdev Block device
+     * @return IO queue
+     */
+    static struct io_queue *pick_queue(blockdev *bdev);
 };
 
 // List of NVMe registers
@@ -530,7 +518,7 @@ struct nvmecqe
     uint32_t dw3;
 };
 
-#define NVME_CQE_STATUS_PHASE(dw3) (dw3 & (1 << 16))
+#define NVME_CQE_STATUS_PHASE(dw3) ((dw3) & (1 << 16))
 #define NVME_CQE_STATUS_CODE(dw3)  ((dw3 >> 17) & 0xff)
 #define NVME_CQE_STATUS_SCT(dw3)   ((dw3 >> 25) & 0x7)
 #define NVME_CQE_STATUS_CRD(dw3)   ((dw3 >> 28) & 3)
@@ -551,7 +539,21 @@ struct nvmecmd
     nvmesqe cmd;
     nvmecqe response;
     bool has_response;
-    struct bio_req *req;
+    struct request *req;
+};
+
+struct prp_setup
+{
+    size_t xfer_blocks;
+    size_t nr_entries;
+    uint64_t first;
+    cul::vector<unique_page> indirect_list;
+};
+
+struct request_pdu
+{
+    nvmecmd cmd;
+    prp_setup setup;
 };
 
 #define NVME_IDENTIFY_CNS_IDENTIFY_NAMESPACE  0

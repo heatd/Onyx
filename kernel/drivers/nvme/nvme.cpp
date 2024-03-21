@@ -11,13 +11,18 @@
 #include <string.h>
 
 #include <onyx/block.h>
+#include <onyx/block/multiqueue.h>
+#include <onyx/block/request.h>
 #include <onyx/clock.h>
 #include <onyx/cpu.h>
 #include <onyx/driver.h>
+#include <onyx/mm/slab.h>
+#include <onyx/new.h>
 
 #include <pci/pci.h>
 
 #include <onyx/atomic.hpp>
+#include <onyx/memory.hpp>
 #include <onyx/slice.hpp>
 
 pci::pci_id nvme_pci_ids[] = {
@@ -249,6 +254,24 @@ unique_ptr<blockdev> blkdev_create_nvme(unsigned int device_index, unsigned int 
     return cul::move(dev);
 }
 
+void nvme_device::set_queue_properties(blockdev *bdev)
+{
+    auto &qp = bdev->bdev_queue_properties;
+    qp.inter_sgl_boundary_mask = PAGE_SIZE - 1;
+    qp.max_sectors_per_request = 0xffff;
+    qp.dma_address_mask = 3;
+    qp.max_sgl_desc_length = PAGE_SIZE;
+    qp.request_extra_headroom = sizeof(request_pdu);
+
+    static slab_cache *request_cache = kmem_cache_create(
+        "nvme-request-cache", sizeof(struct request) + sizeof(request_pdu), 0, 0, nullptr);
+    CHECK(request_cache != nullptr);
+
+    qp.request_cache = request_cache;
+}
+
+static const struct blk_mq_ops nvme_mq_ops = {.pick_queue = nvme_device::pick_queue};
+
 /**
  * @brief Initialise a new "drive" (namespace)
  *
@@ -280,13 +303,10 @@ int nvme_device::init_drive(uint32_t nsid, unique_page identify_namespace_data)
     d->sector_size = lba;
     d->nr_sectors = nspace_identify->nsze * lba;
     d->device_info = nspace.get();
-    d->submit_request = [](struct blockdev *dev, struct bio_req *req) -> int {
-        nvme_namespace *n = (nvme_namespace *) dev->device_info;
-        // TODO: Hack! The disk driver should never get a request for a partition
-        // and the block subsystem should handle that
-        req->sector_number += dev->offset / n->dev_->sector_size;
-        return n->nvme_dev_->submit_request(n, req);
-    };
+    d->submit_request = blk_mq_submit_request;
+    d->mq_ops = &nvme_mq_ops;
+
+    set_queue_properties(d.get());
 
     if (int st = blkdev_init(d.get()); st < 0)
     {
@@ -304,186 +324,119 @@ int nvme_device::init_drive(uint32_t nsid, unique_page identify_namespace_data)
     return 0;
 }
 
+static inline request_pdu *request_to_pdu(struct request *req)
+{
+    return (request_pdu *) b_request_to_data(req);
+}
+
+static inline prp_setup *request_to_prp(struct request *req)
+{
+    return &request_to_pdu(req)->setup;
+}
+
 /**
  * @brief Setup a PRP for a bio request
  *
  * @param req Request
  * @param ns NVMe namespace
- * @return Expected object containing a prp_setup pointer, or a negative error code
+ * @return 0, or negative error code
  */
-auto nvme_device::setup_prp(bio_req *req, nvme_namespace *ns) -> expected<prp_setup *, int>
+int nvme_device::setup_prp(struct request *breq, nvme_namespace *ns)
 {
-    size_t xfer_size = 0;
+    prp_setup *s = request_to_prp(breq);
 
-    for (size_t i = 0; i < req->nr_vecs; i++)
-    {
-        xfer_size += req->vec[i].length;
-
-        if (req->vec[i].page_off != 0 && i != 0)
-        {
-            // If the PRP entry is not the first PRP entry and not a PRP list pointer
-            // we can't have an offset here.
-            return unexpected{-EINVAL};
-        }
-
-        if (req->vec[i].page_off + req->vec[i].length != PAGE_SIZE && i != 0)
-        {
-            // Same as above. We're basically forced to guarantee all these page_iov are actual full
-            // pages
-            return unexpected{-EINVAL};
-        }
-    }
-
-    auto s = make_unique<prp_setup>();
-
-    if (!s)
-        return unexpected{-ENOMEM};
-
-    s->xfer_blocks = xfer_size / ns->dev_->sector_size;
+    s->xfer_blocks = breq->r_nsectors;
 
     // An empty transfer is invalid, and so is a request with a xfer_size % sector_size
-    if (s->xfer_blocks == 0 || xfer_size % ns->dev_->sector_size)
-        return unexpected{-EIO};
+    if (s->xfer_blocks == 0)
+        return -EIO;
 
-    // Check if we can transfer this number of sectors
-    // This is limited by the command dword 12 (Number of logical blocks)
-    if (s->xfer_blocks - 1 > 0xffff)
-        return unexpected{-EIO};
+    s->nr_entries = breq->r_nr_sgls;
 
-    s->nr_entries = req->nr_vecs;
-    s->first = (prp_entry_t) page_to_phys(req->vec[0].page) + req->vec[0].page_off;
+    struct bio_req *head =
+        container_of(list_first_element(&breq->r_bio_list), struct bio_req, list_node);
+
+    s->first = (prp_entry_t) page_to_phys(head->vec[0].page) + head->vec[0].page_off;
 
     if (s->nr_entries == 1) [[likely]]
     {
         // Fast path. Get out
-        return s.release();
+        return 0;
     }
 
-    size_t nr_entries = req->nr_vecs - 1;
-
+    size_t nr_entries = breq->r_nr_sgls - 1;
     page *current_list_page = nullptr;
     prp_entry_t *current_list = nullptr;
     size_t list_index = 0;
-    const page_iov *v = &req->vec[1];
+    bool is_first = true;
+    int st = 0;
     constexpr auto prp_entries = PAGE_SIZE / sizeof(prp_entry_t);
 
     // Logic: Go through all the entries, and progressively allocate memory for them
-    while (nr_entries)
-    {
-        bool has_next = nr_entries > 1;
-        // If we don't have a page yet or if we're at the end of the list and have more entries,
-        // allocate another page
-        if (!current_list_page || (list_index == prp_entries - 1 && has_next))
-        {
-            current_list_page = alloc_page(PAGE_ALLOC_NO_ZERO);
-            if (!current_list_page)
-                return unexpected{-ENOMEM};
-
-            if (!s->indirect_list.push_back(current_list_page))
-                return free_page(current_list_page), unexpected{-ENOMEM};
-
-            if (current_list)
+    for_every_bio(breq, [&](struct bio_req *bio) {
+        for_every_page_iov_in_bio(bio, [&](page_iov *iov) {
+            if (is_first) [[unlikely]]
             {
-                // We had a previous list, so link it with this one
-                current_list[prp_entries - 1] = (prp_entry_t) page_to_phys(current_list_page);
+                /* Skip the first entry (part of "s->first") */
+                is_first = false;
+                return true;
             }
 
-            current_list = (prp_entry_t *) PAGE_TO_VIRT(current_list_page);
-            list_index = 0;
-        }
+            bool has_next = nr_entries > 1;
+            // If we don't have a page yet or if we're at the end of the list and have more entries,
+            // allocate another page
+            if (!current_list_page || (list_index == prp_entries - 1 && has_next))
+            {
+                current_list_page = alloc_page(PAGE_ALLOC_NO_ZERO);
+                if (!current_list_page)
+                {
+                    st = -ENOMEM;
+                    return false;
+                }
 
-        // Fill the entry
-        // Note: None of these entries can have page offsets, and we've checked that before
-        current_list[list_index++] = (prp_entry_t) page_to_phys(v->page);
-        nr_entries--;
-        v++;
-    }
+                if (!s->indirect_list.push_back(current_list_page))
+                {
+                    free_page(current_list_page);
+                    st = -ENOMEM;
+                    return false;
+                }
 
-    return s.release();
+                if (current_list)
+                {
+                    // We had a previous list, so link it with this one
+                    current_list[prp_entries - 1] = (prp_entry_t) page_to_phys(current_list_page);
+                }
+
+                current_list = (prp_entry_t *) PAGE_TO_VIRT(current_list_page);
+                list_index = 0;
+            }
+
+            // Fill the entry
+            // Note: None of these entries can have page offsets, and we've checked that before
+            current_list[list_index++] = (prp_entry_t) page_to_phys(iov->page);
+            nr_entries--;
+            return true;
+        });
+
+        if (st < 0) [[unlikely]]
+            return;
+    });
+
+    return st;
 }
 
 /**
- * @brief Pick an IO queue for this request
+ * @brief Pick an IO queue for a request
  *
- * @param r BIO request
- * @return IO queue index
+ * @param bdev Block device
+ * @return IO queue
  */
-uint16_t nvme_device::pick_io_queue(bio_req *r)
+struct io_queue *nvme_device::pick_queue(blockdev *bdev)
 {
+    nvme_device *dev = ((nvme_namespace *) bdev->device_info)->nvme_dev_;
     // Primitive algo: Use the cpu nr as an index
-    return (get_cpu_nr() % (queues_.size() - 1)) + 1;
-}
-
-/**
- * @brief Submit an IO request
- *
- * @param namespace NVMe namespace to submit an IO request to
- * @param req BIO req to serve
- * @return 0 on success, negative error codes
- */
-int nvme_device::submit_request(nvme_namespace *ns, struct bio_req *req)
-{
-    uint16_t command;
-
-    switch (req->flags & BIO_REQ_OP_MASK)
-    {
-        case BIO_REQ_READ_OP:
-            command = NVME_NVM_CMD_READ;
-            break;
-        case BIO_REQ_WRITE_OP:
-            command = NVME_NVM_CMD_WRITE;
-            break;
-        default:
-            req->flags |= BIO_REQ_EIO;
-            return -EOPNOTSUPP;
-    }
-
-    nvmecmd *cmd = (nvmecmd *) malloc(sizeof(*cmd));
-    if (!cmd)
-        return -ENOMEM;
-    memset(cmd, 0, sizeof(*cmd));
-    cmd->cmd.cdw0.cdw0 = NVME_CMD_OPCODE(command) | NVME_CMD_FUSE_NORMAL | NVME_CMD_PSDT_PRP;
-    cmd->cmd.nsid = ns->nsid_;
-    cmd->cmd.cdw12 = 0;
-    cmd->req = req;
-
-    auto ex = setup_prp(req, ns);
-
-    if (ex.has_error())
-    {
-        printf("nvme: Error setting up PRPs: %d\n", ex.error());
-        req->flags |= BIO_REQ_EIO;
-        return ex.error();
-    }
-
-    const auto prp = ex.value();
-
-    cmd->cmd.dptr.prp[0] = prp->first;
-
-    if (prp->nr_entries > 1)
-        cmd->cmd.dptr.prp[1] = (prp_entry_t) page_to_phys(prp->indirect_list[0]);
-
-    // Set up the starting LBA and number of sectors
-    cmd->cmd.cdw10 = (uint32_t) req->sector_number;
-    cmd->cmd.cdw11 = (uint32_t) (req->sector_number >> 32);
-    cmd->cmd.cdw12 = (uint16_t) prp->xfer_blocks - 1; // TODO: FUA
-    cmd->cmd.cdw13 = 0;
-    cmd->cmd.cdw14 = 0;
-
-    auto &queue = queues_[pick_io_queue(req)];
-    req->device_specific[0] = (unsigned long) cmd;
-    req->device_specific[1] = (unsigned long) prp;
-
-    bio_get(req);
-    int st = queue->submit_request(req);
-
-    if (st < 0)
-    {
-        bio_put(req);
-        return st;
-    }
-
-    return 0;
+    u16 index = (get_cpu_nr() % (dev->queues_.size() - 1)) + 1;
+    return dev->queues_[index].get();
 }
 
 #define NVME_DEFAULT_SQ_SIZE 128UL
@@ -844,7 +797,7 @@ bool nvme_device::nvme_queue::handle_cq()
             {
                 printf("nvme%u: NVME_NVM_CMD_READ/WRITE: Status error %x\n", dev_->device_index_,
                        status);
-                command->req->flags |= BIO_REQ_EIO;
+                command->req->r_flags |= BIO_REQ_EIO;
             }
 
             if (command->wq)
@@ -854,11 +807,7 @@ bool nvme_device::nvme_queue::handle_cq()
             sq_head_ = NVME_CQE_SQHD(cqe->dw2);
 
             if (command->req)
-            {
-                struct bio_req *breq = command->req;
-                DCHECK(breq->b_ref > 0);
-                complete_request2(breq);
-            }
+                complete_request2(command->req);
         }
         else
             break;
@@ -878,15 +827,71 @@ bool nvme_device::nvme_queue::handle_cq()
     return handled;
 }
 
+int nvme_device::prepare_nvme_request(u8 bio_command, nvmecmd *cmd, struct request *breq,
+                                      nvme_namespace *ns)
+{
+    struct request_pdu *pdu = request_to_pdu(breq);
+    /* Explicitly construct the pdu */
+    new (pdu) request_pdu;
+
+    struct prp_setup *prp = &pdu->setup;
+
+    uint16_t command;
+
+    switch (bio_command)
+    {
+        case BIO_REQ_READ_OP:
+            command = NVME_NVM_CMD_READ;
+            break;
+        case BIO_REQ_WRITE_OP:
+            command = NVME_NVM_CMD_WRITE;
+            break;
+        default:
+            return -EOPNOTSUPP;
+    }
+
+    memset(cmd, 0, sizeof(*cmd));
+    cmd->cmd.cdw0.cdw0 = NVME_CMD_OPCODE(command) | NVME_CMD_FUSE_NORMAL | NVME_CMD_PSDT_PRP;
+    cmd->cmd.nsid = ns->nsid_;
+    cmd->cmd.cdw12 = 0;
+
+    int st = setup_prp(breq, ns);
+    if (st < 0)
+    {
+        printf("nvme: Error setting up PRPs: %d\n", st);
+        return st;
+    }
+
+    cmd->cmd.dptr.prp[0] = prp->first;
+
+    if (prp->nr_entries > 1)
+        cmd->cmd.dptr.prp[1] = (prp_entry_t) page_to_phys(prp->indirect_list[0]);
+
+    // Set up the starting LBA and number of sectors
+    cmd->cmd.cdw10 = (uint32_t) breq->r_sector;
+    cmd->cmd.cdw11 = (uint32_t) (breq->r_sector >> 32);
+    cmd->cmd.cdw12 = (uint16_t) prp->xfer_blocks - 1; // TODO: FUA
+    cmd->cmd.cdw13 = 0;
+    cmd->cmd.cdw14 = 0;
+    cmd->req = breq;
+
+    return 0;
+}
+
 /**
  * @brief Submits IO to a device
  *
- * @param req bio_req to submit
+ * @param req Request to submit
  * @return 0 on sucess, negative error codes
  */
-int nvme_device::nvme_queue::device_io_submit(bio_req *req)
+int nvme_device::nvme_queue::device_io_submit(struct request *req)
 {
-    return submit_command((nvmecmd *) req->device_specific[0]);
+    nvmecmd *cmd = &request_to_pdu(req)->cmd;
+    if (int st = prepare_nvme_request(req->r_flags & BIO_REQ_OP_MASK, cmd, req,
+                                      (nvme_namespace *) req->r_bdev->device_info);
+        st < 0)
+        return st;
+    return submit_command(cmd);
 }
 
 /**
@@ -896,15 +901,11 @@ int nvme_device::nvme_queue::device_io_submit(bio_req *req)
  *
  * @param req Request to comlete
  */
-void nvme_device::nvme_queue::do_complete(bio_req *req)
+void nvme_device::nvme_queue::do_complete(struct request *req)
 {
-    nvmecmd *cmd = (nvmecmd *) req->device_specific[0];
-    DCHECK(cmd != nullptr);
-    free(cmd);
-    prp_setup *setup = (prp_setup *) req->device_specific[1];
-    DCHECK(setup != nullptr);
-    delete setup;
-    bio_do_complete(req);
+    struct request_pdu *pdu = request_to_pdu(req);
+    pdu->~request_pdu();
+    block_request_complete(req);
 }
 
 /**
@@ -916,21 +917,16 @@ int nvme_device::nvme_queue::pull_sq()
 {
     for (u32 i = used_entries_; i < nr_entries_; i++)
     {
-        struct bio_req *bio = pull_sqe();
-        if (!bio)
+        struct request *req = pull_sqe();
+        if (!req)
             break;
 
-        nvmecmd *cmd = (nvmecmd *) bio->device_specific[0];
-        int cid = allocate_cid();
-        DCHECK(cid >= 0);
-        DCHECK(((sq_tail_ + 1) % sq_size_) != sq_head_);
-
-        auto next_entry = sq_tail_;
-
-        sq_tail_ = (sq_tail_ + 1) % sq_size_;
-        cmd->cmd.cdw0.cid = cid;
-        queued_commands_[cmd->cmd.cdw0.cid] = cmd;
-        memcpy(&sq_[next_entry], &cmd->cmd, sizeof(nvmesqe));
+        if (int st = device_io_submit(req); st < 0)
+        {
+            printf("nvme: device_io_submit failed with err %d, unpulling sqe\n", st);
+            unpull_seq(req);
+            break;
+        }
     }
 
     /* Queue is full, ring the doorbell */

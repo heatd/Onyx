@@ -81,6 +81,8 @@ static int partition_setup(cul::string &&name, struct blockdev *block, size_t fi
     d->actual_blockdev = block;
     d->submit_request = block->submit_request;
     d->device_info = block->device_info;
+    d->mq_ops = block->mq_ops;
+    d->bdev_queue_properties = block->bdev_queue_properties;
 
     if (int st = blkdev_init(d); st < 0)
     {

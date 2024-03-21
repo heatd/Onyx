@@ -34,6 +34,8 @@ typedef u64 sector_t;
 #define BIO_REQ_NOT_SUPP     (1 << 11)
 #define BIO_REQ_PINNED_PAGES (1 << 12)
 
+#define BIO_STATUS_MASK (BIO_REQ_DONE | BIO_REQ_EIO | BIO_REQ_TIMEOUT | BIO_REQ_NOT_SUPP)
+
 struct bio_req
 {
     unsigned int b_ref;
@@ -83,5 +85,10 @@ struct request
     /* Anything can come after this. Block devices specify their request's sizes, and data is
      * allocated inline. */
 };
+
+static inline void *b_request_to_data(struct request *req)
+{
+    return req + 1;
+}
 
 #endif

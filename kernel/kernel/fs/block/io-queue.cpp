@@ -40,10 +40,10 @@ bio_req *io_queue::complete_request(bio_req *req)
  *
  * @param req Request
  */
-void io_queue::complete_request2(bio_req *req)
+void io_queue::complete_request2(struct request *req)
 {
     used_entries_--;
-    bio_queue_pending_bio(req);
+    bio_queue_pending_req(req);
     set_pending();
 }
 
@@ -64,6 +64,26 @@ int io_queue::submit_request(bio_req *req)
     }
 
     list_add_tail(&req->list_node, &req_list_);
+    return 0;
+}
+
+/**
+ * @brief Submits a request
+ *
+ * @param req Request to add to the queue
+ */
+int io_queue::submit_request(struct request *req)
+{
+    scoped_lock<spinlock, true> g{lock_};
+    req->r_queue = this;
+
+    if (used_entries_ < nr_entries_ && list_is_empty(&req_list_))
+    {
+        used_entries_++;
+        return device_io_submit(req);
+    }
+
+    list_add_tail(&req->r_queue_list_node, &req_list_);
     return 0;
 }
 
@@ -97,7 +117,16 @@ void io_queue::clear_pending()
 void io_queue::restart_sq()
 {
     scoped_lock<spinlock, true> g{lock_};
+    __restart_queue();
+}
 
+/**
+ * @brief Restart a queue.
+ * The lock must be held.
+ *
+ */
+void io_queue::__restart_queue()
+{
     if (pull_sq() == 0)
         return;
 
@@ -108,17 +137,32 @@ void io_queue::restart_sq()
         if (list_is_empty(&req_list_))
             break;
 
-        struct bio_req *request = container_of(list_first_element(&req_list_), bio_req, list_node);
-        list_remove(&request->list_node);
+        struct request *req =
+            container_of(list_first_element(&req_list_), request, r_queue_list_node);
+        list_remove(&req->r_queue_list_node);
         used_entries_++;
-        int st = device_io_submit(request);
+        int st = device_io_submit(req);
         if (st < 0)
         {
             DCHECK(st == -EAGAIN);
             /* TODO: Try again later? Is this even a good idea? */
-            list_add(&request->list_node, &req_list_);
+            list_add(&req->r_queue_list_node, &req_list_);
             used_entries_--;
             return;
         }
     }
+}
+
+/**
+ * @brief Submit a batch of requests
+ *
+ * @param req_list List of requests
+ * @param nr_reqs Number of requests
+ */
+void io_queue::submit_batch(struct list_head *req_list, u32 nr_reqs)
+{
+    scoped_lock<spinlock, true> g{lock_};
+    list_splice_tail(req_list, &req_list_);
+    if (nr_entries_ - used_entries_ > 0)
+        __restart_queue();
 }
