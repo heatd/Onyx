@@ -116,4 +116,15 @@ static void bio_reset_vec_index(struct bio_req *bio)
     bio->curr_vec_index = 0;
 }
 
+#ifdef __cplusplus
+
+template <typename Callable>
+void for_every_page_iov_in_bio(struct bio_req *breq, Callable c)
+{
+    for (size_t i = 0; i < breq->nr_vecs; i++)
+        if (!c(&breq->vec[i]))
+            break;
+}
+
+#endif
 #endif

@@ -64,6 +64,14 @@ constexpr void bdev_set_default_queue_properties(struct queue_properties &props)
     props.max_sgl_desc_length = -1UL;
 }
 
+struct io_queue;
+struct request;
+
+struct blk_mq_ops
+{
+    struct io_queue *(*pick_queue)(struct blockdev *bdev);
+};
+
 struct blockdev
 {
     __blkflush flush{};
@@ -89,12 +97,11 @@ struct blockdev
 
     // An optional partition prefix, like the 'p' in nvme0n1p1
     cul::string partition_prefix;
-
     unique_ptr<flush::writeback_dev> wbdev{};
-
     struct queue_properties bdev_queue_properties;
+    const struct blk_mq_ops *mq_ops;
 
-    constexpr blockdev()
+    constexpr blockdev() : mq_ops{nullptr}
     {
         bdev_set_default_queue_properties(bdev_queue_properties);
     }
@@ -190,10 +197,10 @@ void block_handle_completion();
 void block_queue_pending_io_queue(io_queue *queue);
 
 /**
- * @brief Queue a to-be-completed bio to get completed
+ * @brief Queue a to-be-completed request to get completed
  *
- * @param bio bio to complete
+ * @param req Request to complete
  */
-void bio_queue_pending_bio(struct bio_req *bio);
+void bio_queue_pending_req(struct request *req);
 
 #endif

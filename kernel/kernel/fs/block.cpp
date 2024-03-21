@@ -17,6 +17,7 @@
 #include <onyx/buffer.h>
 #include <onyx/filemap.h>
 #include <onyx/init.h>
+#include <onyx/local_lock.h>
 #include <onyx/mm/slab.h>
 #include <onyx/page.h>
 #include <onyx/page_iov.h>
@@ -216,7 +217,9 @@ int bio_submit_request(struct blockdev *dev, struct bio_req *req)
 
 static void bio_submit_sync_end_io(struct bio_req *req)
 {
-    wake_address(req);
+    u32 *flags = (u32 *) req->b_private;
+    *flags = req->flags;
+    wake_address(flags);
 }
 
 /**
@@ -230,20 +233,23 @@ int bio_submit_req_wait(struct blockdev *dev, struct bio_req *req)
 {
     DCHECK(req->b_private == nullptr);
     DCHECK(req->b_end_io == nullptr);
+    u32 flags = 0;
     req->b_end_io = bio_submit_sync_end_io;
+    req->b_private = &flags;
 
     int st = bio_submit_request(dev, req);
     if (st < 0)
         return st;
 
     wait_for(
-        req,
-        [](void *_req) -> bool {
-            struct bio_req *req_ = (struct bio_req *) _req;
-            return req_->flags & BIO_REQ_DONE;
+        &flags,
+        [](void *pflags) -> bool {
+            u32 fl = *(u32 *) pflags;
+            return fl & BIO_REQ_DONE;
         },
         WAIT_FOR_FOREVER, 0);
-    if (req->flags & (BIO_REQ_EIO | BIO_REQ_NOT_SUPP))
+
+    if (flags & (BIO_REQ_EIO | BIO_REQ_NOT_SUPP))
         return -EIO;
     return 0;
 }
@@ -432,11 +438,12 @@ void bio_free(struct bio_req *req)
  */
 struct block_pcpu_data
 {
-    /* We may not need a lock here... Think about it */
-    struct spinlock lock;
-    struct list_head pending_queues;
-    struct list_head pending_bios;
-    size_t completed_bios;
+    struct local_lock lock;
+    struct list_head pending_queues GUARDED_BY(lock);
+    struct list_head pending_reqs GUARDED_BY(lock);
+    /* Note: completed_reqs and completed_sq do not need a lock, they're already guarded by
+     * being in softirq context. */
+    size_t completed_reqs;
     size_t completed_sq;
 };
 
@@ -445,9 +452,9 @@ static PER_CPU_VAR(struct block_pcpu_data block_pcpu);
 static void block_pcpu_ctor(unsigned int cpu)
 {
     struct block_pcpu_data *pcpu = get_per_cpu_ptr_any(block_pcpu, cpu);
-    spinlock_init(&pcpu->lock);
+    local_lock_init(&pcpu->lock);
     INIT_LIST_HEAD(&pcpu->pending_queues);
-    INIT_LIST_HEAD(&pcpu->pending_bios);
+    INIT_LIST_HEAD(&pcpu->pending_reqs);
 }
 
 INIT_LEVEL_CORE_PERCPU_CTOR(block_pcpu_ctor);
@@ -461,9 +468,9 @@ INIT_LEVEL_CORE_PERCPU_CTOR(block_pcpu_ctor);
 void block_queue_pending_io_queue(io_queue *queue)
 {
     struct block_pcpu_data *data = get_per_cpu_ptr(block_pcpu);
-    unsigned long flags = spin_lock_irqsave(&data->lock);
+    unsigned long flags = local_lock_irqsave(&data->lock);
     list_add_tail(&queue->pending_node_, &data->pending_queues);
-    spin_unlock_irqrestore(&data->lock, flags);
+    local_unlock_irqrestore(&data->lock, flags);
     softirq_raise(SOFTIRQ_VECTOR_BLOCK);
 }
 
@@ -472,12 +479,12 @@ void block_queue_pending_io_queue(io_queue *queue)
  *
  * @param bio bio to complete
  */
-void bio_queue_pending_bio(struct bio_req *bio)
+void bio_queue_pending_req(struct request *req)
 {
     struct block_pcpu_data *data = get_per_cpu_ptr(block_pcpu);
-    unsigned long flags = spin_lock_irqsave(&data->lock);
-    list_add_tail(&bio->list_node, &data->pending_bios);
-    spin_unlock_irqrestore(&data->lock, flags);
+    unsigned long flags = local_lock_irqsave(&data->lock);
+    list_add_tail(&req->r_queue_list_node, &data->pending_reqs);
+    local_unlock_irqrestore(&data->lock, flags);
     softirq_raise(SOFTIRQ_VECTOR_BLOCK);
 }
 
@@ -488,19 +495,19 @@ void bio_queue_pending_bio(struct bio_req *bio)
 void block_handle_completion()
 {
     DEFINE_LIST(pending_queues);
-    DEFINE_LIST(pending_bios);
+    DEFINE_LIST(pending_reqs);
     struct block_pcpu_data *data = get_per_cpu_ptr(block_pcpu);
-    unsigned long flags = spin_lock_irqsave(&data->lock);
+    unsigned long flags = local_lock_irqsave(&data->lock);
     list_move(&pending_queues, &data->pending_queues);
-    list_move(&pending_bios, &data->pending_bios);
-    spin_unlock_irqrestore(&data->lock, flags);
+    list_move(&pending_reqs, &data->pending_reqs);
+    local_unlock_irqrestore(&data->lock, flags);
 
-    list_for_every_safe (&pending_bios)
+    list_for_every_safe (&pending_reqs)
     {
-        struct bio_req *req = container_of(l, struct bio_req, list_node);
-        list_remove(&req->list_node);
-        req->b_queue->do_complete(req);
-        data->completed_bios++;
+        struct request *req = container_of(l, struct request, r_queue_list_node);
+        list_remove(&req->r_queue_list_node);
+        req->r_queue->do_complete(req);
+        data->completed_reqs++;
     }
 
     list_for_every_safe (&pending_queues)
