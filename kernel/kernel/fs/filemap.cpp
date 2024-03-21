@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <onyx/block/blk_plug.h>
 #include <onyx/filemap.h>
 #include <onyx/gen/trace_filemap.h>
 #include <onyx/mm/amap.h>
@@ -461,6 +462,8 @@ int filemap_writepages(struct inode *inode,
     unsigned long start = wpinfo->start;
     struct page *page;
     int found = 0;
+    struct blk_plug plug;
+    blk_start_plug(&plug);
 
     while ((found = filemap_get_tagged_pages(inode, FILEMAP_MARK_DIRTY, start, wpinfo->end, &page,
                                              1)) > 0)
@@ -487,12 +490,15 @@ int filemap_writepages(struct inode *inode,
         {
             /* Error! */
             page_unref(page);
+            blk_end_plug(&plug);
             return st;
         }
 
         page_unref(page);
         page = nullptr;
     }
+
+    blk_end_plug(&plug);
 
     if (wpinfo->flags & WRITEPAGES_SYNC)
     {
