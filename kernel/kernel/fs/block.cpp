@@ -13,6 +13,7 @@
 #include <string.h>
 
 #include <onyx/block.h>
+#include <onyx/block/blk_plug.h>
 #include <onyx/block/io-queue.h>
 #include <onyx/buffer.h>
 #include <onyx/filemap.h>
@@ -517,5 +518,59 @@ void block_handle_completion()
         queue->clear_pending();
         queue->restart_sq();
         data->completed_sq++;
+    }
+}
+
+/**
+ * @brief Flush pending requests
+ *
+ * @param plug Plug to flush
+ */
+void blk_flush_plug(struct blk_plug *plug)
+{
+    /* We flush the plug by keeping a list of the most recent run of requests that belong to the
+     * same queue. When we find a request with another queue, or reach the end of the list, we
+     * submit the requests in a batched fashion. */
+    DEFINE_LIST(reqs);
+    u32 nr_reqs = 0;
+    struct io_queue *last_queue = nullptr;
+
+    list_for_every_safe (&plug->request_list)
+    {
+        struct request *req = container_of(l, struct request, r_queue_list_node);
+        list_remove(&req->r_queue_list_node);
+        plug->nr_requests--;
+
+        struct io_queue *queue = req->r_queue;
+
+        if (queue != last_queue)
+        {
+            if (last_queue)
+                last_queue->submit_batch(&reqs, nr_reqs);
+            last_queue = queue;
+        }
+
+        list_add_tail(&req->r_queue_list_node, &reqs);
+        nr_reqs++;
+    }
+
+    if (!list_is_empty(&reqs))
+        last_queue->submit_batch(&reqs, nr_reqs);
+}
+
+/**
+ * @brief End plugging
+ * Unset the plug and flush it. If plug is not the current plug, does nothing.
+ *
+ * @param plug Plug to unset
+ */
+void blk_end_plug(struct blk_plug *plug)
+{
+    thread *curr = get_current_thread();
+    if (curr->plug == plug)
+    {
+        /* This is *our* plug, unset and flush it. */
+        blk_flush_plug(plug);
+        curr->plug = nullptr;
     }
 }
