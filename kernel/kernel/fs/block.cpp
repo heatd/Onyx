@@ -213,6 +213,9 @@ int bio_submit_request(struct blockdev *dev, struct bio_req *req)
     req->bdev = dev;
     bio_reset_vec_index(req);
 
+    if (!bio_is_valid(req))
+        return -EIO;
+
     return dev->submit_request(dev, req);
 }
 

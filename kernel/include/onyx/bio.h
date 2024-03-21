@@ -116,6 +116,14 @@ static void bio_reset_vec_index(struct bio_req *bio)
     bio->curr_vec_index = 0;
 }
 
+/**
+ * @brief Check if a given bio is valid (wrt the block device)
+ *
+ * @param bio Bio to check
+ * @return True if valid (adding this to a struct request should work), else false
+ */
+bool bio_is_valid(struct bio_req *bio);
+
 #ifdef __cplusplus
 
 template <typename Callable>
