@@ -516,7 +516,7 @@ static void ide_set_queue_properties(struct queue_properties *qp)
     qp->max_sgls_per_request = (prdt_nr_pages << PAGE_SHIFT) / sizeof(prdt_entry_t);
     qp->bounce_highmem = true;
     qp->max_sectors_per_request = ATA_MAX_SECTORS;
-    /* TODO: dma_boundary for requests crossing 64KiB */
+    qp->dma_boundary = 0xffff;
 }
 
 int ide_drive::probe()
