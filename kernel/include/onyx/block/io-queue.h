@@ -46,7 +46,7 @@ protected:
     /**
      * @brief Submits IO to a device
      *
-     * @param req bio_req to submit
+     * @param req struct request to submit
      * @return 0 on sucess, negative error codes
      */
     virtual int device_io_submit(struct request *req)
