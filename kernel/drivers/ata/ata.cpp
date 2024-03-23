@@ -512,6 +512,7 @@ static void ide_set_queue_properties(struct queue_properties *qp)
 {
     qp->max_sgl_desc_length = UINT16_MAX;
     qp->max_sgls_per_request = (prdt_nr_pages << PAGE_SHIFT) / sizeof(prdt_entry_t);
+    qp->bounce_highmem = true;
     /* TODO: dma_boundary for requests crossing 64KiB */
 }
 
