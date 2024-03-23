@@ -13,6 +13,8 @@
 
 #define BIO_MAX_INLINE_VECS 8
 
+__BEGIN_CDECLS
+
 /**
  * @brief Allocate a bio_req
  * The system will attempt to allocate a bio_req with an inline page_iov vector. If not possible, it
@@ -117,12 +119,52 @@ static void bio_reset_vec_index(struct bio_req *bio)
 }
 
 /**
+ * @brief Clone a bio
+ *
+ * @param bio Bio to clone
+ * @param gfp_flags GFP flags
+ * @return Cloned BIO, or null
+ */
+struct bio_req *bio_clone(struct bio_req *bio, unsigned int gfp_flags);
+
+static inline struct bio_req *bio_chained(struct bio_req *bio)
+{
+    /* Currently we're storing the chained bios in b_private */
+    return (struct bio_req *) bio->b_private;
+}
+
+/**
+ * @brief Bounce a BIO out of high mem
+ *
+ * @param original Original BIO to bounce
+ * @param gfp_mask Mask (that limits our memory allocation)
+ * @return New BIO (with bounced, valid buffers)
+ */
+struct bio_req *bio_bounce(struct bio_req *original, unsigned int gfp_mask);
+
+enum bio_is_valid_result
+{
+    BIO_IS_VALID = 0,
+    BIO_NEEDS_BOUNCE,
+    BIO_IS_INVALID
+};
+
+/**
  * @brief Check if a given bio is valid (wrt the block device)
  *
  * @param bio Bio to check
- * @return True if valid (adding this to a struct request should work), else false
+ * @return bio_is_valid_result value
  */
-bool bio_is_valid(struct bio_req *bio);
+enum bio_is_valid_result bio_is_valid(struct bio_req *bio);
+
+/**
+ * @brief Complete the chained, cloned bio
+ *
+ * @param bio BIO whose chain needs completion
+ */
+void bio_complete_cloned(struct bio_req *bio);
+
+__END_CDECLS
 
 #ifdef __cplusplus
 
