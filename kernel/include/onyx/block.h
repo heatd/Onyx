@@ -51,6 +51,7 @@ struct queue_properties
     unsigned long request_extra_headroom;
     /* Cache to-be-used for struct request allocation */
     struct slab_cache *request_cache;
+    bool bounce_highmem;
 };
 
 constexpr void bdev_set_default_queue_properties(struct queue_properties &props)

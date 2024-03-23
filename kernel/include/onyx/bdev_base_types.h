@@ -33,6 +33,7 @@ typedef u64 sector_t;
 #define BIO_REQ_TIMEOUT      (1 << 10)
 #define BIO_REQ_NOT_SUPP     (1 << 11)
 #define BIO_REQ_PINNED_PAGES (1 << 12)
+#define BIO_REQ_CLONED       (1 << 13)
 
 #define BIO_STATUS_MASK (BIO_REQ_DONE | BIO_REQ_EIO | BIO_REQ_TIMEOUT | BIO_REQ_NOT_SUPP)
 

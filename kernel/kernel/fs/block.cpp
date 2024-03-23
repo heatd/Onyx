@@ -213,8 +213,15 @@ int bio_submit_request(struct blockdev *dev, struct bio_req *req)
     req->bdev = dev;
     bio_reset_vec_index(req);
 
-    if (!bio_is_valid(req))
+    bio_is_valid_result result = bio_is_valid(req);
+    if (unlikely(result == BIO_IS_INVALID))
         return -EIO;
+    else if (unlikely(result == BIO_NEEDS_BOUNCE))
+    {
+        req = bio_bounce(req, GFP_NOIO);
+        if (!req)
+            return NULL;
+    }
 
     return dev->submit_request(dev, req);
 }
@@ -425,6 +432,9 @@ static void bio_unpin_pages(struct bio_req *req)
 void bio_free(struct bio_req *req)
 {
     struct slab_cache *cache = bio_cache_noinline;
+    if (req->flags & BIO_REQ_CLONED) [[unlikely]]
+        bio_put((struct bio_req *) req->b_private);
+
     if (req->flags & BIO_REQ_PINNED_PAGES) [[unlikely]]
         bio_unpin_pages(req);
 
