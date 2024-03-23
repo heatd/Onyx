@@ -508,11 +508,14 @@ static struct io_queue *ide_pick_queue(struct blockdev *dev)
 
 static const struct blk_mq_ops ide_mq_ops = {.pick_queue = ide_pick_queue};
 
+#define ATA_MAX_SECTORS UINT16_MAX
+
 static void ide_set_queue_properties(struct queue_properties *qp)
 {
     qp->max_sgl_desc_length = UINT16_MAX;
     qp->max_sgls_per_request = (prdt_nr_pages << PAGE_SHIFT) / sizeof(prdt_entry_t);
     qp->bounce_highmem = true;
+    qp->max_sectors_per_request = ATA_MAX_SECTORS;
     /* TODO: dma_boundary for requests crossing 64KiB */
 }
 
