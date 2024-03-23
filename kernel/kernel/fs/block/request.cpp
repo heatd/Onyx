@@ -69,7 +69,6 @@ struct request *bio_req_to_request(struct bio_req *bio)
         bio_request_init(req);
         req->r_bdev = bdev;
         req->r_flags = bio->flags;
-        req->r_queue = bio->b_queue;
         req->r_sector = bio->sector_number;
         /* Append this request to the head */
         request_add_bio_head(req, bio);

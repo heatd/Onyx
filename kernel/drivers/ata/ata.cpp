@@ -342,12 +342,6 @@ ide_drive *ide_drive_from_blockdev(blockdev *dev)
     return (ide_drive *) dev->device_info;
 }
 
-// bio_req details:
-// device_specific[0] layout: top 32 bits = len, bottom 32 is flags
-// only 1 flag is defined: bit 0: bounce buffer valid
-
-#define BIO_REQ_HAS_BOUNCE_BUF (1U << 0)
-
 int ide_ata_bus::device_io_submit(struct request *req)
 {
     auto drive = ide_drive_from_blockdev(req->r_bdev);

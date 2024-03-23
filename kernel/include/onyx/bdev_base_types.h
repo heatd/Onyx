@@ -46,10 +46,7 @@ struct bio_req
     size_t nr_vecs;
     size_t curr_vec_index;
     struct blockdev *bdev;
-    struct io_queue *b_queue;
     struct list_head list_node;
-    /* TODO: We need to kill this! */
-    unsigned long device_specific[4];
     void (*b_end_io)(struct bio_req *req);
     void *b_private;
     struct page_iov b_inline_vec[];
