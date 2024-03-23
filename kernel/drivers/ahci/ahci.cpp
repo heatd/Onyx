@@ -67,7 +67,7 @@ void ahci_io_queue::do_irq(u16 slot, u32 irq_status)
     if (list->last_interrupt_status & AHCI_INTST_ERROR)
         req->r_flags |= BIO_REQ_EIO;
 
-    complete_request2(req);
+    complete_request(req);
     __atomic_and_fetch(&port->issued, ~(1U << slot), __ATOMIC_RELEASE);
     free_slot(slot);
 }

@@ -807,7 +807,7 @@ bool nvme_device::nvme_queue::handle_cq()
             sq_head_ = NVME_CQE_SQHD(cqe->dw2);
 
             if (command->req)
-                complete_request2(command->req);
+                complete_request(command->req);
         }
         else
             break;

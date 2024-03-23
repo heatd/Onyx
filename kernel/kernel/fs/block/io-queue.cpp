@@ -9,62 +9,15 @@
 #include <onyx/block/io-queue.h>
 
 /**
- * @brief Completes an IO request. Requires the io queue lock to be held.
- *
- * @param req Request
- * @return New BIO req to complete, if one exists
- */
-bio_req *io_queue::complete_request(bio_req *req)
-{
-    req->flags |= BIO_REQ_DONE;
-    if (req->b_end_io)
-        req->b_end_io(req);
-    bio_put(req);
-
-    scoped_lock<spinlock, true> g{lock_};
-    if (list_is_empty(&req_list_))
-    {
-        used_entries_--;
-        return nullptr;
-    }
-
-    auto l = list_first_element(&req_list_);
-
-    auto elem = container_of(l, bio_req, list_node);
-    list_remove(l);
-    return elem;
-}
-
-/**
  * @brief Completes an IO request
  *
  * @param req Request
  */
-void io_queue::complete_request2(struct request *req)
+void io_queue::complete_request(struct request *req)
 {
     used_entries_--;
     bio_queue_pending_req(req);
     set_pending();
-}
-
-/**
- * @brief Submits a request
- *
- * @param req Request to add to the queue
- */
-int io_queue::submit_request(bio_req *req)
-{
-    scoped_lock<spinlock, true> g{lock_};
-    req->b_queue = this;
-
-    if (used_entries_ < nr_entries_ && list_is_empty(&req_list_))
-    {
-        used_entries_++;
-        return device_io_submit(req);
-    }
-
-    list_add_tail(&req->list_node, &req_list_);
-    return 0;
 }
 
 /**

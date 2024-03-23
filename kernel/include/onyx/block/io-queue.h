@@ -74,24 +74,8 @@ public:
      * @brief Completes an IO request
      *
      * @param req Request
-     * @return New BIO req to complete, if one exists
      */
-    bio_req *complete_request(bio_req *req);
-
-    /**
-     * @brief Completes an IO request
-     *
-     * @param req Request
-     */
-    void complete_request2(struct request *req);
-
-    /**
-     * @brief Submits a request
-     *
-     * @param req Request to add to the queue
-     * @return 0 on success, negative error codes.
-     */
-    int submit_request(bio_req *req);
+    void complete_request(struct request *req);
 
     /**
      * @brief Submits a request

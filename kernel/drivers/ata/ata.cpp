@@ -314,7 +314,7 @@ irqstatus_t ide_ata_bus::handle_irq()
 
     req->r_flags |= had_error ? BIO_REQ_EIO : 0;
     req->r_flags |= BIO_REQ_DONE;
-    complete_request2(req);
+    complete_request(req);
     req = nullptr;
 
     return IRQ_HANDLED;
