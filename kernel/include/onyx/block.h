@@ -63,6 +63,7 @@ constexpr void bdev_set_default_queue_properties(struct queue_properties &props)
     props.request_extra_headroom = 0;
     props.max_sgls_per_request = -1UL;
     props.max_sgl_desc_length = -1UL;
+    props.bounce_highmem = false;
 }
 
 struct io_queue;
