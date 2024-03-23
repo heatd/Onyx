@@ -11,11 +11,13 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
 template <typename Type>
 static inline void mov_non_temporal(volatile Type *p, Type val)
 {
     *p = val;
 }
+#endif
 
 #define RISCV_SATP     "satp"
 #define RISCV_STVEC    "stvec"

@@ -11,11 +11,13 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
 template <typename Type>
 static inline void mov_non_temporal(volatile Type *p, Type val)
 {
     *p = val;
 }
+#endif
 
 #define msr(reg, value) ({ __asm__ __volatile__("msr " reg ", %0" ::"r"((unsigned long) value)); })
 #define isb()           __asm__ __volatile__("isb" ::: "memory")
