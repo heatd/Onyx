@@ -40,6 +40,10 @@ static bio_is_valid_result bio_is_valid_internal(struct bio_req *bio, struct que
         /* Check for dma_address_mask (for every segment) */
         if (address & qp->dma_address_mask || end & qp->dma_address_mask)
             return BIO_IS_INVALID;
+
+        if ((address & ~qp->dma_boundary) != ((end - 1) & ~qp->dma_boundary))
+            return BIO_IS_INVALID;
+
         /* Check the length */
         if (iov->length > qp->max_sgl_desc_length)
             return BIO_IS_INVALID;
@@ -289,6 +293,26 @@ TEST(bio, invalid_bios_are_invalid)
     EXPECT_FALSE(bio_is_valid_internal(bio, &qp) == BIO_IS_VALID);
 
     bio_put(bio);
+}
+
+TEST(bio, dma_boundary_tests)
+{
+    struct queue_properties qp;
+    bdev_set_default_queue_properties(qp);
+    /* Let's pretend (but not too hard) we're an IDE controller */
+    qp.dma_boundary = 0xffff;
+
+    struct page *test_page = vm_get_zero_page();
+    struct bio_req *bio = bio_alloc(GFP_KERNEL, 1);
+    ASSERT_NONNULL(bio);
+
+    /* This does not cross a 64KiB boundary, ever. */
+    bio->vec[0] = page_iov{test_page, PAGE_SIZE, 0};
+    EXPECT_TRUE(bio_is_valid_internal(bio, &qp) == BIO_IS_VALID);
+
+    /* But this will! */
+    bio->vec[0] = page_iov{test_page, 65 * PAGE_SIZE, 0};
+    EXPECT_FALSE(bio_is_valid_internal(bio, &qp) == BIO_IS_VALID);
 }
 
 #endif

@@ -52,6 +52,9 @@ struct queue_properties
     /* Cache to-be-used for struct request allocation */
     struct slab_cache *request_cache;
     bool bounce_highmem;
+    /* Individual SGL descriptors can't cross this boundary. AKA start & ~dma_boundary == end &
+     * ~dma_boundary. */
+    unsigned long dma_boundary;
 };
 
 constexpr void bdev_set_default_queue_properties(struct queue_properties &props)
@@ -64,6 +67,7 @@ constexpr void bdev_set_default_queue_properties(struct queue_properties &props)
     props.max_sgls_per_request = -1UL;
     props.max_sgl_desc_length = -1UL;
     props.bounce_highmem = false;
+    props.dma_boundary = -1UL;
 }
 
 struct io_queue;
