@@ -739,12 +739,12 @@ static const struct blk_mq_ops ahci_mq_ops = {.pick_queue = ahci_pick_queue};
 
 #define AHCI_MAX_SGL_DESC_LEN 0x400000
 
-static void ahci_set_queue_properties(struct queue_properties *qp)
+static void ahci_set_queue_properties(struct queue_properties *qp, bool needs_bounce)
 {
     qp->max_sgls_per_request = NUM_PRDT_PER_TABLE;
     qp->max_sgl_desc_length = AHCI_MAX_SGL_DESC_LEN;
     qp->dma_address_mask = (2 - 1); /* Buffers need to be word-aligned */
-    /* TODO: Bounce buffer if required (if addr64 isn't supported) */
+    qp->bounce_highmem = needs_bounce;
 }
 
 int ahci_initialize(struct ahci_device *device)
@@ -796,7 +796,8 @@ int ahci_initialize(struct ahci_device *device)
             dev->submit_request = blk_mq_submit_request;
             dev->mq_ops = &ahci_mq_ops;
             dev->sector_size = 512;
-            ahci_set_queue_properties(&dev->bdev_queue_properties);
+            ahci_set_queue_properties(&dev->bdev_queue_properties,
+                                      !(hba->host_cap & AHCI_CAP_ADDR64));
 
             MPRINTF("Created %s for port %d\n", dev->name.c_str(), i);
             device->ports[i].port_nr = i;
