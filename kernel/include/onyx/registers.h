@@ -134,13 +134,13 @@ static inline bool in_kernel_space_regs(struct registers *regs)
 
 #elif defined(__aarch64__)
 
-using registers_t = struct registers
+typedef struct registers
 {
     unsigned long x[32];
     unsigned long sp;
     unsigned long pc;
     unsigned long pstate;
-};
+} registers_t;
 
 static inline bool in_kernel_space_regs(struct registers *regs)
 {

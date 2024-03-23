@@ -32,11 +32,11 @@ static inline unsigned long arm64_get_tpidr()
         *(unsigned long *) (tp + (unsigned long) &var); \
     })
 
-#define write_per_cpu_generic(var, val, type)               \
-    ({                                                      \
-        unsigned long tp = arm64_get_tpidr();               \
-        type *ptr = (type *) (tp + (unsigned long) &var);   \
-        write_once<type>(*ptr, (type) (unsigned long) val); \
+#define write_per_cpu_generic(var, val, type)                                \
+    ({                                                                       \
+        unsigned long tp = arm64_get_tpidr();                                \
+        type *ptr = (type *) (tp + (unsigned long) &var);                    \
+        __atomic_store_n(ptr, (type) (unsigned long) val, __ATOMIC_RELAXED); \
     })
 
 #define write_per_cpu_1(var, val) write_per_cpu_generic(var, val, uint8_t)
