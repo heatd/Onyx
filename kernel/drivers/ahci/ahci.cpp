@@ -739,12 +739,15 @@ static const struct blk_mq_ops ahci_mq_ops = {.pick_queue = ahci_pick_queue};
 
 #define AHCI_MAX_SGL_DESC_LEN 0x400000
 
+#define AHCI_MAX_SECTORS UINT16_MAX
+
 static void ahci_set_queue_properties(struct queue_properties *qp, bool needs_bounce)
 {
     qp->max_sgls_per_request = NUM_PRDT_PER_TABLE;
     qp->max_sgl_desc_length = AHCI_MAX_SGL_DESC_LEN;
     qp->dma_address_mask = (2 - 1); /* Buffers need to be word-aligned */
     qp->bounce_highmem = needs_bounce;
+    qp->max_sectors_per_request = AHCI_MAX_SECTORS;
 }
 
 int ahci_initialize(struct ahci_device *device)
