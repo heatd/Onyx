@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -15,6 +15,7 @@
 #include <stdlib.h>
 
 #include <onyx/block.h>
+#include <onyx/block/multiqueue.h>
 #include <onyx/compiler.h>
 #include <onyx/cpu.h>
 #include <onyx/dev.h>
@@ -54,52 +55,33 @@ MODULE_INSERT_VERSION();
 
 void ahci_io_queue::do_irq(u16 slot, u32 irq_status)
 {
-    scoped_lock<spinlock, true> g{lock_};
-
     auto list = &cmdslots[slot];
     list->received_interrupt = true;
     list->last_interrupt_status = irq_status;
     list->status = port->port->status;
     list->tfd = port->port->tfd;
+    struct request *req = list->req;
 
-    // TODO: Understand why this fires and fix it
-    // assert(list->breq != nullptr);
-    if (!list->breq)
-        return;
+    DCHECK(req);
 
     if (list->last_interrupt_status & AHCI_INTST_ERROR)
-    {
-        list->breq->flags |= BIO_REQ_EIO;
-    }
-    else if (list->last_interrupt_status & AHCI_PORT_INTERRUPT_DHRE)
-    {
-        list->breq->flags |= BIO_REQ_DONE;
-    }
+        req->r_flags |= BIO_REQ_EIO;
 
-    auto breq = list->breq;
-
-    wake_address(breq);
-
-    auto next = complete_request(breq);
-
+    complete_request2(req);
+    __atomic_and_fetch(&port->issued, ~(1U << slot), __ATOMIC_RELEASE);
     free_slot(slot);
-
-    port->issued &= ~(1UL << slot);
-
-    if (next)
-        device_io_submit(next);
 }
 
-void ahci_do_port_irqs(struct ahci_port *port, u32 irq_status)
+void ahci_io_queue::handle_irqs(u32 irq_status)
 {
+    scoped_lock<spinlock, true> g{lock_};
+
     uint32_t cmd_done = port->issued ^ port->port->command_issue;
 
     for (unsigned int j = 0; j < 32; j++)
     {
         if (cmd_done & (1U << j))
-        {
-            port->io_queue->do_irq(j, irq_status);
-        }
+            do_irq(j, irq_status);
     }
 }
 
@@ -119,8 +101,6 @@ irqstatus_t ahci_irq(struct irq_context *ctx, void *cookie)
     for (unsigned int i = 0; i < 32; i++)
     {
         struct ahci_port *port = &dev->ports[i];
-        unsigned long cpu_flags = spin_lock_irqsave(&port->port_lock);
-
         if (ports & (1U << i))
         {
             if (!port->port)
@@ -131,20 +111,21 @@ irqstatus_t ahci_irq(struct irq_context *ctx, void *cookie)
 
             uint32_t port_is = port->port->interrupt_status;
             port->port->interrupt_status = port_is;
-            dev->hba->interrupt_status = (1U << i);
-            ahci_do_port_irqs(port, port_is);
+            port->io_queue->handle_irqs(port_is);
         }
-
-        spin_unlock_irqrestore(&port->port_lock, cpu_flags);
     }
+
+    dev->hba->interrupt_status = ports;
 
     return IRQ_HANDLED;
 }
 
+#define BIO_REQ_IDENTIFY_CMD 0x80
+
 #define ATA_CMD_ERR_BAD_REQ 0xff
-static uint8_t bio_req_to_ata_command(struct bio_req *req)
+static uint8_t blk_request_to_ata_cmd(struct request *req)
 {
-    uint8_t op = (req->flags & BIO_REQ_OP_MASK);
+    uint8_t op = (req->r_flags & BIO_REQ_OP_MASK);
 
     switch (op)
     {
@@ -152,14 +133,14 @@ static uint8_t bio_req_to_ata_command(struct bio_req *req)
             return ATA_CMD_READ_DMA_EXT;
         case BIO_REQ_WRITE_OP:
             return ATA_CMD_WRITE_DMA_EXT;
-        case BIO_REQ_DEVICE_SPECIFIC:
-            return req->device_specific[0];
+        case BIO_REQ_IDENTIFY_CMD:
+            return ATA_CMD_IDENTIFY;
         default:
             return ATA_CMD_ERR_BAD_REQ;
     }
 }
 
-long ahci_setup_prdt_bio(prdt_t *prdt, struct bio_req *r, size_t *size);
+static u32 ahci_setup_prdt_bio(prdt_t *prdt, struct request *req);
 void ahci_set_lba(uint64_t lba, cfis_t *cfis);
 
 /**
@@ -169,11 +150,10 @@ void ahci_set_lba(uint64_t lba, cfis_t *cfis);
  */
 cul::pair<command_list_t *, u16> ahci_io_queue::allocate_clist()
 {
-    assert(list_bitmap != UINT32_MAX);
+    /* This is all protected by the queue's lock */
+    DCHECK(list_bitmap != UINT32_MAX);
     u16 pos = __builtin_ctz(~list_bitmap);
-
-    __atomic_or_fetch(&list_bitmap, 1U << pos, __ATOMIC_RELAXED);
-
+    list_bitmap |= (1U << pos);
     return {clist + pos, pos};
 }
 
@@ -181,33 +161,30 @@ void ahci_io_queue::free_slot(u16 slot)
 {
     command_list_t *list = clist + slot;
     list->prdbc = 0;
-
     cmdslots[slot].req = nullptr;
-
     list->prdtl = 0;
-
-    list_bitmap &= ~(1 << slot);
+    list_bitmap &= ~(1U << slot);
 }
 
 /**
  * @brief Submits IO to a device
  *
- * @param req bio_req to submit
+ * @param req struct request to submit
  * @return 0 on sucess, negative error codes
  */
-int ahci_io_queue::device_io_submit(bio_req *req)
+int ahci_io_queue::device_io_submit(struct request *req)
 {
-    auto bdev = req->bdev;
-    req->sector_number += (bdev->offset / 512);
+    struct ahci_port *port = (ahci_port *) req->r_bdev->device_info;
+    if (port->sig != SATA_SIG_ATA)
+        return -ENXIO;
 
     const uint16_t fis_len = 5;
-    (void) fis_len;
 
     auto [list, list_index] = allocate_clist();
 
     list->desc_info =
         fis_len |
-        ((req->flags & BIO_REQ_OP_MASK) == BIO_REQ_WRITE_OP ? AHCI_COMMAND_LIST_WRITE : 0);
+        ((req->r_flags & BIO_REQ_OP_MASK) == BIO_REQ_WRITE_OP ? AHCI_COMMAND_LIST_WRITE : 0);
     list->prdbc = 0;
     command_table_t *table = (command_table_t *) PHYS_TO_VIRT(ctables[list_index]);
 
@@ -215,16 +192,7 @@ int ahci_io_queue::device_io_submit(bio_req *req)
 
     prdt_t *prdt = (prdt_t *) (table + 1);
 
-    long nr_prdt = 0;
-    size_t size;
-
-    if ((nr_prdt = ahci_setup_prdt_bio(prdt, req, &size)) < 0)
-    {
-        req->flags |= BIO_REQ_EIO;
-        free_slot(list_index);
-        return -EIO;
-    }
-
+    u32 nr_prdt = ahci_setup_prdt_bio(prdt, req);
     list->prdtl = nr_prdt;
 
     table->cfis.fis_type = FIS_TYPE_REG_H2D;
@@ -234,54 +202,30 @@ int ahci_io_queue::device_io_submit(bio_req *req)
     table->cfis.feature_low = 1;
 
     /* Load the LBA */
-    uint64_t lba = req->sector_number;
+    uint64_t lba = req->r_sector;
     // printk("Lba: %lu\n", lba);
     ahci_set_lba(lba, &table->cfis);
 
     /* We need to set bit 6 to enable the LBA mode */
-    auto op = req->flags & BIO_REQ_OP_MASK;
+    auto op = req->r_flags & BIO_REQ_OP_MASK;
     bool read_or_write = op == BIO_REQ_READ_OP || op == BIO_REQ_WRITE_OP;
     if (read_or_write)
         table->cfis.device = (1 << 6);
     else
         table->cfis.device = 0;
 
-    size_t num_sectors = size / 512;
+    size_t num_sectors = req->r_nsectors;
     table->cfis.count = (uint16_t) num_sectors;
-    table->cfis.command = bio_req_to_ata_command(req);
+    table->cfis.command = blk_request_to_ata_cmd(req);
 
     struct command_list *l = &cmdslots[list_index];
 
-    l->breq = req;
+    l->req = req;
 
     COMPILER_BARRIER();
 
     port->port->command_issue = (1U << list_index);
-    port->issued |= (1U << list_index);
-
-    return 0;
-}
-
-int ahci_submit_request_new(struct blockdev *dev, struct bio_req *req)
-{
-    struct ahci_port *port = (ahci_port *) dev->device_info;
-    if (port->port->sig != SATA_SIG_ATA)
-        return -ENXIO;
-    req->bdev = dev;
-
-    int st = port->io_queue->submit_request(req);
-
-    if (st < 0)
-        return st;
-    st = wait_for(
-        req,
-        [](void *_req) -> bool {
-            struct bio_req *r = (struct bio_req *) _req;
-            return r->flags & (BIO_REQ_DONE | BIO_REQ_EIO);
-        },
-        WAIT_FOR_FOREVER, 0);
-    assert(st == 0);
-
+    __atomic_or_fetch(&port->issued, 1U << list_index, __ATOMIC_RELEASE);
     return 0;
 }
 
@@ -293,27 +237,6 @@ bool ahci_command_error(struct ahci_port *port, unsigned int cmdslot)
 void ahci_issue_command(struct ahci_port *port, size_t slot)
 {
     port->port->command_issue = (1U << slot);
-}
-
-size_t ahci_setup_prdt(prdt_t *table, struct phys_ranges *ranges)
-{
-    assert(ranges->nr_ranges <= NUM_PRDT_PER_TABLE);
-
-    for (size_t i = 0; i < ranges->nr_ranges; i++)
-    {
-        struct phys_range *r = ranges->ranges[i];
-        table[i].address = r->addr;
-
-        /* TODO: Let's keep these around until the dma_get_ranges code
-         * is fully mature, shall we?
-         */
-        assert(r->size <= PRDT_MAX_SIZE);
-        table[i].dw3 = r->size - 1;
-        table[i].res0 = 0;
-    }
-
-    assert(ranges->nr_ranges != 0);
-    return ranges->nr_ranges;
 }
 
 void ahci_set_lba(uint64_t lba, cfis_t *cfis)
@@ -328,73 +251,66 @@ void ahci_set_lba(uint64_t lba, cfis_t *cfis)
 
 void ahci_free_list(struct ahci_port *port, size_t idx);
 
-long ahci_setup_prdt_bio(prdt_t *prdt, struct bio_req *r, size_t *size)
+static u32 ahci_setup_prdt_bio(prdt_t *prdt, struct request *req)
 {
-    if (!r->vec)
-    {
-        *size = 0;
-        return 0;
-    }
+    prdt_t *prd = prdt;
 
-    struct page_iov *v = r->vec + r->curr_vec_index;
-    size_t left = r->nr_vecs - r->curr_vec_index;
+    for_every_bio(req, [&](struct bio_req *bio) {
+        for_every_page_iov_in_bio(bio, [&](page_iov *iov) -> bool {
+            unsigned long paddr = (unsigned long) page_to_phys(iov->page) + iov->page_off;
 
-    unsigned int i = 0;
-    size_t req_size = 0;
+            /* Addresses need to be word-aligned :/ */
+            DCHECK((paddr & (2 - 1)) == 0);
 
-    for (; i < left; i++)
-    {
-        if (i == NUM_PRDT_PER_TABLE)
-            break;
-        prdt_t *prd = prdt + i;
-        unsigned long paddr = (unsigned long) page_to_phys(v->page) + v->page_off;
+            prd->address = paddr;
+            prd->dw3 = iov->length - 1;
+            prd->res0 = 0;
+            prd++;
+            return true;
+        });
+    });
 
-        /* Addresses need to be word-aligned :/ */
-        if (paddr & (2 - 1))
-            return -EINVAL;
-
-        assert(v->length <= PAGE_SIZE);
-
-        /* TODO: Merge contiguous prdt entries? */
-        prd->address = paddr;
-        prd->dw3 = v->length - 1;
-        req_size += v->length;
-        prd->res0 = 0;
-        v++;
-    }
-
-    r->curr_vec_index += i;
-
-    *size = req_size;
-
-    return i;
+    return prd - prdt;
 }
 
 bool ahci_do_command(struct ahci_port *ahci_port, struct ahci_command_ata *buf)
 {
-    struct bio_req *r = bio_alloc(GFP_KERNEL, buf->nr_iov);
-    if (!r)
+    struct bio_req *bio = bio_alloc(GFP_KERNEL, buf->nr_iov);
+    if (!bio)
         return false;
 
-    r->bdev = ahci_port->bdev.get();
-    r->flags = BIO_REQ_DEVICE_SPECIFIC;
-    r->device_specific[0] = buf->cmd;
-    r->sector_number = 0;
-    memcpy(r->vec, buf->iovec, buf->nr_iov * sizeof(struct page_iov));
+    bio->bdev = ahci_port->bdev.get();
+    bio->flags = BIO_REQ_IDENTIFY_CMD;
+    bio->sector_number = 0;
+    bio->b_end_io = [](struct bio_req *req) { wake_address(req); };
 
-    if (ahci_port->io_queue->submit_request(r) < 0)
+    memcpy(bio->vec, buf->iovec, buf->nr_iov * sizeof(struct page_iov));
+    struct request *req = bio_req_to_request(bio);
+    if (!req)
+    {
+        bio_put(bio);
         return false;
+    }
+
+    bio_get(bio);
+
+    if (ahci_port->io_queue->submit_request(req) < 0)
+    {
+        block_request_free(req);
+        bio_put(bio);
+        return false;
+    }
 
     int st = wait_for(
-        r,
+        bio,
         [](void *_req) -> bool {
             struct bio_req *req = (struct bio_req *) _req;
             return req->flags & (BIO_REQ_DONE | BIO_REQ_EIO);
         },
         WAIT_FOR_FOREVER, 0);
 
-    bool ret = st == 0 && !(r->flags & BIO_REQ_EIO);
-    bio_put(r);
+    bool ret = st == 0 && !(bio->flags & BIO_REQ_EIO);
+    bio_put(bio);
     return ret;
 }
 
@@ -610,7 +526,9 @@ void ahci_enable_interrupts_for_port(ahci_port_t *port)
 
 int ahci_do_identify(struct ahci_port *port)
 {
-    switch (port->port->sig)
+    port->sig = port->port->sig;
+
+    switch (port->sig)
     {
         case SATA_SIG_ATA: {
             struct ahci_command_ata command = {};
@@ -684,7 +602,7 @@ int ahci_io_queue::configure_port_dma()
     {
         if (curr == nr_tables_per_page)
         {
-            current_buf_page = alloc_page(0);
+            current_buf_page = alloc_page(GFP_KERNEL);
             if (!current_buf_page)
                 return false;
 
@@ -811,6 +729,24 @@ void ahci_init_port(struct ahci_port *ahci_port)
     VERBOSE_MPRINTF("ahci_init_port done\n");
 }
 
+static struct io_queue *ahci_pick_queue(struct blockdev *dev)
+{
+    struct ahci_port *port = (struct ahci_port *) dev->device_info;
+    return port->io_queue.get();
+}
+
+static const struct blk_mq_ops ahci_mq_ops = {.pick_queue = ahci_pick_queue};
+
+#define AHCI_MAX_SGL_DESC_LEN 0x400000
+
+static void ahci_set_queue_properties(struct queue_properties *qp)
+{
+    qp->max_sgls_per_request = NUM_PRDT_PER_TABLE;
+    qp->max_sgl_desc_length = AHCI_MAX_SGL_DESC_LEN;
+    qp->dma_address_mask = (2 - 1); /* Buffers need to be word-aligned */
+    /* TODO: Bounce buffer if required (if addr64 isn't supported) */
+}
+
 int ahci_initialize(struct ahci_device *device)
 {
     ahci_hba_memory_regs_t *hba = device->hba;
@@ -857,8 +793,10 @@ int ahci_initialize(struct ahci_device *device)
             }
 
             dev->device_info = &device->ports[i];
-            dev->submit_request = ahci_submit_request_new;
+            dev->submit_request = blk_mq_submit_request;
+            dev->mq_ops = &ahci_mq_ops;
             dev->sector_size = 512;
+            ahci_set_queue_properties(&dev->bdev_queue_properties);
 
             MPRINTF("Created %s for port %d\n", dev->name.c_str(), i);
             device->ports[i].port_nr = i;

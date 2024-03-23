@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -143,14 +143,14 @@ typedef struct fisds
     uint32_t resv3;
 } fis_dma_setup_t;
 
-typedef struct cmd____table
+typedef struct cmd_table
 {
     cfis_t cfis;
     uint8_t acmd[16];
     uint8_t reserved[0x30];
 } __attribute__((packed)) command_table_t;
 
-typedef volatile struct cmd____list
+typedef volatile struct cmd_list
 {
     uint16_t desc_info;
     uint16_t prdtl;
@@ -160,7 +160,7 @@ typedef volatile struct cmd____list
     uint32_t res[4];
 } __attribute__((packed)) command_list_t;
 
-typedef struct pr_dt
+typedef struct prd
 {
     uint64_t address;
     uint32_t res0;
@@ -227,10 +227,7 @@ struct command_list
     uint32_t last_interrupt_status;
     uint32_t status;
     uint32_t tfd;
-    union {
-        struct aio_req *req;
-        struct bio_req *breq;
-    };
+    struct request *req;
 };
 
 struct ahci_device;
@@ -254,10 +251,10 @@ protected:
     /**
      * @brief Submits IO to a device
      *
-     * @param req bio_req to submit
+     * @param req struct request to submit
      * @return 0 on sucess, negative error codes
      */
-    int device_io_submit(bio_req *req) override;
+    int device_io_submit(struct request *req) override;
 
     cul::vector<command_table_t *> ctables;
 
@@ -282,6 +279,8 @@ public:
     int configure_port_dma();
 
     void do_irq(u16 slot, u32 irq_status);
+
+    void handle_irqs(u32 irq_status);
 };
 
 struct ahci_port
@@ -289,7 +288,6 @@ struct ahci_port
     struct ahci_device *dev;
     int port_nr;
     ahci_port_t *port;
-    struct spinlock port_lock;
     command_table_t **ctables;
     prdt_t *prdt;
     void *fisb;
@@ -298,6 +296,7 @@ struct ahci_port
     ata_identify_response identify;
     uint32_t issued;
     unique_ptr<blockdev> bdev;
+    u32 sig;
 };
 
 struct ahci_device
