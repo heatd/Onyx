@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <onyx/block.h>
 #include <onyx/block/blk_plug.h>
 #include <onyx/filemap.h>
 #include <onyx/gen/trace_filemap.h>
@@ -171,11 +172,18 @@ static inline ssize_t filemap_do_direct(struct file *filp, size_t off, iovec_ite
 ssize_t filemap_read_iter(struct file *filp, size_t off, iovec_iter *iter, unsigned int flags)
 {
     struct inode *ino = filp->f_ino;
+    size_t size = ino->i_size;
+
+    if (S_ISBLK(ino->i_mode))
+    {
+        struct blockdev *bdev = (struct blockdev *) ino->i_helper;
+        size = bdev->nr_sectors * bdev->sector_size;
+    }
 
     if (filp->f_flags & O_DIRECT)
         return filemap_do_direct(filp, off, iter, flags);
 
-    if ((size_t) off >= filp->f_ino->i_size)
+    if ((size_t) off >= size)
         return 0;
 
     ssize_t st = 0;
@@ -193,8 +201,8 @@ ssize_t filemap_read_iter(struct file *filp, size_t off, iovec_iter *iter, unsig
         auto rest = PAGE_SIZE - cache_off;
 
         /* Do not read more than i_size */
-        if (off + rest > ino->i_size)
-            rest = ino->i_size - off;
+        if (off + rest > size)
+            rest = size - off;
 
         /* copy_to_iter advances the iter automatically */
         ssize_t copied = copy_to_iter(iter, (const u8 *) buffer + cache_off, rest);
