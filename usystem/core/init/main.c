@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2022 Pedro Falcato
+ * Copyright (c) 2017 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -8,6 +8,8 @@
 
 #define _GNU_SOURCE
 #include <ctype.h>
+#include <err.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
 #include <netinet/in.h>
@@ -164,8 +166,15 @@ int mount_filesystems(void)
         }
     }
 
-    /* Create /dev/shm */
-    mkdir("/dev/shm", 0666);
+    /* Make sure /dev/shm exists, and mount tmpfs on top of it */
+    if (access("/dev/shm", F_OK) < 0 && errno == ENOENT)
+    {
+        if (mkdir("/dev/shm", 0777) < 0)
+            err(1, "mkdir");
+    }
+
+    if (mount("none", "/dev/shm", "tmpfs", 0, NULL) < 0)
+        err(1, "mount on /dev/shm");
 func_exit:
     free(read_buffer);
     fclose(fp);
