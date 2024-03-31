@@ -13,11 +13,17 @@
 
 #include <onyx/condvar.h>
 #include <onyx/mutex.h>
-#include <onyx/pid.h>
 #include <onyx/rwlock.h>
 #include <onyx/wait_queue.h>
 
+#ifdef __cplusplus
+#include <onyx/pid.h>
+#else
+struct pid;
+#endif
+
 struct tty;
+struct file_ops;
 
 struct tty_ldisc_ops
 {
@@ -60,7 +66,11 @@ struct tty
     char *response;
 
     pid_t foreground_pgrp;
+#ifdef __cplusplus
     pid::auto_pid session;
+#else
+    struct pid *session;
+#endif
 };
 
 #define TTY_OFLAG(tty, flag) ((tty)->term_io.c_oflag & flag)
@@ -68,6 +78,8 @@ struct tty
 #define TTY_LFLAG(tty, flag) ((tty)->term_io.c_lflag & flag)
 #define TTY_IFLAG(tty, flag) ((tty)->term_io.c_iflag & flag)
 #define TTY_CC(tty, c)       ((tty)->term_io.c_cc[c])
+
+__BEGIN_CDECLS
 
 void tty_putchar(char c);
 void tty_write(const char *data, size_t size, struct tty *tty);
@@ -98,6 +110,9 @@ void tty_send_response(struct tty *tty, const char *str);
  *
  */
 void console_init();
+
+
+__END_CDECLS
 
 #define ANSI_ESCAPE_CODE           '\x1b'
 #define DEC_CSI                    '#'
