@@ -6,7 +6,6 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <uapi/fcntl.h>
 #include <proc_event.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -20,6 +19,8 @@
 #include <onyx/process.h>
 #include <onyx/scheduler.h>
 #include <onyx/vfs.h>
+
+#include <uapi/fcntl.h>
 
 static void __append_to_list(struct proc_event_sub *s, struct process *p)
 {
@@ -109,17 +110,17 @@ unsigned int proc_event_ioctl(int request, void *argp, struct file *file)
 
     switch (request)
     {
-    case PROCEVENT_ACK: {
-        struct proc_event_sub *sub = (proc_event_sub *) ino->i_helper;
+        case PROCEVENT_ACK: {
+            struct proc_event_sub *sub = (proc_event_sub *) ino->i_helper;
 
-        if (sub->valid_sub)
-        {
-            proc_event_do_ack(sub->target_process);
+            if (sub->valid_sub)
+            {
+                proc_event_do_ack(sub->target_process);
+            }
+            return 0;
         }
-        return 0;
-    }
-    default:
-        return -EINVAL;
+        default:
+            return -EINVAL;
     }
 }
 
@@ -148,7 +149,7 @@ int sys_proc_event_attach(pid_t pid, unsigned long flags)
 
     ino->i_helper = new_sub;
     ino->i_fops = &proc_event_ops;
-    ino->i_type = VFS_TYPE_UNIX_SOCK;
+    ino->i_mode = S_IFSOCK;
 
     struct process *p = get_process_from_pid(pid);
     if (!p)

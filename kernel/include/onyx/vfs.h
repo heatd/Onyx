@@ -24,16 +24,6 @@
 #include <uapi/dirent.h>
 #include <uapi/stat.h>
 
-#define VFS_TYPE_FILE         (1 << 0)
-#define VFS_TYPE_DIR          (1 << 1)
-#define VFS_TYPE_SYMLINK      (1 << 2)
-#define VFS_TYPE_MOUNTPOINT   (1 << 3)
-#define VFS_TYPE_CHAR_DEVICE  (1 << 4)
-#define VFS_TYPE_BLOCK_DEVICE (1 << 5)
-#define VFS_TYPE_FIFO         (1 << 6)
-#define VFS_TYPE_UNIX_SOCK    (1 << 7)
-#define VFS_TYPE_UNK          (1 << 8)
-
 struct inode;
 struct file;
 struct dentry;
@@ -136,7 +126,6 @@ struct inode
     gid_t i_gid;
     uid_t i_uid;
     mode_t i_mode;
-    int i_type;
     size_t i_size;
     dev_t i_dev;
     dev_t i_rdev;
@@ -308,27 +297,6 @@ struct filesystem_root
 };
 
 struct filesystem_root *get_filesystem_root(void);
-
-/* Although tbh, vfs_type should be irradicated */
-static inline int mode_to_vfs_type(mode_t mode)
-{
-    if (S_ISREG(mode))
-        return VFS_TYPE_FILE;
-    else if (S_ISBLK(mode))
-        return VFS_TYPE_BLOCK_DEVICE;
-    else if (S_ISCHR(mode))
-        return VFS_TYPE_CHAR_DEVICE;
-    else if (S_ISFIFO(mode))
-        return VFS_TYPE_FIFO;
-    else if (S_ISLNK(mode))
-        return VFS_TYPE_SYMLINK;
-    else if (S_ISSOCK(mode))
-        return VFS_TYPE_UNIX_SOCK;
-    else if (S_ISDIR(mode))
-        return VFS_TYPE_DIR;
-    else
-        __builtin_unreachable();
-}
 
 /* Must be called with i_rwlock held */
 static inline void inode_set_size(struct inode *ino, size_t size)

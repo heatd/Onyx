@@ -707,7 +707,7 @@ static int pipe_create(struct file **pipe_readable, struct file **pipe_writeable
     }
 
     anon_pipe_ino->i_dev = pipedev->dev();
-    anon_pipe_ino->i_type = VFS_TYPE_FIFO;
+    anon_pipe_ino->i_mode = S_IFIFO;
     anon_pipe_ino->i_flags = INODE_FLAG_NO_SEEK;
     anon_pipe_ino->i_inode = current_inode_number++;
     anon_pipe_ino->i_fops = (struct file_ops *) &pipe_ops;

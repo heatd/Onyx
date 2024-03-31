@@ -418,7 +418,7 @@ void __vm_unmap_range(struct mm_address_space *as, void *range, size_t pages)
 
 static inline bool inode_requires_wb(struct inode *i)
 {
-    return i->i_type == VFS_TYPE_FILE;
+    return S_ISREG(i->i_mode);
 }
 
 bool vm_mapping_requires_wb(struct vm_area_struct *reg)
@@ -1064,7 +1064,7 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 
         struct inode *ino = file->f_ino;
 
-        if (ino->i_type == VFS_TYPE_BLOCK_DEVICE || ino->i_type == VFS_TYPE_CHAR_DEVICE)
+        if (S_ISBLK(ino->i_mode) || S_ISCHR(ino->i_mode))
         {
             if (!ino->i_fops->mmap)
             {
