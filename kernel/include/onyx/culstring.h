@@ -33,7 +33,7 @@ private:
         _Ty inline_data[inline_length];
     };
 
-    bool is_small() const
+    constexpr bool is_small() const
     {
         return length_ < inline_length;
     }
@@ -127,7 +127,7 @@ public:
         internal_construct(sv);
     }
 
-    basic_string(basic_string&& rhs)
+    constexpr basic_string(basic_string&& rhs)
     {
         if (rhs.is_small())
         {
@@ -147,7 +147,7 @@ public:
         }
     }
 
-    basic_string& operator=(basic_string&& rhs)
+    constexpr basic_string& operator=(basic_string&& rhs)
     {
         if (this == &rhs)
             return *this;
@@ -175,7 +175,7 @@ public:
         return *this;
     }
 
-    basic_string(const basic_string& rhs)
+    constexpr basic_string(const basic_string& rhs)
     {
         if (rhs.is_small())
         {
@@ -199,7 +199,7 @@ public:
         }
     }
 
-    basic_string& operator=(const basic_string& rhs)
+    constexpr basic_string& operator=(const basic_string& rhs)
     {
         if (this == &rhs)
             return *this;
@@ -239,17 +239,17 @@ public:
         length_ = 0;
     }
 
-    size_t size() const
+    constexpr size_t size() const
     {
         return length_;
     }
 
-    size_t length() const
+    constexpr size_t length() const
     {
         return length_;
     }
 
-    size_t capacity() const
+    constexpr size_t capacity() const
     {
         if (is_small()) [[likely]]
             return inline_capacity;
@@ -282,12 +282,12 @@ public:
         return {data_, length_};
     }
 
-    [[nodiscard]] bool empty() const
+    [[nodiscard]] constexpr bool empty() const
     {
         return length_ == 0;
     }
 
-    operator bool() const
+    constexpr operator bool() const
     {
         return !empty();
     }
