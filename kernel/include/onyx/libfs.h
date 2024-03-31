@@ -17,11 +17,17 @@
 struct inode;
 struct dentry;
 struct file;
+struct dirent;
 
 static inline struct inode *libfs_no_open(struct dentry *dir, const char *name)
 {
     errno = ENOENT;
     return NULL;
+}
+
+static inline off_t libfs_no_getdirent(struct dirent *buf, off_t off, struct file *file)
+{
+    return -EIO;
 }
 
 static inline struct inode *libfs_no_creat(const char *name, int mode, struct dentry *dir)
