@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -19,6 +19,7 @@
 #include <onyx/fnv.h>
 #include <onyx/fs_mount.h>
 #include <onyx/init.h>
+#include <onyx/libfs.h>
 #include <onyx/majorminor.h>
 #include <onyx/panic.h>
 #include <onyx/tmpfs.h>
@@ -317,22 +318,41 @@ int dev_unregister_dev(gendev *dev, bool is_block)
     return -ENODEV;
 }
 
-struct devfs_registration
+struct devfs_file
 {
-    list_head_cpp<devfs_registration> list_node;
+    list_head_cpp<devfs_file> list_node;
+    list_head children;
     dev_t dev;
     mode_t mode;
-    const cul::string &name;
+    ino_t ino;
+    const cul::string name;
 
-    devfs_registration(const cul::string &name, dev_t dev, mode_t mode)
-        : list_node{this}, dev{dev}, mode{mode}, name{name}
+    constexpr devfs_file(const cul::string &name, dev_t dev, mode_t mode, ino_t inode)
+        : list_node{this}, dev{dev}, mode{mode}, ino{inode}, name{name}
     {
+        INIT_LIST_HEAD(&children);
+    }
+
+    constexpr devfs_file(dev_t dev, mode_t mode, ino_t inode)
+        : list_node{this}, dev{dev}, mode{mode}, ino{inode}, name{}
+    {
+        INIT_LIST_HEAD(&children);
     }
 };
 
+#define DEVFS_ROOT_INO         2
+#define DEVFS_RESERVED_INO_END 10
 // List of devfs_registration objects
-static list_head devfs_list = LIST_HEAD_INIT(devfs_list);
+static constinit struct devfs_file devfs_root = {
+    0, S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH, DEVFS_ROOT_INO};
 static spinlock devfs_list_lock;
+static ino_t next_inode = DEVFS_RESERVED_INO_END;
+
+static void devfs_add_entry(unique_ptr<devfs_file> &&file, devfs_file *dir = &devfs_root)
+{
+    list_add_tail(&file->list_node, &dir->children);
+    file.release();
+}
 
 /**
  * @brief Publish the character/block device to user-space and devfs
@@ -348,16 +368,59 @@ int gendev::show(mode_t mode)
     else
         mode |= S_IFBLK;
 
-    auto reg = make_unique<devfs_registration>(name_, dev_, mode);
-
+    auto reg = make_unique<devfs_file>(name_, dev_, mode, next_inode++);
     if (!reg)
         return -ENOMEM;
 
-    list_add_tail(&reg->list_node, &devfs_list);
-
-    reg.release();
-
+    devfs_add_entry(cul::move(reg));
     return 0;
+}
+
+static inode *devfs_open(dentry *dir, const char *name);
+static off_t devfs_getdirent(struct dirent *buf, off_t off, struct file *file);
+
+static const struct file_ops devfs_root_ops = {
+    .open = devfs_open,
+    .getdirent = devfs_getdirent,
+    .creat = libfs_no_creat,
+    .link = libfs_no_link,
+    .symlink = libfs_no_symlink,
+    .ftruncate = libfs_no_ftruncate,
+    .mkdir = libfs_no_mkdir,
+    .mknod = libfs_no_mknod,
+    .readlink = libfs_no_readlink,
+    .unlink = libfs_no_unlink,
+    .fallocate = libfs_no_fallocate,
+};
+
+inode *devfs_create_inode(devfs_file *file, struct superblock *sb)
+{
+    struct inode *inode = inode_create(false);
+    if (!inode)
+        return nullptr;
+    inode->i_atime = inode->i_mtime = inode->i_ctime = clock_get_posix_time();
+    inode->i_inode = file->ino;
+    inode->i_dev = sb->s_devnr;
+    inode->i_rdev = file->dev;
+    inode->i_fops = (struct file_ops *) &devfs_root_ops;
+    inode->i_mode = file->mode;
+    inode->i_helper = file;
+    inode->i_sb = sb;
+    inode->i_nlink = S_ISDIR(file->mode) ? 2 : 1;
+    /* TODO: nlink is bound to change dynamically? */
+
+    if (inode_is_special(inode))
+    {
+        int st = inode_special_init(inode);
+        if (st < 0)
+        {
+            errno = -st;
+            free(inode);
+            return nullptr;
+        }
+    }
+
+    return inode;
 }
 
 /**
@@ -367,45 +430,38 @@ int gendev::show(mode_t mode)
  * @param name Name of the file
  * @return Pointer to the inode, or nullptr with errno set
  */
-inode *devfs_open(dentry *dir, const char *name)
+static inode *devfs_open(dentry *dir, const char *name)
 {
     scoped_lock g{devfs_list_lock};
-    devfs_registration *reg = nullptr;
-    ino_t inum = 1;
+    devfs_file *dev_dir = (devfs_file *) dir->d_inode->i_helper;
+    DCHECK(dev_dir != nullptr);
+    devfs_file *reg = nullptr;
 
-    list_for_every (&devfs_list)
+    list_for_every (&dev_dir->children)
     {
-        auto dev_reg = list_head_cpp<devfs_registration>::self_from_list_head(l);
+        auto dev_reg = list_head_cpp<devfs_file>::self_from_list_head(l);
 
         if (dev_reg->name == name)
         {
             reg = dev_reg;
             break;
         }
-
-        inum++;
     }
 
     g.unlock();
 
     if (!reg)
-    {
         return errno = ENOENT, nullptr;
-    }
 
-    auto sb = (tmpfs_superblock *) dir->d_inode->i_sb;
-
-    auto ino = sb->create_inode(reg->mode, reg->dev);
-
+    auto sb = dir->d_inode->i_sb;
+    auto ino = devfs_create_inode(reg, sb);
     if (!ino)
         return errno = ENOMEM, nullptr;
-
-    ino->i_inode = inum;
 
     return ino;
 }
 
-off_t devfs_getdirent(struct dirent *buf, off_t off, struct file *file)
+static off_t devfs_getdirent(struct dirent *buf, off_t off, struct file *file)
 {
     auto dent = file->f_dentry;
 
@@ -426,11 +482,13 @@ off_t devfs_getdirent(struct dirent *buf, off_t off, struct file *file)
     else
     {
         scoped_lock g{devfs_list_lock};
+        devfs_file *dev_dir = (devfs_file *) dent->d_inode->i_helper;
+        DCHECK(dev_dir != nullptr);
 
         off_t c = 0;
-        list_for_every (&devfs_list)
+        list_for_every (&dev_dir->children)
         {
-            auto d = list_head_cpp<devfs_registration>::self_from_list_head(l);
+            auto d = list_head_cpp<devfs_file>::self_from_list_head(l);
 
             if (off > c++ + 2)
                 continue;
@@ -441,11 +499,18 @@ off_t devfs_getdirent(struct dirent *buf, off_t off, struct file *file)
             buf->d_name[len] = '\0';
             buf->d_reclen = sizeof(dirent) - (256 - (len + 1));
 
-            if (S_ISBLK(d->mode))
+            if (S_ISDIR(d->mode))
+                buf->d_type = DT_DIR;
+            else if (S_ISBLK(d->mode))
                 buf->d_type = DT_BLK;
-            else
+            else if (S_ISCHR(d->mode))
                 buf->d_type = DT_CHR;
-
+            else if (S_ISLNK(d->mode))
+                buf->d_type = DT_LNK;
+            else if (S_ISREG(d->mode))
+                buf->d_type = DT_REG;
+            else
+                buf->d_type = DT_UNKNOWN;
             return off + 1;
         }
 
@@ -468,33 +533,21 @@ inode *devfs_mount(blockdev *dev)
     if (ex.has_error())
         return errno = -ex.error(), nullptr;
 
-    auto new_fs = make_unique<tmpfs_superblock>();
+    auto new_fs = make_unique<superblock>();
     if (!new_fs)
     {
         dev_unregister_dev(ex.value(), true);
         return nullptr;
     }
 
-    auto fops = make_unique<file_ops>(tmpfs_fops);
-
-    if (!fops)
-    {
-        dev_unregister_dev(ex.value(), true);
-        return nullptr;
-    }
-
-    fops->open = devfs_open;
-    fops->getdirent = devfs_getdirent;
-
-    new_fs->override_file_ops(fops.release());
     new_fs->s_devnr = ex.value()->dev();
-    new_fs->s_flags &= ~SB_FLAG_IN_MEMORY;
+    new_fs->s_flags |= SB_FLAG_NODIRTY;
 
-    auto node = new_fs->create_inode(S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
+    auto node = devfs_create_inode(&devfs_root, new_fs.get());
     if (!node)
     {
         dev_unregister_dev(ex.value(), true);
-        return errno = ENOMEM, nullptr;
+        return nullptr;
     }
 
     new_fs.release();
@@ -502,8 +555,19 @@ inode *devfs_mount(blockdev *dev)
     return node;
 }
 
+static void devfs_add_dir(const char *name, mode_t mode)
+{
+    scoped_lock g{devfs_list_lock};
+    auto reg = make_unique<devfs_file>(name, 0, S_IFDIR | mode, next_inode++);
+    CHECK(reg != nullptr);
+
+    devfs_add_entry(cul::move(reg));
+}
+
 __init void devfs_init()
 {
     if (fs_mount_add(devfs_mount, FS_MOUNT_PSEUDO_FS, "devfs") < 0)
         panic("Could not register devfs");
+    devfs_add_dir("shm", 0777);
+    devfs_add_dir("pts", 0755);
 }
