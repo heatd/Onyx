@@ -423,7 +423,7 @@ static int buffd_create(struct file **pfd, u32 cpu_nr)
         return -ENOMEM;
 
     anon_ino->i_dev = 0;
-    anon_ino->i_type = VFS_TYPE_FIFO;
+    anon_ino->i_mode = S_IFIFO;
     anon_ino->i_flags = INODE_FLAG_NO_SEEK;
     anon_ino->i_inode = current_inode_number++;
     anon_ino->i_fops = (struct file_ops *) &ktrace_buf_fops;

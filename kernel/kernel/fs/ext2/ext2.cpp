@@ -293,7 +293,6 @@ struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
 
     ino->i_inode = inumber;
     /* Detect the file type */
-    ino->i_type = ext2_ino_type_to_vfs_type(inode->i_mode);
     ino->i_mode = inode->i_mode;
 
     /* We're storing dev in dbp[0] in the same format as dev_t */
@@ -354,26 +353,6 @@ uint16_t ext2_mode_to_ino_type(mode_t mode)
     if (S_ISREG(mode))
         return EXT2_INO_TYPE_REGFILE;
     return -1;
-}
-
-int ext2_ino_type_to_vfs_type(uint16_t mode)
-{
-    if (EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_DIR)
-        return VFS_TYPE_DIR;
-    else if (EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_REGFILE)
-        return VFS_TYPE_FILE;
-    else if (EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_BLOCKDEV)
-        return VFS_TYPE_BLOCK_DEVICE;
-    else if (EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_CHARDEV)
-        return VFS_TYPE_CHAR_DEVICE;
-    else if (EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_SYMLINK)
-        return VFS_TYPE_SYMLINK;
-    else if (EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_FIFO)
-        return VFS_TYPE_FIFO;
-    else if (EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_UNIX_SOCK)
-        return VFS_TYPE_UNIX_SOCK;
-
-    return VFS_TYPE_UNK;
 }
 
 struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct dentry *dir)

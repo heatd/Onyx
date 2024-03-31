@@ -505,7 +505,7 @@ int ext2_link(struct inode *target, const char *name, struct inode *dir)
 
     /* If we're linking a directory, this means we're part of a rename(). */
 
-    if (target->i_type == VFS_TYPE_DIR && !!strcmp(name, ".") && !!strcmp(name, ".."))
+    if (S_ISDIR(target->i_mode) && !!strcmp(name, ".") && !!strcmp(name, ".."))
     {
         /* Adjust .. to point to us */
         ext2_dirent_result res;
@@ -630,7 +630,7 @@ int ext2_unlink(const char *name, int flags, struct dentry *dir)
         return -ENOMEM;
     }
 
-    if (target->i_type == VFS_TYPE_DIR)
+    if (S_ISDIR(target->i_mode))
     {
         if (!(flags & AT_REMOVEDIR))
         {

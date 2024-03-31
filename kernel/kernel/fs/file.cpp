@@ -1197,10 +1197,8 @@ off_t sys_lseek(int fd, off_t offset, int whence)
     struct file *filp = f.get_file();
 
     /* TODO: Add a way for inodes to tell they don't support seeking */
-    if (filp->f_ino->i_type == VFS_TYPE_FIFO || filp->f_ino->i_flags & INODE_FLAG_NO_SEEK)
-    {
+    if (S_ISFIFO(filp->f_ino->i_mode) || filp->f_ino->i_flags & INODE_FLAG_NO_SEEK)
         return -ESPIPE;
-    }
 
     if (whence == SEEK_CUR)
     {

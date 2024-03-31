@@ -368,8 +368,7 @@ struct file *pick_between_cwd_and_root(char *p, struct process *proc)
 
 bool file_is_executable(struct file *exec_file)
 {
-    if (exec_file->f_ino->i_type != VFS_TYPE_FILE ||
-        !file_can_access(exec_file, FILE_ACCESS_EXECUTE))
+    if (!S_ISREG(exec_file->f_ino->i_mode) || !file_can_access(exec_file, FILE_ACCESS_EXECUTE))
     {
         return false;
     }

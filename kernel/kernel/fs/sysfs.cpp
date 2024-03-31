@@ -30,26 +30,6 @@ struct inode *sysfs_root_ino = nullptr;
 
 void sysfs_setup_fops(struct inode *ino);
 
-int sysfs_type_to_vfs_type(mode_t mode)
-{
-    if (S_ISDIR(mode))
-        return VFS_TYPE_DIR;
-    else if (S_ISREG(mode))
-        return VFS_TYPE_FILE;
-    else if (S_ISBLK(mode))
-        return VFS_TYPE_BLOCK_DEVICE;
-    else if (S_ISCHR(mode))
-        return VFS_TYPE_CHAR_DEVICE;
-    else if (S_ISLNK(mode))
-        return VFS_TYPE_SYMLINK;
-    else if (S_ISFIFO(mode))
-        return VFS_TYPE_FIFO;
-    else if (S_ISSOCK(mode))
-        return VFS_TYPE_UNIX_SOCK;
-
-    return VFS_TYPE_UNK;
-}
-
 struct inode *sysfs_create_inode_for_file(struct sysfs_object *f)
 {
     struct inode *ino = inode_create(false);
@@ -57,7 +37,6 @@ struct inode *sysfs_create_inode_for_file(struct sysfs_object *f)
         return nullptr;
 
     ino->i_nlink = 1;
-    ino->i_type = sysfs_type_to_vfs_type(f->perms);
     ino->i_mode = f->perms;
     ino->i_sb = sysfs_root_ino->i_sb;
     ino->i_dev = sysfs_root_ino->i_dev;
@@ -165,8 +144,6 @@ void sysfs_init()
     root->i_inode = (ino_t) &sysfs_root;
     root->i_nlink = 1;
     root->i_mode = 0755 | S_IFDIR;
-
-    root->i_type = sysfs_type_to_vfs_type(sysfs_root.perms);
 
     sysfs_root_ino = root;
 

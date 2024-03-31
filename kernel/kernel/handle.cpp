@@ -79,7 +79,7 @@ file *create_file(handleable *obj)
         return nullptr;
 
     ino->i_fops = &handle_ops;
-    ino->i_type = VFS_TYPE_CHAR_DEVICE;
+    ino->i_mode = S_IFCHR;
     ino->i_helper = obj;
 
     auto file = handle_inode_to_file(ino);

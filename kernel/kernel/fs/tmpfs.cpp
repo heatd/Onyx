@@ -265,7 +265,6 @@ tmpfs_inode *tmpfs_superblock::alloc_inode(mode_t mode, dev_t rdev)
     creds_put(c);
 
     ino->i_rdev = rdev;
-    ino->i_type = mode_to_vfs_type(mode);
     ino->i_sb = this;
     ino->i_rdev = rdev;
     ino->i_blocks = 0;

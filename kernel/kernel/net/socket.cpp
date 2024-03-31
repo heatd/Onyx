@@ -888,7 +888,6 @@ struct inode *socket_create_inode(socket *socket)
 
     inode->i_fops = &socket_ops;
     inode->i_mode = 0666 | S_IFSOCK;
-    inode->i_type = VFS_TYPE_UNIX_SOCK;
     inode->i_flags = INODE_FLAG_NO_SEEK;
     inode->i_helper = socket;
 
