@@ -158,7 +158,7 @@ public:
     expected<_Type, _ErrorType> then(const Callable& c)
     {
         if (_has_value)
-            return c(*this);
+            return c(value());
         else
             return cul::move(*this);
     }
@@ -179,6 +179,11 @@ public:
             return expected<OtherType, OtherError>(f(value()));
         else
             return unexpected<OtherError>(e);
+    }
+
+    _ErrorType error_or(_ErrorType&& alt)
+    {
+        return !_has_value ? error() : alt;
     }
 };
 
