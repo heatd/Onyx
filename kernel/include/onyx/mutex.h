@@ -59,11 +59,15 @@ CONSTEXPR static inline void mutex_init(struct mutex *mutex)
     INIT_LIST_HEAD(&mutex->waiters);
 }
 
+__BEGIN_CDECLS
+
 void mutex_lock(struct mutex *m) ACQUIRE(m);
 void mutex_unlock(struct mutex *m) RELEASE(m);
 int mutex_lock_interruptible(struct mutex *mutex) TRY_ACQUIRE(false, mutex);
 bool mutex_holds_lock(struct mutex *m);
 struct thread *mutex_owner(struct mutex *mtx);
+
+__END_CDECLS
 
 #define MUST_HOLD_MUTEX(m) assert(mutex_holds_lock(m) == true)
 
