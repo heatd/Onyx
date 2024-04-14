@@ -358,8 +358,23 @@ int nvme_device::setup_prp(struct request *breq, nvme_namespace *ns)
 
     s->first = (prp_entry_t) page_to_phys(head->vec[0].page) + head->vec[0].page_off;
 
-    if (s->nr_entries == 1) [[likely]]
+    if (s->nr_entries <= 2) [[likely]]
     {
+        if (s->nr_entries == 2)
+        {
+            /* Get the next sgl and set prp2 to it. The logic is iffy but it works. If the nr_vecs
+             * of the head is 2, the last sgl is in this bio. Else, look at the next bio and take
+             * its sgl. */
+            if (head->nr_vecs == 2)
+                s->prp2 = (prp_entry_t) page_to_phys(head->vec[1].page) + head->vec[1].page_off;
+            else
+            {
+                struct bio_req *next =
+                    container_of(head->list_node.next, struct bio_req, list_node);
+                DCHECK(next->nr_vecs == 1);
+                s->prp2 = (prp_entry_t) page_to_phys(next->vec[0].page) + next->vec[0].page_off;
+            }
+        }
         // Fast path. Get out
         return 0;
     }
@@ -421,6 +436,8 @@ int nvme_device::setup_prp(struct request *breq, nvme_namespace *ns)
         if (st < 0) [[unlikely]]
             return;
     });
+
+    s->prp2 = (u64) page_to_phys(s->indirect_list[0].get());
 
     return st;
 }
@@ -865,7 +882,7 @@ int nvme_device::prepare_nvme_request(u8 bio_command, nvmecmd *cmd, struct reque
     cmd->cmd.dptr.prp[0] = prp->first;
 
     if (prp->nr_entries > 1)
-        cmd->cmd.dptr.prp[1] = (prp_entry_t) page_to_phys(prp->indirect_list[0]);
+        cmd->cmd.dptr.prp[1] = prp->prp2;
 
     // Set up the starting LBA and number of sectors
     cmd->cmd.cdw10 = (uint32_t) breq->r_sector;
