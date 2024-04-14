@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -10,7 +10,6 @@
 #define _ONYX_DEV_H
 #include <stdbool.h>
 #include <stdint.h>
-#include <onyx/types.h>
 
 #include <onyx/culstring.h>
 #include <onyx/dev_resource.h>
@@ -18,6 +17,7 @@
 #include <onyx/majorminor.h>
 #include <onyx/spinlock.h>
 #include <onyx/sysfs.h>
+#include <onyx/types.h>
 #include <onyx/vfs.h>
 
 #include <onyx/expected.hpp>
@@ -144,6 +144,16 @@ public:
      * @return 0 on success, else negative error codes
      */
     int show(mode_t mode);
+
+    /**
+     * @brief Publish a device to userspace with a custom name
+     *
+     * @param custom_name Custom name
+     * @param path Path (may be NULL or empty)
+     * @param mode File mode
+     * @return 0 on success, negative error codes
+     */
+    int show_with_name(const char *custom_name, const char *path, mode_t mode);
 };
 
 class chardev : public gendev
