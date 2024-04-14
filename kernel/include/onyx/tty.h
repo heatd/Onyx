@@ -112,6 +112,13 @@ void tty_send_response(struct tty *tty, const char *str);
 void console_init();
 
 
+/**
+ * @brief Clear the tty's session as specified in the POSIX spec
+ *
+ * @param tty TTY to clear
+ */
+void process_clear_tty(struct tty *tty);
+
 __END_CDECLS
 
 #define ANSI_ESCAPE_CODE           '\x1b'
