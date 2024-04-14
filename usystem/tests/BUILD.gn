@@ -1,11 +1,12 @@
 group("tests") {
-    deps = [
-        "kernel_api_tests",
-        "system_benchmark",
-        "testsuite",
-        "kernelbuild-smoketest",
-        "test-runner",
-        "regtests",
-        "iostress"
-    ]
+  deps = [
+    "iostress",
+    "kernel_api_tests",
+    "kernelbuild-smoketest",
+    "regtests",
+    "system_benchmark",
+    "test-runner",
+    "testsuite",
+    "ttytests",
+  ]
 }
