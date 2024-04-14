@@ -1,0 +1,13 @@
+import("//build/app.gni")
+
+app_executable("ttytests") {
+  package_name = "ttytests"
+
+  output_name = "ttytests"
+
+  sources = [
+    "jobctrl.cpp",
+    "pty.cpp",
+  ]
+  deps = [ "//googletest:gtest_main" ]
+}
