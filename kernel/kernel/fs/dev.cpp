@@ -354,6 +354,43 @@ static void devfs_add_entry(unique_ptr<devfs_file> &&file, devfs_file *dir = &de
     file.release();
 }
 
+static devfs_file *devfs_open_internal(std::string_view name, devfs_file *dir = &devfs_root)
+{
+    if (!S_ISDIR(dir->mode))
+        return nullptr;
+
+    list_for_every (&dir->children)
+    {
+        auto dev_reg = list_head_cpp<devfs_file>::self_from_list_head(l);
+        if (!name.compare(dev_reg->name))
+            return dev_reg;
+    }
+
+    return nullptr;
+}
+
+static devfs_file *devfs_open_path(std::string_view path, devfs_file *dir = &devfs_root)
+{
+    std::string_view::size_type pos = 0;
+    while (true)
+    {
+        pos = path.find_first_not_of('/', pos);
+        if (pos == std::string_view::npos)
+            break;
+
+        auto path_elem_end = path.find('/', pos);
+        if (path_elem_end == std::string_view::npos)
+            path_elem_end = path.length();
+
+        std::string_view v = path.substr(pos, path_elem_end - pos);
+        pos += v.length() + 1;
+
+        dir = devfs_open_internal(v, dir);
+    }
+
+    return dir;
+}
+
 /**
  * @brief Publish the character/block device to user-space and devfs
  *
@@ -373,6 +410,37 @@ int gendev::show(mode_t mode)
         return -ENOMEM;
 
     devfs_add_entry(cul::move(reg));
+    return 0;
+}
+
+/**
+ * @brief Publish a device to userspace with a custom name
+ *
+ * @param custom_name Custom name
+ * @param path Path (may be NULL or empty)
+ * @param mode File mode
+ * @return 0 on success, negative error codes
+ */
+int gendev::show_with_name(const char *custom_name, const char *path, mode_t mode)
+{
+    scoped_lock g{devfs_list_lock};
+
+    if (is_character_dev_)
+        mode |= S_IFCHR;
+    else
+        mode |= S_IFBLK;
+    cul::string name{custom_name};
+    if (!name)
+        return -ENOMEM;
+
+    devfs_file *base_dir = devfs_open_path(path);
+    if (!base_dir)
+        return -ENOENT;
+
+    auto reg = make_unique<devfs_file>(cul::move(name), dev_, mode, next_inode++);
+    if (!reg)
+        return -ENOMEM;
+    devfs_add_entry(cul::move(reg), base_dir);
     return 0;
 }
 
