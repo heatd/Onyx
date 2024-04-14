@@ -34,6 +34,7 @@
 #include <onyx/syscall.h>
 #include <onyx/task_switching.h>
 #include <onyx/thread.h>
+#include <onyx/tty.h>
 #include <onyx/user.h>
 #include <onyx/utils.h>
 #include <onyx/vdso.h>
@@ -920,6 +921,9 @@ void process_kill_other_threads(void)
 
     for (auto &timer : current->timers)
         timer.disarm();
+
+    if (current->is_session_leader_unlocked() && current->ctty)
+        process_clear_tty(current->ctty);
 
     process_kill_other_threads();
 
