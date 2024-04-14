@@ -925,8 +925,6 @@ void process_kill_other_threads(void)
 
     process_destroy_file_descriptors(current);
 
-    current->signal_group_flags |= SIGNAL_GROUP_EXIT;
-
     /* We destroy the address space after fds because some close() routines may require address
      * space access */
     process_destroy_aspace();
@@ -944,16 +942,13 @@ void process_kill_other_threads(void)
         s->valid_sub = false;
     }
 
-    /* Set this in this order exactly */
-    current_thread->flags = THREAD_IS_DYING;
-    current_thread->status = THREAD_DEAD;
-
     {
         scoped_lock g{current->signal_lock};
         current->exit_code = exit_code;
 
         /* Finally, wake up any possible concerned parents */
         wait_queue_wake_all(&current->parent->wait_child_event);
+        current->signal_group_flags |= SIGNAL_GROUP_EXIT;
     }
 
     siginfo_t info = {};
@@ -976,6 +971,10 @@ void process_kill_other_threads(void)
     }
 
     kernel_raise_signal(SIGCHLD, current->parent, 0, &info);
+
+    /* Set this in this order exactly */
+    current_thread->flags = THREAD_IS_DYING;
+    current_thread->status = THREAD_DEAD;
 
     sched_yield();
 
