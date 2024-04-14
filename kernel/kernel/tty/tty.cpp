@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -440,6 +440,8 @@ void tty_clear_session(tty *tty)
             proc->ctty = nullptr;
         },
         PIDTYPE_SID);
+    tty->session = nullptr;
+    tty->foreground_pgrp = 0;
 }
 
 void tty_set_ctty_unlocked(tty *tty)
@@ -488,11 +490,41 @@ unsigned int do_tty_csctty(tty *tty, int force)
 
 dev_t ctty_dev = 0;
 
+static void __process_clear_tty(tty *tty)
+{
+    struct process *current = get_current_process();
+
+    DCHECK(tty->session == current->session);
+
+    // Get the tty's foreground pgrp and send SIGHUP + SIGCONT
+    signal_kill_pg(SIGHUP, 0, nullptr, -tty->foreground_pgrp);
+    signal_kill_pg(SIGCONT, 0, nullptr, -tty->foreground_pgrp);
+
+    // Clear the associated session, foreground pgrp data and the controlling ttys of the whole
+    // session.
+    spin_unlock(&current->pgrp_lock);
+    tty_clear_session(tty);
+}
+
+/**
+ * @brief Clear the tty's session as specified in the POSIX spec
+ *
+ * @param tty TTY to clear
+ */
+void process_clear_tty(tty *tty)
+{
+    scoped_mutex g{tty->lock};
+    auto current = get_current_process();
+    spin_lock(&current->pgrp_lock);
+    /* __process_clear_tty releases the pgrp_lock */
+    __process_clear_tty(tty);
+}
+
 unsigned int do_tty_cnotty(tty *tty)
 {
     scoped_mutex g{tty->lock};
     auto current = get_current_process();
-    scoped_lock g2{current->pgrp_lock};
+    spin_lock(&current->pgrp_lock);
 
     // Nothing to do if we're not the ctty of the current process
     if (tty != current->ctty)
@@ -506,13 +538,7 @@ unsigned int do_tty_cnotty(tty *tty)
         return 0;
     }
     else
-    {
-        // Get the tty's foreground pgrp and send SIGHUP + SIGCONT
-        signal_kill_pg(SIGHUP, 0, nullptr, -tty->foreground_pgrp);
-        signal_kill_pg(SIGCONT, 0, nullptr, -tty->foreground_pgrp);
-
-        tty_clear_session(tty);
-    }
+        process_clear_tty(tty);
 
     return 0;
 }
