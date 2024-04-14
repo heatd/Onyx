@@ -36,12 +36,15 @@ unsigned int serial_port::allocate_serial_index()
  */
 bool serial_port::init_tty()
 {
-    tty_init(this, [](struct tty *tty) {
-        serial_port *port = (serial_port *) tty->priv;
-        port->set_tty(tty);
-        tty->write = serial_write_tty;
-        tty->ioctl = nullptr;
-    });
+    tty_init(
+        this,
+        [](struct tty *tty) {
+            serial_port *port = (serial_port *) tty->priv;
+            port->set_tty(tty);
+            tty->write = serial_write_tty;
+            tty->ioctl = nullptr;
+        },
+        0);
 
     return true;
 }

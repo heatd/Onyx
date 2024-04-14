@@ -24,6 +24,7 @@ struct pid;
 
 struct tty;
 struct file_ops;
+struct iovec_iter;
 
 struct tty_ldisc_ops
 {
@@ -37,6 +38,9 @@ struct tty_line_disc
     unsigned int column; // Column for n_tty tab deletion purposes
     const struct tty_ldisc_ops *ops;
 };
+
+#define TTY_FLAG_LOCKED_PTY (1 << 0)
+#define TTY_FLAG_MASTER_PTY (1 << 1)
 
 struct tty
 {
@@ -62,6 +66,7 @@ struct tty
     struct mutex input_lock;
     char input_buf[2048];
     unsigned int input_buf_pos;
+    unsigned int flags;
 
     char *response;
 
@@ -88,7 +93,19 @@ void tty_write_kernel(const char *data, size_t size);
 void tty_write_string_kernel(const char *data);
 void tty_set_color(int color);
 void tty_swap_framebuffers();
-void tty_init(void *priv, void (*ctor)(struct tty *tty));
+
+#define TTY_INIT_PTY (1 << 0)
+
+/**
+ * @brief Create a TTY device
+ *
+ * @param priv Private data for the tty
+ * @param ctor Constructor for the tty (runs while inside tty_init)
+ * @param flags Flags
+ * @return A pointer to a strict tty, or NULL
+ */
+struct tty *tty_init(void *priv, void (*ctor)(struct tty *tty), unsigned int flags);
+
 void tty_scroll();
 void tty_put_entry_at(char c, uint32_t color, size_t column, size_t row);
 void tty_received_character(struct tty *tty, char c);
@@ -111,6 +128,32 @@ void tty_send_response(struct tty *tty, const char *str);
  */
 void console_init();
 
+void tty_received_buf(struct tty *tty, const char *c, size_t len);
+
+/**
+ * @brief Create the pty master device
+ *
+ * @param ops PTY master ops
+ */
+void tty_init_pty_dev(const struct file_ops *ops);
+
+/**
+ * @brief Register a pty slave
+ *
+ * @param tty PTY to register
+ * @param slave_ops PTY slave ops
+ * @return 0 on success, negative error codes
+ */
+int pty_register_slave(struct tty *tty, const struct file_ops *slave_ops);
+
+int ttydev_on_open_unlocked(struct file *filp);
+
+size_t ttydevfs_write(size_t offset, size_t len, void *ubuffer, struct file *f);
+size_t ttydevfs_read(size_t offset, size_t count, void *buffer, struct file *this_);
+ssize_t ttydevfs_read_iter(struct file *filp, size_t offset, struct iovec_iter *iter,
+                           unsigned int flags);
+unsigned int tty_ioctl(int request, void *argp, struct file *dev);
+short tty_poll(void *poll_file, short events, struct file *f);
 
 /**
  * @brief Clear the tty's session as specified in the POSIX spec
