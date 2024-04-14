@@ -98,6 +98,20 @@ void block_request_free(struct request *req)
         kfree(req);
 }
 
+static void block_print_request(struct request *req)
+{
+    printk("Request op %u sector %lu\n", req->r_flags, req->r_sector);
+    unsigned int index = 0;
+    for_every_bio(req, [&](struct bio_req *bio) {
+        printk("bio %u sector %lu\n", index, bio->sector_number);
+        for (size_t i = 0; i < bio->nr_vecs; i++)
+            printk("  bio_vec[%zu]: %016lx off %016x length %016x\n", i,
+                   (unsigned long) page_to_phys(bio->vec[i].page), bio->vec[i].page_off,
+                   bio->vec[i].length);
+        index++;
+    });
+}
+
 static int block_do_merge(struct request *req, struct bio_req *bio, size_t bio_sectors,
                           enum merge_type merge_type)
 {
