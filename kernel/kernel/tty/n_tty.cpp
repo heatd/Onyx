@@ -6,9 +6,10 @@
  * SPDX-License-Identifier: MIT
  */
 #include <ctype.h>
-#include <uapi/ioctls.h>
 
 #include <onyx/tty.h>
+
+#include <uapi/ioctls.h>
 
 static ssize_t n_tty_receive_input(char c, struct tty *tty);
 static ssize_t n_tty_write_out(const char *s, size_t length, struct tty *tty);

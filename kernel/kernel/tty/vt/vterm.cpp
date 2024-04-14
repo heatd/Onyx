@@ -1479,7 +1479,7 @@ void vterm_do_init(void)
 {
     struct framebuffer *fb = get_primary_framebuffer();
     if (fb)
-        tty_init(&primary_vterm, vterm_init);
+        tty_init(&primary_vterm, vterm_init, 0);
 }
 
 struct vterm *get_current_vt(void)

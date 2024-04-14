@@ -119,7 +119,15 @@ extern struct tty_line_disc ntty_disc;
 void tty_create_dev(tty *tty, const char *override_name = nullptr);
 void tty_create_dev_console(tty *tty);
 
-void tty_init(void *priv, void (*ctor)(struct tty *tty))
+/**
+ * @brief Create a TTY device
+ *
+ * @param priv Private data for the tty
+ * @param ctor Constructor for the tty (runs while inside tty_init)
+ * @param flags Flags
+ * @return A pointer to a strict tty, or NULL
+ */
+struct tty *tty_init(void *priv, void (*ctor)(struct tty *tty), unsigned int flags)
 {
     if (!tty_ids)
     {
@@ -129,6 +137,7 @@ void tty_init(void *priv, void (*ctor)(struct tty *tty))
     }
 
     struct tty *tty = (struct tty *) zalloc(sizeof(*tty));
+    // TODO: Update callers to handle OOM. Until then, we have this DoS vector.
 
     assert(tty != NULL);
 
@@ -147,18 +156,24 @@ void tty_init(void *priv, void (*ctor)(struct tty *tty))
     init_wait_queue_head(&tty->read_queue);
 
     /** Use the ctor to init the tty */
-    ctor(tty);
+    if (ctor)
+        ctor(tty);
 
     tty_add(tty);
 
-    printf("tty: Added tty%lu\n", tty->tty_num);
-    tty_create_dev(tty);
+    if (!(flags & TTY_INIT_PTY))
+    {
+        printf("tty: Added tty%lu\n", tty->tty_num);
+        tty_create_dev(tty);
+    }
 
     if (main_tty == tty)
     {
         // Create /dev/console for this tty
         tty_create_dev_console(tty);
     }
+
+    return tty;
 }
 
 void cpu_kill_other_cpus(void);
@@ -205,6 +220,16 @@ void tty_received_characters(struct tty *tty, char *c)
     rw_lock_read(&tty->termio_lock);
 
     while (*c)
+        tty->ldisc->ops->receive_input(*c++, tty);
+
+    rw_unlock_read(&tty->termio_lock);
+}
+
+void tty_received_buf(struct tty *tty, const char *c, size_t len)
+{
+    rw_lock_read(&tty->termio_lock);
+
+    for (size_t i = 0; i < len; i++)
         tty->ldisc->ops->receive_input(*c++, tty);
 
     rw_unlock_read(&tty->termio_lock);
@@ -545,7 +570,12 @@ unsigned int do_tty_cnotty(tty *tty)
 
 unsigned int tty_ioctl(int request, void *argp, struct file *dev)
 {
+    struct tty *slave_tty;
     struct tty *tty = (struct tty *) dev->f_ino->i_helper;
+
+    slave_tty = tty;
+    if (tty->flags & TTY_FLAG_MASTER_PTY)
+        slave_tty = (struct tty *) tty->priv;
 
     unsigned int ret = 0;
 
@@ -562,20 +592,20 @@ unsigned int tty_ioctl(int request, void *argp, struct file *dev)
         }
 
         case TCGETS: {
-            rw_lock_read(&tty->termio_lock);
+            rw_lock_read(&slave_tty->termio_lock);
 
             struct termios *term = (termios *) argp;
-            if (copy_to_user(term, &tty->term_io, sizeof(struct termios)) < 0)
+            if (copy_to_user(term, &slave_tty->term_io, sizeof(struct termios)) < 0)
                 ret = -EFAULT;
 
-            rw_unlock_read(&tty->termio_lock);
+            rw_unlock_read(&slave_tty->termio_lock);
 
             return ret;
         }
         case TCSETS:
         case TCSETSW:
         case TCSETSF: {
-            return tty_tcsets(request, tty, (termios *) argp);
+            return tty_tcsets(request, slave_tty, (termios *) argp);
         }
 
         case TCGETA:
@@ -587,8 +617,8 @@ unsigned int tty_ioctl(int request, void *argp, struct file *dev)
         case TIOCSLCKTRMIOS:
             return 0;
         case TIOCGWINSZ: {
-            if (tty->ioctl)
-                return tty->ioctl(request, argp, tty);
+            if (slave_tty->ioctl)
+                return slave_tty->ioctl(request, argp, slave_tty);
             return user_memset(argp, 0, sizeof(winsize));
         }
         case TIOCSWINSZ: {
@@ -662,6 +692,8 @@ unsigned int tty_ioctl(int request, void *argp, struct file *dev)
         }
 
         default:
+            if (tty->ioctl)
+                return tty->ioctl(request, argp, tty);
             return -EINVAL;
     }
     return -EINVAL;
@@ -708,27 +740,30 @@ int ttyopen_try_to_set_ctty(tty *tty)
     return 0;
 }
 
+int ttydev_on_open_unlocked(struct file *filp)
+{
+    struct tty *tty = (struct tty *) filp->f_ino->i_helper;
+
+    bool noctty = filp->f_flags & O_NOCTTY;
+
+    if (!noctty)
+        return ttyopen_try_to_set_ctty(tty);
+    return 0;
+}
+
 int ttydev_open(file *f)
 {
     struct tty *tty = (struct tty *) f->f_ino->i_helper;
     scoped_mutex g{tty->lock};
-
-    bool noctty = f->f_flags & O_NOCTTY;
-
-    if (!noctty)
-        return ttyopen_try_to_set_ctty(tty);
-
-    return 0;
+    return ttydev_on_open_unlocked(f);
 }
 
-const struct file_ops tty_fops = {
-    .read = ttydevfs_read,
-    .write = ttydevfs_write,
-    .ioctl = tty_ioctl,
-    .on_open = ttydev_open,
-    .poll = tty_poll,
-    .read_iter = ttydevfs_read_iter
-};
+const struct file_ops tty_fops = {.read = ttydevfs_read,
+                                  .write = ttydevfs_write,
+                                  .ioctl = tty_ioctl,
+                                  .on_open = ttydev_open,
+                                  .poll = tty_poll,
+                                  .read_iter = ttydevfs_read_iter};
 
 void tty_create_dev(tty *tty, const char *override_name)
 {
@@ -874,5 +909,40 @@ static void kernel_console_ctor(struct tty *tty)
  */
 void console_init()
 {
-    tty_init(nullptr, kernel_console_ctor);
+    tty_init(nullptr, kernel_console_ctor, 0);
+}
+
+static chardev *pty_master;
+
+/**
+ * @brief Create the pty master device
+ *
+ * @param ops PTY master ops
+ */
+void tty_init_pty_dev(const struct file_ops *ops)
+{
+    /* We need C++ for this, this is annoying :/ */
+    pty_master = dev_register_chardevs(0, 1, 0, ops, "ptmx").unwrap();
+    pty_master->show(0666);
+}
+
+/**
+ * @brief Register a pty slave
+ *
+ * @param tty PTY to register
+ * @param slave_ops PTY slave ops
+ * @return 0 on success, negative error codes
+ */
+int pty_register_slave(struct tty *tty, const struct file_ops *slave_ops)
+{
+    char namebuf[20];
+    sprintf(namebuf, "%lu", tty->tty_num);
+    return dev_register_chardevs(0, 1, 0, slave_ops, "pts")
+        .then([namebuf, tty](chardev *dev) -> expected<chardev *, int> {
+            if (int st = dev->show_with_name(namebuf, "pts/", 0620); st < 0)
+                return unexpected<int>{st};
+            dev->private_ = tty;
+            return dev;
+        })
+        .error_or(0);
 }

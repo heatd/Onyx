@@ -19,7 +19,7 @@
 static mutex buffer_lock;
 static char buffer[10000];
 
-void tty_write_string_kernel(const char *s);
+extern "C" void tty_write_string_kernel(const char *s);
 
 static spinlock log_buffer_lock;
 static char log_temp_buffer[10000];
