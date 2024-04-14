@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -154,7 +154,7 @@ bool process::set_cmdline(const std::string_view &path)
     }
 
     std::string_view sv{cmd_line.cbegin() + last_slash, cmd_line.cend()};
-    size_t len = cul::max(sv.length(), (size_t) TASK_COMM_LEN - 1);
+    size_t len = cul::min(sv.length(), (size_t) TASK_COMM_LEN - 1);
     memcpy(comm, sv.data(), len);
     comm[len] = '\0';
 
