@@ -627,6 +627,16 @@ static int do_lookup_parent_last(nameidata &data)
         /* Handle symlinks */
         if (dentry_is_symlink(data.cur))
         {
+            if (data.lookup_flags & LOOKUP_FAIL_IF_LINK)
+            {
+                /* Annoying error code, but it's what mkdir requires... We dont have another caller
+                 * of LOOKUP_FAIL_IF_LINK that's not mkdir, and -ELOOP can easily be confused with
+                 * another symlink-related error (e.g exceeding nloops), so we can't easily convert
+                 * -ELOOP to -EEXIST in mkdir_vfs. */
+                st = -EEXIST;
+                goto out;
+            }
+
             if (!(data.lookup_flags & LOOKUP_NOFOLLOW) || path.trailing_slash())
             {
                 /* If we can/should follow, follow the symlink.
@@ -767,12 +777,13 @@ dentry *dentry_do_open(dentry *base, const char *path, unsigned int lookup_flags
 }
 
 static expected<struct dentry *, int> namei_create_generic(struct dentry *base, const char *path,
-                                                           mode_t mode, dev_t dev)
+                                                           mode_t mode, dev_t dev,
+                                                           unsigned int extra_lookup_flags = 0)
 {
     int st;
     struct path last_name;
     struct inode *inode = nullptr;
-    unsigned int lookup_flags = NAMEI_ALLOW_NEGATIVE;
+    unsigned int lookup_flags = NAMEI_ALLOW_NEGATIVE | extra_lookup_flags;
 
     auto ex = namei_lookup_parent(base, path, lookup_flags, &last_name);
     if (ex.has_error())
@@ -861,7 +872,7 @@ expected<dentry *, int> mkdir_vfs(const char *path, mode_t mode, struct dentry *
 {
     mode &= ~S_IFMT;
     mode |= S_IFDIR;
-    return namei_create_generic(dir, path, mode, 0);
+    return namei_create_generic(dir, path, mode, 0, LOOKUP_FAIL_IF_LINK);
 }
 
 int symlink_vfs(const char *path, const char *dest, struct dentry *base)
