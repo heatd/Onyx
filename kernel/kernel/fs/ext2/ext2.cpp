@@ -30,7 +30,7 @@
 
 #include <uapi/dirent.h>
 
-struct inode *ext2_open(struct dentry *dir, const char *name);
+int ext2_open(struct dentry *dir, const char *name, struct dentry *dentry);
 off_t ext2_getdirent(struct dirent *buf, off_t off, struct file *f);
 struct inode *ext2_creat(const char *path, int mode, struct dentry *dir);
 char *ext2_readlink(struct file *ino);
@@ -249,7 +249,7 @@ inode *ext2_get_inode(ext2_superblock *sb, uint32_t inode_num)
     return ino;
 }
 
-struct inode *ext2_open(struct dentry *dir, const char *name)
+int ext2_open(struct dentry *dir, const char *name, struct dentry *dentry)
 {
     struct inode *ino = dir->d_inode;
     struct ext2_superblock *fs = ext2_superblock_from_inode(ino);
@@ -259,17 +259,17 @@ struct inode *ext2_open(struct dentry *dir, const char *name)
     int st = ext2_retrieve_dirent(ino, name, fs, &res);
 
     if (st < 0)
-    {
-        return errno = -st, nullptr;
-    }
+        return st;
 
-    ext2_dir_entry_t *dentry = (ext2_dir_entry_t *) (res.buf + res.block_off);
-
-    inode_num = dentry->inode;
-
+    ext2_dir_entry_t *dirent = (ext2_dir_entry_t *) (res.buf + res.block_off);
+    inode_num = dirent->inode;
     free(res.buf);
 
-    return ext2_get_inode(fs, inode_num);
+    struct inode *inode = ext2_get_inode(fs, inode_num);
+    if (!inode)
+        return -errno;
+    d_finish_lookup(dentry, inode);
+    return 0;
 }
 
 struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,

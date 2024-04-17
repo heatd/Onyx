@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -14,6 +14,7 @@
 #include <stdlib.h>
 
 #include <onyx/compression.h>
+#include <onyx/dentry.h>
 #include <onyx/dev.h>
 #include <onyx/file.h>
 #include <onyx/initrd.h>
@@ -73,15 +74,20 @@ void tar_handle_entry(tar_header_t *entry, onx::stream &str)
         while (filename)
         {
             struct file *last = node;
+        retry:
             if (!(node = open_vfs(node, filename)))
             {
                 node = last;
-                if (!(node = mkdir_vfs(filename, 0755, node->f_dentry)))
+                auto ex = mkdir_vfs(filename, 0755, node->f_dentry);
+                if (ex.has_error())
                 {
                     perror("mkdir");
                     panic("Error loading initrd");
                 }
+                dentry_put(ex.value());
+                goto retry;
             }
+
             filename = strtok_r(nullptr, "/", &saveptr);
         }
     }
@@ -93,27 +99,28 @@ void tar_handle_entry(tar_header_t *entry, onx::stream &str)
 
     if (entry->typeflag == TAR_TYPE_FILE)
     {
-        auto_file file = creat_vfs(node->f_dentry, filename, perms);
-        if (!file)
-        {
-            panic("Could not create file from initrd - errno %d", errno);
-        }
+        auto ex = creat_vfs(node->f_dentry, filename, perms);
+        if (ex.has_error())
+            panic("Could not create file from initrd - errno %d", ex.error());
+
+        /* Create a file from the dentry on the stack. Kind of hacky, but simple */
+        struct file f = {};
+        f.f_dentry = ex.value();
+        f.f_ino = f.f_dentry->d_inode;
 
         size_t size = tar_get_size(entry->size);
-        str.splice(size, file.get_file()).unwrap();
+        str.splice(size, &f).unwrap();
     }
     else if (entry->typeflag == TAR_TYPE_DIR)
     {
-        auto_file file = mkdir_vfs(filename, perms, node->f_dentry);
-        if (!file)
-            perror("mkdir_vfs");
-        assert(file.get_file());
+        auto dent = mkdir_vfs(filename, perms, node->f_dentry).unwrap();
+        dentry_put(dent);
     }
     else if (entry->typeflag == TAR_TYPE_SYMLNK)
     {
         char *buffer = (char *) entry->linkname;
-        auto_file file = symlink_vfs(filename, buffer, node->f_dentry);
-        assert(file.get_file());
+        int st = symlink_vfs(filename, buffer, node->f_dentry);
+        CHECK(st == 0);
     }
 }
 

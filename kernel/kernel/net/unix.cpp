@@ -54,7 +54,7 @@ struct un_name
 {
     bool is_fs_sock_;
     union {
-        file *file_;
+        dentry *dentry_;
         cul::string anon_path_;
     };
 
@@ -62,7 +62,7 @@ struct un_name
      * @brief Construct an empty un_name
      *
      */
-    constexpr un_name() : is_fs_sock_{true}, file_{}
+    constexpr un_name() : is_fs_sock_{true}, dentry_{}
     {
     }
 
@@ -86,8 +86,8 @@ struct un_name
         n.is_fs_sock_ = is_fs_sock_;
         if (is_fs_sock_)
         {
-            n.file_ = file_;
-            fd_get(file_);
+            n.dentry_ = dentry_;
+            dentry_get(dentry_);
         }
         else
         {
@@ -103,9 +103,9 @@ struct un_name
     {
         if (is_fs_sock_)
         {
-            if (file_)
-                fd_put(file_);
-            file_ = nullptr;
+            if (dentry_)
+                dentry_put(dentry_);
+            dentry_ = nullptr;
         }
         else
         {
@@ -122,8 +122,8 @@ struct un_name
 
         if (is_fs_sock_)
         {
-            file_ = rhs.file_;
-            rhs.file_ = nullptr;
+            dentry_ = rhs.dentry_;
+            rhs.dentry_ = nullptr;
         }
         else
         {
@@ -142,8 +142,8 @@ struct un_name
 
         if (is_fs_sock_)
         {
-            file_ = rhs.file_;
-            rhs.file_ = nullptr;
+            dentry_ = rhs.dentry_;
+            rhs.dentry_ = nullptr;
         }
         else
         {
@@ -160,8 +160,8 @@ struct un_name
     {
         if (is_fs_sock_)
         {
-            if (file_)
-                fd_put(file_);
+            if (dentry_)
+                dentry_put(dentry_);
         }
         else
             anon_path_.~basic_string();
@@ -171,7 +171,7 @@ struct un_name
     {
         if (is_fs_sock_)
         {
-            return fnv_hash(&file_->f_ino, sizeof(inode *));
+            return fnv_hash(&dentry_->d_inode, sizeof(inode *));
         }
         else
         {
@@ -186,14 +186,14 @@ struct un_name
         if (is_anon() && rhs.is_anon())
             return true;
         if (is_fs_sock_)
-            return rhs.file_->f_ino == file_->f_ino;
+            return rhs.dentry_->d_inode == dentry_->d_inode;
         else
             return rhs.anon_path_ == anon_path_;
     }
 
     bool is_anon() const
     {
-        return is_fs_sock_ && file_ == nullptr;
+        return is_fs_sock_ && dentry_ == nullptr;
     }
 };
 
@@ -552,11 +552,11 @@ int un_socket::do_fs_bind(cul::string path)
     auto_file curr_dir = get_current_directory();
     auto base = get_fs_base(path.c_str(), curr_dir.get_file());
 
-    auto created = mknod_vfs(path.c_str(), perms | S_IFSOCK, 0, base->f_dentry);
+    auto ex = mknod_vfs(path.c_str(), perms | S_IFSOCK, 0, base->f_dentry);
 
-    if (!created)
+    if (ex.has_error())
     {
-        int st = -errno;
+        int st = ex.error();
 
         if (st == -EEXIST)
             st = -EADDRINUSE;
@@ -564,7 +564,7 @@ int un_socket::do_fs_bind(cul::string path)
     }
 
     src_addr_.is_fs_sock_ = true;
-    src_addr_.file_ = created;
+    src_addr_.dentry_ = ex.value();
 
     // Note: We don't need to check for existance of a socket with the same inode, as we have
     // just created it. The filesystem serves as a kind of a socket table there.
@@ -572,9 +572,9 @@ int un_socket::do_fs_bind(cul::string path)
     // Failure seems very unlikely.
     if (!un_sock_table.add_socket(this, 0))
     {
-        fd_put(created);
+        dentry_put(ex.value());
         unlink_vfs(path.c_str(), 0, base);
-        src_addr_.file_ = nullptr;
+        src_addr_.dentry_ = nullptr;
         return -ENOMEM;
     }
 
@@ -699,8 +699,8 @@ expected<un_name, int> sockaddr_to_un(sockaddr *addr, socklen_t addrlen)
             return unexpected{-errno};
         if (!S_ISSOCK(f.get_file()->f_ino->i_mode))
             return unexpected{-ECONNREFUSED};
-        name.file_ = f.get_file();
-        fd_get(name.file_);
+        name.dentry_ = f.get_file()->f_dentry;
+        dentry_get(name.dentry_);
     }
 
     return cul::move(name);
@@ -1222,7 +1222,7 @@ int un_get_name(sockaddr_un *addr, socklen_t *addrlen, const un_name &name)
     }
     else if (name.is_fs_sock_)
     {
-        auto filename = dentry_to_file_name(name.file_->f_dentry);
+        auto filename = dentry_to_file_name(name.dentry_);
         if (!filename)
             return -errno;
         size_t copied = strlcpy(addr->sun_path, filename, sizeof(addr->sun_path));

@@ -94,6 +94,7 @@ struct nameidata
 
     void setcur(dentry *newcur)
     {
+        DCHECK(newcur != nullptr);
         if (parent)
             dentry_put(parent);
         parent = cur;

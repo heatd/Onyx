@@ -1,8 +1,9 @@
 group("filesystem") {
-    deps = [
-        "fs_tests",
-        "fsx",
-        "fsstress",
-        "dirconc"
-    ]
+  deps = [
+    "create_unlink_stress",
+    "dirconc",
+    "fs_tests",
+    "fsstress",
+    "fsx",
+  ]
 }
