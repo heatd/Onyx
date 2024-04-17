@@ -344,23 +344,20 @@ static inline prp_setup *request_to_prp(struct request *req)
 int nvme_device::setup_prp(struct request *breq, nvme_namespace *ns)
 {
     prp_setup *s = request_to_prp(breq);
-
-    s->xfer_blocks = breq->r_nsectors;
+    s->first = s->prp2 = s->nr_indirects = 0;
 
     // An empty transfer is invalid, and so is a request with a xfer_size % sector_size
-    if (s->xfer_blocks == 0)
+    if (breq->r_nsectors == 0)
         return -EIO;
-
-    s->nr_entries = breq->r_nr_sgls;
 
     struct bio_req *head =
         container_of(list_first_element(&breq->r_bio_list), struct bio_req, list_node);
 
     s->first = (prp_entry_t) page_to_phys(head->vec[0].page) + head->vec[0].page_off;
 
-    if (s->nr_entries <= 2) [[likely]]
+    if (breq->r_nr_sgls <= 2) [[likely]]
     {
-        if (s->nr_entries == 2)
+        if (breq->r_nr_sgls == 2)
         {
             /* Get the next sgl and set prp2 to it. The logic is iffy but it works. If the nr_vecs
              * of the head is 2, the last sgl is in this bio. Else, look at the next bio and take
@@ -409,13 +406,10 @@ int nvme_device::setup_prp(struct request *breq, nvme_namespace *ns)
                     return false;
                 }
 
-                if (!s->indirect_list.push_back(current_list_page))
-                {
-                    free_page(current_list_page);
-                    st = -ENOMEM;
-                    return false;
-                }
+                if (!s->nr_indirects)
+                    s->prp2 = (u64) page_to_phys(current_list_page);
 
+                s->nr_indirects++;
                 if (current_list)
                 {
                     // We had a previous list, so link it with this one
@@ -436,9 +430,6 @@ int nvme_device::setup_prp(struct request *breq, nvme_namespace *ns)
         if (st < 0) [[unlikely]]
             return;
     });
-
-    s->prp2 = (u64) page_to_phys(s->indirect_list[0].get());
-
     return st;
 }
 
@@ -881,13 +872,13 @@ int nvme_device::prepare_nvme_request(u8 bio_command, nvmecmd *cmd, struct reque
 
     cmd->cmd.dptr.prp[0] = prp->first;
 
-    if (prp->nr_entries > 1)
+    if (breq->r_nr_sgls > 1)
         cmd->cmd.dptr.prp[1] = prp->prp2;
 
     // Set up the starting LBA and number of sectors
     cmd->cmd.cdw10 = (uint32_t) breq->r_sector;
     cmd->cmd.cdw11 = (uint32_t) (breq->r_sector >> 32);
-    cmd->cmd.cdw12 = (uint16_t) prp->xfer_blocks - 1; // TODO: FUA
+    cmd->cmd.cdw12 = (uint16_t) breq->r_nsectors - 1; // TODO: FUA
     cmd->cmd.cdw13 = 0;
     cmd->cmd.cdw14 = 0;
     cmd->req = breq;
@@ -909,6 +900,21 @@ int nvme_device::nvme_queue::device_io_submit(struct request *req)
         st < 0)
         return st;
     return submit_command(cmd);
+}
+
+prp_setup::~prp_setup()
+{
+    /* Free all indirect table pages associated with the prp */
+    u64 next = prp2;
+    constexpr auto prp_entries = PAGE_SIZE / sizeof(prp_entry_t);
+
+    while (nr_indirects--)
+    {
+        struct page *page = phys_to_page(next);
+        prp_entry_t *entries = (prp_entry_t *) PAGE_TO_VIRT(page);
+        next = entries[prp_entries - 1];
+        free_page(page);
+    }
 }
 
 /**

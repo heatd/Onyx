@@ -544,11 +544,11 @@ struct nvmecmd
 
 struct prp_setup
 {
-    size_t xfer_blocks;
-    size_t nr_entries;
     uint64_t first;
     u64 prp2;
-    cul::vector<unique_page> indirect_list;
+    u32 nr_indirects;
+
+    ~prp_setup();
 };
 
 struct request_pdu
