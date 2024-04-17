@@ -78,6 +78,10 @@ static int dentry_follow_symlink(nameidata &data, dentry *symlink, unsigned int 
         return -errno;
     }
 
+    /* Empty symlinks = -ENOENT. See nameitests for more info. */
+    if (target_str[0] == '\0')
+        return -ENOENT;
+
     // XXX make it expand
     CHECK(++data.pdepth < SYMLOOP_MAX);
 
