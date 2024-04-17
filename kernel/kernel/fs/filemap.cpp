@@ -477,11 +477,19 @@ int filemap_writepages(struct inode *inode,
                                              1)) > 0)
     {
         const unsigned long pageoff = page->pageoff;
-        /* Start the next iteration from the following page */
-        start = pageoff + 1;
-
         TRACE_EVENT_DURATION(filemap_writepage, ino, dev, pageoff);
         lock_page(page);
+
+        if (page->owner != inode->i_pages)
+        {
+            /* Page must've been truncated, retry */
+            unlock_page(page);
+            page_unref(page);
+            continue;
+        }
+
+        /* Start the next iteration from the following page */
+        start = pageoff + 1;
 
         if (page_flag_set(page, PAGE_FLAG_WRITEBACK))
         {
