@@ -345,7 +345,7 @@ inode *tmpfs_mount(blockdev *bdev)
 
     new_sb->s_devnr = blockdev->dev();
 
-    auto node = new_sb->create_inode(S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
+    auto node = new_sb->create_inode(S_IFDIR | 1777);
     if (!node)
     {
         dev_unregister_dev(blockdev, true);
