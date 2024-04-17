@@ -544,6 +544,10 @@ expected<file *, int> vfs_open(file *base, const char *name, unsigned int open_f
     const unsigned int flags = open_flags & O_DIRECTORY ? LOOKUP_MUST_BE_DIR : 0;
     auto fs_root = get_filesystem_root();
 
+    /* See the big comment in nameitests and https://lwn.net/Articles/926782/ */
+    if ((open_flags & (O_DIRECTORY | O_CREAT)) == (O_DIRECTORY | O_CREAT))
+        return unexpected{-EINVAL};
+
     dentry_get(fs_root->file->f_dentry);
     dentry_get(base->f_dentry);
 
