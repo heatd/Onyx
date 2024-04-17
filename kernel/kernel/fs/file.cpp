@@ -1794,11 +1794,11 @@ int do_sys_mkdir(const char *path, mode_t mode, struct file *dir)
 {
     struct file *base = get_fs_base(path, dir);
 
-    struct file *i = mkdir_vfs(path, mode & ~get_current_umask(), base->f_dentry);
-    if (!i)
-        return -errno;
+    auto ex = mkdir_vfs(path, mode & ~get_current_umask(), base->f_dentry);
+    if (ex.has_error())
+        return ex.error();
 
-    fd_put(i);
+    dentry_put(ex.value());
     return 0;
 }
 
@@ -1848,11 +1848,11 @@ int do_sys_mknodat(const char *path, mode_t mode, dev_t dev, struct file *dir)
 {
     struct file *base = get_fs_base(path, dir);
 
-    struct file *i = mknod_vfs(path, mode & ~get_current_umask(), dev, base->f_dentry);
-    if (!i)
-        return -errno;
+    auto ex = mknod_vfs(path, mode & ~get_current_umask(), dev, base->f_dentry);
+    if (ex.has_error())
+        return ex.error();
 
-    fd_put(i);
+    dentry_put(ex.value());
     return 0;
 }
 

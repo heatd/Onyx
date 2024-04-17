@@ -26,6 +26,7 @@
 #define DENTRY_FLAG_MOUNT_ROOT (1 << 1)
 #define DENTRY_FLAG_PENDING    (1 << 2)
 #define DENTRY_FLAG_FAILED     (1 << 3)
+#define DENTRY_FLAG_NEGATIVE   (1 << 4)
 
 struct dentry
 {
@@ -54,6 +55,23 @@ void dentry_get(struct dentry *d);
 struct inode;
 struct dentry *dentry_create(const char *name, struct inode *inode, struct dentry *parent);
 char *dentry_to_file_name(struct dentry *dentry);
+
+/**
+ * @brief Finish a VFS lookup
+ *
+ * @param dentry Dentry to finish
+ * @param inode Lookup's result
+ */
+void d_finish_lookup(struct dentry *dentry, struct inode *inode);
+
+void d_complete_negative(struct dentry *dentry);
+
+static inline bool d_is_negative(struct dentry *dentry)
+{
+    return dentry->d_flags & DENTRY_FLAG_NEGATIVE;
+}
+
+void d_positiveize(struct dentry *dentry, struct inode *inode);
 
 #ifdef __cplusplus
 
@@ -195,9 +213,6 @@ __always_inline bool dentry_involved_with_mount(dentry *d)
 {
     return d->d_flags & (DENTRY_FLAG_MOUNTPOINT | DENTRY_FLAG_MOUNT_ROOT);
 }
-
-expected<dentry *, int> dentry_create_pending_lookup(const char *name, inode *ino, dentry *parent,
-                                                     bool check_existance = true);
 
 /**
  * @brief Fail a dentry lookup

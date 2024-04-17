@@ -19,10 +19,9 @@ struct dentry;
 struct file;
 struct dirent;
 
-static inline struct inode *libfs_no_open(struct dentry *dir, const char *name)
+static inline int libfs_no_open(struct dentry *dir, const char *name, struct dentry *dentry)
 {
-    errno = ENOENT;
-    return NULL;
+    return -ENOENT;
 }
 
 static inline off_t libfs_no_getdirent(struct dirent *buf, off_t off, struct file *file)

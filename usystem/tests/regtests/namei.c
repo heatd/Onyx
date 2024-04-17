@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Pedro Falcato
+ * Copyright (c) 2023 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -562,12 +562,28 @@ static void emptysym(void)
 #undef NEWF
 }
 
+static void negativedent(void)
+{
+    /* Test if negative dentries get in the way. */
+    int fd = open("/tmp/filefile", O_RDONLY | O_CREAT | O_EXCL, 0666);
+    if (fd < 0)
+        err(1, "creation of /tmp/filefile");
+    if (unlink("/tmp/filefile") < 0)
+        err(1, "unlink failed");
+    ASSERT_ERRNO(unlink("/tmp/filefile"), ENOENT);
+    ASSERT_ERRNO(open("/tmp/filefile", O_RDONLY), ENOENT);
+    if (open("/tmp/filefile", O_RDONLY | O_CREAT | O_EXCL, 0666) < 0)
+        err(1, "filefile creation 2 failed");
+    unlink("/tmp/filefile");
+}
+
 int main(void)
 {
     openslash();
     openempty();
     openpathtoolarge();
     setup_tmp();
+    negativedent();
     opennondir();
     symtraverse();
     mbdirtest();

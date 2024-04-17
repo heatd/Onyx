@@ -444,7 +444,7 @@ int gendev::show_with_name(const char *custom_name, const char *path, mode_t mod
     return 0;
 }
 
-static inode *devfs_open(dentry *dir, const char *name);
+int devfs_open(dentry *dir, const char *name, dentry *dentry);
 static off_t devfs_getdirent(struct dirent *buf, off_t off, struct file *file);
 
 static const struct file_ops devfs_root_ops = {
@@ -496,9 +496,10 @@ inode *devfs_create_inode(devfs_file *file, struct superblock *sb)
  *
  * @param dir Dentry of the current directory
  * @param name Name of the file
- * @return Pointer to the inode, or nullptr with errno set
+ * @param dentry File's (incomplete) dentry
+ * @return 0 on success, negative error codes
  */
-static inode *devfs_open(dentry *dir, const char *name)
+int devfs_open(dentry *dir, const char *name, dentry *dentry)
 {
     scoped_lock g{devfs_list_lock};
     devfs_file *dev_dir = (devfs_file *) dir->d_inode->i_helper;
@@ -519,14 +520,15 @@ static inode *devfs_open(dentry *dir, const char *name)
     g.unlock();
 
     if (!reg)
-        return errno = ENOENT, nullptr;
+        return -ENOENT;
 
     auto sb = dir->d_inode->i_sb;
     auto ino = devfs_create_inode(reg, sb);
     if (!ino)
-        return errno = ENOMEM, nullptr;
+        return -ENOMEM;
 
-    return ino;
+    d_finish_lookup(dentry, ino);
+    return 0;
 }
 
 static off_t devfs_getdirent(struct dirent *buf, off_t off, struct file *file)

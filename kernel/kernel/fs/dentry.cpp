@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2023 Pedro Falcato
+ * Copyright (c) 2020 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -56,7 +56,7 @@ static rwslock dentry_ht_locks[1024];
     return dent_name.compare(to_cmp) == 0;
 }
 
-dentry *dentry_open_from_cache_unlocked(dentry *dent, std::string_view name)
+static dentry *dentry_open_from_cache_unlocked(dentry *dent, std::string_view name)
 {
     auto namehash = fnv_hash(name.data(), name.length());
     auto hash = hash_dentry_fields(dent, name);
@@ -82,7 +82,7 @@ dentry *dentry_open_from_cache_unlocked(dentry *dent, std::string_view name)
     return nullptr;
 }
 
-dentry *dentry_open_from_cache(dentry *dent, std::string_view name)
+static dentry *dentry_open_from_cache(dentry *dent, std::string_view name)
 {
     auto hash = hash_dentry_fields(dent, name);
     auto index = dentry_ht.get_hashtable_index(hash);
@@ -270,13 +270,11 @@ dentry *dentry_wait_for_pending(dentry *dent)
         return nullptr;
     }
 
-    assert(dent->d_inode != nullptr);
-
     return dent;
 }
 
-expected<dentry *, int> __dentry_create_pending_lookup(const char *name, inode *ino, dentry *parent,
-                                                       bool check_existance)
+static expected<dentry *, int> __dentry_create_pending_lookup(const char *name, inode *ino,
+                                                              dentry *parent, bool check_existance)
 {
     auto hash = hash_dentry_fields(parent, name);
     auto index = dentry_ht.get_hashtable_index(hash);
@@ -305,32 +303,19 @@ expected<dentry *, int> __dentry_create_pending_lookup(const char *name, inode *
     d->d_flags |= DENTRY_FLAG_PENDING;
 
     list_add_tail(&d->d_cache_node, list);
+    dentry_get(d);
     return d;
 }
 
-expected<dentry *, int> dentry_create_pending_lookup(const char *name, inode *ino, dentry *parent,
-                                                     bool check_existance)
+static dentry *__dentry_try_to_open(std::string_view name, dentry *dir, bool lock_ino)
 {
-    return __dentry_create_pending_lookup(name, ino, parent, check_existance);
-}
-
-dentry *__dentry_try_to_open(std::string_view name, dentry *dir, bool lock_ino)
-{
+    DCHECK(dentry_is_dir(dir));
     if (auto d = dentry_open_from_cache(dir, name); d)
     {
         if (d->d_flags & DENTRY_FLAG_PENDING)
-        {
             d = dentry_wait_for_pending(d);
-
-            return d;
-        }
-        else
-            return d;
+        return d;
     }
-
-    // For in memory filesystems like tmpfs where everything is in the dcache
-    if (dir->d_inode->i_sb->s_flags & SB_FLAG_IN_MEMORY)
-        return errno = ENOENT, nullptr;
 
     // printk("trying to open %.*s in %s\n", (int) name.length(), name.data(), dir->d_name);
     char _name[NAME_MAX + 1] = {};
@@ -349,6 +334,13 @@ dentry *__dentry_try_to_open(std::string_view name, dentry *dir, bool lock_ino)
         return dent;
     }
 
+    // For in memory filesystems like tmpfs where everything is in the dcache
+    if (dir->d_inode->i_sb->s_flags & SB_FLAG_IN_MEMORY)
+    {
+        d_complete_negative(dent);
+        return dent;
+    }
+
     auto pino = dir->d_inode;
 
     // Note: We only lock the inode if the caller hasn't locked it yet
@@ -356,24 +348,25 @@ dentry *__dentry_try_to_open(std::string_view name, dentry *dir, bool lock_ino)
     if (lock_ino)
         inode_lock_shared(pino);
 
-    inode *ino = dir->d_inode->i_fops->open(dir, _name);
+    int st = dir->d_inode->i_fops->open(dir, _name, dent);
 
     if (lock_ino)
         inode_unlock_shared(pino);
 
-    if (!ino)
+    if (st < 0)
     {
-        // printk("failed\n");
+        /* If this was an ENOENT, complete it as normal */
+        if (st == -ENOENT)
+        {
+            d_complete_negative(dent);
+            return dent;
+        }
+
         dentry_fail_lookup(dent);
         return nullptr;
     }
 
-    dent->d_inode = ino;
-    dentry_get(dent);
-    if (dentry_is_dir(dent))
-        ino->i_dentry = dent;
-
-    dentry_complete_lookup(dent);
+    DCHECK(!(dent->d_flags & DENTRY_FLAG_PENDING));
 
     return dent;
 }
@@ -644,14 +637,15 @@ void dentry_do_unlink(dentry *entry)
 
     entry->d_parent = nullptr;
 
-    inode_dec_nlink(entry->d_inode);
-    // printk("unlink %s nlink: %lu nref %lu\n", entry->d_name, entry->d_inode->i_nlink,
-    // entry->d_ref);
-
-    if (dentry_is_dir(entry))
+    if (!d_is_negative(entry))
     {
-        inode_dec_nlink(parent->d_inode);
         inode_dec_nlink(entry->d_inode);
+
+        if (dentry_is_dir(entry))
+        {
+            inode_dec_nlink(parent->d_inode);
+            inode_dec_nlink(entry->d_inode);
+        }
     }
 
     dentry_remove_from_cache(entry, parent);
@@ -809,4 +803,40 @@ void dentry_trim_caches()
     }
 
     kmem_cache_purge(dentry_cache);
+}
+
+/**
+ * @brief Finish a VFS lookup
+ *
+ * @param dentry Dentry to finish
+ * @param inode Lookup's result
+ */
+void d_finish_lookup(struct dentry *dentry, struct inode *inode)
+{
+    DCHECK(inode != nullptr);
+    dentry->d_inode = inode;
+    /* TODO: We may be leaking the dentry here. I'm not sure. We were getting a reference in the
+     * original try_to_open code.
+     */
+    dentry_get(dentry);
+    if (dentry_is_dir(dentry))
+        inode->i_dentry = dentry;
+
+    dentry_complete_lookup(dentry);
+}
+
+void d_complete_negative(struct dentry *dentry)
+{
+    dentry->d_flags.or_fetch(DENTRY_FLAG_NEGATIVE, mem_order::release);
+    dentry_get(dentry);
+    dentry_complete_lookup(dentry);
+}
+
+void d_positiveize(struct dentry *dentry, struct inode *inode)
+{
+    DCHECK(inode != nullptr);
+    DCHECK(dentry->d_inode == nullptr);
+    DCHECK(dentry->d_flags & DENTRY_FLAG_NEGATIVE);
+    dentry->d_inode = inode;
+    dentry->d_flags.and_fetch(~DENTRY_FLAG_NEGATIVE, mem_order::release);
 }

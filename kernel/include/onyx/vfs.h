@@ -34,7 +34,7 @@ __BEGIN_CDECLS
 typedef size_t (*__read)(size_t offset, size_t sizeofread, void *buffer, struct file *file);
 typedef size_t (*__write)(size_t offset, size_t sizeofwrite, void *buffer, struct file *file);
 typedef void (*__close)(struct inode *file);
-typedef struct inode *(*__open)(struct dentry *dir, const char *name);
+typedef int (*__open)(struct dentry *dir, const char *name, struct dentry *dentry);
 typedef off_t (*__getdirent)(struct dirent *buf, off_t off, struct file *file);
 typedef unsigned int (*__ioctl)(int request, void *argp, struct file *file);
 typedef struct inode *(*__creat)(const char *name, int mode, struct dentry *dir);
@@ -192,8 +192,6 @@ void inode_unref(struct inode *ino);
 
 void close_vfs(struct inode *ino);
 
-struct file *creat_vfs(struct dentry *node, const char *path, int mode);
-
 int getdents_vfs(unsigned int count, putdir_t putdir, struct dirent *dirp, off_t off,
                  struct getdents_ret *ret, struct file *file);
 
@@ -203,9 +201,7 @@ int stat_vfs(struct stat *buf, struct file *node);
 
 int ftruncate_vfs(off_t length, struct file *vnode);
 
-struct file *mkdir_vfs(const char *path, mode_t mode, struct dentry *node);
-
-struct file *symlink_vfs(const char *path, const char *dest, struct dentry *inode);
+int symlink_vfs(const char *path, const char *dest, struct dentry *base);
 
 int mount_fs(struct inode *node, const char *mp);
 
@@ -218,8 +214,6 @@ struct file *get_fs_root(void);
 short poll_vfs(void *poll_file, short events, struct file *node);
 
 int fallocate_vfs(int mode, off_t offset, off_t len, struct file *file);
-
-struct file *mknod_vfs(const char *path, mode_t mode, dev_t dev, struct dentry *file);
 
 struct file *get_current_directory(void);
 
@@ -346,6 +340,12 @@ void inode_update_mtime(struct inode *ino);
 void put_dentry_to_dirent(struct dirent *buf, struct dentry *dentry,
                           const char *special_name = nullptr);
 
+extern "C++"
+{
+expected<dentry *, int> creat_vfs(dentry *base, const char *path, int mode);
+expected<dentry *, int> mknod_vfs(const char *path, mode_t mode, dev_t dev, struct dentry *dir);
+expected<dentry *, int> mkdir_vfs(const char *path, mode_t mode, struct dentry *dir);
+}
 #endif
 
 /**

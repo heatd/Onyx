@@ -75,20 +75,20 @@ struct sysfs_object *sysfs_get_obj(struct sysfs_object *file, const char *name)
     return nullptr;
 }
 
-struct inode *sysfs_open(struct dentry *dir, const char *name)
+int sysfs_open(struct dentry *dir, const char *name, struct dentry *dentry)
 {
     struct inode *node = dir->d_inode;
     struct sysfs_object *file = (struct sysfs_object *) node->i_inode;
     assert(file != nullptr);
 
     if (!S_ISDIR(node->i_mode))
-        return errno = ENOTDIR, nullptr;
+        return -ENOTDIR;
 
     struct sysfs_object *o = sysfs_get_obj(file, name);
 
     if (!o)
     {
-        return errno = ENOENT, nullptr;
+        return -ENOENT;
     }
 
     struct inode *ino = sysfs_create_inode_for_file(o);
@@ -102,7 +102,8 @@ struct inode *sysfs_open(struct dentry *dir, const char *name)
         object_unref(&o->obj);
     }
 
-    return ino;
+    d_finish_lookup(dentry, ino);
+    return 0;
 }
 
 size_t sysfs_read(size_t offset, size_t sizeofread, void *buffer, struct file *this_)

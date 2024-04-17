@@ -119,10 +119,10 @@ ssize_t tmpfs_writepage(struct page *page, size_t offset, struct inode *ino) REQ
     return PAGE_SIZE;
 }
 
-struct inode *tmpfs_open(struct dentry *dir, const char *name)
+int tmpfs_open(struct dentry *dir, const char *name, struct dentry *dentry)
 {
     /* This a no-op, since names are either cached or non-existent in our tmpfs */
-    return errno = ENOENT, nullptr;
+    return -ENOENT;
 }
 
 off_t tmpfs_getdirent(struct dirent *buf, off_t off, struct file *file)
@@ -152,10 +152,14 @@ off_t tmpfs_getdirent(struct dirent *buf, off_t off, struct file *file)
         off_t c = 0;
         list_for_every (&dent->d_children_head)
         {
+            auto d = container_of(l, dentry, d_parent_dir_node);
+
+            if (d_is_negative(d))
+                continue;
+
             if (off > c++ + 2)
                 continue;
 
-            auto d = container_of(l, dentry, d_parent_dir_node);
             put_dentry_to_dirent(buf, d);
             return off + 1;
         }

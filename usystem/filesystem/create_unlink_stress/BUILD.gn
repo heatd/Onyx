@@ -1,0 +1,8 @@
+import("//build/app.gni")
+
+app_executable("create_unlink_stress") {
+  package_name = "create_unlink_stress"
+  output_name = "$package_name"
+
+  sources = [ "main.c" ]
+}
