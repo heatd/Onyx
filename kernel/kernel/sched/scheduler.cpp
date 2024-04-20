@@ -753,6 +753,8 @@ int sys_nanosleep(const timespec *req, timespec *rem)
         return -EINVAL;
 
     hrtime_t ns = ts.tv_sec * NS_PER_SEC + ts.tv_nsec;
+    if (ns == 0)
+        return 0;
 
     hrtime_t ns_rem = sched_sleep(ns);
 
