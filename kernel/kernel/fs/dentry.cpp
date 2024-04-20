@@ -57,6 +57,13 @@ static rwslock dentry_ht_locks[1024];
     return dent_name.compare(to_cmp) == 0;
 }
 
+static inline int d_revalidate(struct dentry *dentry, unsigned int flags)
+{
+    if (dentry->d_ops->d_revalidate) [[unlikely]]
+        return dentry->d_ops->d_revalidate(dentry, flags);
+    return 1;
+}
+
 static dentry *dentry_open_from_cache_unlocked(dentry *dent, std::string_view name)
 {
     auto namehash = fnv_hash(name.data(), name.length());
@@ -203,6 +210,8 @@ void dentry_kill_unlocked(dentry *entry)
     dentry_destroy(entry);
 }
 
+static const struct dentry_operations default_dops = {};
+
 dentry *dentry_create(const char *name, inode *inode, dentry *parent)
 {
     if (parent && !S_ISDIR(parent->d_inode->i_mode))
@@ -255,6 +264,7 @@ dentry *dentry_create(const char *name, inode *inode, dentry *parent)
 
     new_dentry->d_mount_dentry = nullptr;
     new_dentry->d_flags = 0;
+    new_dentry->d_ops = &default_dops;
 
     return new_dentry;
 }

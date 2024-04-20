@@ -28,6 +28,11 @@
 #define DENTRY_FLAG_FAILED     (1 << 3)
 #define DENTRY_FLAG_NEGATIVE   (1 << 4)
 
+struct dentry_operations
+{
+    int (*d_revalidate)(struct dentry *, unsigned int flags);
+};
+
 struct dentry
 {
     unsigned long d_ref;
@@ -44,6 +49,7 @@ struct dentry
     struct list_head d_cache_node;
     struct list_head d_children_head;
     struct dentry *d_mount_dentry;
+    const struct dentry_operations *d_ops;
     atomic<uint16_t> d_flags;
 };
 
@@ -79,8 +85,7 @@ void d_positiveize(struct dentry *dentry, struct inode *inode);
 
 using dentry_lookup_flags_t = uint16_t;
 
-#define DENTRY_LOOKUP_UNLOCKED            (1 << 0) /* To be used when inserting or already holding a lock */
-#define DENTRY_LOOKUP_DONT_TRY_TO_RESOLVE (1 << 1) /* Don't try to resolve cache misses */
+#define DENTRY_LOOKUP_UNLOCKED (1 << 0) /* To be used when inserting or already holding a lock */
 
 dentry *dentry_lookup_internal(std::string_view v, dentry *dir, dentry_lookup_flags_t flags = 0);
 
