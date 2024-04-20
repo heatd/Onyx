@@ -773,8 +773,10 @@ int do_sys_open(const char *filename, int flags, mode_t mode, struct file *__rel
 {
     if (flags & ~VALID_OPEN_FLAGS)
     {
+#if 0
         printk("Open(%s): Bad flags!\n", filename);
         printk("Flag mask %o\n", flags & ~VALID_OPEN_FLAGS);
+#endif
         return -EINVAL;
     }
 
@@ -899,7 +901,7 @@ int sys_dup23_internal(int oldfd, int newfd, int dupflags, unsigned int flags)
     if (oldfd == newfd)
     {
         fd_put(f);
-        return flags & DUP23_DUP3 ? -EINVAL : 0;
+        return flags & DUP23_DUP3 ? -EINVAL : oldfd;
     }
 
     if (table->file_desc[newfd])
