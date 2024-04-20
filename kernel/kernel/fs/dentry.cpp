@@ -288,8 +288,8 @@ dentry *dentry_wait_for_pending(dentry *dent)
     return dent;
 }
 
-static expected<dentry *, int> __dentry_create_pending_lookup(const char *name, inode *ino,
-                                                              dentry *parent, bool check_existance)
+static expected<dentry *, int> dentry_create_pending_lookup(const char *name, inode *ino,
+                                                            dentry *parent)
 {
     auto hash = hash_dentry_fields(parent, name);
     auto index = dentry_ht.get_hashtable_index(hash);
@@ -305,9 +305,7 @@ static expected<dentry *, int> __dentry_create_pending_lookup(const char *name, 
         g2.unlock();
         dent = dentry_wait_for_pending(dent);
 
-        if (dent && check_existance)
-            return unexpected<int>{-EEXIST};
-        else if (dent)
+        if (dent)
             return dent;
     }
 
@@ -335,7 +333,7 @@ static dentry *__dentry_try_to_open(std::string_view name, dentry *dir, bool loc
     // printk("trying to open %.*s in %s\n", (int) name.length(), name.data(), dir->d_name);
     char _name[NAME_MAX + 1] = {};
     memcpy(_name, name.data(), name.length());
-    auto ex = __dentry_create_pending_lookup(_name, nullptr, dir, false);
+    auto ex = dentry_create_pending_lookup(_name, nullptr, dir);
 
     if (ex.has_error())
         return errno = -ex.error(), nullptr;
@@ -406,8 +404,6 @@ dentry *dentry_parent(dentry *dir)
 
 dentry *dentry_lookup_internal(std::string_view v, dentry *dir, dentry_lookup_flags_t flags)
 {
-    bool resolve = !(flags & DENTRY_LOOKUP_DONT_TRY_TO_RESOLVE);
-
     if (!dentry_is_dir(dir))
         return errno = ENOTDIR, nullptr;
 
@@ -431,18 +427,12 @@ dentry *dentry_lookup_internal(std::string_view v, dentry *dir, dentry_lookup_fl
     if (dent)
     {
         if (dent->d_flags & DENTRY_FLAG_PENDING)
-        {
             dent = dentry_wait_for_pending(dent);
-
-            if (!dent)
-                goto resolve;
-        }
-
-        return dent;
     }
 
-resolve:
-    return resolve ? __dentry_try_to_open(v, dir, !(flags & DENTRY_LOOKUP_UNLOCKED)) : nullptr;
+    if (!dent)
+        dent = __dentry_try_to_open(v, dir, !(flags & DENTRY_LOOKUP_UNLOCKED));
+    return dent;
 }
 
 dentry *dentry_mount(const char *mountpoint, struct inode *inode)
