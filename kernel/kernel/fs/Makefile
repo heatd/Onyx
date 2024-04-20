@@ -14,6 +14,8 @@ kernel/fs/vfs.o: include/onyx/gen/trace_writeback.h
 
 kernel/fs/filemap.o: include/onyx/gen/trace_filemap.h
 
-fs-y+= writeback.trace.o filemap.trace.o
+kernel/fs/dentry.o: include/onyx/gen/trace_dentry.h
+
+fs-y+= writeback.trace.o filemap.trace.o dentry.trace.o
 
 obj-y+= $(patsubst %, kernel/fs/%, $(fs-y))

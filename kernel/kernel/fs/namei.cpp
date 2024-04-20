@@ -124,7 +124,8 @@ static int namei_walk_component(std::string_view v, nameidata &data, unsigned in
     const bool dont_follow_last = data.lookup_flags & LOOKUP_NOFOLLOW;
     const bool unlocked_lookup = flags & NAMEI_UNLOCKED;
 
-    dentry *new_found = nullptr;
+    auto_dentry dwrapper;
+    dentry *new_found;
 
     file f;
     f.f_ino = data.cur->d_inode;
@@ -142,9 +143,9 @@ static int namei_walk_component(std::string_view v, nameidata &data, unsigned in
     }
     else
     {
-        new_found =
+        dwrapper =
             dentry_lookup_internal(v, data.cur, unlocked_lookup ? DENTRY_LOOKUP_UNLOCKED : 0);
-        if (!new_found)
+        if (!dwrapper)
         {
             DCHECK(errno != 0);
             return -errno;
@@ -155,6 +156,8 @@ static int namei_walk_component(std::string_view v, nameidata &data, unsigned in
                d_is_negative(new_found) ? " (negative)" : "");
 #endif
     }
+
+    new_found = dwrapper.get_dentry();
 
     if (d_is_negative(new_found))
     {
@@ -168,7 +171,7 @@ static int namei_walk_component(std::string_view v, nameidata &data, unsigned in
         if (flags & NAMEI_NO_FOLLOW_SYM)
         {
             /* Save parent and location for the caller */
-            data.setcur(new_found);
+            data.setcur(dwrapper.release());
             return 0;
         }
         /* POSIX states that paths that end in a trailing slash are required to be the same as
@@ -181,10 +184,7 @@ static int namei_walk_component(std::string_view v, nameidata &data, unsigned in
 
         // printk("Following symlink for path elem %s\n", v.data());
         if (is_last_name && (data.lookup_flags & LOOKUP_FAIL_IF_LINK))
-        {
-            dentry_put(new_found);
             return -ELOOP;
-        }
         else if (is_last_name && !should_follow_symlink)
         {
             // printk("Cannot follow symlink. Trailing slash: %s\n", must_be_dir ? "yes" :
@@ -198,12 +198,12 @@ static int namei_walk_component(std::string_view v, nameidata &data, unsigned in
     else if (dentry_is_mountpoint(new_found))
     {
         auto dest = new_found->d_mount_dentry;
-        dentry_put(new_found);
-        new_found = dest;
         dentry_get(dest);
+        dwrapper = dest;
+        new_found = dwrapper.get_dentry();
     }
 
-    data.setcur(new_found);
+    data.setcur(dwrapper.release());
 
     return 0;
 }
@@ -428,11 +428,7 @@ static int do_creat(dentry *dir, struct inode *inode, struct dentry *dentry, mod
     if (!new_inode)
         return -errno;
 
-    dentry_get(dentry);
     d_positiveize(dentry, new_inode);
-    dentry_put(data.cur);
-    data.setcur(dentry);
-
     return 0;
 }
 
@@ -1128,8 +1124,6 @@ int unlink_vfs(const char *path, int flags, struct file *node)
         scoped_rwslock<rw_lock::write> g{dentry->d_lock};
 
         dentry_do_unlink(child);
-
-        g.unlock();
     }
 
 out2:
