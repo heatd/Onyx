@@ -97,8 +97,11 @@ char *ext2_readlink(struct file *f)
 
 int ext2_set_symlink(inode *ino, const char *dest)
 {
-    auto length = strlen(dest);
+    auto length = strlen(dest) + 1;
     auto raw_ino = ext2_get_inode_from_node(ino);
+    struct ext2_superblock *fs = ext2_superblock_from_inode(ino);
+    if (length > fs->block_size)
+        return -ENAMETOOLONG;
 
     if (length <= 60)
     {
@@ -135,7 +138,8 @@ inode *ext2_symlink(const char *name, const char *dest, dentry *dir)
     if (auto st = ext2_set_symlink(inode, dest); st < 0)
     {
         ext2_unlink(name, 0, dir);
-        delete inode;
+        inode_dec_nlink(inode);
+        inode_unref(inode);
         errno = -st;
         return nullptr;
     }
