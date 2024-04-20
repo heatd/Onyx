@@ -129,15 +129,15 @@ int ext2_set_symlink(inode *ino, const char *dest)
     return 0;
 }
 
-inode *ext2_symlink(const char *name, const char *dest, dentry *dir)
+inode *ext2_symlink(struct dentry *dentry, const char *dest, struct dentry *dir)
 {
-    auto inode = ext2_create_file(name, S_IFLNK | S_IRWXG | S_IRWXO | S_IRWXU, 0, dir);
+    auto inode = ext2_create_file(dentry->d_name, S_IFLNK | S_IRWXG | S_IRWXO | S_IRWXU, 0, dir);
     if (!inode)
         return nullptr;
 
     if (auto st = ext2_set_symlink(inode, dest); st < 0)
     {
-        ext2_unlink(name, 0, dir);
+        ext2_unlink(dentry->d_name, 0, dir);
         inode_dec_nlink(inode);
         inode_unref(inode);
         errno = -st;

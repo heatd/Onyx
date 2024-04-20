@@ -37,9 +37,9 @@ typedef void (*__close)(struct inode *file);
 typedef int (*__open)(struct dentry *dir, const char *name, struct dentry *dentry);
 typedef off_t (*__getdirent)(struct dirent *buf, off_t off, struct file *file);
 typedef unsigned int (*__ioctl)(int request, void *argp, struct file *file);
-typedef struct inode *(*__creat)(const char *name, int mode, struct dentry *dir);
+typedef struct inode *(*__creat)(struct dentry *dentry, int mode, struct dentry *dir);
 typedef int (*__stat)(struct stat *buf, struct file *node);
-typedef struct inode *(*__symlink)(const char *name, const char *linkpath, struct dentry *dir);
+typedef struct inode *(*__symlink)(struct dentry *dentry, const char *linkpath, struct dentry *dir);
 typedef unsigned int (*putdir_t)(struct dirent *, struct dirent *ubuf, unsigned int count);
 
 struct writepages_info
@@ -67,8 +67,8 @@ struct file_ops
     __symlink symlink;
     void *(*mmap)(struct vm_area_struct *area, struct file *node);
     int (*ftruncate)(size_t length, struct file *node);
-    struct inode *(*mkdir)(const char *name, mode_t mode, struct dentry *dir);
-    struct inode *(*mknod)(const char *name, mode_t mode, dev_t dev, struct dentry *dir);
+    struct inode *(*mkdir)(struct dentry *dentry, mode_t mode, struct dentry *dir);
+    struct inode *(*mknod)(struct dentry *dentry, mode_t mode, dev_t dev, struct dentry *dir);
     int (*on_open)(struct file *node);
     short (*poll)(void *poll_file, short events, struct file *node);
     char *(*readlink)(struct file *ino);

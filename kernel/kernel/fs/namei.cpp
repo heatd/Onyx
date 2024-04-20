@@ -423,7 +423,7 @@ static int do_creat(dentry *dir, struct inode *inode, struct dentry *dentry, mod
 
     DCHECK(d_is_negative(dentry));
 
-    struct inode *new_inode = inode->i_fops->creat(dentry->d_name, (int) mode | S_IFREG, dir);
+    struct inode *new_inode = inode->i_fops->creat(dentry, (int) mode | S_IFREG, dir);
 
     if (!new_inode)
         return -errno;
@@ -813,16 +813,16 @@ static expected<struct dentry *, int> namei_create_generic(struct dentry *base, 
     switch (mode & S_IFMT)
     {
         case S_IFREG:
-            inode = dir_ino->i_fops->creat(dent->d_name, mode, dir);
+            inode = dir_ino->i_fops->creat(dent, mode, dir);
             break;
         case S_IFDIR:
-            inode = dir_ino->i_fops->mkdir(dent->d_name, mode, dir);
+            inode = dir_ino->i_fops->mkdir(dent, mode, dir);
             break;
         case S_IFBLK:
         case S_IFCHR:
         case S_IFSOCK:
         case S_IFIFO:
-            inode = dir_ino->i_fops->mknod(dent->d_name, mode, dev, dir);
+            inode = dir_ino->i_fops->mknod(dent, mode, dev, dir);
             break;
         default:
             DCHECK(0);
@@ -908,7 +908,7 @@ int symlink_vfs(const char *path, const char *dest, struct dentry *base)
         goto put_unlock_err;
     }
 
-    inode = dir_ino->i_fops->symlink(dent->d_name, dest, dir);
+    inode = dir_ino->i_fops->symlink(dent, dest, dir);
 
     if (!inode)
     {

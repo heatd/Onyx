@@ -32,11 +32,11 @@
 
 int ext2_open(struct dentry *dir, const char *name, struct dentry *dentry);
 off_t ext2_getdirent(struct dirent *buf, off_t off, struct file *f);
-struct inode *ext2_creat(const char *path, int mode, struct dentry *dir);
+struct inode *ext2_creat(struct dentry *dentry, int mode, struct dentry *dir);
 char *ext2_readlink(struct file *ino);
 void ext2_close(struct inode *ino);
-struct inode *ext2_mknod(const char *name, mode_t mode, dev_t dev, struct dentry *dir);
-struct inode *ext2_mkdir(const char *name, mode_t mode, struct dentry *dir);
+struct inode *ext2_mknod(struct dentry *dentry, mode_t mode, dev_t dev, struct dentry *dir);
+struct inode *ext2_mkdir(struct dentry *dentry, mode_t mode, struct dentry *dir);
 int ext2_link_fops(struct file *target, const char *name, struct dentry *dir);
 int ext2_fallocate(int mode, off_t off, off_t len, struct file *f);
 int ext2_ftruncate(size_t len, struct file *f);
@@ -44,7 +44,7 @@ ssize_t ext2_readpage(struct page *page, size_t off, struct inode *ino);
 ssize_t ext2_writepage(struct page *page, size_t off, struct inode *ino);
 int ext2_prepare_write(inode *ino, struct page *page, size_t page_off, size_t offset, size_t len);
 int ext2_link(struct inode *target, const char *name, struct inode *dir);
-inode *ext2_symlink(const char *name, const char *dest, dentry *dir);
+inode *ext2_symlink(struct dentry *dentry, const char *dest, struct dentry *dir);
 static int ext2_fsyncdata(struct inode *ino, struct writepages_info *wpinfo);
 
 struct file_ops ext2_ops = {.open = ext2_open,
@@ -444,11 +444,11 @@ free_ino_error:
     return nullptr;
 }
 
-struct inode *ext2_creat(const char *name, int mode, struct dentry *dir)
+struct inode *ext2_creat(struct dentry *dentry, int mode, struct dentry *dir)
 {
     unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 
-    struct inode *i = ext2_create_file(name, (mode & ~S_IFMT) | S_IFREG, 0, dir);
+    struct inode *i = ext2_create_file(dentry->d_name, (mode & ~S_IFMT) | S_IFREG, 0, dir);
 
     thread_change_addr_limit(old);
 
@@ -670,18 +670,16 @@ off_t ext2_getdirent(struct dirent *buf, off_t off, struct file *f)
     return new_off;
 }
 
-struct inode *ext2_mknod(const char *name, mode_t mode, dev_t dev, struct dentry *dir)
+struct inode *ext2_mknod(struct dentry *dentry, mode_t mode, dev_t dev, struct dentry *dir)
 {
-    return ext2_create_file(name, mode, dev, dir);
+    return ext2_create_file(dentry->d_name, mode, dev, dir);
 }
 
-struct inode *ext2_mkdir(const char *name, mode_t mode, struct dentry *dir)
+struct inode *ext2_mkdir(struct dentry *dentry, mode_t mode, struct dentry *dir)
 {
-    struct inode *new_dir = ext2_create_file(name, (mode & 0777) | S_IFDIR, 0, dir);
+    struct inode *new_dir = ext2_create_file(dentry->d_name, (mode & 0777) | S_IFDIR, 0, dir);
     if (!new_dir)
-    {
         return nullptr;
-    }
 
     new_dir->i_nlink = 2;
 
