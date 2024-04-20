@@ -117,6 +117,29 @@ static void dentry_add_to_cache(dentry *dent, dentry *parent)
     list_add_tail(&dent->d_cache_node, dentry_ht.get_hashtable(index));
 }
 
+static struct dentry *dentry_add_to_cache_careful(dentry *dent, dentry *parent)
+{
+    /* Lets add to the cache while checking for conflicts. If we find one, we return that dentry */
+    const std::string_view name = std::string_view{dent->d_name, dent->d_name_length};
+    fnv_hash_t hash = hash_dentry_fields(parent, name);
+    size_t index = dentry_ht.get_hashtable_index(hash);
+    struct dentry *ret;
+    scoped_rwslock<rw_lock::write> g{dentry_ht_locks[index]};
+
+    ret = dentry_open_from_cache_unlocked(dent, name);
+    if (ret)
+    {
+        /* We lost the parallel lookup race and found a dentry, lets put the current one and return
+         * this one. */
+        dentry_put(dent);
+        return ret;
+    }
+
+    list_add_tail(&dent->d_cache_node, dentry_ht.get_hashtable(index));
+    dentry_get(dent);
+    return dent;
+}
+
 void dentry_get(dentry *d)
 {
     DCHECK(d != nullptr);
@@ -212,7 +235,7 @@ void dentry_kill_unlocked(dentry *entry)
 
 static const struct dentry_operations default_dops = {};
 
-dentry *dentry_create(const char *name, inode *inode, dentry *parent)
+dentry *dentry_create(const char *name, inode *inode, dentry *parent, u16 flags)
 {
     if (parent && !S_ISDIR(parent->d_inode->i_mode))
         return errno = ENOTDIR, nullptr;
@@ -263,8 +286,8 @@ dentry *dentry_create(const char *name, inode *inode, dentry *parent)
     INIT_LIST_HEAD(&new_dentry->d_children_head);
 
     new_dentry->d_mount_dentry = nullptr;
-    new_dentry->d_flags = 0;
     new_dentry->d_ops = &default_dops;
+    new_dentry->d_flags.store(flags, mem_order::release);
 
     return new_dentry;
 }
@@ -291,33 +314,20 @@ dentry *dentry_wait_for_pending(dentry *dent)
 static expected<dentry *, int> dentry_create_pending_lookup(const char *name, inode *ino,
                                                             dentry *parent)
 {
-    auto hash = hash_dentry_fields(parent, name);
-    auto index = dentry_ht.get_hashtable_index(hash);
-    scoped_rwslock<rw_lock::write> g2{parent->d_lock};
-    scoped_rwslock<rw_lock::write> g{dentry_ht_locks[index]};
-    auto list = dentry_ht.get_hashtable(index);
-
-    auto dent = dentry_open_from_cache_unlocked(parent, std::string_view(name));
-
+    struct dentry *dent = dentry_open_from_cache(parent, std::string_view(name));
     if (dent)
     {
-        g.unlock();
-        g2.unlock();
         dent = dentry_wait_for_pending(dent);
-
         if (dent)
             return dent;
     }
 
-    auto d = dentry_create(name, ino, parent);
-    if (!d)
+    /* Dentry not found, lets create a lookup. We must be careful as to avoid duplicate dentries */
+    dent = dentry_create(name, ino, parent, DENTRY_FLAG_PENDING);
+    if (!dent)
         return unexpected<int>{-ENOMEM};
 
-    d->d_flags |= DENTRY_FLAG_PENDING;
-
-    list_add_tail(&d->d_cache_node, list);
-    dentry_get(d);
-    return d;
+    return dentry_add_to_cache_careful(dent, parent);
 }
 
 static dentry *__dentry_try_to_open(std::string_view name, dentry *dir, bool lock_ino)
