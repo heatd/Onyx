@@ -29,26 +29,26 @@ static inline off_t libfs_no_getdirent(struct dirent *buf, off_t off, struct fil
     return -EIO;
 }
 
-static inline struct inode *libfs_no_creat(const char *name, int mode, struct dentry *dir)
+static inline struct inode *libfs_no_creat(struct dentry *dentry, int mode, struct dentry *dir)
 {
     errno = EROFS;
     return NULL;
 }
 
-static inline struct inode *libfs_no_symlink(const char *name, const char *linkpath,
+static inline struct inode *libfs_no_symlink(struct dentry *dentry, const char *linkpath,
                                              struct dentry *dir)
 {
     errno = EROFS;
     return NULL;
 }
 
-static inline struct inode *libfs_no_mkdir(const char *name, mode_t mode, struct dentry *dir)
+static inline struct inode *libfs_no_mkdir(struct dentry *dentry, mode_t mode, struct dentry *dir)
 {
     errno = EROFS;
     return NULL;
 }
 
-static inline struct inode *libfs_no_mknod(const char *name, mode_t mode, dev_t dev,
+static inline struct inode *libfs_no_mknod(struct dentry *dentry, mode_t mode, dev_t dev,
                                            struct dentry *dir)
 {
     errno = EROFS;

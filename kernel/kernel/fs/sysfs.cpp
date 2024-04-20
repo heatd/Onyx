@@ -15,6 +15,7 @@
 #include <onyx/dentry.h>
 #include <onyx/dev.h>
 #include <onyx/init.h>
+#include <onyx/libfs.h>
 #include <onyx/panic.h>
 #include <onyx/sysfs.h>
 #include <onyx/vfs.h>
@@ -46,11 +47,6 @@ struct inode *sysfs_create_inode_for_file(struct sysfs_object *f)
     sysfs_setup_fops(ino);
 
     return ino;
-}
-
-struct inode *sysfs_creat(const char *pathname, int mode, struct dentry *dentry)
-{
-    return errno = EPERM, nullptr;
 }
 
 /* Note: Returns with a reference to the return obj if !nullptr */
@@ -237,7 +233,7 @@ struct file_ops sysfs_ops = {
     .write = sysfs_write,
     .open = sysfs_open,
     .getdirent = sysfs_getdirent,
-    .creat = sysfs_creat,
+    .creat = libfs_no_creat,
     .stat = sysfs_stat,
 };
 

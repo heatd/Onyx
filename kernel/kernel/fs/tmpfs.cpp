@@ -42,7 +42,7 @@ tmpfs_inode *tmpfs_create_inode(mode_t mode, struct dentry *dir, dev_t rdev = 0)
     return sb->create_inode(mode, rdev);
 }
 
-struct inode *tmpfs_creat(const char *name, int mode, struct dentry *dir)
+struct inode *tmpfs_creat(struct dentry *dentry, int mode, struct dentry *dir)
 {
     return tmpfs_create_inode(static_cast<mode_t>(S_IFREG | mode), dir);
 }
@@ -52,7 +52,7 @@ int tmpfs_link(struct file *target_ino, const char *name, struct dentry *dir)
     return 0;
 }
 
-inode *tmpfs_symlink(const char *name, const char *dest, struct dentry *dir)
+inode *tmpfs_symlink(struct dentry *dentry, const char *dest, struct dentry *dir)
 {
     const char *link_name = strdup(dest);
     if (!link_name)
@@ -70,12 +70,12 @@ inode *tmpfs_symlink(const char *name, const char *dest, struct dentry *dir)
     return new_ino;
 }
 
-inode *tmpfs_mkdir(const char *name, mode_t mode, struct dentry *dir)
+inode *tmpfs_mkdir(struct dentry *dentry, mode_t mode, struct dentry *dir)
 {
     return tmpfs_create_inode(mode | S_IFDIR, dir);
 }
 
-inode *tmpfs_mknod(const char *name, mode_t mode, dev_t dev, struct dentry *dir)
+inode *tmpfs_mknod(struct dentry *dentry, mode_t mode, dev_t dev, struct dentry *dir)
 {
     return tmpfs_create_inode(mode, dir, dev);
 }
