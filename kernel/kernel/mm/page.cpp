@@ -232,6 +232,10 @@ int page_wait_bit(struct page *p, unsigned int bit, bool interruptible) NO_THREA
         flags = spin_lock_irqsave(&wq->lock);
         __wait_queue_remove(wq, &token);
         set_current_state(state);
+        /* Re-set WAITERS. WAITERS is serialized by the queue lock. This makes sure that we cannot
+         * have a case where we sleep and check_cond under the lock without it set. This stops race
+         * conditions. */
+        page_set_waiters(p);
         // XXX: wait_queue_remove zeroes token.context. Why?
         token.context = &winfo;
         __wait_queue_add(wq, &token);
