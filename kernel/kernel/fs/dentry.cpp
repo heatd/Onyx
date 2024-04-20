@@ -15,6 +15,7 @@
 #include <onyx/compiler.h>
 #include <onyx/dentry.h>
 #include <onyx/file.h>
+#include <onyx/gen/trace_dentry.h>
 #include <onyx/mm/slab.h>
 #include <onyx/mtable.h>
 #include <onyx/namei.h>
@@ -111,12 +112,16 @@ static void dentry_add_to_cache(dentry *dent, dentry *parent)
 
 void dentry_get(dentry *d)
 {
+    DCHECK(d != nullptr);
     /* Must hold parent's d_lock */
     __atomic_add_fetch(&d->d_ref, 1, __ATOMIC_ACQUIRE);
+    trace_dentry_dget((unsigned long) d, d->d_ref, d->d_name);
 }
 
 void dentry_put(dentry *d)
 {
+    DCHECK(d != nullptr);
+    trace_dentry_dput((unsigned long) d, d->d_ref - 1, d->d_name);
     if (__atomic_sub_fetch(&d->d_ref, 1, __ATOMIC_RELEASE) == 0)
         dentry_destroy(d);
 }
@@ -362,6 +367,7 @@ static dentry *__dentry_try_to_open(std::string_view name, dentry *dir, bool loc
             return dent;
         }
 
+        dentry_put(dent);
         dentry_fail_lookup(dent);
         return nullptr;
     }
@@ -393,9 +399,7 @@ dentry *dentry_lookup_internal(std::string_view v, dentry *dir, dentry_lookup_fl
     bool resolve = !(flags & DENTRY_LOOKUP_DONT_TRY_TO_RESOLVE);
 
     if (!dentry_is_dir(dir))
-    {
         return errno = ENOTDIR, nullptr;
-    }
 
     if (!v.compare("."))
     {
@@ -420,12 +424,8 @@ dentry *dentry_lookup_internal(std::string_view v, dentry *dir, dentry_lookup_fl
         {
             dent = dentry_wait_for_pending(dent);
 
-            if (dent)
-                return dent;
-            else
-            {
+            if (!dent)
                 goto resolve;
-            }
         }
 
         return dent;
@@ -634,7 +634,7 @@ void dentry_do_unlink(dentry *entry)
     entry->d_lock.lock_write();
 
     auto parent = entry->d_parent;
-
+    dentry_put(parent);
     entry->d_parent = nullptr;
 
     if (!d_is_negative(entry))
@@ -815,10 +815,6 @@ void d_finish_lookup(struct dentry *dentry, struct inode *inode)
 {
     DCHECK(inode != nullptr);
     dentry->d_inode = inode;
-    /* TODO: We may be leaking the dentry here. I'm not sure. We were getting a reference in the
-     * original try_to_open code.
-     */
-    dentry_get(dentry);
     if (dentry_is_dir(dentry))
         inode->i_dentry = dentry;
 
@@ -828,7 +824,6 @@ void d_finish_lookup(struct dentry *dentry, struct inode *inode)
 void d_complete_negative(struct dentry *dentry)
 {
     dentry->d_flags.or_fetch(DENTRY_FLAG_NEGATIVE, mem_order::release);
-    dentry_get(dentry);
     dentry_complete_lookup(dentry);
 }
 

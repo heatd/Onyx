@@ -93,7 +93,7 @@ bool dentry_is_empty(dentry *dir);
 class auto_dentry
 {
 private:
-    dentry *d;
+    dentry *d{nullptr};
 
     void ref() const
     {
