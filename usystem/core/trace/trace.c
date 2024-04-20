@@ -279,7 +279,7 @@ void parse_format_args(struct traced_event *ev)
         arg->offset = offset;
         size_t type_len = strlen(type);
 
-        if (!strcmp(type, "char["))
+        if (!strncmp(type, "char[", 5))
         {
             // it's a string
             arg->type = ARG_STRING;
@@ -394,7 +394,9 @@ void output_ev(u8 *raw, struct traced_event *ev, FILE *file)
         }
         else if (arg->type == ARG_STRING)
         {
-            memcpy(t->val, raw, arg->size);
+            t->val[0] = '\"';
+            memcpy(t->val + 1, raw, arg->size);
+            t->val[strlen((const char *) raw) + 1] = '\"';
         }
 
         raw += arg->size;
@@ -520,11 +522,13 @@ int main(int argc, char **argv, char **envp)
     // add_traced_event(fd, "irq.hardirq");
     // add_traced_event(fd, "wb.dirty_inode");
     // add_traced_event(fd, "rcu.call_rcu");
-    add_traced_event(fd, "rcu.rcu_work");
-    add_traced_event(fd, "rcu.rcu_do_callbacks");
-    add_traced_event(fd, "rcu.grace_period_begin");
-    add_traced_event(fd, "rcu.grace_period_end");
-    add_traced_event(fd, "rcu.ack_grace_period");
+    // add_traced_event(fd, "rcu.rcu_work");
+    // add_traced_event(fd, "rcu.rcu_do_callbacks");
+    // add_traced_event(fd, "rcu.grace_period_begin");
+    // add_traced_event(fd, "rcu.grace_period_end");
+    // add_traced_event(fd, "rcu.ack_grace_period");
+    add_traced_event(fd, "dentry.dget");
+    add_traced_event(fd, "dentry.dput");
 
     endbuf = mmap(NULL, 0x2000000 * 4, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
 
