@@ -1333,13 +1333,8 @@ int do_renameat(struct dentry *dir, struct path &last, struct dentry *old)
     /* The fs unlink succeeded! Lets change the dcache now that we can't fail! */
     dentry_do_unlink(dest);
 
-    // printk("doing move\n");
-    /* No need to move if we're already under the same parent. */
-    if (old_parent != dir)
-        dentry_move(old, dir);
-
-    // printk("done\n");
-    dentry_rename(old, _name);
+    /* TODO: Lacking atomicity */
+    dentry_rename(old, _name, dir);
 
     return 0;
 }
