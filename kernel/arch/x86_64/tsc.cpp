@@ -48,7 +48,7 @@ hrtime_t tsc_get_ns(void)
         tsc_clock.base += fract_div_u64_fract(TSC_MAX_COUNT, &ticks_per_ns);
     }*/
 
-    tsc_clock.last_cycle = ticks;
+    __atomic_store_n(&tsc_clock.last_cycle, ticks, __ATOMIC_RELAXED);
 
     return tsc_clock.base + tsc_clock.monotonic_warp + (u64_mul_u64_fp32_64(ticks, ticks_per_ns));
 }
