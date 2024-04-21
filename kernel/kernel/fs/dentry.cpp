@@ -143,18 +143,20 @@ static struct dentry *dentry_add_to_cache_careful(dentry *dent, dentry *parent)
     return dent;
 }
 
+#define READ_ONCE(var) (__atomic_load_n(&(var), __ATOMIC_RELAXED))
+
 void dentry_get(dentry *d)
 {
     DCHECK(d != nullptr);
     /* Must hold parent's d_lock */
     __atomic_add_fetch(&d->d_ref, 1, __ATOMIC_ACQUIRE);
-    trace_dentry_dget((unsigned long) d, d->d_ref, d->d_name);
+    trace_dentry_dget((unsigned long) d, READ_ONCE(d->d_ref), READ_ONCE(d->d_name));
 }
 
 void dentry_put(dentry *d)
 {
     DCHECK(d != nullptr);
-    trace_dentry_dput((unsigned long) d, d->d_ref - 1, d->d_name);
+    trace_dentry_dput((unsigned long) d, READ_ONCE(d->d_ref) - 1, READ_ONCE(d->d_name));
     if (__atomic_sub_fetch(&d->d_ref, 1, __ATOMIC_RELEASE) == 0)
         dentry_destroy(d);
 }
