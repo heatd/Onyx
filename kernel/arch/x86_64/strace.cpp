@@ -17,6 +17,7 @@
 #include <onyx/modules.h>
 #include <onyx/page.h>
 #include <onyx/panic.h>
+#include <onyx/perf_probe.h>
 #include <onyx/symbol.h>
 #include <onyx/task_switching.h>
 #include <onyx/utils.h>

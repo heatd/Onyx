@@ -50,7 +50,12 @@ struct smp_header;
 bool apic_wake_up_processor(uint32_t lapic_id, struct smp_header *s);
 void apic_set_irql(int irql);
 int apic_get_irql(void);
-void apic_send_ipi(uint32_t id, uint32_t type, uint32_t page, uint32_t extra_flags = 0);
+void apic_send_ipi(uint32_t id, uint32_t type, uint32_t page,
+                   uint32_t extra_flags
+#ifdef __cplusplus
+                   = 0
+#endif
+);
 void apic_send_ipi_all(uint32_t type, uint32_t page);
 void lapic_send_eoi(void);
 uint32_t apic_get_lapic_id(unsigned int cpu);

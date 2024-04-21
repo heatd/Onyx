@@ -13,8 +13,10 @@
 #include <onyx/list.h>
 #include <onyx/spinlock.h>
 
+__BEGIN_CDECLS
 void udelay(unsigned int us);
 void ndelay(unsigned int ns);
+__END_CDECLS
 
 #define CLOCKEVENT_FLAG_ATOMIC  (1 << 0) /* Can run in IRQ context */
 #define CLOCKEVENT_FLAG_PENDING (1 << 1) /* Is waiting to run under softirq context */

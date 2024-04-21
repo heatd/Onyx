@@ -238,9 +238,11 @@ extern "C" void kernel_main(void)
     sched_transition_to_idle();
 }
 
+extern "C" bool kcsan_enabled;
+
 void kernel_multitasking(void *arg)
 {
-
+    kcsan_enabled = true;
 #ifdef CONFIG_DO_TESTS
     /* Execute ktests */
     do_ktests();

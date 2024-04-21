@@ -12,7 +12,7 @@
             "object": {"type": "u64"},
             "cur_ref": {"type": "u64"},
             "d_name": {"type": "char[256]", "custom_assign": "__builtin_strcpy(record.d_name, d_name);"},
-            "stack_trace": {"type": "u64[16]", "custom_assign": "size_t stack_trace_get(unsigned long *, unsigned long *, size_t);size_t frames = stack_trace_get((unsigned long *) __builtin_frame_address(0), record.stack_trace, 16);"},
+            "stack_trace": {"type": "u64[16]", "custom_assign": "size_t stack_trace_get_cpp(unsigned long *, unsigned long *, size_t);size_t frames = stack_trace_get_cpp((unsigned long *) __builtin_frame_address(0), record.stack_trace, 16);"},
             "trace_size": {"type": "u8", "custom_assign": "record.trace_size = (u8) frames;"}
         }
     },
@@ -29,7 +29,7 @@
             "object": {"type": "u64"},
             "cur_ref": {"type": "u64"},
             "d_name": {"type": "char[256]", "custom_assign": "__builtin_strcpy(record.d_name, d_name);"},
-            "stack_trace": {"type": "u64[16]", "custom_assign": "size_t stack_trace_get(unsigned long *, unsigned long *, size_t);size_t frames = stack_trace_get((unsigned long *) __builtin_frame_address(0), record.stack_trace, 16);"},
+            "stack_trace": {"type": "u64[16]", "custom_assign": "size_t stack_trace_get_cpp(unsigned long *, unsigned long *, size_t);size_t frames = stack_trace_get_cpp((unsigned long *) __builtin_frame_address(0), record.stack_trace, 16);"},
             "trace_size": {"type": "u8", "custom_assign": "record.trace_size = (u8) frames;"}
         }
     }

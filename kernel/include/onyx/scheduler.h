@@ -15,6 +15,7 @@
 #include <onyx/assert.h>
 #include <onyx/clock.h>
 #include <onyx/cputime.h>
+#include <onyx/kcsan.h>
 #include <onyx/list.h>
 #include <onyx/percpu.h>
 #include <onyx/preempt.h>
@@ -79,6 +80,9 @@ typedef struct thread
 
 #ifdef CONFIG_KCOV
     struct kcov_data *kcov_data{nullptr};
+#endif
+#ifdef CONFIG_KCSAN
+    struct kcsan_ctx kcsan_ctx;
 #endif
     /* And arch dependent stuff in this ifdef */
 #ifdef __x86_64__
