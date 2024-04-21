@@ -27,6 +27,7 @@
 #define DENTRY_FLAG_PENDING    (1 << 2)
 #define DENTRY_FLAG_FAILED     (1 << 3)
 #define DENTRY_FLAG_NEGATIVE   (1 << 4)
+#define DENTRY_FLAG_HASHED     (1 << 5)
 
 struct dentry_operations
 {
@@ -241,7 +242,7 @@ void dentry_complete_lookup(dentry *d);
 dentry *__dentry_parent(dentry *dir);
 bool dentry_does_not_have_parent(dentry *dir, dentry *to_not_have);
 void dentry_do_unlink(dentry *entry);
-void dentry_rename(dentry *dent, const char *name);
+void dentry_rename(dentry *dent, const char *name, dentry *parent);
 void dentry_move(dentry *target, dentry *new_parent);
 
 #endif

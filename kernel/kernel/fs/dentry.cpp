@@ -106,6 +106,7 @@ void dentry_remove_from_cache(dentry *dent, dentry *parent)
     scoped_rwslock<rw_lock::write> g{dentry_ht_locks[index]};
 
     list_remove(&dent->d_cache_node);
+    dent->d_flags &= ~DENTRY_FLAG_HASHED;
 }
 
 static void dentry_add_to_cache(dentry *dent, dentry *parent)
@@ -115,6 +116,7 @@ static void dentry_add_to_cache(dentry *dent, dentry *parent)
     scoped_rwslock<rw_lock::write> g{dentry_ht_locks[index]};
 
     list_add_tail(&dent->d_cache_node, dentry_ht.get_hashtable(index));
+    dent->d_flags |= DENTRY_FLAG_HASHED;
 }
 
 static struct dentry *dentry_add_to_cache_careful(dentry *dent, dentry *parent)
@@ -126,7 +128,7 @@ static struct dentry *dentry_add_to_cache_careful(dentry *dent, dentry *parent)
     struct dentry *ret;
     scoped_rwslock<rw_lock::write> g{dentry_ht_locks[index]};
 
-    ret = dentry_open_from_cache_unlocked(dent, name);
+    ret = dentry_open_from_cache_unlocked(parent, name);
     if (ret)
     {
         /* We lost the parallel lookup race and found a dentry, lets put the current one and return
@@ -136,6 +138,7 @@ static struct dentry *dentry_add_to_cache_careful(dentry *dent, dentry *parent)
     }
 
     list_add_tail(&dent->d_cache_node, dentry_ht.get_hashtable(index));
+    dent->d_flags |= DENTRY_FLAG_HASHED;
     dentry_get(dent);
     return dent;
 }
@@ -165,7 +168,8 @@ void dentry_destroy(dentry *d)
             list_remove(&d->d_parent_dir_node);
         }
 
-        dentry_remove_from_cache(d, d->d_parent);
+        if (d->d_flags & DENTRY_FLAG_HASHED)
+            dentry_remove_from_cache(d, d->d_parent);
 
         dentry_put(d->d_parent);
     }
@@ -175,7 +179,7 @@ void dentry_destroy(dentry *d)
 
     // printk("Dentry %s dead\n", d->d_name);
 
-    if (d->d_name_length > INLINE_NAME_MAX)
+    if (d->d_name_length >= INLINE_NAME_MAX)
     {
         free((void *) d->d_name);
     }
@@ -252,7 +256,7 @@ dentry *dentry_create(const char *name, inode *inode, dentry *parent, u16 flags)
 
     size_t name_length = strlen(name);
 
-    if (name_length <= INLINE_NAME_MAX)
+    if (name_length < INLINE_NAME_MAX)
     {
         strlcpy(new_dentry->d_name, name, INLINE_NAME_MAX);
     }
@@ -707,13 +711,100 @@ void dentry_move(dentry *target, dentry *new_parent)
     dentry_get(old);
 }
 
-void dentry_rename(dentry *dent, const char *name)
+static bool dentry_is_in_chain(struct dentry *dentry, unsigned long chain)
+{
+    struct list_head *list = dentry_ht.get_hashtable(chain);
+    list_for_every (list)
+    {
+        struct dentry *dent = container_of(l, struct dentry, d_cache_node);
+        if (dent == dentry)
+            return true;
+    }
+
+    return false;
+}
+
+void dentry_rename(dentry *dent, const char *name, dentry *parent) NO_THREAD_SAFETY_ANALYSIS
 {
     size_t name_length = strlen(name);
+    char *newname = nullptr;
+    fnv_hash_t old_hash =
+        hash_dentry_fields(dent->d_parent, std::string_view{dent->d_name, dent->d_name_length});
+    fnv_hash_t new_hash = hash_dentry_fields(parent, std::string_view{name, name_length});
+    unsigned long oldi = dentry_ht.get_hashtable_index(old_hash);
+    unsigned long newi = dentry_ht.get_hashtable_index(new_hash);
 
-    if (name_length <= INLINE_NAME_MAX)
+    /* General strategy: We need the rename to be atomic. We'll do the name exchange under the lock.
+     * We must be careful wrt lock ordering. */
+    if (name_length >= INLINE_NAME_MAX)
     {
-        strlcpy(dent->d_name, name, INLINE_NAME_MAX);
+        newname = (char *) memdup(name, name_length + 1);
+        CHECK(newname != nullptr);
+    }
+
+    /* Lock the two dcache chains. Smaller first. */
+    if (oldi < newi)
+    {
+        dentry_ht_locks[oldi].lock_write();
+        dentry_ht_locks[newi].lock_write();
+    }
+    else if (oldi > newi)
+    {
+        dentry_ht_locks[newi].lock_write();
+        dentry_ht_locks[oldi].lock_write();
+    }
+    else
+    {
+        /* We're working with a single hash chain */
+        dentry_ht_locks[oldi].lock_write();
+    }
+
+    dent->d_lock.lock_write();
+
+    DCHECK(dentry_is_in_chain(dent, oldi));
+
+    list_remove(&dent->d_cache_node);
+    list_add_tail(&dent->d_cache_node, dentry_ht.get_hashtable(newi));
+
+    if (parent != dent->d_parent)
+    {
+        /* Re-parent the dentry */
+        struct dentry *old = dent->d_parent;
+
+        if (old < parent)
+        {
+            old->d_lock.lock_write();
+            parent->d_lock.lock_write();
+        }
+        else
+        {
+            parent->d_lock.lock_write();
+            old->d_lock.lock_write();
+        }
+
+        list_remove(&dent->d_parent_dir_node);
+        list_add_tail(&dent->d_parent_dir_node, &parent->d_children_head);
+        dent->d_parent = parent;
+        dentry_get(parent);
+
+        if (old < parent)
+        {
+            parent->d_lock.unlock_write();
+            old->d_lock.unlock_write();
+        }
+        else
+        {
+            old->d_lock.unlock_write();
+            parent->d_lock.unlock_write();
+        }
+
+        dentry_put(old);
+    }
+
+    /* Replace the name... */
+    if (name_length < INLINE_NAME_MAX)
+    {
+        strlcpy(dent->d_inline_name, name, INLINE_NAME_MAX);
 
         /* It's in this exact order so we don't accidentally touch free'd memory or
          * an invalid d_name that resulted from a non-filled inline d_name.
@@ -727,25 +818,28 @@ void dentry_rename(dentry *dent, const char *name)
     }
     else
     {
-        char *dname = (char *) memdup(name, name_length + 1);
-        /* TODO: Ugh, how do I handle this? */
-        assert(dname != nullptr);
-
         auto old = dent->d_name;
-
-        dent->d_name = dname;
-
+        dent->d_name = newname;
         if (old != dent->d_inline_name)
-        {
             free(old);
-        }
     }
 
     dent->d_name_length = name_length;
-    dent->d_name_hash = fnv_hash(dent->d_name, dent->d_name_length);
+    dent->d_name_hash = fnv_hash(name, name_length);
+    dent->d_lock.unlock_write();
 
-    dentry_remove_from_cache(dent, dent->d_parent);
-    dentry_add_to_cache(dent, dent->d_parent);
+    if (oldi < newi)
+    {
+        dentry_ht_locks[newi].unlock_write();
+        dentry_ht_locks[oldi].unlock_write();
+    }
+    else if (oldi > newi)
+    {
+        dentry_ht_locks[oldi].unlock_write();
+        dentry_ht_locks[newi].unlock_write();
+    }
+    else
+        dentry_ht_locks[oldi].unlock_write();
 }
 
 bool dentry_is_empty(dentry *dir)
