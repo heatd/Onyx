@@ -392,3 +392,8 @@ void perf_init()
 }
 
 INIT_LEVEL_CORE_KERNEL_ENTRY(perf_init);
+
+size_t stack_trace_get_cpp(unsigned long *a, unsigned long *b, size_t c)
+{
+    return stack_trace_get(a, b, c);
+}
