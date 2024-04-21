@@ -134,15 +134,15 @@ void dispatch_irq(unsigned int irq, struct irq_context *context)
 
         if (st == IRQ_HANDLED)
         {
-            line->stats.handled_irqs++;
-            h->handled_irqs++;
+            __atomic_add_fetch(&line->stats.handled_irqs, 1, __ATOMIC_RELAXED);
+            __atomic_add_fetch(&h->handled_irqs, 1, __ATOMIC_RELAXED);
             write_per_cpu(in_irq, false);
             return;
         }
     }
 
-    rogue_irqs++;
-    line->stats.spurious++;
+    __atomic_add_fetch(&rogue_irqs, 1, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&line->stats.spurious, 1, __ATOMIC_RELAXED);
     write_per_cpu(in_irq, false);
 }
 
