@@ -151,6 +151,15 @@ ifeq ($(CONFIG_KCOV), y)
 CFLAGS+=-fsanitize-coverage=trace-pc
 endif
 
+ifeq ($(CONFIG_KCSAN), y)
+#CFLAGS+=-fsanitize=thread
+
+kernel/fs/namei.o: CFLAGS+=-fsanitize=thread
+kernel/fs/dentry.o: CFLAGS+=-fsanitize=thread
+
+endif
+
+
 ifeq ($(CONFIG_KTRACE), y)
 # mrecord-mcount breaks templates, and that's bad :/ TODO: One day, figure out if it's fixable
 # C_ONLY_CFLAGS+=-pg -mnop-mcount -mfentry -mrecord-mcount -minstrument-return=nop5 -mrecord-return

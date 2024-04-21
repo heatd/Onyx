@@ -191,7 +191,7 @@ void stack_trace()
     return;
 }
 
-size_t stack_trace_get(unsigned long *stack, unsigned long *pcs, size_t nr_pcs)
+extern "C" size_t stack_trace_get(unsigned long *stack, unsigned long *pcs, size_t nr_pcs)
 {
     return 0;
 }

@@ -52,7 +52,7 @@ void stack_trace_user(uintptr_t *stack)
     printk("Stack trace ended.\n");
 }
 
-size_t stack_trace_get(unsigned long *stack, unsigned long *pcs, size_t nr_pcs)
+extern "C" size_t stack_trace_get(unsigned long *stack, unsigned long *pcs, size_t nr_pcs)
 {
     thread_t *thread = get_current_thread();
     size_t unwinds_possible = 0;

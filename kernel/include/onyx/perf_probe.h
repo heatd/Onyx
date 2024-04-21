@@ -18,7 +18,11 @@
 
 struct registers;
 
+__BEGIN_CDECLS
+
 size_t stack_trace_get(unsigned long *stack, unsigned long *pcs, size_t nr_pcs);
+
+__END_CDECLS
 
 /**
  * @brief Check if CPU perf probing is enabled
