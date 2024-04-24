@@ -12,12 +12,49 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifdef DO_STREAMS
 struct stream
 {
     int (*out)(const char *c, int len, struct stream *);
     void (*start)(struct stream *);
     void (*end)(struct stream *);
 };
+#else
+#define stream bufstream
+#endif
+
+struct bufstream
+{
+#ifdef DO_STREAMS
+    struct stream stream;
+#endif
+    char *str;
+    size_t n;
+};
+
+static int buf_put(const char *str, int len, struct stream *stream)
+{
+    struct bufstream *bufstr = (struct bufstream *) stream;
+    size_t towrite;
+    unsigned int may_use = bufstr->n - 1;
+
+    if (!may_use)
+        return len;
+
+    towrite = may_use > (unsigned int) len ? (unsigned int) len : may_use;
+    memcpy(bufstr->str, str, towrite);
+    bufstr->n -= towrite;
+    bufstr->str += towrite;
+    return len;
+}
+
+static void bufstream_end(struct stream *stream)
+{
+    struct bufstream *bufstr = (struct bufstream *) stream;
+    if (bufstr->n < 1)
+        __builtin_abort();
+    *bufstr->str = '\0';
+}
 
 enum integer_type
 {
@@ -126,51 +163,51 @@ static int pint(struct stream *stream, unsigned long val, struct printf_specifie
     if (!(flags & (F_PLEFT | F_PZERO)))
     {
         while (fwidth-- > 0)
-            stream->out(&pad, 1, stream), ret++;
+            buf_put(&pad, 1, stream), ret++;
     }
 
     if (sign)
     {
-        stream->out("-", 1, stream);
+        buf_put("-", 1, stream);
         ret++;
     }
     else
     {
         if (flags & F_PSIGN)
-            stream->out("+", 1, stream), ret++;
+            buf_put("+", 1, stream), ret++;
         else if (flags & F_PBLANK)
-            stream->out(" ", 1, stream), ret++;
+            buf_put(" ", 1, stream), ret++;
     }
 
     if (flags & F_PALT && !wazero)
     {
         if (flags & (F_PHEX | F_PUPPERHEX))
         {
-            stream->out(flags & F_PUPPERHEX ? "0X" : "0x", 2, stream);
+            buf_put(flags & F_PUPPERHEX ? "0X" : "0x", 2, stream);
             ret += 2;
         }
 
         else if (flags & F_POCTAL)
         {
-            stream->out("0", 1, stream);
+            buf_put("0", 1, stream);
             ret++;
         }
     }
 
     if (!(flags & F_PLEFT) && flags & F_PZERO)
         while (fwidth-- > 0)
-            stream->out(&pad, 1, stream), ret++;
+            buf_put(&pad, 1, stream), ret++;
 
     /* Handle precision */
     while (precision > buflen)
-        stream->out("0", 1, stream), precision--, ret++;
+        buf_put("0", 1, stream), precision--, ret++;
 
-    stream->out(buf + TBUFMAX - buflen, buflen, stream);
+    buf_put(buf + TBUFMAX - buflen, buflen, stream);
     ret += buflen;
 
     /* Finally do some more padding */
     while (fwidth-- > 0)
-        stream->out(&pad, 1, stream), ret++;
+        buf_put(&pad, 1, stream), ret++;
     return ret;
 }
 #undef PUTBUF
@@ -333,10 +370,10 @@ static int printf_do_string(struct stream *stream, const char *s, int fwidth,
     fwidth -= to_write;
     if (!(flags & F_PLEFT))
         while (fwidth-- > 0)
-            stream->out(" ", 1, stream), ret++;
-    stream->out(s, to_write, stream);
+            buf_put(" ", 1, stream), ret++;
+    buf_put(s, to_write, stream);
     while (fwidth-- > 0)
-        stream->out(" ", 1, stream), ret++;
+        buf_put(" ", 1, stream), ret++;
     return ret;
 }
 
@@ -347,8 +384,10 @@ static int __vfprintf(struct stream *stream, const char *s, va_list va)
     int ret = 0;
     struct printf_specifier spec = {};
 
+#if DO_STREAMS
     if (stream->start)
         stream->start(stream);
+#endif
 
     while ((c = *s))
     {
@@ -487,56 +526,31 @@ static int __vfprintf(struct stream *stream, const char *s, va_list va)
         ret += st;
     }
 out:
+#ifdef DO_STREAMS
     if (stream->end)
         stream->end(stream);
+#else
+    bufstream_end(stream);
+#endif
     return ret;
-}
-
-struct bufstream
-{
-    struct stream stream;
-    char *str;
-    size_t n;
-};
-
-static int bufstream_out(const char *str, int len, struct stream *stream)
-{
-    struct bufstream *bufstr = (struct bufstream *) stream;
-    size_t towrite;
-    unsigned int may_use = bufstr->n - 1;
-
-    if (!may_use)
-        return len;
-
-    towrite = may_use > (unsigned int) len ? (unsigned int) len : may_use;
-    memcpy(bufstr->str, str, towrite);
-    bufstr->n -= towrite;
-    bufstr->str += towrite;
-    return len;
-}
-
-static void bufstream_end(struct stream *stream)
-{
-    struct bufstream *bufstr = (struct bufstream *) stream;
-    if (bufstr->n < 1)
-        __builtin_abort();
-    *bufstr->str = '\0';
 }
 
 static void bufstream_init(struct bufstream *bufstr, char *buf, size_t n)
 {
     bufstr->str = buf;
     bufstr->n = n;
-    bufstr->stream.out = bufstream_out;
+#ifdef DO_STREAMS
+    bufstr->stream.out = buf_put;
     bufstr->stream.start = NULL;
     bufstr->stream.end = bufstream_end;
+#endif
 }
 
 int vsnprintf(char *str, size_t n, const char *fmt, va_list ap)
 {
     struct bufstream bufstr;
     bufstream_init(&bufstr, str, n);
-    return __vfprintf(&bufstr.stream, fmt, ap);
+    return __vfprintf((struct stream *) &bufstr, fmt, ap);
 }
 
 int snprintf(char *str, size_t n, const char *fmt, ...)
