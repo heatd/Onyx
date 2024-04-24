@@ -12,6 +12,7 @@
 #include <stdbool.h>
 
 #include <onyx/list.h>
+#include <onyx/spinlock.h>
 
 #include <uapi/signal.h>
 
