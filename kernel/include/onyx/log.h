@@ -37,7 +37,7 @@
 #else
 #define LOG_BUF_SHIFT 16
 #endif
-#define LOG_BUF_SIZE (1 << LOG_BUF_SHIFT)
+#define LOG_BUF_SIZE (1U << LOG_BUF_SHIFT)
 
 #define LOG_LEVEL_VERBOSE (1 << 0)
 #define LOG_LEVEL_WARNING (1 << 1)

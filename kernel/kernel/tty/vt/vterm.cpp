@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <onyx/console.h>
 #include <onyx/dpc.h>
 #include <onyx/font.h>
 #include <onyx/framebuffer.h>
@@ -1475,11 +1476,92 @@ void vterm_init(struct tty *tty)
     vt->tty = tty;
 }
 
+static int vterm_write_con(const char *buffer, size_t size, unsigned int flags,
+                           struct console *con) NO_THREAD_SAFETY_ANALYSIS
+{
+    struct vterm *vt = (struct vterm *) con->priv;
+    bool has_lock = true;
+
+    if (flags & (CONSOLE_WRITE_ATOMIC | CONSOLE_WRITE_PANIC))
+    {
+        if (!mutex_trylock(&vt->vt_lock))
+        {
+            has_lock = false;
+            if (flags & CONSOLE_WRITE_PANIC)
+                return -EAGAIN;
+        }
+    }
+    else
+        mutex_lock(&vt->vt_lock);
+
+    size_t i = 0;
+    const char *data = (const char *) buffer;
+    bool did_scroll = false;
+
+    for (; i < size; i++)
+    {
+        if (data[i] == '\0')
+            continue;
+        /* Parse ANSI terminal escape codes */
+        if (data[i] == ANSI_ESCAPE_CODE || vt->in_escape)
+            /* Note the -1 because of the i++ in the for loop */
+            i += vt->do_escape(&data[i], size - i) - 1;
+        else
+        {
+            size_t codepoint_length = 0;
+            utf32_t codepoint = utf8to32((utf8_t *) data + i, size - i, &codepoint_length);
+
+            /* TODO: Detect surrogates, overlong sequences. The code I wrote before
+             * has some weird casting and returns.
+             */
+            if (codepoint == UTF_INVALID_CODEPOINT)
+            {
+                codepoint = '?';
+                codepoint_length = 1;
+            }
+
+            if (codepoint == '\n')
+            {
+                /* If LF, do CRLF */
+                vterm_putc('\r', vt);
+            }
+
+            if (vterm_putc(codepoint, vt))
+                did_scroll = true;
+
+            /* We sub a 1 because we're incrementing on the for loop */
+            i += codepoint_length - 1;
+        }
+    }
+
+    if (!did_scroll)
+        vterm_flush(vt);
+    else
+        vterm_flush_all(vt);
+    update_cursor(vt);
+
+    if (has_lock)
+        mutex_unlock(&vt->vt_lock);
+
+    return 0;
+}
+
+const struct console_ops vterm_con_ops = {
+    .write = vterm_write_con,
+};
+
 void vterm_do_init(void)
 {
     struct framebuffer *fb = get_primary_framebuffer();
     if (fb)
+    {
         tty_init(&primary_vterm, vterm_init, 0);
+        struct console *con = (struct console *) kmalloc(sizeof(struct console), GFP_KERNEL);
+        CHECK(con != nullptr);
+        console_init(con, "vterm", &vterm_con_ops);
+        con->priv = &primary_vterm;
+        con_register(con);
+    }
 }
 
 struct vterm *get_current_vt(void)
