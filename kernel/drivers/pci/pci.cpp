@@ -156,7 +156,7 @@ bool pci_device::enum_bars()
                     /* Weird. Continue. */
                     write(val, bar, sizeof(uint32_t));
 
-                    printf("pci: error: BAR %u of device %04x:%02x:%02x:%02x says it is 64-bits "
+                    pr_err("pci: error: BAR %u of device %04x:%02x:%02x:%02x says it is 64-bits "
                            "but has no space for the top half.\n",
                            i, address.segment, address.bus, address.device, address.function);
                     continue;
@@ -189,11 +189,14 @@ bool pci_device::enum_bars()
 
         res->set_bus_index(base_bar);
 
+        write(command, PCI_REGISTER_COMMAND, sizeof(u16));
         printf("pci: %04x:%02x:%02x:%02x: Found BAR%u [%016lx, %016lx] %s\n", address.segment,
                address.bus, address.device, address.function, base_bar, res->start(), res->end(),
                flags & DEV_RESOURCE_FLAG_IO_PORT
                    ? "ioport"
                    : (flags & DEV_RESOURCE_FLAG_PREFETCHABLE ? "mem-prefetchable" : "mem"));
+        write(command & ~(PCI_COMMAND_MEMORY_SPACE | PCI_COMMAND_IOSPACE), PCI_REGISTER_COMMAND,
+              sizeof(u16));
 
         add_resource(res.release());
     }

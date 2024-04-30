@@ -1,10 +1,11 @@
 /*
- * Copyright (c) 2022 - 2023 Pedro Falcato
+ * Copyright (c) 2022 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: MIT
  */
+#define pr_fmt(fmt) "kunit: " fmt
 #include <onyx/init.h>
 #include <onyx/kunit.h>
 #include <onyx/vector.h>
@@ -51,8 +52,7 @@ void kunit_do_tests()
     ubsan_exit_kunit();
 #endif
 
-    printk("--------- KUnit tests done -- %u tests executed, %u failed ---------\n", done, failed);
-    printf("kunit: tests done -- %u tests executed, %u failed\n", done, failed);
+    pr_warn("tests done -- %u tests executed, %u failed\n", done, failed);
 }
 
 INIT_LEVEL_CORE_KERNEL_ENTRY(kunit_do_tests);

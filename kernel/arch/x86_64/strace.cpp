@@ -128,7 +128,7 @@ __attribute__((no_sanitize_undefined)) void stack_trace_ex(uint64_t *stack)
         if (st < 0)
             break;
 
-        stack_printk("Stack trace #%lu: %s\n", i, buffer);
+        pr_emerg("Stack trace #%lu: %s\n", i, buffer);
 
         rbp = (uint64_t *) *rbp;
         if (!rbp)
