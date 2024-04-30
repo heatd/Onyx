@@ -118,6 +118,8 @@ vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page
     vmo_status_t st = VMO_STATUS_OK;
     struct page *p = nullptr;
 
+    scoped_mutex g{vmo->page_lock};
+
 #if 1
     if (vmo->ino && !(vmo->flags & VMO_FLAG_DEVICE_MAPPING))
         vmo->size = cul::max(vmo->size, cul::align_up2(off + 1, PAGE_SIZE));
@@ -127,8 +129,6 @@ vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page
     {
         return VMO_STATUS_BUS_ERROR;
     }
-
-    scoped_mutex g{vmo->page_lock};
 
     auto ex = vmo->vm_pages.get(off >> PAGE_SHIFT);
     if (ex.has_value())

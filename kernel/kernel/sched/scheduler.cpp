@@ -16,6 +16,7 @@
 #include <string.h>
 
 #include <onyx/arch.h>
+#include <onyx/atomic.h>
 #include <onyx/block/blk_plug.h>
 #include <onyx/clock.h>
 #include <onyx/condvar.h>
@@ -323,7 +324,7 @@ void sched_decrease_quantum(clockevent *ev)
     if (quantum == 1)
     {
         thread *curr = get_current_thread();
-        curr->flags |= THREAD_NEEDS_RESCHED;
+        atomic_or_relaxed(curr->flags, THREAD_NEEDS_RESCHED);
     }
 
     if (get_cpu_nr() == 0)
@@ -369,14 +370,16 @@ NO_ASAN void sched_load_finish(thread *prev_thread, thread *next_thread)
     rcu_do_quiesc();
 
     if (prev_thread)
-        prev_thread->flags &= ~THREAD_RUNNING;
+        atomic_and_relaxed(prev_thread->flags, ~THREAD_RUNNING);
 
-    next_thread->flags |= THREAD_RUNNING;
+    atomic_or_relaxed(next_thread->flags, THREAD_RUNNING);
 
-    if (prev_thread && prev_thread->status == THREAD_DEAD && prev_thread->flags & THREAD_IS_DYING)
+    if (prev_thread)
     {
-        /* Finally, kill the thread for good */
-        prev_thread->flags &= ~THREAD_IS_DYING;
+        auto status = READ_ONCE(prev_thread->status);
+        if (status == THREAD_DEAD && READ_ONCE(prev_thread->flags) & THREAD_IS_DYING)
+            /* Finally, kill the thread for good */
+            prev_thread->flags &= ~THREAD_IS_DYING;
     }
 
     native::arch_context_switch(prev_thread, next_thread);
@@ -407,8 +410,8 @@ extern "C" void *sched_schedule(void *last_stack)
 
     if (likely(curr_thread))
     {
-        bool thread_blocked = curr_thread->status == THREAD_INTERRUPTIBLE ||
-                              curr_thread->status == THREAD_UNINTERRUPTIBLE;
+        int status = READ_ONCE(curr_thread->status);
+        bool thread_blocked = status == THREAD_INTERRUPTIBLE || status == THREAD_UNINTERRUPTIBLE;
 
         if (thread_blocked)
         {
@@ -480,7 +483,7 @@ void __sched_append_to_queue(int priority, unsigned int cpu, thread *thread)
 {
     MUST_HOLD_LOCK(get_per_cpu_ptr_any(scheduler_lock, cpu));
 
-    assert(thread->status == THREAD_RUNNABLE);
+    assert(READ_ONCE(thread->status) == THREAD_RUNNABLE);
 
     auto thread_queues = (struct thread **) get_per_cpu_ptr_any(thread_queues_head, cpu);
     thread_t *queue = thread_queues[priority];
@@ -619,8 +622,8 @@ void sched_yield(void)
     }
 
     struct flame_graph_entry *fge = nullptr;
-    const bool waiting = get_current_thread()->status == THREAD_INTERRUPTIBLE ||
-                         get_current_thread()->status == THREAD_UNINTERRUPTIBLE;
+    int curstatus = READ_ONCE(get_current_thread()->status);
+    const bool waiting = curstatus == THREAD_INTERRUPTIBLE || curstatus == THREAD_UNINTERRUPTIBLE;
 
     /* Flush the plug if we're going to sleep */
     if (waiting && get_current_thread()->plug)
@@ -665,10 +668,14 @@ hrtime_t sched_sleep(unsigned long ns)
      * supposed to be woken by signals. In this case, wait_for_event_* already set the current
      * state.
      */
-    if (current->status == THREAD_RUNNABLE)
+    int status = READ_ONCE(current->status);
+    if (status == THREAD_RUNNABLE)
+    {
         set_current_state(THREAD_INTERRUPTIBLE);
+        status = THREAD_INTERRUPTIBLE;
+    }
 
-    if (current->status != THREAD_INTERRUPTIBLE || !signal_is_pending())
+    if (status != THREAD_INTERRUPTIBLE || !signal_is_pending())
         sched_yield();
 
     /* Lets remove the event in the case where we got woken up by a signal or by another thread */
@@ -819,7 +826,7 @@ void thread_exit()
      */
     vm_switch_to_fallback_pgd();
 
-    current->status = THREAD_DEAD;
+    WRITE_ONCE(current->status, THREAD_DEAD);
 
     sched_enable_preempt();
     sched_yield();
