@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -12,7 +12,11 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <onyx/compiler.h>
+
+#ifdef __cplusplus
 #include <onyx/slice.hpp>
+#endif
 
 struct module_layout
 {
@@ -69,7 +73,19 @@ void module_unmap(struct module *module);
 void module_remove(struct module *m, bool unmap_sections);
 void for_each_module(bool (*foreach_callback)(struct module *m, void *ctx), void *ctx);
 
-int sym_symbolize(void *address, cul::slice<char> buffer);
+__BEGIN_CDECLS
+int sym_symbolize(void *address, char *buf, size_t bufsize, unsigned int flags);
+int sym_get_off_size(unsigned long addr, unsigned long *off, unsigned long *size);
+__END_CDECLS
+
+#ifdef __cplusplus
+static inline int sym_symbolize(void *address, cul::slice<char> buffer)
+{
+    return sym_symbolize(address, buffer.data(), buffer.size(), 0);
+}
+#endif
+
+#define SYM_SYMBOLIZE_NO_OFFSET (1 << 0)
 
 #define SYM_SYMBOLIZE_TRUNC    1
 #define SYM_SYMBOLIZE_RAW_ADDR 2

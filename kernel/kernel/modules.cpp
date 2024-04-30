@@ -334,8 +334,8 @@ static bool module_dump_each(struct module *m, void *ctx)
     unsigned long end_ro = start_ro + m->layout.ro_size;
     unsigned long end_data = start_data + m->layout.data_size;
 
-    printk("Module %s - .text (%lx - %lx), .rodata (%lx - %lx), .data(%lx - %lx)\n", name,
-           start_text, end_text, start_ro, end_ro, start_data, end_data);
+    pr_emerg("Module %s - .text (%lx - %lx), .rodata (%lx - %lx), .data(%lx - %lx)\n", name,
+             start_text, end_text, start_ro, end_ro, start_data, end_data);
 
     return true;
 }
@@ -418,14 +418,27 @@ static struct symbol *iterate_symbols(struct symbol_walk_context *c)
     return nullptr;
 }
 
-int sym_symbolize(void *address, cul::slice<char> buffer)
+int sym_get_off_size(unsigned long addr, unsigned long *off, unsigned long *size)
+{
+    struct symbol_walk_context c = {};
+    c.addr = (unsigned long) addr;
+    struct symbol *sym = iterate_symbols(&c);
+    if (!sym)
+        return 0;
+    *off = c.diff;
+    *size = sym->size;
+    return 1;
+}
+
+int sym_symbolize(void *address, char *buf, size_t bufsize, unsigned int flags)
 {
     struct symbol_walk_context c = {};
     c.addr = (unsigned long) address;
+    bool print_offset_size = !(flags & SYM_SYMBOLIZE_NO_OFFSET);
 
     if (!iterate_symbols(&c))
     {
-        if ((unsigned int) snprintf(buffer.data(), buffer.size(), "%p", address) >= buffer.size())
+        if ((unsigned int) snprintf(buf, bufsize, "%p", address) >= bufsize)
         {
             return SYM_SYMBOLIZE_TRUNC | SYM_SYMBOLIZE_RAW_ADDR;
         }
@@ -445,25 +458,18 @@ int sym_symbolize(void *address, cul::slice<char> buffer)
         separator = "`";
     }
 
-    if (c.diff)
-    {
-        // XXX Our snprintf has a horrendous bug where it completely ignores the passed size
-        // FIX!!!
-        written = snprintf(buffer.data(), buffer.size(), "%s%s%s + %lx", module_prefix, separator,
-                           symbol_name, c.diff);
-    }
+    if (print_offset_size)
+        written = snprintf(buf, bufsize, "%s%s%s+%#lx/%#lx", module_prefix, separator, symbol_name,
+                           c.diff, c.sym->size);
     else
-    {
-        written =
-            snprintf(buffer.data(), buffer.size(), "%s%s%s", module_prefix, separator, symbol_name);
-    }
+        written = snprintf(buf, bufsize, "%s%s%s", module_prefix, separator, symbol_name);
 
-    if (written >= buffer.size())
+    if (written >= bufsize)
     {
         // snprintf was truncated, replace the last bytes with [...]
-        if (buffer.size() >= sizeof("[...]"))
+        if (bufsize >= sizeof("[...]"))
         {
-            strcpy(buffer.end() - sizeof("[...]"), "[...]");
+            strcpy(buf + bufsize - sizeof("[...]"), "[...]");
         }
 
         return SYM_SYMBOLIZE_TRUNC;
