@@ -13,6 +13,7 @@
 #include <stdint.h>
 
 #include <onyx/assert.h>
+#include <onyx/atomic.h>
 #include <onyx/clock.h>
 #include <onyx/cputime.h>
 #include <onyx/kcsan.h>
@@ -199,7 +200,7 @@ int sched_transition_to_user_thread(struct thread *thread);
 
 static inline bool sched_needs_resched(struct thread *thread)
 {
-    return thread->flags & THREAD_NEEDS_RESCHED;
+    return READ_ONCE(thread->flags) & THREAD_NEEDS_RESCHED;
 }
 
 static inline void sched_should_resched(void)

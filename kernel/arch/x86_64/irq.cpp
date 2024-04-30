@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <onyx/atomic.h>
 #include <onyx/cpu.h>
 #include <onyx/dpc.h>
 #include <onyx/irq.h>
@@ -41,7 +42,7 @@ void check_for_resched(struct irq_context *context)
     struct thread *curr = get_current_thread();
     if (curr && sched_needs_resched(curr))
     {
-        curr->flags &= ~THREAD_NEEDS_RESCHED;
+        atomic_and_relaxed(curr->flags, ~THREAD_NEEDS_RESCHED);
         context->registers = (registers_t *) sched_preempt_thread(context->registers);
     }
 }
