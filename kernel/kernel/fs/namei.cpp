@@ -509,7 +509,7 @@ static int do_last_open(nameidata &data, int open_flags, mode_t mode)
             goto out;
         }
 
-        if (open_flags & O_EXCL)
+        if ((open_flags & (O_EXCL | O_CREAT)) == (O_EXCL | O_CREAT))
         {
             st = -EEXIST;
         }
