@@ -1,5 +1,4 @@
 LIBK_OBJS:=\
-stdio/printf.o \
 stdio/puts.o \
 string/memcmp.o \
 string/memset_explicit.o \

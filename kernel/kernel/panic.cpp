@@ -116,16 +116,15 @@ __attribute__((noreturn, noinline)) void panic(const char *msg, ...)
 #error "Implement thread context printing in your arch"
 #endif
 #endif
-    printk("panic: %s\n", buffer);
+    pr_emerg("panic: %s\n", buffer);
 
     module_dump();
-    printk("Stack dump: \n");
+    pr_emerg("Stack dump: \n");
 
     stack_trace();
-    printk("Killing cpus... ");
+    pr_emerg("Killing cpus... ");
     cpu_kill_other_cpus();
-    printk("Done.\n");
-    // page_print_shared();
+    pr_emerg("Done.\n");
     halt();
     __builtin_unreachable();
 }
