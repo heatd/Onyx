@@ -12,6 +12,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <onyx/modules.h>
+
 #ifdef DO_STREAMS
 struct stream
 {
@@ -66,6 +68,7 @@ enum integer_type
     ITYPE_LL,
     ITYPE_STR,
     ITYPE_CHAR,
+    ITYPE_PTR,
 };
 
 #define F_PALT      1
@@ -336,8 +339,7 @@ field_width:
                 goto out;
             case 'p':
                 /* make %p %#lx */
-                spec->flags |= F_PALT | F_PUNSIGNED | F_PHEX;
-                spec->itype = ITYPE_L;
+                spec->itype = ITYPE_PTR;
                 goto out;
             case 'd':
             case 'i':
@@ -375,6 +377,29 @@ static int printf_do_string(struct stream *stream, const char *s, int fwidth,
     while (fwidth-- > 0)
         buf_put(" ", 1, stream), ret++;
     return ret;
+}
+
+static int print_pointer(struct stream *stream, void *ptr, struct printf_specifier *spec,
+                         const char **pfmt)
+{
+    const char *fmt = *pfmt;
+    switch (*fmt)
+    {
+        case 's':
+        case 'S':;
+            char buf[SYM_SYMBOLIZE_BUFSIZ];
+            sym_symbolize(ptr, buf, SYM_SYMBOLIZE_BUFSIZ,
+                          *fmt == 's' ? SYM_SYMBOLIZE_NO_OFFSET : 0);
+            *pfmt = ++fmt;
+            return printf_do_string(stream, buf, spec->fwidth, spec->precision, spec->flags);
+        case 'x':
+            *pfmt = ++fmt;
+            /* fallthrough */
+        default:
+            spec->itype = ITYPE_L;
+            spec->flags |= F_PALT | F_PUNSIGNED | F_PHEX;
+            return pint(stream, (unsigned long) ptr, spec);
+    }
 }
 
 static int __vfprintf(struct stream *stream, const char *s, va_list va)
@@ -490,6 +515,9 @@ static int __vfprintf(struct stream *stream, const char *s, va_list va)
             case ITYPE_CHAR:
                 c = va_arg(va, int);
                 goto print_char;
+            case ITYPE_PTR:
+                val = (unsigned long) va_arg(va, void *);
+                goto print_ptr;
             default:
                 __builtin_abort();
         }
@@ -524,6 +552,9 @@ static int __vfprintf(struct stream *stream, const char *s, va_list va)
         }
 
         ret += st;
+        continue;
+    print_ptr:
+        ret += print_pointer(stream, (void *) val, &spec, &s);
     }
 out:
 #ifdef DO_STREAMS
