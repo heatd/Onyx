@@ -152,10 +152,10 @@ CFLAGS+=-fsanitize-coverage=trace-pc
 endif
 
 ifeq ($(CONFIG_KCSAN), y)
-#CFLAGS+=-fsanitize=thread
+CFLAGS+=-fsanitize=thread
 
-kernel/fs/namei.o: CFLAGS+=-fsanitize=thread
-kernel/fs/dentry.o: CFLAGS+=-fsanitize=thread
+# The scheduler is full of races (benign or otherwise), don't sanitize it
+kernel/sched/scheduler.o: CFLAGS+=-fno-sanitize=thread
 
 endif
 
