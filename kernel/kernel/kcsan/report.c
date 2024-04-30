@@ -22,6 +22,7 @@
 #include <onyx/perf_probe.h>
 #include <onyx/cpu.h>
 #include <onyx/irq.h>
+#include <onyx/modules.h>
 
 #include <onyx/clock.h>
 #include <stdio.h>
@@ -292,17 +293,46 @@ static const char *get_thread_desc(int task_id)
 	return "interrupt";
 }
 
-#if 0
+/**
+ * strnstr - Find the first substring in a length-limited string
+ * @s1: The string to be searched
+ * @s2: The string to search for
+ * @len: the maximum number of characters to search
+ */
+char *strnstr(const char *s1, const char *s2, size_t len)
+{
+	size_t l2;
+
+	l2 = strlen(s2);
+	if (!l2)
+		return (char *)s1;
+	while (len >= l2) {
+		len--;
+		if (!memcmp(s1, s2, l2))
+			return (char *)s1;
+		s1++;
+	}
+	return NULL;
+}
+
+__always_inline size_t str_has_prefix(const char *str, const char *prefix)
+{
+	size_t len = strlen(prefix);
+	return strncmp(str, prefix, len) == 0 ? len : 0;
+}
+
 /* Helper to skip KCSAN-related functions in stack-trace. */
 static int get_stack_skipnr(const unsigned long stack_entries[], int num_entries)
 {
-	char buf[64];
+	char buf[128];
 	char *cur;
 	int len, skip;
 
+
 	for (skip = 0; skip < num_entries; ++skip) {
-#if 0
-		len = scnprintf(buf, sizeof(buf), "%ps", (void *)stack_entries[skip]);
+		len = snprintf(buf, sizeof(buf), "%ps", (void *)stack_entries[skip]);
+		if ((size_t) len >= sizeof(buf))
+			len = sizeof(buf) - 1;
 
 		/* Never show tsan_* or {read,write}_once_size. */
 		if (strnstr(buf, "tsan_", len) ||
@@ -316,7 +346,6 @@ static int get_stack_skipnr(const unsigned long stack_entries[], int num_entries
 				continue; /* KCSAN runtime function. */
 			/* KCSAN related test. */
 		}
-#endif
 
 		/*
 		 * No match for runtime functions -- @skip entries to skip to
@@ -327,6 +356,8 @@ static int get_stack_skipnr(const unsigned long stack_entries[], int num_entries
 
 	return skip;
 }
+
+#define kallsyms_lookup_size_offset sym_get_off_size
 
 /*
  * Skips to the first entry that matches the function of @ip, and then replaces
@@ -362,7 +393,7 @@ replace_stack_entry(unsigned long stack_entries[], int num_entries, unsigned lon
 
 fallback:
 	/* Should not happen; the resulting stack trace is likely misleading. */
-	//WARN_ONCE(1, "Cannot find frame for %pS in stack trace", (void *)ip);
+	pr_warn("Cannot find frame for %pS in stack trace", (void *)ip);
 	return get_stack_skipnr(stack_entries, num_entries);
 }
 
@@ -386,34 +417,21 @@ static int sym_strcmp(void *addr1, void *addr2)
 	return strncmp(buf1, buf2, sizeof(buf1));
 }
 
-static void stack_trace_print(unsigned long stack_entries[], int num_entries)
+static void stack_trace_print(unsigned long stack_entries[], int num_entries, int spaces)
 {
-    struct stacktrace *trace = stackdepot_from_handle(stackdepot_handle);
-    printk("\n");
-    for (unsigned long i = 0; i < trace->size; i++)
-    {
-        char sym[SYM_SYMBOLIZE_BUFSIZ];
-        int st = sym_symbolize((void *) trace->entries[i], cul::slice<char>{sym, sizeof(sym)});
-        if (st < 0)
-            break;
-        printk("\t%s\n", sym);
-    }
-
-    printk("\n");
+    for (int i = 0; i < num_entries; i++)
+        pr_err(" %pS\n", (void *) stack_entries[i]);
+    pr_err("\n");
 }
-#endif
 
 static void
 print_stack_trace(unsigned long stack_entries[], int num_entries, unsigned long reordered_to)
 {
-#if 0
 	stack_trace_print(stack_entries, num_entries, 0);
 	if (reordered_to)
 		pr_err("  |\n  +-> reordered to: %pS\n", (void *)reordered_to);
-#endif
 }
 
-#define pr_err(...) printk(__VA_ARGS__)
 #define debug_show_held_locks(task)
 #define print_irqtrace_events(task)
 
@@ -438,7 +456,7 @@ static void print_report(enum kcsan_value_change value_change,
 	unsigned long reordered_to = 0;
 	unsigned long stack_entries[NUM_STACK_ENTRIES] = { 0 };
 	int num_stack_entries = stack_trace_get((unsigned long *) __builtin_frame_address(0), stack_entries, NUM_STACK_ENTRIES);
-	int skipnr = 0;
+	int skipnr = sanitize_stack_entries(stack_entries, num_stack_entries, ai->ip, &reordered_to);
 	unsigned long this_frame = stack_entries[skipnr];
 	unsigned long other_reordered_to = 0;
 	unsigned long other_frame = 0;
@@ -451,7 +469,9 @@ static void print_report(enum kcsan_value_change value_change,
 		return;
 
 	if (other_info) {
-		other_skipnr = 0;
+		other_skipnr = sanitize_stack_entries(other_info->stack_entries,
+						      other_info->num_stack_entries,
+						      other_info->ai.ip, &other_reordered_to);
 		other_frame = other_info->stack_entries[other_skipnr];
 
 		/* @value_change is only known for the other thread */
@@ -461,8 +481,6 @@ static void print_report(enum kcsan_value_change value_change,
 
 	if (rate_limit_report(this_frame, other_frame))
 		return;
-
-    panic_start();
 
 	/* Print report header. */
 	pr_err("==================================================================\n");
@@ -536,8 +554,6 @@ static void print_report(enum kcsan_value_change value_change,
 	pr_err("Reported by Kernel Concurrency Sanitizer on:\n");
 	//dump_stack_print_info(KERN_DEFAULT);
 	pr_err("==================================================================\n");
-
-	panic("KCSAN");
 }
 
 static void release_report(unsigned long *flags, struct other_info *other_info)
