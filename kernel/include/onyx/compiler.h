@@ -133,13 +133,13 @@ unsigned int count_bits(Type val)
 template <typename Type>
 inline Type read_once(const Type& t)
 {
-    return *((volatile Type*) &t);
+    return __atomic_load_n(&t, __ATOMIC_RELAXED);
 }
 
 template <typename Type>
 inline void write_once(const Type& t, Type val)
 {
-    *((volatile Type*) &t) = val;
+    __atomic_store_n(&t, val, __ATOMIC_RELAXED);
 }
 
 #endif
