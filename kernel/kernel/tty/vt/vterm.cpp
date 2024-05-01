@@ -1560,6 +1560,7 @@ void vterm_do_init(void)
         CHECK(con != nullptr);
         console_init(con, "vterm", &vterm_con_ops);
         con->priv = &primary_vterm;
+        con->flags |= CONSOLE_FLAG_VTERM;
         con_register(con);
     }
 }

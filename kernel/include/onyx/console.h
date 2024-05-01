@@ -31,6 +31,7 @@ struct console
 };
 
 #define CONSOLE_FLAG_CONTENDED (1 << 0)
+#define CONSOLE_FLAG_VTERM     (1 << 1)
 
 #define CONSOLE_WRITE_ATOMIC (1 << 0)
 #define CONSOLE_WRITE_PANIC  (1 << 1)

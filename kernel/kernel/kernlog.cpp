@@ -34,6 +34,8 @@ void con_register(struct console *con)
     struct console *old = rcu_dereference(cur_con);
     if (old)
     {
+        if (old->flags & CONSOLE_FLAG_VTERM && !(con->flags & CONSOLE_FLAG_VTERM))
+            return;
         /* If we race last_seq_seen, it's okay, we'll just repeat a few messages */
         con->last_seq_seen = __atomic_load_n(&old->last_seq_seen, __ATOMIC_RELAXED);
         con_put(old);
