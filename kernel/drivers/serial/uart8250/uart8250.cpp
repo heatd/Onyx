@@ -166,6 +166,40 @@ ssize_t uart8250_port::write_serial(const void *buffer, size_t size)
     return size;
 }
 
+int uart8250_port::write_console(const char *buf, size_t len, unsigned int flags)
+{
+    if (flags & (CONSOLE_WRITE_ATOMIC | CONSOLE_WRITE_PANIC))
+    {
+        if (!(flags & CONSOLE_WRITE_PANIC) && !spin_try_lock(&lock_))
+            return -EAGAIN;
+    }
+    else
+        spin_lock(&lock_);
+
+    for (size_t i = 0; i < len; i++)
+    {
+        auto byte = static_cast<uint8_t>(buf[i]);
+
+        // Needed for basic printing as a debug console
+        if (byte == '\n') [[unlikely]]
+            write_byte('\r');
+        write_byte(static_cast<uint8_t>(*(buf + i)));
+    }
+
+    if (!(flags & CONSOLE_WRITE_PANIC))
+        spin_unlock(&lock_);
+
+    return 0;
+}
+
+static int uart8250_write_con(const char *buf, size_t len, unsigned int flags, struct console *con)
+{
+    uart8250_port *port = (uart8250_port *) con->priv;
+    return port->write_console(buf, len, flags);
+}
+
+static const struct console_ops uart8250_con_ops = {.write = uart8250_write_con};
+
 /**
  * @brief Initialises the serial port as a standard serial port
  *
@@ -175,6 +209,11 @@ bool uart8250_port::init()
 {
     if (!early_init())
         return false;
+
+    con = (struct console *) kmalloc(sizeof(*con), GFP_KERNEL);
+    console_init(con, "uart8250", &uart8250_con_ops);
+    con->priv = this;
+    con_register(con);
 
     install_irq(irq_, uart8250_irq, dev_, IRQ_FLAG_REGULAR, this);
 
