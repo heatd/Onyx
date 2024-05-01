@@ -119,7 +119,13 @@ struct printk_buf
         return msg_seq++;
     }
 
-    u32 find_and_print(char *buf, size_t *psize, u32 initial_seq);
+#define PRINTK_FIND_AND_PRINT_SYSLOG 1
+    u32 find_and_print(char *buf, size_t *psize, u32 initial_seq, u32 flags = 0);
+
+    void clear()
+    {
+        log_head = log_tail;
+    }
 };
 
 struct printk_header *printk_buf::get_buf(u16 len)
@@ -154,11 +160,12 @@ struct printk_header *printk_buf::get_buf(u16 len)
     }
 }
 
-u32 printk_buf::find_and_print(char *buf, size_t *psize, u32 initial_seq)
+u32 printk_buf::find_and_print(char *buf, size_t *psize, u32 initial_seq, u32 flags)
 {
     u32 seen = initial_seq;
     size_t head = log_head;
     size_t size = *psize;
+    bool is_syslog = flags & PRINTK_FIND_AND_PRINT_SYSLOG;
 
     while (head != log_tail)
     {
@@ -170,26 +177,43 @@ u32 printk_buf::find_and_print(char *buf, size_t *psize, u32 initial_seq)
             continue;
         }
 
-        if (header->log_level > __KERN_WARN)
+        if (!is_syslog)
         {
-            /* Skip, but take note of the seq */
-            seen = header->seq + 1;
-            head += header->length;
-            continue;
+            if (header->log_level > __KERN_WARN)
+            {
+                /* Skip, but take note of the seq */
+                seen = header->seq + 1;
+                head += header->length;
+                continue;
+            }
+
+            if (head == log_head && header->seq > initial_seq)
+            {
+                /* Ring buffer overflow skipped N messages, register that */
+                hrtime_t timestamp = clocksource_get_time();
+                int written = snprintf(buf, size, "[%5ld.%06ld] console: Skipped %u messages...\n",
+                                       timestamp / NS_PER_SEC, (timestamp % NS_PER_SEC) / NS_PER_US,
+                                       header->seq - initial_seq);
+                CHECK(written > 0);
+                buf += written;
+                size -= written;
+                head += header->length;
+                continue;
+            }
         }
 
-        if (head == log_head && header->seq > initial_seq)
+        if (is_syslog)
         {
-            /* Ring buffer overflow skipped N messages, register that */
-            hrtime_t timestamp = clocksource_get_time();
-            int written = snprintf(buf, size, "[%5ld.%06ld] console: Skipped %u messages...\n",
-                                   timestamp / NS_PER_SEC, (timestamp % NS_PER_SEC) / NS_PER_US,
-                                   header->seq - initial_seq);
+            int written = snprintf(buf, size, "<%hhu>", header->log_level);
             CHECK(written > 0);
+            if ((size_t) written >= size)
+            {
+                /* Truncated, end here */
+                break;
+            }
+
             buf += written;
             size -= written;
-            head += header->length;
-            continue;
         }
 
         int written = snprintf(buf, size, "[%5ld.%06ld] %s", header->timestamp / NS_PER_SEC,
@@ -199,6 +223,12 @@ u32 printk_buf::find_and_print(char *buf, size_t *psize, u32 initial_seq)
         if ((size_t) written >= size)
         {
             /* Truncated, end here */
+            if (is_syslog)
+            {
+                /* If syslog, remove the <log level> of this message */
+                buf -= 3;
+                size += 3;
+            }
             break;
         }
 
@@ -208,6 +238,7 @@ u32 printk_buf::find_and_print(char *buf, size_t *psize, u32 initial_seq)
         head += header->length;
     }
 
+    buf[0] = '\0';
     *psize = *psize - size;
     return seen;
 }
@@ -343,6 +374,40 @@ void bust_printk_lock(void)
 
 void kernlog_clear(void)
 {
+    scoped_lock<spinlock, true> g{printk_lock};
+    printk_buf.clear();
+}
+
+int kernlog_read(char *buffer, unsigned int len)
+{
+    char tmp[MAX_LINE];
+    scoped_lock<spinlock, true> g{printk_lock};
+    u32 seq = 0;
+    int nbytes = 0;
+
+    while (len)
+    {
+        size_t size = MAX_LINE;
+        u32 old_seq = seq;
+        seq = printk_buf.find_and_print(tmp, &size, seq, PRINTK_FIND_AND_PRINT_SYSLOG);
+        if (size > 0)
+            DCHECK(size == strlen(tmp));
+        if (seq == old_seq)
+            break;
+        if (size == 0)
+            continue;
+
+        g.unlock();
+        int to_copy = min((int) len, (int) size);
+        if (copy_to_user(buffer, tmp, to_copy) < 0)
+            return -EFAULT;
+        nbytes += to_copy;
+        len -= to_copy;
+        buffer += to_copy;
+        g.lock();
+    }
+
+    return nbytes;
 }
 
 #define SYSLOG_ACTION_READ        2
@@ -352,19 +417,18 @@ void kernlog_clear(void)
 
 int sys_syslog(int type, char *buffer, int len)
 {
-#if 0
     if (type == SYSLOG_ACTION_SIZE_BUFFER)
-        return (int) log_tail;
+        return (int) LOG_BUF_SIZE;
+
     switch (type)
     {
         case SYSLOG_ACTION_READ: {
-            if (copy_to_user(buffer, _log_buf, len) < 0)
-                return -EFAULT;
-            break;
+            if (len < 0)
+                return -EINVAL;
+            return kernlog_read(buffer, len);
         }
+
         case SYSLOG_ACTION_READ_CLEAR: {
-            if (copy_to_user(buffer, _log_buf, len) < 0)
-                return -EFAULT;
             kernlog_clear();
             break;
         }
@@ -373,7 +437,7 @@ int sys_syslog(int type, char *buffer, int len)
             break;
         }
     }
-#endif
+
     return 0;
 }
 
