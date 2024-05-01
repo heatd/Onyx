@@ -268,7 +268,7 @@ jobs:
           echo "$PWD/toolchain_binaries-gnu-stage1/bin" >> $GITHUB_PATH
 
           if [ "$RUNNER_OS" = "macOS" ]; then
-            echo "/usr/local/opt/gnu-getopt/bin:$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/make/libexec/gnubin" >> $GITHUB_PATH
+            echo "$(brew --prefix)/opt/gnu-getopt/bin:$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/make/libexec/gnubin" >> $GITHUB_PATH
           fi
 
       - name: Build toolchain
@@ -386,7 +386,7 @@ jobs:
           echo "$PWD/gn_bin" >> $GITHUB_PATH
 
           if [ "$RUNNER_OS" = "macOS" ]; then
-            export PATH="/usr/local/opt/gnu-getopt/bin:$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/make/libexec/gnubin:$PATH"
+            export PATH="$(brew --prefix)/opt/gnu-getopt/bin:$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/make/libexec/gnubin:$PATH"
           fi
 
           export SYSROOT=$PWD/sysroot
