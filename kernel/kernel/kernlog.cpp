@@ -182,9 +182,9 @@ u32 printk_buf::find_and_print(char *buf, size_t *psize, u32 initial_seq)
         {
             /* Ring buffer overflow skipped N messages, register that */
             hrtime_t timestamp = clocksource_get_time();
-            int written =
-                snprintf(buf, size, "[%5ld.%06ld] console: Skipped %u messages...\n",
-                         timestamp / NS_PER_SEC, timestamp % NS_PER_SEC, header->seq - initial_seq);
+            int written = snprintf(buf, size, "[%5ld.%06ld] console: Skipped %u messages...\n",
+                                   timestamp / NS_PER_SEC, (timestamp % NS_PER_SEC) / NS_PER_US,
+                                   header->seq - initial_seq);
             CHECK(written > 0);
             buf += written;
             size -= written;
@@ -193,7 +193,7 @@ u32 printk_buf::find_and_print(char *buf, size_t *psize, u32 initial_seq)
         }
 
         int written = snprintf(buf, size, "[%5ld.%06ld] %s", header->timestamp / NS_PER_SEC,
-                               header->timestamp % NS_PER_SEC, header->data);
+                               (header->timestamp % NS_PER_SEC) / NS_PER_US, header->data);
         CHECK(written > 0);
 
         if ((size_t) written >= size)
