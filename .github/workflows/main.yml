@@ -269,6 +269,10 @@ jobs:
 
           if [ "$RUNNER_OS" = "macOS" ]; then
             echo "$(brew --prefix)/opt/gnu-getopt/bin:$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/make/libexec/gnubin" >> $GITHUB_PATH
+            export CPATH=$(brew --prefix)/include
+            export LIBRARY_PATH=$(brew --prefix)/lib
+            export CC=gcc-13
+            export CXX=g++-13
           fi
 
       - name: Build toolchain
@@ -387,6 +391,10 @@ jobs:
 
           if [ "$RUNNER_OS" = "macOS" ]; then
             export PATH="$(brew --prefix)/opt/gnu-getopt/bin:$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/make/libexec/gnubin:$PATH"
+            export CPATH=$(brew --prefix)/include
+            export LIBRARY_PATH=$(brew --prefix)/lib
+            export CC=gcc-13
+            export CXX=g++-13
           fi
 
           export SYSROOT=$PWD/sysroot
