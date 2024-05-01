@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2023 Pedro Falcato
+ * Copyright (c) 2020 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -11,6 +11,7 @@
 
 #include <stdint.h>
 
+#include <onyx/console.h>
 #include <onyx/dev.h>
 #include <onyx/dpc.h>
 #include <onyx/driver.h>
@@ -82,6 +83,7 @@ class uart8250_port : public serial_port
     unsigned int irq_;
     spinlock lock_;
     device *dev_;
+    struct console *con;
 
     static constexpr uint32_t serial_clock = 115200;
     static constexpr uint16_t default_baud_rate = 38400;
@@ -153,6 +155,8 @@ public:
     ssize_t write_serial(const void *buffer, size_t size) override;
 
     irqstatus_t on_irq();
+
+    int write_console(const char *buf, size_t len, unsigned int flags);
 };
 
 #endif
