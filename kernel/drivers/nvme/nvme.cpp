@@ -261,6 +261,17 @@ void nvme_device::set_queue_properties(blockdev *bdev)
     qp.max_sectors_per_request = 0xffff;
     qp.dma_address_mask = 3;
     qp.max_sgl_desc_length = PAGE_SIZE;
+    nvme_identify_t *ident = (nvme_identify_t *) PAGE_TO_VIRT(identify_page_);
+    if (ident->MDTS)
+    {
+        /* If MDTS is set, use it as the max sectors. It's reported as MPSMIN units */
+        const auto caps = regs_.read64(NVME_REG_CAP);
+        qp.max_sectors_per_request = 1UL << (ident->MDTS + 12 + NVME_CAP_MPSMIN(caps) - 9);
+        pr_info("nvme%u: Using MDTS (%u) as the request sector hardlimit (%lu MPSMIN pages, %lu "
+                "sectors)\n",
+                device_index_, ident->MDTS, 1UL << ident->MDTS, qp.max_sectors_per_request);
+    }
+
     qp.request_extra_headroom = sizeof(request_pdu);
 
     static slab_cache *request_cache = kmem_cache_create(
