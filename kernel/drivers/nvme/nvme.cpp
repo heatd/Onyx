@@ -777,6 +777,19 @@ bool nvme_device::nvme_queue::init(bool needs_contiguous)
     return queued_bitmap_.allocate_bitmap();
 }
 
+static const char *nvme_cmd_to_str(u8 opcode)
+{
+    switch (opcode)
+    {
+        case NVME_NVM_CMD_READ:
+            return "NVME_NVM_CMD_READ";
+        case NVME_NVM_CMD_WRITE:
+            return "NVME_NVM_CMD_WRITE";
+    }
+
+    return "(unknown)";
+}
+
 /**
  * @brief (Try to) handle a completion IRQ
  *
@@ -803,8 +816,12 @@ bool nvme_device::nvme_queue::handle_cq()
 
             if (auto status = NVME_CQE_STATUS_CODE(cqe->dw3); status != 0)
             {
-                printf("nvme%u: NVME_NVM_CMD_READ/WRITE: Status error %x\n", dev_->device_index_,
-                       status);
+                pr_err("nvme%u: error: %s: Status code type %x, error %02x%s\n",
+                       dev_->device_index_, nvme_cmd_to_str(command->cmd.cdw0.opcode),
+                       NVME_CQE_STATUS_SCT(cqe->dw3), status,
+                       NVME_CQE_STATUS_DNR(cqe->dw3) ? ", do not repeat" : "");
+                pr_err("nvme%u: Related SQE dump: %*ph\n", dev_->device_index_,
+                       (int) sizeof(nvmesqe), &command->cmd);
                 command->req->r_flags |= BIO_REQ_EIO;
             }
 

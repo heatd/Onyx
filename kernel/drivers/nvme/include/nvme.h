@@ -315,7 +315,7 @@ private:
     static int prepare_nvme_request(u8 bio_command, nvmecmd *cmd, struct request *breq,
                                     nvme_namespace *ns);
 
-    static void set_queue_properties(blockdev *bdev);
+    void set_queue_properties(blockdev *bdev);
 
 public:
     nvme_device(pci::pci_device *dev) : dev_{dev}
