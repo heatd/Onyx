@@ -13,6 +13,7 @@
 #include <string.h>
 
 #include <onyx/modules.h>
+#include <onyx/types.h>
 
 #ifdef DO_STREAMS
 struct stream
@@ -379,6 +380,25 @@ static int printf_do_string(struct stream *stream, const char *s, int fwidth,
     return ret;
 }
 
+static int dump_buffer(struct stream *stream, void *ptr, struct printf_specifier *spec)
+{
+    int written = 0;
+    int bufsize = spec->fwidth;
+    u8 *ptr8 = ptr;
+    for (int i = 0; i < bufsize; i++)
+    {
+        struct printf_specifier spec2;
+        spec2.precision = PRECISION_UNSPEC;
+        spec2.flags = F_PZERO | F_PHEX | F_PUNSIGNED;
+        spec2.itype = ITYPE_HH;
+        spec2.fwidth = 2;
+        written += pint(stream, ptr8[i], &spec2);
+        written += printf_do_string(stream, " ", 0, 1, 0);
+    }
+
+    return written;
+}
+
 static int print_pointer(struct stream *stream, void *ptr, struct printf_specifier *spec,
                          const char **pfmt)
 {
@@ -392,6 +412,9 @@ static int print_pointer(struct stream *stream, void *ptr, struct printf_specifi
                           *fmt == 's' ? SYM_SYMBOLIZE_NO_OFFSET : 0);
             *pfmt = ++fmt;
             return printf_do_string(stream, buf, spec->fwidth, spec->precision, spec->flags);
+        case 'h':
+            *pfmt = ++fmt;
+            return dump_buffer(stream, ptr, spec);
         case 'x':
             *pfmt = ++fmt;
             /* fallthrough */
