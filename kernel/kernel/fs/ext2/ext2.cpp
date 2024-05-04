@@ -503,14 +503,16 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
     unsigned long superblock_block = 0;
     unsigned long sb_off = 0;
     unsigned long entries = 0;
-    struct page *page;
 
     dev->sb = sb;
-
+    if (block_set_bsize(dev, EXT2_SUPERBLOCK_OFFSET) < 0)
+        return nullptr;
     sb->s_block_size = EXT2_SUPERBLOCK_OFFSET;
     sb->s_bdev = dev;
 
     struct block_buf *b = sb_read_block(sb, 1);
+    if (!b)
+        return nullptr;
 
     superblock_t *ext2_sb = (superblock_t *) block_buf_data(b);
 
@@ -531,16 +533,13 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
         goto error;
     }
 
-    /* Since we're re-adjusting the block buffer to be the actual block buffer,
-     * we're deleting this block_buf and grabbing a new one
-     */
-
-    page = b->this_page;
-    block_buf_free(b);
-    page_destroy_block_bufs(page);
+    block_buf_put(b);
     b = nullptr;
 
+    if (block_set_bsize(dev, block_size) < 0)
+        goto error;
     sb->s_block_size = block_size;
+
     superblock_block = block_size == 1024 ? 1 : 0;
     sb_off = EXT2_SUPERBLOCK_OFFSET & (block_size - 1);
 

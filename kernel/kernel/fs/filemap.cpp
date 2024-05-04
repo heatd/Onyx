@@ -525,6 +525,16 @@ int filemap_writepages(struct inode *inode,
     return 0;
 }
 
+int filemap_fdatasync(struct inode *inode, unsigned long start, unsigned long end)
+{
+    DCHECK(inode->i_fops->fsyncdata);
+    struct writepages_info wp;
+    wp.start = start;
+    wp.end = end;
+    wp.flags = WRITEPAGES_SYNC;
+    return inode->i_fops->fsyncdata(inode, &wp);
+}
+
 int filemap_private_fault(struct vm_pf_context *ctx)
 {
     struct vm_area_struct *region = ctx->entry;

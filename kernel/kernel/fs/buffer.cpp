@@ -267,11 +267,7 @@ ssize_t bbuffer_readpage(struct page *p, size_t off, struct inode *ino)
         return -EIO;
     }
 
-    auto block_size = blkdev->sector_size;
-    auto sb = blkdev->sb;
-
-    if (sb)
-        block_size = sb->s_block_size;
+    auto block_size = blkdev->block_size;
 
     struct bio_req *r = bio_alloc(GFP_NOIO, 1);
     if (!r)
