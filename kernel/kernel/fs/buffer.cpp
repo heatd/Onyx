@@ -397,11 +397,7 @@ static ssize_t buffer_directio(struct file *filp, size_t off, iovec_iter *iter, 
     struct bio_req *bio = ex.value();
     bio->sector_number = off / blkdev->sector_size;
     bio->flags |= (DIRECT_IO_OP(flags) == DIRECT_IO_READ ? BIO_REQ_READ_OP : BIO_REQ_WRITE_OP);
-    /* If O_SYNC, we need to wait for the request to finish. */
-    if (filp->f_flags & O_SYNC)
-        st = bio_submit_req_wait(blkdev, bio);
-    else
-        st = bio_submit_request(blkdev, bio);
+    st = bio_submit_req_wait(blkdev, bio);
 
     if (bio->flags & BIO_REQ_EIO)
         st = -EIO;
