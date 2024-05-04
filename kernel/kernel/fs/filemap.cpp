@@ -183,14 +183,13 @@ ssize_t filemap_read_iter(struct file *filp, size_t off, iovec_iter *iter, unsig
     if (filp->f_flags & O_DIRECT)
         return filemap_do_direct(filp, off, iter, flags);
 
-    if ((size_t) off >= size)
-        return 0;
-
     ssize_t st = 0;
 
     while (!iter->empty())
     {
         struct page *page = nullptr;
+        if ((size_t) off >= size)
+            break;
         int st2 = filemap_find_page(filp->f_ino, off >> PAGE_SHIFT, 0, &page);
 
         if (st2 < 0)
