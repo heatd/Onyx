@@ -409,10 +409,20 @@ static ssize_t buffer_directio(struct file *filp, size_t off, iovec_iter *iter, 
     return to_read;
 }
 
+static int block_prepare_write(struct inode *ino, struct page *page, size_t page_off, size_t offset,
+                               size_t len)
+{
+    struct blockdev *bdev = (struct blockdev *) ino->i_helper;
+    auto bdev_size = bdev->nr_sectors * bdev->sector_size;
+    if (bdev_size <= offset + page_off || bdev_size < offset + page_off + len)
+        return -EIO;
+    return 0;
+}
+
 struct file_ops buffer_ops = {
     .readpage = bbuffer_readpage,
     .writepage = buffer_writepage,
-    .prepare_write = noop_prepare_write,
+    .prepare_write = block_prepare_write,
     .read_iter = filemap_read_iter,
     .write_iter = filemap_write_iter,
     .writepages = filemap_writepages,
