@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mount.h>
 
 #include <onyx/block.h>
 #include <onyx/block/blk_plug.h>
@@ -61,9 +62,12 @@ unsigned int blkdev_ioctl(int request, void *argp, struct file *f)
 {
     auto d = (blockdev *) f->f_ino->i_helper;
 
-    (void) d;
     switch (request)
     {
+        case BLKGETSIZE64: {
+            u64 len = d->nr_sectors * d->sector_size;
+            return copy_to_user(argp, &len, sizeof(u64));
+        }
         default:
             return -EINVAL;
     }
