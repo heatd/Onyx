@@ -202,7 +202,7 @@ void block_buf_sync(struct block_buf *buf)
     struct page *page = buf->this_page;
     lock_page(page);
     buffer_writepage(page, page->pageoff << PAGE_SHIFT, buf->dev->b_ino);
-    /* TODO: This will need to be adapted for async... */
+    page_wait_writeback(page);
 }
 
 void block_buf_free(struct block_buf *buf)
