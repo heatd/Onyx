@@ -106,8 +106,9 @@ struct blockdev
     unique_ptr<flush::writeback_dev> wbdev{};
     struct queue_properties bdev_queue_properties;
     const struct blk_mq_ops *mq_ops;
+    unsigned int block_size;
 
-    constexpr blockdev() : mq_ops{nullptr}
+    constexpr blockdev() : mq_ops{nullptr}, block_size{}
     {
         bdev_set_default_queue_properties(bdev_queue_properties);
     }
@@ -208,5 +209,14 @@ void block_queue_pending_io_queue(io_queue *queue);
  * @param req Request to complete
  */
 void bio_queue_pending_req(struct request *req);
+
+/**
+ * @brief Set the block device's block size
+ *
+ * @param bdev Block device
+ * @param block_size Block size
+ * @return 0 on success, negative error codes
+ */
+int block_set_bsize(struct blockdev *bdev, unsigned int block_size);
 
 #endif

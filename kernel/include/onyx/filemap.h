@@ -71,4 +71,6 @@ int filemap_writepages(struct inode *inode, struct writepages_info *wpinfo);
 #define FILEMAP_MARK_DIRTY     RA_MARK_0
 #define FILEMAP_MARK_WRITEBACK RA_MARK_1
 
+int filemap_fdatasync(struct inode *inode, unsigned long start, unsigned long end);
+
 #endif

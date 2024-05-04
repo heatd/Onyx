@@ -132,6 +132,8 @@ extern struct file_ops buffer_ops;
 
 int blkdev_init(struct blockdev *blk)
 {
+    blk->block_size = blk->sector_size;
+
     rw_lock_write(&dev_list_lock);
 
     list_add_tail(&blk->block_dev_head, &dev_list);
@@ -590,4 +592,55 @@ void blk_end_plug(struct blk_plug *plug)
         blk_flush_plug(plug);
         curr->plug = nullptr;
     }
+}
+
+/**
+ * @brief Set the block device's block size
+ *
+ * @param bdev Block device
+ * @param block_size Block size
+ * @return 0 on success, negative error codes
+ */
+int block_set_bsize(struct blockdev *bdev, unsigned int block_size)
+{
+    int st;
+
+    if (count_bits(block_size) > 1)
+    {
+        pr_err("%s: desired block size %u is not a power of 2\n", bdev->name.c_str(), block_size);
+        return -EINVAL;
+    }
+
+    if (block_size < bdev->sector_size)
+    {
+        pr_err("%s: desired block size %u is smaller than sector size %u\n", bdev->name.c_str(),
+               block_size, bdev->sector_size);
+        return -EINVAL;
+    }
+
+    if (block_size > PAGE_SIZE)
+    {
+        /* Note: This is not strictly an error, we just don't support it for now */
+        pr_err("%s: desired block size %u is larger than page size %lu\n", bdev->name.c_str(),
+               block_size, PAGE_SIZE);
+        return -EINVAL;
+    }
+
+    /* Synchronize the block device's page cache and truncate all the pages out! This fixes issues
+     * with stale block_buffer data. */
+    if (st = filemap_fdatasync(bdev->b_ino, 0, -1UL); st < 0)
+    {
+        pr_err("%s: fdatasync failed: %d\n", bdev->name.c_str(), st);
+        return st;
+    }
+
+    bdev->block_size = block_size;
+
+    if (st = vmo_punch_range(bdev->b_ino->i_pages, 0, -1UL); st < 0)
+    {
+        pr_err("%s: vmo_punch_range failed: %d\n", bdev->name.c_str(), st);
+        return st;
+    }
+
+    return 0;
 }
