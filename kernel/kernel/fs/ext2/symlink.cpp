@@ -106,6 +106,7 @@ int ext2_set_symlink(inode *ino, const char *dest)
     if (length <= 60)
     {
         memcpy(&raw_ino->i_data, dest, length);
+        ino->i_size = length - 1;
     }
     else
     {
@@ -117,12 +118,8 @@ int ext2_set_symlink(inode *ino, const char *dest)
         thread_change_addr_limit(old);
 
         if (read != (ssize_t) length)
-        {
             return -errno;
-        }
     }
-
-    ext2_set_inode_size(raw_ino, length);
 
     inode_mark_dirty(ino);
 
