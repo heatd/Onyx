@@ -195,10 +195,13 @@ expected<ext2_block_no, int> ext2_create_path(struct inode *ino, ext2_block_no b
                 dest_block_nr = curr_block[off] = block;
 
                 ino->i_blocks += sb->block_size >> 9;
-                // printk("Block: %u\n", block);
-                // printk("Iblocks %lu\n", ino->i_blocks);
-                inode_update_ctime(ino);
-                inode_mark_dirty(ino);
+                if (buf)
+                    block_buf_dirty_inode(buf, ino);
+                else
+                {
+                    inode_update_ctime(ino);
+                    inode_mark_dirty(ino);
+                }
             }
         }
     }
