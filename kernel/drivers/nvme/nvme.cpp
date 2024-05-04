@@ -312,7 +312,7 @@ int nvme_device::init_drive(uint32_t nsid, unique_page identify_namespace_data)
     nspace->ident_namespace_data_ = cul::move(identify_namespace_data);
     nspace->nsid_ = nsid;
     d->sector_size = lba;
-    d->nr_sectors = nspace_identify->nsze * lba;
+    d->nr_sectors = nspace_identify->nsze;
     d->device_info = nspace.get();
     d->submit_request = blk_mq_submit_request;
     d->mq_ops = &nvme_mq_ops;
