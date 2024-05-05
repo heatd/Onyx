@@ -575,3 +575,64 @@ int block_set_bsize(struct blockdev *bdev, unsigned int block_size)
 
     return 0;
 }
+
+int bdev_do_open(struct blockdev *bdev, bool exclusive) NO_THREAD_SAFETY_ANALYSIS
+{
+    int st = -EBUSY;
+    /* Okay, we need to be a bit careful about the locking. But basically, blockdevs can't vanish
+     * without their children going away. And partitions can't be opened without touching the parent
+     * disk either. */
+    struct blockdev *disk = bdev->actual_blockdev;
+    if (disk)
+        mutex_lock(&disk->bdev_lock);
+    mutex_lock(&bdev->bdev_lock);
+
+    if (exclusive && bdev->nr_busy > 0)
+        goto out;
+
+    bdev->nr_busy++;
+    if (disk)
+        disk->nr_open_partitions++;
+    st = 0;
+out:
+    mutex_unlock(&bdev->bdev_lock);
+    if (disk)
+        mutex_unlock(&disk->bdev_lock);
+    return st;
+}
+
+void bdev_release(struct blockdev *bdev) NO_THREAD_SAFETY_ANALYSIS
+{
+    struct blockdev *disk = bdev->actual_blockdev;
+    if (disk)
+        mutex_lock(&disk->bdev_lock);
+    mutex_lock(&bdev->bdev_lock);
+
+    bdev->nr_busy--;
+    if (disk)
+        disk->nr_open_partitions--;
+
+    mutex_unlock(&bdev->bdev_lock);
+    if (disk)
+        mutex_unlock(&disk->bdev_lock);
+}
+
+#define BDEV_PRIVATE_UNDO (void *) 1
+
+int bdev_on_open(struct file *f)
+{
+    DCHECK(S_ISBLK(f->f_ino->i_mode));
+    struct blockdev *dev = (blockdev *) f->f_ino->i_helper;
+    int st = bdev_do_open(dev, f->f_flags & O_EXCL);
+    if (st == 0)
+        f->private_data = BDEV_PRIVATE_UNDO;
+    return st;
+}
+
+void bdev_release(struct file *f)
+{
+    DCHECK(S_ISBLK(f->f_ino->i_mode));
+    struct blockdev *dev = (blockdev *) f->f_ino->i_helper;
+    if (f->private_data == BDEV_PRIVATE_UNDO)
+        bdev_release(dev);
+}

@@ -421,10 +421,15 @@ static int block_prepare_write(struct inode *ino, struct page *page, size_t page
     return 0;
 }
 
+extern int bdev_on_open(struct file *f);
+extern void bdev_release(struct file *f);
+
 struct file_ops buffer_ops = {
+    .on_open = bdev_on_open,
     .readpage = bbuffer_readpage,
     .writepage = buffer_writepage,
     .prepare_write = block_prepare_write,
+    .release = bdev_release,
     .read_iter = filemap_read_iter,
     .write_iter = filemap_write_iter,
     .writepages = filemap_writepages,

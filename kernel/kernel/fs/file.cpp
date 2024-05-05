@@ -1280,6 +1280,13 @@ int sys_mount(const char *usource, const char *utarget, const char *ufilesystemt
         }
 
         d = blkdev_get_dev(block_file);
+        if (bdev_do_open(d, false) < 0)
+        {
+            /* This shouldn't happen, but handle it anyway */
+            ret = -EIO;
+            d = nullptr;
+            goto out;
+        }
     }
 
     if (!(node = fs->mount(d)))
@@ -1299,8 +1306,12 @@ int sys_mount(const char *usource, const char *utarget, const char *ufilesystemt
     {
         free(str);
     }
+    else
+        d = nullptr;
 
 out:
+    if (d)
+        bdev_release(d);
     if (block_file)
         fd_put(block_file);
     if (source)
