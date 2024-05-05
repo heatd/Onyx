@@ -107,10 +107,21 @@ struct blockdev
     struct queue_properties bdev_queue_properties;
     const struct blk_mq_ops *mq_ops;
     unsigned int block_size;
+    /* Fun Big Mutex for certain tasks such as partition rescanning and open tracking */
+    struct mutex bdev_lock;
+    unsigned int nr_open_partitions;
+    unsigned int nr_busy;
+
+    /* A block device cannot be a partition and be partitioned */
+    union {
+        struct list_head partition_list;
+        struct list_head partition_head;
+    };
 
     constexpr blockdev() : mq_ops{nullptr}, block_size{}
     {
         bdev_set_default_queue_properties(bdev_queue_properties);
+        INIT_LIST_HEAD(&partition_list);
     }
 };
 
@@ -125,34 +136,12 @@ static inline struct blockdev *blkdev_get_dev(struct file *f)
 }
 
 /*
- * Function: struct blockdev *blkdev_search(const char *name);
- * Description: Search for 'name' on the linked list
- * Return value: Returns a valid block device on success, NULL on error. Sets errno properly.
- * errno values: EINVAL - invalid argument;
- */
-struct blockdev *blkdev_search(const char *name);
-/*
  * Function: int blkdev_init(struct blockdev *dev);
  * Description: Adds dev to the registered block devices and initializes it.
  * Return value: 0 on success, -1 on error. Sets errno properly.
  * errno values: EINVAL - invalid argument
  */
 int blkdev_init(struct blockdev *dev);
-
-/*
- * Function: int blkdev_flush(struct blockdev *dev);
- * Description: Flushes storage device 'dev'
- * Return value: 0 on success, -1 on error. Sets errno properly.
- * errno values: EINVAL - invalid argument; ENOSYS - operation not supported on storage device 'dev'
- */
-int blkdev_flush(struct blockdev *dev);
-/*
- * Function: int blkdev_power(int op, struct blockdev *dev);
- * Description: Performs power management operation 'op' on device 'dev'
- * Return value: 0 on success, -1 on error. Sets errno properly.
- * errno values: EINVAL - invalid argument; ENOSYS - operation not supported on storage device 'dev'
- */
-int blkdev_power(int op, struct blockdev *dev);
 
 static inline bool block_get_device_letter_from_id(unsigned int id, cul::slice<char> buffer)
 {

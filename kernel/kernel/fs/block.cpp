@@ -28,36 +28,6 @@
 
 #include <uapi/fcntl.h>
 
-static struct rwlock dev_list_lock;
-static struct list_head dev_list = LIST_HEAD_INIT(dev_list);
-
-/*
- * Function: struct blockdev *blkdev_search(const char *name);
- * Description: Search for 'name' on the linked list
- * Return value: Returns a valid block device on success, NULL on error. Sets errno properly.
- * errno values: EINVAL - invalid argument;
- */
-struct blockdev *blkdev_search(const char *name)
-{
-    assert(name != nullptr);
-
-    rw_lock_read(&dev_list_lock);
-
-    list_for_every (&dev_list)
-    {
-        struct blockdev *blk = container_of(l, struct blockdev, block_dev_head);
-        if (blk->name == name)
-        {
-            rw_unlock_read(&dev_list_lock);
-            return blk;
-        }
-    }
-
-    rw_unlock_read(&dev_list_lock);
-
-    return NULL;
-}
-
 unsigned int blkdev_ioctl(int request, void *argp, struct file *f)
 {
     auto d = (blockdev *) f->f_ino->i_helper;
@@ -133,15 +103,7 @@ extern struct file_ops buffer_ops;
 int blkdev_init(struct blockdev *blk)
 {
     blk->block_size = blk->sector_size;
-
-    rw_lock_write(&dev_list_lock);
-
-    list_add_tail(&blk->block_dev_head, &dev_list);
-
-    rw_unlock_write(&dev_list_lock);
-
     auto ex = dev_register_blockdevs(0, 1, 0, &buffer_ops, cul::string{blk->name});
-
     if (ex.has_error())
     {
         return ex.error();
@@ -178,37 +140,6 @@ int blkdev_init(struct blockdev *blk)
         partition_setup_disk(blk);
 
     return 0;
-}
-
-/*
- * Function: int blkdev_flush(struct blockdev *dev);
- * Description: Flushes storage device 'dev'
- * Return value: 0 on success, -1 on error. Sets errno properly.
- * errno values: EINVAL - invalid argument; EIO - operation not supported on storage device 'dev'
- */
-int blkdev_flush(struct blockdev *dev)
-{
-    if (blkdev_is_partition(dev))
-        return blkdev_flush(dev->actual_blockdev);
-    if (!dev->flush)
-        return errno = ENOSYS, -1;
-
-    return dev->flush(dev);
-}
-/*
- * Function: int blkdev_power(int op, struct blockdev *dev);
- * Description: Performs power management operation 'op' on device 'dev'
- * Return value: 0 on success, -1 on error. Sets errno properly.
- * errno values: EINVAL - invalid argument; EIO - operation not supported on storage device 'dev'
- */
-int blkdev_power(int op, struct blockdev *dev)
-{
-    if (blkdev_is_partition(dev))
-        return blkdev_power(op, dev->actual_blockdev);
-    if (!dev->power)
-        return errno = EIO, -1;
-
-    return dev->power(op, dev);
 }
 
 int bio_submit_request(struct blockdev *dev, struct bio_req *req)
