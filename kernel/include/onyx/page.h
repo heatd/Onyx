@@ -12,6 +12,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <onyx/atomic.h>
 #include <onyx/compiler.h>
 #include <onyx/list.h>
 #include <onyx/lock_annotations.h>
@@ -69,6 +70,7 @@ __BEGIN_CDECLS
 #define PAGE_FLAG_WAITERS     (1 << 7)
 #define PAGE_FLAG_UPTODATE    (1 << 8)
 #define PAGE_FLAG_WRITEBACK   (1 << 9)
+#define PAGE_FLAG_READAHEAD   (1 << 10)
 
 struct vm_object;
 
@@ -314,7 +316,7 @@ __always_inline bool page_test_set_flag(struct page *p, unsigned long flag)
 
 __always_inline bool page_flag_set(struct page *p, unsigned long flag)
 {
-    return p->flags & flag;
+    return READ_ONCE(p->flags) & flag;
 }
 
 __always_inline bool page_locked(struct page *p)

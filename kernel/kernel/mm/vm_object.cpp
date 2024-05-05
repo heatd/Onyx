@@ -91,17 +91,24 @@ vm_object *vmo_create_phys(size_t size)
  * @param page struct page to insert
  * @return 0 on success, negative error codes (ENOMEM)
  */
-int vm_object::insert_page_unlocked(unsigned long off, struct page *page)
+struct page *vm_object::insert_page_unlocked(unsigned long off, struct page *page)
 {
-    if (int st0 = vm_pages.store(off >> PAGE_SHIFT, (unsigned long) page); st0 < 0)
+    auto ex = vm_pages.get(off >> PAGE_SHIFT);
+    if (ex.has_value())
     {
-        return st0;
+        page_unref(page);
+        page = (struct page *) ex.value();
+        page_ref(page);
+        return page;
     }
+
+    if (int st0 = vm_pages.store(off >> PAGE_SHIFT, (unsigned long) page); st0 < 0)
+        return nullptr;
 
     page->pageoff = off >> PAGE_SHIFT;
     page->owner = this;
 
-    return 0;
+    return page;
 }
 
 /**
@@ -151,43 +158,6 @@ vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page
 }
 
 /**
- * @brief Prefaults a region of a vm object with anonymous pages.
- * This is only used by kernel vm objects, that are forced to not have any non-anon
- * backing.
- *
- * @param vmo The VMO to be prefaulted.
- * @param size The size of the prefault.
- * @param offset The offset of the region to be prefaulted.
- * @return 0 on success, -1 on error.
- */
-int vmo_prefault(vm_object *vmo, size_t size, size_t offset)
-{
-    size_t pages = vm_size_to_pages(size);
-
-    struct page *p = alloc_page_list(pages, 0);
-    if (!p)
-    {
-        printk("alloc_pages failed: could not allocate %lu pages!\n", pages);
-        return -1;
-    }
-
-    struct page *_p = p;
-    for (size_t i = 0; i < pages; i++, offset += PAGE_SIZE)
-    {
-        int err = vmo->insert_page_unlocked(offset, _p);
-        if (err < 0)
-        {
-            free_page_list(p);
-            return err;
-        }
-
-        _p = _p->next_un.next_allocation;
-    }
-
-    return 0;
-}
-
-/**
  * @brief Destroys the VMO, disregarding any refcount.
  * This should not be called arbitrarily and only in cases where it's certain
  * that we hold the only reference.
@@ -209,6 +179,22 @@ void vmo_destroy(vm_object *vmo)
  * @return 0 on success, -1 on failure to map.
  */
 int vmo_add_page(size_t off, struct page *p, vm_object *vmo)
+{
+    scoped_mutex g{vmo->page_lock};
+    if (!vmo->insert_page_unlocked(off, p))
+        return -ENOMEM;
+    return 0;
+}
+
+/**
+ * @brief Maps a page into the VMO.
+ *
+ * @param off Offset of the page inside the VMO.
+ * @param p Page to be mapped on the vmo.
+ * @param vmo The VMO.
+ * @return 0 on success, -1 on failure to map.
+ */
+struct page *vmo_add_page_safe(size_t off, struct page *p, vm_object *vmo)
 {
     scoped_mutex g{vmo->page_lock};
     return vmo->insert_page_unlocked(off, p);

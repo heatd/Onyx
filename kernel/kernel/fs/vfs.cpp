@@ -84,6 +84,7 @@ static void zero_rest_of_page(struct page *page, size_t to_read)
 vmo_status_t vmo_inode_commit(struct vm_object *vmo, size_t off, struct page **ppage)
 {
     struct inode *i = vmo->ino;
+    CHECK(0);
 
     struct page *page = alloc_page(PAGE_ALLOC_NO_ZERO);
     if (!page)
@@ -746,6 +747,7 @@ struct file *inode_to_file(struct inode *ino)
     f->f_refcount = 1;
     f->f_seek = 0;
     f->f_dentry = nullptr;
+    ra_state_init(&f->f_ra_state);
 
     return f;
 }

@@ -1577,7 +1577,8 @@ static int vm_pf_get_page_from_vmo(struct vm_pf_context *ctx)
     if (vmo_off >= ino->i_size)
         return -ENOENT;
 
-    return filemap_find_page(ino, vmo_off >> PAGE_SHIFT, 0, &ctx->page);
+    return filemap_find_page(ino, vmo_off >> PAGE_SHIFT, 0, &ctx->page,
+                             &entry->vm_file->f_ra_state);
 }
 
 static int find_page_err_to_signal(int st)

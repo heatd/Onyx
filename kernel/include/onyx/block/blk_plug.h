@@ -37,7 +37,7 @@ static inline struct blk_plug *blk_get_current_plug(void)
     struct thread *curr = get_current_thread();
     if (curr)
         return curr->plug;
-    return nullptr;
+    return NULL;
 }
 
 /**

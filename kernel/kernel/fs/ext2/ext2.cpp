@@ -46,6 +46,7 @@ int ext2_prepare_write(inode *ino, struct page *page, size_t page_off, size_t of
 int ext2_link(struct inode *target, const char *name, struct inode *dir);
 inode *ext2_symlink(struct dentry *dentry, const char *dest, struct dentry *dir);
 static int ext2_fsyncdata(struct inode *ino, struct writepages_info *wpinfo);
+static int ext2_readpages(struct readpages_state *state, struct inode *ino);
 
 struct file_ops ext2_ops = {.open = ext2_open,
                             .close = ext2_close,
@@ -65,7 +66,8 @@ struct file_ops ext2_ops = {.open = ext2_open,
                             .read_iter = filemap_read_iter,
                             .write_iter = filemap_write_iter,
                             .writepages = filemap_writepages,
-                            .fsyncdata = ext2_fsyncdata};
+                            .fsyncdata = ext2_fsyncdata,
+                            .readpages = ext2_readpages};
 
 void ext2_delete_inode(struct inode *inode_, uint32_t inum, struct ext2_superblock *fs)
 {
@@ -144,16 +146,17 @@ ssize_t ext2_writepage(page *page, size_t off, inode *ino) REQUIRES(page) RELEAS
     return PAGE_SIZE;
 }
 
-ssize_t ext2_readpage(struct page *page, size_t off, struct inode *ino)
+int ext2_map_page(struct page *page, size_t off, struct inode *ino)
 {
     auto raw_inode = ext2_get_inode_from_node(ino);
     auto sb = ext2_superblock_from_inode(ino);
     auto nr_blocks = PAGE_SIZE / sb->block_size;
     auto base_block_index = off / sb->block_size;
+    int curr_off = 0;
+    bool all_holes = true;
 
-    page->flags |= PAGE_FLAG_BUFFER;
-
-    auto curr_off = 0;
+    if (!page_test_set_flag(page, PAGE_FLAG_BUFFER))
+        return 0;
 
     for (size_t i = 0; i < nr_blocks; i++)
     {
@@ -161,6 +164,7 @@ ssize_t ext2_readpage(struct page *page, size_t off, struct inode *ino)
         if (!(b = page_add_blockbuf(page, curr_off)))
         {
             page_destroy_block_bufs(page);
+            __atomic_and_fetch(&page->flags, ~PAGE_FLAG_BUFFER, __ATOMIC_RELEASE);
             return -ENOMEM;
         }
 
@@ -168,10 +172,44 @@ ssize_t ext2_readpage(struct page *page, size_t off, struct inode *ino)
         if (res.has_error())
         {
             page_destroy_block_bufs(page);
+            __atomic_and_fetch(&page->flags, ~PAGE_FLAG_BUFFER, __ATOMIC_RELEASE);
             return -ENOMEM;
         }
 
         auto block = res.value();
+        if (block == EXT2_ERR_INV_BLOCK)
+        {
+            // Zero the block, since it's a hole
+            memset((char *) PAGE_TO_VIRT(page) + curr_off, 0, sb->block_size);
+            bb_test_and_set(b, BLOCKBUF_FLAG_UPTODATE);
+        }
+        else
+            all_holes = false;
+
+        b->block_nr = res.value();
+        b->block_size = sb->block_size;
+        b->dev = sb->s_bdev;
+
+        curr_off += sb->block_size;
+    }
+
+    if (all_holes)
+        page_test_set_flag(page, PAGE_FLAG_UPTODATE);
+
+    return 0;
+}
+
+ssize_t ext2_readpage(struct page *page, size_t off, struct inode *ino)
+{
+    auto sb = ext2_superblock_from_inode(ino);
+    auto curr_off = 0;
+
+    if (int st = ext2_map_page(page, off, ino); st < 0)
+        return st;
+
+    for (struct block_buf *b = (struct block_buf *) page->priv; b != nullptr; b = b->next)
+    {
+        sector_t block = b->block_nr;
         if (block != EXT2_ERR_INV_BLOCK)
         {
             /* TODO: Coalesce reads */
@@ -181,27 +219,120 @@ ssize_t ext2_readpage(struct page *page, size_t off, struct inode *ino)
             v->page_off = curr_off;
 
             if (sb_read_bio(sb, v, 1, block) < 0)
-            {
-                page_destroy_block_bufs(page);
                 return -EIO;
-            }
-        }
-        else
-        {
-            // Zero the block, since it's a hole
-            memset((char *) PAGE_TO_VIRT(page) + curr_off, 0, sb->block_size);
         }
 
-        b->block_nr = res.value();
-        b->block_size = sb->block_size;
-        b->dev = sb->s_bdev;
-
+        bb_test_and_set(b, BLOCKBUF_FLAG_UPTODATE);
         curr_off += sb->block_size;
     }
 
-    page->flags |= PAGE_FLAG_UPTODATE;
-
+    page_test_set_flag(page, PAGE_FLAG_UPTODATE);
     return min(PAGE_SIZE, ino->i_size - off);
+}
+
+void ext2_readpages_endio(struct bio_req *bio) NO_THREAD_SAFETY_ANALYSIS
+{
+    for (size_t i = 0; i < bio->nr_vecs; i++)
+    {
+        struct page_iov *iov = &bio->vec[i];
+        DCHECK(page_locked(iov->page));
+        struct block_buf *head = (struct block_buf *) iov->page->priv;
+
+        spin_lock(&head->pagestate_lock);
+        bool uptodate = true;
+
+        for (struct block_buf *b = head; b != nullptr; b = b->next)
+        {
+            if (b->page_off == iov->page_off)
+            {
+                bb_clear_flag(b, BLOCKBUF_FLAG_AREAD);
+                CHECK(bb_test_and_set(b, BLOCKBUF_FLAG_UPTODATE));
+                continue;
+            }
+
+            if (bb_test_flag(b, BLOCKBUF_FLAG_AREAD))
+                uptodate = false;
+        }
+
+        spin_unlock(&head->pagestate_lock);
+
+        if (uptodate)
+        {
+            if ((bio->flags & BIO_STATUS_MASK) == BIO_REQ_DONE)
+                page_test_set_flag(iov->page, PAGE_FLAG_UPTODATE);
+            unlock_page(iov->page);
+        }
+    }
+}
+
+static int ext2_readpages(struct readpages_state *state,
+                          struct inode *ino) NO_THREAD_SAFETY_ANALYSIS
+{
+    auto sb = ext2_superblock_from_inode(ino);
+    int st;
+    struct page *page;
+    unsigned int nr_ios = 0;
+
+    while ((page = readpages_next_page(state)))
+    {
+        const unsigned long pgoff = page->pageoff;
+
+        if (st = ext2_map_page(page, pgoff << PAGE_SHIFT, ino); st < 0)
+            goto out_err;
+
+        DCHECK(page->priv != 0);
+        nr_ios = 0;
+
+        for (struct block_buf *b = (struct block_buf *) page->priv; b != nullptr; b = b->next)
+        {
+            sector_t block = b->block_nr;
+            if (block == 0)
+                continue;
+            if (bb_test_flag(b, BLOCKBUF_FLAG_UPTODATE))
+                continue;
+            if (!bb_test_and_set(b, BLOCKBUF_FLAG_AREAD))
+                continue;
+            DCHECK(!bb_test_flag(b, BLOCKBUF_FLAG_UPTODATE));
+
+            struct bio_req *bio = bio_alloc(GFP_NOFS, 1);
+            if (!bio)
+            {
+                bb_clear_flag(b, BLOCKBUF_FLAG_AREAD);
+                st = -ENOMEM;
+                goto out_err;
+            }
+
+            /* Note: We do not need to ref, we hold the lock, no one can throw this page away
+             * while locked (almost like an implicit reference). */
+            bio->sector_number = block * (sb->s_block_size / sb->s_bdev->sector_size);
+            bio->flags = BIO_REQ_READ_OP;
+            bio->b_end_io = ext2_readpages_endio;
+            bio_push_pages(bio, page, b->page_off, b->block_size);
+            st = bio_submit_request(sb->s_bdev, bio);
+            bio_put(bio);
+
+            if (st < 0)
+            {
+                bb_clear_flag(b, BLOCKBUF_FLAG_AREAD);
+                goto out_err;
+            }
+
+            nr_ios++;
+        }
+
+        if (nr_ios == 0)
+            unlock_page(page);
+        page_unref(page);
+    }
+
+    return 0;
+out_err:
+    /* On error, release the page we're holding. We do not unlock it if we submitted any IOs for the
+     * page, the endio page will do it for us. */
+    if (nr_ios == 0)
+        unlock_page(page);
+    page_unref(page);
+    return st;
 }
 
 struct ext2_inode_info *ext2_cache_inode_info(struct inode *ino, struct ext2_inode *fs_ino)
@@ -743,7 +874,8 @@ static int ext2_fsyncdata(struct inode *ino, struct writepages_info *wpinfo)
     /* Sync the actual pages, then writeback indirect blocks */
     if (int st = filemap_writepages(ino, wpinfo); st < 0)
         return st;
-    /* If not a block device, sync indirect blocks (that have been associated with the vm object) */
+    /* If not a block device, sync indirect blocks (that have been associated with the vm
+     * object) */
     if (!S_ISBLK(ino->i_mode))
         block_buf_sync_assoc(ino->i_pages);
     return 0;
