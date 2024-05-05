@@ -40,12 +40,15 @@ struct block_buf
     sector_t block_nr;
     /* The block size */
     unsigned int block_size;
+    struct spinlock pagestate_lock;
     struct list_head assoc_buffers_node;
     struct vm_object *assoc_buffers_obj;
 };
 
 #define BLOCKBUF_FLAG_DIRTY     (1 << 0)
 #define BLOCKBUF_FLAG_WRITEBACK (1 << 1)
+#define BLOCKBUF_FLAG_UPTODATE  (1 << 2)
+#define BLOCKBUF_FLAG_AREAD     (1 << 3)
 
 static inline bool bb_test_and_set(struct block_buf *buf, unsigned int flag)
 {
@@ -68,6 +71,11 @@ static inline bool bb_test_and_clear(struct block_buf *buf, unsigned int flag)
 static inline void bb_clear_flag(struct block_buf *buf, unsigned int flag)
 {
     __atomic_and_fetch(&buf->flags, ~flag, __ATOMIC_RELEASE);
+}
+
+static inline bool bb_test_flag(struct block_buf *buf, unsigned int flag)
+{
+    return __atomic_load_n(&buf->flags, __ATOMIC_RELAXED) & flag;
 }
 
 bool page_has_writeback_bufs(struct page *p);

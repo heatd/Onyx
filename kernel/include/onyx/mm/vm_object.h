@@ -136,7 +136,7 @@ struct vm_object
      * @param page struct page to insert
      * @return 0 on success, negative error codes (ENOMEM)
      */
-    int insert_page_unlocked(unsigned long off, struct page *page);
+    struct page *insert_page_unlocked(unsigned long off, struct page *page);
 
     template <typename Callable>
     bool for_every_page(Callable c)
@@ -224,18 +224,6 @@ struct vm_object *vmo_create_phys(size_t size);
 vmo_status_t vmo_get(struct vm_object *vmo, size_t off, unsigned int flags, struct page **ppage);
 
 /**
- * @brief Prefaults a region of a vm object with anonymous pages.
- * This is only used by kernel vm objects, that are forced to not have any non-anon
- * backing.
- *
- * @param vmo The VMO to be prefaulted.
- * @param size The size of the prefault.
- * @param offset The offset of the region to be prefaulted.
- * @return 0 on success, -1 on error.
- */
-int vmo_prefault(struct vm_object *vmo, size_t size, size_t offset);
-
-/**
  * @brief Releases the vmo, and destroys it if it was the last reference.
  *
  * @param vmo The VMO to be unrefed.
@@ -279,6 +267,16 @@ void vmo_ref(struct vm_object *vmo);
  * @return True if it is, false if not.
  */
 bool vmo_is_shared(struct vm_object *vmo);
+
+/**
+ * @brief Maps a page into the VMO.
+ *
+ * @param off Offset of the page inside the VMO.
+ * @param p Page to be mapped on the vmo.
+ * @param vmo The VMO.
+ * @return 0 on success, -1 on failure to map.
+ */
+struct page *vmo_add_page_safe(size_t off, struct page *p, struct vm_object *vmo);
 
 __END_CDECLS
 

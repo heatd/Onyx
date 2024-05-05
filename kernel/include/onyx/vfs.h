@@ -28,6 +28,7 @@ struct inode;
 struct file;
 struct dentry;
 struct iovec_iter;
+struct readpages_state;
 
 __BEGIN_CDECLS
 
@@ -87,6 +88,7 @@ struct file_ops
     int (*writepages)(struct inode *ino, struct writepages_info *wpinfo);
     int (*fsyncdata)(struct inode *ino, struct writepages_info *wpinfo);
     ssize_t (*directio)(struct file *file, size_t off, struct iovec_iter *iter, unsigned int flags);
+    int (*readpages)(struct readpages_state *state, struct inode *ino);
 };
 
 /* For directio's flags */
@@ -164,6 +166,23 @@ struct inode
 
 struct dentry;
 
+struct readahead_state
+{
+    /* All values below are in pages, not bytes */
+    unsigned long ra_start;
+    unsigned long ra_window;
+    unsigned long ra_mark;
+};
+
+static inline void ra_state_init(struct readahead_state *ra)
+{
+    ra->ra_start = ra->ra_mark = ra->ra_window = 0;
+}
+
+/* Our max readahead window will be 512KiB (in however many pages). The window cannot grow from
+ * there. */
+#define RA_MAX_WINDOW (0x80000 / PAGE_SIZE)
+
 struct file
 {
     unsigned long f_refcount;
@@ -176,6 +195,7 @@ struct file
     };
     struct mutex f_seeklock;
     unsigned int f_flags;
+    struct readahead_state f_ra_state;
 };
 
 int inode_create_vmo(struct inode *ino);

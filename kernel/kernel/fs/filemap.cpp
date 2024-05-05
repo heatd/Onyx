@@ -13,13 +13,14 @@
 #include <onyx/mm/amap.h>
 #include <onyx/page.h>
 #include <onyx/pagecache.h>
+#include <onyx/readahead.h>
 #include <onyx/vfs.h>
 #include <onyx/vm.h>
 
 #include <uapi/fcntl.h>
 
-int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags,
-                      struct page **outp) NO_THREAD_SAFETY_ANALYSIS
+int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags, struct page **outp,
+                      struct readahead_state *ra_state) NO_THREAD_SAFETY_ANALYSIS
 {
     struct page *p = nullptr;
     int st = 0;
@@ -51,27 +52,50 @@ int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags,
         p->owner = ino->i_pages;
         p->pageoff = pgoff;
         /* Add it in... */
-        if (st = vmo_add_page(pgoff << PAGE_SHIFT, p, ino->i_pages); st < 0)
+        struct page *p2 = vmo_add_page_safe(pgoff << PAGE_SHIFT, p, ino->i_pages);
+        if (!p2)
         {
-            free_page(p);
-            return st;
+            page_unref(p);
+            return -ENOMEM;
         }
 
-        inc_page_stat(p, NR_FILE);
-        page_ref(p);
+        if (p == p2)
+        {
+            inc_page_stat(p, NR_FILE);
+            page_ref(p);
+        }
+
+        p = p2;
 
         /* Added! Just not up to date... */
+    }
+
+    if (!(flags & (FIND_PAGE_NO_READPAGE | FIND_PAGE_NO_RA)) && ra_state && !S_ISBLK(ino->i_mode))
+    {
+        /* If we found PAGE_FLAG_READAHEAD, kick off more IO */
+        if (page_flag_set(p, PAGE_FLAG_READAHEAD))
+        {
+            if (filemap_do_readahead_async(ino, ra_state, pgoff) != 1)
+                __atomic_and_fetch(&p->flags, ~PAGE_FLAG_READAHEAD, __ATOMIC_RELAXED);
+        }
+        else if (!page_flag_set(p, PAGE_FLAG_UPTODATE))
+        {
+            /* Page is not up to date, kick off "synchronous" readahead. The code below will take
+             * care of waiting for the IO, or kicking it off if required. */
+            filemap_do_readahead_sync(ino, ra_state, pgoff);
+            DCHECK(!(flags & FIND_PAGE_NO_READPAGE));
+        }
     }
 
     /* If the page is not up to date, read it in, but first lock the page. All pages under IO have
      * the lock held.
      */
-    if (!(p->flags & PAGE_FLAG_UPTODATE))
+    if (!(flags & FIND_PAGE_NO_READPAGE) && !page_flag_set(p, PAGE_FLAG_UPTODATE))
     {
         DCHECK(ino->i_fops->readpage != nullptr);
 
         lock_page(p);
-        if (!(p->flags & PAGE_FLAG_UPTODATE))
+        if (!page_flag_set(p, PAGE_FLAG_UPTODATE))
         {
             ssize_t st2 = ino->i_fops->readpage(p, pgoff << PAGE_SHIFT, ino);
 
@@ -85,6 +109,9 @@ int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags,
 
         unlock_page(p);
     }
+
+    if (flags & FIND_PAGE_LOCK)
+        lock_page(p);
 
 out:
     if (st == 0)
@@ -108,7 +135,7 @@ ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t off
     while (read != len)
     {
         struct page *page = nullptr;
-        int st = filemap_find_page(file, offset >> PAGE_SHIFT, 0, &page);
+        int st = filemap_find_page(file, offset >> PAGE_SHIFT, 0, &page, nullptr);
 
         if (st < 0)
             return read ?: st;
@@ -190,7 +217,7 @@ ssize_t filemap_read_iter(struct file *filp, size_t off, iovec_iter *iter, unsig
         struct page *page = nullptr;
         if ((size_t) off >= size)
             break;
-        int st2 = filemap_find_page(filp->f_ino, off >> PAGE_SHIFT, 0, &page);
+        int st2 = filemap_find_page(filp->f_ino, off >> PAGE_SHIFT, 0, &page, &filp->f_ra_state);
 
         if (st2 < 0)
             return st ?: st2;
@@ -260,7 +287,7 @@ ssize_t file_write_cache_unlocked(void *buffer, size_t len, struct inode *ino, s
     while (wrote != len)
     {
         struct page *page = nullptr;
-        int st = filemap_find_page(ino, offset >> PAGE_SHIFT, 0, &page);
+        int st = filemap_find_page(ino, offset >> PAGE_SHIFT, 0, &page, nullptr);
 
         if (st < 0)
             return wrote ?: st;
@@ -341,7 +368,7 @@ ssize_t filemap_write_iter(struct file *filp, size_t off, iovec_iter *iter, unsi
     while (!iter->empty())
     {
         struct page *page = nullptr;
-        int st2 = filemap_find_page(filp->f_ino, off >> PAGE_SHIFT, 0, &page);
+        int st2 = filemap_find_page(filp->f_ino, off >> PAGE_SHIFT, 0, &page, &filp->f_ra_state);
 
         if (st2 < 0)
             return st ?: st2;
@@ -562,7 +589,8 @@ int filemap_private_fault(struct vm_pf_context *ctx)
             return -EIO;
         }
 
-        st = filemap_find_page(region->vm_file->f_ino, fileoff, 0, &page);
+        st = filemap_find_page(region->vm_file->f_ino, fileoff, 0, &page,
+                               &region->vm_file->f_ra_state);
 
         if (st < 0)
             goto err;

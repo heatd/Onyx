@@ -151,6 +151,7 @@ bool page_has_writeback_bufs(struct page *p)
 struct block_buf *page_add_blockbuf(struct page *page, unsigned int page_off)
 {
     assert(page->flags & PAGE_FLAG_BUFFER);
+    DCHECK(page_locked(page));
 
     auto buf = (struct block_buf *) kmem_cache_alloc(buffer_cache, GFP_KERNEL);
     if (!buf)
@@ -164,6 +165,7 @@ struct block_buf *page_add_blockbuf(struct page *page, unsigned int page_off)
     buf->refc = 1;
     buf->flags = 0;
     buf->assoc_buffers_obj = nullptr;
+    spinlock_init(&buf->pagestate_lock);
 
     /* It's better to do this naively using O(n) as to keep memory usage per-struct page low. */
     /* We're not likely to hit substancial n's anyway */
@@ -438,7 +440,7 @@ struct block_buf *sb_read_block(const struct superblock *sb, unsigned long block
 
     struct page *page;
 
-    int st = filemap_find_page(dev->b_ino, real_off >> PAGE_SHIFT, 0, &page);
+    int st = filemap_find_page(dev->b_ino, real_off >> PAGE_SHIFT, 0, &page, nullptr);
 
     if (st < 0)
         return nullptr;

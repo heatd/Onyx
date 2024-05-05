@@ -979,7 +979,7 @@ void __reclaim_page(struct page *new_page)
 
 void page_node::free_page(struct page *p)
 {
-    CHECK(!(p->flags & PAGE_FLAG_WRITEBACK));
+    CHECK(!(p->flags & (PAGE_FLAG_WRITEBACK | PAGE_FLAG_LOCKED)));
 #ifdef CONFIG_PAGE_OWNER
     page_owner_freed(p);
 #endif
