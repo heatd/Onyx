@@ -104,9 +104,14 @@ static void ext2_writepage_endio(struct bio_req *req)
 {
     struct page *page = req->vec[0].page;
     struct block_buf *buf = (struct block_buf *) req->b_private;
+    struct block_buf *head = (struct block_buf *) page->priv;
+    DCHECK(head != nullptr);
+
+    spin_lock(&head->pagestate_lock);
     bb_clear_flag(buf, BLOCKBUF_FLAG_WRITEBACK);
     if (!page_has_writeback_bufs(page))
         page_end_writeback(page, page->owner->ino);
+    spin_unlock(&head->pagestate_lock);
 }
 
 ssize_t ext2_writepage(page *page, size_t off, inode *ino) REQUIRES(page) RELEASE(page)
