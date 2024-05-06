@@ -64,6 +64,9 @@ static inline int d_revalidate(struct dentry *dentry, unsigned int flags)
     return 1;
 }
 
+void dentry_remove_from_cache(dentry *dent, dentry *parent);
+void dentry_kill_unlocked(dentry *entry);
+
 static dentry *dentry_open_from_cache_unlocked(dentry *dent, std::string_view name)
 {
     auto namehash = fnv_hash(name.data(), name.length());
@@ -82,7 +85,6 @@ static dentry *dentry_open_from_cache_unlocked(dentry *dent, std::string_view na
         if (d->d_parent == dent && d->d_name_hash == namehash && dentry_compare_name(d, name))
         {
             dentry_get(d);
-
             return d;
         }
     }
@@ -95,8 +97,22 @@ static dentry *dentry_open_from_cache(dentry *dent, std::string_view name)
     auto hash = hash_dentry_fields(dent, name);
     auto index = dentry_ht.get_hashtable_index(hash);
     scoped_rwslock<rw_lock::read> g{dentry_ht_locks[index]};
+    dentry *found = dentry_open_from_cache_unlocked(dent, name);
+    g.unlock();
+    if (found)
+    {
+        if (!d_revalidate(found, 0))
+        {
+            dentry_put(found);
+            /* TODO: HACK! This is not safe nor correct! We'll do it this way, temporarily,
+             * because of devfs and block device rescanning! */
+            dentry_remove_from_cache(found, found->d_parent);
+            dentry_put(found);
+            return nullptr;
+        }
+    }
 
-    return dentry_open_from_cache_unlocked(dent, name);
+    return found;
 }
 
 void dentry_remove_from_cache(dentry *dent, dentry *parent)

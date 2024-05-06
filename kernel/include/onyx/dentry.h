@@ -51,6 +51,7 @@ struct dentry
     struct list_head d_children_head;
     struct dentry *d_mount_dentry;
     const struct dentry_operations *d_ops;
+    unsigned long d_private;
     atomic<uint16_t> d_flags;
 };
 

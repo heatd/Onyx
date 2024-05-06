@@ -45,6 +45,11 @@ public:
     {
     }
 
+    ~gendev()
+    {
+        hide();
+    }
+
     /**
      * @brief Return the device number of the gendev
      *
@@ -154,6 +159,8 @@ public:
      * @return 0 on success, negative error codes
      */
     int show_with_name(const char *custom_name, const char *path, mode_t mode);
+
+    void hide();
 };
 
 class chardev : public gendev
