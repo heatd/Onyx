@@ -111,9 +111,10 @@ private:
         return curr_len < buf_size;
     }
 
-    bool can_write_or_broken() const
+    bool may_write(bool atomic, size_t len) const
     {
-        return curr_len < buf_size || reader_count == 0;
+        const auto avail = available_space();
+        return avail > 0 && (avail >= len || !atomic);
     }
 
     pipe_buffer *first_buf()
@@ -606,11 +607,7 @@ ssize_t pipe::write_iter(iovec_iter *iter, int flags)
             break;
         }
 
-        const auto avail = available_space();
-
-        bool may_write = avail > 0 && !(avail < iter->bytes && is_atomic_write);
-
-        if (!may_write)
+        if (!may_write(is_atomic_write, iter->bytes))
         {
             if (ret != 0)
             {
@@ -626,9 +623,7 @@ ssize_t pipe::write_iter(iovec_iter *iter, int flags)
             }
 
             if (wait_for_event_mutex_interruptible(
-                    &write_queue,
-                    (is_atomic_write && available_space() >= iter->bytes) || !is_full() ||
-                        reader_count == 0,
+                    &write_queue, may_write(is_atomic_write, iter->bytes) || reader_count == 0,
                     &pipe_lock) == -EINTR)
             {
                 if (!ret)
