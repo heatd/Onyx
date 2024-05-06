@@ -321,6 +321,7 @@ int dev_unregister_dev(gendev *dev, bool is_block)
 struct devfs_file
 {
     list_head_cpp<devfs_file> list_node;
+    list_head_cpp<devfs_file> global_list_node;
     list_head children;
     dev_t dev;
     mode_t mode;
@@ -328,13 +329,13 @@ struct devfs_file
     const cul::string name;
 
     constexpr devfs_file(const cul::string &name, dev_t dev, mode_t mode, ino_t inode)
-        : list_node{this}, dev{dev}, mode{mode}, ino{inode}, name{name}
+        : list_node{this}, global_list_node{this}, dev{dev}, mode{mode}, ino{inode}, name{name}
     {
         INIT_LIST_HEAD(&children);
     }
 
     constexpr devfs_file(dev_t dev, mode_t mode, ino_t inode)
-        : list_node{this}, dev{dev}, mode{mode}, ino{inode}, name{}
+        : list_node{this}, global_list_node{this}, dev{dev}, mode{mode}, ino{inode}, name{}
     {
         INIT_LIST_HEAD(&children);
     }
@@ -345,12 +346,32 @@ struct devfs_file
 // List of devfs_registration objects
 static constinit struct devfs_file devfs_root = {
     0, S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH, DEVFS_ROOT_INO};
+static list_head global_list = LIST_HEAD_INIT(global_list);
 static spinlock devfs_list_lock;
 static ino_t next_inode = DEVFS_RESERVED_INO_END;
+static unsigned long devfs_seq = 0;
+
+static void devfs_remove_entry(dev_t dev, mode_t mode)
+{
+    list_for_every (&global_list)
+    {
+        devfs_file *file = list_head_cpp<devfs_file>::self_from_list_head(l);
+        if (file->dev == dev && (file->mode & S_IFMT) == mode)
+        {
+            list_remove(&file->global_list_node);
+            list_remove(&file->list_node);
+            __atomic_add_fetch(&devfs_seq, 1, __ATOMIC_RELAXED);
+            delete file;
+            return;
+        }
+    }
+}
 
 static void devfs_add_entry(unique_ptr<devfs_file> &&file, devfs_file *dir = &devfs_root)
 {
     list_add_tail(&file->list_node, &dir->children);
+    list_add_tail(&file->global_list_node, &global_list);
+    __atomic_add_fetch(&devfs_seq, 1, __ATOMIC_RELAXED);
     file.release();
 }
 
@@ -444,6 +465,12 @@ int gendev::show_with_name(const char *custom_name, const char *path, mode_t mod
     return 0;
 }
 
+void gendev::hide()
+{
+    scoped_lock g{devfs_list_lock};
+    devfs_remove_entry(dev_, is_character_dev_ ? S_IFCHR : S_IFBLK);
+}
+
 int devfs_open(dentry *dir, const char *name, dentry *dentry);
 static off_t devfs_getdirent(struct dirent *buf, off_t off, struct file *file);
 
@@ -491,6 +518,39 @@ inode *devfs_create_inode(devfs_file *file, struct superblock *sb)
     return inode;
 }
 
+static int devfs_revalidate(struct dentry *dentry, unsigned int flags)
+{
+    unsigned long old_seq = dentry->d_private;
+    if (old_seq != READ_ONCE(devfs_seq))
+    {
+        scoped_lock g{devfs_list_lock};
+        devfs_file *dev_dir = (devfs_file *) dentry->d_parent->d_inode->i_helper;
+        DCHECK(dev_dir != nullptr);
+        list_for_every (&dev_dir->children)
+        {
+            auto dev_reg = list_head_cpp<devfs_file>::self_from_list_head(l);
+            if (dev_reg->name == dentry->d_name)
+            {
+                if (d_is_negative(dentry))
+                    return 0;
+                dentry->d_private = READ_ONCE(devfs_seq);
+                return 1;
+            }
+        }
+
+        if (d_is_negative(dentry))
+            dentry->d_private = READ_ONCE(devfs_seq);
+    }
+    else
+        return 1;
+
+    return d_is_negative(dentry) ? 1 : 0;
+}
+
+const struct dentry_operations devfs_dops = {
+    .d_revalidate = devfs_revalidate,
+};
+
 /**
  * @brief Open a file
  *
@@ -518,6 +578,8 @@ int devfs_open(dentry *dir, const char *name, dentry *dentry)
     }
 
     g.unlock();
+    dentry->d_ops = &devfs_dops;
+    dentry->d_private = READ_ONCE(devfs_seq);
 
     if (!reg)
         return -ENOENT;
