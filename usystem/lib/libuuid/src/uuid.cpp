@@ -146,3 +146,8 @@ int uuid_is_null(uuid_t uu)
             return 0;
     return 1;
 }
+
+void uuid_clear(uuid_t uu)
+{
+    memset(uu, 0, 16);
+}

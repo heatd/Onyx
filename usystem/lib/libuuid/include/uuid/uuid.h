@@ -26,6 +26,7 @@ void uuid_unparse_upper(const uuid_t uu, char *out);
 void uuid_unparse_lower(const uuid_t uu, char *out);
 int uuid_is_null(uuid_t uu);
 int uuid_parse(char *in, uuid_t uu);
+void uuid_clear(uuid_t uu);
 
 #ifdef __cplusplus
 }
