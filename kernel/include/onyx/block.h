@@ -118,7 +118,7 @@ struct blockdev
         struct list_head partition_head;
     };
 
-    constexpr blockdev() : mq_ops{nullptr}, block_size{}
+    constexpr blockdev() : mq_ops{nullptr}, block_size{}, nr_open_partitions{}, nr_busy{}
     {
         bdev_set_default_queue_properties(bdev_queue_properties);
         INIT_LIST_HEAD(&partition_list);

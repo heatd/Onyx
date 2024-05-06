@@ -23,10 +23,13 @@
 #include <onyx/mm/slab.h>
 #include <onyx/page.h>
 #include <onyx/page_iov.h>
+#include <onyx/process.h>
 #include <onyx/rwlock.h>
 #include <onyx/softirq.h>
 
 #include <uapi/fcntl.h>
+
+static int block_reread_parts(struct blockdev *bdev);
 
 unsigned int blkdev_ioctl(int request, void *argp, struct file *f)
 {
@@ -38,6 +41,11 @@ unsigned int blkdev_ioctl(int request, void *argp, struct file *f)
             u64 len = d->nr_sectors * d->sector_size;
             return copy_to_user(argp, &len, sizeof(u64));
         }
+
+        case BLKRRPART: {
+            return block_reread_parts(d);
+        }
+
         default:
             return -EINVAL;
     }
@@ -105,9 +113,7 @@ int blkdev_init(struct blockdev *blk)
     blk->block_size = blk->sector_size;
     auto ex = dev_register_blockdevs(0, 1, 0, &buffer_ops, cul::string{blk->name});
     if (ex.has_error())
-    {
         return ex.error();
-    }
 
     auto dev = ex.value();
 
@@ -136,8 +142,19 @@ int blkdev_init(struct blockdev *blk)
     ino->b_inode.i_helper = (void *) blk;
     blk->b_ino = (struct inode *) ino.release();
 
+    mutex_lock(&blk->bdev_lock);
     if (!blkdev_is_partition(blk))
         partition_setup_disk(blk);
+    mutex_unlock(&blk->bdev_lock);
+
+    if (blk->actual_blockdev)
+    {
+        /* We have a parent blockdev, add ourselves to it. */
+        struct blockdev *parent = blk->actual_blockdev;
+        MUST_HOLD_MUTEX(&parent->bdev_lock);
+        DCHECK(parent->actual_blockdev == nullptr);
+        list_add_tail(&blk->partition_head, &parent->partition_list);
+    }
 
     return 0;
 }
@@ -635,4 +652,45 @@ void bdev_release(struct file *f)
     struct blockdev *dev = (blockdev *) f->f_ino->i_helper;
     if (f->private_data == BDEV_PRIVATE_UNDO)
         bdev_release(dev);
+}
+
+static void bdev_teardown(struct blockdev *bdev)
+{
+    /* TODO: Currently, we're leaking blockdevs. This is /okay/ for the time being, but it really
+     * shouldn't be the case. We need to handle device teardown. */
+    list_remove(&bdev->partition_head);
+    CHECK(dev_unregister_dev(bdev->dev, true) == 0);
+}
+
+static int block_reread_parts(struct blockdev *bdev)
+{
+    int st = -EBUSY;
+
+    if (!is_root_user())
+        return -EPERM;
+
+    if (st = filemap_fdatasync(bdev->b_ino, 0, -1UL); st < 0)
+    {
+        pr_err("%s: sync failed: %d\n", bdev->name.c_str(), st);
+        return st;
+    }
+
+    mutex_lock(&bdev->bdev_lock);
+
+    if (bdev->nr_open_partitions > 0)
+        goto out;
+
+    /* Tear down the partitions and create new ones */
+    list_for_every_safe (&bdev->partition_list)
+    {
+        struct blockdev *child = container_of(l, struct blockdev, partition_head);
+        bdev_teardown(child);
+    }
+
+    partition_setup_disk(bdev);
+    st = 0;
+
+out:
+    mutex_unlock(&bdev->bdev_lock);
+    return st;
 }
