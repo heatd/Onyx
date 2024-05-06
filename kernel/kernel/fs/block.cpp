@@ -29,6 +29,15 @@
 
 #include <uapi/fcntl.h>
 
+#define HDIO_GETGEO 0x0301
+struct hd_geometry
+{
+    unsigned char heads;
+    unsigned char sectors;
+    unsigned short cylinders;
+    unsigned long start;
+};
+
 static int block_reread_parts(struct blockdev *bdev);
 
 unsigned int blkdev_ioctl(int request, void *argp, struct file *f)
@@ -44,6 +53,13 @@ unsigned int blkdev_ioctl(int request, void *argp, struct file *f)
 
         case BLKRRPART: {
             return block_reread_parts(d);
+        }
+
+        case HDIO_GETGEO: {
+            struct hd_geometry hg;
+            hg.cylinders = hg.sectors = hg.heads = 0;
+            hg.start = d->offset / d->sector_size;
+            return copy_to_user(argp, &hg, sizeof(hg));
         }
 
         default:
