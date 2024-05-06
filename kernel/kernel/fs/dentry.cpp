@@ -617,8 +617,9 @@ char *dentry_to_file_name(struct dentry *dentry)
 
         if (d->d_flags & DENTRY_FLAG_MOUNT_ROOT)
         {
+            // HACK!
             d = dentry_parent(d);
-            if (d)
+            while (d && d->d_flags & DENTRY_FLAG_MOUNTPOINT)
                 d = dentry_parent(d);
         }
         else
@@ -752,8 +753,8 @@ void dentry_rename(dentry *dent, const char *name, dentry *parent) NO_THREAD_SAF
     unsigned long oldi = dentry_ht.get_hashtable_index(old_hash);
     unsigned long newi = dentry_ht.get_hashtable_index(new_hash);
 
-    /* General strategy: We need the rename to be atomic. We'll do the name exchange under the lock.
-     * We must be careful wrt lock ordering. */
+    /* General strategy: We need the rename to be atomic. We'll do the name exchange under the
+     * lock. We must be careful wrt lock ordering. */
     if (name_length >= INLINE_NAME_MAX)
     {
         newname = (char *) memdup(name, name_length + 1);
