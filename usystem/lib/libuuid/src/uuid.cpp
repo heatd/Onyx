@@ -138,3 +138,11 @@ void uuid_generate_random(uuid_t out)
 
     set_version_and_variant(v4, 4, 1);
 }
+
+int uuid_is_null(uuid_t uu)
+{
+    for (int i = 0; i < 16; i++)
+        if (uu[i] != 0)
+            return 0;
+    return 1;
+}
