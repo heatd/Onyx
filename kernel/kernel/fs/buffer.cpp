@@ -423,8 +423,10 @@ static int block_prepare_write(struct inode *ino, struct page *page, size_t page
 
 extern int bdev_on_open(struct file *f);
 extern void bdev_release(struct file *f);
+extern unsigned int blkdev_ioctl(int request, void *argp, struct file *f);
 
 struct file_ops buffer_ops = {
+    .ioctl = blkdev_ioctl,
     .on_open = bdev_on_open,
     .readpage = bbuffer_readpage,
     .writepage = buffer_writepage,
