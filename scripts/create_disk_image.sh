@@ -98,10 +98,10 @@ else
 fi
 
 # mkfs has a confirmation prompt, so we need the yes
-yes | mkfs.$fs_type -b 1024 -t $fs_type -L "Onyx.root" -d new_fs "$part_name"
+yes | mkfs.$fs_type -b 4096 -t $fs_type -L "Onyx.root" -d new_fs "$part_name"
 
 if [ "$no_disk" = "0" ]; then
-    gpt_blocks="40"
+    gpt_blocks="10000"
     part_size=$(stat -c %s "$part_name")
     disk_size=$((part_size + gpt_blocks * 512))
     onyx_root_start_mb="1"
@@ -130,7 +130,9 @@ if [ "$no_disk" = "0" ]; then
     parted "$part_name" -- \
     mktable gpt \
     "$EXTRA_PARTITIONS" \
-    mkpart "Onyx.root" $fs_type ${onyx_root_start_mb}MiB ${root_partition_size}B
+    mkpart "Onyx.root" $fs_type ${onyx_root_start_mb}MiB ${root_partition_size}B \
+    mkpart "bbp" ext2 -2M -1M \
+    set 2 bios_grub on
 
     if [ "$bootable" = "efi" ]; then
         dd if=esp.part of=$part_name bs=1MiB seek=1 count=10 conv=notrunc
