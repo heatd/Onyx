@@ -50,6 +50,7 @@ public:
     constexpr writeback_dev(struct blockdev *bdev)
         : dirty_inodes{}, thread{}, thread_sem{}, bdev{bdev}
     {
+        spinlock_init(&__lock);
         INIT_LIST_HEAD(&dirty_inodes);
     }
 
