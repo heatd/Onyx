@@ -109,7 +109,7 @@ if [[ $TASK == "build+package" || $TASK == "package" ]]; then
 
 	find "$PKGDIR/usr/bin" -type f -exec sh -c '(! echo {} | grep -q .*.o) && (file {} | grep -q ELF)' \; -exec $STRIP {} \; || true
 	find "$PKGDIR/usr/libexec" -type f -exec sh -c '(! echo {} | grep -q .*.o) && (file {} | grep -q ELF)' \; -exec $STRIP {} \; || true
-	find "$PKGDIR/usr/lib" -type f -exec sh -c '(! echo {} | grep -q .*.o) && (file {} | grep -q ELF)' \; -exec $STRIP {} \; || true
+	find "$PKGDIR/usr/lib" -type f -exec sh -c '(! echo {} | grep -q .*.o) &&  && (! echo {} | grep -q .*grub.*) && (file {} | grep -q ELF)' \; -exec $STRIP {} \; || true
 	echo "done."
 
 	tar -cf ${PKGNAME}-${PKGVER}.tar -C $PKGDIR .

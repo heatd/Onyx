@@ -76,6 +76,6 @@ if [ "$strip_bins" = "1" ]; then
     dirs="usr/bin sbin usr/lib"
 
     for dir in $dirs; do
-        find "$MNTROOT/$dir" -type f -exec sh -c '(! echo {} | grep -q .*[.]o) && (file {} | grep ELF)' \; -exec "$STRIP" {} \; || true
+        find "$MNTROOT/$dir" -type f -exec sh -c '(! echo {} | grep -q .*[.]o) && (! echo {} | grep -q .*grub.*) && (file {} | grep ELF)' \; -exec "$STRIP" {} \; || true
     done
 fi
