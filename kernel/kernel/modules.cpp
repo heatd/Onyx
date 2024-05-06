@@ -383,7 +383,7 @@ static bool sym_iterate_each_module(struct module *m, void *p)
             /* Found it! This is the one! Return. */
             c->sym = s;
             c->module = m;
-
+            c->diff = 0;
             return false;
         }
         else
