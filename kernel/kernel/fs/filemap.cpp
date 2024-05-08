@@ -406,7 +406,7 @@ ssize_t filemap_write_iter(struct file *filp, size_t off, iovec_iter *iter, unsi
         off += copied;
         st += copied;
 
-        if (off > ino->i_size)
+        if (off > ino->i_size && !S_ISBLK(ino->i_mode))
             inode_set_size(ino, off);
     }
 
