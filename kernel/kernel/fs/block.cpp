@@ -676,12 +676,25 @@ void bdev_release(struct file *f)
         bdev_release(dev);
 }
 
+static int bdev_sync(struct blockdev *bdev)
+{
+    int st;
+    if (st = filemap_fdatasync(bdev->b_ino, 0, -1UL); st < 0)
+    {
+        pr_err("%s: sync failed: %d\n", bdev->name.c_str(), st);
+        return st;
+    }
+
+    return 0;
+}
+
 static void bdev_teardown(struct blockdev *bdev)
 {
     /* TODO: Currently, we're leaking blockdevs. This is /okay/ for the time being, but it really
      * shouldn't be the case. We need to handle device teardown. */
     list_remove(&bdev->partition_head);
     CHECK(dev_unregister_dev(bdev->dev, true) == 0);
+    bdev_sync(bdev);
 }
 
 static int block_reread_parts(struct blockdev *bdev)
@@ -691,16 +704,12 @@ static int block_reread_parts(struct blockdev *bdev)
     if (!is_root_user())
         return -EPERM;
 
-    if (st = filemap_fdatasync(bdev->b_ino, 0, -1UL); st < 0)
-    {
-        pr_err("%s: sync failed: %d\n", bdev->name.c_str(), st);
-        return st;
-    }
-
     mutex_lock(&bdev->bdev_lock);
 
     if (bdev->nr_open_partitions > 0)
         goto out;
+
+    bdev_sync(bdev);
 
     /* Tear down the partitions and create new ones */
     list_for_every_safe (&bdev->partition_list)
