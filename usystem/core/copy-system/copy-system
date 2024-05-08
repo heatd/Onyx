@@ -1,0 +1,23 @@
+#!/bin/sh
+set -e
+dest=$1
+if [ -z $dest ]; then
+    echo "Please specify the destination."
+    exit 1
+fi
+
+cp -r /usr $dest
+cp -r /sbin $dest
+cp -r /boot $dest
+cp -r /etc $dest
+mkdir $dest/root
+mkdir $dest/home
+mkdir $dest/dev
+mkdir $dest/proc
+mkdir $dest/var
+mkdir $dest/mnt
+mkdir $dest/sys
+mkdir $dest/tmp
+ln -sf usr/lib $dest/lib
+ln -sf usr/bin $dest/bin
+mount -t devfs none $dest/dev

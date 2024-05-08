@@ -1,0 +1,10 @@
+import("//build/package.gni")
+
+resource("copysys-script") {
+  sources = [ "copy-system" ]
+  outputs = [ "sbin/{{source_file_part}}" ]
+}
+
+package("copy-system") {
+  deps = [ ":copysys-script" ]
+}
