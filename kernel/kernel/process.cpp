@@ -23,6 +23,7 @@
 #include <onyx/futex.h>
 #include <onyx/gen/trace_vm.h>
 #include <onyx/id.h>
+#include <onyx/mm/slab.h>
 #include <onyx/mutex.h>
 #include <onyx/page.h>
 #include <onyx/panic.h>
@@ -193,6 +194,13 @@ process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *p
 
     if (!proc->pid_struct)
         return errno = ENOMEM, nullptr;
+
+    struct filesystem_root *root = (struct filesystem_root *) kmalloc(sizeof(*root), GFP_KERNEL);
+    if (!root)
+        return nullptr;
+    proc->ctx.root = root;
+    root->file = get_filesystem_root()->file;
+    fd_get(root->file);
 
     if (ctx)
     {

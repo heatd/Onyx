@@ -53,8 +53,9 @@ struct filesystem_root *get_filesystem_root()
     struct process *p = get_current_process();
     if (!p)
         return &boot_root;
+    DCHECK(p->ctx.root != nullptr);
 
-    return &boot_root;
+    return p->ctx.root;
 }
 
 struct file *get_fs_root()

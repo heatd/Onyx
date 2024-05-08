@@ -5,9 +5,11 @@
  *
  * SPDX-License-Identifier: MIT
  */
+#include <onyx/cred.h>
 #include <onyx/dentry.h>
 #include <onyx/file.h>
 #include <onyx/namei.h>
+#include <onyx/process.h>
 #include <onyx/user.h>
 
 #include <uapi/fcntl.h>
@@ -1380,4 +1382,22 @@ int sys_renameat(int olddirfd, const char *uoldpath, int newdirfd, const char *u
 int sys_rename(const char *oldpath, const char *newpath)
 {
     return sys_renameat(AT_FDCWD, oldpath, AT_FDCWD, newpath);
+}
+
+int sys_chroot(const char *upath)
+{
+    process *current;
+    user_string path;
+    if (auto res = path.from_user(upath); res.has_error())
+        return res.error();
+    if (!is_root_user())
+        return -EPERM;
+
+    auto ex = vfs_open(get_current_directory(), path.data(), O_RDONLY | O_DIRECTORY, 0000);
+    if (ex.has_error())
+        return ex.error();
+    current = get_current_process();
+    /* TODO: Solve root directory leaks (this is also racy!) */
+    current->ctx.root->file = ex.value();
+    return 0;
 }

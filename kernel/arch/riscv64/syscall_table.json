@@ -2706,5 +2706,17 @@
             ]
         ],
         "return_type": "int"
+    },
+    {
+        "name": "chroot",
+        "nr": 154,
+        "nr_args": 1,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ]
+        ],
+        "return_type": "int"
     }
 ]
