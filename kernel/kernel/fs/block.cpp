@@ -62,6 +62,10 @@ unsigned int blkdev_ioctl(int request, void *argp, struct file *f)
             return copy_to_user(argp, &hg, sizeof(hg));
         }
 
+        case BLKSSZGET: {
+            return copy_to_user(argp, &d->sector_size, sizeof(unsigned int));
+        }
+
         default:
             return -EINVAL;
     }
