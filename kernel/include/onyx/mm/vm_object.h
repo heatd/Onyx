@@ -20,12 +20,6 @@
 #include <onyx/radix.h>
 #endif
 
-enum vmo_type
-{
-    VMO_ANON = 0,
-    VMO_BACKED = 1
-};
-
 typedef enum vmo_status
 {
     VMO_STATUS_OK = 0,
@@ -68,7 +62,6 @@ struct vm_object_ops
  */
 struct vm_object
 {
-    enum vmo_type type;
     size_t size;
     unsigned long flags;
 
@@ -92,9 +85,8 @@ struct vm_object
     struct list_head mappings;
 
     struct inode *ino;
-    struct mutex page_lock;
-
-    struct mutex mapping_lock;
+    struct spinlock page_lock;
+    struct spinlock mapping_lock;
 
     unsigned long refcount;
 
@@ -117,7 +109,7 @@ struct vm_object
     template <typename Callable>
     bool for_every_mapping(Callable c)
     {
-        scoped_mutex g{mapping_lock};
+        scoped_lock g{mapping_lock};
 
         list_for_every (&mappings)
         {

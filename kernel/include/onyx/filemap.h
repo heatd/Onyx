@@ -54,10 +54,9 @@ ssize_t filemap_write_iter(struct file *filp, size_t off, struct iovec_iter *ite
 int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags, struct page **outp,
                       struct readahead_state *ra_state);
 
-void page_start_writeback(struct page *page, struct inode *inode)
-    EXCLUDES(inode->i_pages->page_lock) REQUIRES(page);
+void page_start_writeback(struct page *page, struct inode *inode) REQUIRES(page);
 
-void page_end_writeback(struct page *page, struct inode *inode) EXCLUDES(inode->i_pages->page_lock);
+void page_end_writeback(struct page *page, struct inode *inode);
 
 /**
  * @brief Marks a page dirty in the filemap

@@ -428,7 +428,7 @@ bool vm_mapping_requires_wb(struct vm_area_struct *reg)
 
 bool vm_mapping_is_anon(struct vm_area_struct *reg)
 {
-    return reg->vm_file == nullptr && reg->vm_obj->type == VMO_ANON;
+    return reg->vm_file == nullptr;
 }
 
 /**
@@ -622,88 +622,6 @@ int vm_clone_as(mm_address_space *addr_space, mm_address_space *original)
         original = &kernel_address_space;
     scoped_mutex g{original->vm_lock};
     return paging_clone_as(addr_space, original);
-}
-
-/**
- * @brief Remaps an entire vm_area_struct.
- * Using flags, it remaps the entire vm_area_struct by iterating through every page and
- * re-mapping it. If VM_FLUSH_RWX_VALID, rwx is a valid combination of permission
- * flags and rwx overrides the pre-existing permissions in the vm_area_struct (used in COW fork).
- * Should only be used by MM code.
- *
- * @param mapping A pointer to the vm_area_struct.
- * @param mm      A pointer to the destination mm_address_space.
- * @param flags Flag bitmask. Valid flags are (VM_FLUSH_RWX_VALID).
- * @param rwx If VM_FLUSH_RWX_VALID, rwx is a valid combination of permission flags.
- * @return 0 on success, negative error codes.
- */
-int vm_flush_mapping(struct vm_area_struct *mapping, struct mm_address_space *mm,
-                     unsigned int flags, unsigned int rwx)
-{
-    struct vm_object *vmo = mapping->vm_obj;
-
-    assert(vmo != nullptr);
-
-    size_t nr_pages = vm_size_to_pages(mapping->vm_end - mapping->vm_start);
-
-    size_t off = mapping->vm_offset;
-    scoped_mutex g{vmo->page_lock};
-    int err = 0;
-
-    int mapping_rwx = flags & VM_FLUSH_RWX_VALID ? (int) rwx : mapping->vm_flags;
-
-    if (mapping->vm_amap)
-    {
-        mapping->vm_amap->for_range(
-            [&](struct page *page, unsigned long pgoff) -> bool {
-                if (!__map_pages_to_vaddr(
-                        mm, (void *) (mapping->vm_start + (pgoff << PAGE_SHIFT) - off),
-                        page_to_phys(page), PAGE_SIZE, mapping_rwx))
-                {
-                    err = -ENOMEM;
-                    return false;
-                }
-
-                return true;
-            },
-            off >> PAGE_SHIFT);
-        return err;
-    }
-
-    vmo->for_every_page([&](struct page *p, size_t poff) -> bool {
-        if (poff >= off + (nr_pages << PAGE_SHIFT))
-            return false;
-        unsigned long reg_off = poff - off;
-        if (!__map_pages_to_vaddr(mm, (void *) (mapping->vm_start + reg_off), page_to_phys(p),
-                                  PAGE_SIZE, mapping_rwx))
-        {
-            err = -ENOMEM;
-            return false;
-        }
-        return true;
-    });
-
-    return err;
-}
-
-/**
- * @brief Remaps an entire vm_area_struct.
- * Using flags, it remaps the entire vm_area_struct by iterating through every page and
- * re-mapping it. If VM_FLUSH_RWX_VALID, rwx is a valid combination of permission
- * flags and rwx overrides the pre-existing permissions in the vm_area_struct (used in COW fork).
- * Should only be used by MM code.
- *
- * @param entry A pointer to the vm_area_struct.
- * @param flags Flag bitmask. Valid flags are (VM_FLUSH_RWX_VALID).
- * @param rwx If VM_FLUSH_RWX_VALID, rwx is a valid combination of permission flags.
- * @return 0 on success, negative error codes.
- */
-int vm_flush(struct vm_area_struct *entry, unsigned int flags, unsigned int rwx)
-{
-#if DEBUG_VM_FLUSH
-    printk("Has process? %s\n", p ? "true" : "false");
-#endif
-    return vm_flush_mapping(entry, entry->vm_mm, flags, rwx);
 }
 
 struct fork_iteration

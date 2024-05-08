@@ -456,21 +456,6 @@ bool is_mapping_shared(struct vm_area_struct *region);
  */
 bool is_file_backed(struct vm_area_struct *region);
 
-#define VM_FLUSH_RWX_VALID (1 << 0)
-/**
- * @brief Remaps an entire vm_area_struct.
- * Using flags, it remaps the entire vm_area_struct by iterating through every page and
- * re-mapping it. If VM_FLUSH_RWX_VALID, rwx is a valid combination of permission
- * flags and rwx overrides the pre-existing permissions in the vm_area_struct (used in COW fork).
- * Should only be used by MM code.
- *
- * @param entry A pointer to the vm_area_struct.
- * @param flags Flag bitmask. Valid flags are (VM_FLUSH_RWX_VALID).
- * @param rwx If VM_FLUSH_RWX_VALID, rwx is a valid combination of permission flags.
- * @return 0 on success, negative error codes.
- */
-int vm_flush(struct vm_area_struct *entry, unsigned int flags, unsigned int rwx);
-
 /**
  * @brief Traverses the kernel's memory map and prints information.
  *

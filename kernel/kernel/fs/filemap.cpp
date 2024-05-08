@@ -245,6 +245,10 @@ ssize_t filemap_read_iter(struct file *filp, size_t off, iovec_iter *iter, unsig
     return st;
 }
 
+/* Spinlocks are not capabilities, yet... */
+#undef EXCLUDES
+#define EXCLUDES(...)
+
 /**
  * @brief Marks a page dirty in the filemap
  *
@@ -264,7 +268,7 @@ void filemap_mark_dirty(struct inode *ino, struct page *page, size_t pgoff) REQU
     trace_filemap_dirty_page(ino->i_inode, ino->i_dev, pgoff);
     /* Set the DIRTY mark, for writeback */
     {
-        scoped_mutex g{ino->i_pages->page_lock};
+        scoped_lock g{ino->i_pages->page_lock};
         ino->i_pages->vm_pages.set_mark(pgoff, FILEMAP_MARK_DIRTY);
     }
 
@@ -418,7 +422,7 @@ static int filemap_get_tagged_pages(struct inode *inode, unsigned int mark, unsi
     EXCLUDES(inode->i_pages->page_lock)
 {
     int batchidx = 0;
-    scoped_mutex g{inode->i_pages->page_lock};
+    scoped_lock g{inode->i_pages->page_lock};
     radix_tree::cursor cursor =
         radix_tree::cursor::from_range_on_marks(&inode->i_pages->vm_pages, mark, start, end);
 
@@ -438,7 +442,7 @@ void page_start_writeback(struct page *page, struct inode *inode)
     EXCLUDES(inode->i_pages->page_lock) REQUIRES(page)
 {
     struct vm_object *obj = inode->i_pages;
-    scoped_mutex g{obj->page_lock};
+    scoped_lock g{obj->page_lock};
     obj->vm_pages.set_mark(page->pageoff, FILEMAP_MARK_WRITEBACK);
     page_set_writeback(page);
     page_ref(page);
@@ -448,9 +452,9 @@ void page_start_writeback(struct page *page, struct inode *inode)
 void page_end_writeback(struct page *page, struct inode *inode) EXCLUDES(inode->i_pages->page_lock)
 {
     struct vm_object *obj = inode->i_pages;
-    // TODO: Race!
-    // scoped_mutex g{obj->page_lock};
+    spin_lock(&obj->page_lock);
     obj->vm_pages.clear_mark(page->pageoff, FILEMAP_MARK_WRITEBACK);
+    spin_unlock(&obj->page_lock);
     page_clear_writeback(page);
     page_unref(page);
     dec_page_stat(page, NR_WRITEBACK);
@@ -462,7 +466,7 @@ static void page_clear_dirty(struct page *page) REQUIRES(page)
     /* TODO: Add mmap walking and write-protect those mappings */
     struct vm_object *obj = page->owner;
     __atomic_and_fetch(&page->flags, ~PAGE_FLAG_DIRTY, __ATOMIC_RELEASE);
-    scoped_mutex g{obj->page_lock};
+    scoped_lock g{obj->page_lock};
     obj->vm_pages.clear_mark(page->pageoff, FILEMAP_MARK_DIRTY);
     /* TODO: I don't know if this (clearing the dirty mark *here*) is safe with regards to potential
      * sync()'s running at the same time.
