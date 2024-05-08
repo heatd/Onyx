@@ -108,6 +108,8 @@ unique_ptr<block_inode> block_inode::create(const struct blockdev *dev, flush::w
         return nullptr;
     inode.i_dev = dev->dev->dev();
     inode.i_sb = bdev_sb;
+    inode.i_size = dev->nr_sectors * dev->sector_size;
+    inode.i_pages->size = ALIGN_TO(inode.i_size, PAGE_SIZE);
     ino->b_wbdev = wbdev;
 
     superblock_add_inode(bdev_sb, &inode);
