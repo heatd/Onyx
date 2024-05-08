@@ -520,6 +520,7 @@ inode *devfs_create_inode(devfs_file *file, struct superblock *sb)
 
 static int devfs_revalidate(struct dentry *dentry, unsigned int flags)
 {
+    struct inode *inode = dentry->d_inode;
     unsigned long old_seq = dentry->d_private;
     if (old_seq != READ_ONCE(devfs_seq))
     {
@@ -531,6 +532,8 @@ static int devfs_revalidate(struct dentry *dentry, unsigned int flags)
             auto dev_reg = list_head_cpp<devfs_file>::self_from_list_head(l);
             if (dev_reg->name == dentry->d_name)
             {
+                if (inode && (dev_reg->dev != inode->i_dev || dev_reg->mode != inode->i_mode))
+                    continue;
                 if (d_is_negative(dentry))
                     return 0;
                 dentry->d_private = READ_ONCE(devfs_seq);
