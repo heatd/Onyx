@@ -41,6 +41,7 @@ struct ioctx
     struct file *cwd CPP_DFLINIT;
     struct spinlock fdlock CPP_DFLINIT;
     struct fd_table __rcu *table CPP_DFLINIT;
+    struct filesystem_root *root;
     mode_t umask CPP_DFLINIT;
 };
 
