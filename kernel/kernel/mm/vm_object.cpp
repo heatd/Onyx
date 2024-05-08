@@ -20,12 +20,11 @@
 
 #include <onyx/utility.hpp>
 
-vm_object::vm_object()
-    : type{VMO_ANON}, size{0}, flags{0}, priv{nullptr}, ops{nullptr}, ino{nullptr}, refcount{1}
+vm_object::vm_object() : size{0}, flags{0}, priv{nullptr}, ops{nullptr}, ino{nullptr}, refcount{1}
 {
     INIT_LIST_HEAD(&mappings);
-    mutex_init(&page_lock);
-    mutex_init(&mapping_lock);
+    spinlock_init(&page_lock);
+    spinlock_init(&mapping_lock);
     INIT_LIST_HEAD(&private_list);
     spinlock_init(&private_lock);
 }
@@ -79,8 +78,6 @@ vm_object *vmo_create_phys(size_t size)
         return nullptr;
 
     vmo->ops = &vmo_phys_ops;
-    vmo->type = VMO_ANON;
-
     return vmo;
 }
 
@@ -125,7 +122,7 @@ vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page
     vmo_status_t st = VMO_STATUS_OK;
     struct page *p = nullptr;
 
-    scoped_mutex g{vmo->page_lock};
+    scoped_lock g{vmo->page_lock};
 
 #if 1
     if (vmo->ino && !(vmo->flags & VMO_FLAG_DEVICE_MAPPING))
@@ -133,20 +130,14 @@ vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page
 #endif
 
     if (off >= vmo->size)
-    {
         return VMO_STATUS_BUS_ERROR;
-    }
 
     auto ex = vmo->vm_pages.get(off >> PAGE_SHIFT);
     if (ex.has_value())
-    {
         p = (struct page *) ex.value();
-    }
 
     if (!p)
-    {
         st = VMO_STATUS_NON_EXISTENT;
-    }
 
     if (st == VMO_STATUS_OK)
     {
@@ -180,7 +171,7 @@ void vmo_destroy(vm_object *vmo)
  */
 int vmo_add_page(size_t off, struct page *p, vm_object *vmo)
 {
-    scoped_mutex g{vmo->page_lock};
+    scoped_lock g{vmo->page_lock};
     if (!vmo->insert_page_unlocked(off, p))
         return -ENOMEM;
     return 0;
@@ -196,7 +187,7 @@ int vmo_add_page(size_t off, struct page *p, vm_object *vmo)
  */
 struct page *vmo_add_page_safe(size_t off, struct page *p, vm_object *vmo)
 {
-    scoped_mutex g{vmo->page_lock};
+    scoped_lock g{vmo->page_lock};
     return vmo->insert_page_unlocked(off, p);
 }
 
@@ -208,16 +199,10 @@ struct page *vmo_add_page_safe(size_t off, struct page *p, vm_object *vmo)
  */
 bool vmo_unref(vm_object *vmo)
 {
-    if (__sync_sub_and_fetch(&vmo->refcount, 1) == 0)
+    if (__atomic_sub_fetch(&vmo->refcount, 1, __ATOMIC_RELEASE) == 0)
     {
-        // printk("Deleting vmo %p with size %lx\n", vmo, vmo->size);
         vmo_destroy(vmo);
         return true;
-    }
-    else
-    {
-        // printk("Unrefed vmo %p with size %lx\n", vmo, vmo->size);
-        // printk("Vmo ino: %p Refs: %lu\n", vmo->ino, vmo->refcount);
     }
 
     return false;
@@ -240,7 +225,8 @@ static inline bool is_excluded(size_t lower, size_t upper, size_t x)
 int vmo_purge_pages(size_t lower_bound, size_t upper_bound, unsigned int flags, vm_object *second,
                     vm_object *vmo)
 {
-    scoped_mutex g{vmo->page_lock, !(flags & PURGE_DO_NOT_LOCK)};
+    if (!(flags & PURGE_DO_NOT_LOCK))
+        spin_lock(&vmo->page_lock);
 
     bool should_free = flags & PURGE_SHOULD_FREE;
     bool exclusive = flags & PURGE_EXCLUDE;
@@ -261,9 +247,16 @@ int vmo_purge_pages(size_t lower_bound, size_t upper_bound, unsigned int flags, 
 
         if (compare_function(lower_bound, upper_bound, off))
         {
+            /* Release the vm object lock, then lock the page (and wait for writeback etc), then
+             * reacquire it (to 0 the entry out). There's a question here regarding data structure
+             * safety, but as we serialize on lock_page for page removal, it should be okay. The
+             * radix tree will not meaningfully change. */
+            spin_unlock(&vmo->page_lock);
             lock_page(p);
             page_wait_writeback(p);
             p->owner = nullptr;
+            /* Re-locking in an interleaved fashion *should* work here */
+            spin_lock(&vmo->page_lock);
             cursor.store(0);
             unlock_page(p);
 
@@ -284,6 +277,9 @@ int vmo_purge_pages(size_t lower_bound, size_t upper_bound, unsigned int flags, 
 
         cursor.advance();
     }
+
+    if (!(flags & PURGE_DO_NOT_LOCK))
+        spin_unlock(&vmo->page_lock);
 
     return 0;
 }
@@ -336,7 +332,7 @@ void vmo_ref(vm_object *vmo)
  */
 void vmo_assign_mapping(vm_object *vmo, vm_area_struct *region)
 {
-    scoped_mutex g{vmo->mapping_lock};
+    scoped_lock g{vmo->mapping_lock};
 
     list_add_tail(&region->vm_objhead, &vmo->mappings);
 }
@@ -349,7 +345,7 @@ void vmo_assign_mapping(vm_object *vmo, vm_area_struct *region)
  */
 void vmo_remove_mapping(vm_object *vmo, vm_area_struct *region)
 {
-    scoped_mutex g{vmo->mapping_lock};
+    scoped_lock g{vmo->mapping_lock};
 
     list_remove(&region->vm_objhead);
 }
@@ -398,7 +394,7 @@ static int vmo_punch_range(vm_object *vmo, unsigned long start, unsigned long le
  */
 int vmo_truncate(vm_object *vmo, unsigned long size, unsigned long flags)
 {
-    scoped_mutex g{vmo->page_lock};
+    scoped_lock g{vmo->page_lock};
     const auto original_size = size;
 
     size = cul::align_up2(size, PAGE_SIZE);

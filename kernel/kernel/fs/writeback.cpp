@@ -95,7 +95,7 @@ static int writeback_inode(struct inode *inode, unsigned int sync_flags)
         inode->i_flags &= (~flags | I_DIRTY);
 
         /* Re-dirty if FILEMAP_MARK_DIRTY is set */
-        /* XXX We're skipping the lock here, because we can't grab it as it is a mutex */
+        scoped_lock g2{inode->i_pages->page_lock};
         if (inode->i_pages->vm_pages.mark_is_set(FILEMAP_MARK_DIRTY))
             inode->i_flags |= I_DATADIRTY;
         // Ok, now we have the proper I_DIRTY flags set. end_inode_writeback will deal with
