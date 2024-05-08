@@ -1,12 +1,13 @@
 group("core") {
-    deps = [
-        "devmgr",
-        "init",
-        "toybox",
-        "utils",
-        "coredumpd",
-        "bootstrap-init",
-        "flamegraph",
-        "trace"
-    ]
+  deps = [
+    "bootstrap-init",
+    "copy-system",
+    "coredumpd",
+    "devmgr",
+    "flamegraph",
+    "init",
+    "toybox",
+    "trace",
+    "utils",
+  ]
 }
