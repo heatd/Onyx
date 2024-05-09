@@ -225,9 +225,6 @@ vmo_status_t vmo_get(struct vm_object *vmo, size_t off, unsigned int flags, stru
  */
 bool vmo_unref(struct vm_object *vmo);
 
-// TODO: This should be removed and replaced by vmo_truncate.
-int vmo_resize(size_t new_size, struct vm_object *vmo);
-
 /**
  * @brief Destroys the VMO, disregarding any refcount.
  * This should not be called arbitrarily and only in cases where it's certain

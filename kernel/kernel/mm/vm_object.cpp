@@ -208,78 +208,86 @@ bool vmo_unref(vm_object *vmo)
     return false;
 }
 
-static inline bool is_included(size_t lower, size_t upper, size_t x)
+static int vm_obj_get_pages(struct vm_object *obj, unsigned long start, unsigned long end,
+                            struct page **batch, int batchlen)
 {
-    return x >= lower && x < upper;
-}
-
-static inline bool is_excluded(size_t lower, size_t upper, size_t x)
-{
-    return x < lower || x > upper;
-}
-
-#define PURGE_SHOULD_FREE (1 << 0)
-#define PURGE_EXCLUDE     (1 << 1)
-#define PURGE_DO_NOT_LOCK (1 << 2)
-
-int vmo_purge_pages(size_t lower_bound, size_t upper_bound, unsigned int flags, vm_object *second,
-                    vm_object *vmo)
-{
-    if (!(flags & PURGE_DO_NOT_LOCK))
-        spin_lock(&vmo->page_lock);
-
-    bool should_free = flags & PURGE_SHOULD_FREE;
-    bool exclusive = flags & PURGE_EXCLUDE;
-
-    assert(!(should_free && second != nullptr));
-
-    bool (*compare_function)(size_t, size_t, size_t) = is_included;
-
-    if (exclusive)
-        compare_function = is_excluded;
-
-    auto cursor = radix_tree::cursor::from_index(&vmo->vm_pages);
+    int batchidx = 0;
+    scoped_lock g{obj->page_lock};
+    radix_tree::cursor cursor = radix_tree::cursor::from_range(&obj->vm_pages, start, end);
 
     while (!cursor.is_end())
     {
-        struct page *p = (page *) cursor.get();
-        size_t off = cursor.current_idx() << PAGE_SHIFT;
-
-        if (compare_function(lower_bound, upper_bound, off))
-        {
-            /* Release the vm object lock, then lock the page (and wait for writeback etc), then
-             * reacquire it (to 0 the entry out). There's a question here regarding data structure
-             * safety, but as we serialize on lock_page for page removal, it should be okay. The
-             * radix tree will not meaningfully change. */
-            spin_unlock(&vmo->page_lock);
-            lock_page(p);
-            page_wait_writeback(p);
-            p->owner = nullptr;
-            /* Re-locking in an interleaved fashion *should* work here */
-            spin_lock(&vmo->page_lock);
-            cursor.store(0);
-            unlock_page(p);
-
-            struct page *old_p = p;
-
-            if (should_free)
-            {
-                vmo->unmap_page(off);
-                if (!vmo->ops->free_page)
-                    free_page(old_p);
-                else
-                    vmo->ops->free_page(vmo, old_p);
-            }
-
-            if (second)
-                vmo_add_page(off, old_p, second);
-        }
-
+        if (!batchlen--)
+            break;
+        struct page *page = (struct page *) cursor.get();
+        batch[batchidx++] = page;
+        page_ref(page);
         cursor.advance();
     }
 
-    if (!(flags & PURGE_DO_NOT_LOCK))
-        spin_unlock(&vmo->page_lock);
+    return batchidx;
+}
+
+static void vm_obj_truncate_out(struct vm_object *obj, struct page *const *batch, int batchlen)
+{
+    spin_lock(&obj->page_lock);
+    for (int i = 0; i < batchlen; i++)
+    {
+        struct page *pg = batch[i];
+        /* Not sure if we're doing the correct exclusion between truncation... */
+        CHECK(pg->owner == obj);
+        int st = obj->vm_pages.store(pg->pageoff, 0);
+        CHECK(st == 0);
+    }
+
+    spin_unlock(&obj->page_lock);
+}
+
+#define VMOBJ_TRUNCATE_BATCH_SIZE 16
+static int vmo_purge_pages(unsigned long start, unsigned long end,
+                           struct vm_object *vmo) NO_THREAD_SAFETY_ANALYSIS
+{
+    /* TSA: Clang cries when looking at the batch locking code. It is provably correct */
+    struct page *pagebatch[VMOBJ_TRUNCATE_BATCH_SIZE];
+    int found = 0;
+    /* We deal with pages, not offsets */
+    start >>= PAGE_SHIFT;
+    end >>= PAGE_SHIFT;
+    end -= 1;
+    while ((found = vm_obj_get_pages(vmo, start, end, pagebatch, VMOBJ_TRUNCATE_BATCH_SIZE)) > 0)
+    {
+        /* Start the next iteration from the following page */
+        start = pagebatch[found - 1]->pageoff + 1;
+
+        /* Lock all the pages (in a batch), then wait for writeback etc, then truncate them from the
+         * page cache, then unlock. This requires minimal locking. Locking the page prevents races
+         * between truncation and other operations that require a stable reference to the
+         * pagecache (e.g mapping, writing and reading from disk). */
+        for (int i = 0; i < found; i++)
+        {
+            lock_page(pagebatch[i]);
+            page_wait_writeback(pagebatch[i]);
+        }
+
+        vm_obj_truncate_out(vmo, pagebatch, found);
+
+        for (int i = 0; i < found; i++)
+        {
+            /* Page has been truncated from the page cache, no writeback is ongoing, now unlock
+             * and free. */
+            struct page *old_p = pagebatch[i];
+            vmo->unmap_page(old_p->pageoff << PAGE_SHIFT);
+            unlock_page(old_p);
+            /* Unref it twice, once for the vm_obj_get_pages, and another for the page cache
+             * reference */
+            page_unref(old_p);
+            dec_page_stat(old_p, NR_FILE);
+            if (!vmo->ops->free_page)
+                free_page(old_p);
+            else
+                vmo->ops->free_page(vmo, old_p);
+        }
+    }
 
     return 0;
 }
@@ -302,16 +310,6 @@ void vm_object::unmap_page(size_t offset)
                vma->vm_objhead.end == vma->vm_offset + vma->vm_end - vma->vm_start);
         vm_mmu_unmap(vma->vm_mm, (void *) (vma->vm_start + offset - vma->vm_offset), 1);
     }
-}
-
-int vmo_resize(size_t new_size, vm_object *vmo)
-{
-    bool needs_to_purge = new_size < vmo->size;
-    vmo->size = new_size;
-    if (needs_to_purge)
-        vmo_purge_pages(0, new_size, PURGE_SHOULD_FREE | PURGE_EXCLUDE, nullptr, vmo);
-
-    return 0;
 }
 
 /**
@@ -371,13 +369,7 @@ bool vmo_is_shared(vm_object *vmo)
  */
 int vmo_punch_range(vm_object *vmo, unsigned long start, unsigned long length)
 {
-    return vmo_purge_pages(start, start + length, PURGE_SHOULD_FREE, nullptr, vmo);
-}
-
-static int vmo_punch_range(vm_object *vmo, unsigned long start, unsigned long length,
-                           unsigned int flags)
-{
-    return vmo_purge_pages(start, start + length, PURGE_SHOULD_FREE | flags, nullptr, vmo);
+    return vmo_purge_pages(start, start + length, vmo);
 }
 
 /**
@@ -405,9 +397,11 @@ int vmo_truncate(vm_object *vmo, unsigned long size, unsigned long flags)
         if (truncating_down)
         {
             auto hole_start = size;
-            auto hole_length = vmo->size - size;
-            /* We've already locked up there */
-            vmo_punch_range(vmo, hole_start, hole_length, PURGE_DO_NOT_LOCK);
+            unsigned long hole_end = vmo->size;
+            /* Ugh, this is ugly and possibly unsafe. We've already locked up there... */
+            g.unlock();
+            vmo_purge_pages(hole_start, cul::align_up2(hole_end, PAGE_SHIFT), vmo);
+            g.lock();
         }
     }
 
@@ -430,16 +424,5 @@ int vmo_truncate(vm_object *vmo, unsigned long size, unsigned long flags)
 
 vm_object::~vm_object()
 {
-    auto cursor = radix_tree::cursor::from_index(&vm_pages);
-
-    while (!cursor.is_end())
-    {
-        auto page = (struct page *) cursor.get();
-        dec_page_stat(page, NR_FILE);
-        if (ops && ops->free_page)
-            ops->free_page(this, page);
-        else
-            free_page(page);
-        cursor.advance();
-    }
+    vmo_truncate(this, 0, 0);
 }
