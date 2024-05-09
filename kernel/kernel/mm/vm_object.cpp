@@ -22,7 +22,7 @@
 
 vm_object::vm_object() : size{0}, flags{0}, priv{nullptr}, ops{nullptr}, ino{nullptr}, refcount{1}
 {
-    INIT_LIST_HEAD(&mappings);
+    interval_tree_root_init(&mappings);
     spinlock_init(&page_lock);
     spinlock_init(&mapping_lock);
     INIT_LIST_HEAD(&private_list);
@@ -291,17 +291,17 @@ int vmo_purge_pages(size_t lower_bound, size_t upper_bound, unsigned int flags, 
  */
 void vm_object::unmap_page(size_t offset)
 {
-    for_every_mapping([offset](vm_area_struct *reg) -> bool {
-        auto off = (off_t) offset;
-        const off_t vmregion_end = reg->vm_offset + (vma_pages(reg) << PAGE_SHIFT);
-        if (reg->vm_offset <= off && vmregion_end > off)
-        {
-            // Unmap it
-            vm_mmu_unmap(reg->vm_mm, (void *) (reg->vm_start + offset - reg->vm_offset), 1);
-        }
-
-        return true;
-    });
+    scoped_lock g{mapping_lock};
+    struct vm_area_struct *vma;
+    for_intervals_in_range(&mappings, vma, struct vm_area_struct, vm_objhead, offset, offset)
+    {
+        const off_t vmregion_end = vma->vm_offset + (vma_pages(vma) << PAGE_SHIFT);
+        DCHECK(vma->vm_objhead.start <= offset && vma->vm_objhead.end > offset);
+        DCHECK(vma->vm_offset <= (off_t) offset && vmregion_end > (off_t) offset);
+        DCHECK(vma->vm_offset == (off_t) vma->vm_objhead.start &&
+               vma->vm_objhead.end == vma->vm_offset + vma->vm_end - vma->vm_start);
+        vm_mmu_unmap(vma->vm_mm, (void *) (vma->vm_start + offset - vma->vm_offset), 1);
+    }
 }
 
 int vmo_resize(size_t new_size, vm_object *vmo)
@@ -321,7 +321,7 @@ int vmo_resize(size_t new_size, vm_object *vmo)
  */
 void vmo_ref(vm_object *vmo)
 {
-    __sync_add_and_fetch(&vmo->refcount, 1);
+    __atomic_add_fetch(&vmo->refcount, 1, __ATOMIC_ACQUIRE);
 }
 
 /**
@@ -333,8 +333,7 @@ void vmo_ref(vm_object *vmo)
 void vmo_assign_mapping(vm_object *vmo, vm_area_struct *region)
 {
     scoped_lock g{vmo->mapping_lock};
-
-    list_add_tail(&region->vm_objhead, &vmo->mappings);
+    interval_tree_insert(&vmo->mappings, &region->vm_objhead);
 }
 
 /**
@@ -346,8 +345,7 @@ void vmo_assign_mapping(vm_object *vmo, vm_area_struct *region)
 void vmo_remove_mapping(vm_object *vmo, vm_area_struct *region)
 {
     scoped_lock g{vmo->mapping_lock};
-
-    list_remove(&region->vm_objhead);
+    interval_tree_remove(&vmo->mappings, &region->vm_objhead);
 }
 
 /**

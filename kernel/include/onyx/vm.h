@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <sys/mman.h>
 
+#include <onyx/interval_tree.h>
 #include <onyx/list.h>
 #include <onyx/mutex.h>
 #include <onyx/paging.h>
@@ -144,7 +145,7 @@ struct vm_area_struct
     off_t vm_offset;
     struct vm_object *vm_obj;
     struct amap *vm_amap;
-    struct list_head vm_objhead;
+    struct interval_tree_node vm_objhead;
 };
 
 static inline unsigned long vma_pages(const struct vm_area_struct *vma)

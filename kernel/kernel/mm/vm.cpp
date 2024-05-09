@@ -978,6 +978,10 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 
         area->vm_offset = off;
         area->vm_file = file;
+        area->vm_objhead.start = area->vm_offset;
+        area->vm_objhead.end = area->vm_offset + area->vm_end - area->vm_start;
+        area->vm_objhead.max_end = 0;
+
         fd_get(file);
 
         struct inode *ino = file->f_ino;
