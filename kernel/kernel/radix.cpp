@@ -26,7 +26,7 @@ using namespace radix;
 #ifdef RADIX_TREE_DEBUG
 
 #ifdef RADIX_TREE_DYNAMIC_DEBUG
-static bool should_print_debug = false;
+bool should_print_debug = false;
 #define should_print() (should_print_debug)
 #define sdbg()         (should_print_debug = true)
 #define edbg()         (should_print_debug = false)
@@ -36,11 +36,11 @@ static bool should_print_debug = false;
 #define edbg()
 #endif
 
-#define DPRINTF(fmt, ...)                           \
-    do                                              \
-    {                                               \
-        if (should_print())                         \
-            printk(fmt __VA_OPT__(, ) __VA_ARGS__); \
+#define DPRINTF(fmt, ...)                                     \
+    do                                                        \
+    {                                                         \
+        if (should_print())                                   \
+            printk(KERN_WARN fmt __VA_OPT__(, ) __VA_ARGS__); \
     } while (0);
 #else
 #define DPRINTF(...)
@@ -501,7 +501,7 @@ void radix_tree::cursor::move_index()
     auto next =
         (current_location + (curr_level_inc * (current_index - old_index))) & -curr_level_inc;
 
-    if (next < current_location)
+    if (next < current_location || next > end)
     {
         // Oops, overflow! We ran out of table
         current = nullptr;
@@ -524,6 +524,7 @@ void radix_tree::cursor::advance()
     // We can be entering this function when not-in-the-bottom, so calculate the starting increment
     // for current_location.
     move_index();
+    DPRINTF("start current %p, location %lx\n", current, current_location);
 
     while (current && current_location <= end)
     {
@@ -563,7 +564,6 @@ void radix_tree::cursor::advance()
         }
 
         // Advance positions in the current table
-        DPRINTF("level inc for depth %d: %lx\n", depth, level_increment);
         move_index();
     }
 
