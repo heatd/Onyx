@@ -2435,9 +2435,6 @@ int __vm_expand_mapping(struct vm_area_struct *region, size_t new_size)
         return -ENOMEM;
 
     region->vm_end += diff;
-    if (region->vm_obj)
-        vmo_resize(new_size, region->vm_obj);
-
     increment_vm_stat(region->vm_mm, virtual_memory_size, diff);
     if (is_mapping_shared(region))
         increment_vm_stat(region->vm_mm, shared_set_size, diff);
