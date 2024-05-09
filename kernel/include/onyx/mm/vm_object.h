@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 - 2023 Pedro Falcato
+ * Copyright (c) 2018 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -13,9 +13,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <onyx/interval_tree.h>
 #include <onyx/list.h>
 #include <onyx/mutex.h>
 #include <onyx/page.h>
+
 #ifdef __cplusplus
 #include <onyx/radix.h>
 #endif
@@ -82,7 +84,7 @@ struct vm_object
     const struct vm_object_ops *ops;
 
     /* VM objects hold pointers to their mapping(s) */
-    struct list_head mappings;
+    struct interval_tree_root mappings;
 
     struct inode *ino;
     struct spinlock page_lock;
@@ -110,11 +112,11 @@ struct vm_object
     bool for_every_mapping(Callable c)
     {
         scoped_lock g{mapping_lock};
+        struct vm_area_struct *vma;
 
-        list_for_every (&mappings)
+        for_intervals_in_range(&mappings, vma, struct vm_area_struct, vm_objhead, 0, -1UL)
         {
-            auto reg = container_of(l, vm_area_struct, vm_objhead);
-            if (!c(reg))
+            if (!c(vma))
                 return false;
         }
 
