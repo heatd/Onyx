@@ -109,12 +109,34 @@ check:
             blk);
 }
 
+static void touch_mapping(void *ptr, unsigned int size, unsigned int pagesize)
+{
+    for (unsigned int i = 0; i < size; i += pagesize)
+    {
+        volatile uint8_t *ptr8 = (volatile uint8_t *) ptr;
+        ptr8[i];
+    }
+}
+
 static void truncation_test(int fd, void *ptr, unsigned int filesize, unsigned int pagesize,
                             unsigned int to_trunc, unsigned int bsize)
 {
     ssize_t st;
     char buffer[to_trunc];
     unsigned int newsize = filesize - to_trunc;
+
+    /* We're going to need this later (MAP_PRIVATE truncation test) */
+    void *uncow = mmap(NULL, filesize, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+    if (ptr == MAP_FAILED)
+        err(1, "mmap");
+    void *cow = mmap(NULL, filesize, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+    if (ptr == MAP_FAILED)
+        err(1, "mmap");
+
+    touch_mapping(uncow, filesize, pagesize);
+    touch_mapping(cow, filesize, pagesize);
+    *(volatile int *) (cow + newsize + 4) = 10;
+
     if (ftruncate(fd, newsize) < 0)
         err(1, "ftruncate");
 
@@ -142,7 +164,9 @@ static void truncation_test(int fd, void *ptr, unsigned int filesize, unsigned i
         file_check_unmapped(fd, filesize - to_trunc, bsize);
 
     /* Make sure that 1) both read() and mmap agree on the contents and 2) the contents are
-     * completely zeroed.
+     * completely zeroed. Also test that un-CoW'd MAP_PRIVATE pages get shot down correctly (not
+     * required by POSIX, but required by traditional MAP_PRIVATE implementation semantics), and
+     * that CoW'd pages do not.
      */
     st = pread(fd, buffer, to_trunc, newsize);
     if (st < 0)
@@ -156,6 +180,18 @@ static void truncation_test(int fd, void *ptr, unsigned int filesize, unsigned i
         if (buffer[i] != 0)
             errx(1, "truncate did not free pages/blocks correctly");
     }
+
+    if (memcmp(buffer, uncow + newsize, to_trunc))
+        errx(1, "read() and MAP_PRIVATE mmap contents don't match (rmap is broken?)");
+#ifndef __linux__
+    /* Okay, Linux doesn't seem to preserve CoW'd MAP_PRIVATE memory in this case. This is weird,
+     * but seems to be allowed by POSIX. FreeBSD does the obvious, so does Onyx. */
+    if (!memcmp(buffer, cow + newsize, to_trunc))
+        errx(1, "read() and cow'd MAP_PRIVATE mmap contents match (rmap is broken?)");
+#endif
+
+    munmap(cow, filesize);
+    munmap(uncow, filesize);
 
     /* Restore the pattern */
     memset(ptr + newsize, 0xad, to_trunc);
@@ -199,6 +235,7 @@ static void do_trunc_tests(const char *filename)
         err(1, "mmap");
     /* Test 1: SIGBUS works before truncation */
     test_sigbus_works(ptr, filesize);
+    touch_mapping(ptr, filesize, pagesize);
 
     /* Test 2: Whole page/block truncation */
     test_whole_page(fd, ptr, filesize, pagesize, blksize);

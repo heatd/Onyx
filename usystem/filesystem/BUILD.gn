@@ -5,5 +5,6 @@ group("filesystem") {
     "fs_tests",
     "fsstress",
     "fsx",
+    "trunctests",
   ]
 }
