@@ -413,10 +413,11 @@ int ext2_truncate(size_t len, inode *ino)
      * This makes sure no further readpages can get through. Then, truncate the page cache; this
      * will make sure no further references to these to-be-freed blocks are available. Lastly, work
      * on the on-disk filesystem. */
+    size_t old_size = ino->i_size;
     ino->i_size = len;
     vmo_truncate(ino->i_pages, len, 0);
 
-    if (ino->i_size > len)
+    if (old_size > len)
     {
         if ((st = ext2_free_space(len, ino)) < 0)
             goto out;
