@@ -209,65 +209,45 @@ expected<ext2_block_no, int> ext2_create_path(struct inode *ino, ext2_block_no b
     return dest_block_nr;
 }
 
+int ext2_map_page(struct page *page, size_t off, struct inode *ino);
+
 int ext2_prepare_write(inode *ino, struct page *page, size_t page_off, size_t offset, size_t len)
 {
-    auto end = offset + len;
-    auto sb = ext2_superblock_from_inode(ino);
-
-    auto bufs = block_buf_from_page(page);
-
-    auto base_block = page_off / sb->block_size;
-    auto nr_blocks = PAGE_SIZE / sb->block_size;
+    unsigned long end = offset + len;
+    ext2_superblock *sb = ext2_superblock_from_inode(ino);
+    block_buf *bufs = block_buf_from_page(page);
+    unsigned long base_block = page_off / sb->block_size;
+    int allocated = 0;
+    offset &= -sb->block_size;
 
     /* Handle pages that haven't been mapped yet */
-    if (!bufs)
+    if (!page_flag_set(page, PAGE_FLAG_BUFFER))
     {
-        auto curr_off = 0;
-
-        for (size_t i = 0; i < nr_blocks; i++)
-        {
-            struct block_buf *b = nullptr;
-            if (!(b = page_add_blockbuf(page, curr_off)))
-            {
-                page_destroy_block_bufs(page);
-                return -ENOMEM;
-            }
-
-            // printk("Adding block for page offset %u\n", b->page_off);
-
-            b->block_nr = EXT2_FILE_HOLE_BLOCK;
-            b->block_size = sb->block_size;
-            b->dev = sb->s_bdev;
-
-            curr_off += sb->block_size;
-        }
-
-        bufs = block_buf_from_page(page);
+        if (int st = ext2_map_page(page, page_off, ino); st < 0)
+            return st;
     }
 
     while (bufs)
     {
         if (bufs->page_off >= offset && bufs->page_off < end)
         {
-            auto relative_block = bufs->page_off / sb->block_size;
-
-            auto block_number = bufs->block_nr;
-
+            unsigned int relative_block = bufs->page_off / sb->block_size;
+            sector_t block_number = bufs->block_nr;
             if (block_number == EXT2_FILE_HOLE_BLOCK)
             {
                 auto res = ext2_create_path(ino, base_block + relative_block, sb);
-                // printk("creating path for poff %u file off %lu\n", bufs->page_off, offset);
-
                 if (res.has_error())
                     return res.error();
-
                 bufs->block_nr = res.value();
             }
         }
 
+        if (bufs->block_nr != 0)
+            allocated++;
         bufs = bufs->next;
     }
 
+    DCHECK(allocated > 0);
     return 0;
 }
 
@@ -427,10 +407,6 @@ int ext2_free_space(size_t new_len, inode *ino)
 int ext2_truncate(size_t len, inode *ino)
 {
     int st = 0;
-
-#if 0
-	printk("truncating to %lu\n", len);
-#endif
 
     if (ino->i_size > len)
     {

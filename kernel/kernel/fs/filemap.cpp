@@ -460,7 +460,7 @@ void page_end_writeback(struct page *page, struct inode *inode) EXCLUDES(inode->
     dec_page_stat(page, NR_WRITEBACK);
 }
 
-static void page_clear_dirty(struct page *page) REQUIRES(page)
+void page_clear_dirty(struct page *page) REQUIRES(page)
 {
     /* Clear the dirty flag for IO */
     /* TODO: Add mmap walking and write-protect those mappings */
@@ -521,7 +521,7 @@ int filemap_writepages(struct inode *inode,
         /* Start the next iteration from the following page */
         start = pageoff + 1;
 
-        if (page_flag_set(page, PAGE_FLAG_WRITEBACK))
+        if (page_flag_set(page, PAGE_FLAG_WRITEBACK) || !page_flag_set(page, PAGE_FLAG_DIRTY))
         {
             unlock_page(page);
             page_unref(page);

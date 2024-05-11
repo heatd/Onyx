@@ -156,6 +156,8 @@ void block_buf_tear_down_assoc(struct vm_object *object);
 
 void page_remove_block_buf(struct page *page, size_t offset, size_t end);
 
+void buffer_free_page(struct vm_object *vmo, struct page *page);
+
 __END_CDECLS
 
 #ifdef __cplusplus

@@ -123,6 +123,7 @@ ssize_t ext2_writepage(page *page, size_t off, inode *ino) REQUIRES(page) RELEAS
 {
     auto buf = block_buf_from_page(page);
     auto sb = ext2_superblock_from_inode(ino);
+    unsigned int nr_ios = 0;
     DCHECK(buf != nullptr);
 
     page_start_writeback(page, ino);
@@ -134,6 +135,12 @@ ssize_t ext2_writepage(page *page, size_t off, inode *ino) REQUIRES(page) RELEAS
         v->page = buf->this_page;
         DCHECK(buf->this_page == page);
         v->page_off = buf->page_off;
+        if (buf->block_nr == EXT2_FILE_HOLE_BLOCK)
+        {
+            buf = buf->next;
+            continue;
+        }
+
         buf->flags |= BLOCKBUF_FLAG_WRITEBACK;
 
 #if 0
@@ -148,10 +155,15 @@ ssize_t ext2_writepage(page *page, size_t off, inode *ino) REQUIRES(page) RELEAS
             return -EIO;
         }
 
+        nr_ios++;
         buf = buf->next;
     }
 
     unlock_page(page);
+
+    /* For this to have been a valid dirty page, we must've been able to submit more than 0 ios (a
+     * page full of zero blocks cannot be dirty, as prepare_write must be called). */
+    CHECK(nr_ios > 0);
 
     return PAGE_SIZE;
 }
@@ -413,6 +425,13 @@ int ext2_open(struct dentry *dir, const char *name, struct dentry *dentry)
     return 0;
 }
 
+void ext2_truncate_partial(struct vm_object *vmobj, struct page *page, size_t offset, size_t len);
+
+static const struct vm_object_ops ext2_vm_obj_ops = {
+    .free_page = buffer_free_page,
+    .truncate_partial = ext2_truncate_partial,
+};
+
 struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
                                      ext2_superblock *sb)
 {
@@ -421,9 +440,7 @@ struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
     struct inode *ino = inode_create(has_vmo);
 
     if (!ino)
-    {
         return nullptr;
-    }
 
     /* Possible when mounting the root inode */
     if (sb)
@@ -441,7 +458,10 @@ struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
 
     ino->i_size = EXT2_CALCULATE_SIZE64(inode);
     if (has_vmo)
+    {
         ino->i_pages->size = ino->i_size;
+        ino->i_pages->ops = &ext2_vm_obj_ops;
+    }
 
     ino->i_uid = inode->i_uid;
     ino->i_gid = inode->i_gid;
@@ -975,3 +995,34 @@ static unsigned int ext2_ioctl(int request, void *argp, struct file *file)
     return -ENOTTY;
 }
 
+void ext2_truncate_partial(struct vm_object *vmobj, struct page *page, size_t offset, size_t len)
+    REQUIRES(page)
+{
+    struct inode *ino = vmobj->ino;
+    const ext2_superblock *sb = ext2_superblock_from_inode(ino);
+    unsigned int start_block_off = cul::align_up2(offset, sb->block_size);
+    unsigned int end_block_off = cul::align_down2(offset + len, sb->block_size);
+    bool has_blocks = false;
+
+    DCHECK(page_locked(page));
+    if (!page_flag_set(page, PAGE_FLAG_BUFFER))
+        return;
+
+    for (struct block_buf *b = (struct block_buf *) page->priv; b != nullptr; b = b->next)
+    {
+        if (b->page_off >= start_block_off && b->page_off < end_block_off)
+        {
+            /* "Unmap" the block. This is now a hole */
+            b->block_nr = 0;
+        }
+
+        if (b->block_nr != 0)
+            has_blocks = true;
+    }
+
+    if (!has_blocks)
+    {
+        /* If we have no blocks, clean the dirty page */
+        page_clear_dirty(page);
+    }
+}

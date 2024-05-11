@@ -91,6 +91,10 @@ struct block_inode
     static unique_ptr<block_inode> create(const struct blockdev *dev, flush::writeback_dev *wbdev);
 };
 
+static const struct vm_object_ops block_vm_obj_ops = {
+    .free_page = buffer_free_page,
+};
+
 /**
  * @brief Create a new blockdev inode
  *
@@ -110,6 +114,7 @@ unique_ptr<block_inode> block_inode::create(const struct blockdev *dev, flush::w
     inode.i_sb = bdev_sb;
     inode.i_size = dev->nr_sectors * dev->sector_size;
     inode.i_pages->size = ALIGN_TO(inode.i_size, PAGE_SIZE);
+    inode.i_pages->ops = &block_vm_obj_ops;
     ino->b_wbdev = wbdev;
 
     superblock_add_inode(bdev_sb, &inode);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 - 2023 Pedro Falcato
+ * Copyright (c) 2018 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -62,7 +62,7 @@ vmo_status_t vmo_commit_phys_page(vm_object *vmo, size_t off, page **ppage)
     return VMO_STATUS_OK;
 }
 
-const struct vm_object_ops vmo_phys_ops = {.commit = vmo_commit_phys_page};
+const struct vm_object_ops vmo_phys_ops = {};
 
 /**
  * @brief Creates a new anonymously backed VMO.
@@ -372,6 +372,16 @@ int vmo_punch_range(vm_object *vmo, unsigned long start, unsigned long length)
     return vmo_purge_pages(start, start + length, vmo);
 }
 
+static void vm_obj_truncate_page(struct vm_object *obj, struct page *page, size_t offset,
+                                 size_t len)
+{
+    if (obj->ops->truncate_partial)
+        obj->ops->truncate_partial(obj, page, offset, len);
+    /* Zero out the truncated bit */
+    u8 *start = (u8 *) PAGE_TO_VIRT(page) + offset;
+    memset(start, 0, len);
+}
+
 /**
  * @brief Truncates the VMO.
  *
@@ -385,40 +395,51 @@ int vmo_punch_range(vm_object *vmo, unsigned long start, unsigned long length)
 int vmo_truncate(vm_object *vmo, unsigned long size, unsigned long flags)
 {
     scoped_lock g{vmo->page_lock};
-    const auto original_size = size;
 
+    unsigned long actual_size = size;
     size = cul::align_up2(size, PAGE_SIZE);
-    // printk("New size: %lx\n", size);
-
-    if (!(flags & VMO_TRUNCATE_DONT_PUNCH))
+    if (actual_size < vmo->size)
     {
-        auto truncating_down = size < vmo->size;
+        /* Truncating down. Release pages from the page cache */
+        auto hole_start = size;
+        unsigned long hole_end = vmo->size;
+        /* Ugh, this is ugly and possibly unsafe. We've already locked up there... */
+        g.unlock();
+        vmo_purge_pages(hole_start, cul::align_up2(hole_end, PAGE_SHIFT), vmo);
 
-        if (truncating_down)
+        if (size - actual_size)
         {
-            auto hole_start = size;
-            unsigned long hole_end = vmo->size;
-            /* Ugh, this is ugly and possibly unsafe. We've already locked up there... */
-            g.unlock();
-            vmo_purge_pages(hole_start, cul::align_up2(hole_end, PAGE_SHIFT), vmo);
-            g.lock();
+            /* If we have some size between i_size and the vmo's page aligned size, take care of
+             * cleaning that bit up. */
+            struct page *page;
+            unsigned long page_offset = cul::align_down2(actual_size, PAGE_SIZE);
+            unsigned int in_page_off = actual_size - page_offset;
+            for (;;)
+            {
+                vmo_status_t st = vmo_get(vmo, page_offset, 0, &page);
+                if (st != VMO_STATUS_OK)
+                    break;
+                /* Truncate in-page from actual_size to PAGE_SIZE */
+                lock_page(page);
+                if (page->owner != vmo)
+                {
+                    /* Truncated already, retry */
+                    unlock_page(page);
+                    page_unref(page);
+                    continue;
+                }
+
+                vm_obj_truncate_page(vmo, page, in_page_off, PAGE_SIZE - in_page_off);
+                unlock_page(page);
+                page_unref(page);
+                break;
+            }
         }
-    }
 
-    auto last_page_off = cul::align_down2(original_size, PAGE_SIZE);
-    auto ex = vmo->vm_pages.get(last_page_off >> PAGE_SHIFT);
-    struct page *last_page = (struct page *) ex.value_or((unsigned long) nullptr);
-
-    if (last_page)
-    {
-        // Truncate the last page by zeroing the trailing bytes
-        auto to_zero = size - original_size;
-        const auto page_off = original_size & (PAGE_SIZE - 1);
-        memset((unsigned char *) PAGE_TO_VIRT(last_page) + page_off, 0, to_zero);
+        g.lock();
     }
 
     vmo->size = size;
-
     return 0;
 }
 

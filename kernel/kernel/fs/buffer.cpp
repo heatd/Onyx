@@ -617,3 +617,10 @@ void block_buf_forget_inode(struct block_buf *buf)
         break;
     }
 }
+
+void buffer_free_page(struct vm_object *vmo, struct page *page)
+{
+    if (page_flag_set(page, PAGE_FLAG_BUFFER))
+        page_destroy_block_bufs(page);
+    free_page(page);
+}
