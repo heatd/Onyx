@@ -15,6 +15,8 @@
 
 #ifdef __linux__
 #include <linux/fs.h>
+#elif defined(__onyx__)
+#include <uapi/fs.h>
 #endif
 
 static void usage(void)
