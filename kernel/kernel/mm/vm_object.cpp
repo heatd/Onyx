@@ -383,6 +383,33 @@ static void vm_obj_truncate_page(struct vm_object *obj, struct page *page, size_
     memset(start, 0, len);
 }
 
+static void vm_obj_truncate_up(struct vm_object *obj, size_t new_size)
+{
+    /* Check if 1) both sizes land on the same page and 2) both sizes land on different blocks. If
+     * so, we need to clean the page in the VM. */
+    struct inode *inode = obj->ino;
+    unsigned long bsize = inode->i_sb->s_block_size;
+    unsigned long old_size = obj->size;
+
+    /* We don't need to clean the page ever, for PAGE_SIZE blocks */
+    if (bsize == PAGE_SIZE || (new_size & -PAGE_SIZE) != (old_size & -PAGE_SIZE))
+        return;
+
+    if ((old_size & -bsize) < (new_size & -bsize))
+    {
+        struct page *page;
+        vmo_status_t status = vmo_get(obj, new_size & -PAGE_SIZE, 0, &page);
+        if (status == VMO_STATUS_OK)
+        {
+            lock_page(page);
+            if (page->owner == obj)
+                vm_obj_clean_page(obj, page);
+            unlock_page(page);
+            page_unref(page);
+        }
+    }
+}
+
 /**
  * @brief Truncates the VMO.
  *
@@ -435,6 +462,12 @@ int vmo_truncate(vm_object *vmo, unsigned long size, unsigned long flags)
             }
         }
 
+        g.lock();
+    }
+    else
+    {
+        g.unlock();
+        vm_obj_truncate_up(vmo, size);
         g.lock();
     }
 
