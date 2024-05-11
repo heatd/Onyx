@@ -978,9 +978,6 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 
         area->vm_offset = off;
         area->vm_file = file;
-        area->vm_objhead.start = area->vm_offset;
-        area->vm_objhead.end = area->vm_offset + area->vm_end - area->vm_start;
-        area->vm_objhead.max_end = 0;
 
         fd_get(file);
 
@@ -1131,10 +1128,7 @@ void vm_copy_region(const struct vm_area_struct *source, struct vm_area_struct *
     dest->vm_mm = source->vm_mm;
     dest->vm_obj = source->vm_obj;
     if (dest->vm_obj)
-    {
-        vmo_assign_mapping(dest->vm_obj, dest);
         vmo_ref(dest->vm_obj);
-    }
 
     if (copy_amap)
     {
@@ -1187,6 +1181,11 @@ static struct vm_area_struct *vm_split_region(struct mm_address_space *as,
         newr->vm_end = addr;
         vma->vm_start = addr;
         vma->vm_offset += region_off;
+        if (vma->vm_obj)
+        {
+            vm_obj_reassign_mapping(vma->vm_obj, vma);
+            vmo_assign_mapping(vma->vm_obj, newr);
+        }
     }
     else
     {
@@ -1194,6 +1193,8 @@ static struct vm_area_struct *vm_split_region(struct mm_address_space *as,
         newr->vm_end = vma->vm_end;
         newr->vm_offset += region_off;
         vma->vm_end = addr;
+        if (vma->vm_obj)
+            vmo_assign_mapping(vma->vm_obj, newr);
     }
 
     vm_insert_region(as, newr);
