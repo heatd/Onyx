@@ -293,6 +293,16 @@ static int vmo_purge_pages(unsigned long start, unsigned long end,
     return 0;
 }
 
+static inline void vm_obj_assert_interval_tree(size_t pgoff, struct vm_area_struct *vma)
+{
+    const off_t vmregion_end = vma->vm_offset + (vma_pages(vma) << PAGE_SHIFT);
+    DCHECK(vma->vm_objhead.start <= pgoff && vma->vm_objhead.end >= pgoff);
+    DCHECK(vma->vm_offset <= (off_t) (pgoff << PAGE_SHIFT) &&
+           vmregion_end > (off_t) (pgoff << PAGE_SHIFT));
+    DCHECK((vma->vm_offset >> PAGE_SHIFT) == (off_t) vma->vm_objhead.start &&
+           vma->vm_objhead.end == (vma->vm_offset >> PAGE_SHIFT) + vma_pages(vma) - 1);
+}
+
 /**
  * @brief Unmaps a single page from every mapping
  *
@@ -302,14 +312,12 @@ void vm_object::unmap_page(size_t offset)
 {
     scoped_lock g{mapping_lock};
     struct vm_area_struct *vma;
+    offset >>= PAGE_SHIFT;
     for_intervals_in_range(&mappings, vma, struct vm_area_struct, vm_objhead, offset, offset)
     {
-        const off_t vmregion_end = vma->vm_offset + (vma_pages(vma) << PAGE_SHIFT);
-        DCHECK(vma->vm_objhead.start <= offset && vma->vm_objhead.end > offset);
-        DCHECK(vma->vm_offset <= (off_t) offset && vmregion_end > (off_t) offset);
-        DCHECK(vma->vm_offset == (off_t) vma->vm_objhead.start &&
-               vma->vm_objhead.end == vma->vm_offset + vma->vm_end - vma->vm_start);
-        vm_mmu_unmap(vma->vm_mm, (void *) (vma->vm_start + offset - vma->vm_offset), 1);
+        vm_obj_assert_interval_tree(offset, vma);
+        vm_mmu_unmap(vma->vm_mm, (void *) (vma->vm_start + (offset << PAGE_SHIFT) - vma->vm_offset),
+                     1);
     }
 }
 
@@ -329,10 +337,12 @@ void vmo_ref(vm_object *vmo)
  * @param vmo The target VMO.
  * @param region The mapping's region.
  */
-void vmo_assign_mapping(vm_object *vmo, vm_area_struct *region)
+void vmo_assign_mapping(vm_object *vmo, vm_area_struct *vma)
 {
     scoped_lock g{vmo->mapping_lock};
-    interval_tree_insert(&vmo->mappings, &region->vm_objhead);
+    vma->vm_objhead.start = vma->vm_offset >> PAGE_SHIFT;
+    vma->vm_objhead.end = (vma->vm_offset >> PAGE_SHIFT) + vma_pages(vma) - 1;
+    interval_tree_insert(&vmo->mappings, &vma->vm_objhead);
 }
 
 /**
@@ -345,6 +355,15 @@ void vmo_remove_mapping(vm_object *vmo, vm_area_struct *region)
 {
     scoped_lock g{vmo->mapping_lock};
     interval_tree_remove(&vmo->mappings, &region->vm_objhead);
+}
+
+void vm_obj_reassign_mapping(struct vm_object *vm_obj, struct vm_area_struct *vma)
+{
+    scoped_lock g{vm_obj->mapping_lock};
+    interval_tree_remove(&vm_obj->mappings, &vma->vm_objhead);
+    vma->vm_objhead.start = vma->vm_offset >> PAGE_SHIFT;
+    vma->vm_objhead.end = (vma->vm_offset >> PAGE_SHIFT) + vma_pages(vma) - 1;
+    interval_tree_insert(&vm_obj->mappings, &vma->vm_objhead);
 }
 
 /**
@@ -427,19 +446,20 @@ int vmo_truncate(vm_object *vmo, unsigned long size, unsigned long flags)
     if (size < vmo->size)
     {
         /* Truncating down. Release pages from the page cache */
-        auto hole_start = size;
-        unsigned long hole_end = vmo->size;
+        auto hole_start = cul::align_up2(size, PAGE_SIZE);
+        unsigned long hole_end = cul::align_up2(vmo->size, PAGE_SIZE);
         /* Ugh, this is ugly and possibly unsafe. We've already locked up there... */
         g.unlock();
-        vmo_purge_pages(hole_start, cul::align_up2(hole_end, PAGE_SHIFT), vmo);
+        vmo_purge_pages(hole_start, hole_end, vmo);
 
-        if (cul::align_up2(size, PAGE_SIZE) - size)
+        if (size & (PAGE_SIZE - 1))
         {
             /* If we have some size between i_size and the vmo's page aligned size, take care of
              * cleaning that bit up. */
             struct page *page;
-            unsigned long page_offset = size >> PAGE_SHIFT;
-            unsigned int in_page_off = size - page_offset;
+            unsigned long page_offset = size & -PAGE_SIZE;
+            unsigned int in_page_off = size & (PAGE_SIZE - 1);
+            DCHECK(in_page_off <= PAGE_SIZE);
             for (;;)
             {
                 vmo_status_t st = vmo_get(vmo, page_offset, 0, &page);
@@ -484,14 +504,10 @@ void vm_obj_clean_page(struct vm_object *obj, struct page *page)
 {
     scoped_lock g{obj->mapping_lock};
     struct vm_area_struct *vma;
-    unsigned long offset = page->pageoff << PAGE_SHIFT;
+    unsigned long offset = page->pageoff;
     for_intervals_in_range(&obj->mappings, vma, struct vm_area_struct, vm_objhead, offset, offset)
     {
-        const off_t vmregion_end = vma->vm_offset + (vma_pages(vma) << PAGE_SHIFT);
-        DCHECK(vma->vm_objhead.start <= offset && vma->vm_objhead.end > offset);
-        DCHECK(vma->vm_offset <= (off_t) offset && vmregion_end > (off_t) offset);
-        DCHECK(vma->vm_offset == (off_t) vma->vm_objhead.start &&
-               vma->vm_objhead.end == vma->vm_offset + vma->vm_end - vma->vm_start);
-        vm_wp_page(vma->vm_mm, (void *) (vma->vm_start + offset - vma->vm_offset));
+        vm_obj_assert_interval_tree(offset, vma);
+        vm_wp_page(vma->vm_mm, (void *) (vma->vm_start + (offset << PAGE_SHIFT) - vma->vm_offset));
     }
 }

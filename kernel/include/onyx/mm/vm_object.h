@@ -272,6 +272,8 @@ struct page *vmo_add_page_safe(size_t off, struct page *p, struct vm_object *vmo
 
 void vm_obj_clean_page(struct vm_object *obj, struct page *page);
 
+void vm_obj_reassign_mapping(struct vm_object *vm_obj, struct vm_area_struct *vma);
+
 __END_CDECLS
 
 #endif
