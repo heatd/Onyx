@@ -15,8 +15,8 @@
 
 #include <onyx/interval_tree.h>
 #include <onyx/list.h>
-#include <onyx/mutex.h>
 #include <onyx/page.h>
+#include <onyx/rwlock.h>
 
 #ifdef __cplusplus
 #include <onyx/radix.h>
@@ -95,6 +95,7 @@ struct vm_object
     /* See fs/buffer.cpp for example usage of these struct members */
     struct spinlock private_lock;
     struct list_head private_list;
+    struct rwlock truncate_lock;
 
 #ifdef __cplusplus
 

@@ -72,6 +72,7 @@ int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags, struc
 
     if (!(flags & (FIND_PAGE_NO_READPAGE | FIND_PAGE_NO_RA)) && ra_state && !S_ISBLK(ino->i_mode))
     {
+        rw_lock_read(&ino->i_pages->truncate_lock);
         /* If we found PAGE_FLAG_READAHEAD, kick off more IO */
         if (page_flag_set(p, PAGE_FLAG_READAHEAD))
         {
@@ -85,6 +86,7 @@ int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags, struc
             filemap_do_readahead_sync(ino, ra_state, pgoff);
             DCHECK(!(flags & FIND_PAGE_NO_READPAGE));
         }
+        rw_unlock_read(&ino->i_pages->truncate_lock);
     }
 
     /* If the page is not up to date, read it in, but first lock the page. All pages under IO have
@@ -93,6 +95,7 @@ int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags, struc
     if (!(flags & FIND_PAGE_NO_READPAGE) && !page_flag_set(p, PAGE_FLAG_UPTODATE))
     {
         DCHECK(ino->i_fops->readpage != nullptr);
+        rw_lock_read(&ino->i_pages->truncate_lock);
 
         lock_page(p);
         if (!page_flag_set(p, PAGE_FLAG_UPTODATE))
@@ -103,6 +106,8 @@ int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags, struc
             if (st2 < 0)
                 st = st2;
         }
+
+        rw_unlock_read(&ino->i_pages->truncate_lock);
 
         if (flags & FIND_PAGE_LOCK)
             goto out;
