@@ -24,17 +24,12 @@ TEST(ProcHandle, CanOpenHandle)
 TEST(ProcHandle, CanGetName)
 {
     int handle = onx_process_open(getpid(), ONX_HANDLE_CLOEXEC);
-
     ASSERT_NE(handle, -1);
 
     char name_buf[NAME_MAX + 1];
-
     ASSERT_NE(onx_handle_query(handle, name_buf, NAME_MAX + 1, PROCESS_GET_NAME, nullptr, nullptr),
               -1);
-
     std::string name{name_buf};
-
-    ASSERT_EQ(name, std::string{"kernel_api_tests"});
-
+    ASSERT_EQ(name, std::string{"kernel_api_test"});
     onx_process_close(handle);
 }
