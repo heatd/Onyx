@@ -44,7 +44,7 @@ vm_object *vmo_create(size_t size, void *priv)
         return nullptr;
 
     /* Default to backed */
-    vmo->size = cul::align_up2(size, PAGE_SIZE);
+    vmo->size = size;
     vmo->priv = priv;
 
     return vmo;
@@ -127,7 +127,7 @@ vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page
 
 #if 1
     if (vmo->ino && !(vmo->flags & VMO_FLAG_DEVICE_MAPPING))
-        vmo->size = cul::max(vmo->size, cul::align_up2(off + 1, PAGE_SIZE));
+        vmo->size = cul::max(vmo->size, off + 1);
 #endif
 
     if (off >= vmo->size)
@@ -397,9 +397,7 @@ int vmo_truncate(vm_object *vmo, unsigned long size, unsigned long flags)
 {
     scoped_lock g{vmo->page_lock};
 
-    unsigned long actual_size = size;
-    size = cul::align_up2(size, PAGE_SIZE);
-    if (actual_size < vmo->size)
+    if (size < vmo->size)
     {
         /* Truncating down. Release pages from the page cache */
         auto hole_start = size;
@@ -408,13 +406,13 @@ int vmo_truncate(vm_object *vmo, unsigned long size, unsigned long flags)
         g.unlock();
         vmo_purge_pages(hole_start, cul::align_up2(hole_end, PAGE_SHIFT), vmo);
 
-        if (size - actual_size)
+        if (cul::align_up2(size, PAGE_SIZE) - size)
         {
             /* If we have some size between i_size and the vmo's page aligned size, take care of
              * cleaning that bit up. */
             struct page *page;
-            unsigned long page_offset = cul::align_down2(actual_size, PAGE_SIZE);
-            unsigned int in_page_off = actual_size - page_offset;
+            unsigned long page_offset = size >> PAGE_SHIFT;
+            unsigned int in_page_off = size - page_offset;
             for (;;)
             {
                 vmo_status_t st = vmo_get(vmo, page_offset, 0, &page);

@@ -113,7 +113,7 @@ unique_ptr<block_inode> block_inode::create(const struct blockdev *dev, flush::w
     inode.i_dev = dev->dev->dev();
     inode.i_sb = bdev_sb;
     inode.i_size = dev->nr_sectors * dev->sector_size;
-    inode.i_pages->size = ALIGN_TO(inode.i_size, PAGE_SIZE);
+    inode.i_pages->size = inode.i_size;
     inode.i_pages->ops = &block_vm_obj_ops;
     ino->b_wbdev = wbdev;
 

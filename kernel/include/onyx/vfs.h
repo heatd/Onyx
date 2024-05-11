@@ -316,7 +316,7 @@ struct filesystem_root *get_filesystem_root(void);
 static inline void inode_set_size(struct inode *ino, size_t size)
 {
     ino->i_size = size;
-    ino->i_pages->size = (size_t) page_align_up((void *) size);
+    ino->i_pages->size = size;
     inode_mark_dirty(ino, I_DIRTY);
 }
 
