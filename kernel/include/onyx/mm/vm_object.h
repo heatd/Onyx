@@ -49,8 +49,8 @@ struct page;
 struct vm_object;
 struct vm_object_ops
 {
-    vmo_status_t (*commit)(struct vm_object *vmo, size_t offset, struct page **ppage);
     void (*free_page)(struct vm_object *vmo, struct page *page);
+    void (*truncate_partial)(struct vm_object *vmobj, struct page *page, size_t offset, size_t len);
 };
 
 #define VMO_FLAG_LOCK_FUTURE_PAGES (1 << 0)

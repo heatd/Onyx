@@ -93,6 +93,8 @@ struct readpages_state
  */
 struct page *readpages_next_page(struct readpages_state *state);
 
+void page_clear_dirty(struct page *page) REQUIRES(page);
+
 __END_CDECLS
 
 #endif

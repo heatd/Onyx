@@ -122,30 +122,14 @@ vmo_status_t vmo_inode_commit(struct vm_object *vmo, size_t off, struct page **p
     return VMO_STATUS_OK;
 }
 
-void inode_free_page(struct vm_object *vmo, struct page *page)
-{
-#if 0
-    struct page_cache_block *b = page->cache;
-    if (page->flags & PAGE_FLAG_DIRTY)
-    {
-        flush_sync_one(&b->fobj);
-    }
-#endif
-
-    if (page_flag_set(page, PAGE_FLAG_BUFFER))
-        page_destroy_block_bufs(page);
-    free_page(page);
-}
-
-const struct vm_object_ops inode_vmo_ops = {.commit = vmo_inode_commit,
-                                            .free_page = inode_free_page};
+static const struct vm_object_ops noop_inode_vmobj_ops = {};
 
 int inode_create_vmo(struct inode *ino)
 {
     ino->i_pages = vmo_create(ino->i_size, nullptr);
     if (!ino->i_pages)
         return -1;
-    ino->i_pages->ops = &inode_vmo_ops;
+    ino->i_pages->ops = &noop_inode_vmobj_ops;
     ino->i_pages->ino = ino;
     return 0;
 }
