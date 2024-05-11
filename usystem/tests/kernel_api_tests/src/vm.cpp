@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <setjmp.h>
 #include <signal.h>
+#include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
 #include <unistd.h>
@@ -21,6 +22,7 @@
 #include <libonyx/handle.h>
 #include <libonyx/process.h>
 #include <libonyx/unique_fd.h>
+#include <uapi/fs.h>
 #include <uapi/handle.h>
 #include <uapi/mincore.h>
 #include <uapi/process.h>
@@ -666,4 +668,147 @@ TEST(Vm, MmapPrivateAnonForkCow)
         EXPECT_EQ(*ptr0, 0xbeef);
         buf->cmd = (int) anon_fork_state::PARENT2;
     }
+}
+
+TEST(Vm, MmapSharedAllocatesBlocks)
+{
+    /* Test if a brand new file with a shared mapping properly allocates blocks on write */
+    onx::unique_fd fd = open("mmap_shared_test", O_RDWR | O_CREAT, 0644);
+    ASSERT_TRUE(fd.valid());
+    ASSERT_EQ(unlink("mmap_shared_test"), 0);
+    ASSERT_EQ(ftruncate(fd.get(), page_size), 0);
+
+    unsigned int block = 0;
+    if (ioctl(fd.get(), FIBMAP, &block) < 0)
+    {
+        /* FIBMAP not available, skip */
+        GTEST_SKIP();
+    }
+
+    /* Check the block is 0 (it's a hole) */
+    ASSERT_EQ(block, 0);
+    void* ptr = mmap(nullptr, page_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd.get(), 0);
+    ASSERT_NE(ptr, MAP_FAILED);
+
+    *(volatile uint8_t*) ptr = 1;
+
+    /* Block should be allocated, re-check */
+    block = 0;
+    ASSERT_EQ(ioctl(fd.get(), FIBMAP, &block), 0);
+    EXPECT_NE(block, 0);
+    munmap(ptr, page_size);
+}
+
+TEST(Vm, MsyncTraversalWorks)
+{
+    /* Check if msync traverses vmas properly */
+    void* ptr = mmap(nullptr, page_size * 6, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+    ASSERT_NE(ptr, MAP_FAILED);
+
+    /* Make sure we actually start and end in unmapped space (instead of running over another VMA)
+     */
+    ASSERT_EQ(munmap((uint8_t*) ptr, page_size), 0);
+    ASSERT_EQ(munmap((uint8_t*) ptr + page_size * 5, page_size), 0);
+    ptr = (uint8_t*) ptr + page_size;
+
+    /* This should work (full traversal) */
+    EXPECT_EQ(msync(ptr, page_size * 4, MS_ASYNC), 0);
+    /* Partial traversal */
+    EXPECT_EQ(msync(ptr, page_size * 3, MS_ASYNC), 0);
+    /* This should ENOMEM (fall off the end) */
+    EXPECT_EQ(msync(ptr, page_size * 5, MS_ASYNC), -1);
+    EXPECT_EQ(errno, ENOMEM);
+    /* This should ENOMEM (fall off the start) */
+    EXPECT_EQ(msync((uint8_t*) ptr - page_size, page_size * 5, MS_ASYNC), -1);
+    EXPECT_EQ(errno, ENOMEM);
+    /* Create two VMAs and test traversal with that */
+    ASSERT_EQ(mprotect((uint8_t*) ptr + page_size * 2, page_size * 2, PROT_READ), 0);
+    EXPECT_EQ(msync(ptr, page_size * 4, MS_ASYNC), 0);
+
+    /* Create a hole (should fail) */
+    ASSERT_EQ(munmap((uint8_t*) ptr + page_size * 2, page_size), 0);
+    EXPECT_EQ(msync(ptr, page_size * 4, MS_ASYNC), -1);
+    EXPECT_EQ(errno, ENOMEM);
+    EXPECT_EQ(munmap(ptr, page_size * 4), 0);
+}
+
+TEST(Vm, MsyncAndDirtyingWorks)
+{
+    /* Check that page dirting and undirtying is being done correctly when it comes to writing to
+     * MAP_SHARED and doing writeback. */
+    constexpr int npages = 2;
+    uint64_t pmap[npages];
+    onx::unique_fd fd = open("mmap_shared_test", O_RDWR | O_CREAT, 0644);
+    ASSERT_TRUE(fd.valid());
+    ASSERT_EQ(unlink("mmap_shared_test"), 0);
+    ASSERT_EQ(ftruncate(fd.get(), page_size * npages), 0);
+
+    void* ptr = mmap(nullptr, page_size * npages, PROT_READ | PROT_WRITE, MAP_SHARED, fd.get(), 0);
+    ASSERT_NE(ptr, MAP_FAILED);
+
+    /* Fault-in the pages */
+    for (int i = 0; i < npages; i++)
+        *((volatile uint8_t*) ptr + page_size * i);
+
+    ASSERT_NE(mpagemap(ptr, page_size * npages, pmap), -1);
+    for (unsigned long pmp : pmap)
+        EXPECT_EQ(pmp & (PAGE_WRITABLE | PAGE_PRESENT), PAGE_PRESENT);
+
+    /* Now un-write-protect */
+    for (int i = 0; i < npages; i++)
+        *((volatile uint8_t*) ptr + page_size * i) = 1;
+    /* Note: we can't test if they were marked writeable (we'd race with writeback), but they
+     * obviously were (else we wouldn't be here). Now test if after msync it's cleared. It also
+     * races with writeback, but it may give us false positives instead of false negatives, and
+     * failing spuriously is worse. Is there a solution to this problem? I don't know. */
+    /* We can't know if the struct page itself is marked DIRTY (yet!), but assuming msync cleans up
+     * pages properly, the pages *must* be marked dirty, and assuming the pages were cleaned
+     * properly, they'll be marked write-protected again. */
+    for (int i = 0; i < npages; i++)
+    {
+        /* Do it a page at a time, checking we didn't screw up any of the math */
+        EXPECT_EQ(msync((uint8_t*) ptr + page_size * i, page_size, MS_SYNC), 0);
+        uint64_t pmp;
+        ASSERT_NE(mpagemap((uint8_t*) ptr + page_size * i, page_size, &pmp), -1);
+        EXPECT_EQ(pmp & (PAGE_WRITABLE | PAGE_PRESENT), PAGE_PRESENT);
+    }
+
+    EXPECT_EQ(munmap(ptr, page_size * npages), 0);
+}
+
+TEST(Vm, SubpageInodeSizeStraddling)
+{
+    /* Say you write-fault the shared mapping, it allocates up to i_size (obviously you
+     * don't want to allocate over i_size). Then you move i_size. The old page should be
+     * re-write-protected as we must fault again (to acknowledge the new size and allocate further
+     * blocks). This only applies to filesystems with sub-page block sizes. blksize == pagesize do
+     * not need this. */
+    struct stat buf;
+    onx::unique_fd fd = open("subpage_isize", O_RDWR | O_CREAT | O_TRUNC, 0644);
+    ASSERT_TRUE(fd.valid());
+    ASSERT_EQ(unlink("subpage_isize"), 0);
+    ASSERT_EQ(fstat(fd.get(), &buf), 0);
+
+    if ((unsigned long) buf.st_blksize >= page_size)
+        GTEST_SKIP();
+
+    ASSERT_EQ(ftruncate(fd.get(), buf.st_blksize), 0);
+
+    void* ptr = mmap(nullptr, page_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd.get(), 0);
+    ASSERT_NE(ptr, MAP_FAILED);
+
+    *(volatile uint8_t*) ptr = 1;
+
+    /* Block #0 is now allocated, Block #1 isn't */
+    unsigned int block = 1;
+    ASSERT_EQ(ioctl(fd.get(), FIBMAP, &block), 0);
+    EXPECT_EQ(block, 0U);
+
+    /* Grow the file and check that the page was write-protected */
+    ASSERT_EQ(ftruncate(fd.get(), buf.st_blksize * 2), 0);
+    uint64_t pmp;
+    ASSERT_NE(mpagemap(ptr, page_size, &pmp), -1);
+    EXPECT_EQ(pmp & (PAGE_WRITABLE | PAGE_PRESENT), PAGE_PRESENT);
+
+    munmap(ptr, page_size);
 }
