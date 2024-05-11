@@ -418,7 +418,7 @@ void __vm_unmap_range(struct mm_address_space *as, void *range, size_t pages)
 
 static inline bool inode_requires_wb(struct inode *i)
 {
-    return S_ISREG(i->i_mode);
+    return true;
 }
 
 bool vm_mapping_requires_wb(struct vm_area_struct *reg)
@@ -1519,6 +1519,35 @@ static int find_page_err_to_signal(int st)
     }
 }
 
+static int vm_prepare_write(struct inode *inode, struct page *p)
+{
+    /* TODO: All of this needs a good rework. We must be careful with i_size (we can't just allocate
+     * on a whole page like this). We need to retry if the page was truncated. This should not be
+     * core vm.cpp code. */
+    lock_page(p);
+
+    /* Correctness: We set the i_size before truncating pages from the page cache, so this should
+     * not race... I think? */
+    size_t i_size = inode->i_size;
+    if (p->owner != inode->i_pages)
+    {
+        pr_warn("vm: (inode %lu, dev %lu) just had a truncate race, which is not yet handled "
+                "correctly...\n",
+                inode->i_inode, inode->i_dev);
+        unlock_page(p);
+        return -ENOENT;
+    }
+
+    size_t len = PAGE_SIZE;
+    size_t offset = p->pageoff << PAGE_SHIFT;
+    if (offset + PAGE_SIZE > i_size)
+        len = i_size - offset;
+
+    int st = inode->i_fops->prepare_write(inode, p, offset, 0, len);
+    unlock_page(p);
+    return st;
+}
+
 int vm_handle_non_present_wp(struct fault_info *info, struct vm_pf_context *ctx)
 {
     struct vm_area_struct *entry = ctx->entry;
@@ -1539,14 +1568,20 @@ int vm_handle_non_present_wp(struct fault_info *info, struct vm_pf_context *ctx)
         {
             /* else handle it differently(we'll need) */
             int st = vm_pf_get_page_from_vmo(ctx);
-
             if (st < 0)
             {
                 info->signal = find_page_err_to_signal(st);
                 return -1;
             }
 
-            // FIXME: pagecache_dirty_block(ctx->page->cache);
+            st = vm_prepare_write(ctx->entry->vm_file->f_ino, ctx->page);
+            if (st < 0)
+            {
+                page_unref(ctx->page);
+                ctx->page = nullptr;
+                info->signal = find_page_err_to_signal(st);
+                return -1;
+            }
         }
         else if (vm_mapping_is_anon(entry))
         {
@@ -1604,18 +1639,14 @@ int vm_handle_write_wb(struct vm_pf_context *ctx)
     struct page *p = phys_to_page(paddr);
     int st = 0;
     struct inode *inode = p->owner->ino;
-
-    if ((st = inode->i_fops->prepare_write(inode, p, 0, p->pageoff << PAGE_SHIFT, PAGE_SIZE) < 0))
+    st = vm_prepare_write(inode, p);
+    if (st == 0)
     {
-        return st;
+        paging_change_perms((void *) ctx->vpage, ctx->page_rwx);
+        vm_invalidate_range(ctx->vpage, 1);
     }
 
-    // TODO: pagecache_dirty_block(p->cache);
-
-    paging_change_perms((void *) ctx->vpage, ctx->page_rwx);
-    vm_invalidate_range(ctx->vpage, 1);
-
-    return 0;
+    return st;
 }
 
 int vm_handle_present_pf(struct vm_pf_context *ctx)
@@ -1630,14 +1661,8 @@ int vm_handle_present_pf(struct vm_pf_context *ctx)
     if (info->write & !(ctx->mapping_info & PAGE_WRITABLE))
     {
         if (vm_mapping_requires_wb(entry))
-        {
-            // printk("writeback!\n");
             return vm_handle_write_wb(ctx);
-        }
-        else
-        {
-            panic("Strange case inside vm_handle_present_pf");
-        }
+        panic("Strange case inside vm_handle_present_pf");
     }
 
     return 0;
