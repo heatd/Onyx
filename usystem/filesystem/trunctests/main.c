@@ -92,7 +92,6 @@ static void test_sigbus_works(void *ptr, unsigned int filesize)
 static void file_check_unmapped(int fd, unsigned int off, unsigned int bsize)
 {
     uint64_t blk = off / bsize;
-
 #ifdef FIBMAP
     unsigned int fibmap_blk = blk;
     if (ioctl(fd, FIBMAP, &fibmap_blk) == 0)
@@ -107,8 +106,10 @@ static void file_check_unmapped(int fd, unsigned int off, unsigned int bsize)
     return;
 check:
     if (blk != 0)
-        err(1, "Error: offset %u is still mapped to a real block (%llu), instead of a file hole\n",
-            blk);
+        err(1,
+            "Error: logical block %u is still mapped to a real block (%llu), instead of a file "
+            "hole\n",
+            off / bsize, blk);
 }
 
 static void touch_mapping(void *ptr, unsigned int size, unsigned int pagesize)
