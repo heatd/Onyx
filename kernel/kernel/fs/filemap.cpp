@@ -468,14 +468,15 @@ void page_end_writeback(struct page *page, struct inode *inode) EXCLUDES(inode->
 void page_clear_dirty(struct page *page) REQUIRES(page)
 {
     /* Clear the dirty flag for IO */
-    /* TODO: Add mmap walking and write-protect those mappings */
     struct vm_object *obj = page->owner;
     __atomic_and_fetch(&page->flags, ~PAGE_FLAG_DIRTY, __ATOMIC_RELEASE);
-    scoped_lock g{obj->page_lock};
-    obj->vm_pages.clear_mark(page->pageoff, FILEMAP_MARK_DIRTY);
-    /* TODO: I don't know if this (clearing the dirty mark *here*) is safe with regards to potential
-     * sync()'s running at the same time.
-     */
+
+    {
+        scoped_lock g{obj->page_lock};
+        obj->vm_pages.clear_mark(page->pageoff, FILEMAP_MARK_DIRTY);
+    }
+
+    vm_obj_clean_page(obj, page);
     dec_page_stat(page, NR_DIRTY);
 }
 

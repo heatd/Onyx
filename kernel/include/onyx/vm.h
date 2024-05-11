@@ -641,14 +641,7 @@ struct kernel_limits
  */
 void get_kernel_limits(struct kernel_limits *l);
 
-/**
- * @brief Write-protects a page in each of its mappings.
- *
- * @param page The page that needs to be write-protected.
- * @param offset The offset of the page in the VMO.
- * @param vmo A pointer to its VMO.
- */
-void vm_wp_page_for_every_region(struct page *page, size_t offset, struct vm_object *vmo);
+void vm_wp_page(struct mm_address_space *mm, void *vaddr);
 
 /**
  * @brief Invalidates a memory range.
