@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -29,6 +29,7 @@
 #include <onyx/vm.h>
 
 #include <uapi/dirent.h>
+#include <uapi/fs.h>
 
 int ext2_open(struct dentry *dir, const char *name, struct dentry *dentry);
 off_t ext2_getdirent(struct dirent *buf, off_t off, struct file *f);
@@ -47,27 +48,31 @@ int ext2_link(struct inode *target, const char *name, struct inode *dir);
 inode *ext2_symlink(struct dentry *dentry, const char *dest, struct dentry *dir);
 static int ext2_fsyncdata(struct inode *ino, struct writepages_info *wpinfo);
 static int ext2_readpages(struct readpages_state *state, struct inode *ino);
+static unsigned int ext2_ioctl(int request, void *argp, struct file *file);
 
-struct file_ops ext2_ops = {.open = ext2_open,
-                            .close = ext2_close,
-                            .getdirent = ext2_getdirent,
-                            .creat = ext2_creat,
-                            .link = ext2_link_fops,
-                            .symlink = ext2_symlink,
-                            .ftruncate = ext2_ftruncate,
-                            .mkdir = ext2_mkdir,
-                            .mknod = ext2_mknod,
-                            .readlink = ext2_readlink,
-                            .unlink = ext2_unlink,
-                            .fallocate = ext2_fallocate,
-                            .readpage = ext2_readpage,
-                            .writepage = ext2_writepage,
-                            .prepare_write = ext2_prepare_write,
-                            .read_iter = filemap_read_iter,
-                            .write_iter = filemap_write_iter,
-                            .writepages = filemap_writepages,
-                            .fsyncdata = ext2_fsyncdata,
-                            .readpages = ext2_readpages};
+struct file_ops ext2_ops = {
+    .open = ext2_open,
+    .close = ext2_close,
+    .getdirent = ext2_getdirent,
+    .ioctl = ext2_ioctl,
+    .creat = ext2_creat,
+    .link = ext2_link_fops,
+    .symlink = ext2_symlink,
+    .ftruncate = ext2_ftruncate,
+    .mkdir = ext2_mkdir,
+    .mknod = ext2_mknod,
+    .readlink = ext2_readlink,
+    .unlink = ext2_unlink,
+    .fallocate = ext2_fallocate,
+    .readpage = ext2_readpage,
+    .writepage = ext2_writepage,
+    .prepare_write = ext2_prepare_write,
+    .read_iter = filemap_read_iter,
+    .write_iter = filemap_write_iter,
+    .writepages = filemap_writepages,
+    .fsyncdata = ext2_fsyncdata,
+    .readpages = ext2_readpages,
+};
 
 void ext2_delete_inode(struct inode *inode_, uint32_t inum, struct ext2_superblock *fs)
 {
@@ -885,3 +890,88 @@ static int ext2_fsyncdata(struct inode *ino, struct writepages_info *wpinfo)
         block_buf_sync_assoc(ino->i_pages);
     return 0;
 }
+
+static int ext2_do_bmap_from_page_cache(struct file *file, unsigned int logical_block,
+                                        unsigned int *ret) NO_THREAD_SAFETY_ANALYSIS
+{
+    struct inode *ino = file->f_ino;
+    const ext2_superblock *sb = ext2_superblock_from_inode(ino);
+    const unsigned int blocks_per_page = PAGE_SIZE / sb->block_size;
+    unsigned long pgoff = (unsigned long) logical_block / blocks_per_page;
+    struct page *page;
+
+    int st = filemap_find_page(
+        ino, pgoff, FIND_PAGE_LOCK | FIND_PAGE_NO_CREATE | FIND_PAGE_NO_RA | FIND_PAGE_NO_READPAGE,
+        &page, nullptr);
+    if (st < 0)
+    {
+        /* We couldn't find it (probably), fall back to the disk */
+        return -ENOENT;
+    }
+
+    /* Page is locked */
+    if (!page_flag_set(page, PAGE_FLAG_BUFFER))
+    {
+        /* Wasn't mapped (yet, at least). Ignore */
+        unlock_page(page);
+        page_unref(page);
+        return -ENOENT;
+    }
+
+    unsigned int block_off = (unsigned long) logical_block * sb->block_size - pgoff * PAGE_SIZE;
+    for (struct block_buf *b = (struct block_buf *) page->priv; b != nullptr; b = b->next)
+    {
+        sector_t block = b->block_nr;
+        if (b->page_off == block_off)
+        {
+            *ret = block;
+            unlock_page(page);
+            page_unref(page);
+            return 0;
+        }
+    }
+
+    /* What?? This should not be possible... */
+    CHECK(0);
+}
+
+static int ext2_do_bmap_from_inode(struct file *file, unsigned int logical_block, unsigned int *ret)
+{
+    struct ext2_inode *raw_inode = ext2_get_inode_from_node(file->f_ino);
+    ext2_superblock *sb = ext2_superblock_from_inode(file->f_ino);
+    auto res = ext2_get_block_from_inode(raw_inode, logical_block, sb);
+    if (res.has_error())
+        return res.error();
+    *ret = res.value();
+    return 0;
+}
+
+static int do_bmap(struct file *file, unsigned int logical_block, unsigned int *ret)
+{
+    /* First, try to get it from the block_buf. If not possible, we'll do actual block map
+     * traversal. */
+    if (ext2_do_bmap_from_page_cache(file, logical_block, ret) == 0)
+        return 0;
+    return ext2_do_bmap_from_inode(file, logical_block, ret);
+}
+
+static unsigned int ext2_ioctl(int request, void *argp, struct file *file)
+{
+    switch (request)
+    {
+        case FIBMAP: {
+            unsigned int block;
+            if (!is_root_user())
+                return -EPERM;
+            if (copy_from_user(&block, argp, sizeof(block)) < 0)
+                return -EFAULT;
+            int st = do_bmap(file, block, &block);
+            if (st < 0)
+                return st;
+            return copy_to_user(argp, &block, sizeof(block));
+        }
+    }
+
+    return -ENOTTY;
+}
+
