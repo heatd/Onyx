@@ -1544,6 +1544,7 @@ static int vm_prepare_write(struct inode *inode, struct page *p)
         len = i_size - offset;
 
     int st = inode->i_fops->prepare_write(inode, p, offset, 0, len);
+    filemap_mark_dirty(inode, p, p->pageoff);
     unlock_page(p);
     return st;
 }
@@ -2713,45 +2714,6 @@ void vm_wp_page(struct mm_address_space *mm, void *vaddr)
         mmu_invalidate_range((unsigned long) vaddr, 1, mm);
 }
 
-/**
- * @brief Write-protects a page in each of its mappings.
- *
- * @param page The page that needs to be write-protected.
- * @param offset The offset of the page in the VMO.
- * @param vmo A pointer to its VMO.
- */
-void vm_wp_page_for_every_region(page *page, size_t page_off, vm_object *vmo)
-{
-    vmo->for_every_mapping([page_off](vm_area_struct *region) NO_THREAD_SAFETY_ANALYSIS -> bool {
-        /* XXX Yuck. We can be called from such stacks such as ~mm_address_space() ->
-         * dentry_destroy
-         * -> inode_release -> inode_sync -> pagecache_set_dirty -> vm_wp_page_for_every_region.
-         * SHOULDFIX. In this case, it's no problem since we already hold the lock.
-         */
-        bool needs_release = false;
-        if (!mutex_holds_lock(&region->vm_mm->vm_lock))
-        {
-            needs_release = true;
-            mutex_lock(&region->vm_mm->vm_lock);
-        }
-
-        const size_t mapping_off = (size_t) region->vm_offset;
-        const size_t mapping_size = region->vm_end - region->vm_start;
-
-        if (page_off >= mapping_off && mapping_off + mapping_size > page_off)
-        {
-            /* The page is included in this mapping, so WP it */
-            const unsigned long vaddr = region->vm_start + (page_off - mapping_off);
-            vm_wp_page(region->vm_mm, (void *) vaddr);
-        }
-
-        if (needs_release)
-            mutex_unlock(&region->vm_mm->vm_lock);
-
-        return true;
-    });
-}
-
 int get_phys_pages_direct(unsigned long addr, unsigned int flags, struct page **pages,
                           size_t nr_pgs)
 {
@@ -2909,6 +2871,17 @@ out:
     return ret;
 }
 
+static int do_sync(struct file *file, unsigned long start, unsigned long end)
+{
+    struct writepages_info wp;
+    wp.start = start >> PAGE_SHIFT;
+    wp.end = (end - 1) >> PAGE_SHIFT;
+    wp.flags = WRITEPAGES_SYNC;
+    if (file->f_ino->i_fops->fsyncdata)
+        return file->f_ino->i_fops->fsyncdata(file->f_ino, &wp);
+    return -EINVAL;
+}
+
 /**
  * @brief Retrieves a pointer to the zero page.
  *
@@ -2921,10 +2894,64 @@ struct page *vm_get_zero_page()
 
 int sys_msync(void *ptr, size_t length, int flags)
 {
-    if (flags & MS_ASYNC || !flags)
-        return 0; // NOOP
+    /* The only flag that needs action upon is MS_SYNC, the rest is a no-op. */
+    int st = -ENOMEM;
+    unsigned long addr = (unsigned long) ptr;
+    unsigned long limit = addr + length;
+    struct mm_address_space *as = get_current_address_space();
 
-    return -ENOSYS;
+    if (flags & ~(MS_ASYNC | MS_SYNC | MS_INVALIDATE))
+        return -EINVAL;
+
+    if (addr & (PAGE_SIZE - 1))
+        return -EINVAL;
+
+    /* Hogging the vm_lock is bad mkay, todo... */
+    scoped_mutex g{as->vm_lock};
+
+    struct vm_area_struct *vma = vm_search(as, (void *) addr, PAGE_SIZE);
+
+    if (vma)
+    {
+        /* Check if start <= addr */
+        if (vma->vm_start > addr)
+            return -ENOMEM;
+    }
+
+    while (vma)
+    {
+        if (vma->vm_start > limit || vma->vm_end < addr)
+            break;
+        unsigned long to_sync = cul::min(length, vma->vm_end - addr);
+        struct file *filp = vma->vm_file;
+
+        if (flags & MS_SYNC && filp && is_mapping_shared(vma))
+        {
+            unsigned long start = vma->vm_offset + addr - vma->vm_start;
+            unsigned long end = start + to_sync;
+            int st2 = do_sync(filp, start, end);
+            if (st2 < 0)
+            {
+                st = st2;
+                break;
+            }
+        }
+
+        addr += to_sync;
+        length -= to_sync;
+        vma = containerof_null_safe(bst_next(&as->region_tree, &vma->vm_tree_node),
+                                    struct vm_area_struct, vm_tree_node);
+        if (!length)
+        {
+            st = 0;
+            break;
+        }
+
+        if (vma && vma->vm_start != addr)
+            break;
+    }
+
+    return st;
 }
 
 /**

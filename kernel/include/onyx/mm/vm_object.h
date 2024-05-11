@@ -270,6 +270,8 @@ bool vmo_is_shared(struct vm_object *vmo);
  */
 struct page *vmo_add_page_safe(size_t off, struct page *p, struct vm_object *vmo);
 
+void vm_obj_clean_page(struct vm_object *obj, struct page *page);
+
 __END_CDECLS
 
 #endif

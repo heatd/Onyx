@@ -448,3 +448,19 @@ vm_object::~vm_object()
 {
     vmo_truncate(this, 0, 0);
 }
+
+void vm_obj_clean_page(struct vm_object *obj, struct page *page)
+{
+    scoped_lock g{obj->mapping_lock};
+    struct vm_area_struct *vma;
+    unsigned long offset = page->pageoff << PAGE_SHIFT;
+    for_intervals_in_range(&obj->mappings, vma, struct vm_area_struct, vm_objhead, offset, offset)
+    {
+        const off_t vmregion_end = vma->vm_offset + (vma_pages(vma) << PAGE_SHIFT);
+        DCHECK(vma->vm_objhead.start <= offset && vma->vm_objhead.end > offset);
+        DCHECK(vma->vm_offset <= (off_t) offset && vmregion_end > (off_t) offset);
+        DCHECK(vma->vm_offset == (off_t) vma->vm_objhead.start &&
+               vma->vm_objhead.end == vma->vm_offset + vma->vm_end - vma->vm_start);
+        vm_wp_page(vma->vm_mm, (void *) (vma->vm_start + offset - vma->vm_offset));
+    }
+}
