@@ -407,13 +407,11 @@ int ext2_free_space(size_t new_len, inode *ino)
 int ext2_truncate(size_t len, inode *ino)
 {
     int st = 0;
-
+    rw_lock_write(&ino->i_pages->truncate_lock);
     if (ino->i_size > len)
     {
         if ((st = ext2_free_space(len, ino)) < 0)
-        {
-            return st;
-        }
+            goto out;
     }
 
     /* **fallthrough**
@@ -423,6 +421,8 @@ int ext2_truncate(size_t len, inode *ino)
     vmo_truncate(ino->i_pages, len, 0);
     inode_mark_dirty(ino);
     /* TODO: Update mtime and ctime, per POSIX */
+out:
+    rw_unlock_write(&ino->i_pages->truncate_lock);
     return st;
 }
 

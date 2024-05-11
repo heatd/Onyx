@@ -27,6 +27,7 @@ vm_object::vm_object() : size{0}, flags{0}, priv{nullptr}, ops{nullptr}, ino{nul
     spinlock_init(&mapping_lock);
     INIT_LIST_HEAD(&private_list);
     spinlock_init(&private_lock);
+    rwlock_init(&truncate_lock);
 }
 
 /**
