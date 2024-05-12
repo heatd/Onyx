@@ -39,3 +39,4 @@ fi
 
 export PKG_CONFIG=$SYSROOT/../buildpkg/onyx-pkg-config
 export PKG_CONFIG_FOR_BUILD=pkg-config
+unset CONFIG_SITE
