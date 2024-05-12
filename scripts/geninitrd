@@ -54,7 +54,7 @@ echo "Creating a tarball"
 # Tar it up
 cd initrd-root
 
-tar cvf initrd.tar *
+tar --format=ustar -cvf initrd.tar *
 
 mv initrd.tar ..
 cd ..
