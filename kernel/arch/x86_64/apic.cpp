@@ -33,6 +33,13 @@ PER_CPU_VAR(volatile uint32_t *lapic) = nullptr;
 PER_CPU_VAR(uint32_t lapic_id) = 0;
 static bool x2apic_supported;
 
+static void msr_fence()
+{
+    /* Some MSRs (IA32_TSC_DEADLINE and X2APIC stuff) don't serialize. The SDM suggests
+     * mfence;lfence */
+    __asm__ __volatile__("mfence; lfence" ::: "memory");
+}
+
 /**
  * @brief Writes to a LAPIC register.
  *
@@ -660,6 +667,7 @@ void apic_set_oneshot_tsc(hrtime_t deadline)
     uint64_t future_tsc_counter = tsc_get_counter_from_ns(deadline);
 
     lapic_write(LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_TSC_DEADLINE);
+    msr_fence();
     wrmsr(IA32_TSC_DEADLINE, future_tsc_counter);
 }
 
@@ -796,6 +804,7 @@ void apic_send_ipi(uint32_t id, uint32_t type, uint32_t page, uint32_t extra_fla
     {
         // The top 32-bits of ICR in x2APIC mode have the destination field (32 bits, equivalent to
         // LAPIC_IPIID). The rest keeps the same semantics.
+        msr_fence();
         wrmsr(IA32_X2APIC_BASE + (LAPIC_ICR >> 4), val);
         return;
     }
