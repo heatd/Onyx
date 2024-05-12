@@ -30,7 +30,7 @@
 bool is_tar(void *initrd)
 {
     tar_header_t *header = (tar_header_t *) initrd;
-    return !memcmp(header->magic, "ustar ", 6);
+    return !memcmp(header->magic, "ustar ", 5);
 }
 
 unsigned int parse_perms_from_tar(tar_header_t *entry)
@@ -42,7 +42,7 @@ unsigned int parse_perms_from_tar(tar_header_t *entry)
 void tar_handle_entry(tar_header_t *entry, onx::stream &str)
 {
     char *saveptr;
-    if (memcmp(entry->magic, "ustar ", 6))
+    if (memcmp(entry->magic, "ustar ", 5))
         panic("Tar entry with invalid magic value");
     auto len = strnlen(entry->filename, 100);
 
