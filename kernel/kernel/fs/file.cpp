@@ -731,7 +731,10 @@ static expected<struct file *, int> try_to_open(struct file *base, const char *f
         if (flags & O_NOATIME)
         {
             if (!may_noatime(ret))
+            {
+                fd_put(ret);
                 return unexpected<int>{-EPERM};
+            }
         }
 
         if (S_ISDIR(ret->f_ino->i_mode))
