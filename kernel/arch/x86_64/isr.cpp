@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -25,6 +25,9 @@
 #include <onyx/x86/isr.h>
 #include <onyx/x86/ktrace.h>
 #include <onyx/x86/mce.h>
+
+/* TODO: Move scope_guard somewhere else */
+#include <onyx/trace/trace_base.h>
 
 #include <uapi/signal.h>
 
@@ -590,6 +593,14 @@ static bool defer_irq_restore(int int_no)
     return int_no == 14;
 }
 
+struct trap_stack
+{
+    struct registers *ctx;
+    struct trap_stack *next;
+};
+
+PER_CPU_VAR(static struct trap_stack *cur_stack);
+
 unsigned long isr_handler(struct registers *ctx)
 {
     int int_no = ctx->int_no;
@@ -602,14 +613,72 @@ unsigned long isr_handler(struct registers *ctx)
     return INTERRUPT_STACK_ALIGN(ctx);
 }
 
+void print_int_stacks()
+{
+    /* Follow the chain of trap stacks */
+    struct trap_stack *tps = get_per_cpu(cur_stack);
+    while (tps)
+    {
+        const char *type = "IRQ";
+        bool is_trap = false;
+        const struct registers *ctx = tps->ctx;
+        struct trap_stack *next = tps->next;
+        if (next)
+        {
+            if (tps->ctx->int_no < EXCEPTION_VECTORS_END)
+                type = "TRAP";
+            is_trap = true;
+        }
+        else
+        {
+            is_trap = false;
+            type = "THREAD";
+        }
+
+        if (ctx->rbp < VM_HIGHER_HALF)
+        {
+            /* User or corrupted stack, skip */
+            pr_emerg(" (%s stack skipped, bad stack)\n", type);
+            tps = next;
+            continue;
+        }
+
+        if (is_trap)
+            pr_emerg("<%s %u>\n", type, (unsigned int) ctx->int_no);
+        else
+            pr_emerg("<%s>\n", type);
+        pr_emerg(" %pS\n", (void *) ctx->rip);
+        stack_trace_ex((u64 *) ctx->rbp);
+        if (is_trap)
+            pr_emerg("</%s %u>\n", type, (unsigned int) ctx->int_no);
+        else
+            pr_emerg("</%s>\n", type);
+        tps = next;
+    }
+}
 void platform_send_eoi(uint64_t irq);
+
+static auto isr_enter_stack(struct registers *regs, struct trap_stack *trapstack)
+{
+    trapstack->ctx = regs;
+    trapstack->next = get_per_cpu(cur_stack);
+    write_per_cpu(cur_stack, trapstack);
+    return scope_guard{[trapstack]() { write_per_cpu(cur_stack, trapstack->next); }};
+}
+
+void isr_undo_trap_stack()
+{
+    write_per_cpu(cur_stack, get_per_cpu(cur_stack)->next);
+}
 
 extern "C" unsigned long x86_dispatch_interrupt(struct registers *regs)
 {
     unsigned long vec_no = regs->int_no;
     unsigned long result;
+    struct trap_stack tpstack;
 
     context_tracking_enter_kernel();
+    auto undo_ = isr_enter_stack(regs, &tpstack);
 
     if (vec_no < EXCEPTION_VECTORS_END)
     {

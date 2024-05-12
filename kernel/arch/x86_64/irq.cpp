@@ -36,6 +36,7 @@ int platform_install_irq(unsigned int irqn, struct interrupt_handler *h)
 }
 
 void platform_send_eoi(uint64_t irq);
+void isr_undo_trap_stack();
 
 void check_for_resched(struct irq_context *context)
 {
@@ -43,6 +44,8 @@ void check_for_resched(struct irq_context *context)
     if (curr && sched_needs_resched(curr))
     {
         atomic_and_relaxed(curr->flags, ~THREAD_NEEDS_RESCHED);
+        /* Ugh. we're not leaving from where we came, so drop the trap stack now */
+        isr_undo_trap_stack();
         context->registers = (registers_t *) sched_preempt_thread(context->registers);
     }
 }

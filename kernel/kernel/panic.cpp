@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -22,6 +22,7 @@
 
 #include <onyx/compiler.h>
 #include <onyx/cpu.h>
+#include <onyx/irq.h>
 #include <onyx/modules.h>
 #include <onyx/paging.h>
 #include <onyx/panic.h>
@@ -80,6 +81,11 @@ void panic_start()
     bust_printk_lock();
 }
 
+[[gnu::weak]] void print_int_stacks()
+{
+    /* Overriden by architectures */
+}
+
 __attribute__((noreturn, noinline)) void panic(const char *msg, ...)
 {
     /* First, disable interrupts */
@@ -122,6 +128,8 @@ __attribute__((noreturn, noinline)) void panic(const char *msg, ...)
     pr_emerg("Stack dump: \n");
 
     stack_trace();
+    if (is_in_interrupt())
+        print_int_stacks();
     pr_emerg("Killing cpus... ");
     cpu_kill_other_cpus();
     pr_emerg("Done.\n");

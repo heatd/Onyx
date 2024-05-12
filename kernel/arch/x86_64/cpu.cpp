@@ -526,12 +526,15 @@ void *cpu_handle_messages(void *stack)
     return stack;
 }
 
+void isr_undo_trap_stack();
+
 void *cpu_resched(void *stack)
 {
     cpu_try_resched();
 
     if (sched_needs_resched(get_current_thread()))
     {
+        isr_undo_trap_stack();
         stack = sched_preempt_thread(stack);
     }
 
