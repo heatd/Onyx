@@ -13,7 +13,8 @@
 #include <onyx/registers.h>
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
 void ktrace_enable_int3(void);

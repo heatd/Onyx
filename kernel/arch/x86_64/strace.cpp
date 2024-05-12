@@ -117,19 +117,11 @@ __attribute__((no_sanitize_undefined)) void stack_trace_ex(uint64_t *stack)
                 break;
         }
 
-        char buffer[SYM_SYMBOLIZE_BUFSIZ];
-
         unsigned long ip = *(rbp + 1);
-
         if (!is_kernel_ip(ip))
             break;
 
-        int st = sym_symbolize((void *) ip, cul::slice<char>{buffer, sizeof(buffer)});
-        if (st < 0)
-            break;
-
-        pr_emerg("Stack trace #%lu: %s\n", i, buffer);
-
+        pr_emerg(" %pS\n", (void *) ip);
         rbp = (uint64_t *) *rbp;
         if (!rbp)
             break;
