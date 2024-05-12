@@ -128,8 +128,7 @@ __attribute__((noreturn, noinline)) void panic(const char *msg, ...)
     pr_emerg("Stack dump: \n");
 
     stack_trace();
-    if (is_in_interrupt())
-        print_int_stacks();
+    print_int_stacks();
     pr_emerg("Killing cpus... ");
     cpu_kill_other_cpus();
     pr_emerg("Done.\n");
