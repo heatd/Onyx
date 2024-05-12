@@ -50,13 +50,12 @@ void avx_init()
         uint32_t eax, ebx, ecx, edx;
 
         ecx = 0;
-        if (!__get_cpuid_count(CPUID_XSTATE, 0, &eax, &ebx, &ecx, &edx))
-            return;
-
-        fpu_area_size = ebx;
-        fpu_area_alignment = AVX_SAVE_ALIGNMENT;
-
-        static_branch_enable(&avx_supported);
+        if (__get_cpuid_count(CPUID_XSTATE, 0, &eax, &ebx, &ecx, &edx))
+        {
+            fpu_area_size = ebx;
+            fpu_area_alignment = AVX_SAVE_ALIGNMENT;
+            static_branch_enable(&avx_supported);
+        }
     }
 
     fpu_init_cache();
