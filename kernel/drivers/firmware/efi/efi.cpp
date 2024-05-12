@@ -1,10 +1,12 @@
 /*
- * Copyright (c) 2022 - 2023 Pedro Falcato
+ * Copyright (c) 2022 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: MIT
  */
+#define pr_fmt(fmt) "efi: " fmt
+
 #include <stdio.h>
 
 #include <onyx/process.h>
@@ -88,16 +90,23 @@ unsigned long efi_memory_desc_flags_to_vm(uint64_t attributes)
  */
 void efi_remap_efi_region(EFI_MEMORY_DESCRIPTOR &desc)
 {
-    printf("efi: Remapping [%016lx, %016lx]\n", desc.PhysicalStart,
-           desc.PhysicalStart + (desc.NumberOfPages << PAGE_SHIFT) - 1);
+    pr_info("Remapping [%016lx, %016lx]\n", desc.PhysicalStart,
+            desc.PhysicalStart + (desc.NumberOfPages << PAGE_SHIFT) - 1);
+    bool mapping_over_null = desc.PhysicalStart == 0;
+
     auto flags = efi_memory_desc_flags_to_vm(desc.Attribute);
     auto ptr =
         __map_pages_to_vaddr(efi_aspace.get(), (void *) desc.PhysicalStart,
                              (void *) desc.PhysicalStart, desc.NumberOfPages << PAGE_SHIFT, flags);
     desc.VirtualStart = desc.PhysicalStart;
-    if (!ptr)
+    if (!ptr && !mapping_over_null)
         panic("Failed to map EFI region [%016lx, %016lx] attributes %016lx\n", desc.PhysicalStart,
               desc.PhysicalStart + (desc.NumberOfPages << PAGE_SHIFT) - 1, desc.Attribute);
+    if (mapping_over_null)
+    {
+        pr_warn("Firmware mapped over the zero page. Due to limitations in kernel internal APIs, "
+                "we don't know if this failed due to an OOM.\n");
+    }
 }
 
 /**
