@@ -151,18 +151,22 @@ struct sync_call_queue
 
 void sync_call_queue::handle_calls()
 {
-    scoped_lock<spinlock, true> g{lock};
+    unsigned long flags = spin_lock_irqsave(&lock);
     const unsigned int cpu = get_cpu_nr();
 
-    list_for_every_safe (&elem_list)
+    while (!list_is_empty(&elem_list))
     {
-        auto elem = container_of(l, internal::sync_call_elem, node);
+        auto elem = container_of(list_first_element(&elem_list), internal::sync_call_elem, node);
         list_remove(&elem->node);
+        spin_unlock_irqrestore(&lock, flags);
         elem->control_block->f(elem->control_block->ctx);
         elem->control_block->complete(cpu);
 
         sync_call_pool.free(elem);
+        flags = spin_lock_irqsave(&lock);
     }
+
+    spin_unlock_irqrestore(&lock, flags);
 }
 
 PER_CPU_VAR(sync_call_queue percpu_queue);
