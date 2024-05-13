@@ -8,6 +8,8 @@
 #ifndef _ONYX_ATOMIC_H
 #define _ONYX_ATOMIC_H
 
+#include <platform/atomic.h>
+
 #define READ_ONCE(var)       (__atomic_load_n(&(var), __ATOMIC_RELAXED))
 #define WRITE_ONCE(var, val) (__atomic_store_n(&(var), (val), __ATOMIC_RELAXED))
 
