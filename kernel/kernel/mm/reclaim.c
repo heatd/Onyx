@@ -13,7 +13,7 @@
 #include <onyx/rwlock.h>
 
 static struct list_head shrinker_list = LIST_HEAD_INIT(shrinker_list);
-static rwlock shrinker_list_lock;
+static struct rwlock shrinker_list_lock;
 
 void shrinker_register(struct shrinker *shr)
 {

@@ -8,6 +8,8 @@
 #ifndef _ONYX_MM_RECLAIM_H
 #define _ONYX_MM_RECLAIM_H
 
+#include <onyx/compiler.h>
+
 #define RECLAIM_MODE_DIRECT     0
 #define RECLAIM_MODE_PAGEDAEMON 1
 
@@ -20,6 +22,8 @@ struct reclaim_data
     unsigned int gfp_flags;
 };
 
+__BEGIN_CDECLS
+
 /**
  * @brief Do (direct?) page reclamation. Called from direct reclaim or pagedaemon.
  *
@@ -28,5 +32,7 @@ struct reclaim_data
  * @return 0 on success, -1 if we failed to go over the high watermark
  */
 int page_do_reclaim(struct reclaim_data *data);
+
+__END_CDECLS
 
 #endif
