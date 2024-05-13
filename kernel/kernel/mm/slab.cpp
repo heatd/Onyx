@@ -1,11 +1,12 @@
 /*
- * Copyright (c) 2022 - 2023 Pedro Falcato
+ * Copyright (c) 2022 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: MIT
  */
 
+#include <onyx/cpu.h>
 #include <onyx/list.h>
 #include <onyx/mm/slab.h>
 #include <onyx/modules.h>
@@ -17,7 +18,7 @@
 
 #include <onyx/mm/pool.hpp>
 
-static spinlock cache_list_lock;
+static mutex cache_list_lock;
 static struct list_head cache_list = LIST_HEAD_INIT(cache_list);
 
 memory_pool<slab_cache, MEMORY_POOL_USE_VM> slab_cache_pool;
@@ -164,7 +165,7 @@ struct slab_cache *kmem_cache_create(const char *name, size_t size, size_t align
     else
         c->mag_limit = SLAB_CACHE_PERCPU_MAGAZINE_SIZE;
 
-    scoped_lock g{cache_list_lock};
+    scoped_mutex g{cache_list_lock};
     list_add_tail(&c->cache_list_node, &cache_list);
     return c;
 }
@@ -1127,80 +1128,116 @@ static void kmem_cache_free_slab(struct slab *slab)
     }
 }
 
-static void kmem_purge_local_cache(struct slab_cache *cache)
+struct slab_rendezvous
 {
-    auto pcpu = &cache->pcpu[get_cpu_nr()];
+    unsigned int waiting_for_cpus;
+    unsigned int ack;
+};
 
-    // We use this cpu local atomic to know if we were touching
-    // pcpu structures at that moment.
-    if (pcpu->touched.load(mem_order::relaxed))
-        return;
-
-    // Cache lock is implicitly held.
-
-    for (int i = 0; i < pcpu->size; i++)
-    {
-        auto ptr = pcpu->magazine[i];
-        auto slab = kmem_pointer_to_slab(ptr);
-
-        if (slab->cache != cache) [[unlikely]]
-            panic("slab: Pointer %p was returned to the wrong cache\n", ptr);
-        ((bufctl *) ptr)->flags = 0;
-        kmem_free_to_slab(cache, slab, ptr);
-    }
-
-    pcpu->size = 0;
+static void kmem_purge_remote(struct slab_rendezvous *rndvz)
+{
+    /* Use a release store to order prior loads and stores against this decrement */
+    __atomic_sub_fetch(&rndvz->waiting_for_cpus, 1, __ATOMIC_RELEASE);
+    /* Wait for the ack back from the shrinking cpu. Acquire semantics will make us observe
+     * everything written from freeze_start to freeze_end. */
+    while (!__atomic_load_n(&rndvz->ack, __ATOMIC_ACQUIRE))
+        cpu_relax();
+    /* Signal that we left the purge and no longer need rndvz. Relaxed does just fine here. */
+    __atomic_sub_fetch(&rndvz->waiting_for_cpus, 1, __ATOMIC_RELAXED);
 }
 
 /**
- * @brief Purge a cache, unlocked
+ * @brief Start a slab allocator freeze
+ * When the slab allocator is frozen, no one can enter the per-cpu "area" of any cache. That is to
+ * say, cpus that were accessing their pcpu will be frozen, and new ones will not be able to get in.
+ * Requires preemption to be disabled, in order for us to not migrate CPUs mid-freeze.
  *
+ * @param rndvz Rendezvous structure
+ */
+static void kmem_slab_freeze_start(struct slab_rendezvous *rndvz)
+{
+    /* To start a freeze, we store the number of CPUs we're waiting for in a shared structure. As
+     * IPIs hit CPUs, they decrement the count. When the count hits 0, we know every CPU has hit the
+     * freeze and may start to reclaim (or whatever we need to do). See comments in
+     * kmem_purge_remote for notes on the concurrency. */
+    unsigned int to_sync = get_nr_cpus() - 1;
+    rndvz->ack = 0;
+    __atomic_store_n(&rndvz->waiting_for_cpus, to_sync, __ATOMIC_RELEASE);
+
+    smp::sync_call([](void *ctx) { kmem_purge_remote((slab_rendezvous *) ctx); }, rndvz,
+                   cpumask::all_but_one(get_cpu_nr()), SYNC_CALL_NOWAIT);
+
+    while (__atomic_load_n(&rndvz->waiting_for_cpus, __ATOMIC_ACQUIRE) > 0)
+        cpu_relax();
+}
+
+/**
+ * @brief End a slab allocator freeze
+ * End a slab allocator freeze and let cpus allocate again.
+ * @param rndvz Rendezvous structure
+ */
+static void kmem_slab_freeze_end(struct slab_rendezvous *rndvz)
+{
+    rndvz->waiting_for_cpus = get_nr_cpus() - 1;
+    /* Use release to make waiters see waiting_for_cpus before ack. It will also make prior stores
+     * visible when ack is acquired. */
+    __atomic_store_n(&rndvz->ack, 1, __ATOMIC_RELEASE);
+}
+
+/**
+ * @brief Wait for all frozen cpus to leave the rendezvous period
+ * Wait for all frozen cpus to leave rendezvous. After the wait,
+ * we are guaranteed that @arg rndvz will not have any outstanding
+ * references.
+ * @param rndvz Rendezvous structure
+ */
+static void kmem_slab_freeze_wait(struct slab_rendezvous *rndvz)
+{
+    while (READ_ONCE(rndvz->waiting_for_cpus) > 0)
+        cpu_relax();
+}
+
+/**
+ * @brief Shrink all pcpu caches for a given cache
+ * Empty the pcpu caches for all online CPUs, for a given cache.
+ * If any given pcpu cache is "touched" (aka that cpu has a reference to it), skip it.
+ * Requires the cache lock and a slab freeze to be in place.
  * @param cache Slab cache
  */
-static void __kmem_cache_purge(struct slab_cache *cache)
+static void kmem_cache_shrink_pcpu_all(struct slab_cache *cache)
 {
-    sched_disable_preempt();
-
-    smp::sync_call_with_local([](void *ctx) { kmem_purge_local_cache((slab_cache *) ctx); }, cache,
-                              cpumask::all(),
-                              [](void *ctx) { kmem_purge_local_cache((slab_cache *) ctx); }, cache);
-
-    sched_enable_preempt();
-
-    if (!cache->nfreeslabs)
-        return;
-
-    list_for_every_safe (&cache->free_slabs)
+    /* For every CPU, flush the pcpu cache *if possible* */
+    for (unsigned int i = 0; i < get_nr_cpus(); i++)
     {
-        auto s = container_of(l, struct slab, slab_list_node);
-        kmem_cache_free_slab(s);
-        cache->nfreeslabs--;
-    }
+        struct slab_cache_percpu_context *pcpu = &cache->pcpu[i];
+        if (pcpu->touched.load(mem_order::relaxed) > 0)
+            continue;
+        for (int j = 0; j < pcpu->size; j++)
+        {
+            auto ptr = pcpu->magazine[j];
+            auto slab = kmem_pointer_to_slab(ptr);
 
-    ASSERT_SLAB_COUNT(cache);
+            if (slab->cache != cache) [[unlikely]]
+                panic("slab: Pointer %p was returned to the wrong cache\n", ptr);
+            ((bufctl *) ptr)->flags = 0;
+            kmem_free_to_slab(cache, slab, ptr);
+        }
+
+        pcpu->size = 0;
+    }
 }
 
 /**
- * @brief Shrink a slab cache by a number of pages
+ * @brief Release free slabs of a given cache up to a point
+ * Release all free slabs up to a @arg target_frep. Requires the cache lock.
  *
- * @param cache Cache to shrink
- * @param target_freep Target free pages
- * @return Freed pages
+ * @param cache Cache to trim
+ * @param target_freep Target free pages. If we equal or exceed this mark, we return.
+ * @return Estimation of freed pages
  */
-static unsigned long kmem_cache_shrink(struct slab_cache *cache, unsigned long target_freep)
+static unsigned long kmem_cache_release_free_all(struct slab_cache *cache,
+                                                 unsigned long target_freep)
 {
-    scoped_lock g{cache->lock};
-
-    sched_disable_preempt();
-
-    smp::sync_call_with_local([](void *ctx) { kmem_purge_local_cache((slab_cache *) ctx); }, cache,
-                              cpumask::all(),
-                              [](void *ctx) { kmem_purge_local_cache((slab_cache *) ctx); }, cache);
-
-    sched_enable_preempt();
-
-    ASSERT_SLAB_COUNT(cache);
-
     if (!cache->nfreeslabs)
         return 0;
 
@@ -1217,6 +1254,32 @@ static unsigned long kmem_cache_shrink(struct slab_cache *cache, unsigned long t
         freed += slab_pages;
     }
 
+    ASSERT_SLAB_COUNT(cache);
+    return freed;
+}
+
+/**
+ * @brief Shrink a slab cache by a number of pages
+ *
+ * @param cache Cache to shrink
+ * @param target_freep Target free pages
+ * @return Freed pages
+ */
+static unsigned long kmem_cache_shrink(struct slab_cache *cache, unsigned long target_freep)
+{
+    scoped_lock g{cache->lock};
+
+    sched_disable_preempt();
+
+    struct slab_rendezvous rndvz;
+    kmem_slab_freeze_start(&rndvz);
+    kmem_cache_shrink_pcpu_all(cache);
+    kmem_slab_freeze_end(&rndvz);
+    sched_enable_preempt();
+
+    ASSERT_SLAB_COUNT(cache);
+    unsigned long freed = kmem_cache_release_free_all(cache, target_freep);
+    kmem_slab_freeze_wait(&rndvz);
     return freed;
 }
 
@@ -1233,9 +1296,7 @@ void kmem_cache_purge(struct slab_cache *cache)
     // Flushing the KASAN quarantine is important as to let objects go back to the slabs
     kasan_flush_quarantine();
 #endif
-
-    scoped_lock g{cache->lock};
-    __kmem_cache_purge(cache);
+    kmem_cache_shrink(cache, ULONG_MAX);
 }
 
 /**
@@ -1256,10 +1317,8 @@ void kmem_cache_destroy(struct slab_cache *cache)
 #endif
 
     {
-        scoped_lock g{cache_list_lock};
-        scoped_lock g2{cache->lock};
-
-        __kmem_cache_purge(cache);
+        scoped_mutex g{cache_list_lock};
+        kmem_cache_shrink(cache, ULONG_MAX);
 
         if (cache->npartialslabs || cache->nfullslabs)
         {
@@ -1502,14 +1561,38 @@ void kmem_cache_print_slab_info_kasan(void *mem, struct slab *slab)
  */
 void slab_shrink_caches(unsigned long target_freep)
 {
-    scoped_lock g{cache_list_lock};
+    scoped_mutex g{cache_list_lock};
+    struct slab_rendezvous rndvz;
+    sched_disable_preempt();
+    kmem_slab_freeze_start(&rndvz);
+    sched_enable_preempt();
+
     list_for_every (&cache_list)
     {
         struct slab_cache *cache = container_of(l, struct slab_cache, cache_list_node);
-        unsigned long pages_freed = kmem_cache_shrink(cache, target_freep);
-
-        if (pages_freed >= target_freep)
-            break;
-        target_freep -= pages_freed;
+        /* Note: We need to try_lock the slab, as a slab freeze can have CPUs suspended
+         * mid-allocation, either in the pcpu caches or even holding the cache lock. As such, we
+         * try_lock and skip the cache if we fail to grab it. */
+        if (!spin_try_lock(&cache->lock))
+        {
+            kmem_cache_shrink_pcpu_all(cache);
+            spin_unlock(&cache->lock);
+        }
     }
+
+    kmem_slab_freeze_end(&rndvz);
+
+    list_for_every (&cache_list)
+    {
+        struct slab_cache *cache = container_of(l, struct slab_cache, cache_list_node);
+        unsigned long freed = 0;
+        /* The limitation above does not apply, because caches have been unfrozen. */
+        scoped_lock g{cache->lock};
+        freed = kmem_cache_release_free_all(cache, target_freep);
+        if (freed >= target_freep)
+            break;
+        target_freep -= freed;
+    }
+
+    kmem_slab_freeze_wait(&rndvz);
 }
