@@ -1136,8 +1136,9 @@ struct slab_rendezvous
 
 static void kmem_purge_remote(struct slab_rendezvous *rndvz)
 {
-    /* Use a release store to order prior loads and stores against this decrement */
-    __atomic_sub_fetch(&rndvz->waiting_for_cpus, 1, __ATOMIC_RELEASE);
+    __atomic_sub_fetch(&rndvz->waiting_for_cpus, 1, __ATOMIC_RELAXED);
+    /* Orders prior loads and stores against the rndvz::ack read */
+    smp_mb();
     /* Wait for the ack back from the shrinking cpu. Acquire semantics will make us observe
      * everything written from freeze_start to freeze_end. */
     while (!__atomic_load_n(&rndvz->ack, __ATOMIC_ACQUIRE))
