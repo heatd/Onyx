@@ -261,6 +261,13 @@ public:
     {
         return f;
     }
+
+    file *release()
+    {
+        file *ret = f;
+        f = nullptr;
+        return ret;
+    }
 };
 
 struct file *__get_file_description(int fd, struct process *p)
@@ -876,19 +883,15 @@ int sys_dup23_internal(int oldfd, int newfd, int dupflags, unsigned int flags)
     if (newfd < 0 || oldfd < 0)
         return -EBADF;
 
-    scoped_lock g{ioctx->fdlock};
-    fd_table *table = ioctx->table;
-
     struct file *newf_old = nullptr;
 
-    struct file *f = __get_file_description_unlocked(oldfd, current);
-    if (!f)
-    {
-        newfd = -errno;
-        goto out;
-    }
+    auto_fd old = fdget(oldfd);
+    if (!old)
+        return newfd;
 
-    if ((unsigned int) newfd > table->file_desc_entries)
+    scoped_lock g{ioctx->fdlock};
+
+    if ((unsigned int) newfd > ioctx->table->file_desc_entries)
     {
         int st = enlarge_file_descriptor_table(current, (unsigned int) newfd + 1);
         if (st < 0)
@@ -896,30 +899,24 @@ int sys_dup23_internal(int oldfd, int newfd, int dupflags, unsigned int flags)
             // open() expects EMFILE, dup2/3 expects EBADF
             if (st == -EMFILE)
                 st = -EBADF;
-            fd_put(f);
             return st;
         }
     }
 
+    fd_table *table = rcu_dereference(ioctx->table);
     if (oldfd == newfd)
-    {
-        fd_put(f);
         return flags & DUP23_DUP3 ? -EINVAL : oldfd;
-    }
 
     if (table->file_desc[newfd])
     {
         auto ex = __file_close_unlocked(newfd, current);
         if (ex.has_error())
-        {
-            fd_put(f);
             return ex.error();
-        }
 
         newf_old = ex.value();
     }
 
-    table->file_desc[newfd] = f;
+    table->file_desc[newfd] = old.release();
     fd_set_cloexec(newfd, dupflags & O_CLOEXEC, table);
     fd_set_open(newfd, true, table);
 
@@ -935,7 +932,6 @@ int sys_dup23_internal(int oldfd, int newfd, int dupflags, unsigned int flags)
     if (newf_old)
         fd_put(newf_old);
 
-out:
     return newfd;
 }
 
