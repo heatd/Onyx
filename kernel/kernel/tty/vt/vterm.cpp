@@ -1482,9 +1482,12 @@ static int vterm_write_con(const char *buffer, size_t size, unsigned int flags,
         if (!mutex_trylock(&vt->vt_lock))
         {
             has_lock = false;
-            if (flags & CONSOLE_WRITE_PANIC)
+            if (!(flags & CONSOLE_WRITE_PANIC))
                 return -EAGAIN;
         }
+
+        if (flags & CONSOLE_WRITE_PANIC)
+            vt->in_escape = false;
     }
     else
         mutex_lock(&vt->vt_lock);
