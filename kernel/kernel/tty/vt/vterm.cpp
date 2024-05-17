@@ -270,30 +270,38 @@ void vterm_flush_all(struct vterm *vterm)
         do_vterm_flush_all(vterm);
 }
 
-void vterm_scroll(struct framebuffer *fb, struct vterm *vt)
+static void __vterm_scroll(struct framebuffer *fb, struct vterm *vt, unsigned int nr_lines,
+                           unsigned int top, unsigned int bottom)
 {
-    unsigned int start = vt->columns * vt->top;
-    unsigned int dest = vt->columns * (vt->top + 1);
-    unsigned int end = vt->columns * (vt->bottom - 1);
+    unsigned int start = vt->columns * top;
+    unsigned int dest = vt->columns * (top + nr_lines);
+    unsigned int end = vt->columns * (bottom - nr_lines);
     memcpy(vt->cells + start, vt->cells + dest, sizeof(struct console_cell) * (end - start));
 
-    for (unsigned int i = 0; i < vt->columns; i++)
+    for (unsigned int i = 0; i < vt->columns * nr_lines; i++)
     {
-        struct console_cell *c = &vt->cells[(vt->bottom - 1) * vt->columns + i];
+        struct console_cell *c = &vt->cells[(bottom - nr_lines) * vt->columns + i];
         c->codepoint = ' ';
         c->bg = vt->bg;
         c->fg = vt->fg;
     }
 }
 
-void vterm_scroll_down(struct framebuffer *fb, struct vterm *vt)
+static void vterm_scroll(struct framebuffer *fb, struct vterm *vt)
 {
-    unsigned int start = vt->columns * (vt->top + 1);
-    unsigned int dest = vt->columns * vt->top;
-    unsigned int end = vt->columns * (vt->bottom - 1);
+    __vterm_scroll(fb, vt, 1, vt->top, vt->bottom);
+}
+
+static void __vterm_scroll_down(struct framebuffer *fb, struct vterm *vt, unsigned int nr,
+                                unsigned int top, unsigned int bottom)
+{
+    unsigned int start = vt->columns * (top + nr);
+    unsigned int dest = vt->columns * top;
+    unsigned int end = vt->columns * (bottom - nr);
+    DCHECK(end > start);
     memmove(vt->cells + start, vt->cells + dest, sizeof(struct console_cell) * (end - start));
 
-    for (unsigned int i = 0; i < vt->columns; i++)
+    for (unsigned int i = 0; i < vt->columns * nr; i++)
     {
         struct console_cell *c = &vt->cells[dest + i];
         c->codepoint = ' ';
@@ -301,6 +309,12 @@ void vterm_scroll_down(struct framebuffer *fb, struct vterm *vt)
         c->fg = vt->fg;
     }
 }
+
+static void vterm_scroll_down(struct framebuffer *fb, struct vterm *vt)
+{
+    __vterm_scroll_down(fb, vt, 1, vt->top, vt->bottom);
+}
+
 void vterm_set_char(utf32_t c, unsigned int x, unsigned int y, struct color fg, struct color bg,
                     struct vterm *vterm)
 {
@@ -1291,27 +1305,8 @@ void vterm::insert_lines(unsigned long nr)
     if (nr > possible_lines_to_insert)
         nr = possible_lines_to_insert;
 
-    auto moved_y = cursor_y + nr;
-    auto to_keep = rows - moved_y;
-    auto cell = &cells[cursor_y];
-    memcpy(&cells[moved_y], cell, sizeof(console_cell) * columns * to_keep);
-
-    for (unsigned int i = 0; i < columns; i++)
-    {
-        cell[i].bg = bg;
-        cell[i].fg = fg;
-        cell[i].codepoint = ' ';
-        cell[i].flags = 0;
-        vterm_set_dirty(&cell[i]);
-    }
-
-    for (unsigned int i = moved_y; i < rows; i++)
-    {
-        for (unsigned int j = 0; j < columns; j++)
-        {
-            vterm_set_dirty(&cells[i * columns + j]);
-        }
-    }
+    __vterm_scroll_down(fb, this, nr, cursor_y, bottom);
+    vterm_flush_all(this);
 }
 
 size_t vterm::do_escape(const char *buffer, size_t len)
