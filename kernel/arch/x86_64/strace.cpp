@@ -238,8 +238,9 @@ void setup_kernel_symbols(struct module *m)
         useful_syms++;
     }
 
-    struct symbol *symtab = (symbol *) zalloc(sizeof(struct symbol) * useful_syms);
-
+    size_t len = sizeof(struct symbol) * useful_syms;
+    struct symbol *symtab =
+        (symbol *) vmalloc(vm_size_to_pages(len), VM_TYPE_REGULAR, VM_WRITE | VM_READ, GFP_KERNEL);
     assert(symtab != NULL);
 
     for (size_t i = 0, n = 0; i < num; i++)
