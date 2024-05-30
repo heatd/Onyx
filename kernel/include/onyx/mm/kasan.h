@@ -28,7 +28,11 @@ void asan_poison_shadow(unsigned long addr, size_t size, uint8_t value);
  * @brief Flush the KASAN memory quarantine
  *
  */
-void kasan_flush_quarantine();
+#ifdef __cplusplus
+extern "C"
+#endif
+    void
+    kasan_flush_quarantine();
 
 /**
  * @brief Add a chunk to the KASAN quarantine

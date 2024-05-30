@@ -13,6 +13,8 @@
 
 #include <platform/irq.h>
 
+__BEGIN_CDECLS
+
 void sched_enable_pulse();
 
 void sched_handle_preempt(bool may_softirq);
@@ -56,5 +58,7 @@ __always_inline void sched_disable_preempt()
 {
     inc_per_cpu(preemption_counter);
 }
+
+__END_CDECLS
 
 #endif

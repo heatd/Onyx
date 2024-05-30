@@ -351,7 +351,7 @@ void quarantine::flush()
  * @brief Flush the KASAN memory quarantine
  *
  */
-void kasan_flush_quarantine()
+extern "C" void kasan_flush_quarantine()
 {
     kasan_quarantine.flush();
 }
