@@ -274,6 +274,8 @@ void vm_obj_clean_page(struct vm_object *obj, struct page *page);
 
 void vm_obj_reassign_mapping(struct vm_object *vm_obj, struct vm_area_struct *vma);
 
+bool vm_obj_remove_page(struct vm_object *obj, struct page *page);
+
 __END_CDECLS
 
 #endif

@@ -11,6 +11,7 @@
 
 #include <onyx/file.h>
 #include <onyx/ioctx.h>
+#include <onyx/mm/page_lru.h>
 #include <onyx/mm/vm_object.h>
 #include <onyx/page.h>
 #include <onyx/panic.h>
@@ -283,6 +284,7 @@ static int vmo_purge_pages(unsigned long start, unsigned long end,
              * reference */
             page_unref(old_p);
             dec_page_stat(old_p, NR_FILE);
+            page_remove_lru(old_p);
             if (!vmo->ops->free_page)
                 free_page(old_p);
             else
@@ -510,4 +512,18 @@ void vm_obj_clean_page(struct vm_object *obj, struct page *page)
         vm_obj_assert_interval_tree(offset, vma);
         vm_wp_page(vma->vm_mm, (void *) (vma->vm_start + (offset << PAGE_SHIFT) - vma->vm_offset));
     }
+}
+
+bool vm_obj_remove_page(struct vm_object *obj, struct page *page)
+{
+    scoped_lock g{obj->page_lock};
+    DCHECK(page_locked(page));
+    DCHECK(page->owner == obj);
+    DCHECK(page->ref != 0);
+    /* Under the lock, pages can't get their references incremented, so we check if refs == 1 here.
+     */
+    if (__atomic_load_n(&page->ref, __ATOMIC_RELAXED) > 1)
+        return false;
+    obj->vm_pages.store(page->pageoff, 0);
+    return true;
 }

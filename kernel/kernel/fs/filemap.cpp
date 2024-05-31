@@ -11,6 +11,7 @@
 #include <onyx/filemap.h>
 #include <onyx/gen/trace_filemap.h>
 #include <onyx/mm/amap.h>
+#include <onyx/mm/page_lru.h>
 #include <onyx/page.h>
 #include <onyx/pagecache.h>
 #include <onyx/readahead.h>
@@ -63,6 +64,7 @@ int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags, struc
         {
             inc_page_stat(p, NR_FILE);
             page_ref(p);
+            page_add_lru(p);
         }
 
         p = p2;
@@ -660,8 +662,6 @@ map:
      * 'adopts' our reference. This works because amaps are inherently region-specific, and we have
      * the address_space locked.
      */
-    if (!newp)
-        page_unref(page);
 
     return 0;
 enomem:

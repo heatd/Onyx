@@ -1,14 +1,18 @@
 /*
- * Copyright (c) 2023 Pedro Falcato
+ * Copyright (c) 2023 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: MIT
  */
+#include <stdio.h>
+
 #include <onyx/mm/kasan.h>
+#include <onyx/mm/page_node.h>
 #include <onyx/mm/reclaim.h>
 #include <onyx/mm/shrinker.h>
 #include <onyx/mm/slab.h>
+#include <onyx/mm/vm_object.h>
 #include <onyx/page.h>
 #include <onyx/rwlock.h>
 
@@ -81,6 +85,178 @@ static void shrink_objects(struct reclaim_data *data, unsigned long free_page_ta
     rw_unlock_read(&shrinker_list_lock);
 }
 
+enum lru_result
+{
+    LRU_SHRINK,
+    LRU_ROTATE,
+    LRU_ACTIVATE
+};
+
+#ifdef __clang__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstring-plus-int"
+#endif
+
+struct page_flag
+{
+    unsigned long val;
+    const char *name;
+};
+
+/* 10 = strlen(PAGE_FLAG_) */
+#define X(macro)                          \
+    {                                     \
+        .val = macro, .name = #macro + 10 \
+    }
+
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+
+static const struct page_flag flags[] = {
+    X(PAGE_FLAG_LOCKED),    X(PAGE_FLAG_DIRTY),
+    X(PAGE_FLAG_PINNED),    {.val = PAGE_BUDDY, .name = "BUDDY"},
+    X(PAGE_FLAG_BUFFER),    X(PAGE_FLAG_FILESYSTEM1),
+    X(PAGE_FLAG_WAITERS),   X(PAGE_FLAG_UPTODATE),
+    X(PAGE_FLAG_WRITEBACK), X(PAGE_FLAG_READAHEAD),
+    X(PAGE_FLAG_LRU),       X(PAGE_FLAG_REFERENCED),
+};
+
+#ifdef __clang__
+#pragma GCC diagnostic pop
+#endif
+
+#undef X
+
+static void dump_page(struct page *page)
+{
+    char flags_buf[128];
+    char *b = flags_buf;
+    size_t len = 128;
+    bool first = true;
+    flags_buf[0] = 0;
+
+    for (unsigned int i = 0; i < ARRAY_SIZE(flags); i++)
+    {
+        if (page->flags & flags[i].val)
+        {
+            size_t copied = strlcpy(b, flags[i].name, len);
+            len -= copied;
+            b += copied;
+            if (!first)
+            {
+                if (len > 1)
+                    *b = '|', b++, len--;
+            }
+            first = false;
+        }
+    }
+
+    pr_crit("Page %p (pfn %016lx)  ref: %lu\n", page, page_to_pfn(page), page->ref);
+    pr_crit("  flags: %016lx (%s)  private: %016lx\n", page->flags, flags_buf, page->priv);
+    pr_crit("  owner: %p  pageoff %lx\n", page->owner, page->pageoff);
+}
+
+static void bug_on_page(struct page *page, const char *expr, const char *file, unsigned int line,
+                        const char *func)
+{
+    pr_crit("Assertion %s failed in %s:%u, in function %s\n", expr, file, line, func);
+    dump_page(page);
+    panic(expr);
+}
+
+#define DCHECK_PAGE(expr, page) \
+    if (unlikely(!(expr)))      \
+        bug_on_page(page, #expr, __FILE__, __LINE__, __func__);
+
+static enum lru_result shrink_page(struct page *page)
+{
+    DCHECK_PAGE(page->owner, page);
+    if (page_flag_set(page, PAGE_FLAG_REFERENCED) || page_flag_set(page, PAGE_FLAG_DIRTY))
+    {
+        __atomic_and_fetch(&page->flags, ~PAGE_FLAG_REFERENCED, __ATOMIC_RELAXED);
+        return LRU_ROTATE;
+    }
+
+    if (!try_lock_page(page))
+        return LRU_ROTATE;
+
+    /* This should be a stable reference. TODO: What if truncation? What if the inode goes away
+     * after the unlock? */
+    struct vm_object *obj = page->owner;
+    // pr_info("removing page %p\n", page);
+    if (!vm_obj_remove_page(obj, page))
+    {
+        /* If we failed to remove the page, it's busy */
+        unlock_page(page);
+        return LRU_ROTATE;
+    }
+
+    unlock_page(page);
+    DCHECK(page->ref == 1);
+    dec_page_stat(page, NR_FILE);
+    list_remove(&page->lru_node);
+    __atomic_and_fetch(&page->flags, ~PAGE_FLAG_LRU, __ATOMIC_RELAXED);
+    if (obj->ops->free_page)
+        obj->ops->free_page(obj, page);
+    else
+        free_page(page);
+    return LRU_SHRINK;
+}
+
+#define DEBUG_SHRINK_ZONE 1
+
+static void shrink_zone(struct reclaim_data *data, struct page_node *node, struct page_zone *zone,
+                        unsigned long target_freep)
+{
+    unsigned long target = target_freep;
+    (void) target;
+    struct page_lru *lru = &zone->zone_lru;
+    DEFINE_LIST(rotate_list);
+
+    spin_lock(&lru->lock);
+
+    list_for_every_safe (&lru->lru_list)
+    {
+        struct page *page = container_of(l, struct page, lru_node);
+        enum lru_result res = shrink_page(page);
+        if (res == LRU_ROTATE)
+        {
+            list_remove(&page->lru_node);
+            list_add_tail(&page->lru_node, &rotate_list);
+        }
+        else if (res == LRU_SHRINK)
+        {
+            target_freep--;
+            if (target_freep == 0)
+                break;
+        }
+    }
+
+#ifdef DEBUG_SHRINK_ZONE
+    pr_info("shrink_zone: Zone %s freed %lu pages (out of %lu)\n", zone->name,
+            target - target_freep, target);
+#endif
+    list_splice(&rotate_list, &lru->lru_list);
+    spin_unlock(&lru->lock);
+}
+
+static void shrink_page_zones(struct reclaim_data *data, struct page_node *node)
+{
+    struct page_zone *zone;
+    for_zones_in_node(node, zone)
+    {
+        unsigned long freep = zone->total_pages - zone->used_pages;
+        unsigned long target = 0;
+
+        if (freep <= zone->low_watermark)
+            target = zone->high_watermark - freep;
+
+        if (target == 0)
+            continue;
+
+        shrink_zone(data, node, zone, target);
+    }
+}
+
 /**
  * @brief Do (direct?) page reclamation. Called from direct reclaim or pagedaemon.
  *
@@ -102,6 +278,7 @@ int page_do_reclaim(struct reclaim_data *data)
         /* Lets scale according to our desperation */
         if (nr_tries > 0)
             free_target *= nr_tries;
+        shrink_page_zones(data, &main_node);
         shrink_objects(data, free_target);
 #ifdef CONFIG_KASAN
         /* KASAN is likely to have a lot of objects under its wing, so flush it. */
