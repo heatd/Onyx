@@ -71,6 +71,8 @@ __BEGIN_CDECLS
 #define PAGE_FLAG_UPTODATE    (1 << 8)
 #define PAGE_FLAG_WRITEBACK   (1 << 9)
 #define PAGE_FLAG_READAHEAD   (1 << 10)
+#define PAGE_FLAG_LRU         (1 << 11)
+#define PAGE_FLAG_REFERENCED  (1 << 12)
 
 struct vm_object;
 
@@ -100,6 +102,8 @@ struct CAPABILITY("page") page
                 struct page *next_virtual_region;
             } next_un;
         };
+
+        struct list_head lru_node;
     };
 
     unsigned long priv;
@@ -486,6 +490,7 @@ void page_drain_pcpu();
 enum page_stat
 {
     NR_FILE = 0,
+    NR_SHARED,
     NR_ANON,
     NR_DIRTY,
     NR_WRITEBACK,
@@ -503,6 +508,9 @@ void inc_page_stat(struct page *page, enum page_stat stat);
 void dec_page_stat(struct page *page, enum page_stat stat);
 
 void page_accumulate_stats(unsigned long pages[PAGE_STATS_MAX]);
+
+struct page_lru;
+struct page_lru *page_to_page_lru(struct page *page);
 
 __END_CDECLS
 

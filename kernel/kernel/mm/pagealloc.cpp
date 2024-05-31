@@ -18,6 +18,9 @@
 
 #include <onyx/copy.h>
 #include <onyx/init.h>
+#include <onyx/mm/page_lru.h>
+#include <onyx/mm/page_node.h>
+#include <onyx/mm/page_zone.h>
 #include <onyx/mm/reclaim.h>
 #include <onyx/modules.h>
 #include <onyx/page.h>
@@ -46,76 +49,9 @@ __always_inline unsigned long pow2(unsigned int exp)
     return (1UL << (unsigned long) exp);
 }
 
-#define PAGEALLOC_NR_ORDERS 14
-
 #define MAX_PCPU_PAGES    1024
 #define PCPU_REFILL_PAGES 512
 #define PCPU_REFILL_ORDER 9
-
-struct page_pcpu_data
-{
-    struct list_head page_list;
-    unsigned long nr_pages{0};
-    unsigned long nr_fast_path{0};
-    unsigned long nr_slow_path{0};
-    unsigned long nr_queue_reclaims{0};
-    long pagestats[PAGE_STATS_MAX];
-
-    constexpr page_pcpu_data()
-    {
-        INIT_LIST_HEAD(&page_list);
-        for (auto &stat : pagestats)
-            stat = 0;
-    }
-
-    /**
-     * @brief Allocate from pcpu state.
-     * IRQs must be disabled
-     * @return Allocated struct page, or nullptr
-     */
-    __attribute__((always_inline)) struct page *alloc()
-    {
-        if (nr_pages == 0) [[unlikely]]
-            return nullptr;
-
-        struct page *page = container_of(list_first_element(&page_list), struct page,
-                                         page_allocator_node.list_node);
-        list_remove(&page->page_allocator_node.list_node);
-
-        nr_pages--;
-
-        return page;
-    }
-
-    /**
-     * @brief Free to pcpu state
-     * IRQs must be disabled
-     * @param page Page to free
-     */
-    __attribute__((always_inline)) void free(struct page *page)
-    {
-        list_add_tail(&page->page_allocator_node.list_node, &page_list);
-        nr_pages++;
-    }
-
-} __align_cache;
-
-struct page_zone
-{
-    const char *name;
-    unsigned long start;
-    unsigned long end;
-    unsigned long min_watermark;
-    unsigned long low_watermark;
-    unsigned long high_watermark;
-    struct list_head pages[PAGEALLOC_NR_ORDERS];
-    unsigned long total_pages;
-    long used_pages;
-    unsigned long splits;
-    unsigned long merges;
-    spinlock lock;
-    page_pcpu_data pcpu[CONFIG_SMP_NR_CPUS] __align_cache;
-};
 
 __always_inline bool page_is_buddy(page *page)
 {
@@ -214,6 +150,8 @@ static void do_direct_reclaim(int order, int attempt, unsigned int gfp_flags)
     data.failed_order = order;
     data.gfp_flags = gfp_flags;
     data.mode = RECLAIM_MODE_DIRECT;
+    pr_info("pagealloc: Doing direct reclaim: order %d, attempt %d, gfp_flags %x\n", order, attempt,
+            gfp_flags);
     page_do_reclaim(&data);
 }
 
@@ -343,6 +281,9 @@ static struct page *page_zone_refill_pcpu(struct page_zone *zone, unsigned int g
 
 struct page *page_zone_alloc(struct page_zone *zone, unsigned int gfp_flags, unsigned int order)
 {
+    if (zone->total_pages == 0) [[unlikely]]
+        return nullptr;
+
     if (order == 0) [[likely]]
     {
         // Let's use pcpu caching for order-0 pages
@@ -528,67 +469,6 @@ void page_zone_free(page_zone *zone, struct page *page, unsigned int order)
     page_zone_free_core(zone, page, order);
 }
 
-constexpr void page_zone_init(page_zone *zone, const char *name, unsigned long start,
-                              unsigned long end)
-{
-    zone->name = name;
-    zone->start = start;
-    zone->end = end;
-    zone->high_watermark = zone->min_watermark = zone->low_watermark = 0;
-    spinlock_init(&zone->lock);
-    for (auto &order : zone->pages)
-    {
-        INIT_LIST_HEAD(&order);
-    }
-
-    zone->total_pages = 0;
-    zone->used_pages = 0;
-    zone->merges = zone->splits = 0;
-}
-
-class page_node
-{
-private:
-    struct spinlock node_lock;
-    struct list_head cpu_list_node;
-    unsigned long used_pages{0};
-    unsigned long total_pages{0};
-    struct page_zone zones[NR_ZONES];
-
-public:
-    struct page_zone *pick_zone(unsigned long page);
-
-    constexpr page_node() : node_lock{}, cpu_list_node{}
-    {
-        spinlock_init(&node_lock);
-        page_zone_init(&zones[0], "DMA32", 0, UINT32_MAX);
-        page_zone_init(&zones[1], "Normal", (u64) UINT32_MAX + 1, UINT64_MAX);
-    }
-
-    void init()
-    {
-        INIT_LIST_HEAD(&cpu_list_node);
-    }
-
-    void add_region(unsigned long base, size_t size);
-    struct page *alloc_order(unsigned int order, unsigned long flags);
-    struct page *allocate_pages(unsigned long nr_pages, unsigned long flags);
-    struct page *alloc_page(unsigned long flags);
-    void free_page(struct page *p);
-
-    template <typename Callable>
-    bool for_every_zone(Callable c)
-    {
-        for (auto &zone : zones)
-        {
-            if (!c(&zone))
-                return false;
-        }
-
-        return true;
-    }
-};
-
 static bool page_is_initialized = false;
 
 page_node main_node;
@@ -598,6 +478,11 @@ struct page_zone *page_node::pick_zone(unsigned long page)
     if (page < UINT32_MAX)
         return &zones[ZONE_DMA32];
     return &zones[ZONE_NORMAL];
+}
+
+struct page_lru *page_to_page_lru(struct page *page)
+{
+    return &main_node.pick_zone((unsigned long) page_to_phys(page))->zone_lru;
 }
 
 void page_node::add_region(uintptr_t base, size_t size)
@@ -909,6 +794,7 @@ __always_inline void prepare_pages_after_alloc(struct page *page, unsigned int o
 }
 
 #define PAGE_ALLOC_MAX_RECLAIM_ATTEMPT 5
+void stack_trace();
 
 struct page *page_node::alloc_order(unsigned int order, unsigned long flags)
 {
@@ -920,7 +806,7 @@ struct page *page_node::alloc_order(unsigned int order, unsigned long flags)
         if (attempt == PAGE_ALLOC_MAX_RECLAIM_ATTEMPT)
         {
             /* Avoid locking up the system by just returning NULL */
-            return nullptr;
+            goto failure;
         }
 
         int zone = ZONE_NORMAL;
@@ -950,18 +836,25 @@ struct page *page_node::alloc_order(unsigned int order, unsigned long flags)
                 wait_for_event(&paged_data.paged_waiters_queue, cur_seq < paged_data.reclaim_seq);
             }
             else
-                return nullptr; /* Since __GFP_ATOMIC cannot wait here, we simply fail. */
+                goto failure; /* Since __GFP_ATOMIC cannot wait here, we simply fail. */
         }
         else
-            return nullptr; /* No reclaim, just fail */
+            goto failure; /* No reclaim, just fail */
 
         attempt++;
     }
+
+    if (unlikely(!page))
+        goto failure;
 
 out:
     prepare_pages_after_alloc(page, order, flags);
 
     return page;
+failure:
+    pr_warn("pagealloc: Failed allocation of order %u, gfp_flags %lx, on:\n", order, flags);
+    stack_trace();
+    return nullptr;
 }
 
 struct page *alloc_pages(unsigned int order, unsigned long flags)
@@ -983,6 +876,7 @@ void page_node::free_page(struct page *p)
 #ifdef CONFIG_PAGE_OWNER
     page_owner_freed(p);
 #endif
+    DCHECK(!page_flag_set(p, PAGE_FLAG_LRU));
 
     unsigned long cpu_flags = spin_lock_irqsave(&node_lock);
     /* Reset the page */
