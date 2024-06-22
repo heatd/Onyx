@@ -1194,7 +1194,10 @@ static struct vm_area_struct *vm_split_region(struct mm_address_space *as,
         newr->vm_offset += region_off;
         vma->vm_end = addr;
         if (vma->vm_obj)
+        {
+            vm_obj_reassign_mapping(vma->vm_obj, vma);
             vmo_assign_mapping(vma->vm_obj, newr);
+        }
     }
 
     vm_insert_region(as, newr);
