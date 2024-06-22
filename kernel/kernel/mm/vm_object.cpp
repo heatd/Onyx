@@ -527,3 +527,25 @@ bool vm_obj_remove_page(struct vm_object *obj, struct page *page)
     obj->vm_pages.store(page->pageoff, 0);
     return true;
 }
+
+long vm_obj_get_page_references(struct vm_object *obj, struct page *page, unsigned int *vm_flags)
+{
+    scoped_lock g{obj->mapping_lock};
+    struct vm_area_struct *vma;
+    unsigned long offset = page->pageoff;
+    long refs = 0;
+
+    if (vm_flags)
+        *vm_flags = 0;
+
+    for_intervals_in_range(&obj->mappings, vma, struct vm_area_struct, vm_objhead, offset, offset)
+    {
+        vm_obj_assert_interval_tree(offset, vma);
+        refs += mmu_get_clear_referenced(
+            vma->vm_mm, (void *) (vma->vm_start + (offset << PAGE_SHIFT) - vma->vm_offset), page);
+        if (vm_flags)
+            *vm_flags |= vma->vm_flags;
+    }
+
+    return refs;
+}
