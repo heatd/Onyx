@@ -1206,3 +1206,10 @@ int mmu_fork_tables(struct vm_area_struct *old_region, struct mm_address_space *
                           (PML *) PHYS_TO_VIRT(addr_space->arch_mmu.top_pt),
                           arm64_paging_levels - 1, it, old_region);
 }
+
+unsigned int mmu_get_clear_referenced(struct mm_address_space *mm, void *addr, struct page *page)
+{
+    /* TODO: arm64 AF is way less trivial than riscv or x86, as we need to emulate AF (or not!
+     * depending on armv8.1 TTHM support). Implement later. */
+    return 0;
+}

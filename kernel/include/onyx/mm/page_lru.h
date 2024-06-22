@@ -14,16 +14,25 @@
 
 struct page;
 
+#define NR_LRU_LISTS 2
+
+enum lru_state
+{
+    LRU_INACTIVE = 0,
+    LRU_ACTIVE
+};
+
 struct page_lru
 {
-    /* Very simple single LRU list (for the CLOCK algorithm) */
-    struct list_head lru_list;
+    /* LRU lists for the LRU-2Q + CLOCK algorithm */
+    struct list_head lru_lists[NR_LRU_LISTS];
     struct spinlock lock;
 };
 
 CONSTEXPR static inline void page_lru_init(struct page_lru *lru)
 {
-    INIT_LIST_HEAD(&lru->lru_list);
+    for (int i = 0; i < NR_LRU_LISTS; i++)
+        INIT_LIST_HEAD(&lru->lru_lists[i]);
     spinlock_init(&lru->lock);
 }
 

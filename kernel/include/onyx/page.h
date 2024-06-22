@@ -73,6 +73,7 @@ __BEGIN_CDECLS
 #define PAGE_FLAG_READAHEAD   (1 << 10)
 #define PAGE_FLAG_LRU         (1 << 11)
 #define PAGE_FLAG_REFERENCED  (1 << 12)
+#define PAGE_FLAG_ACTIVE      (1 << 13)
 
 struct vm_object;
 
@@ -346,6 +347,11 @@ __always_inline void page_wait_writeback(struct page *p)
         page_wait_bit(p, PAGE_FLAG_WRITEBACK, false);
 }
 
+__always_inline void page_set_flag(struct page *p, unsigned long flag)
+{
+    __atomic_fetch_or(&p->flags, flag, __ATOMIC_RELEASE);
+}
+
 void __reclaim_page(struct page *new_page);
 void reclaim_pages(unsigned long start, unsigned long end);
 void page_allocate_pagemap(unsigned long __maxpfn);
@@ -511,6 +517,8 @@ void page_accumulate_stats(unsigned long pages[PAGE_STATS_MAX]);
 
 struct page_lru;
 struct page_lru *page_to_page_lru(struct page *page);
+
+void page_promote_referenced(struct page *page);
 
 __END_CDECLS
 

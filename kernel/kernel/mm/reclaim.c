@@ -170,18 +170,42 @@ static void bug_on_page(struct page *page, const char *expr, const char *file, u
 static enum lru_result shrink_page(struct page *page)
 {
     DCHECK_PAGE(page->owner, page);
-    if (page_flag_set(page, PAGE_FLAG_REFERENCED) || page_flag_set(page, PAGE_FLAG_DIRTY))
+    if (!try_lock_page(page))
+        return LRU_ROTATE;
+    struct vm_object *obj = page->owner;
+    unsigned int vm_flags = 0;
+
+    long refs = vm_obj_get_page_references(obj, page, &vm_flags);
+    /* Always activate executable pages or (actively) shared pages */
+    if (vm_flags & VM_EXEC || refs > 1)
     {
-        __atomic_and_fetch(&page->flags, ~PAGE_FLAG_REFERENCED, __ATOMIC_RELAXED);
+        unlock_page(page);
+        return LRU_ACTIVATE;
+    }
+
+    /* Give the page another round if refs = 1 (a single A bit was found) or if referenced was set.
+     * Also give it another round if dirty, because we can't writeback in reclaim (yet?) and it's an
+     * indicative of page activity anyway. */
+
+    if (refs > 0)
+    {
+        /* Activate a referenced page with pte refs, or reference it if not referenced yet */
+        unlock_page(page);
+        if (page_flag_set(page, PAGE_FLAG_REFERENCED))
+            return LRU_ACTIVATE;
+        page_set_flag(page, PAGE_FLAG_REFERENCED);
         return LRU_ROTATE;
     }
 
-    if (!try_lock_page(page))
+    if (page_flag_set(page, PAGE_FLAG_REFERENCED) || page_flag_set(page, PAGE_FLAG_DIRTY))
+    {
+        __atomic_and_fetch(&page->flags, ~PAGE_FLAG_REFERENCED, __ATOMIC_RELAXED);
+        unlock_page(page);
         return LRU_ROTATE;
+    }
 
     /* This should be a stable reference. TODO: What if truncation? What if the inode goes away
      * after the unlock? */
-    struct vm_object *obj = page->owner;
     // pr_info("removing page %p\n", page);
     if (!vm_obj_remove_page(obj, page))
     {
@@ -193,6 +217,7 @@ static enum lru_result shrink_page(struct page *page)
     unlock_page(page);
     DCHECK(page->ref == 1);
     dec_page_stat(page, NR_FILE);
+    dec_page_stat(page, NR_INACTIVE_FILE);
     list_remove(&page->lru_node);
     __atomic_and_fetch(&page->flags, ~PAGE_FLAG_LRU, __ATOMIC_RELAXED);
     if (obj->ops->free_page)
@@ -204,17 +229,62 @@ static enum lru_result shrink_page(struct page *page)
 
 #define DEBUG_SHRINK_ZONE 1
 
+static unsigned long inactive_file_min(const unsigned long stats[PAGE_STATS_MAX])
+{
+    /* Target at least 1/4 of the total page cache as the inactive list's size */
+    return (stats[NR_INACTIVE_FILE] + stats[NR_ACTIVE_FILE]) / 4;
+}
+
+static void shrink_active_list(struct page_node *node, struct page_zone *zone,
+                               const unsigned long pagestats[PAGE_STATS_MAX],
+                               unsigned long target_inactive)
+{
+    /* Attempt to shrink the active list such that we hit target_inactive */
+    struct page_lru *lru = &zone->zone_lru;
+    spin_lock(&lru->lock);
+    DCHECK(target_inactive > pagestats[NR_INACTIVE_FILE]);
+    unsigned long to_move = target_inactive - pagestats[NR_INACTIVE_FILE];
+    list_for_every_safe (&lru->lru_lists[LRU_ACTIVE])
+    {
+        if (to_move-- == 0)
+            break;
+        struct page *page = container_of(l, struct page, lru_node);
+        /* Referenced? rotate it back to the list's tail. If we're really desperate for inactive
+         * pages, we'll be able to fetch again, no problem. */
+        if (page_flag_set(page, PAGE_FLAG_REFERENCED))
+        {
+            __atomic_and_fetch(&page->flags, ~PAGE_FLAG_REFERENCED, __ATOMIC_RELAXED);
+            list_remove(&page->lru_node);
+            list_add_tail(&page->lru_node, &lru->lru_lists[LRU_ACTIVE]);
+            continue;
+        }
+
+        list_remove(&page->lru_node);
+        list_add_tail(&page->lru_node, &lru->lru_lists[LRU_INACTIVE]);
+        dec_page_stat(page, NR_ACTIVE_FILE);
+        inc_page_stat(page, NR_INACTIVE_FILE);
+    }
+
+    spin_unlock(&lru->lock);
+}
+
 static void shrink_zone(struct reclaim_data *data, struct page_node *node, struct page_zone *zone,
                         unsigned long target_freep)
 {
     unsigned long target = target_freep;
+    unsigned long stats[PAGE_STATS_MAX];
+    page_accumulate_stats(stats);
     (void) target;
     struct page_lru *lru = &zone->zone_lru;
     DEFINE_LIST(rotate_list);
+    DEFINE_LIST(activate_list);
 
+    unsigned long min_inactive = inactive_file_min(stats);
+    if (stats[NR_INACTIVE_FILE] < min_inactive)
+        shrink_active_list(node, zone, stats, min_inactive);
     spin_lock(&lru->lock);
 
-    list_for_every_safe (&lru->lru_list)
+    list_for_every_safe (&lru->lru_lists[LRU_INACTIVE])
     {
         struct page *page = container_of(l, struct page, lru_node);
         enum lru_result res = shrink_page(page);
@@ -229,13 +299,32 @@ static void shrink_zone(struct reclaim_data *data, struct page_node *node, struc
             if (target_freep == 0)
                 break;
         }
+        else if (res == LRU_ACTIVATE)
+        {
+            list_remove(&page->lru_node);
+            list_add_tail(&page->lru_node, &activate_list);
+        }
     }
 
 #ifdef DEBUG_SHRINK_ZONE
-    pr_info("shrink_zone: Zone %s freed %lu pages (out of %lu)\n", zone->name,
+    pr_warn("shrink_zone: Zone %s freed %lu pages (out of %lu)\n", zone->name,
             target - target_freep, target);
+    pr_warn("shrink_zone: inactive %lu active %lu\n", stats[NR_INACTIVE_FILE],
+            stats[NR_ACTIVE_FILE]);
 #endif
-    list_splice(&rotate_list, &lru->lru_list);
+    list_splice(&rotate_list, &lru->lru_lists[LRU_INACTIVE]);
+    list_for_every_safe (&activate_list)
+    {
+        /* TODO: We're doing this in the wrong place... */
+        struct page *page = container_of(l, struct page, lru_node);
+        list_remove(&page->lru_node);
+        page_set_flag(page, PAGE_FLAG_ACTIVE);
+        dec_page_stat(page, NR_INACTIVE_FILE);
+        inc_page_stat(page, NR_ACTIVE_FILE);
+        __atomic_and_fetch(&page->flags, ~PAGE_FLAG_REFERENCED, __ATOMIC_RELEASE);
+        list_add_tail(&page->lru_node, &lru->lru_lists[LRU_ACTIVE]);
+    }
+
     spin_unlock(&lru->lock);
 }
 
