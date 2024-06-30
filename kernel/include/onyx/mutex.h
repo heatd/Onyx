@@ -63,7 +63,7 @@ __BEGIN_CDECLS
 
 void mutex_lock(struct mutex *m) ACQUIRE(m);
 void mutex_unlock(struct mutex *m) RELEASE(m);
-int mutex_lock_interruptible(struct mutex *mutex) TRY_ACQUIRE(false, mutex);
+int mutex_lock_interruptible(struct mutex *mutex) TRY_ACQUIRE(0, mutex);
 bool mutex_holds_lock(struct mutex *m);
 struct thread *mutex_owner(struct mutex *mtx);
 bool mutex_trylock(struct mutex *lock) TRY_ACQUIRE(true, lock);

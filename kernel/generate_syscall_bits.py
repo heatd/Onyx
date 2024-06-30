@@ -10,24 +10,27 @@ import sys
 
 class Syscall:
     
-    def __init__(self, name, args, return_type, nr):
+    def __init__(self, name, args, return_type, nr, abi):
         self.name = name
         self.nr = nr
         self.nr_args = len(args)
         self.args = args
         self.return_type = return_type
+        self.abi = abi
     
 class SyscallDecoder(json.JSONDecoder):
     def __init__(self, *args, **kwargs):
         json.JSONDecoder.__init__(self, object_hook = self.object_hook, *args, **kwargs)
     def object_hook(self, dict):
         if "nr_args" in dict:
-            return Syscall(dict["name"], dict["args"], dict["return_type"], dict["nr"])
+            return Syscall(dict["name"], dict["args"], dict["return_type"], dict["nr"], dict.get("abi", "c++"))
         return dict
 
 # Outputs a thunk considering the information we already have in the syscall table
 def output_syscall_thunk(syscall, output_file):
     syscall_declare = f'{syscall.return_type} sys_{syscall.name}('
+    if syscall.abi == 'c':
+        syscall_declare = 'extern "C" ' + syscall_declare
 
     argnum = 0
     for arg in syscall.args:
@@ -117,7 +120,7 @@ def main():
                 output_syscall_thunk(syscall, syscall_thunk)
             
             # Output a special thunk for nosys
-            sys_nosys = Syscall("nosys", [], "int", -1)
+            sys_nosys = Syscall("nosys", [], "int", -1, "c++")
             output_syscall_thunk(sys_nosys, syscall_thunk)
 
             syscall_thunk.write("\n")
