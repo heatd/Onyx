@@ -2718,5 +2718,22 @@
             ]
         ],
         "return_type": "int"
+    },
+    {
+        "name": "flock",
+        "nr": 155,
+        "nr_args": 2,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "int",
+                "op"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
     }
 ]

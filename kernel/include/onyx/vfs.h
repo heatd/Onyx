@@ -20,6 +20,7 @@
 #include <onyx/rwlock.h>
 #include <onyx/superblock.h>
 #include <onyx/vm.h>
+#include <onyx/flock.h>
 
 #include <uapi/dirent.h>
 #include <uapi/stat.h>
@@ -122,37 +123,39 @@ struct pipe;
 
 struct inode
 {
-    unsigned long i_refc;
-    unsigned int i_flags;
+    /* Read-only/mostly fields */
     ino_t i_inode;
     gid_t i_gid;
     uid_t i_uid;
     mode_t i_mode;
-    size_t i_size;
     dev_t i_dev;
     dev_t i_rdev;
+    struct superblock *i_sb;
+    struct file_ops *i_fops;
+    struct vm_object *i_pages;
+    void *i_helper;
+    struct dentry *i_dentry; /* Only valid for directories */
+    // For FIFOs
+    struct pipe *i_pipe;
+    size_t i_size;
+    nlink_t i_nlink;
+    blkcnt_t i_blocks;
+    struct list_head i_sb_list_node;
+    /* Note: We can't expect that flock is too contended... */
+    struct flock_info i_flock;
+
+    /* Write-frequently fields */
+    unsigned long i_refc;
+    unsigned int i_flags;
     time_t i_atime;
     time_t i_ctime;
     time_t i_mtime;
-    nlink_t i_nlink;
-    blkcnt_t i_blocks;
-    struct superblock *i_sb;
-
-    struct file_ops *i_fops;
-
-    struct vm_object *i_pages;
     struct list_head i_dirty_inode_node;
     void *i_flush_dev;
 
-    void *i_helper;
-    struct dentry *i_dentry; /* Only valid for directories */
     struct rwlock i_rwlock;
-    struct list_head i_sb_list_node;
     struct list_head i_hash_list_node;
     struct spinlock i_lock;
-
-    // For FIFOs
-    struct pipe *i_pipe;
 
 #ifdef __cplusplus
     int init(mode_t mode)
@@ -196,6 +199,7 @@ struct file
     struct mutex f_seeklock;
     unsigned int f_flags;
     struct readahead_state f_ra_state;
+    struct flock_file_info *f_flock;
 };
 
 int inode_create_vmo(struct inode *ino);
