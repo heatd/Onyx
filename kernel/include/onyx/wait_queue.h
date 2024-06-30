@@ -66,6 +66,8 @@ struct wait_queue
 
 #define WQ_WAKE_ONE (1u << 0)
 
+__BEGIN_CDECLS
+
 /**
  * @brief Wake along a wait queue, internal version.
  * This version does not have locking.
@@ -231,5 +233,7 @@ static inline void init_wait_queue_head(struct wait_queue *q)
 {
     INIT_LIST_HEAD(&q->token_list);
 }
+
+__END_CDECLS
 
 #endif

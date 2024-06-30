@@ -11,6 +11,7 @@
 #include <onyx/filemap.h>
 #include <onyx/gen/trace_filemap.h>
 #include <onyx/mm/amap.h>
+#include <onyx/mm/page_lru.h>
 #include <onyx/page.h>
 #include <onyx/pagecache.h>
 #include <onyx/readahead.h>
@@ -63,11 +64,19 @@ int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags, struc
         {
             inc_page_stat(p, NR_FILE);
             page_ref(p);
+            page_add_lru(p);
         }
 
         p = p2;
 
         /* Added! Just not up to date... */
+    }
+    else if (flags & FIND_PAGE_ACTIVATE)
+    {
+        /* Activate the page if need be. Note that we do not want to activate pages we create, to
+         * help avoid the activation of access-once pages. */
+        DCHECK(p != nullptr);
+        page_promote_referenced(p);
     }
 
     if (!(flags & (FIND_PAGE_NO_READPAGE | FIND_PAGE_NO_RA)) && ra_state && !S_ISBLK(ino->i_mode))
@@ -140,7 +149,7 @@ ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t off
     while (read != len)
     {
         struct page *page = nullptr;
-        int st = filemap_find_page(file, offset >> PAGE_SHIFT, 0, &page, nullptr);
+        int st = filemap_find_page(file, offset >> PAGE_SHIFT, FIND_PAGE_ACTIVATE, &page, nullptr);
 
         if (st < 0)
             return read ?: st;
@@ -222,7 +231,8 @@ ssize_t filemap_read_iter(struct file *filp, size_t off, iovec_iter *iter, unsig
         struct page *page = nullptr;
         if ((size_t) off >= size)
             break;
-        int st2 = filemap_find_page(filp->f_ino, off >> PAGE_SHIFT, 0, &page, &filp->f_ra_state);
+        int st2 = filemap_find_page(filp->f_ino, off >> PAGE_SHIFT, FIND_PAGE_ACTIVATE, &page,
+                                    &filp->f_ra_state);
 
         if (st2 < 0)
             return st ?: st2;
@@ -296,7 +306,7 @@ ssize_t file_write_cache_unlocked(void *buffer, size_t len, struct inode *ino, s
     while (wrote != len)
     {
         struct page *page = nullptr;
-        int st = filemap_find_page(ino, offset >> PAGE_SHIFT, 0, &page, nullptr);
+        int st = filemap_find_page(ino, offset >> PAGE_SHIFT, FIND_PAGE_ACTIVATE, &page, nullptr);
 
         if (st < 0)
             return wrote ?: st;
@@ -377,7 +387,8 @@ ssize_t filemap_write_iter(struct file *filp, size_t off, iovec_iter *iter, unsi
     while (!iter->empty())
     {
         struct page *page = nullptr;
-        int st2 = filemap_find_page(filp->f_ino, off >> PAGE_SHIFT, 0, &page, &filp->f_ra_state);
+        int st2 = filemap_find_page(filp->f_ino, off >> PAGE_SHIFT, FIND_PAGE_ACTIVATE, &page,
+                                    &filp->f_ra_state);
 
         if (st2 < 0)
             return st ?: st2;
@@ -599,7 +610,7 @@ int filemap_private_fault(struct vm_pf_context *ctx)
             return -EIO;
         }
 
-        st = filemap_find_page(region->vm_file->f_ino, fileoff, 0, &page,
+        st = filemap_find_page(region->vm_file->f_ino, fileoff, FIND_PAGE_ACTIVATE, &page,
                                &region->vm_file->f_ra_state);
 
         if (st < 0)
@@ -660,8 +671,6 @@ map:
      * 'adopts' our reference. This works because amaps are inherently region-specific, and we have
      * the address_space locked.
      */
-    if (!newp)
-        page_unref(page);
 
     return 0;
 enomem:

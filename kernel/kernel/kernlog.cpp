@@ -291,7 +291,10 @@ static void flush_consoles()
         g.unlock();
 
         if (size == 0)
+        {
+            con->last_seq_seen = seen;
             continue;
+        }
 
         /* XXX what to do on error? */
         if (con->ops->write(flush_buf, size, write_flags, con) >= 0)

@@ -11,6 +11,7 @@
 
 #include <onyx/file.h>
 #include <onyx/ioctx.h>
+#include <onyx/mm/page_lru.h>
 #include <onyx/mm/vm_object.h>
 #include <onyx/page.h>
 #include <onyx/panic.h>
@@ -283,6 +284,7 @@ static int vmo_purge_pages(unsigned long start, unsigned long end,
              * reference */
             page_unref(old_p);
             dec_page_stat(old_p, NR_FILE);
+            page_remove_lru(old_p);
             if (!vmo->ops->free_page)
                 free_page(old_p);
             else
@@ -510,4 +512,40 @@ void vm_obj_clean_page(struct vm_object *obj, struct page *page)
         vm_obj_assert_interval_tree(offset, vma);
         vm_wp_page(vma->vm_mm, (void *) (vma->vm_start + (offset << PAGE_SHIFT) - vma->vm_offset));
     }
+}
+
+bool vm_obj_remove_page(struct vm_object *obj, struct page *page)
+{
+    scoped_lock g{obj->page_lock};
+    DCHECK(page_locked(page));
+    DCHECK(page->owner == obj);
+    DCHECK(page->ref != 0);
+    /* Under the lock, pages can't get their references incremented, so we check if refs == 1 here.
+     */
+    if (__atomic_load_n(&page->ref, __ATOMIC_RELAXED) > 1)
+        return false;
+    obj->vm_pages.store(page->pageoff, 0);
+    return true;
+}
+
+long vm_obj_get_page_references(struct vm_object *obj, struct page *page, unsigned int *vm_flags)
+{
+    scoped_lock g{obj->mapping_lock};
+    struct vm_area_struct *vma;
+    unsigned long offset = page->pageoff;
+    long refs = 0;
+
+    if (vm_flags)
+        *vm_flags = 0;
+
+    for_intervals_in_range(&obj->mappings, vma, struct vm_area_struct, vm_objhead, offset, offset)
+    {
+        vm_obj_assert_interval_tree(offset, vma);
+        refs += mmu_get_clear_referenced(
+            vma->vm_mm, (void *) (vma->vm_start + (offset << PAGE_SHIFT) - vma->vm_offset), page);
+        if (vm_flags)
+            *vm_flags |= vma->vm_flags;
+    }
+
+    return refs;
 }

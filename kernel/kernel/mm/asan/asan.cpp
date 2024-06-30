@@ -7,6 +7,7 @@
  */
 
 #include <assert.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -86,15 +87,48 @@ void kasan_print_location(unsigned long addr)
     {
         unsigned long start = kasan_get_freed_region_start(addr);
         unsigned long end = kasan_get_freed_region_end(addr);
-        printk("%#lx is located %zu bytes inside of %zu-byte region [%#lx, %#lx)\n", addr,
-               addr - start, end - start, start, end);
+        pr_crit("%#lx is located %zu bytes inside of %zu-byte region [%#lx, %#lx)\n", addr,
+                addr - start, end - start, start, end);
     }
 }
+
+struct multiwrite_state
+{
+    char *original;
+    char *s;
+    size_t len;
+    size_t original_len;
+
+    multiwrite_state(char *buf, size_t len) : original{buf}, s{buf}, len{len}, original_len{len}
+    {
+    }
+
+    void print(const char *fmt, ...)
+    {
+        va_list va;
+        va_start(va, fmt);
+        int written = vsnprintf(s, len, fmt, va);
+        if (written >= 0)
+        {
+            s += written;
+            len -= written;
+
+            if (*(s - 1) == '\n')
+            {
+                printk(KERN_CRIT "%s", original);
+                s = original;
+                len = original_len;
+            }
+        }
+
+        va_end(va);
+    }
+};
 
 static void kasan_dump_shadow(unsigned long addr)
 {
     uintptr_t shadow = (uintptr_t) kasan_get_ptr(addr);
-    printk("Shadow memory state around the buggy address %#lx:\n", shadow);
+    pr_crit("Shadow memory state around the buggy address %#lx:\n", shadow);
     // Print at least 0x30 bytes of the shadow map before and after the invalid access.
     uintptr_t start_addr = (shadow & ~0x07) - 0x30;
     start_addr = cul::max(KASAN_VIRT_START, start_addr);
@@ -103,11 +137,12 @@ static void kasan_dump_shadow(unsigned long addr)
     size_t caret_ind = 0;
     for (size_t i = 0; i < 14; i++)
     {
-        // TODO(fxbug.dev/51170): When kernel printf properly supports #, switch.
-        printk("0x%016lx:", start_addr);
+        char buf[200];
+        struct multiwrite_state mws = {buf, 200};
+        mws.print("0x%016lx:", start_addr);
         for (size_t j = 0; j < 8; j++)
         {
-            printk(" 0x%02hhx", reinterpret_cast<uint8_t *>(start_addr)[j]);
+            mws.print(" 0x%02hhx", reinterpret_cast<uint8_t *>(start_addr)[j]);
             if (!caret)
             {
                 if ((start_addr + j) == reinterpret_cast<uintptr_t>(kasan_get_ptr(addr)))
@@ -117,43 +152,43 @@ static void kasan_dump_shadow(unsigned long addr)
                 }
             }
         }
-        printk("\n");
+        mws.print("\n");
         if (caret)
         {
             // The address takes 16 characters; add in space for ':', and "0x".
-            printk("%*s", 16 + 1 + 2, "");
+            mws.print("%*s", 16 + 1 + 2, "");
             // Print either a caret or spaces under the line containing the invalid access.
             for (size_t j = 0; j < 8; j++)
             {
-                printk("  %2s ", j == caret_ind ? "^^" : "");
+                mws.print("  %2s ", j == caret_ind ? "^^" : "");
             }
-            printk("\n");
+            mws.print("\n");
             caret = false;
         }
         start_addr += 8;
     }
 
-    printk("\n");
+    pr_crit("\n");
     auto slab = kmem_pointer_to_slab_maybe((void *) addr);
 
-    printk("Memory information: ");
+    pr_crit("Memory information:\n");
 
     if (slab)
     {
         kmem_cache_print_slab_info_kasan((void *) addr, slab);
 
         kasan_print_location(addr);
-        printk("                    ");
+        pr_crit("                    ");
     }
 
     auto mapping_info = get_mapping_info((void *) addr);
 
     if (mapping_info & PAGE_PRESENT)
     {
-        printk("mapped to %016lx\n", MAPPING_INFO_PADDR(mapping_info));
+        pr_crit("mapped to %016lx\n", MAPPING_INFO_PADDR(mapping_info));
     }
     else
-        printk("not mapped\n");
+        pr_crit("not mapped\n");
 }
 
 void kasan_fail(unsigned long addr, size_t size, bool write, unsigned char b)
@@ -181,9 +216,9 @@ void kasan_fail(unsigned long addr, size_t size, bool write, unsigned char b)
 
     panic_start();
 
-    printk("\n================================================================================="
-           "===="
-           "========\n\n");
+    pr_crit("\n================================================================================="
+            "===="
+            "========\n\n");
 
     kasan_dump_shadow(addr);
 

@@ -716,6 +716,7 @@ int inode_init(struct inode *inode, bool is_cached)
 
     spinlock_init(&inode->i_lock);
     rwlock_init(&inode->i_rwlock);
+    flock_init(&inode->i_flock);
 
     return 0;
 }
@@ -732,6 +733,7 @@ struct file *inode_to_file(struct inode *ino)
     f->f_refcount = 1;
     f->f_seek = 0;
     f->f_dentry = nullptr;
+    f->f_flock = nullptr;
     ra_state_init(&f->f_ra_state);
 
     return f;

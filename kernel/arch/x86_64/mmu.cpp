@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -1459,6 +1459,31 @@ unsigned long __get_mapping_info(void *addr, struct mm_address_space *as)
     }
 
     return pte_to_mapping_info(pml->entries[indices[0]], false, 0);
+}
+
+unsigned int mmu_get_clear_referenced(struct mm_address_space *mm, void *addr, struct page *page)
+{
+    scoped_lock g{mm->page_table_lock};
+
+    u64 *ptep;
+    if (!x86_get_pt_entry(addr, &ptep, mm))
+        return 0;
+
+    u64 pte = READ_ONCE(*ptep);
+    u64 new_pte;
+    do
+    {
+        if (!(pte & X86_PAGING_ACCESSED))
+            return 0;
+        if (PML_EXTRACT_ADDRESS(pte) != (unsigned long) page_to_phys(page))
+            return 0;
+        new_pte = pte & ~X86_PAGING_ACCESSED;
+    } while (!__atomic_compare_exchange_n(ptep, &pte, new_pte, false, __ATOMIC_RELAXED,
+                                          __ATOMIC_RELAXED));
+    /* Architectural note: We don't need to flush the TLB. Flushing the TLB is required by x86 if we
+     * want the A bit to be set again, but we can just wait for an unrelated TLB flush (e.g context
+     * switch) to do the job for us. A TLB shootdown is too much overhead for this purpose. */
+    return 1;
 }
 
 #ifdef CONFIG_KASAN

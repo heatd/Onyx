@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 - 2023 Pedro Falcato
+ * Copyright (c) 2022 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -1158,4 +1158,30 @@ int mmu_fork_tables(struct vm_area_struct *old_region, struct mm_address_space *
     return riscv_mmu_fork((PML *) PHYS_TO_VIRT(old_region->vm_mm->arch_mmu.top_pt),
                           (PML *) PHYS_TO_VIRT(addr_space->arch_mmu.top_pt),
                           riscv_paging_levels - 1, it, old_region);
+}
+
+unsigned int mmu_get_clear_referenced(struct mm_address_space *mm, void *addr, struct page *page)
+{
+    scoped_lock g{mm->page_table_lock};
+
+    u64 *ptep;
+    if (!riscv_get_pt_entry(addr, &ptep, false, mm))
+        return 0;
+
+    u64 pte = READ_ONCE(*ptep);
+    u64 new_pte;
+    do
+    {
+        if (!(pte & RISCV_MMU_ACCESSED))
+            return 0;
+        if (PML_EXTRACT_ADDRESS(pte) != (unsigned long) page_to_phys(page))
+            return 0;
+        new_pte = pte & ~RISCV_MMU_ACCESSED;
+    } while (!__atomic_compare_exchange_n(ptep, &pte, new_pte, false, __ATOMIC_RELAXED,
+                                          __ATOMIC_RELAXED));
+    /* Architectural note: We don't need to flush the TLB. Flushing the TLB is required by riscv if
+     * we want the A bit to be set again, but we can just wait for an unrelated TLB flush (e.g
+     * context switch) to do the job for us. A TLB shootdown is too much overhead for this purpose.
+     */
+    return 1;
 }

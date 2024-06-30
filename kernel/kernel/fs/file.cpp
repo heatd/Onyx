@@ -104,6 +104,8 @@ void fd_put(struct file *fd)
 {
     if (__atomic_sub_fetch(&fd->f_refcount, 1, __ATOMIC_RELEASE) == 0)
     {
+        if (fd->f_flock)
+            flock_release(fd);
         if (fd->f_ino->i_fops->release)
             fd->f_ino->i_fops->release(fd);
 
@@ -285,7 +287,7 @@ __always_inline auto_fd __fdget(int fd, u8 extra_flags)
     /* This is safe. nr_threads cannot increment from 1 as long as we're here (we are the only
      * thread).
      */
-    if (p->nr_threads > 1)
+    if (p->nr_threads > 1 || extra_flags & FDGET_SHARED)
         return auto_fd{__get_file_description(fd, p), extra_flags | FDGET_SHARED};
 
     /* Cheap single threaded array access */
@@ -885,7 +887,9 @@ int sys_dup23_internal(int oldfd, int newfd, int dupflags, unsigned int flags)
 
     struct file *newf_old = nullptr;
 
-    auto_fd old = fdget(oldfd);
+    /* We pass FDGET_SHARED so we always get an extra reference (for the dup). A normal fdget here
+     * is wrong, as the behavior changes from single-threaded to multi-threaded. */
+    auto_fd old = __fdget(oldfd, FDGET_SHARED);
     if (!old)
         return newfd;
 
