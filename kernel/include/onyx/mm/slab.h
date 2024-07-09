@@ -32,6 +32,7 @@ struct slab_cache_percpu_context
     void *magazine[SLAB_CACHE_PERCPU_MAGAZINE_SIZE];
     int size;
     ATOMIC_TYPE(int) touched;
+    unsigned long active_objs;
 } __align_cache;
 
 #undef ATOMIC_TYPE

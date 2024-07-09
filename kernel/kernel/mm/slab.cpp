@@ -360,7 +360,7 @@ static inline size_t kmem_calc_slab_size(struct slab_cache *cache)
     else
     {
         // Temporary, should find a better heuristic
-        return cul::align_up2(effobjsize * 24 + sizeof(struct slab), (size_t) PAGE_SIZE);
+        return cul::align_up2(effobjsize * 8 + sizeof(struct slab), (size_t) PAGE_SIZE);
     }
 }
 
@@ -381,7 +381,7 @@ static inline size_t kmem_calc_slab_nr_objs(struct slab_cache *cache)
     else
     {
         // Temporary, should find a better heuristic
-        return 24;
+        return 8;
     }
 }
 
@@ -451,6 +451,15 @@ struct slab *kmem_pointer_to_slab_maybe(void *mem)
     return s;
 }
 
+static void kmem_slab_unaccount_pages(struct slab *slab, unsigned int flags)
+{
+    struct page *pages = slab->pages;
+    if (flags & KMEM_CACHE_VMALLOC)
+        pages = vmalloc_to_pages(slab->start);
+    for (; pages; pages = pages->next_un.next_allocation)
+        dec_page_stat(pages, NR_SLAB_UNRECLAIMABLE);
+}
+
 /**
  * @brief Create a slab for a given cache
  *
@@ -470,17 +479,22 @@ NO_ASAN static struct slab *kmem_cache_create_slab(struct slab_cache *cache, uns
 
     if (!(cache->flags & KMEM_CACHE_VMALLOC)) [[likely]]
     {
-        pages = alloc_pages(pages2order(slab_size >> PAGE_SHIFT),
-                            PAGE_ALLOC_NO_ZERO | PAGE_ALLOC_CONTIGUOUS);
+        unsigned int order = pages2order(slab_size >> PAGE_SHIFT);
+        slab_size = 1UL << (order + PAGE_SHIFT);
+        pages = alloc_pages(order, PAGE_ALLOC_NO_ZERO | PAGE_ALLOC_CONTIGUOUS);
         if (!pages)
             return nullptr;
         start = (char *) PAGE_TO_VIRT(pages);
+        for (unsigned long i = 0; i < (1UL << order); i++)
+            inc_page_stat(&pages[i], NR_SLAB_UNRECLAIMABLE);
     }
     else
     {
         start = (char *) vmalloc(slab_size >> PAGE_SHIFT, VM_TYPE_HEAP, VM_READ | VM_WRITE, flags);
         if (!start)
             return nullptr;
+        for (pages = vmalloc_to_pages(start); pages; pages = pages->next_un.next_allocation)
+            inc_page_stat(pages, NR_SLAB_UNRECLAIMABLE);
     }
 
     ptr = start;
@@ -601,17 +615,18 @@ static void *kmem_cache_alloc_noslab(struct slab_cache *cache, unsigned int flag
 void *kmem_cache_alloc_nopcpu(struct slab_cache *cache, unsigned int flags)
 {
     scoped_lock g{cache->lock};
+    void *ptr;
 
     if (cache->npartialslabs != 0)
-    {
-        return kmem_cache_alloc_from_partial(cache, flags);
-    }
+        ptr = kmem_cache_alloc_from_partial(cache, flags);
     else if (cache->nfreeslabs != 0)
-    {
-        return kmem_cache_alloc_from_free(cache, flags);
-    }
+        ptr = kmem_cache_alloc_from_free(cache, flags);
+    else
+        ptr = kmem_cache_alloc_noslab(cache, flags);
 
-    return kmem_cache_alloc_noslab(cache, flags);
+    if (ptr) [[likely]]
+        cache->pcpu[get_cpu_nr()].active_objs++;
+    return ptr;
 }
 
 /**
@@ -859,9 +874,7 @@ void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
     {
         auto ret = kmem_cache_alloc_nopcpu(cache, flags);
         if (ret)
-        {
             kmem_cache_post_alloc(cache, flags, ret);
-        }
         return ret;
     }
 
@@ -890,6 +903,7 @@ void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
     auto ret = pcpu->magazine[--pcpu->size];
     ((bufctl *) ret)->flags = 0;
 
+    pcpu->active_objs++;
     pcpu->touched.store(0, mem_order::release);
     sched_enable_preempt();
 
@@ -967,6 +981,7 @@ static void kfree_nopcpu(void *ptr)
 
     scoped_lock g{cache->lock};
     kmem_free_to_slab(cache, slab, ptr);
+    cache->pcpu[get_cpu_nr()].active_objs--;
 }
 
 void kmem_cache_return_pcpu_batch(struct slab_cache *cache, struct slab_cache_percpu_context *pcpu)
@@ -997,14 +1012,10 @@ static void kmem_cache_free_pcpu(struct slab_cache *cache, void *ptr)
     bufctl *buf = (bufctl *) ptr;
 
     if ((unsigned long) ptr % cache->alignment) [[unlikely]]
-    {
         panic("slab: Bad pointer %p", ptr);
-    }
 
     if (buf->flags == BUFCTL_PATTERN_FREE) [[unlikely]]
-    {
         panic("slab: Double free at %p\n", ptr);
-    }
 
 #ifdef CONFIG_KASAN
     asan_poison_shadow((unsigned long) ptr, cache->objsize, KASAN_FREED);
@@ -1013,9 +1024,8 @@ static void kmem_cache_free_pcpu(struct slab_cache *cache, void *ptr)
     sched_disable_preempt();
 
     auto pcpu = &cache->pcpu[get_cpu_nr()];
-
     pcpu->touched.store(1, mem_order::release);
-
+    pcpu->active_objs--;
     if (pcpu->size == cache->mag_limit) [[unlikely]]
     {
         kmem_cache_return_pcpu_batch(cache, pcpu);
@@ -1116,16 +1126,12 @@ static void kmem_cache_free_slab(struct slab *slab)
 
     // Free it from the free list
     list_remove(&slab->slab_list_node);
-
+    kmem_slab_unaccount_pages(slab, cache->flags);
     // After freeing the slab we may no longer touch the struct slab
     if (!(cache->flags & KMEM_CACHE_VMALLOC)) [[likely]]
-    {
         free_pages(slab->pages);
-    }
     else
-    {
         vfree(slab->start, slab->size >> PAGE_SHIFT);
-    }
 }
 
 struct slab_rendezvous
@@ -1480,17 +1486,17 @@ void kmem_free_kasan(void *ptr)
 
 static void stack_trace_print(unsigned long *entries, unsigned long nr)
 {
-    printk("\n");
+    pr_crit("\n");
     for (unsigned long i = 0; i < nr; i++)
     {
         char sym[SYM_SYMBOLIZE_BUFSIZ];
         int st = sym_symbolize((void *) entries[i], cul::slice<char>{sym, sizeof(sym)});
         if (st < 0)
             break;
-        printk("\t%s\n", sym);
+        pr_crit("\t%s\n", sym);
     }
 
-    printk("\n");
+    pr_crit("\n");
 }
 
 /**
@@ -1506,7 +1512,7 @@ void kmem_cache_print_slab_info_kasan(void *mem, struct slab *slab)
         (slab->active_objects == 0 ? "free"
                                    : (slab->active_objects == slab->nobjects ? "full" : "partial"));
 
-    printk("%p is apart of cache %s slab %p - slab status %s\n", mem, cache->name, slab, status);
+    pr_crit("%p is apart of cache %s slab %p - slab status %s\n", mem, cache->name, slab, status);
 
     // Walk through the slab and find this object's starting redzone
     const size_t nr_objects = slab->nobjects;
@@ -1525,24 +1531,24 @@ void kmem_cache_print_slab_info_kasan(void *mem, struct slab *slab)
 
     if (!info)
     {
-        printk("%p is not a pointer to a valid object in the slab!\n", ptr);
+        pr_crit("%p is not a pointer to a valid object in the slab!\n", ptr);
         return;
     }
 
-    printk("%p was last allocated by: ", mem);
+    pr_crit("%p was last allocated by: ", mem);
 
     if (info->alloc_stack == DEPOT_STACK_HANDLE_INVALID)
-        printk("<no stack trace available>\n");
+        pr_crit("<no stack trace available>\n");
     else
     {
         struct stacktrace *trace = stackdepot_from_handle(info->alloc_stack);
         stack_trace_print(trace->entries, trace->size);
     }
 
-    printk("%p was last freed by: ", mem);
+    pr_crit("%p was last freed by: ", mem);
 
     if (info->free_stack == DEPOT_STACK_HANDLE_INVALID)
-        printk("<no stack trace available>\n");
+        pr_crit("<no stack trace available>\n");
     else
     {
         struct stacktrace *trace = stackdepot_from_handle(info->free_stack);
@@ -1596,4 +1602,23 @@ void slab_shrink_caches(unsigned long target_freep)
     }
 
     kmem_slab_freeze_wait(&rndvz);
+}
+
+void kmem_print_stats()
+{
+    scoped_mutex g{cache_list_lock};
+    list_for_every (&cache_list)
+    {
+        struct slab_cache *cache = container_of(l, struct slab_cache, cache_list_node);
+        scoped_lock g2{cache->lock};
+        unsigned long total = (cache->nfreeslabs + cache->npartialslabs + cache->nfullslabs) *
+                              kmem_calc_slab_size(cache);
+        unsigned long nactive = 0;
+        for (unsigned int i = 0; i < get_nr_cpus(); i++)
+            nactive += cache->pcpu[i].active_objs;
+        pr_info("%s %lu size %lu full %lu free %lu partial %lu active objs %lu total obj size ~%lu "
+                "total slab size\n",
+                cache->name, cache->objsize, cache->nfullslabs, cache->nfreeslabs,
+                cache->npartialslabs, nactive, nactive * cache->objsize, total);
+    }
 }
