@@ -20,6 +20,8 @@ struct sysinfo do_sys_sysinfo()
     struct sysinfo sys;
     struct memstat memstat;
     struct timespec boottime;
+    unsigned long pagestats[PAGE_STATS_MAX];
+    page_accumulate_stats(pagestats);
 
     sys.mem_unit = PAGE_SIZE;
     page_get_stats(&memstat);
@@ -30,7 +32,7 @@ struct sysinfo do_sys_sysinfo()
     sys.totalram = memstat.total_pages;
     sys.totalhigh = 0;
     sys.procs = (unsigned short) process_get_active_processes();
-    sys.sharedram = 0;
+    sys.sharedram = pagestats[NR_SHARED];
 
     if (clock_gettime_kernel(CLOCK_BOOTTIME, &boottime) < 0)
     {
