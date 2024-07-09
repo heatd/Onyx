@@ -143,6 +143,39 @@
 #define dec_per_cpu(var) add_per_cpu(var, -1)
 #endif
 
+#ifdef dec_and_test_pcpu_1
+
+#define dec_and_test_pcpu(var)                 \
+    ({                                         \
+        int cc;                                \
+        switch (sizeof(var))                   \
+        {                                      \
+            case 1:                            \
+                cc = dec_and_test_pcpu_1(var); \
+                break;                         \
+            case 2:                            \
+                cc = dec_and_test_pcpu_2(var); \
+                break;                         \
+            case 4:                            \
+                cc = dec_and_test_pcpu_4(var); \
+                break;                         \
+            case 8:                            \
+                cc = dec_and_test_pcpu_8(var); \
+                break;                         \
+        }                                      \
+        cc;                                    \
+    })
+
+#else
+
+#define dec_and_test_pcpu(var)         \
+    ({                                 \
+        dec_per_cpu(var);              \
+        (int) (get_per_cpu(var) == 0); \
+    })
+
+#endif
+
 #else
 
 extern "C" unsigned long __raw_asm_get_per_cpu(size_t off, size_t size);
