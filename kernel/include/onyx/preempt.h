@@ -43,15 +43,10 @@ __always_inline void sched_enable_preempt_no_softirq()
 
 __always_inline void sched_enable_preempt()
 {
-    __sched_enable_preempt();
-    unsigned long counter = get_per_cpu(preemption_counter);
-
     // If preemption is enabled, try to do various tasks
     // softirq, rescheduling, etc
-    if (unlikely(counter == 0 && !irq_is_disabled()))
-    {
+    if (unlikely(dec_and_test_pcpu(preemption_counter)) && likely(!irq_is_disabled()))
         sched_handle_preempt(true);
-    }
 }
 
 __always_inline void sched_disable_preempt()
