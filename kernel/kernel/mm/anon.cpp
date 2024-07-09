@@ -58,7 +58,8 @@ int vm_anon_fault(struct vm_pf_context *ctx)
     }
 
 map:
-    if (!vm_map_page(region->vm_mm, ctx->vpage, (u64) page_to_phys(page), ctx->page_rwx))
+    if (!vm_map_page(region->vm_mm, ctx->vpage, (u64) page_to_phys(page), ctx->page_rwx,
+                     ctx->entry))
         goto enomem;
 
     return 0;

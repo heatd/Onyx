@@ -32,8 +32,11 @@ static const unsigned int riscv_max_paging_levels = 5;
 #define RISCV_MMU_GLOBAL       (1 << 5)
 #define RISCV_MMU_ACCESSED     (1 << 6)
 #define RISCV_MMU_DIRTY        (1 << 7)
-
-#define RISCV_PAGING_PROT_BITS ((1 << 8) - 1)
+/* Use one of the ignored bits as SPECIAL. This will annotate zero page mappings (so we don't
+ * increment mapcount on zero_page and thus blow it up). add_mapcount and sub_mapcount will not be
+ * called on these struct pages. */
+#define RISCV_MMU_SPECIAL      (1 << 8)
+#define RISCV_PAGING_PROT_BITS ((1 << 9) - 1)
 
 static unsigned long vm_prots_to_mmu(unsigned int prots)
 {
@@ -48,10 +51,10 @@ static unsigned long vm_prots_to_mmu(unsigned int prots)
 }
 
 #define RISCV_MMU_FLAGS_TO_SAVE_ON_MPROTECT \
-    (RISCV_MMU_GLOBAL | RISCV_MMU_USER | RISCV_MMU_ACCESSED | RISCV_MMU_DIRTY)
+    (RISCV_MMU_GLOBAL | RISCV_MMU_USER | RISCV_MMU_ACCESSED | RISCV_MMU_DIRTY | RISCV_MMU_SPECIAL)
 
 void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64_t phys,
-                              uint64_t prot);
+                              uint64_t prot, struct vm_area_struct *vma);
 
 static inline void __native_tlb_invalidate_page(void *addr)
 {
@@ -61,6 +64,11 @@ static inline void __native_tlb_invalidate_page(void *addr)
 bool pte_empty(uint64_t pte)
 {
     return pte == 0;
+}
+
+static inline bool pte_special(u64 pte)
+{
+    return pte & RISCV_MMU_SPECIAL;
 }
 
 bool riscv_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
@@ -198,7 +206,7 @@ void paging_init(void)
 }
 
 void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64_t phys,
-                              uint64_t prot)
+                              uint64_t prot, struct vm_area_struct *vma)
 {
     bool user = prot & VM_USER;
 
@@ -214,14 +222,16 @@ void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
         return nullptr;
 
     uint64_t page_prots = vm_prots_to_mmu(prot);
+    bool special_mapping = phys == (u64) page_to_phys(vm_get_zero_page());
+
+    if (special_mapping)
+        page_prots |= RISCV_MMU_SPECIAL;
 
     if (prot & VM_DONT_MAP_OVER && *ptentry & RISCV_MMU_VALID)
         return (void *) virt;
 
     uint64_t old = *ptentry;
-
     *ptentry = riscv_pt_page_mapping(phys) | page_prots;
-
     if (pte_empty(old))
     {
         increment_vm_stat(as, resident_set_size, PAGE_SIZE);
@@ -229,6 +239,20 @@ void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
     else
     {
         __native_tlb_invalidate_page((void *) PML_EXTRACT_ADDRESS(*ptentry));
+    }
+
+    if (!vma_is_pfnmap(vma))
+    {
+        if (!pte_empty(old) && !pte_special(old))
+        {
+            /* If old was a thing, decrement the mapcount */
+            struct page *oldp = phys_to_page(PML_EXTRACT_ADDRESS(old));
+            page_sub_mapcount(oldp);
+        }
+
+        struct page *newp = phys_to_page(phys);
+        if (!special_mapping)
+            page_add_mapcount(newp);
     }
 
     return (void *) virt;
@@ -491,11 +515,13 @@ void paging_invalidate(void *page, size_t pages)
  * @param virt The virtual address.
  * @param phys The physical address of the page.
  * @param prot Desired protection flags.
+ * @param vma VMA for this mapping (optional)
  * @return NULL if out of memory, else virt.
  */
-void *vm_map_page(struct mm_address_space *as, uint64_t virt, uint64_t phys, uint64_t prot)
+void *vm_map_page(struct mm_address_space *as, uint64_t virt, uint64_t phys, uint64_t prot,
+                  struct vm_area_struct *vma)
 {
-    return paging_map_phys_to_virt(as, virt, phys, prot);
+    return paging_map_phys_to_virt(as, virt, phys, prot, vma);
 }
 
 void paging_free_pml2(PML *pml)
@@ -810,7 +836,8 @@ constexpr unsigned int addr_get_index(unsigned long virt, unsigned int pt_level)
 #define MMU_UNMAP_CAN_FREE_PML 1
 #define MMU_UNMAP_OK           0
 
-static int riscv_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterator &it)
+static int riscv_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterator &it,
+                           struct vm_area_struct *vma)
 {
     unsigned int index = addr_get_index(it.curr_addr(), pt_level);
 
@@ -869,8 +896,12 @@ static int riscv_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterato
             __atomic_exchange(&pt_entry, &val, &val, __ATOMIC_RELEASE);
 
             if (val & RISCV_MMU_ACCESSED)
-            {
                 invd_tracker.add_page(it.curr_addr(), entry_size);
+
+            if (!vma_is_pfnmap(vma) && !pte_special(val))
+            {
+                struct page *oldp = phys_to_page(PML_EXTRACT_ADDRESS(val));
+                page_sub_mapcount(oldp);
             }
 
             it.adjust_length(entry_size);
@@ -880,7 +911,7 @@ static int riscv_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterato
         {
             assert((pt_entry & RISCV_MMU_VALID) != 0);
             PML *next_table = (PML *) PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(pt_entry));
-            int st = riscv_mmu_unmap(next_table, pt_level - 1, it);
+            int st = riscv_mmu_unmap(next_table, pt_level - 1, it, vma);
 
             if (st == MMU_UNMAP_CAN_FREE_PML)
             {
@@ -915,7 +946,7 @@ static int riscv_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterato
     return MMU_UNMAP_OK;
 }
 
-int vm_mmu_unmap(struct mm_address_space *as, void *addr, size_t pages)
+int vm_mmu_unmap(struct mm_address_space *as, void *addr, size_t pages, struct vm_area_struct *vma)
 {
     unsigned long virt = (unsigned long) addr;
     size_t size = pages << PAGE_SHIFT;
@@ -924,7 +955,7 @@ int vm_mmu_unmap(struct mm_address_space *as, void *addr, size_t pages)
 
     PML *first_level = (PML *) PHYS_TO_VIRT(as->arch_mmu.top_pt);
 
-    riscv_mmu_unmap(first_level, riscv_paging_levels - 1, it);
+    riscv_mmu_unmap(first_level, riscv_paging_levels - 1, it, vma);
 
     assert(it.length() == 0);
 
@@ -1095,6 +1126,8 @@ static int riscv_mmu_fork(PML *parent_table, PML *child_table, unsigned int pt_l
         {
             const bool should_cow = old_region->vm_maptype == MAP_PRIVATE;
             child_table->entries[i] = pt_entry & (should_cow ? ~RISCV_MMU_WRITE : ~0UL);
+            if (!vma_is_pfnmap(old_region) && !pte_special(pt_entry))
+                page_add_mapcount(phys_to_page(PML_EXTRACT_ADDRESS(pt_entry)));
             if (should_cow)
             {
                 /* Write-protect the parent's page too. Make sure to invalidate the TLB if we

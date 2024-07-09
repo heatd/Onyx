@@ -118,7 +118,7 @@ struct vm_operations
 };
 
 extern const struct vm_operations anon_vmops;
-extern const struct vm_operations private_vmops;
+extern const struct vm_operations file_vmops;
 
 /**
  * @brief A VM region is a segment of an address space which is mapped and has some
@@ -185,16 +185,6 @@ void vm_init();
  *
  */
 void vm_late_init();
-
-/**
- * @brief Maps a range of memory with freshly allocated anonymous pages.
- * This should only be used by *very-specific* MM or MM related code.
- * @param range Virtual address.
- * @param pages Number of pages to be mapped.
- * @param flags Protection on the mappings.
- * @return The list of allocated pages, or NULL if there was an out of memory scenario.
- */
-struct page *vm_map_range(void *range, size_t pages, uint64_t flags);
 
 #ifdef __cplusplus
 
@@ -521,9 +511,11 @@ struct process;
  * @param virt The virtual address.
  * @param phys The physical address of the page.
  * @param prot Desired protection flags.
+ * @param vma VMA for this mapping (optional)
  * @return NULL if out of memory, else virt.
  */
-void *vm_map_page(struct mm_address_space *as, uint64_t virt, uint64_t phys, uint64_t prot);
+void *vm_map_page(struct mm_address_space *as, uint64_t virt, uint64_t phys, uint64_t prot,
+                  struct vm_area_struct *vma);
 
 /**
  * @brief Allocates a new mapping and maps a list of pages.
@@ -795,6 +787,17 @@ void vmalloc_init(unsigned long start, unsigned long length);
  * @return List of pages
  */
 struct page *vmalloc_to_pages(void *ptr);
+
+/**
+ * @brief Check if a given VMA is a PFNMAP vma
+ *
+ * @param vma VMA to check. If null, pretend we're PFNMAP
+ * @return True if PFNMAP, else false.
+ */
+static inline bool vma_is_pfnmap(struct vm_area_struct *vma)
+{
+    return vma == NULL;
+}
 
 __END_CDECLS
 

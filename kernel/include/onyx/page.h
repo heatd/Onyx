@@ -82,7 +82,8 @@ struct vm_object;
  */
 struct CAPABILITY("page") page
 {
-    unsigned long ref;
+    unsigned int ref;
+    unsigned int mapcount;
     unsigned long flags;
     struct
     {
@@ -519,6 +520,40 @@ struct page_lru;
 struct page_lru *page_to_page_lru(struct page *page);
 
 void page_promote_referenced(struct page *page);
+
+static inline void page_reset_mapcount(struct page *page)
+{
+    /* mapcount is -1 biased */
+    WRITE_ONCE(page->mapcount, -1);
+}
+
+static inline unsigned int page_mapcount(struct page *page)
+{
+    return READ_ONCE(page->mapcount) + 1;
+}
+
+static inline void page_add_mapcount(struct page *page)
+{
+    if (__atomic_add_fetch(&page->mapcount, 1, __ATOMIC_RELAXED) == 0)
+        page_ref(page);
+}
+
+static inline void page_sub_mapcount(struct page *page)
+{
+    if (__atomic_sub_fetch(&page->mapcount, 1, __ATOMIC_RELAXED) == -1U)
+        page_unref(page);
+}
+
+void bug_on_page(struct page *page, const char *expr, const char *file, unsigned int line,
+                 const char *func);
+
+#define DCHECK_PAGE(expr, page) \
+    if (unlikely(!(expr)))      \
+        bug_on_page(page, #expr, __FILE__, __LINE__, __func__);
+
+#define CHECK_PAGE(expr, page) \
+    if (unlikely(!(expr)))     \
+        bug_on_page(page, #expr, __FILE__, __LINE__, __func__);
 
 __END_CDECLS
 

@@ -175,6 +175,15 @@ struct vm_area_struct;
 
 /**
  * @brief Registers a new mapping on the VMO.
+ * Does not take the lock.
+ *
+ * @param vmo The target VMO.
+ * @param region The mapping's region.
+ */
+void vmo_assign_mapping_locked(struct vm_object *vmo, struct vm_area_struct *region);
+
+/**
+ * @brief Registers a new mapping on the VMO.
  *
  * @param vmo The target VMO.
  * @param region The mapping's region.

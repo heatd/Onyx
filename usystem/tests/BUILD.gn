@@ -3,6 +3,7 @@ group("tests") {
     "iostress",
     "kernel_api_tests",
     "kernelbuild-smoketest",
+    "lru-scan",
     "regtests",
     "system_benchmark",
     "test-runner",

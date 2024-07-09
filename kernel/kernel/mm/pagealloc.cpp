@@ -781,6 +781,7 @@ __always_inline void prepare_pages_after_alloc(struct page *page, unsigned int o
     for (; pages != 0; pages--, last = page++)
     {
         __atomic_store_n(&page->ref, 1, __ATOMIC_RELEASE);
+        page_reset_mapcount(page);
         page->flags = 0;
         page->priv = 0;
         page->next_un.next_allocation = nullptr;
@@ -885,6 +886,7 @@ void page_node::free_page(struct page *p)
     p->pageoff = 0;
     p->next_un.next_allocation = nullptr;
     p->ref = 0;
+    CHECK(page_mapcount(p) == 0);
 
     /* Add it at the beginning since it might be fresh in the cache */
     // list_add(&p->page_allocator_node.list_node, &page_list);

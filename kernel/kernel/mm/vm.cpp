@@ -363,42 +363,6 @@ void vm_late_init()
     is_initialized = true;
 }
 
-/**
- * @brief Maps a range of memory with freshly allocated anonymous pages.
- * This should only be used by very-specific MM or MM related code.
- * @param range Virtual address.
- * @param pages Number of pages to be mapped.
- * @param flags Protection on the mappings.
- * @return The list of allocated pages, or NULL if there was an out of memory scenario.
- */
-struct page *vm_map_range(void *range, size_t nr_pages, uint64_t flags)
-{
-    const unsigned long mem = (unsigned long) range;
-    struct page *pages = alloc_page_list(nr_pages, 0);
-    struct page *p = pages;
-    if (!pages)
-        goto out_of_mem;
-
-#ifdef DEBUG_PRINT_MAPPING
-    printk("vm_map_range: %p - %lx\n", range, (unsigned long) range + nr_pages << PAGE_SHIFT);
-#endif
-
-    for (size_t i = 0; i < nr_pages; i++)
-    {
-        // printf("Mapping %p\n", p->paddr);
-        if (!vm_map_page(nullptr, mem + (i << PAGE_SHIFT), (uintptr_t) page_to_phys(p), flags))
-            goto out_of_mem;
-        p = p->next_un.next_allocation;
-    }
-
-    return pages;
-
-out_of_mem:
-    if (pages)
-        free_page_list(pages);
-    return nullptr;
-}
-
 void do_vm_unmap(struct mm_address_space *as, void *range, size_t pages)
     REQUIRES_SHARED(as->vm_lock)
 {
@@ -407,7 +371,7 @@ void do_vm_unmap(struct mm_address_space *as, void *range, size_t pages)
 
     MUST_HOLD_MUTEX(&entry->vm_mm->vm_lock);
 
-    vm_mmu_unmap(entry->vm_mm, range, pages);
+    vm_mmu_unmap(entry->vm_mm, range, pages, entry);
 }
 
 void __vm_unmap_range(struct mm_address_space *as, void *range, size_t pages)
@@ -983,7 +947,7 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 
         struct inode *ino = file->f_ino;
 
-        if (S_ISBLK(ino->i_mode) || S_ISCHR(ino->i_mode))
+        if (S_ISCHR(ino->i_mode))
         {
             if (!ino->i_fops->mmap)
             {
@@ -1140,6 +1104,26 @@ void vm_copy_region(const struct vm_area_struct *source, struct vm_area_struct *
     dest->vm_ops = source->vm_ops;
 }
 
+static void vma_pre_split(struct vm_area_struct *vma)
+{
+    /* Lock the rmap intances. This stops us from every seeing an inconsistent data structure on
+     * rmap's side. */
+    if (vma->vm_obj)
+        spin_lock(&vma->vm_obj->mapping_lock);
+}
+
+static void vma_post_split(struct vm_area_struct *vma, struct vm_area_struct *new_vma)
+{
+    /* Correct the rmaps post-split, and unlock. */
+    if (vma->vm_obj)
+    {
+        DCHECK(vma->vm_obj == new_vma->vm_obj);
+        vm_obj_reassign_mapping(vma->vm_obj, vma);
+        vmo_assign_mapping_locked(vma->vm_obj, new_vma);
+        spin_unlock(&vma->vm_obj->mapping_lock);
+    }
+}
+
 static struct vm_area_struct *vm_split_region(struct mm_address_space *as,
                                               struct vm_area_struct *vma, unsigned long addr,
                                               bool below) REQUIRES(as->vm_lock)
@@ -1175,17 +1159,14 @@ static struct vm_area_struct *vm_split_region(struct mm_address_space *as,
 
     DCHECK(vma->vm_end > addr);
 
+    vma_pre_split(vma);
+
     if (below)
     {
         newr->vm_start = vma->vm_start;
         newr->vm_end = addr;
         vma->vm_start = addr;
         vma->vm_offset += region_off;
-        if (vma->vm_obj)
-        {
-            vm_obj_reassign_mapping(vma->vm_obj, vma);
-            vmo_assign_mapping(vma->vm_obj, newr);
-        }
     }
     else
     {
@@ -1193,13 +1174,9 @@ static struct vm_area_struct *vm_split_region(struct mm_address_space *as,
         newr->vm_end = vma->vm_end;
         newr->vm_offset += region_off;
         vma->vm_end = addr;
-        if (vma->vm_obj)
-        {
-            vm_obj_reassign_mapping(vma->vm_obj, vma);
-            vmo_assign_mapping(vma->vm_obj, newr);
-        }
     }
 
+    vma_post_split(vma, newr);
     vm_insert_region(as, newr);
 
     return newr;
@@ -1465,7 +1442,7 @@ void *__map_pages_to_vaddr(struct mm_address_space *as, void *virt, void *phys, 
     for (uintptr_t virt = (uintptr_t) ptr, _phys = (uintptr_t) phys, i = 0; i < pages;
          virt += PAGE_SIZE, _phys += PAGE_SIZE, ++i)
     {
-        if (!vm_map_page(as, virt, _phys, flags))
+        if (!vm_map_page(as, virt, _phys, flags, nullptr))
             return nullptr;
     }
 
@@ -1625,8 +1602,8 @@ int vm_handle_non_present_pf(struct vm_pf_context *ctx)
         }
     }
 
-    if (!map_pages_to_vaddr((void *) ctx->vpage, page_to_phys(ctx->page), PAGE_SIZE,
-                            ctx->page_rwx | VM_NOFLUSH))
+    if (!vm_map_page(ctx->entry->vm_mm, ctx->vpage, (u64) page_to_phys(ctx->page),
+                     ctx->page_rwx | VM_NOFLUSH, ctx->entry))
     {
         page_unpin(ctx->page);
         info->signal = VM_SIGSEGV;
@@ -1791,7 +1768,7 @@ int vm_handle_page_fault(struct fault_info *info)
 
 static void vm_destroy_area(vm_area_struct *region)
 {
-    vm_mmu_unmap(region->vm_mm, (void *) region->vm_start, vma_pages(region));
+    vm_mmu_unmap(region->vm_mm, (void *) region->vm_start, vma_pages(region), region);
 
     decrement_vm_stat(region->vm_mm, virtual_memory_size, region->vm_end - region->vm_start);
 
@@ -2164,9 +2141,7 @@ int vm_area_struct_setup_backing(struct vm_area_struct *region, size_t pages, bo
         assert(ino->i_pages != nullptr);
         vmo_ref(ino->i_pages);
         vmo = ino->i_pages;
-
-        if (!is_shared)
-            region->vm_ops = &private_vmops;
+        region->vm_ops = &file_vmops;
     }
     else
     {
@@ -2370,7 +2345,7 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size) REQUIRES
         bool is_shared = is_mapping_shared(vma);
         unsigned long sz = vma->vm_end - vma->vm_start;
 
-        vm_mmu_unmap(as, (void *) vma->vm_start, vma_pages(vma));
+        vm_mmu_unmap(as, (void *) vma->vm_start, vma_pages(vma), vma);
         list_remove(&vma->vm_detached_node);
         vm_area_struct_destroy(vma);
 
