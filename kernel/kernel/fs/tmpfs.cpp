@@ -109,6 +109,7 @@ ssize_t tmpfs_readpage(struct page *page, size_t offset, struct inode *ino)
 {
     memset(PAGE_TO_VIRT(page), 0, PAGE_SIZE);
     page->flags |= PAGE_FLAG_UPTODATE;
+    inc_page_stat(page, NR_SHARED);
     return PAGE_SIZE;
 }
 
@@ -230,6 +231,17 @@ struct file_ops tmpfs_fops = {.read = nullptr,
                               .read_iter = filemap_read_iter,
                               .write_iter = filemap_write_iter};
 
+static void tmpfs_free_page(struct vm_object *vmo, struct page *page)
+{
+    if (page_flag_set(page, PAGE_FLAG_UPTODATE))
+        dec_page_stat(page, NR_SHARED);
+    free_page(page);
+}
+
+const static vm_object_ops tmpfs_vmops = {
+    .free_page = tmpfs_free_page,
+};
+
 /**
  * @brief Allocate a tmpfs inode
  * Note: unlike create_inode, this function does not add an inode to the cache, set nlink to 1,
@@ -253,6 +265,8 @@ tmpfs_inode *tmpfs_superblock::alloc_inode(mode_t mode, dev_t rdev)
     ino->i_fops = tmpfs_ops_;
 
     ino->i_nlink = 0;
+    if (ino->i_pages)
+        ino->i_pages->ops = &tmpfs_vmops;
 
     /* We're currently holding two refs: one for the user, and another for the simple fact
      * that we need this inode to remain in memory.
