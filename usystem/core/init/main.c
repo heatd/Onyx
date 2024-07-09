@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <mntent.h>
 #include <netinet/in.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -95,73 +96,24 @@ int mount_autodetect(const char *dev, const char *mpoint)
 
 int mount_filesystems(void)
 {
-    FILE *fp = fopen("/etc/fstab", "r");
+    FILE *fp = setmntent("/etc/fstab", "r");
     if (!fp)
     {
         perror("/etc/fstab");
         return 1;
     }
 
-    char *read_buffer = malloc(1024);
-    if (!read_buffer)
+    struct mntent *mnt;
+
+    while ((mnt = getmntent(fp)))
     {
-        perror(__func__);
-        fclose(fp);
-        return 1;
-    }
-
-    memset(read_buffer, 0, 1024);
-
-    while (fgets(read_buffer, 1024, fp) != NULL)
-    {
-        int arg_num = 0;
-        char *pos;
-        char *source = NULL;
-        char *target = NULL;
-        char *filesystem_type = NULL;
-        /* If this line is a comment, ignore it */
-        if (*read_buffer == '#')
-            continue;
-        if (strlen(read_buffer) == '\0')
-            goto func_exit;
-        /* Delete the \n that might exist */
-        if ((pos = strchr(read_buffer, '\n')))
-            *pos = '\0';
-        char *str = strtok(read_buffer, " \t");
-        while (str != NULL)
-        {
-            if (arg_num == 0)
-            {
-                source = str;
-            }
-            else if (arg_num == 1)
-            {
-                target = str;
-            }
-            else if (arg_num == 2)
-            {
-                filesystem_type = str;
-            }
-            else
-            {
-                printf("init: /etc/fstab: malformed line\n");
-                free(read_buffer);
-                fclose(fp);
-                return 1;
-            }
-            arg_num++;
-            str = strtok(NULL, " \t");
-        }
-
-        if (!strcmp(target, "/"))
+        if (!strcmp(mnt->mnt_dir, "/"))
             continue;
 
-        if (mount(source, target, filesystem_type, 0, NULL) < 0)
+        if (mount(mnt->mnt_fsname, mnt->mnt_dir, mnt->mnt_type, 0, NULL) < 0)
         {
-            printf("init: failed to mount %s\n", source);
-            perror("mount");
-            free(read_buffer);
-            fclose(fp);
+            warn("init: failed to mount %s on %s\n", mnt->mnt_fsname, mnt->mnt_dir);
+            endmntent(fp);
             return 1;
         }
     }
@@ -175,9 +127,7 @@ int mount_filesystems(void)
 
     if (mount("none", "/dev/shm", "tmpfs", 0, NULL) < 0)
         err(1, "mount on /dev/shm");
-func_exit:
-    free(read_buffer);
-    fclose(fp);
+    endmntent(fp);
     return 0;
 }
 
