@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 - 2023 Pedro Falcato
+ * Copyright (c) 2021 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -132,5 +132,19 @@
 #define dec_per_cpu_2(var) dec_per_cpu_internal(var, "w", uint16_t)
 #define dec_per_cpu_4(var) dec_per_cpu_internal(var, "l", uint32_t)
 #define dec_per_cpu_8(var) dec_per_cpu_internal(var, "q", uint64_t)
+
+#define dec_and_test_pcpu_internal(var, suffix, type)       \
+    ({                                                      \
+        int cz;                                             \
+        __asm__ __volatile__("dec" suffix ____PCPU_VAR("1") \
+                             : "=@ccz"(cz)                  \
+                             : __PCPU_CONSTRAINT(var));     \
+        cz;                                                 \
+    })
+
+#define dec_and_test_pcpu_1(var) dec_and_test_pcpu_internal(var, "b", uint8_t)
+#define dec_and_test_pcpu_2(var) dec_and_test_pcpu_internal(var, "w", uint16_t)
+#define dec_and_test_pcpu_4(var) dec_and_test_pcpu_internal(var, "l", uint32_t)
+#define dec_and_test_pcpu_8(var) dec_and_test_pcpu_internal(var, "q", uint64_t)
 
 #endif
