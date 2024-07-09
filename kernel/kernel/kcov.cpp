@@ -101,12 +101,12 @@ const static struct vm_object_ops kcov_vmo_ops = {};
 
 static int kcov_setup_vmo(struct vm_object *vmo, void *buffer)
 {
-    // vmalloc_to_pages gives us refs, we give them away to the vm_object (through vmo_add_page)
     auto pages = vmalloc_to_pages(buffer);
     size_t off = 0;
 
     for (struct page *p = pages; p; p = p->next_un.next_allocation, off += PAGE_SIZE)
     {
+        page_ref(p);
         if (vmo_add_page(off, p, vmo) < 0)
             return -ENOMEM;
     }

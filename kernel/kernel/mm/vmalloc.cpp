@@ -411,14 +411,7 @@ struct page *vmalloc_to_pages(void *ptr)
     scoped_lock g{vmalloc_tree.lock};
     auto reg = vfind(ptr);
     if (!reg)
-    {
         panic("vfree: Bad pointer %p not mapped\n", ptr);
-    }
-
-    for (struct page *p = reg->backing_pgs; p != nullptr; p = p->next_un.next_allocation)
-    {
-        page_ref(p);
-    }
 
     return reg->backing_pgs;
 }
