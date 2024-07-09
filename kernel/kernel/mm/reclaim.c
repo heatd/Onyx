@@ -15,6 +15,7 @@
 #include <onyx/mm/vm_object.h>
 #include <onyx/page.h>
 #include <onyx/rwlock.h>
+#include <onyx/vfs.h>
 
 static struct list_head shrinker_list = LIST_HEAD_INIT(shrinker_list);
 static struct rwlock shrinker_list_lock;
@@ -118,6 +119,7 @@ static const struct page_flag flags[] = {
     X(PAGE_FLAG_WAITERS),   X(PAGE_FLAG_UPTODATE),
     X(PAGE_FLAG_WRITEBACK), X(PAGE_FLAG_READAHEAD),
     X(PAGE_FLAG_LRU),       X(PAGE_FLAG_REFERENCED),
+    X(PAGE_FLAG_ACTIVE),
 };
 
 #ifdef __clang__
@@ -138,25 +140,33 @@ static void dump_page(struct page *page)
     {
         if (page->flags & flags[i].val)
         {
+            if (!first)
+            {
+                if (len > 2)
+                    *b = '|', b++, *b = '\0', len--;
+            }
+
             size_t copied = strlcpy(b, flags[i].name, len);
             len -= copied;
             b += copied;
-            if (!first)
-            {
-                if (len > 1)
-                    *b = '|', b++, len--;
-            }
             first = false;
         }
     }
 
-    pr_crit("Page %p (pfn %016lx)  ref: %lu\n", page, page_to_pfn(page), page->ref);
+    pr_crit("Page %p (pfn %016lx)  ref: %u mapcount: %u (%u)\n", page, page_to_pfn(page), page->ref,
+            page->mapcount, page_mapcount(page));
     pr_crit("  flags: %016lx (%s)  private: %016lx\n", page->flags, flags_buf, page->priv);
     pr_crit("  owner: %p  pageoff %lx\n", page->owner, page->pageoff);
+    if (page->owner)
+    {
+        struct inode *inode = page->owner->ino;
+        pr_crit("  owner vm_obj_ops: %ps  inode num %lu dev %lu\n", page->owner->ops,
+                inode->i_inode, inode->i_dev);
+    }
 }
 
-static void bug_on_page(struct page *page, const char *expr, const char *file, unsigned int line,
-                        const char *func)
+void bug_on_page(struct page *page, const char *expr, const char *file, unsigned int line,
+                 const char *func)
 {
     pr_crit("Assertion %s failed in %s:%u, in function %s\n", expr, file, line, func);
     dump_page(page);

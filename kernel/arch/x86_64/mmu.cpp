@@ -61,16 +61,21 @@ static const unsigned int x86_max_paging_levels = 5;
 #define X86_PAGING_PAT          (1 << 7)
 #define X86_PAGING_HUGE         (1 << 7)
 #define X86_PAGING_GLOBAL       (1 << 8)
+/* Use one of the ignored bits as SPECIAL. This will annotate zero page mappings (so we don't
+ * increment mapcount on zero_page and thus blow it up). add_mapcount and sub_mapcount will not be
+ * called on these struct pages. */
+#define X86_PAGING_SPECIAL      (1 << 9)
 #define X86_PAGING_NX           (1UL << 63)
 
 #define X86_PAGING_PROT_BITS ((PAGE_SIZE - 1) | X86_PAGING_NX)
 
-#define X86_PAGING_FLAGS_TO_SAVE_ON_MPROTECT                                       \
-    (X86_PAGING_GLOBAL | X86_PAGING_HUGE | X86_PAGING_USER | X86_PAGING_ACCESSED | \
-     X86_PAGING_DIRTY | X86_PAGING_WRITETHROUGH | X86_PAGING_PCD | X86_PAGING_PAT)
+#define X86_PAGING_FLAGS_TO_SAVE_ON_MPROTECT                                        \
+    (X86_PAGING_GLOBAL | X86_PAGING_HUGE | X86_PAGING_USER | X86_PAGING_ACCESSED |  \
+     X86_PAGING_DIRTY | X86_PAGING_WRITETHROUGH | X86_PAGING_PCD | X86_PAGING_PAT | \
+     X86_PAGING_SPECIAL)
 
-void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64_t phys,
-                              uint64_t prot);
+static void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64_t phys,
+                                     uint64_t prot, struct vm_area_struct *vma);
 
 __always_inline bool x86_is_pml5_enabled()
 {
@@ -85,6 +90,11 @@ static inline void __native_tlb_invalidate_page(void *addr)
 bool x86_pte_empty(uint64_t pte)
 {
     return pte == 0;
+}
+
+static inline bool pte_special(u64 pte)
+{
+    return pte & X86_PAGING_SPECIAL;
 }
 
 bool x86_get_pt_entry(void *addr, uint64_t **entry_ptr, struct mm_address_space *mm);
@@ -219,9 +229,9 @@ void *x86_placement_map(unsigned long _phys)
 
     /* Map two pages so memory that spans both pages can get accessed */
     paging_map_phys_to_virt(&kernel_address_space, placement_mappings_start, phys,
-                            VM_READ | VM_WRITE);
+                            VM_READ | VM_WRITE, nullptr);
     paging_map_phys_to_virt(&kernel_address_space, placement_mappings_start + PAGE_SIZE,
-                            phys + PAGE_SIZE, VM_READ | VM_WRITE);
+                            phys + PAGE_SIZE, VM_READ | VM_WRITE, nullptr);
     __native_tlb_invalidate_page((void *) placement_mappings_start);
     __native_tlb_invalidate_page((void *) (placement_mappings_start + PAGE_SIZE));
     return (void *) (placement_mappings_start + (_phys - phys));
@@ -384,10 +394,11 @@ void paging_map_all_phys()
         __native_tlb_invalidate_page((void *) (virt + i * 0x40000000));
 }
 
-void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64_t phys,
-                              uint64_t prot)
+static void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64_t phys,
+                                     uint64_t prot, struct vm_area_struct *vma)
 {
     bool user = prot & VM_USER;
+    const bool ispfnmap = vma_is_pfnmap(vma);
 
     if (!as)
     {
@@ -432,16 +443,17 @@ void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
     }
 
     bool noexec = !(prot & VM_EXEC);
-    bool global = prot & VM_USER ? false : true;
-    user = prot & VM_USER ? true : false;
-    bool write = prot & VM_WRITE ? true : false;
+    bool global = !user;
+    bool write = prot & VM_WRITE;
     bool readable = prot & (VM_READ | VM_WRITE) || !noexec;
     unsigned int cache_type = vm_prot_to_cache_type(prot);
     uint8_t caching_bits = cache_to_paging_bits(cache_type);
+    bool special_mapping = phys == (u64) page_to_phys(vm_get_zero_page());
 
     uint64_t page_prots = (noexec ? X86_PAGING_NX : 0) | (global ? X86_PAGING_GLOBAL : 0) |
                           (user ? X86_PAGING_USER : 0) | (write ? X86_PAGING_WRITE : 0) |
-                          X86_CACHING_BITS(caching_bits) | (readable ? X86_PAGING_PRESENT : 0);
+                          X86_CACHING_BITS(caching_bits) | (readable ? X86_PAGING_PRESENT : 0) |
+                          (special_mapping ? X86_PAGING_SPECIAL : 0);
 
     if (prot & VM_DONT_MAP_OVER && pml->entries[indices[0]] & X86_PAGING_PRESENT)
         return (void *) virt;
@@ -451,8 +463,20 @@ void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
     pml->entries[indices[0]] = phys | page_prots;
 
     if (x86_pte_empty(old))
-    {
         increment_vm_stat(as, resident_set_size, PAGE_SIZE);
+
+    if (!ispfnmap)
+    {
+        if (!x86_pte_empty(old) && !pte_special(old))
+        {
+            /* If old was a thing, decrement the mapcount */
+            struct page *oldp = phys_to_page(PML_EXTRACT_ADDRESS(old));
+            page_sub_mapcount(oldp);
+        }
+
+        struct page *newp = phys_to_page(phys);
+        if (!special_mapping)
+            page_add_mapcount(newp);
     }
 
     return (void *) virt;
@@ -732,11 +756,13 @@ void paging_invalidate(void *page, size_t pages)
  * @param virt The virtual address.
  * @param phys The physical address of the page.
  * @param prot Desired protection flags.
+ * @param vma VMA for this mapping (optional)
  * @return NULL if out of memory, else virt.
  */
-void *vm_map_page(struct mm_address_space *as, uint64_t virt, uint64_t phys, uint64_t prot)
+void *vm_map_page(struct mm_address_space *as, uint64_t virt, uint64_t phys, uint64_t prot,
+                  struct vm_area_struct *vma)
 {
-    return paging_map_phys_to_virt(as, virt, phys, prot);
+    return paging_map_phys_to_virt(as, virt, phys, prot, vma);
 }
 
 void paging_free_pml2(PML *pml)
@@ -1019,8 +1045,10 @@ constexpr unsigned int addr_get_index(unsigned long virt, unsigned int pt_level)
 #define MMU_UNMAP_CAN_FREE_PML 1
 #define MMU_UNMAP_OK           0
 
-static int x86_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterator &it)
+static int x86_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterator &it,
+                         struct vm_area_struct *vma)
 {
+    const bool ispfnmap = vma_is_pfnmap(vma);
     unsigned int index = addr_get_index(it.curr_addr(), pt_level);
 
     /* Get the size that each entry represents here */
@@ -1078,8 +1106,12 @@ static int x86_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterator 
             __atomic_exchange(&pt_entry, &val, &val, __ATOMIC_RELEASE);
 
             if (val & X86_PAGING_ACCESSED)
-            {
                 invd_tracker.add_page(it.curr_addr(), entry_size);
+
+            if (!ispfnmap && !pte_special(val))
+            {
+                struct page *oldp = phys_to_page(PML_EXTRACT_ADDRESS(val));
+                page_sub_mapcount(oldp);
             }
 
             it.adjust_length(entry_size);
@@ -1089,7 +1121,7 @@ static int x86_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterator 
         {
             assert((pt_entry & X86_PAGING_PRESENT) != 0);
             PML *next_table = (PML *) PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(pt_entry));
-            int st = x86_mmu_unmap(next_table, pt_level - 1, it);
+            int st = x86_mmu_unmap(next_table, pt_level - 1, it, vma);
 
             if (st == MMU_UNMAP_CAN_FREE_PML)
             {
@@ -1125,7 +1157,7 @@ static int x86_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterator 
     return MMU_UNMAP_OK;
 }
 
-int vm_mmu_unmap(struct mm_address_space *as, void *addr, size_t pages)
+int vm_mmu_unmap(struct mm_address_space *as, void *addr, size_t pages, struct vm_area_struct *vma)
 {
     unsigned long virt = (unsigned long) addr;
     size_t size = pages << PAGE_SHIFT;
@@ -1135,7 +1167,7 @@ int vm_mmu_unmap(struct mm_address_space *as, void *addr, size_t pages)
 
     PML *first_level = (PML *) PHYS_TO_VIRT(as->arch_mmu.cr3);
 
-    x86_mmu_unmap(first_level, x86_paging_levels - 1, it);
+    x86_mmu_unmap(first_level, x86_paging_levels - 1, it, vma);
 
     assert(it.length() == 0);
 
@@ -1145,6 +1177,7 @@ int vm_mmu_unmap(struct mm_address_space *as, void *addr, size_t pages)
 static int x86_mmu_fork(PML *parent_table, PML *child_table, unsigned int pt_level,
                         page_table_iterator &it, struct vm_area_struct *old_region)
 {
+    const bool ispfnmap = vma_is_pfnmap(old_region);
     unsigned int index = addr_get_index(it.curr_addr(), pt_level);
 
     /* Get the size that each entry represents here */
@@ -1193,6 +1226,8 @@ static int x86_mmu_fork(PML *parent_table, PML *child_table, unsigned int pt_lev
         {
             const bool should_cow = old_region->vm_maptype == MAP_PRIVATE;
             child_table->entries[i] = pt_entry & (should_cow ? ~X86_PAGING_WRITE : ~0UL);
+            if (!ispfnmap && !pte_special(pt_entry))
+                page_add_mapcount(phys_to_page(PML_EXTRACT_ADDRESS(pt_entry)));
             if (should_cow)
             {
                 /* Write-protect the parent's page too. Make sure to invalidate the TLB if we

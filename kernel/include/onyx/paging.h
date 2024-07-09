@@ -86,7 +86,7 @@ int is_invalid_arch_range(void *address, size_t pages);
 void paging_protect_kernel(void);
 void paging_free_page_tables(struct mm_address_space *mm);
 bool paging_write_protect(void *addr, struct mm_address_space *mm);
-int vm_mmu_unmap(struct mm_address_space *as, void *addr, size_t pages);
+int vm_mmu_unmap(struct mm_address_space *as, void *addr, size_t pages, struct vm_area_struct *vma);
 void *paging_unmap(void *memory);
 
 #ifdef __x86_64__

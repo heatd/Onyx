@@ -319,7 +319,7 @@ void vm_object::unmap_page(size_t offset)
     {
         vm_obj_assert_interval_tree(offset, vma);
         vm_mmu_unmap(vma->vm_mm, (void *) (vma->vm_start + (offset << PAGE_SHIFT) - vma->vm_offset),
-                     1);
+                     1, vma);
     }
 }
 
@@ -335,6 +335,21 @@ void vmo_ref(vm_object *vmo)
 
 /**
  * @brief Registers a new mapping on the VMO.
+ * Does not take the lock.
+ *
+ * @param vmo The target VMO.
+ * @param region The mapping's region.
+ */
+void vmo_assign_mapping_locked(struct vm_object *vmo, struct vm_area_struct *vma)
+{
+    DCHECK(spin_lock_held(&vmo->mapping_lock));
+    vma->vm_objhead.start = vma->vm_offset >> PAGE_SHIFT;
+    vma->vm_objhead.end = (vma->vm_offset >> PAGE_SHIFT) + vma_pages(vma) - 1;
+    interval_tree_insert(&vmo->mappings, &vma->vm_objhead);
+}
+
+/**
+ * @brief Registers a new mapping on the VMO.
  *
  * @param vmo The target VMO.
  * @param region The mapping's region.
@@ -342,9 +357,7 @@ void vmo_ref(vm_object *vmo)
 void vmo_assign_mapping(vm_object *vmo, vm_area_struct *vma)
 {
     scoped_lock g{vmo->mapping_lock};
-    vma->vm_objhead.start = vma->vm_offset >> PAGE_SHIFT;
-    vma->vm_objhead.end = (vma->vm_offset >> PAGE_SHIFT) + vma_pages(vma) - 1;
-    interval_tree_insert(&vmo->mappings, &vma->vm_objhead);
+    vmo_assign_mapping_locked(vmo, vma);
 }
 
 /**
@@ -361,7 +374,7 @@ void vmo_remove_mapping(vm_object *vmo, vm_area_struct *region)
 
 void vm_obj_reassign_mapping(struct vm_object *vm_obj, struct vm_area_struct *vma)
 {
-    scoped_lock g{vm_obj->mapping_lock};
+    DCHECK(spin_lock_held(&vm_obj->mapping_lock));
     interval_tree_remove(&vm_obj->mappings, &vma->vm_objhead);
     vma->vm_objhead.start = vma->vm_offset >> PAGE_SHIFT;
     vma->vm_objhead.end = (vma->vm_offset >> PAGE_SHIFT) + vma_pages(vma) - 1;
@@ -517,13 +530,19 @@ void vm_obj_clean_page(struct vm_object *obj, struct page *page)
 bool vm_obj_remove_page(struct vm_object *obj, struct page *page)
 {
     scoped_lock g{obj->page_lock};
-    DCHECK(page_locked(page));
-    DCHECK(page->owner == obj);
-    DCHECK(page->ref != 0);
-    /* Under the lock, pages can't get their references incremented, so we check if refs == 1 here.
+    DCHECK_PAGE(page_locked(page), page);
+    DCHECK_PAGE(page->owner == obj, page);
+    DCHECK_PAGE(page->ref != 0, page);
+    /* Under the lock, pages can't get their references incremented, so we check if pins == 1 here.
+     * We take into account the mapcount, because virtual references can be punted off.
      */
-    if (__atomic_load_n(&page->ref, __ATOMIC_RELAXED) > 1)
+    unsigned int expected_refs = 1 + (page_mapcount(page) > 0);
+    if (__atomic_load_n(&page->ref, __ATOMIC_RELAXED) > expected_refs)
         return false;
+    obj->unmap_page(page->pageoff << PAGE_SHIFT);
+    /* After this, page->ref must be 1 (if the VM system is working properly) */
+    CHECK_PAGE(page_mapcount(page) == 0, page);
+    CHECK_PAGE(page->ref == 1, page);
     obj->vm_pages.store(page->pageoff, 0);
     return true;
 }

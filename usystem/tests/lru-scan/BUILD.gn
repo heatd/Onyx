@@ -1,0 +1,11 @@
+import("//build/app.gni")
+
+app_executable("lru-scan") {
+  package_name = "lru-scan"
+
+  output_name = "lru-scan"
+
+  sources = [ "main.c" ]
+
+  deps = [ "//googletest:gtest_main" ]
+}

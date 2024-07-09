@@ -216,12 +216,13 @@ void *vmalloc(size_t pages, int type, int perms, unsigned int gfp_flags)
     page *it = pgs;
     for (size_t i = 0; i < pages; i++, it = it->next_un.next_allocation)
     {
-        bool success = vm_map_page(&kernel_address_space, vmal_reg->addr + (i << PAGE_SHIFT),
-                                   (uint64_t) page_to_phys(it), vmal_reg->perms) != nullptr;
+        bool success =
+            vm_map_page(&kernel_address_space, vmal_reg->addr + (i << PAGE_SHIFT),
+                        (uint64_t) page_to_phys(it), vmal_reg->perms, nullptr) != nullptr;
         if (!success)
         {
             free_page_list(pgs);
-            vm_mmu_unmap(&kernel_address_space, (void *) vmal_reg->addr, i);
+            vm_mmu_unmap(&kernel_address_space, (void *) vmal_reg->addr, i, nullptr);
             delvmr();
             return errno = ENOMEM, nullptr;
         }
@@ -305,7 +306,7 @@ static void __vfree(void *ptr, size_t pages, bool is_mmiounmap)
     if (!is_mmiounmap && reg->backing_pgs)
         free_page_list(reg->backing_pgs);
 
-    vm_mmu_unmap(&kernel_address_space, (void *) reg->addr, reg->pages);
+    vm_mmu_unmap(&kernel_address_space, (void *) reg->addr, reg->pages, nullptr);
 
     // Remove the node from the tree
     bst_delete(&vmalloc_tree.root, &reg->tree_node);

@@ -582,22 +582,90 @@ int filemap_fdatasync(struct inode *inode, unsigned long start, unsigned long en
     return inode->i_fops->fsyncdata(inode, &wp);
 }
 
-int filemap_private_fault(struct vm_pf_context *ctx)
+static int filemap_mkwrite_private(struct vm_pf_context *ctx,
+                                   struct page *page) NO_THREAD_SAFETY_ANALYSIS
+{
+    struct vm_area_struct *region = ctx->entry;
+    struct page *newp = nullptr;
+    unsigned long pgoff = (ctx->vpage - region->vm_start) >> PAGE_SHIFT;
+    /* write-fault, let's CoW the page */
+
+    /* Lazily allocate the vm_amap struct */
+    if (!region->vm_amap)
+    {
+        region->vm_amap = amap_alloc(vma_pages(region) << PAGE_SHIFT);
+        if (!region->vm_amap)
+            return -ENOMEM;
+    }
+
+    /* Allocate a brand new page and copy the old page */
+    newp = alloc_page(PAGE_ALLOC_NO_ZERO | GFP_KERNEL);
+    if (!newp)
+        return -ENOMEM;
+
+    copy_page_to_page(page_to_phys(newp), page_to_phys(page));
+
+    if (amap_add(region->vm_amap, newp, region, pgoff, true) < 0)
+    {
+        free_page(newp);
+        return -ENOMEM;
+    }
+
+    page_unref(page);
+    ctx->page = newp;
+    return 0;
+}
+
+static int vm_prepare_write(struct inode *inode, struct page *p) REQUIRES(p)
+{
+    DCHECK(page_locked(p));
+
+    /* Correctness: We set the i_size before truncating pages from the page cache, so this should
+     * not race... I think? */
+    size_t i_size = inode->i_size;
+    DCHECK(p->owner == inode->i_pages);
+    size_t len = PAGE_SIZE;
+    size_t offset = p->pageoff << PAGE_SHIFT;
+    if (offset + PAGE_SIZE > i_size)
+        len = i_size - offset;
+
+    int st = inode->i_fops->prepare_write(inode, p, offset, 0, len);
+    filemap_mark_dirty(inode, p, p->pageoff);
+    return st;
+}
+
+static int filemap_mkwrite_shared(struct vm_pf_context *ctx,
+                                  struct page *page) NO_THREAD_SAFETY_ANALYSIS
+{
+    struct vm_area_struct *vma = ctx->entry;
+    ctx->page = page;
+    return vm_prepare_write(vma->vm_file->f_ino, page);
+}
+
+static int filemap_fault(struct vm_pf_context *ctx) NO_THREAD_SAFETY_ANALYSIS
 {
     struct vm_area_struct *region = ctx->entry;
     struct fault_info *info = ctx->info;
     struct page *page = nullptr;
-    struct page *newp = nullptr;
     struct inode *ino = region->vm_file->f_ino;
     int st = 0;
     unsigned long pgoff = (ctx->vpage - region->vm_start) >> PAGE_SHIFT;
     bool amap = true;
+    bool newp = false;
+    bool needs_invalidate = false;
+
+    /* We need to lock the page in case we're mapping it (that is, it's either a read-fault on
+     * a private region, or any fault on a MAP_SHARED). */
+    bool locked = (region->vm_maptype == MAP_PRIVATE && !ctx->info->write) ||
+                  region->vm_maptype == MAP_SHARED;
 
     /* Permission checks have already been handled before .fault() */
     if (region->vm_amap)
     {
         /* Check if the amap has any kind of page. It's possible we may need to CoW that */
         page = amap_get(region->vm_amap, pgoff);
+        if (page)
+            locked = false;
     }
 
     if (!page)
@@ -610,7 +678,8 @@ int filemap_private_fault(struct vm_pf_context *ctx)
             return -EIO;
         }
 
-        st = filemap_find_page(region->vm_file->f_ino, fileoff, FIND_PAGE_ACTIVATE, &page,
+        unsigned ffp_flags = FIND_PAGE_ACTIVATE | (locked ? FIND_PAGE_LOCK : 0);
+        st = filemap_find_page(region->vm_file->f_ino, fileoff, ffp_flags, &page,
                                &region->vm_file->f_ra_state);
 
         if (st < 0)
@@ -634,52 +703,56 @@ int filemap_private_fault(struct vm_pf_context *ctx)
     {
         /* Write-protect the page */
         ctx->page_rwx &= ~VM_WRITE;
-        goto map;
     }
-
-    /* write-fault, let's CoW the page */
-
-    /* Lazily allocate the vm_amap struct */
-    if (!region->vm_amap)
+    else
     {
-        region->vm_amap = amap_alloc(vma_pages(region) << PAGE_SHIFT);
-        if (!region->vm_amap)
-            goto enomem;
+        if (region->vm_maptype == MAP_PRIVATE)
+        {
+            DCHECK(!locked);
+            st = filemap_mkwrite_private(ctx, page);
+            if (st == 0)
+                newp = true;
+        }
+        else
+            st = filemap_mkwrite_shared(ctx, page);
+        if (st < 0)
+            goto err;
+        /* We should invalidate the TLB if we had a mapping before. Note: I don't like that
+         * we're mapping *over* the page, again. But it is what it is, and currently the code is
+         * a little cleaner. */
+        needs_invalidate = ctx->mapping_info & PAGE_PRESENT;
+        page = ctx->page;
+        DCHECK(page != nullptr);
     }
 
-    /* Allocate a brand new page and copy the old page */
-    newp = alloc_page(PAGE_ALLOC_NO_ZERO | GFP_KERNEL);
-    if (!newp)
+    if (!vm_map_page(region->vm_mm, ctx->vpage, (u64) page_to_phys(page), ctx->page_rwx,
+                     ctx->entry))
         goto enomem;
 
-    copy_page_to_page(page_to_phys(newp), page_to_phys(page));
+    /* TODO: Hmm... Do we want to invalidate the TLB when doing CoW? We don't actually need to do
+     * that. We could just take the spurious fault ezpz, and it would possibly be more efficient on
+     * IPI shootdown architectures? */
+    if (needs_invalidate)
+        vm_invalidate_range(ctx->vpage, 1);
 
-    if (amap_add(region->vm_amap, newp, region, pgoff, true) < 0)
-    {
-        free_page(newp);
-        goto enomem;
-    }
-
-    page_unref(page);
-    page = newp;
-
-map:
-    if (!vm_map_page(region->vm_mm, ctx->vpage, (u64) page_to_phys(page), ctx->page_rwx))
-        goto enomem;
-
-    /* Only unref if this page is not new. When we allocate a new page - because of CoW, amap_add
-     * 'adopts' our reference. This works because amaps are inherently region-specific, and we have
-     * the address_space locked.
+    /* Only unref if this page is not new. When we allocate a new page - because of CoW,
+     * amap_add 'adopts' our reference. This works because amaps are inherently region-specific,
+     * and we have the address_space locked.
      */
-
+    if (locked)
+        unlock_page(page);
+    if (!newp)
+        page_unref(page);
     return 0;
 enomem:
     st = -ENOMEM;
 err:
     info->error_info = VM_SIGSEGV;
+    if (locked && page)
+        unlock_page(page);
     if (page && !newp)
         page_unref(page);
     return st;
 }
 
-const struct vm_operations private_vmops = {.fault = filemap_private_fault};
+const struct vm_operations file_vmops = {.fault = filemap_fault};
