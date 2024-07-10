@@ -102,13 +102,17 @@ struct packetbuf
     unsigned int zero_copy : 1;
     int domain;
 
+/* The next bytes are always available for protocols. */
+#define PACKETBUF_PROTO_SPACE 64
+
     union {
         struct list_head list_node;
         struct bst_node bst_node;
     };
 
     union {
-        struct inet_route route;
+        inet_route route;
+        char proto_space[PACKETBUF_PROTO_SPACE];
     };
 
     union {

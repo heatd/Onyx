@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2022 - 2024 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the GPLv2 License
+ * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: GPL-2.0-only
@@ -13,6 +13,7 @@
 #include <onyx/file.h>
 #include <onyx/iovec_iter.h>
 #include <onyx/kunit.h>
+#include <onyx/mm/slab.h>
 #include <onyx/net/socket.h>
 #include <onyx/net/socket_table.h>
 #include <onyx/packetbuf.h>
@@ -26,6 +27,14 @@
 #else
 #define KUNIT_PUBLIC private:
 #endif
+
+struct unix_pbf_info
+{
+    struct file **rights;
+    unsigned int nfiles;
+};
+
+static_assert(sizeof(unix_pbf_info) <= PACKETBUF_PROTO_SPACE);
 
 /**
  * @brief Validates a (sockaddr_un, len) pair
@@ -938,9 +947,97 @@ int un_socket::listen()
     return 0;
 }
 
-static ssize_t fill_pbuf(packetbuf *pbuf, iovec_iter &iter)
+static inline struct unix_pbf_info *pbf_to_unix(packetbuf *pbf)
 {
+    return (struct unix_pbf_info *) pbf->proto_space;
+}
+
+static bool unix_has_anciliary(struct unix_pbf_info *pbf)
+{
+    return pbf->nfiles > 0;
+}
+
+#define SCM_MAX_FD 253
+
+static int unix_scm_rights(struct unix_pbf_info *info, struct cmsghdr *cmsg)
+{
+    size_t data_len = cmsg->cmsg_len - sizeof(cmsghdr);
+    unsigned int nfiles = data_len / sizeof(int);
+    int *fds = (int *) CMSG_DATA(cmsg);
+    if (nfiles > SCM_MAX_FD)
+        return -EINVAL;
+
+    struct file **files = (struct file **) kcalloc(nfiles, sizeof(struct file *), GFP_KERNEL);
+    if (!files)
+        return -ENOMEM;
+    info->rights = files;
+    info->nfiles = nfiles;
+
+    for (unsigned int i = 0; i < nfiles; i++)
+    {
+        struct file *file = get_file_description(fds[i]);
+        if (!file)
+            return -EBADF;
+        info->rights[i] = file;
+    }
+
+    return 0;
+}
+
+static int unix_pbf_init(packetbuf *pbf, const struct msghdr *msg)
+{
+    struct unix_pbf_info *info = pbf_to_unix(pbf);
+    info->nfiles = 0;
+    info->rights = nullptr;
+
+    if (!msg)
+        return 0;
+
+    for (struct cmsghdr *cmsg = CMSG_FIRSTHDR(msg); cmsg; cmsg = CMSG_NXTHDR(msg, cmsg))
+    {
+        int st = -EINVAL;
+        if (cmsg->cmsg_level == SOL_SOCKET)
+        {
+            switch (cmsg->cmsg_type)
+            {
+                case SCM_RIGHTS:
+                    st = unix_scm_rights(info, cmsg);
+                    break;
+            }
+        }
+
+        if (st < 0)
+            return st;
+    }
+
+    return 0;
+}
+
+static void unix_pbf_free(packetbuf *pbf)
+{
+    /* Destroy and free things we need to free */
+    struct unix_pbf_info *info = pbf_to_unix(pbf);
+    if (info->rights)
+    {
+        for (unsigned int i = 0; i < info->nfiles; i++)
+        {
+            if (info->rights[i])
+                fd_put(info->rights[i]);
+        }
+
+        kfree(info->rights);
+    }
+}
+
+static ssize_t fill_pbuf(packetbuf *pbuf, iovec_iter &iter, const struct msghdr *msg)
+{
+    struct unix_pbf_info *info = pbf_to_unix(pbuf);
     ssize_t written = 0;
+
+    /* We can't merge two messages with anciliary data */
+    if (msg && unix_has_anciliary(info))
+        return 0;
+
     while (!iter.empty())
     {
         // XXX Partial writes (in case of failure) must return the written bytes.
@@ -957,6 +1054,10 @@ static ssize_t fill_pbuf(packetbuf *pbuf, iovec_iter &iter)
         written += st;
     }
 
+    /* We only do CMSG stuff after possible earlier failure, to avoid contrived error paths. */
+    if (int err = unix_pbf_init(pbuf, msg); err < 0)
+        return err;
+
     return written;
 }
 
@@ -970,7 +1071,7 @@ ssize_t un_socket::queue_data(const struct msghdr *msg)
 {
     bool looked_at_tail = false;
     auto len = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
-
+    bool has_cmsg = msg->msg_control != nullptr;
     if (len < 0)
         return len;
 
@@ -997,8 +1098,9 @@ ssize_t un_socket::queue_data(const struct msghdr *msg)
             if (l)
             {
                 packetbuf *tail = container_of(l, packetbuf, list_node);
-                if (auto st = fill_pbuf(tail, iter); st < 0)
+                if (auto st = fill_pbuf(tail, iter, has_cmsg ? msg : nullptr); st < 0)
                     return st;
+                has_cmsg = false;
             }
 
             continue;
@@ -1013,9 +1115,10 @@ ssize_t un_socket::queue_data(const struct msghdr *msg)
         if (!pbuf->allocate_space(length))
             return -ENOBUFS;
 
-        if (auto st = fill_pbuf(pbuf.get(), iter); st < 0)
+        if (auto st = fill_pbuf(pbuf.get(), iter, has_cmsg ? msg : nullptr); st < 0)
             return st;
 
+        has_cmsg = false;
         list_add_tail(&pbuf->list_node, &inbuf_list);
         wait_queue_wake_all(&inbuf_wq);
         pbuf.release();
@@ -1103,6 +1206,70 @@ ssize_t un_socket::sendmsg(const struct msghdr *msg, int flags)
     return sendmsg_dgram(msg, flags);
 }
 
+static int put_cmsg(struct msghdr *msg, int level, int type, void *data, int len)
+{
+    socklen_t total_len = CMSG_LEN(len);
+    if (msg->msg_controllen < total_len)
+    {
+        /* Truncated... */
+        msg->msg_flags |= MSG_CTRUNC;
+        /* Bail early if we can't even fit a cmsghdr */
+        if (msg->msg_controllen < sizeof(cmsghdr))
+            return 0;
+        total_len = msg->msg_controllen;
+    }
+
+    struct cmsghdr *cmsg = (struct cmsghdr *) msg->msg_control;
+    cmsg->cmsg_level = level;
+    cmsg->cmsg_type = type;
+    cmsg->cmsg_len = total_len;
+    memcpy(CMSG_DATA(cmsg), data, len);
+
+    /* Increment up to CMSG_SPACE() if possible */
+    total_len = min((socklen_t) CMSG_SPACE(len), msg->msg_controllen);
+    msg->msg_controllen -= total_len;
+    msg->msg_control = (char *) msg->msg_control + total_len;
+    return 0;
+}
+
+static int unix_put_cmsg(struct unix_pbf_info *pbf, struct msghdr *msg)
+{
+    socklen_t len = msg->msg_controllen;
+    if (len == 0)
+        return 0;
+
+    if (!unix_has_anciliary(pbf))
+    {
+        msg->msg_controllen = 0;
+        return 0;
+    }
+
+    if (pbf->nfiles)
+    {
+        unsigned int fdmax = (msg->msg_controllen - sizeof(struct cmsghdr)) / sizeof(int);
+        unsigned int nfds = min(fdmax, pbf->nfiles);
+        int fd_array[SCM_MAX_FD] = {};
+        for (unsigned int i = 0; i < nfds; i++)
+        {
+            int fd = open_with_vnode(pbf->rights[i], pbf->rights[i]->f_flags);
+            if (fd < 0)
+            {
+                for (int j = i - 1; j >= 0; j--)
+                    file_close(fd_array[j]);
+                return fd;
+            }
+
+            fd_array[i] = fd;
+        }
+
+        int err = put_cmsg(msg, SOL_SOCKET, SCM_RIGHTS, fd_array, nfds);
+        if (err < 0)
+            return err;
+    }
+
+    return 0;
+}
+
 ssize_t un_socket::recvmsg_stream(struct msghdr *msg, int flags)
 {
     auto iovlen = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
@@ -1141,19 +1308,30 @@ ssize_t un_socket::recvmsg_stream(struct msghdr *msg, int flags)
             break;
         }
 
+        bool has_anciliary = unix_has_anciliary(pbf_to_unix(buf));
+        if (int err = unix_put_cmsg(pbf_to_unix(buf), msg); err < 0)
+        {
+            if (bytes_read == 0)
+                bytes_read = err;
+            break;
+        }
+
         if (!(flags & MSG_PEEK))
         {
             if (buf->length() == 0)
             {
                 list_remove(&buf->list_node);
+                unix_pbf_free(buf);
                 buf->unref();
             }
         }
 
         bytes_read += read;
-    }
 
-    msg->msg_controllen = 0;
+        /* Anciliary data works like a data barrier. If we see anciliary data, we stop reading. */
+        if (has_anciliary)
+            break;
+    }
 
     return bytes_read;
 }
@@ -1186,11 +1364,15 @@ ssize_t un_socket::recvmsg_dgram(struct msghdr *msg, int flags)
 
     if (read >= 0)
     {
+        if (int err = unix_put_cmsg(pbf_to_unix(buf), msg); err < 0)
+            return read;
+
         if (!(flags & MSG_PEEK))
         {
             if (buf->length() == 0)
             {
                 list_remove(&buf->list_node);
+                unix_pbf_free(buf);
                 buf->unref();
             }
         }

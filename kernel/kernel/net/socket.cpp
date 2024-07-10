@@ -1296,7 +1296,14 @@ ssize_t socket_recvmsg(socket *sock, msghdr *umsg, int flags)
     if (int st = copy_msghdr_from_user(&msg, umsg, g); st < 0)
         return st;
 
+<<<<<<< HEAD
     auto st = sock->sock_ops->recvmsg(sock, &msg, flags);
+||||||| parent of 0763057f (unix: Add SCM_RIGHTS support)
+    auto st = sock->recvmsg(&msg, flags);
+=======
+    socklen_t len = msg.msg_controllen;
+    auto st = sock->recvmsg(&msg, flags);
+>>>>>>> 0763057f (unix: Add SCM_RIGHTS support)
 
     if (st < 0)
         return st;
@@ -1304,6 +1311,7 @@ ssize_t socket_recvmsg(socket *sock, msghdr *umsg, int flags)
     msg.msg_control = g.ucontrol;
     msg.msg_iov = (iovec *) g.uiov;
     msg.msg_name = g.uname;
+    msg.msg_controllen = len - msg.msg_controllen;
 
     if (msg.msg_control)
     {
