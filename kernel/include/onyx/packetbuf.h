@@ -93,8 +93,11 @@ struct packetbuf : public refcountable
 
     list_head_cpp<packetbuf> list_node;
 
+/* The next bytes are always available for protocols. */
+#define PACKETBUF_PROTO_SPACE 64
     union {
         inet_route route;
+        char proto_space[PACKETBUF_PROTO_SPACE];
     };
 
 private:
