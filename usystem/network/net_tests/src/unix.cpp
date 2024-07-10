@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2022 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -7,6 +7,7 @@
  */
 
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <netinet/ip.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -138,4 +139,64 @@ TEST(UnixSocket, BindAnonEAddrInUse)
 
     close(fd);
     close(fd2);
+}
+
+TEST(UnixSocket, FdPassingWorks)
+{
+    int fds[2];
+    ASSERT_NE(socketpair(AF_UNIX, SOCK_DGRAM, 0, fds), -1);
+
+    int devnull = open("/dev/null", O_RDWR);
+    int devzero = open("/dev/zero", O_RDWR);
+    ASSERT_NE(devnull, -1);
+    ASSERT_NE(devzero, -1);
+
+    char buffer[CMSG_SPACE(sizeof(int) * 2)];
+    struct cmsghdr *cmsg = (struct cmsghdr *) buffer;
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    cmsg->cmsg_len = CMSG_LEN(sizeof(int) * 2);
+    int *data = (int *) CMSG_DATA(cmsg);
+    data[0] = devnull;
+    data[1] = devzero;
+
+    struct msghdr msg;
+    msg.msg_control = cmsg;
+    msg.msg_controllen = cmsg->cmsg_len;
+    msg.msg_flags = 0;
+
+    struct iovec v;
+    v.iov_base = fds;
+    v.iov_len = 1;
+    msg.msg_iov = &v;
+    msg.msg_iovlen = 1;
+    msg.msg_name = NULL;
+    msg.msg_namelen = 0;
+
+    ASSERT_EQ(sendmsg(fds[0], &msg, 0), 1);
+    ASSERT_EQ(recvmsg(fds[1], &msg, 0), 1);
+
+    EXPECT_FALSE(msg.msg_flags & MSG_CTRUNC);
+    bool found_scm_rights = false;
+
+    int devnull2, devzero2;
+
+    for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg))
+    {
+        if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS)
+        {
+            found_scm_rights = true;
+            int *data = (int *) CMSG_DATA(cmsg);
+            devnull2 = data[0];
+            devzero2 = data[1];
+        }
+    }
+
+    ASSERT_TRUE(found_scm_rights);
+    close(devnull2);
+    close(devzero2);
+    close(devnull);
+    close(devzero);
+    close(fds[0]);
+    close(fds[1]);
 }
