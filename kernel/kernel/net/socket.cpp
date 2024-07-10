@@ -1296,6 +1296,7 @@ ssize_t socket_recvmsg(socket *sock, msghdr *umsg, int flags)
     if (int st = copy_msghdr_from_user(&msg, umsg, g); st < 0)
         return st;
 
+    socklen_t len = msg.msg_controllen;
     auto st = sock->sock_ops->recvmsg(sock, &msg, flags);
 
     if (st < 0)
@@ -1304,6 +1305,7 @@ ssize_t socket_recvmsg(socket *sock, msghdr *umsg, int flags)
     msg.msg_control = g.ucontrol;
     msg.msg_iov = (iovec *) g.uiov;
     msg.msg_name = g.uname;
+    msg.msg_controllen = len - msg.msg_controllen;
 
     if (msg.msg_control)
     {
