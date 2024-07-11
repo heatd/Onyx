@@ -422,7 +422,7 @@ static inline pgprot_t calc_pgprot(u64 phys, u64 prot)
     bool readable = prot & (VM_READ | VM_WRITE) || !noexec;
     unsigned int cache_type = vm_prot_to_cache_type(prot);
     uint8_t caching_bits = cache_to_paging_bits(cache_type);
-    bool special_mapping = phys == (u64) page_to_phys(vm_get_zero_page());
+    bool special_mapping = phys == (u64) page_to_phys(vm_get_zero_page()) || prot & VM_PFNMAP;
 
     pgprotval_t page_prots =
         (noexec ? _PAGE_NX : 0) | (global ? _PAGE_GLOBAL : 0) | (user ? _PAGE_USER : 0) |
