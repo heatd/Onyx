@@ -173,7 +173,7 @@ public:
     int open_named(struct file *filp);
 };
 
-pipe::pipe() : refcountable(2)
+pipe::pipe() : refcountable(1)
 {
     init_wait_queue_head(&write_queue);
     init_wait_queue_head(&read_queue);
