@@ -47,6 +47,7 @@ int vm_anon_fault(struct vm_pf_context *ctx)
         page = alloc_page(GFP_KERNEL);
         if (!page)
             goto enomem;
+        page_set_anon(page);
 
         if (amap_add(region->vm_amap, page, region, pgoff, false) < 0)
         {

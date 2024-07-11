@@ -602,6 +602,7 @@ static int filemap_mkwrite_private(struct vm_pf_context *ctx,
     newp = alloc_page(PAGE_ALLOC_NO_ZERO | GFP_KERNEL);
     if (!newp)
         return -ENOMEM;
+    page_set_anon(newp);
 
     copy_page_to_page(page_to_phys(newp), page_to_phys(page));
 

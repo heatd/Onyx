@@ -65,7 +65,7 @@ __BEGIN_CDECLS
  */
 #define PAGE_BUDDY            (1 << 3)
 #define PAGE_FLAG_BUFFER      (1 << 4) /* Used by the filesystem code */
-/* bit 5 is unused */
+#define PAGE_FLAG_ANON        (1 << 5)
 #define PAGE_FLAG_FILESYSTEM1 (1 << 6) /* Filesystem private flag */
 #define PAGE_FLAG_WAITERS     (1 << 7)
 #define PAGE_FLAG_UPTODATE    (1 << 8)
@@ -554,6 +554,12 @@ void bug_on_page(struct page *page, const char *expr, const char *file, unsigned
 #define CHECK_PAGE(expr, page) \
     if (unlikely(!(expr)))     \
         bug_on_page(page, #expr, __FILE__, __LINE__, __func__);
+
+static inline void page_set_anon(struct page *page)
+{
+    __atomic_or_fetch(&page->flags, PAGE_FLAG_ANON, __ATOMIC_RELEASE);
+    inc_page_stat(page, NR_ANON);
+}
 
 __END_CDECLS
 

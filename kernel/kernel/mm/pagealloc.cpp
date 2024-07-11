@@ -878,6 +878,8 @@ void page_node::free_page(struct page *p)
     page_owner_freed(p);
 #endif
     DCHECK(!page_flag_set(p, PAGE_FLAG_LRU));
+    if (page_flag_set(p, PAGE_FLAG_ANON))
+        dec_page_stat(p, NR_ANON);
 
     unsigned long cpu_flags = spin_lock_irqsave(&node_lock);
     /* Reset the page */

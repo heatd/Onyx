@@ -8,6 +8,7 @@
 #include <onyx/mm/amap.h>
 #include <onyx/mm/slab.h>
 #include <onyx/page.h>
+#include <onyx/process.h>
 
 #include <onyx/memory.hpp>
 
@@ -44,7 +45,12 @@ void amap_free(struct amap *amap)
     while (!cursor.is_end())
     {
         auto page = (struct page *) cursor.get();
-        dec_page_stat(page, NR_ANON);
+        DCHECK_PAGE(page_flag_set(page, PAGE_FLAG_ANON), page);
+        if (page_mapcount(page) == 0)
+        {
+            DCHECK_PAGE(page->ref == 1, page);
+        }
+
         free_page(page);
         cursor.advance();
     }
@@ -106,18 +112,21 @@ int amap_add(struct amap *amap, struct page *page, struct vm_area_struct *region
         region->vm_amap = amap;
     }
 
+    DCHECK_PAGE(page_flag_set(page, PAGE_FLAG_ANON), page);
+
     scoped_lock g{amap->am_lock};
     auto old = amap->am_map.xchg(pgoff, (unsigned long) page);
     if (radix_err(old))
         return old;
 
-    if (!nocopy && old != 0)
+    if (old != 0)
     {
         struct page *oldp = (struct page *) old;
-        copy_page_to_page(page_to_phys(page), page_to_phys(oldp));
+        if (!nocopy)
+            copy_page_to_page(page_to_phys(page), page_to_phys(oldp));
+        page_unref(oldp);
     }
 
-    inc_page_stat(page, NR_ANON);
     return 0;
 }
 
@@ -135,6 +144,7 @@ struct page *amap_get(struct amap *amap, size_t pgoff)
     if (ex.has_error())
         return nullptr;
     struct page *page = (struct page *) ex.value();
+    DCHECK_PAGE(page_flag_set(page, PAGE_FLAG_ANON), page);
     page_ref(page);
     return page;
 }
@@ -224,7 +234,7 @@ int amap_truncate(struct amap *amap, struct vm_area_struct *region, size_t new_p
     while (!cursor.is_end())
     {
         struct page *page = (struct page *) cursor.get();
-        dec_page_stat(page, NR_ANON);
+        DCHECK_PAGE(page_flag_set(page, PAGE_FLAG_ANON), page);
         page_unref(page);
         cursor.store(0);
         cursor.advance();
@@ -262,7 +272,7 @@ int amap_punch_hole(struct amap *amap, struct vm_area_struct *region, size_t fir
     while (!cursor.is_end())
     {
         struct page *page = (struct page *) cursor.get();
-        dec_page_stat(page, NR_ANON);
+        DCHECK_PAGE(page_flag_set(page, PAGE_FLAG_ANON), page);
         page_unref(page);
         cursor.store(0);
         cursor.advance();
