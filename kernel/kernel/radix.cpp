@@ -346,8 +346,11 @@ expected<radix_tree_node *, int> radix_tree::copy_level(int level, const radix_t
             if (ex.has_error())
                 goto out_err;
 
-            t->entries[i] = (rt_entry_t) ex.value();
-            ex.value()->offset = i;
+            radix_tree_node *node = ex.value();
+
+            t->entries[i] = (rt_entry_t) node;
+            node->offset = i;
+            node->parent = t;
         }
         else
         {
