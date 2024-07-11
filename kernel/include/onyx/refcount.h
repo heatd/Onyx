@@ -179,6 +179,9 @@ public:
 
     ref_guard& operator=(const ref_guard& r)
     {
+        if (this == &r)
+            return *this;
+
         const auto p0 = p;
         p = r.p;
         p->ref();
@@ -190,6 +193,9 @@ public:
 
     ref_guard& operator=(ref_guard&& r)
     {
+        if (this == &r)
+            return *this;
+
         const auto p0 = p;
         p = r.p;
         r.p = nullptr;
