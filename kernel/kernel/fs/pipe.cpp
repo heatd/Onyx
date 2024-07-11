@@ -69,7 +69,10 @@ struct pipe_buffer
     ~pipe_buffer()
     {
         if (page_)
+        {
+            DCHECK_PAGE(page_->ref == 1, page_);
             page_unref(page_);
+        }
     }
 
     void *operator new(size_t len)
@@ -186,6 +189,9 @@ pipe::~pipe()
         list_remove(&pbf->list_node);
         delete pbf;
     }
+
+    if (cached_page)
+        page_unref(cached_page);
 }
 
 bool pipe::is_full() const
@@ -253,7 +259,7 @@ ssize_t pipe::append_iter(iovec_iter *iter, bool atomic)
     {
         if (!cached_page)
         {
-            cached_page = alloc_page(PAGE_ALLOC_NO_ZERO);
+            cached_page = alloc_page(GFP_KERNEL | PAGE_ALLOC_NO_ZERO);
             if (!cached_page)
             {
                 ret = -ENOMEM;
