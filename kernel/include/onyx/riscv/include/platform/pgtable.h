@@ -375,7 +375,7 @@ static inline pte_t pte_wrprotect(pte_t pte)
 
 static inline pgprot_t calc_pgprot(u64 phys, u64 prots)
 {
-    bool special_mapping = phys == (u64) page_to_phys(vm_get_zero_page());
+    bool special_mapping = phys == (u64) page_to_phys(vm_get_zero_page()) || prots & VM_PFNMAP;
     pgprotval_t page_prots = (prots & VM_EXEC ? _PAGE_EXEC : 0) |
                              (prots & VM_WRITE ? _PAGE_WRITE : 0) |
                              (prots & (VM_READ | VM_WRITE) ? _PAGE_READ : 0) |
