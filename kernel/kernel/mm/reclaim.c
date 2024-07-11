@@ -113,13 +113,13 @@ struct page_flag
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 static const struct page_flag flags[] = {
-    X(PAGE_FLAG_LOCKED),    X(PAGE_FLAG_DIRTY),
-    X(PAGE_FLAG_PINNED),    {.val = PAGE_BUDDY, .name = "BUDDY"},
-    X(PAGE_FLAG_BUFFER),    X(PAGE_FLAG_FILESYSTEM1),
-    X(PAGE_FLAG_WAITERS),   X(PAGE_FLAG_UPTODATE),
-    X(PAGE_FLAG_WRITEBACK), X(PAGE_FLAG_READAHEAD),
-    X(PAGE_FLAG_LRU),       X(PAGE_FLAG_REFERENCED),
-    X(PAGE_FLAG_ACTIVE),
+    X(PAGE_FLAG_LOCKED),      X(PAGE_FLAG_DIRTY),
+    X(PAGE_FLAG_PINNED),      {.val = PAGE_BUDDY, .name = "BUDDY"},
+    X(PAGE_FLAG_BUFFER),      X(PAGE_FLAG_ANON),
+    X(PAGE_FLAG_FILESYSTEM1), X(PAGE_FLAG_WAITERS),
+    X(PAGE_FLAG_UPTODATE),    X(PAGE_FLAG_WRITEBACK),
+    X(PAGE_FLAG_READAHEAD),   X(PAGE_FLAG_LRU),
+    X(PAGE_FLAG_REFERENCED),  X(PAGE_FLAG_ACTIVE),
 };
 
 #ifdef __clang__
