@@ -60,6 +60,10 @@ cp defaults/* $MNTROOT/etc
 
 cp -r sysroot/* "$MNTROOT"
 
+if [ -f "$MNTROOT"/bin/bash ]; then
+	sed -i 's/dash/bash/g' "$MNTROOT"/etc/passwd
+fi
+
 COMPILER_SLIBS_ARGS=
 
 if [ "$strip_bins" = "1" ]; then
