@@ -60,6 +60,7 @@ __BEGIN_CDECLS
 #define VM_DONT_MAP_OVER (1 << 7)
 #define VM_READ          (1 << 8)
 #define VM_NOFLUSH       (1 << 9)
+#define VM_PFNMAP        (1 << 10)
 
 /* Internal flags used by the mm code */
 #define __VM_CACHE_TYPE_REGULAR     0
@@ -88,9 +89,6 @@ static inline unsigned long vm_prot_to_cache_type(uint64_t prot)
 #define VM_FULL_ADDRESS_SPACE (1 << 2)
 
 #define PHYS_TO_VIRT(x) (void *) ((uintptr_t) (x) + PHYS_BASE)
-
-#define VM_PFNMAP               (1 << 1)
-#define VM_USING_MAP_SHARED_OPT (1 << 2)
 
 struct vm_object;
 struct amap;
@@ -796,7 +794,7 @@ struct page *vmalloc_to_pages(void *ptr);
  */
 static inline bool vma_is_pfnmap(struct vm_area_struct *vma)
 {
-    return vma == NULL;
+    return vma == NULL || vma->vm_flags & VM_PFNMAP;
 }
 
 __END_CDECLS
