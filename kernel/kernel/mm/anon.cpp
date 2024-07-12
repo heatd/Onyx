@@ -22,6 +22,7 @@ int vm_anon_fault(struct vm_pf_context *ctx)
     struct fault_info *info = ctx->info;
     struct page *page = nullptr;
     unsigned long pgoff = (ctx->vpage - region->vm_start) >> PAGE_SHIFT;
+    bool needs_invd = false;
 
     /* Permission checks have already been handled before .fault() */
     if (!info->write)
@@ -55,6 +56,7 @@ int vm_anon_fault(struct vm_pf_context *ctx)
             goto enomem;
         }
 
+        needs_invd = ctx->mapping_info & PAGE_PRESENT;
         goto map;
     }
 
@@ -62,6 +64,8 @@ map:
     if (!vm_map_page(region->vm_mm, ctx->vpage, (u64) page_to_phys(page), ctx->page_rwx,
                      ctx->entry))
         goto enomem;
+    if (needs_invd)
+        vm_invalidate_range(ctx->vpage, 1);
 
     return 0;
 enomem:
