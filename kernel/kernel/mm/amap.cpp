@@ -46,11 +46,6 @@ void amap_free(struct amap *amap)
     {
         auto page = (struct page *) cursor.get();
         DCHECK_PAGE(page_flag_set(page, PAGE_FLAG_ANON), page);
-        if (page_mapcount(page) == 0)
-        {
-            DCHECK_PAGE(page->ref == 1, page);
-        }
-
         free_page(page);
         cursor.advance();
     }
