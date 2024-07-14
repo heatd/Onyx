@@ -1,5 +1,6 @@
 mm-y:= bootmem.o page.o pagealloc.o vm_object.o vm.o vmalloc.o reclaim.o amap.o anon.o mincore.o page_lru.o
 mm-$(CONFIG_KUNIT)+= vm_tests.o
+mm-$(CONFIG_X86)+= memory.o
 
 ifeq ($(CONFIG_KASAN), y)
 obj-y_NOKASAN+= kernel/mm/asan/asan.o kernel/mm/asan/quarantine.o

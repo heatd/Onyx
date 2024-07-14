@@ -12,8 +12,11 @@
 #include <string.h>
 
 #include <onyx/bootmem.h>
+#include <onyx/compiler.h>
 
 #include <platform/page.h>
+
+__BEGIN_CDECLS
 
 #define PHYS_BASE       (0xffffd00000000000)
 #define PHYS_BASE_LIMIT (0xffffd08000000000)
@@ -87,7 +90,19 @@ void paging_protect_kernel(void);
 void paging_free_page_tables(struct mm_address_space *mm);
 bool paging_write_protect(void *addr, struct mm_address_space *mm);
 int vm_mmu_unmap(struct mm_address_space *as, void *addr, size_t pages, struct vm_area_struct *vma);
-void *paging_unmap(void *memory);
+
+/**
+ * @brief Directly maps a page into the paging tables.
+ *
+ * @param as The target address space.
+ * @param virt The virtual address.
+ * @param phys The physical address of the page.
+ * @param prot Desired protection flags.
+ * @param vma VMA for this mapping (optional)
+ * @return NULL if out of memory, else virt.
+ */
+void *vm_map_page(struct mm_address_space *as, uint64_t virt, uint64_t phys, uint64_t prot,
+                  struct vm_area_struct *vma);
 
 #ifdef __x86_64__
 
@@ -121,5 +136,7 @@ unsigned long __get_mapping_info(void *addr, struct mm_address_space *as);
 
 struct page;
 unsigned int mmu_get_clear_referenced(struct mm_address_space *mm, void *addr, struct page *page);
+
+__END_CDECLS
 
 #endif

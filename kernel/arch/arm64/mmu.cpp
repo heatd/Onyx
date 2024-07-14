@@ -414,15 +414,6 @@ bool __paging_change_perms(struct mm_address_space *mm, void *addr, int prot)
     return true;
 }
 
-bool paging_change_perms(void *addr, int prot)
-{
-    struct mm_address_space *as = &kernel_address_space;
-    if ((unsigned long) addr < VM_HIGHER_HALF)
-        as = get_current_address_space();
-
-    return __paging_change_perms(as, addr, prot);
-}
-
 bool paging_write_protect(void *addr, struct mm_address_space *mm)
 {
     uint64_t *ptentry;
@@ -596,15 +587,6 @@ void paging_free_page_tables(struct mm_address_space *mm)
     }
 
     free_page(phys_to_page((unsigned long) mm->arch_mmu.top_pt));
-}
-
-unsigned long get_mapping_info(void *addr)
-{
-    struct mm_address_space *as = &kernel_address_space;
-    if ((unsigned long) addr < VM_HIGHER_HALF)
-        as = get_current_address_space();
-
-    return __get_mapping_info(addr, as);
 }
 
 unsigned long __get_mapping_info(void *addr, struct mm_address_space *as)
