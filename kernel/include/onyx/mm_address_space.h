@@ -8,9 +8,23 @@
 #ifndef _ONYX_MM_ADDRESS_SPACE_H
 #define _ONYX_MM_ADDRESS_SPACE_H
 
-#include <onyx/refcount.h>
+#include <lib/binary_search_tree.h>
+
+#include <onyx/cpumask.h>
+#include <onyx/mutex.h>
 
 #include <platform/vm.h>
+
+#ifdef __cplusplus
+#include <onyx/refcount.h>
+
+#include <onyx/expected.hpp>
+// clang-format off
+#define CPP_DFLINIT {}
+// clang-format on
+#else
+#define CPP_DFLINIT
+#endif
 
 /**
  * @brief An mm_address_space represents an address space inside the kernel and stores
@@ -18,35 +32,43 @@
  * various statistics, etc.
  *
  */
-struct mm_address_space : public refcountable
+struct mm_address_space
+#ifdef __cplusplus
+    : public refcountable
+#endif
 {
+#ifndef __cplusplus
+    void *__vtable;
+    unsigned long refc;
+#endif
     /* Virtual address space WAVL tree */
     struct bst_root region_tree;
-    unsigned long start{};
-    unsigned long end{};
-    mutex vm_lock{};
+    unsigned long start CPP_DFLINIT;
+    unsigned long end CPP_DFLINIT;
+    struct mutex vm_lock CPP_DFLINIT;
 
     /* mmap(2) base */
-    void *mmap_base{};
+    void *mmap_base CPP_DFLINIT;
 
     /* Process' brk */
-    void *brk{};
+    void *brk CPP_DFLINIT;
 
-    size_t virtual_memory_size{};
-    size_t resident_set_size{};
-    size_t shared_set_size{};
-    size_t page_faults{};
-    size_t page_tables_size{};
+    size_t virtual_memory_size CPP_DFLINIT;
+    size_t resident_set_size CPP_DFLINIT;
+    size_t shared_set_size CPP_DFLINIT;
+    size_t page_faults CPP_DFLINIT;
+    size_t page_tables_size CPP_DFLINIT;
 
-    arch_mm_address_space arch_mmu{};
+    struct arch_mm_address_space arch_mmu CPP_DFLINIT;
 
     // The active mask keeps track of where the address space is running.
     // This serves as an optimisation when doing a TLB shootdown, as it lets us
     // limit the shootdowns to CPUs where the address space is active instead of every CPU.
-    cpumask active_mask{};
+    struct cpumask active_mask CPP_DFLINIT;
 
-    spinlock page_table_lock{};
+    struct spinlock page_table_lock CPP_DFLINIT;
 
+#ifdef __cplusplus
     mm_address_space &operator=(mm_address_space &&as)
     {
         start = as.start;
@@ -88,6 +110,7 @@ struct mm_address_space : public refcountable
      *
      */
     ~mm_address_space() override;
+#endif
 };
 
 #define increment_vm_stat(as, name, amount) __sync_add_and_fetch(&as->name, amount)
