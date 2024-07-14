@@ -16,15 +16,12 @@
 
 #include <onyx/interval_tree.h>
 #include <onyx/list.h>
+#include <onyx/mm_address_space.h>
 #include <onyx/mutex.h>
 #include <onyx/paging.h>
 #include <onyx/scheduler.h>
 #include <onyx/spinlock.h>
 #include <onyx/types.h>
-
-#ifdef __cplusplus
-#include <onyx/mm_address_space.h>
-#endif
 
 #include <platform/page.h>
 #include <platform/vm.h>
@@ -50,15 +47,15 @@ __BEGIN_CDECLS
 #define VM_TYPE_FILE_BACKED (5)
 #define VM_TYPE_MODULE      (6)
 
-#define VM_WRITE         (1 << 0)
-#define VM_EXEC          (1 << 1)
-#define VM_USER          (1 << 2)
-#define VM_NOCACHE       (1 << 3)
-#define VM_WRITETHROUGH  (1 << 4)
-#define VM_WC            (1 << 5)
-#define VM_WP            (1 << 6)
-#define VM_DONT_MAP_OVER (1 << 7)
-#define VM_READ          (1 << 8)
+#define VM_READ          (1 << 0)
+#define VM_WRITE         (1 << 1)
+#define VM_EXEC          (1 << 2)
+#define VM_USER          (1 << 3)
+#define VM_NOCACHE       (1 << 4)
+#define VM_WRITETHROUGH  (1 << 5)
+#define VM_WC            (1 << 6)
+#define VM_WP            (1 << 7)
+#define VM_DONT_MAP_OVER (1 << 8)
 #define VM_NOFLUSH       (1 << 9)
 
 /* Internal flags used by the mm code */
@@ -505,19 +502,6 @@ void vm_invalidate_range(unsigned long addr, size_t pages);
 struct process;
 
 /**
- * @brief Directly maps a page into the paging tables.
- *
- * @param as The target address space.
- * @param virt The virtual address.
- * @param phys The physical address of the page.
- * @param prot Desired protection flags.
- * @param vma VMA for this mapping (optional)
- * @return NULL if out of memory, else virt.
- */
-void *vm_map_page(struct mm_address_space *as, uint64_t virt, uint64_t phys, uint64_t prot,
-                  struct vm_area_struct *vma);
-
-/**
  * @brief Allocates a new mapping and maps a list of pages.
  *
  * @param pl The list of pages.
@@ -798,6 +782,9 @@ static inline bool vma_is_pfnmap(struct vm_area_struct *vma)
 {
     return vma == NULL;
 }
+
+void vm_do_mmu_mprotect(struct mm_address_space *as, void *address, size_t nr_pgs, int old_prots,
+                        int new_prots);
 
 __END_CDECLS
 

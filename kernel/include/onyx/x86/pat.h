@@ -11,6 +11,8 @@
 
 #include <stdint.h>
 
+#include <onyx/compiler.h>
+
 #define PAT_UNCACHEABLE 0
 #define PAT_WC          1
 #define PAT_WT          4
@@ -19,8 +21,11 @@
 #define PAT_UNCACHED    7
 
 #define PAT_NR_ENTRIES 8
+__BEGIN_CDECLS
 
 uint8_t cache_to_paging_bits(uint8_t type);
 void pat_init(void);
+
+__END_CDECLS
 
 #endif

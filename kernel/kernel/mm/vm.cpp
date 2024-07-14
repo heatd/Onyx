@@ -1198,6 +1198,8 @@ static void vm_mprotect_handle_prot(struct vm_area_struct *region, int *pprot)
     }
 }
 
+#ifndef CONFIG_X86
+/* TODO: Remove once all architectures have been moved to the new shared page table code */
 void vm_do_mmu_mprotect(struct mm_address_space *as, void *address, size_t nr_pgs, int old_prots,
                         int new_prots)
 {
@@ -1212,6 +1214,7 @@ void vm_do_mmu_mprotect(struct mm_address_space *as, void *address, size_t nr_pg
 
     vm_invalidate_range((unsigned long) addr, nr_pgs);
 }
+#endif
 
 /**
  * @brief Changes memory protection of a memory range.
@@ -1466,7 +1469,7 @@ void *__map_pages_to_vaddr(struct mm_address_space *as, void *virt, void *phys, 
  */
 void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags)
 {
-    return __map_pages_to_vaddr(nullptr, virt, phys, size, flags);
+    return __map_pages_to_vaddr(&kernel_address_space, virt, phys, size, flags);
 }
 
 static int vm_pf_get_page_from_vmo(struct vm_pf_context *ctx)
@@ -3016,4 +3019,22 @@ mm_address_space *vm_set_aspace(mm_address_space *aspace)
 mm_address_space::~mm_address_space()
 {
     vm_destroy_addr_space(this);
+}
+
+unsigned long get_mapping_info(void *addr)
+{
+    struct mm_address_space *as = &kernel_address_space;
+    if ((unsigned long) addr < VM_HIGHER_HALF)
+        as = get_current_address_space();
+
+    return __get_mapping_info(addr, as);
+}
+
+bool paging_change_perms(void *addr, int prot)
+{
+    struct mm_address_space *as = &kernel_address_space;
+    if ((unsigned long) addr < VM_HIGHER_HALF)
+        as = get_current_address_space();
+
+    return __paging_change_perms(as, addr, prot);
 }
