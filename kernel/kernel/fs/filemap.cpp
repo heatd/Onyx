@@ -673,9 +673,9 @@ static int filemap_fault(struct vm_pf_context *ctx) NO_THREAD_SAFETY_ANALYSIS
     {
         unsigned long fileoff = (region->vm_offset >> PAGE_SHIFT) + pgoff;
         amap = false;
-        if (ino->i_size <= fileoff)
+        if (ino->i_size <= (fileoff << PAGE_SHIFT))
         {
-            info->error_info = VM_SIGBUS;
+            info->signal = VM_SIGBUS;
             return -EIO;
         }
 
