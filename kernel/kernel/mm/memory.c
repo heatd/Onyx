@@ -7,7 +7,6 @@
  */
 #include <onyx/process.h>
 #include <onyx/vm.h>
-#include <onyx/x86/pat.h>
 
 #include "pgtable.h"
 
@@ -28,7 +27,7 @@ p4d_t *p4d_alloc(pgd_t *pgd, unsigned long addr, struct mm_address_space *mm)
     p4d_t *p4d = __p4d_alloc(mm);
     if (!p4d)
         return NULL;
-    set_pgd(pgd, __pgd(perms | (unsigned long) p4d));
+    set_pgd(pgd, pgd_mkpgd((unsigned long) p4d, __pgprot(perms)));
     return (p4d_t *) __tovirt(p4d) + p4d_index(addr);
 }
 
@@ -56,7 +55,7 @@ pud_t *pud_alloc(p4d_t *p4d, unsigned long addr, struct mm_address_space *mm)
     pud_t *pud = __pud_alloc(mm);
     if (!pud)
         return NULL;
-    set_p4d(p4d, __p4d(perms | (unsigned long) pud));
+    set_p4d(p4d, p4d_mkp4d((unsigned long) pud, __pgprot(perms)));
     return (pud_t *) __tovirt(pud) + pud_index(addr);
 }
 
@@ -84,7 +83,7 @@ pmd_t *pmd_alloc(pud_t *pud, unsigned long addr, struct mm_address_space *mm)
     pmd_t *pmd = __pmd_alloc(mm);
     if (!pmd)
         return NULL;
-    set_pud(pud, __pud(perms | (unsigned long) pmd));
+    set_pud(pud, pud_mkpud((unsigned long) pmd, __pgprot(perms)));
     return (pmd_t *) __tovirt(pmd) + pmd_index(addr);
 }
 
@@ -112,7 +111,7 @@ pte_t *pte_alloc(pmd_t *pmd, unsigned long addr, struct mm_address_space *mm)
     pte_t *pte = __pte_alloc(mm);
     if (!pte)
         return NULL;
-    set_pmd(pmd, __pmd(perms | (unsigned long) pte));
+    set_pmd(pmd, pmd_mkpmd((unsigned long) pte, __pgprot(perms)));
     return (pte_t *) __tovirt(pte) + pte_index(addr);
 }
 
@@ -121,26 +120,6 @@ static pte_t *pte_get_or_alloc(pmd_t *pmd, unsigned long addr, struct mm_address
     if (likely(!pmd_none(*pmd)))
         return pte_offset(pmd, addr);
     return pte_alloc(pmd, addr, mm);
-}
-
-#define X86_CACHING_BITS(index) ((((index) &0x3) << 3) | (((index >> 2) & 1) << 7))
-
-static pgprot_t calc_pgprot(u64 phys, u64 prot)
-{
-    bool user = prot & VM_USER;
-    bool noexec = !(prot & VM_EXEC);
-    bool global = !user;
-    bool write = prot & VM_WRITE;
-    bool readable = prot & (VM_READ | VM_WRITE) || !noexec;
-    unsigned int cache_type = vm_prot_to_cache_type(prot);
-    uint8_t caching_bits = cache_to_paging_bits(cache_type);
-    bool special_mapping = phys == (u64) page_to_phys(vm_get_zero_page());
-
-    pgprotval_t page_prots = (noexec ? _PAGE_NX : 0) | (global ? _PAGE_GLOBAL : 0) |
-                             (user ? _PAGE_USER : 0) | (write ? _PAGE_WRITE : 0) |
-                             X86_CACHING_BITS(caching_bits) | (readable ? _PAGE_PRESENT : 0) |
-                             (special_mapping ? _PAGE_SPECIAL : 0);
-    return __pgprot(page_prots);
 }
 
 /**

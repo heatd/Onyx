@@ -1198,7 +1198,7 @@ static void vm_mprotect_handle_prot(struct vm_area_struct *region, int *pprot)
     }
 }
 
-#ifndef CONFIG_X86
+#if !defined(CONFIG_X86) && !defined(CONFIG_RISCV)
 /* TODO: Remove once all architectures have been moved to the new shared page table code */
 void vm_do_mmu_mprotect(struct mm_address_space *as, void *address, size_t nr_pgs, int old_prots,
                         int new_prots)
