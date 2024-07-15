@@ -8,7 +8,7 @@
 #ifndef _ONYX_PGTABLE_H
 #define _ONYX_PGTABLE_H
 
-#include "pgtable-arch.h"
+#include <platform/pgtable.h>
 
 #ifndef set_pgd
 static void set_pgd(pgd_t *pgd, pgd_t val)

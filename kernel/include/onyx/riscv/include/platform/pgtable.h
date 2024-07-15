@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2024 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ */
 #ifndef _ONYX_PGTABLE_ARCH_H
 #define _ONYX_PGTABLE_ARCH_H
 
@@ -6,6 +13,7 @@
 #include <onyx/atomic.h>
 #include <onyx/mm_address_space.h>
 #include <onyx/types.h>
+#include <onyx/vm.h>
 
 __BEGIN_CDECLS
 
@@ -16,24 +24,21 @@ typedef u64 pmdval_t;
 typedef u64 pteval_t;
 typedef u64 pgprotval_t;
 
-extern unsigned int x86_paging_levels;
-
-#define X86_ADDR_MASK      0x0ffffffffffff000
-#define _PAGE_PRESENT      (1 << 0)
-#define _PAGE_WRITE        (1 << 1)
-#define _PAGE_USER         (1 << 2)
-#define _PAGE_WRITETHROUGH (1 << 3)
-#define _PAGE_PCD          (1 << 4)
-#define _PAGE_ACCESSED     (1 << 5)
-#define _PAGE_DIRTY        (1 << 6)
-#define _PAGE_PAT          (1 << 7)
-#define _PAGE_HUGE         (1 << 7)
-#define _PAGE_GLOBAL       (1 << 8)
+#define PTE_GET_ADDR(n) ((n >> 10) << 12)
+#define _PAGE_PRESENT   (1 << 0)
+#define _PAGE_READ      (1 << 1)
+#define _PAGE_WRITE     (1 << 2)
+#define _PAGE_EXEC      (1 << 3)
+#define _PAGE_USER      (1 << 4)
+#define _PAGE_GLOBAL    (1 << 5)
+#define _PAGE_ACCESSED  (1 << 6)
+#define _PAGE_DIRTY     (1 << 7)
 /* Use one of the ignored bits as SPECIAL. This will annotate zero page mappings (so we don't
  * increment mapcount on zero_page and thus blow it up). add_mapcount and sub_mapcount will not be
  * called on these struct pages. */
-#define _PAGE_SPECIAL      (1 << 9)
-#define _PAGE_NX           (1UL << 63)
+#define _PAGE_SPECIAL   (1 << 8)
+
+#define _PAGE_HUGE (_PAGE_WRITE | _PAGE_EXEC | _PAGE_READ)
 
 typedef struct pgd
 {
@@ -65,12 +70,10 @@ typedef struct pgprot
     pgprotval_t pgprot;
 } pgprot_t;
 
-extern int pgd_shift, p4d_ptrs;
-
 #define PTRS_PER_PGD 512
-#define PGD_SHIFT    pgd_shift
+#define PGD_SHIFT    39
 
-#define PTRS_PER_P4D p4d_ptrs
+#define PTRS_PER_P4D 1
 #define P4D_SHIFT    39
 
 #define PTRS_PER_PUD 512
@@ -82,17 +85,7 @@ extern int pgd_shift, p4d_ptrs;
 #define PTRS_PER_PTE 512
 #define PTE_SHIFT    12
 
-extern unsigned long __x86_phys_base;
-extern unsigned long __x86_phys_base_limit;
-#define PHYS_BASE       __x86_phys_base
-#define PHYS_BASE_LIMIT __x86_phys_base_limit
-
 #define __tovirt(x) (void *) (((uintptr_t) (x)) + PHYS_BASE)
-
-static inline bool pml5_present(void)
-{
-    return x86_paging_levels == 5;
-}
 
 static inline unsigned long pgd_index(unsigned long addr)
 {
@@ -101,7 +94,7 @@ static inline unsigned long pgd_index(unsigned long addr)
 
 static inline pgd_t *pgd_offset(struct mm_address_space *mm, unsigned long addr)
 {
-    return (pgd_t *) __tovirt(mm->arch_mmu.cr3) + pgd_index(addr);
+    return (pgd_t *) __tovirt(mm->arch_mmu.top_pt) + pgd_index(addr);
 }
 
 #define pgd_val(x)    ((x).pgd)
@@ -125,14 +118,7 @@ static inline unsigned long p4d_index(unsigned long addr)
 
 static inline unsigned long pgd_addr(pgd_t pgd)
 {
-    return pgd_val(pgd) & X86_ADDR_MASK;
-}
-
-static inline p4d_t *p4d_offset(pgd_t *pgd, unsigned long addr)
-{
-    if (!pml5_present())
-        return (p4d_t *) pgd;
-    return (p4d_t *) __tovirt(pgd_addr(*pgd)) + p4d_index(addr);
+    return PTE_GET_ADDR(pgd_val(pgd));
 }
 
 static inline unsigned long pud_index(unsigned long addr)
@@ -142,7 +128,7 @@ static inline unsigned long pud_index(unsigned long addr)
 
 static inline unsigned long p4d_addr(p4d_t pgd)
 {
-    return p4d_val(pgd) & X86_ADDR_MASK;
+    return PTE_GET_ADDR(p4d_val(pgd));
 }
 
 static inline pud_t *pud_offset(p4d_t *p4d, unsigned long addr)
@@ -157,7 +143,7 @@ static inline unsigned long pmd_index(unsigned long addr)
 
 static inline unsigned long pud_addr(pud_t pgd)
 {
-    return pud_val(pgd) & X86_ADDR_MASK;
+    return PTE_GET_ADDR(pud_val(pgd));
 }
 
 static inline pmd_t *pmd_offset(pud_t *pud, unsigned long addr)
@@ -172,7 +158,7 @@ static inline unsigned long pte_index(unsigned long addr)
 
 static inline unsigned long pmd_addr(pmd_t pgd)
 {
-    return pmd_val(pgd) & X86_ADDR_MASK;
+    return PTE_GET_ADDR(pmd_val(pgd));
 }
 
 static inline pte_t *pte_offset(pmd_t *pmd, unsigned long addr)
@@ -182,14 +168,7 @@ static inline pte_t *pte_offset(pmd_t *pmd, unsigned long addr)
 
 static inline unsigned long pte_addr(pte_t pgd)
 {
-    return pte_val(pgd) & X86_ADDR_MASK;
-}
-
-static inline bool pgd_none(pgd_t pgd)
-{
-    if (!pml5_present())
-        return false;
-    return pgd_val(pgd) == 0;
+    return PTE_GET_ADDR(pte_val(pgd));
 }
 
 static inline bool p4d_none(p4d_t p4d)
@@ -212,13 +191,6 @@ static inline bool pte_none(pte_t pte)
     return pte_val(pte) == 0;
 }
 
-static inline bool pgd_present(pgd_t pgd)
-{
-    if (!pml5_present())
-        return true;
-    return pgd_val(pgd) & _PAGE_PRESENT;
-}
-
 static inline bool p4d_present(p4d_t p4d)
 {
     return p4d_val(p4d) & _PAGE_PRESENT;
@@ -239,12 +211,32 @@ static inline bool pte_present(pte_t pte)
     return pte_val(pte) & _PAGE_PRESENT;
 }
 
-#define KERNEL_PGTBL (_PAGE_PRESENT | _PAGE_WRITE | _PAGE_GLOBAL)
-#define USER_PGTBL   (KERNEL_PGTBL | _PAGE_USER)
+#define KERNEL_PGTBL (_PAGE_PRESENT)
+#define USER_PGTBL   (KERNEL_PGTBL)
 
 static inline pte_t pte_mkpte(u64 phys, pgprot_t prot)
 {
-    return __pte(phys | pgprot_val(prot));
+    return __pte(((phys >> PAGE_SHIFT) << 10) | pgprot_val(prot));
+}
+
+static inline pmd_t pmd_mkpmd(u64 phys, pgprot_t prot)
+{
+    return __pmd(((phys >> PAGE_SHIFT) << 10) | pgprot_val(prot));
+}
+
+static inline pud_t pud_mkpud(u64 phys, pgprot_t prot)
+{
+    return __pud(((phys >> PAGE_SHIFT) << 10) | pgprot_val(prot));
+}
+
+static inline p4d_t p4d_mkp4d(u64 phys, pgprot_t prot)
+{
+    return __p4d(((phys >> PAGE_SHIFT) << 10) | pgprot_val(prot));
+}
+
+static inline pgd_t pgd_mkpgd(u64 phys, pgprot_t prot)
+{
+    return __pgd(((phys >> PAGE_SHIFT) << 10) | pgprot_val(prot));
 }
 
 static inline bool pte_special(pte_t pte)
@@ -269,7 +261,7 @@ static inline bool pte_write(pte_t pte)
 
 static inline bool pte_exec(pte_t pte)
 {
-    return !(pte_val(pte) & _PAGE_NX);
+    return pte_val(pte) & _PAGE_EXEC;
 }
 
 static inline bool pte_dirty(pte_t pte)
@@ -319,7 +311,7 @@ static inline bool pud_write(pud_t pud)
 
 static inline bool pud_exec(pud_t pud)
 {
-    return !(pud_val(pud) & _PAGE_NX);
+    return pud_val(pud) & _PAGE_EXEC;
 }
 
 static inline bool pud_dirty(pud_t pud)
@@ -349,7 +341,7 @@ static inline bool pmd_write(pmd_t pmd)
 
 static inline bool pmd_exec(pmd_t pmd)
 {
-    return !(pmd_val(pmd) & _PAGE_NX);
+    return pmd_val(pmd) & _PAGE_EXEC;
 }
 
 static inline bool pmd_dirty(pmd_t pmd)
@@ -367,11 +359,6 @@ static inline bool pmd_global(pmd_t pmd)
     return pmd_val(pmd) & _PAGE_GLOBAL;
 }
 
-static inline bool p4d_folded(void)
-{
-    return !pml5_present();
-}
-
 #define pud_folded() (0)
 #define pmd_folded() (0)
 
@@ -379,6 +366,23 @@ static inline pte_t pte_wrprotect(pte_t pte)
 {
     return __pte(pte_val(pte) & ~_PAGE_WRITE);
 }
+
+static inline pgprot_t calc_pgprot(u64 phys, u64 prots)
+{
+    bool special_mapping = phys == (u64) page_to_phys(vm_get_zero_page());
+    pgprotval_t page_prots = (prots & VM_EXEC ? _PAGE_EXEC : 0) |
+                             (prots & VM_WRITE ? _PAGE_WRITE : 0) |
+                             (prots & (VM_READ | VM_WRITE) ? _PAGE_READ : 0) |
+                             (prots & VM_USER ? _PAGE_USER : _PAGE_GLOBAL) | _PAGE_PRESENT |
+                             (special_mapping ? _PAGE_SPECIAL : 0);
+
+    if (!(prots & (VM_READ | VM_WRITE | VM_EXEC)))
+        page_prots &= ~_PAGE_PRESENT;
+
+    return __pgprot(page_prots);
+}
+
+#include <onyx/mm/pgtable-nop4d.h>
 
 __END_CDECLS
 
