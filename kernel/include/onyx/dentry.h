@@ -167,6 +167,7 @@ public:
         if (&rhs == this)
             return *this;
 
+        unref();
         d = rhs.d;
         rhs.d = nullptr;
 
@@ -243,7 +244,7 @@ void dentry_complete_lookup(dentry *d);
 dentry *__dentry_parent(dentry *dir);
 bool dentry_does_not_have_parent(dentry *dir, dentry *to_not_have);
 void dentry_do_unlink(dentry *entry);
-void dentry_rename(dentry *dent, const char *name, dentry *parent);
+void dentry_rename(dentry *dent, const char *name, dentry *parent, dentry *dst);
 void dentry_move(dentry *target, dentry *new_parent);
 
 #endif

@@ -891,7 +891,7 @@ int sys_dup23_internal(int oldfd, int newfd, int dupflags, unsigned int flags)
      * is wrong, as the behavior changes from single-threaded to multi-threaded. */
     auto_fd old = __fdget(oldfd, FDGET_SHARED);
     if (!old)
-        return newfd;
+        return -EBADF;
 
     scoped_lock g{ioctx->fdlock};
 

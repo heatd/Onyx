@@ -326,7 +326,6 @@ int namei_lookup(nameidata &data)
         if (data.lookup_flags & LOOKUP_EMPTY_PATH)
         {
             assert(data.cur != nullptr);
-            dentry_get(data.cur);
             return 0;
         }
 
@@ -340,16 +339,10 @@ int namei_lookup(nameidata &data)
     auto st = namei_resolve_path(data);
 
     if (st < 0)
-    {
-        dentry_put(data.cur);
         return st;
-    }
 
     if (!dentry_is_dir(data.cur) && must_be_dir)
-    {
-        dentry_put(data.cur);
         return -ENOTDIR;
-    }
 
     return 0;
 }
@@ -360,6 +353,11 @@ nameidata::~nameidata()
     // Note that .cur is always not unrefed, as the result of the lookup
     if (parent)
         dentry_put(parent);
+    if (root)
+        dentry_put(root);
+    /* cur must've been consumed */
+    if (cur)
+        dentry_put(cur);
 }
 
 dentry *dentry_resolve(nameidata &data)
@@ -367,7 +365,7 @@ dentry *dentry_resolve(nameidata &data)
     int st = namei_lookup(data);
     if (st < 0)
         return errno = -st, nullptr;
-    return data.cur;
+    return data.getcur();
 }
 
 file *open_vfs_with_flags(file *f, const char *name, unsigned int lookup_flags
@@ -582,12 +580,9 @@ expected<file *, int> vfs_open(file *base, const char *name, unsigned int open_f
     }
 
     if (st < 0)
-    {
-        dentry_put(namedata.cur);
         return unexpected<int>{st};
-    }
 
-    dent = namedata.cur;
+    dent = namedata.getcur();
 
     auto new_file = inode_to_file(dent->d_inode);
     if (!new_file)
@@ -737,12 +732,9 @@ static expected<dentry *, int> namei_lookup_parent(dentry *base, const char *nam
     }
 
     if (st < 0)
-    {
-        dentry_put(namedata.cur);
         return unexpected<int>{st};
-    }
 
-    dent = namedata.cur;
+    dent = namedata.getcur();
     DCHECK(dent != nullptr);
     *outp = namedata.paths[namedata.pdepth];
 
@@ -1194,6 +1186,37 @@ int sys_symlink(const char *target, const char *linkpath)
     return sys_symlinkat(target, AT_FDCWD, linkpath);
 }
 
+static int fallback_rename(struct dentry *old_parent, struct dentry *old, struct dentry *dir,
+                           struct dentry *dest)
+{
+    int st = 0;
+    if (!d_is_negative(dest))
+    {
+        /* Unlink the name on disk first */
+        /* Note that i_fops->unlink() checks if the directory is empty, if it is one. */
+        st = dir->d_inode->i_fops->unlink(dest->d_name, AT_REMOVEDIR, dir);
+    }
+
+    if (st < 0)
+        return st;
+
+    struct file f;
+    f.f_ino = old->d_inode;
+    f.f_dentry = old;
+
+    /* Now link the name on disk */
+    st = dir->d_inode->i_fops->link(&f, dest->d_name, dir);
+
+    /* rename allows us to move a non-empty dir. Because of that we
+     * pass a special flag (UNLINK_VFS_DONT_TEST_EMPTY) to the fs, that allows us to do
+     * that.
+     */
+    st = old_parent->d_inode->i_fops->unlink(old->d_name, AT_REMOVEDIR | UNLINK_VFS_DONT_TEST_EMPTY,
+                                             old_parent);
+
+    return 0;
+}
+
 int do_renameat(struct dentry *dir, struct path &last, struct dentry *old)
 {
     std::string_view name = get_token_from_path(last, false);
@@ -1282,62 +1305,31 @@ int do_renameat(struct dentry *dir, struct path &last, struct dentry *old)
     if (!dentry_does_not_have_parent(dir, old))
     {
         dentry_put(dest);
+        dentry_put(old_parent);
         return -EINVAL;
     }
 
-    /* Do the actual fs unlink(if dest exists) + link + unlink */
+    /* Do the actual fs rename */
     /* The overall strategy here is to do everything that may fail first - so, for example,
      * everything that involves I/O or memory allocation. After that, we're left with the
      * bookkeeping, which can't fail.
      */
     int st = 0;
-
-    // printk("Here3\n");
-
-    if (!d_is_negative(dest))
-    {
-        /* Unlink the name on disk first */
-        /* Note that i_fops->unlink() checks if the directory is empty, if it is one. */
-        st = inode->i_fops->unlink(_name, AT_REMOVEDIR, dir);
-    }
-
-    // printk("(may have) unlinked\n");
+    if (old->d_inode->i_fops->rename)
+        st = old->d_inode->i_fops->rename(old_parent, old, dir, dest);
+    else
+        st = fallback_rename(old_parent, old, dir, dest);
 
     if (st < 0)
     {
         dentry_put(dest);
+        dentry_put(old_parent);
         return st;
     }
 
-    struct file f;
-    f.f_ino = old->d_inode;
-    f.f_dentry = old;
-
-    /* Now link the name on disk */
-    st = inode->i_fops->link(&f, _name, dir);
-
-    /* rename allows us to move a non-empty dir. Because of that we
-     * pass a special flag (UNLINK_VFS_DONT_TEST_EMPTY) to the fs, that allows us to do
-     * that.
-     */
-    st = old_parent->d_inode->i_fops->unlink(old->d_name, AT_REMOVEDIR | UNLINK_VFS_DONT_TEST_EMPTY,
-                                             old_parent);
-
-    // printk("done\n");
-
-    /* TODO: What should we do if we fail in the middle? */
-    if (st < 0)
-    {
-        dentry_put(dest);
-        return st;
-    }
-
-    /* The fs unlink succeeded! Lets change the dcache now that we can't fail! */
-    dentry_do_unlink(dest);
-
-    /* TODO: Lacking atomicity */
-    dentry_rename(old, _name, dir);
-
+    dentry_rename(old, _name, dir, dest);
+    dentry_put(dest);
+    dentry_put(old_parent);
     return 0;
 }
 
@@ -1375,8 +1367,9 @@ int sys_renameat(int olddirfd, const char *uoldpath, int newdirfd, const char *u
     auto ex = namei_lookup_parentf(newdir.get_file(), newpath.data(), lookup_flag, &last_name);
     if (ex.has_error())
         return ex.error();
+    auto_dentry dir = ex.value();
 
-    return do_renameat(ex.value(), last_name, old.get_dentry());
+    return do_renameat(dir.get_dentry(), last_name, old.get_dentry());
 }
 
 int sys_rename(const char *oldpath, const char *newpath)

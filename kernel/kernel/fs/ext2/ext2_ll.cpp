@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2022 Pedro Falcato
+ * Copyright (c) 2017 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -475,26 +475,18 @@ out:
 int ext2_link(struct inode *target, const char *name, struct inode *dir)
 {
     assert(target->i_sb == dir->i_sb);
-
     struct ext2_superblock *fs = ext2_superblock_from_inode(dir);
-
     struct ext2_inode *target_ino = ext2_get_inode_from_node(target);
 
     int st = ext2_file_present(dir, name, fs);
     if (st < 0)
-    {
         return st;
-    }
     else if (st == 1)
-    {
         return -EEXIST;
-    }
 
     unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
-
     /* Blame past me for the inconsistency in return values */
     st = ext2_add_direntry(name, (uint32_t) target->i_inode, target_ino, dir, fs);
-
     if (st < 0)
     {
         thread_change_addr_limit(old);
@@ -502,13 +494,11 @@ int ext2_link(struct inode *target, const char *name, struct inode *dir)
     }
 
     /* If we're linking a directory, this means we're part of a rename(). */
-
     if (S_ISDIR(target->i_mode) && !!strcmp(name, ".") && !!strcmp(name, ".."))
     {
         /* Adjust .. to point to us */
         ext2_dirent_result res;
         st = ext2_retrieve_dirent(target, "..", fs, &res);
-
         if (st < 0)
         {
             thread_change_addr_limit(old);
@@ -519,18 +509,12 @@ int ext2_link(struct inode *target, const char *name, struct inode *dir)
         dentry->inode = (uint32_t) dir->i_inode;
 
         st = file_write_cache_unlocked(dentry, sizeof(ext2_dir_entry_t), target, res.file_off);
-        inode_inc_nlink(dir);
     }
 
     thread_change_addr_limit(old);
 
     if (st < 0)
-    {
         return -errno;
-    }
-
-    fs->update_inode(target_ino, (ext2_inode_no) target->i_inode);
-
     return 0;
 }
 
@@ -691,4 +675,137 @@ int ext2_unlink(const char *name, int flags, struct dentry *dir)
 int ext2_fallocate(int mode, off_t off, off_t len, struct file *ino)
 {
     return -ENOSYS;
+}
+
+static int ext2_flush_dirents(ext2_dirent_result *res, struct inode *ino)
+{
+    auto old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
+    if (int st = file_write_cache_unlocked(res->buf, ((ext2_superblock *) ino->i_sb)->block_size,
+                                           ino, res->file_off - res->block_off);
+        st < 0)
+    {
+        thread_change_addr_limit(old);
+        free(res->buf);
+        return -EIO;
+    }
+
+    thread_change_addr_limit(old);
+    free(res->buf);
+    return 0;
+}
+
+static int ext2_raw_unlink(struct dentry *dir, struct dentry *dentry)
+{
+    struct inode *ino = dir->d_inode;
+    struct ext2_dirent_result res;
+    DCHECK(!d_is_negative(dentry) && dentry->d_parent == dir);
+
+    int st = ext2_retrieve_dirent(ino, dentry->d_name, (ext2_superblock *) ino->i_sb, &res);
+    if (st < 0)
+        return st;
+
+    ext2_dir_entry_t *before = nullptr;
+    /* Now, unlink the dirent */
+    if (res.block_off != 0)
+    {
+        for (char *b = res.buf; b < res.buf + res.block_off;)
+        {
+            ext2_dir_entry_t *dir = (ext2_dir_entry_t *) b;
+            if ((b - res.buf) + dir->rec_len == res.block_off)
+            {
+                before = dir;
+                break;
+            }
+
+            b += dir->rec_len;
+        }
+
+        assert(before != nullptr);
+    }
+
+    ext2_unlink_dirent(before, (ext2_dir_entry_t *) (res.buf + res.block_off));
+    return ext2_flush_dirents(&res, ino);
+}
+
+static int ext2_replace_dirent(struct dentry *src, struct dentry *dst_dir, struct dentry *dst)
+{
+    struct inode *ino = dst_dir->d_inode;
+    struct inode *target_inode = src->d_inode;
+    struct ext2_dirent_result res;
+    int st = ext2_retrieve_dirent(ino, dst->d_name, (ext2_superblock *) ino->i_sb, &res);
+    if (st < 0)
+        return st;
+
+    ext2_dir_entry_t *ent = (ext2_dir_entry_t *) (res.buf + res.block_off);
+    ent->inode = target_inode->i_inode;
+    ent->file_type = ext2_file_type_to_type_indicator(target_inode->i_mode);
+
+    if (st = ext2_flush_dirents(&res, ino); st < 0)
+        return st;
+    if (S_ISDIR(target_inode->i_mode))
+    {
+        /* If we renamed a directory, patch up .. */
+        ext2_dirent_result res2;
+        st = ext2_retrieve_dirent(target_inode, "..", (ext2_superblock *) ino->i_sb, &res2);
+        if (st < 0)
+            return st;
+
+        ext2_dir_entry_t *dentry = (ext2_dir_entry_t *) (res2.buf + res2.block_off);
+        dentry->inode = (uint32_t) ino->i_inode;
+        st = ext2_flush_dirents(&res2, target_inode);
+    }
+
+    return st;
+}
+
+int ext2_rename(struct dentry *src_parent, struct dentry *src, struct dentry *dst_dir,
+                struct dentry *dst)
+{
+    /* Note: we don't adjust nlinks until later on (to avoid disk activity). We partially adjust
+     * them if failure happens for some reason (TODO). */
+    int st = 0;
+    st = ext2_raw_unlink(src_parent, src);
+    if (st < 0)
+        return st;
+
+    // pr_info("ext2_rename: dst exists? %s\n", !d_is_negative(dst) ? "yes" : "no");
+
+    if (d_is_negative(dst))
+        st = ext2_link(src->d_inode, dst->d_name, dst_dir->d_inode);
+    else
+    {
+        if (dentry_is_dir(dst) != dentry_is_dir(src))
+            return -ENOTDIR;
+        if (dentry_is_dir(dst) && !ext2_dir_empty(dst->d_inode))
+            return -ENOTEMPTY;
+        st = ext2_replace_dirent(src, dst_dir, dst);
+        // pr_info("ext2_rename: dirent replaced\n");
+    }
+
+    if (st < 0)
+        return st;
+
+    /* Adjust nlinks */
+    if (dentry_is_dir(src))
+    {
+        if (src_parent != dst_dir)
+        {
+            inode_dec_nlink(src_parent->d_inode);
+            inode_inc_nlink(dst_dir->d_inode);
+        }
+
+        if (!d_is_negative(dst))
+        {
+            /* We're killing the inode */
+            DCHECK(dst->d_inode->i_nlink == 2);
+            inode_dec_nlink(dst->d_inode);
+            if (src_parent == dst_dir)
+                inode_dec_nlink(dst_dir->d_inode);
+        }
+    }
+
+    if (!d_is_negative(dst))
+        inode_dec_nlink(dst->d_inode);
+
+    return 0;
 }
