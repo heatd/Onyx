@@ -21,7 +21,7 @@ kern-$(CONFIG_KCOV)+= kcov.o
 kern-$(ARCH_HAS_JUMP_LABELS)+= jump_label.o
 kern-$(CONFIG_KUNIT)+= printf_tests.o
 
-kern-y+= irq.trace.o refcount.trace.o rcupdate.trace.o vm.trace.o
+kern-y+= irq.trace.o refcount.trace.o rcupdate.trace.o vm.trace.o sched.trace.o
 
 obj-y+= $(patsubst %, kernel/%, $(kern-y)) 
 

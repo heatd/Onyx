@@ -1,0 +1,53 @@
+[
+    {
+        "name": "slice_begin",
+        "category": "sched",
+        "args": [
+            {"type": "int", "name": "tid"},
+            {"type": "int", "name": "pid"},
+            {"type": "const char *", "name": "comm"}
+        ],
+
+        "format": {
+            "tid": {"type": "u32"},
+            "pid": {"type": "u32"},
+            "comm": {"type": "char[32]", "custom_assign": "if (comm) {__builtin_snprintf(record.comm, 32, \"%s[%d]\", comm, pid);} else memset(record.comm, 0, 32);"}
+        }
+    },
+    {
+        "name": "slice_end",
+        "category": "sched",
+        "args": [
+        ],
+
+        "format": {
+        }
+    },
+    {
+        "name": "block",
+        "category": "sched",
+        "args": [
+        ],
+        
+        "format": {
+
+        }
+    },
+    {
+        "name": "cpu_assign",
+        "category": "sched",
+        "args": [
+            {"type": "int", "name": "tid"},
+            {"type": "int", "name": "pid"},
+            {"type": "const char *", "name": "comm"},
+            {"type": "unsigned int", "name": "assigned_cpu"}
+        ],
+
+        "format": {
+            "tid": {"type": "u32"},
+            "pid": {"type": "u32"},
+            "comm": {"type": "char[32]", "custom_assign": "if (comm) {__builtin_snprintf(record.comm, 32, \"%s[%d]\", comm, pid);} else memset(record.comm, 0, 32);"},
+            "assigned_cpu": {"type": "u32"}
+        }
+    }
+]
