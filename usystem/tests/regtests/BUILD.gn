@@ -1,4 +1,5 @@
 import("//build/app.gni")
+import("//build/package.gni")
 
 app_executable("nameitests") {
   include_dirs = [ "include" ]
@@ -54,6 +55,15 @@ app_executable("dentry_leak") {
   sources = [ "dentry_leak.c" ]
 }
 
+resource("rename-nlink-tests") {
+  sources = [ "rename-nlink-tests.sh" ]
+  outputs = [ "sbin/{{source_file_part}}" ]
+}
+
+package("rename-nlink") {
+  deps = [ ":rename-nlink-tests" ]
+}
+
 group("regtests") {
   deps = [
     ":afunix_test",
@@ -62,5 +72,6 @@ group("regtests") {
     ":file_rcu",
     ":forkcow",
     ":nameitests",
+    ":rename-nlink",
   ]
 }
