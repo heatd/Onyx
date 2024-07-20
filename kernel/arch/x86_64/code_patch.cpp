@@ -99,6 +99,7 @@ static void end_hotpatch(unsigned long flags) RELEASE(hotpatch_lock)
 {
     /* Release hotpatch_in_progress (makes APs serialize and go away) */
     hotpatch_in_progress.store(false, mem_order::release);
+    enable_writeprotect();
     irq_restore(flags);
     /* Wait a bit for the serializing cpus to go away. Now they should have a consistent .text and
      * icache stream. Notice we still hold the hotpatch lock, there's no way anyone can mess with
