@@ -126,21 +126,24 @@ int kfd = -1;
 
 static void maybe_init_symbols(void)
 {
-    ctx = malloc(sizeof *ctx);
     if (!ctx)
-        err(1, "malloc");
-
-    kfd = open("/boot/vmonyx", O_RDONLY | O_CLOEXEC);
-    if (kfd < 0)
     {
-        warn("error opening /boot/vmonyx");
-        warnx("symbols disabled");
-    }
+        ctx = malloc(sizeof *ctx);
+        if (!ctx)
+            err(1, "malloc");
 
-    if (symbolize_exec(kfd, ctx) < 0)
-    {
-        warn("error initializing symbolization");
-        warnx("symbols disabled");
+        kfd = open("/boot/vmonyx", O_RDONLY | O_CLOEXEC);
+        if (kfd < 0)
+        {
+            warn("error opening /boot/vmonyx");
+            warnx("symbols disabled");
+        }
+
+        if (symbolize_exec(kfd, ctx) < 0)
+        {
+            warn("error initializing symbolization");
+            warnx("symbols disabled");
+        }
     }
 }
 
