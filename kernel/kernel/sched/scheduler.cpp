@@ -24,6 +24,7 @@
 #include <onyx/dpc.h>
 #include <onyx/elf.h>
 #include <onyx/fpu.h>
+#include <onyx/gen/trace_sched.h>
 #include <onyx/irq.h>
 #include <onyx/kcov.h>
 #include <onyx/mm/kasan.h>
@@ -421,6 +422,8 @@ extern "C" void *sched_schedule(void *last_stack)
                 curr_thread->flags &= ~THREAD_ACTIVE;
                 return last_stack;
             }
+
+            trace_sched_block();
         }
 
         curr_thread->flags &= ~THREAD_ACTIVE;
@@ -442,6 +445,10 @@ extern "C" void *sched_schedule(void *last_stack)
         {
             source_thread->get_aspace()->active_mask.remove_cpu_atomic(get_cpu_nr());
         }
+
+        trace_sched_slice_end();
+        trace_sched_slice_begin(curr_thread->id, curr_thread->owner ? curr_thread->owner->pid_ : 0,
+                                curr_thread->owner ? curr_thread->owner->comm : NULL);
     }
 
     sched_load_finish(source_thread, curr_thread);
@@ -544,6 +551,8 @@ void thread_add(thread_t *thread, unsigned int cpu_num)
         cpu_num = sched_allocate_processor();
 
     thread->cpu = cpu_num;
+    trace_sched_cpu_assign(thread->id, thread->owner ? thread->owner->pid_ : 0,
+                           thread->owner ? thread->owner->comm : NULL, thread->cpu);
     add_per_cpu_any(active_threads, 1, cpu_num);
     /* Append the thread to the queue */
     sched_append_to_queue(thread->priority, cpu_num, thread);
