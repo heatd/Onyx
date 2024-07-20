@@ -192,10 +192,14 @@ void dentry_destroy(dentry *d)
         dentry_put(d->d_parent);
     }
 
+#if 0
+    pr_info("Dentry %s dead\n", d->d_name);
+    if (d->d_inode)
+        pr_info("inode %lu nlink %lu, refs %lu\n", d->d_inode->i_inode, d->d_inode->i_nlink,
+                d->d_inode->i_refc);
+#endif
     if (d->d_inode)
         inode_unref(d->d_inode);
-
-    // printk("Dentry %s dead\n", d->d_name);
 
     if (d->d_name_length >= INLINE_NAME_MAX)
     {
@@ -449,8 +453,11 @@ dentry *dentry_lookup_internal(std::string_view v, dentry *dir, dentry_lookup_fl
     {
         auto dent = dentry_parent(dir);
         if (!dent)
+        {
             dent = dir;
-        dentry_get(dent);
+            dentry_get(dent);
+        }
+
         return dent;
     }
 
@@ -647,10 +654,11 @@ char *dentry_to_file_name(struct dentry *dentry)
     }
 
     buf[buf_len - 1] = '\0';
-
+    dentry_put(fs_root);
     return buf;
 
 error:
+    dentry_put(fs_root);
     list_for_every_safe (&element_list)
     {
         auto elem = container_of(l, struct path_element, node);
@@ -659,6 +667,54 @@ error:
     }
 
     return nullptr;
+}
+
+static void dentry_shrink_subtree(struct dentry *dentry)
+{
+#if 0
+    /* Keep shrinking this subtree while we can find able children. Dentries with reference counts
+     * != 1 are skipped. */
+    DEFINE_LIST(queue);
+    for (; dentry != nullptr;
+         dentry = list_is_empty(&queue)
+                      ? nullptr
+                      : container_of(list_first_element(&queue), struct dentry, d_parent_dir_node))
+    {
+        if (!dentry_is_dir(dentry))
+            continue;
+        list_for_every_safe (&dentry->d_children_head)
+        {
+            if (dentry->d_flags & DENTRY_FLAG_HASHED)
+            {
+                dentry_remove_from_cache(dentry, dentry->d_parent);
+                dentry_put(dentry);
+            }
+        }
+    }
+#endif
+    /* TODO. For now, axe entries in a single level and bugger off */
+    list_for_every_safe (&dentry->d_children_head)
+    {
+        struct dentry *child = container_of(l, struct dentry, d_parent_dir_node);
+        child->d_lock.lock_write();
+        unsigned long predicted_refs = 1;
+
+        /* This is racey, we don't have lockref... TODO? */
+        if (child->d_ref != predicted_refs)
+        {
+            child->d_lock.unlock_write();
+            continue;
+        }
+
+        if (child->d_flags & DENTRY_FLAG_HASHED)
+            dentry_remove_from_cache(child, dentry);
+
+        list_remove(&child->d_parent_dir_node);
+        child->d_parent = nullptr;
+        child->d_lock.unlock_write();
+        dentry_put(dentry);
+        dentry_put(child);
+    }
 }
 
 void dentry_do_unlink(dentry *entry)
@@ -678,11 +734,11 @@ void dentry_do_unlink(dentry *entry)
         {
             inode_dec_nlink(parent->d_inode);
             inode_dec_nlink(entry->d_inode);
+            dentry_shrink_subtree(entry);
         }
     }
 
     dentry_remove_from_cache(entry, parent);
-
     entry->d_lock.unlock_write();
 
     // We can do this because we're holding the parent dir's lock
@@ -695,11 +751,11 @@ void dentry_do_unlink(dentry *entry)
 bool dentry_does_not_have_parent(dentry *dir, dentry *to_not_have)
 {
     auto_dentry fs_root = get_filesystem_root()->file->f_dentry;
-
     auto_dentry d = dir;
 
     /* Get another ref here to have prettier code */
     dentry_get(d.get_dentry());
+    dentry_get(fs_root.get_dentry());
 
     /* TODO: Is this logic safe from race conditions? */
     while (d.get_dentry() != fs_root.get_dentry() && d.get_dentry() != nullptr)
@@ -743,7 +799,34 @@ static bool dentry_is_in_chain(struct dentry *dentry, unsigned long chain)
     return false;
 }
 
-void dentry_rename(dentry *dent, const char *name, dentry *parent) NO_THREAD_SAFETY_ANALYSIS
+void dentry_do_rename_unlink(dentry *entry)
+{
+    /* Perform the actual unlink, by write-locking, nulling d_parent */
+    entry->d_lock.lock_write();
+
+    auto parent = entry->d_parent;
+    dentry_put(parent);
+    entry->d_parent = nullptr;
+
+    /* The dcache buckets are already locked, so we don't grab the lock again. Just open-code the
+     * removal. */
+    list_remove(&entry->d_cache_node);
+    entry->d_flags &= ~DENTRY_FLAG_HASHED;
+
+    if (!d_is_negative(entry) && dentry_is_dir(entry))
+        dentry_shrink_subtree(entry);
+
+    entry->d_lock.unlock_write();
+
+    // We can do this because we're holding the parent dir's lock
+    list_remove(&entry->d_parent_dir_node);
+
+    /* Lastly, release the references */
+    dentry_put(entry);
+}
+
+void dentry_rename(dentry *dent, const char *name, dentry *parent,
+                   dentry *dst) NO_THREAD_SAFETY_ANALYSIS
 {
     size_t name_length = strlen(name);
     char *newname = nullptr;
@@ -778,6 +861,7 @@ void dentry_rename(dentry *dent, const char *name, dentry *parent) NO_THREAD_SAF
         dentry_ht_locks[oldi].lock_write();
     }
 
+    dentry_do_rename_unlink(dst);
     dent->d_lock.lock_write();
 
     DCHECK(dentry_is_in_chain(dent, oldi));
@@ -864,7 +948,14 @@ void dentry_rename(dentry *dent, const char *name, dentry *parent) NO_THREAD_SAF
 bool dentry_is_empty(dentry *dir)
 {
     scoped_rwslock<rw_lock::write> g{dir->d_lock};
-    return list_is_empty(&dir->d_children_head);
+    list_for_every_safe (&dir->d_children_head)
+    {
+        struct dentry *dentry = container_of(l, struct dentry, d_parent_dir_node);
+        if (!d_is_negative(dentry))
+            return false;
+    }
+
+    return true;
 }
 
 cul::atomic_size_t killed_dentries = 0;

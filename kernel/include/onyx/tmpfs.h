@@ -22,7 +22,7 @@ struct tmpfs_inode : public inode
     const char *link;
 };
 
-extern file_ops tmpfs_fops;
+extern const file_ops tmpfs_fops;
 
 int tmpfs_statfs(struct statfs *buf, struct superblock *sb);
 

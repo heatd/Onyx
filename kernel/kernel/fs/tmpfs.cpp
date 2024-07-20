@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -44,7 +44,10 @@ tmpfs_inode *tmpfs_create_inode(mode_t mode, struct dentry *dir, dev_t rdev = 0)
 
 struct inode *tmpfs_creat(struct dentry *dentry, int mode, struct dentry *dir)
 {
-    return tmpfs_create_inode(static_cast<mode_t>(S_IFREG | mode), dir);
+    struct inode *inode = tmpfs_create_inode(static_cast<mode_t>(S_IFREG | mode), dir);
+    if (inode)
+        dentry_get(dentry);
+    return inode;
 }
 
 int tmpfs_link(struct file *target_ino, const char *name, struct dentry *dir)
@@ -66,18 +69,29 @@ inode *tmpfs_symlink(struct dentry *dentry, const char *dest, struct dentry *dir
     }
 
     new_ino->link = link_name;
-
+    dentry_get(dentry);
     return new_ino;
 }
 
 inode *tmpfs_mkdir(struct dentry *dentry, mode_t mode, struct dentry *dir)
 {
-    return tmpfs_create_inode(mode | S_IFDIR, dir);
+    struct tmpfs_inode *inode = tmpfs_create_inode(mode | S_IFDIR, dir);
+    if (inode)
+    {
+        inode->i_nlink++;
+        inode_inc_nlink(dir->d_inode);
+        dentry_get(dentry);
+    }
+
+    return inode;
 }
 
 inode *tmpfs_mknod(struct dentry *dentry, mode_t mode, dev_t dev, struct dentry *dir)
 {
-    return tmpfs_create_inode(mode, dir, dev);
+    struct inode *inode = tmpfs_create_inode(mode, dir, dev);
+    if (inode)
+        dentry_get(dentry);
+    return inode;
 }
 
 char *tmpfs_readlink(struct file *f)
@@ -102,6 +116,43 @@ int tmpfs_unlink(const char *name, int flags, struct dentry *dir)
 
     dentry_put(child);
 
+    return 0;
+}
+
+static int tmpfs_rename(struct dentry *src_parent, struct dentry *src, struct dentry *dst_dir,
+                        struct dentry *dst)
+{
+    /* Nothing interesting is happening here, just unref dst and keep on rolling. Generic dcache
+     * code will do the work for us. */
+    if (!d_is_negative(dst))
+    {
+        if (dentry_is_dir(dst) != dentry_is_dir(src))
+            return -ENOTDIR;
+        if (dentry_is_dir(dst) && !dentry_is_empty(dst))
+            return -ENOTEMPTY;
+        dentry_put(dst);
+    }
+
+    if (dentry_is_dir(src))
+    {
+        if (src_parent != dst_dir)
+        {
+            inode_dec_nlink(src_parent->d_inode);
+            inode_inc_nlink(dst_dir->d_inode);
+        }
+
+        if (!d_is_negative(dst))
+        {
+            /* We're killing the inode */
+            DCHECK(dst->d_inode->i_nlink == 2);
+            inode_dec_nlink(dst->d_inode);
+            if (src_parent == dst_dir)
+                inode_dec_nlink(dst_dir->d_inode);
+        }
+    }
+
+    if (!d_is_negative(dst))
+        inode_dec_nlink(dst->d_inode);
     return 0;
 }
 
@@ -206,31 +257,34 @@ int tmpfs_ftruncate(size_t len, file *f)
     return 0;
 }
 
-struct file_ops tmpfs_fops = {.read = nullptr,
-                              .write = nullptr,
-                              .open = tmpfs_open,
-                              .close = tmpfs_close,
-                              .getdirent = tmpfs_getdirent,
-                              .ioctl = nullptr,
-                              .creat = tmpfs_creat,
-                              .stat = nullptr,
-                              .link = tmpfs_link,
-                              .symlink = tmpfs_symlink,
-                              .mmap = nullptr,
-                              .ftruncate = tmpfs_ftruncate,
-                              .mkdir = tmpfs_mkdir,
-                              .mknod = tmpfs_mknod,
-                              .on_open = nullptr,
-                              .poll = nullptr,
-                              .readlink = tmpfs_readlink,
-                              .unlink = tmpfs_unlink,
-                              .fallocate = nullptr,
-                              .readpage = tmpfs_readpage,
-                              .writepage = tmpfs_writepage,
-                              .prepare_write = tmpfs_prepare_write,
-                              .read_iter = filemap_read_iter,
-                              .write_iter = filemap_write_iter,
-                              .fsyncdata = filemap_writepages};
+const struct file_ops tmpfs_fops = {
+    .read = nullptr,
+    .write = nullptr,
+    .open = tmpfs_open,
+    .close = tmpfs_close,
+    .getdirent = tmpfs_getdirent,
+    .ioctl = nullptr,
+    .creat = tmpfs_creat,
+    .stat = nullptr,
+    .link = tmpfs_link,
+    .symlink = tmpfs_symlink,
+    .mmap = nullptr,
+    .ftruncate = tmpfs_ftruncate,
+    .mkdir = tmpfs_mkdir,
+    .mknod = tmpfs_mknod,
+    .on_open = nullptr,
+    .poll = nullptr,
+    .readlink = tmpfs_readlink,
+    .unlink = tmpfs_unlink,
+    .fallocate = nullptr,
+    .readpage = tmpfs_readpage,
+    .writepage = tmpfs_writepage,
+    .prepare_write = tmpfs_prepare_write,
+    .read_iter = filemap_read_iter,
+    .write_iter = filemap_write_iter,
+    .fsyncdata = filemap_writepages,
+    .rename = tmpfs_rename,
+};
 
 static void tmpfs_free_page(struct vm_object *vmo, struct page *page)
 {

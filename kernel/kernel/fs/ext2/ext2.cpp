@@ -49,6 +49,8 @@ inode *ext2_symlink(struct dentry *dentry, const char *dest, struct dentry *dir)
 static int ext2_fsyncdata(struct inode *ino, struct writepages_info *wpinfo);
 static int ext2_readpages(struct readpages_state *state, struct inode *ino);
 static unsigned int ext2_ioctl(int request, void *argp, struct file *file);
+int ext2_rename(struct dentry *src_parent, struct dentry *src, struct dentry *dst_dir,
+                struct dentry *dst);
 
 struct file_ops ext2_ops = {
     .open = ext2_open,
@@ -72,6 +74,7 @@ struct file_ops ext2_ops = {
     .writepages = filemap_writepages,
     .fsyncdata = ext2_fsyncdata,
     .readpages = ext2_readpages,
+    .rename = ext2_rename,
 };
 
 void ext2_delete_inode(struct inode *inode_, uint32_t inum, struct ext2_superblock *fs)

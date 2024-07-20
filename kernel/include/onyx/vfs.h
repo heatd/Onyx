@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <onyx/flock.h>
 #include <onyx/iovec_iter.h>
 #include <onyx/mm/vm_object.h>
 #include <onyx/object.h>
@@ -20,7 +21,6 @@
 #include <onyx/rwlock.h>
 #include <onyx/superblock.h>
 #include <onyx/vm.h>
-#include <onyx/flock.h>
 
 #include <uapi/dirent.h>
 #include <uapi/stat.h>
@@ -90,6 +90,8 @@ struct file_ops
     int (*fsyncdata)(struct inode *ino, struct writepages_info *wpinfo);
     ssize_t (*directio)(struct file *file, size_t off, struct iovec_iter *iter, unsigned int flags);
     int (*readpages)(struct readpages_state *state, struct inode *ino);
+    int (*rename)(struct dentry *src_parent, struct dentry *src, struct dentry *dst_dir,
+                  struct dentry *dst);
 };
 
 /* For directio's flags */

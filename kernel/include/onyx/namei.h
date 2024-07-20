@@ -100,6 +100,14 @@ struct nameidata
         parent = cur;
         cur = newcur;
     }
+
+    dentry *getcur()
+    {
+        DCHECK(cur != nullptr);
+        auto ret = cur;
+        cur = nullptr;
+        return ret;
+    }
 };
 
 expected<file *, int> vfs_open(file *base, const char *name, unsigned int open_flags, mode_t mode);
