@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the MIT License
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  */
 #include <errno.h>
@@ -77,11 +77,11 @@ int ndp_handle_na(netif *netif, packetbuf *buf)
 
         switch (hdr->type)
         {
-        case ND_OPT_TARGET_LINKADDR: {
-            if (length != 8)
-                return -EINVAL;
-            target = (const unsigned char *) optptr + 2;
-        }
+            case ND_OPT_TARGET_LINKADDR: {
+                if (length != 8)
+                    return -EINVAL;
+                target = (const unsigned char *) optptr + 2;
+            }
         }
 
         optptr += length;

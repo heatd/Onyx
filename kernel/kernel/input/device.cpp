@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2020 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the MIT License
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  */
 #include <stdlib.h>
@@ -54,23 +54,23 @@ void input_device_submit_event(struct input_device *dev, struct input_event *ev)
 
     switch (ev->code)
     {
-    case KEYMAP_KEY_LSHIFT:
-    case KEYMAP_KEY_RSHIFT:
-        dev->state.shift_pressed = pressed;
-        break;
-    case KEYMAP_KEY_CAPS_LOCK:
-        dev->state.caps_enabled = !(dev->state.caps_enabled);
-        break;
-    case KEYMAP_KEY_LALT:
-    case KEYMAP_KEY_ALTGR:
-        dev->state.alt_pressed = pressed;
-        break;
-    case KEYMAP_KEY_LCTRL:
-    case KEYMAP_KEY_RCTRL:
-        dev->state.ctrl_pressed = pressed;
-        break;
-    default:
-        break;
+        case KEYMAP_KEY_LSHIFT:
+        case KEYMAP_KEY_RSHIFT:
+            dev->state.shift_pressed = pressed;
+            break;
+        case KEYMAP_KEY_CAPS_LOCK:
+            dev->state.caps_enabled = !(dev->state.caps_enabled);
+            break;
+        case KEYMAP_KEY_LALT:
+        case KEYMAP_KEY_ALTGR:
+            dev->state.alt_pressed = pressed;
+            break;
+        case KEYMAP_KEY_LCTRL:
+        case KEYMAP_KEY_RCTRL:
+            dev->state.ctrl_pressed = pressed;
+            break;
+        default:
+            break;
     }
 
     vterm_submit_event(dev, ev);

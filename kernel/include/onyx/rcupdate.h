@@ -1,8 +1,8 @@
 /*
  * Copyright (c) 2023 - 2024 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the LGPL-2.0-only license.
+ * This file is part of Onyx, and is released under the terms of the GPLv2 license.
  *
- * SPDX-License-Identifier: LGPL-2.0-only
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 #ifndef _ONYX_RCUPDATE_H
 #define _ONYX_RCUPDATE_H

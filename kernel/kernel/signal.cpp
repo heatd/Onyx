@@ -1,10 +1,9 @@
 /*
  * Copyright (c) 2016, 2017 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the MIT License
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  */
 #include <errno.h>
-#include <uapi/signal.h>
 #include <stdio.h>
 
 #include <onyx/clock.h>
@@ -16,6 +15,8 @@
 #include <onyx/task_switching.h>
 #include <onyx/vm.h>
 #include <onyx/wait_queue.h>
+
+#include <uapi/signal.h>
 
 #include <onyx/memory.hpp>
 

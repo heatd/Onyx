@@ -1,15 +1,15 @@
 /*
  * Copyright (c) 2022 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the MIT License
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 
 #include <stdint.h>
 
-__attribute__((section(".boot"))) __attribute__((no_sanitize("undefined"))) void
-early_paging_setup(uint64_t *boot_page_tables)
+__attribute__((section(".boot"))) __attribute__((no_sanitize("undefined"))) void early_paging_setup(
+    uint64_t *boot_page_tables)
 {
     uint64_t *top_page_table = boot_page_tables;
     uint64_t *second_level[2] = {&boot_page_tables[512], &boot_page_tables[1024]};
