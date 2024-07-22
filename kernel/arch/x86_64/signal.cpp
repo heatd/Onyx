@@ -1,12 +1,11 @@
 /*
  * Copyright (c) 2019 - 2021 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the MIT License
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 #include <errno.h>
-#include <uapi/signal.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -18,6 +17,8 @@
 #include <onyx/x86/eflags.h>
 #include <onyx/x86/segments.h>
 #include <onyx/x86/signal.h>
+
+#include <uapi/signal.h>
 
 /* The sysv abi defines a 128 byte zone below the stack so we need to be
  * careful as to not touch it

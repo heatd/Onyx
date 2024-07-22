@@ -1,4 +1,30 @@
-Copyright (c) 2017 - 2023 Pedro Falcato
+Onyx is licensed under a couple of licenses:
+ - GPLv2 for the kernel (together with MIT code, both first party and third party)
+ - MIT or GPLv2 for anything else
+
+GPLv2 is *generally* (and strongly preferred to be) GPLv2-**ONLY**.
+
+See licenses/ for the relevant, full license texts.
+
+GPLv2:
+Copyright (C) 2024 Pedro Falcato
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+MIT:
+Copyright (c) 2017 - 2024 Pedro Falcato
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -17,5 +43,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-The kernel's rcupdate.cpp and rcupdate.h are licensed under the LGPL-2.0-only license.

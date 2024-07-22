@@ -3,10 +3,10 @@
  * Copyright 2016 The Fuchsia Authors
  * Copyright (c) 2013, Google, Inc. All rights reserved
 
- * This file is part of Onyx, and is released under the terms of the MIT License
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-2.0-only
  *
  * Note: The checks themselves (UTCHECK*, EXPECT* and ASSERT*) were taken from
  * Fuchsia, also MIT licensed. This is the only thing written by Google/Fuchsia Authors

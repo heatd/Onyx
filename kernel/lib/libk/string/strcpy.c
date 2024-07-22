@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016-2020 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the MIT License
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  */
 #include <string.h>

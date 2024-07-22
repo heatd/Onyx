@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016, 2017 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the MIT License
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  */
 #ifndef _KERNEL_LOG_H
@@ -26,7 +26,7 @@
            "] " x ": " __VA_ARGS__)
 
 #define LOG INFO
-#define SUBMIT_BUG_REPORT(x)                                                                      \
+#define SUBGPLv2_BUG_REPORT(x)                                                                      \
     printf("If you want this bug/feature to be fixed, open an issue at the repo's issue "         \
            "tracker(https://github.com/heatd/Onyx/issues) with a title along the lines of \"%s: " \
            "Fix x bug\". Thanks!\n",                                                              \

@@ -1,19 +1,20 @@
 /*
  * Copyright (c) 2022 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the MIT License
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 
 #include <errno.h>
-#include <onyx/types.h>
 
 #include <onyx/scheduler.h>
+#include <onyx/types.h>
 #include <onyx/user.h>
 #include <onyx/vm.h>
 
-extern "C" {
+extern "C"
+{
 ssize_t copy_to_user_internal(void *user, const void *data, size_t size);
 ssize_t copy_from_user_internal(void *data, const void *usr, size_t size);
 ssize_t user_memset_internal(void *data, int val, size_t len);
