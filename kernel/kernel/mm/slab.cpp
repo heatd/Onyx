@@ -106,6 +106,8 @@ struct slab_cache *kmem_cache_create(const char *name, size_t size, size_t align
     auto c = slab_cache_pool.allocate();
     if (!c)
     {
+        if (flags & KMEM_CACHE_PANIC)
+            panic("kmem_cache_create of %s failed!", name);
         return nullptr;
     }
 
@@ -860,6 +862,13 @@ __always_inline void kmem_cache_post_alloc(struct slab_cache *cache, unsigned in
     kmem_cache_post_alloc_kasan(cache, flags, object);
 }
 
+__always_inline void kmem_cache_post_alloc_bulk(struct slab_cache *cache, unsigned int flags,
+                                                void **objects, size_t nr)
+{
+    for (size_t i = 0; i < nr; i++)
+        kmem_cache_post_alloc(cache, flags, objects[i]);
+}
+
 /**
  * @brief Allocate an object from the slab
  * This function call be called in nopreempt/softirq context.
@@ -910,6 +919,87 @@ void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
     kmem_cache_post_alloc(cache, flags, ret);
 
     return ret;
+}
+
+int kmem_cache_alloc_bulk_nopcpu(struct slab_cache *cache, unsigned int gfp_flags, size_t nr,
+                                 void **res)
+{
+    size_t i;
+
+    for (i = 0; i < nr; i++)
+    {
+        void *ptr = kmem_cache_alloc_nopcpu(cache, gfp_flags);
+        if (!ptr)
+            goto out_nomem;
+        res[i] = ptr;
+    }
+
+    kmem_cache_post_alloc_bulk(cache, gfp_flags, res, nr);
+    return nr;
+out_nomem:
+    kmem_cache_free_bulk(cache, i, res);
+    return 0;
+}
+
+/**
+ * @brief Allocate objects in bulk
+ * Allocate slab objects in bulk, while avoiding relocking as much as we can.
+ *
+ * @param cache Slab cache
+ * @param gfp_flags GFP flags
+ * @param nr Number of objects desired
+ * @param res Array of results (output parameter)
+ * @return 0 on error (ENOMEM), or the number of objects allocated
+ */
+size_t kmem_cache_alloc_bulk(struct slab_cache *cache, unsigned int gfp_flags, size_t nr,
+                             void **res)
+{
+    size_t i = 0;
+    size_t ret = nr;
+
+    if (unlikely(cache->flags & KMEM_CACHE_NOPCPU))
+        return kmem_cache_alloc_bulk_nopcpu(cache, gfp_flags, nr, res);
+
+    while (nr)
+    {
+        // Disable preemption so we can safely touch the percpu data
+        sched_disable_preempt();
+        auto pcpu = &cache->pcpu[get_cpu_nr()];
+        pcpu->touched.store(1, mem_order::release);
+        if (unlikely(!pcpu->size))
+        {
+            /* Refill and try again */
+            int st = kmem_cache_alloc_refill_mag(cache, pcpu, gfp_flags);
+            if (unlikely(st < 0))
+            {
+                sched_enable_preempt();
+                goto enomem;
+            }
+
+            pcpu = &cache->pcpu[get_cpu_nr()];
+        }
+
+        DCHECK(pcpu->size > 0);
+        /* Attempt to fill up our res array with whatever we can find in the pcpu data. */
+        unsigned long to_take = min(nr, (unsigned long) pcpu->size);
+        nr -= to_take;
+        while (to_take--)
+        {
+            void *ptr = pcpu->magazine[--pcpu->size];
+            ((bufctl *) ptr)->flags = 0;
+            res[i++] = ptr;
+            pcpu->active_objs++;
+        }
+
+        pcpu->touched.store(0, mem_order::release);
+        sched_enable_preempt();
+    }
+
+    kmem_cache_post_alloc_bulk(cache, gfp_flags, res, ret);
+    return ret;
+enomem:
+    kmem_cache_free_bulk(cache, i, res);
+    return 0;
 }
 
 /**
@@ -1007,8 +1097,10 @@ void kmem_cache_return_pcpu_batch(struct slab_cache *cache, struct slab_cache_pe
     memmove(pcpu->magazine, &pcpu->magazine[batchsize], (size - pcpu->size) * sizeof(void *));
 }
 
-static void kmem_cache_free_pcpu(struct slab_cache *cache, void *ptr)
+__always_inline void kmem_cache_free_pcpu_single(struct slab_cache *cache,
+                                                 struct slab_cache_percpu_context *pcpu, void *ptr)
 {
+    DCHECK(pcpu->size < cache->mag_limit);
     bufctl *buf = (bufctl *) ptr;
 
     if ((unsigned long) ptr % cache->alignment) [[unlikely]]
@@ -1017,27 +1109,21 @@ static void kmem_cache_free_pcpu(struct slab_cache *cache, void *ptr)
     if (buf->flags == BUFCTL_PATTERN_FREE) [[unlikely]]
         panic("slab: Double free at %p\n", ptr);
 
-#ifdef CONFIG_KASAN
-    asan_poison_shadow((unsigned long) ptr, cache->objsize, KASAN_FREED);
-#endif
+    pcpu->magazine[pcpu->size++] = ptr;
+    buf->flags = BUFCTL_PATTERN_FREE;
+    pcpu->active_objs--;
+}
 
+static void kmem_cache_free_pcpu(struct slab_cache *cache, void *ptr)
+{
     sched_disable_preempt();
-
     auto pcpu = &cache->pcpu[get_cpu_nr()];
     pcpu->touched.store(1, mem_order::release);
-    pcpu->active_objs--;
     if (pcpu->size == cache->mag_limit) [[unlikely]]
-    {
         kmem_cache_return_pcpu_batch(cache, pcpu);
-    }
-    else
-    {
-        pcpu->magazine[pcpu->size++] = ptr;
-        buf->flags = BUFCTL_PATTERN_FREE;
-    }
+    kmem_cache_free_pcpu_single(cache, pcpu, ptr);
 
     pcpu->touched.store(0, mem_order::release);
-
     sched_enable_preempt();
 }
 
@@ -1064,6 +1150,15 @@ void kasan_kfree(void *ptr, struct slab_cache *cache, size_t chunk_size)
 
     kmem_cache_free_pcpu(cache, ptr);
 #endif
+}
+
+static void kmem_cache_free_bulk_kasan(struct slab_cache *cache, size_t size, void **ptrs)
+{
+    for (size_t i = 0; i < size; i++)
+    {
+        if (ptrs[i])
+            kasan_kfree(ptrs[i], cache, cache->objsize);
+    }
 }
 
 #endif
@@ -1113,6 +1208,64 @@ void kmem_cache_free(struct slab_cache *cache, void *ptr)
     kmem_cache_free_pcpu(cache, ptr);
 }
 
+static void kmem_cache_free_bulk_nopcpu(struct slab_cache *cache, size_t size, void **ptrs)
+{
+    for (size_t i = 0; i < size; i++)
+    {
+        if (ptrs[i])
+            kfree_nopcpu(ptrs[i]);
+    }
+}
+
+/**
+ * @brief Free objects in bulk
+ * Free objects in bulk, avoiding relocking and doing as much as we can, in batches.
+ * @param cache Slab cache
+ * @param size Number of objects to free
+ * @param ptrs Pointers to free (NULL is tolerated)
+ */
+void kmem_cache_free_bulk(struct slab_cache *cache, size_t size, void **ptrs)
+{
+    size_t i = 0;
+
+    if (unlikely(cache->flags & KMEM_CACHE_NOPCPU))
+    {
+        kmem_cache_free_bulk_nopcpu(cache, size, ptrs);
+        return;
+    }
+
+#ifdef CONFIG_KASAN
+    kmem_cache_free_bulk_kasan(cache, size, ptrs);
+    return;
+#endif
+
+    while (size)
+    {
+        sched_disable_preempt();
+        auto pcpu = &cache->pcpu[get_cpu_nr()];
+        pcpu->touched.store(1, mem_order::release);
+
+        if (pcpu->size == cache->mag_limit) [[unlikely]]
+            kmem_cache_return_pcpu_batch(cache, pcpu);
+
+        int free_slots = cache->mag_limit - pcpu->size;
+        while (free_slots)
+        {
+            if (likely(ptrs[i]))
+            {
+                kmem_cache_free_pcpu_single(cache, pcpu, ptrs[i]);
+                free_slots--;
+            }
+
+            if (--size == 0)
+                break;
+        }
+
+        pcpu->touched.store(0, mem_order::release);
+        sched_enable_preempt();
+    }
+}
+
 /**
  * @brief Free a given slab and give it back to the page backend
  * The given slab will be properly dissociated from its slab cache
@@ -1155,17 +1308,17 @@ static void kmem_purge_remote(struct slab_rendezvous *rndvz)
 
 /**
  * @brief Start a slab allocator freeze
- * When the slab allocator is frozen, no one can enter the per-cpu "area" of any cache. That is to
- * say, cpus that were accessing their pcpu will be frozen, and new ones will not be able to get in.
- * Requires preemption to be disabled, in order for us to not migrate CPUs mid-freeze.
+ * When the slab allocator is frozen, no one can enter the per-cpu "area" of any cache. That is
+ * to say, cpus that were accessing their pcpu will be frozen, and new ones will not be able to
+ * get in. Requires preemption to be disabled, in order for us to not migrate CPUs mid-freeze.
  *
  * @param rndvz Rendezvous structure
  */
 static void kmem_slab_freeze_start(struct slab_rendezvous *rndvz)
 {
-    /* To start a freeze, we store the number of CPUs we're waiting for in a shared structure. As
-     * IPIs hit CPUs, they decrement the count. When the count hits 0, we know every CPU has hit the
-     * freeze and may start to reclaim (or whatever we need to do). See comments in
+    /* To start a freeze, we store the number of CPUs we're waiting for in a shared structure.
+     * As IPIs hit CPUs, they decrement the count. When the count hits 0, we know every CPU has
+     * hit the freeze and may start to reclaim (or whatever we need to do). See comments in
      * kmem_purge_remote for notes on the concurrency. */
     unsigned int to_sync = get_nr_cpus() - 1;
     rndvz->ack = 0;
@@ -1186,8 +1339,8 @@ static void kmem_slab_freeze_start(struct slab_rendezvous *rndvz)
 static void kmem_slab_freeze_end(struct slab_rendezvous *rndvz)
 {
     rndvz->waiting_for_cpus = get_nr_cpus() - 1;
-    /* Use release to make waiters see waiting_for_cpus before ack. It will also make prior stores
-     * visible when ack is acquired. */
+    /* Use release to make waiters see waiting_for_cpus before ack. It will also make prior
+     * stores visible when ack is acquired. */
     __atomic_store_n(&rndvz->ack, 1, __ATOMIC_RELEASE);
 }
 

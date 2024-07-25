@@ -67,6 +67,10 @@ __BEGIN_CDECLS
 #define KMEM_CACHE_HWALIGN (1 << 0)
 #define KMEM_CACHE_VMALLOC (1 << 1)
 #define KMEM_CACHE_NOPCPU  (1 << 2)
+/* Panic if kmem_cache_create fails */
+#define KMEM_CACHE_PANIC   (1 << 3)
+
+#define SLAB_PANIC KMEM_CACHE_PANIC
 
 /**
  * @brief Create a slab cache
@@ -158,6 +162,28 @@ void kmem_cache_print_slab_info_kasan(void *mem, struct slab *slab);
  * @param target_freep Target free pages
  */
 void slab_shrink_caches(unsigned long target_freep);
+
+/**
+ * @brief Allocate objects in bulk
+ * Allocate slab objects in bulk, while avoiding relocking as much as we can.
+ *
+ * @param cache Slab cache
+ * @param gfp_flags GFP flags
+ * @param nr Number of objects desired
+ * @param res Array of results (output parameter)
+ * @return 0 on error (ENOMEM), or the number of objects allocated
+ */
+size_t kmem_cache_alloc_bulk(struct slab_cache *cache, unsigned int gfp_flags, size_t nr,
+                             void **res);
+
+/**
+ * @brief Free objects in bulk
+ * Free objects in bulk, avoiding relocking and doing as much as we can, in batches.
+ * @param cache Slab cache
+ * @param size Number of objects to free
+ * @param ptrs Pointers to free (NULL is tolerated)
+ */
+void kmem_cache_free_bulk(struct slab_cache *cache, size_t size, void **ptrs);
 
 __END_CDECLS
 
