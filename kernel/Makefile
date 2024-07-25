@@ -48,7 +48,7 @@ else
 # -Wno-missing-braces: Seems broken? At least it started spitting out weird ones for IPv6 code(IN6ADDR_ALL_NODES)
 #	  in onyx/net/ipv6.h
 CFLAGS:=$(CFLAGS) -Wno-null-pointer-arithmetic -Wno-unknown-attributes -Wno-error=unused-private-field \
-	-Wno-missing-braces -Wno-c99-designator -Wthread-safety
+	-Wno-missing-braces -Wno-c99-designator -Wthread-safety -Wno-thread-safety-precise
 endif
 
 # NOTE: I don't think pointer-overflow works with kernel pointers

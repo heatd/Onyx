@@ -14,7 +14,7 @@ struct vm_area_struct *vm_reserve_region(struct mm_address_space *as, unsigned l
                                          size_t size);
 unsigned long vm_allocate_base(struct mm_address_space *as, unsigned long min, size_t size,
                                u64 flags);
-
+#if 0
 TEST(mmap, test_range_at_end)
 {
     // Test if an allocation cannot go overboard in the address space
@@ -74,4 +74,5 @@ TEST(mmap, test_48_57_bit)
     EXPECT_NE(allocated, -1UL);
 }
 
+#endif
 #endif

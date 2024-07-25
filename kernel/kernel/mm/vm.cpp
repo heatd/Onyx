@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -114,23 +114,8 @@ static inline void vma_free(vm_area_struct *region)
 
 bool vm_insert_region(struct mm_address_space *as, struct vm_area_struct *region)
 {
-    return bst_insert(
-        &as->region_tree, &region->vm_tree_node,
-        [](struct bst_node *lhs_, struct bst_node *rhs_) -> int {
-            auto lhs = container_of(lhs_, vm_area_struct, vm_tree_node);
-            auto rhs = container_of(rhs_, vm_area_struct, vm_tree_node);
-
-            if (check_for_overlap(lhs->vm_start, lhs->vm_end - 1, rhs->vm_start, rhs->vm_end - 1))
-            {
-                panic("vm_insert_region: Region [%lx, %lx] and [%lx, %lx] overlap\n", lhs->vm_start,
-                      lhs->vm_end, rhs->vm_start, rhs->vm_end);
-                return 0;
-            }
-            else if (rhs->vm_start > lhs->vm_start)
-                return 1;
-            else
-                return -1;
-        });
+    return mtree_insert_range(&as->region_tree, region->vm_start, region->vm_end - 1, region,
+                              GFP_KERNEL) == 0;
 }
 
 struct vm_area_struct *vm_reserve_region(struct mm_address_space *as, unsigned long start,
@@ -147,7 +132,6 @@ struct vm_area_struct *vm_reserve_region(struct mm_address_space *as, unsigned l
     region->vm_start = start;
     region->vm_end = start + size;
     region->vm_flags = 0;
-    bst_node_initialize(&region->vm_tree_node);
 
     bool success = vm_insert_region(as, region);
 
@@ -161,118 +145,27 @@ struct vm_area_struct *vm_reserve_region(struct mm_address_space *as, unsigned l
     return region;
 }
 
-#define DEBUG_VM_1 0
-#define DEBUG_VM_2 0
-#define DEBUG_VM_3 0
-
-unsigned long vm_allocate_base(struct mm_address_space *as, unsigned long min, size_t size,
-                               u64 flags) REQUIRES(as->vm_lock)
-{
-    MUST_HOLD_MUTEX(&as->vm_lock);
-
-    if (min < as->start)
-        min = as->start;
-
-    struct a : bst_node
-    {
-        unsigned long min;
-    } priv;
-
-    priv.min = min;
-
-    auto compare = [](bst_node *node0, bst_node *fake) -> int {
-        struct a *priv = (a *) fake;
-        auto reg = container_of(node0, vm_area_struct, vm_tree_node);
-        auto end = reg->vm_end - 1;
-        if (check_for_overlap(reg->vm_start, end, priv->min, priv->min + PAGE_SIZE))
-            return 0;
-        else if (end >= priv->min)
-            return -1;
-        else // if (end < priv->min)
-            return 1;
-    };
-
-    struct bst_node *node = nullptr;
-    unsigned long last_end = min;
-    struct vm_area_struct *f = nullptr;
-
-    if (min != as->start)
-    {
-        node = bst_search(&as->region_tree, &priv, compare);
-    }
-    else
-    {
-        node = bst_min(&as->region_tree, nullptr);
-    }
-
-    if (!node)
-        goto done;
-
-    /* Check if there's a gap between the first node
-     * and the start of the address space
-     */
-
-    f = container_of(node, vm_area_struct, vm_tree_node);
-
-#if DEBUG_VM_1
-    printk("Tiniest node: %016lx\n", f->base);
-#endif
-    if (f->vm_start - min >= size)
-    {
-#if DEBUG_VM_2
-        printk("gap [%016lx - %016lx]\n", min, f->base);
-#endif
-        goto done;
-    }
-
-    while (node)
-    {
-        f = container_of(node, vm_area_struct, vm_tree_node);
-        last_end = f->vm_end;
-
-        node = bst_next(&as->region_tree, node);
-        if (!node)
-            break;
-
-        struct vm_area_struct *vm = container_of(node, vm_area_struct, vm_tree_node);
-
-        if (vm->vm_start - last_end >= size && min <= vm->vm_start)
-            break;
-    }
-
-done:
-    last_end = last_end < min ? min : last_end;
-
-    // We can't map something over the edge
-    if (last_end > as->end || last_end + size > as->end)
-        return -1;
-
-    // The architecture may have extra checks to do
-    if (!arch_vm_validate_mmap_region(last_end, size, flags))
-        return -1;
-
-    return last_end;
-}
-
 static struct vm_area_struct *vm_allocate_region(struct mm_address_space *as, unsigned long min,
                                                  size_t size, u64 flags) REQUIRES(as->vm_lock)
 {
     if (!vm_test_vs_rlimit(as, size))
         return errno = ENOMEM, nullptr;
 
-    unsigned long new_base = vm_allocate_base(as, min, size, flags);
+    MA_STATE(iter, &as->region_tree, 0, -1UL);
+    if (min < as->start)
+        min = as->start;
 
-    if (new_base == (unsigned long) -1)
+    if (mas_empty_area(&iter, min, as->end, size) != 0)
         return nullptr;
 
-    assert((new_base & (PAGE_SIZE - 1)) == 0);
+    unsigned long new_base = iter.index;
+    CHECK((new_base & (PAGE_SIZE - 1)) == 0);
+    if (!arch_vm_validate_mmap_region(new_base, size, flags))
+        return nullptr;
 
     struct vm_area_struct *reg = vm_reserve_region(as, new_base, size);
-
     if (reg)
-    {
         increment_vm_stat(as, virtual_memory_size, size);
-    }
 
     return reg;
 }
@@ -307,6 +200,8 @@ void vm_init()
     bootmem_reserve(limits.start_phys, limits.end_phys - limits.start_phys);
 }
 
+extern "C" void maple_tree_init();
+
 /**
  * @brief Initialises the architecture independent parts of the VM subsystem.
  *
@@ -325,6 +220,7 @@ void vm_late_init()
 
     kmalloc_init();
 
+    maple_tree_init();
     vm_area_struct_cache =
         kmem_cache_create("vm_area_struct", sizeof(vm_area_struct), 0, 0, nullptr);
 
@@ -498,33 +394,12 @@ static struct vm_area_struct *__vm_allocate_virt_region(struct mm_address_space 
 vm_area_struct *vm_search(struct mm_address_space *mm, void *addr, size_t length)
     REQUIRES_SHARED(mm->vm_lock)
 {
-    struct search_type
-    {
-        unsigned long base;
-        size_t pages;
-        struct bst_node node;
-    } search;
-
-    search.base = (unsigned long) addr & -PAGE_SIZE;
-    search.pages = vm_size_to_pages(length);
-
-    auto node = bst_search(&mm->region_tree, &search.node,
-                           [](struct bst_node *lhs_, struct bst_node *rhs_) -> int {
-                               auto lhs = container_of(lhs_, vm_area_struct, vm_tree_node);
-                               auto rhs = container_of(rhs_, search_type, node);
-
-                               if (check_for_overlap(lhs->vm_start, lhs->vm_end - 1, rhs->base,
-                                                     rhs->base + (rhs->pages << PAGE_SHIFT) - 1))
-                               {
-                                   return 0;
-                               }
-                               else if (rhs->base > lhs->vm_start)
-                                   return 1;
-                               else
-                                   return -1;
-                           });
-
-    return containerof_null_safe(node, vm_area_struct, vm_tree_node);
+    unsigned long index = (unsigned long) addr;
+    void *entry = mt_find(&mm->region_tree, &index, index + length - 1);
+    struct vm_area_struct *vma = (struct vm_area_struct *) entry;
+    if (vma && vma->vm_start > (unsigned long) addr)
+        return nullptr;
+    return vma;
 }
 
 #define VM_CREATE_REGION_AT_DEBUG 0
@@ -607,12 +482,12 @@ static bool fork_vm_area_struct(struct vm_area_struct *region, struct fork_itera
     }
 
     memcpy(new_region, region, sizeof(*region));
+    /* TODO: mtree dup */
 
 #if DEBUG_FORK_VM
     printk("Forking [%016lx, %016lx] perms %x\n", region->base,
            region->base + (region->pages << PAGE_SHIFT) - 1, region->rwx);
 #endif
-    bst_node_initialize(&new_region->vm_tree_node);
 
     res = vm_insert_region(it->target_mm, new_region);
 
@@ -680,8 +555,11 @@ static void tear_down_addr_space(struct mm_address_space *addr_space)
      * If we didn't we would leak some memory.
      */
     vm_area_struct *entry;
-    bst_for_every_entry_delete(&addr_space->region_tree, entry, vm_area_struct, vm_tree_node)
+    void *entry_;
+    unsigned long index = 0;
+    mt_for_each(&addr_space->region_tree, entry_, index, -1UL)
     {
+        entry = (vm_area_struct *) entry_;
         addr_space_delete(entry);
     }
 
@@ -711,14 +589,15 @@ int vm_fork_address_space(struct mm_address_space *addr_space) EXCLUDES(addr_spa
     if (paging_clone_as(addr_space, current_mm) < 0)
         return -ENOMEM;
 
-    bst_root_initialize(&addr_space->region_tree);
-
     addr_space->resident_set_size = 0;
     addr_space->virtual_memory_size = current_mm->virtual_memory_size;
 
     vm_area_struct *entry;
-    bst_for_every_entry(&current_mm->region_tree, entry, vm_area_struct, vm_tree_node)
+    void *entry_;
+    unsigned long index = 0;
+    mt_for_each(&current_mm->region_tree, entry_, index, -1UL)
     {
+        entry = (vm_area_struct *) entry_;
         if (!fork_vm_area_struct(entry, &it))
         {
             tear_down_addr_space(addr_space);
@@ -1124,9 +1003,65 @@ static void vma_post_split(struct vm_area_struct *vma, struct vm_area_struct *ne
     }
 }
 
+struct vma_iterator
+{
+    unsigned long index;
+    unsigned long end;
+    struct mm_address_space *mm;
+    struct ma_state mas;
+};
+
+#define VMA_ITERATOR(name, mm, index, end)           \
+    struct vma_iterator name = {index, (end) -1, mm, \
+                                MA_STATE_INIT(&(mm)->region_tree, index, (end) -1)}
+
+#ifdef CONFIG_DEBUG_MM_MMAP
+static void validate_mm_tree(struct mm_address_space *mm)
+{
+    VMA_ITERATOR(vmi, mm, 0, -1UL);
+    void *entry_;
+    mas_for_each(&vmi.mas, entry_, -1UL)
+    {
+        struct vm_area_struct *vma = (struct vm_area_struct *) entry_;
+        if (vma->vm_start != vmi.mas.index || vma->vm_end != vmi.mas.last + 1)
+        {
+            pr_err("mm: vma bounds [%016lx, %016lx] do not match maple tree [%016lx, %016lx]\n",
+                   vma->vm_start, vma->vm_end, vmi.mas.index, vmi.mas.last + 1);
+            goto print_tree;
+        }
+    }
+
+    return;
+print_tree:
+    pr_err("mm: dumping vmas for mm %p...\n", mm);
+    mas_reset(&vmi.mas);
+    mas_for_each(&vmi.mas, entry_, -1UL)
+    {
+        struct vm_area_struct *vma = (struct vm_area_struct *) entry_;
+        const char *name = "[anon]";
+        if (vma->vm_file)
+            name = vma->vm_file->f_dentry->d_name;
+        pr_err("  [%016lx, %016lx] vma ([%016lx, %016lx] maple tree) flags %x maptype %x  %s\n",
+               vma->vm_start, vma->vm_end, vmi.mas.index, vmi.mas.last + 1, vma->vm_flags,
+               vma->vm_maptype, name);
+    }
+
+    pr_err("mm: dump done.\n");
+}
+
+#else
+
+#define validate_mm_tree(mm) \
+    do                       \
+    {                        \
+    } while (0)
+
+#endif
+
 static struct vm_area_struct *vm_split_region(struct mm_address_space *as,
                                               struct vm_area_struct *vma, unsigned long addr,
-                                              bool below) REQUIRES(as->vm_lock)
+                                              bool below, struct vma_iterator *vmi)
+    REQUIRES(as->vm_lock)
 {
     DCHECK((addr & (PAGE_SIZE - 1)) == 0);
     size_t region_off = addr - vma->vm_start;
@@ -1177,8 +1112,12 @@ static struct vm_area_struct *vm_split_region(struct mm_address_space *as,
     }
 
     vma_post_split(vma, newr);
-    vm_insert_region(as, newr);
 
+    /* Reset the mas range to the new region */
+    mas_set_range(&vmi->mas, newr->vm_start, newr->vm_end - 1);
+    CHECK(mas_store(&vmi->mas, newr) == vma);
+    DCHECK(vmi->mas.index == newr->vm_start);
+    validate_mm_tree(as);
     return newr;
 }
 
@@ -1216,6 +1155,22 @@ void vm_do_mmu_mprotect(struct mm_address_space *as, void *address, size_t nr_pg
 }
 #endif
 
+static struct vm_area_struct *vma_prepare_modify(struct vma_iterator *vmi,
+                                                 struct vm_area_struct *vma, unsigned long start,
+                                                 unsigned long end) REQUIRES(vmi->mm->vm_lock)
+{
+    if (start > vma->vm_start)
+    {
+        vma = vm_split_region(vmi->mm, vma, start, false, vmi);
+        if (!vma)
+            return nullptr;
+    }
+
+    if (end < vma->vm_end)
+        vma = vm_split_region(vmi->mm, vma, end, true, vmi);
+    return vma;
+}
+
 /**
  * @brief Changes memory protection of a memory range.
  *
@@ -1238,62 +1193,45 @@ int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot
      * allow for a partial unmap in case of an error. Whereas this is not the case for mprotect.
      */
 
-    struct vm_area_struct *region = vm_search(as, (void *) addr, PAGE_SIZE);
-    if (!region)
+    struct vm_area_struct *vma = vm_search(as, (void *) addr, PAGE_SIZE);
+    if (!vma)
         return -ENOMEM;
 
-    /* Split the head, if needed */
-    if (addr > region->vm_start)
+    VMA_ITERATOR(vmi, as, addr, limit);
+
+    void *entry_;
+    mas_for_each(&vmi.mas, entry_, vmi.end)
     {
-        region = vm_split_region(as, region, addr, false);
-        if (!region)
+        vma = (vm_area_struct *) entry_;
+        if (vma->vm_start >= limit)
+            break;
+        vma = vma_prepare_modify(&vmi, vma, addr, limit);
+        if (!vma)
             return -ENOMEM;
-        DCHECK(addr == region->vm_start);
-    }
-
-    while (region)
-    {
-        /* Split the tail, if needed */
-        if (limit < region->vm_end)
-        {
-            region = vm_split_region(as, region, limit, true);
-            if (!region)
-                return -ENOMEM;
-            DCHECK(limit == region->vm_end);
-        }
-
-        if (region->vm_maptype == MAP_SHARED && region->vm_file && prot & PROT_WRITE)
+        DCHECK(vma->vm_start >= addr && vma->vm_end <= limit);
+        if (vma->vm_maptype == MAP_SHARED && vma->vm_file && prot & PROT_WRITE)
         {
             /* Block the mapping if we're trying to mprotect a shared mapping to PROT_WRITE while
              * not having the necessary perms on the file.
              */
 
-            struct file *file = region->vm_file;
+            struct file *file = vma->vm_file;
             bool fd_has_write = fd_may_access(file, FILE_ACCESS_WRITE);
 
             if (!fd_has_write)
                 return -EACCES;
         }
 
-        int old_prots = region->vm_flags;
+        int old_prots = vma->vm_flags;
         int new_prots = prot;
-        unsigned long vma_end = region->vm_end;
-        unsigned long end = ALIGN_TO(min(addr + size, vma_end), 4096);
-        unsigned long mprotect_size = end - addr;
-        DCHECK((mprotect_size & (PAGE_SIZE - 1)) == 0);
-
-        vm_mprotect_handle_prot(region, &new_prots);
-        vm_do_mmu_mprotect(as, (void *) addr, mprotect_size >> PAGE_SHIFT, old_prots, new_prots);
-
-        if (region->vm_end == limit)
+        vm_mprotect_handle_prot(vma, &new_prots);
+        vm_do_mmu_mprotect(as, (void *) vma->vm_start, (vma->vm_end - vma->vm_start) >> PAGE_SHIFT,
+                           old_prots, new_prots);
+        if (vma->vm_end == limit)
             break;
-
-        addr += mprotect_size;
-        size -= mprotect_size;
-        region = containerof_null_safe(bst_next(&as->region_tree, &region->vm_tree_node),
-                                       struct vm_area_struct, vm_tree_node);
     }
 
+    validate_mm_tree(as);
     return 0;
 }
 
@@ -1792,16 +1730,19 @@ void vm_destroy_addr_space(struct mm_address_space *mm)
 {
     bool free_pgd = true;
 
-    /* First, iterate through the rb tree and free/unmap stuff */
+    /* First, iterate through the maple tree and free/unmap stuff */
     scoped_mutex g{mm->vm_lock};
 
     vm_area_struct *entry;
-
-    bst_for_every_entry_delete(&mm->region_tree, entry, vm_area_struct, vm_tree_node)
+    void *entry_;
+    unsigned long index = 0;
+    mt_for_each(&mm->region_tree, entry_, index, -1UL)
     {
+        entry = (vm_area_struct *) entry_;
         vm_destroy_area(entry);
     }
 
+    mtree_destroy(&mm->region_tree);
     assert(mm->resident_set_size == 0);
     assert(mm->shared_set_size == 0);
     assert(mm->virtual_memory_size == 0);
@@ -2238,9 +2179,6 @@ int vm_create_address_space(struct mm_address_space *mm)
     assert(mm->active_mask.is_empty() == true);
 
     mutex_init(&mm->vm_lock);
-
-    bst_root_initialize(&mm->region_tree);
-
     return 0;
 }
 
@@ -2280,7 +2218,8 @@ void vm_remove_region(struct mm_address_space *as, struct vm_area_struct *region
 {
     MUST_HOLD_MUTEX(&as->vm_lock);
 
-    bst_delete(&as->region_tree, &region->vm_tree_node);
+    void *ret = mtree_erase(&as->region_tree, region->vm_start);
+    CHECK(ret == region);
 }
 
 int vm_add_region(struct mm_address_space *as, struct vm_area_struct *region)
@@ -2294,57 +2233,41 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size) REQUIRES
 {
     unsigned long addr = (unsigned long) __addr & -PAGE_SIZE;
     unsigned long limit = ALIGN_TO(((unsigned long) __addr) + size, PAGE_SIZE);
-    size = limit - addr;
     struct list_head list = LIST_HEAD_INIT(list);
 
     MUST_HOLD_MUTEX(&as->vm_lock);
 
-    struct vm_area_struct *region = vm_search(as, (void *) addr, PAGE_SIZE);
-    if (!region)
+    struct vm_area_struct *vma = vm_search(as, (void *) addr, PAGE_SIZE);
+    if (!vma)
         return -EINVAL;
-
-    /* Split the head, if needed */
-    if (addr > region->vm_start)
-    {
-        region = vm_split_region(as, region, addr, false);
-        if (!region)
-            return -ENOMEM;
-        DCHECK(addr == region->vm_start);
-    }
 
     /* Gather munmap regions into our local list. No permanent changes are done in this loop,
      * while regions are live *except unlinking from the BST*.
      */
 
-    while (region)
+    VMA_ITERATOR(vmi, as, addr, limit);
+
+    void *entry_;
+    mas_for_each(&vmi.mas, entry_, vmi.end)
     {
-        /* Split the tail, if needed */
-        if (limit < region->vm_end)
-        {
-            region = vm_split_region(as, region, limit, true);
-            if (!region)
-                goto restore;
-            DCHECK(limit == region->vm_end);
-        }
-
-        addr = region->vm_end;
-
-        struct vm_area_struct *next = containerof_null_safe(
-            bst_next(&as->region_tree, &region->vm_tree_node), struct vm_area_struct, vm_tree_node);
-        /* Note: vm_detached_node and tree_node alias each other, so we need to remove first, add
-         * later.
-         */
-        vm_remove_region(as, region);
-        list_add_tail(&region->vm_detached_node, &list);
-
-        if (limit == region->vm_end)
+        vma = (vm_area_struct *) entry_;
+        if (vma->vm_start >= limit)
             break;
-        region = next;
+        vma = vma_prepare_modify(&vmi, vma, addr, limit);
+        if (!vma)
+            goto restore;
+
+        DCHECK(vma->vm_start >= addr && vma->vm_end <= limit);
+        CHECK(mas_erase(&vmi.mas) == vma);
+        list_add_tail(&vma->vm_detached_node, &list);
+        if (limit == vma->vm_end)
+            break;
     }
 
     list_for_every_safe (&list)
     {
-        struct vm_area_struct *vma = container_of(l, struct vm_area_struct, vm_tree_node);
+        vma = container_of(l, struct vm_area_struct, vm_detached_node);
+        DCHECK(vma->vm_start >= addr && vma->vm_end <= limit);
         bool is_shared = is_mapping_shared(vma);
         unsigned long sz = vma->vm_end - vma->vm_start;
 
@@ -2357,17 +2280,18 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size) REQUIRES
             decrement_vm_stat(as, shared_set_size, sz);
     }
 
+    validate_mm_tree(as);
     return 0;
 restore:
     /* Something back there just failed, restore the old regions and -ENOMEM */
     list_for_every_safe (&list)
     {
-        struct vm_area_struct *vma = container_of(l, struct vm_area_struct, vm_tree_node);
+        vma = container_of(l, struct vm_area_struct, vm_detached_node);
         list_remove(&vma->vm_detached_node);
-        bst_node_initialize(&vma->vm_tree_node);
         vm_insert_region(as, vma);
     }
 
+    validate_mm_tree(as);
     return -ENOMEM;
 }
 
@@ -2410,25 +2334,20 @@ void vm_invalidate_range(unsigned long addr, size_t pages)
     return mmu_invalidate_range(addr, pages, get_current_address_space());
 }
 
-struct vm_area_struct *vm_next_region(mm_address_space *as, vm_area_struct *region)
-{
-    auto node = bst_next(&as->region_tree, &region->vm_tree_node);
-
-    return node ? container_of(node, vm_area_struct, vm_tree_node) : nullptr;
-}
-
 bool vm_can_expand(struct mm_address_space *as, struct vm_area_struct *region, size_t new_size)
 {
     /* Can always shrink the mapping */
     if (new_size < region->vm_end - region->vm_start)
         return true;
 
-    auto next = vm_next_region(as, region);
+    unsigned long index = region->vm_end;
+    void *ret = mt_find_after(&as->region_tree, &index, as->end);
 
     // If there's no region after this one, we're clear to expand
     // TODO: What if we overflow here?
-    if (!next)
+    if (!ret)
         return true;
+    struct vm_area_struct *next = (struct vm_area_struct *) ret;
 
     /* Calculate the hole size, and if >= new_size, we're good */
     size_t hole_size = next->vm_start - region->vm_start;
@@ -2447,6 +2366,10 @@ int __vm_expand_mapping(struct vm_area_struct *region, size_t new_size)
     if (is_mapping_shared(region))
         increment_vm_stat(region->vm_mm, shared_set_size, diff);
 
+    int st = mtree_store_range(&region->vm_mm->region_tree, region->vm_start, region->vm_end - 1,
+                               region, GFP_KERNEL);
+    CHECK(st == 0);
+    validate_mm_tree(region->vm_mm);
     return 0;
 }
 
@@ -2891,17 +2814,28 @@ int sys_msync(void *ptr, size_t length, int flags)
     /* Hogging the vm_lock is bad mkay, todo... */
     scoped_mutex g{as->vm_lock};
 
-    struct vm_area_struct *vma = vm_search(as, (void *) addr, PAGE_SIZE);
+    struct vm_area_struct *vma = vm_search(as, (void *) addr, length);
 
     if (vma)
     {
         /* Check if start <= addr */
         if (vma->vm_start > addr)
             return -ENOMEM;
+        /* The first vma may have a gap wrt the addr, so readjust it */
+        addr = vma->vm_start;
     }
+    else
+        return -ENOMEM;
 
-    while (vma)
+    VMA_ITERATOR(vmi, as, addr, limit);
+    void *entry_;
+    mas_for_each(&vmi.mas, entry_, vmi.end)
     {
+        vma = (vm_area_struct *) entry_;
+
+        /* We must watch out for gaps in the address space and -ENOMEM there */
+        if (vma->vm_start != addr)
+            break;
         if (vma->vm_start > limit || vma->vm_end < addr)
             break;
         unsigned long to_sync = cul::min(length, vma->vm_end - addr);
@@ -2921,16 +2855,11 @@ int sys_msync(void *ptr, size_t length, int flags)
 
         addr += to_sync;
         length -= to_sync;
-        vma = containerof_null_safe(bst_next(&as->region_tree, &vma->vm_tree_node),
-                                    struct vm_area_struct, vm_tree_node);
         if (!length)
         {
             st = 0;
             break;
         }
-
-        if (vma && vma->vm_start != addr)
-            break;
     }
 
     return st;
@@ -2948,7 +2877,6 @@ expected<ref_guard<mm_address_space>, int> mm_address_space::create()
         return unexpected<int>{-ENOENT};
 
     spinlock_init(&as->page_table_lock);
-    bst_root_initialize(&as->region_tree);
 
     int st = vm_clone_as(as.get());
     if (st < 0)
@@ -2969,7 +2897,6 @@ expected<ref_guard<mm_address_space>, int> mm_address_space::fork()
         return unexpected<int>{-ENOENT};
 
     spinlock_init(&as->page_table_lock);
-    bst_root_initialize(&as->region_tree);
 
     int st = vm_fork_address_space(as.get());
     if (st < 0)

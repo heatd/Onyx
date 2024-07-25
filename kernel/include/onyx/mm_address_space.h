@@ -11,6 +11,7 @@
 #include <lib/binary_search_tree.h>
 
 #include <onyx/cpumask.h>
+#include <onyx/maple_tree.h>
 #include <onyx/mutex.h>
 
 #include <platform/vm.h>
@@ -42,7 +43,7 @@ struct mm_address_space
     unsigned long refc;
 #endif
     /* Virtual address space WAVL tree */
-    struct bst_root region_tree;
+    struct maple_tree region_tree;
     unsigned long start CPP_DFLINIT;
     unsigned long end CPP_DFLINIT;
     struct mutex vm_lock CPP_DFLINIT;
@@ -88,7 +89,7 @@ struct mm_address_space
     constexpr mm_address_space()
     {
         spinlock_init(&page_table_lock);
-        bst_root_initialize(&region_tree);
+        region_tree = MTREE_INIT(region_tree, MT_FLAGS_ALLOC_RANGE | MT_FLAGS_LOCK_EXTERN);
     }
 
     /**
