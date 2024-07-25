@@ -130,7 +130,7 @@ struct vm_area_struct
     unsigned long vm_end;
 
     union {
-        struct bst_node vm_tree_node;
+        /* TODO: Can we union this with something else? */
         struct list_head vm_detached_node;
     };
 
@@ -800,8 +800,11 @@ template <typename Callable>
 inline void vm_for_every_region(mm_address_space &as, Callable func)
 {
     vm_area_struct *entry;
-    bst_for_every_entry(&as.region_tree, entry, vm_area_struct, vm_tree_node)
+    unsigned long index = 0;
+    void *entry_;
+    mt_for_each(&as.region_tree, entry_, index, -1UL)
     {
+        entry = (vm_area_struct *) entry_;
         if (!func(entry))
             break;
     }
