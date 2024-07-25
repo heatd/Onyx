@@ -20,7 +20,19 @@ void *copy_page_to_page(void *p1, void *p2);
 #define containerof_null_safe(ptr, type, member) \
     ((ptr) == NULL ? NULL : container_of(ptr, type, member))
 #ifndef __cplusplus
-#define min(x, y) (x < y ? x : y)
+#define min(x, y)              \
+    ({                         \
+        __auto_type __x = x;   \
+        __auto_type __y = y;   \
+        __x < __y ? __x : __y; \
+    })
+
+#define max(x, y)              \
+    ({                         \
+        __auto_type __x = x;   \
+        __auto_type __y = y;   \
+        __x > __y ? __x : __y; \
+    })
 #else
 
 template <typename Type>
