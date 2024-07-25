@@ -39,5 +39,10 @@ fi
 
 touch -r dash/ -c dash/*
 
+# Setup autotools aux files
+cd dash
+./autogen.sh
+cd ..
+
 cd ..
 
