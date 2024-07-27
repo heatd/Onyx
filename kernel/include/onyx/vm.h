@@ -57,6 +57,7 @@ __BEGIN_CDECLS
 #define VM_WP            (1 << 7)
 #define VM_DONT_MAP_OVER (1 << 8)
 #define VM_NOFLUSH       (1 << 9)
+#define VM_SHARED        (1 << 10)
 
 /* Internal flags used by the mm code */
 #define __VM_CACHE_TYPE_REGULAR     0
@@ -86,11 +87,9 @@ static inline unsigned long vm_prot_to_cache_type(uint64_t prot)
 
 #define PHYS_TO_VIRT(x) (void *) ((uintptr_t) (x) + PHYS_BASE)
 
-#define VM_PFNMAP               (1 << 1)
-#define VM_USING_MAP_SHARED_OPT (1 << 2)
+#define VM_PFNMAP (1 << 1)
 
 struct vm_object;
-struct amap;
 struct fault_info;
 
 struct vm_pf_context
@@ -135,7 +134,6 @@ struct vm_area_struct
     };
 
     int vm_flags;
-    int vm_maptype;
     struct mm_address_space *vm_mm;
     const struct vm_operations *vm_ops;
     struct file *vm_file;
@@ -147,6 +145,16 @@ struct vm_area_struct
 static inline unsigned long vma_pages(const struct vm_area_struct *vma)
 {
     return (vma->vm_end - vma->vm_start) >> PAGE_SHIFT;
+}
+
+static inline bool vma_shared(const struct vm_area_struct *vma)
+{
+    return vma->vm_flags & VM_SHARED;
+}
+
+static inline bool vma_private(const struct vm_area_struct *vma)
+{
+    return !vma_shared(vma);
 }
 
 #define VM_OK      0x0
@@ -426,14 +434,6 @@ void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags);
  */
 void *__map_pages_to_vaddr(struct mm_address_space *as, void *virt, void *phys, size_t size,
                            size_t flags);
-
-/**
- * @brief Determines if a mapping is shared.
- *
- * @param region A pointer to the vm_area_struct.
- * @return True if shared, false if not.
- */
-bool is_mapping_shared(struct vm_area_struct *region);
 
 /**
  * @brief Determines if a mapping is file backed.

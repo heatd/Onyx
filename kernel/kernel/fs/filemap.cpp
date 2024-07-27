@@ -647,13 +647,12 @@ static int filemap_fault(struct vm_pf_context *ctx) NO_THREAD_SAFETY_ANALYSIS
 
     /* We need to lock the page in case we're mapping it (that is, it's either a read-fault on
      * a private region, or any fault on a MAP_SHARED). */
-    bool locked = (region->vm_maptype == MAP_PRIVATE && !ctx->info->write) ||
-                  region->vm_maptype == MAP_SHARED;
+    bool locked = (vma_private(region) && !ctx->info->write) || vma_shared(region);
 
     /* Permission checks have already been handled before .fault() */
 
     /* If a page was present, use that as the CoW source */
-    if (region->vm_maptype == MAP_PRIVATE && ctx->mapping_info & PAGE_PRESENT)
+    if (vma_private(region) && ctx->mapping_info & PAGE_PRESENT)
     {
         page = phys_to_page(MAPPING_INFO_PADDR(ctx->mapping_info));
         DCHECK(info->write && !(ctx->mapping_info & PAGE_WRITABLE));
@@ -694,7 +693,7 @@ static int filemap_fault(struct vm_pf_context *ctx) NO_THREAD_SAFETY_ANALYSIS
     }
     else
     {
-        if (region->vm_maptype == MAP_PRIVATE)
+        if (vma_private(region))
         {
             DCHECK(!locked);
             st = filemap_mkwrite_private(ctx, page);
