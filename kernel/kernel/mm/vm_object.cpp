@@ -540,8 +540,15 @@ bool vm_obj_remove_page(struct vm_object *obj, struct page *page)
     if (__atomic_load_n(&page->ref, __ATOMIC_RELAXED) > expected_refs)
         return false;
     obj->unmap_page(page->pageoff << PAGE_SHIFT);
+    if (page_mapcount(page) > 0)
+    {
+        /* It's entirely possible the page's mapcount is larger than 0. If, for instance, the page
+         * removal and a fork race in any way (fork does not take the page lock). In such cases,
+         * fail to remove. If mapcount is 0, we know it is stable (it cannot be forked, because it
+         * is unmapped; and, since we hold the page lock, no new mappers may arise.) */
+        return false;
+    }
     /* After this, page->ref must be 1 (if the VM system is working properly) */
-    CHECK_PAGE(page_mapcount(page) == 0, page);
     CHECK_PAGE(page->ref == 1, page);
     obj->vm_pages.store(page->pageoff, 0);
     return true;
