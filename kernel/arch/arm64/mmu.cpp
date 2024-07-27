@@ -1124,7 +1124,7 @@ static int arm64_mmu_fork(PML *parent_table, PML *child_table, unsigned int pt_l
 
         if (pt_level == PT_LEVEL || is_huge_page)
         {
-            const bool should_cow = old_region->vm_maptype == MAP_PRIVATE;
+            const bool should_cow = vma_private(old_region);
             child_table->entries[i] = pt_entry | (should_cow ? ARM64_MMU_READ_ONLY : 0);
             if (should_cow)
             {

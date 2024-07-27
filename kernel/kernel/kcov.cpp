@@ -292,7 +292,7 @@ void *kcov_mmap(struct vm_area_struct *area, struct file *node)
 {
     if (area->vm_offset != 0)
         return errno = EINVAL, nullptr;
-    if (area->vm_maptype != MAP_SHARED)
+    if (!vma_shared(area))
         return errno = EINVAL, nullptr;
 
     auto data = (struct kcov_data *) node->private_data;

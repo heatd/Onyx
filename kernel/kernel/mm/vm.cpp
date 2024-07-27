@@ -139,7 +139,7 @@ static void validate_mm_tree(struct mm_address_space *mm)
         }
 
         counting_vss += vma->vm_end - vma->vm_start;
-        if (vma->vm_maptype == MAP_SHARED)
+        if (vma_shared(vma))
             counting_sss += vma->vm_end - vma->vm_start;
     }
 
@@ -152,8 +152,8 @@ static void validate_mm_tree(struct mm_address_space *mm)
 
     if (counting_sss != mm->shared_set_size)
     {
-        pr_err("mm: mm %p has wrong shared set size (%lx vs %lx bytes)\n", mm, counting_vss,
-               mm->virtual_memory_size);
+        pr_err("mm: mm %p has wrong shared set size (%lx vs %lx bytes)\n", mm, counting_sss,
+               mm->shared_set_size);
         goto print_tree;
     }
 
@@ -167,9 +167,8 @@ print_tree:
         const char *name = "[anon]";
         if (vma->vm_file)
             name = vma->vm_file->f_dentry->d_name;
-        pr_err("  [%016lx, %016lx] vma ([%016lx, %016lx] maple tree) flags %x maptype %x  %s\n",
-               vma->vm_start, vma->vm_end, vmi.mas.index, vmi.mas.last + 1, vma->vm_flags,
-               vma->vm_maptype, name);
+        pr_err("  [%016lx, %016lx] vma ([%016lx, %016lx] maple tree) flags %x  %s\n", vma->vm_start,
+               vma->vm_end, vmi.mas.index, vmi.mas.last + 1, vma->vm_flags, name);
     }
 
     pr_err("mm: dump done.\n");
@@ -302,7 +301,7 @@ static inline bool inode_requires_wb(struct inode *i)
 
 bool vm_mapping_requires_wb(struct vm_area_struct *reg)
 {
-    return reg->vm_maptype == MAP_SHARED && reg->vm_file && inode_requires_wb(reg->vm_file->f_ino);
+    return vma_shared(reg) && reg->vm_file && inode_requires_wb(reg->vm_file->f_ino);
 }
 
 bool vm_mapping_is_anon(struct vm_area_struct *reg)
@@ -322,8 +321,6 @@ void vm_make_anon(struct vm_area_struct *reg)
         fd_put(reg->vm_file);
         reg->vm_file = nullptr;
     }
-
-    reg->vm_maptype |= MAP_ANONYMOUS;
 }
 
 bool vm_mapping_requires_write_protect(struct vm_area_struct *reg)
@@ -434,7 +431,7 @@ static bool fork_vm_area_struct(struct vm_area_struct *region, struct mm_address
         fd_get(new_region->vm_file);
 
     vmo_failure = false;
-    is_private = !is_mapping_shared(new_region);
+    is_private = vma_private(new_region);
     needs_to_fork_memory = is_private;
 
     if (needs_to_fork_memory)
@@ -586,8 +583,8 @@ void vm_change_perms(void *range, size_t pages, int perms) NO_THREAD_SAFETY_ANAL
         mutex_unlock(&as->vm_lock);
 }
 
-static struct vm_area_struct *vma_create(struct vma_iterator *vmi, int maptype,
-                                         unsigned int vm_flags, struct file *file, off_t off)
+static struct vm_area_struct *vma_create(struct vma_iterator *vmi, unsigned int vm_flags,
+                                         struct file *file, off_t off)
 {
     int err = -ENOMEM;
     size_t size = vmi->end - vmi->index + 1;
@@ -602,7 +599,6 @@ static struct vm_area_struct *vma_create(struct vma_iterator *vmi, int maptype,
     vma->vm_start = vmi->index;
     vma->vm_end = vmi->end + 1;
     vma->vm_flags = vm_flags;
-    vma->vm_maptype = maptype;
     vma->vm_mm = vmi->mm;
 
     err = mas_store_gfp(&vmi->mas, vma, GFP_KERNEL);
@@ -643,7 +639,7 @@ static struct vm_area_struct *vma_create(struct vma_iterator *vmi, int maptype,
 
 out:
     increment_vm_stat(vmi->mm, virtual_memory_size, size);
-    if (maptype == MAP_SHARED)
+    if (vma_shared(vma))
         increment_vm_stat(vmi->mm, shared_set_size, size);
 
     return vma;
@@ -693,13 +689,14 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
     int vm_prot = VM_USER | ((prot & (PROT_READ | PROT_WRITE | PROT_EXEC)) ? VM_READ : 0) |
                   ((prot & PROT_WRITE) ? VM_WRITE : 0) | ((prot & PROT_EXEC) ? VM_EXEC : 0);
 
+    if (flags & MAP_SHARED)
+        vm_prot |= VM_SHARED;
+
     /* Sanitize the address and length */
     const auto aligned_len = pages << PAGE_SHIFT;
 
     if (aligned_len > arch_low_half_max)
-    {
         return ERR_PTR(-ENOMEM);
-    }
 
     if (is_higher_half(addr) || virt & (PAGE_SIZE - 1) || virt > arch_low_half_max - aligned_len ||
         virt + aligned_len < arch_low_half_min)
@@ -732,7 +729,7 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
     if (flags & MAP_ANONYMOUS)
         file = nullptr;
 
-    vma = vma_create(&vmi, flags & (MAP_SHARED | MAP_PRIVATE), vm_prot, file, off);
+    vma = vma_create(&vmi, vm_prot, file, off);
     if (IS_ERR(vma))
         return (void *) vma;
 
@@ -820,7 +817,6 @@ static void vm_copy_region(const struct vm_area_struct *source, struct vm_area_s
         fd_get(dest->vm_file);
 
     dest->vm_flags = source->vm_flags;
-    dest->vm_maptype = source->vm_maptype;
     dest->vm_offset = source->vm_offset;
     dest->vm_mm = source->vm_mm;
     dest->vm_obj = source->vm_obj;
@@ -981,7 +977,7 @@ int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot
         if (!vma)
             return -ENOMEM;
         DCHECK(vma->vm_start >= addr && vma->vm_end <= limit);
-        if (vma->vm_maptype == MAP_SHARED && vma->vm_file && prot & PROT_WRITE)
+        if (vma_shared(vma) && vma->vm_file && prot & PROT_WRITE)
         {
             /* Block the mapping if we're trying to mprotect a shared mapping to PROT_WRITE while
              * not having the necessary perms on the file.
@@ -1236,7 +1232,7 @@ static int vm_prepare_write(struct inode *inode, struct page *p)
 
 static bool vm_mapping_is_cow(struct vm_area_struct *entry)
 {
-    return entry->vm_maptype == MAP_PRIVATE;
+    return vma_private(entry);
 }
 
 static int __vm_handle_pf(struct vm_area_struct *entry, struct fault_info *info)
@@ -1342,10 +1338,8 @@ static void vm_destroy_area(vm_area_struct *region)
 
     decrement_vm_stat(region->vm_mm, virtual_memory_size, region->vm_end - region->vm_start);
 
-    if (is_mapping_shared(region))
-    {
+    if (vma_shared(region))
         decrement_vm_stat(region->vm_mm, shared_set_size, region->vm_end - region->vm_start);
-    }
 
     vma_destroy(region);
 }
@@ -1695,7 +1689,7 @@ void vm_do_fatal_page_fault(struct fault_info *info)
  */
 int vma_setup_backing(struct vm_area_struct *region, size_t pages, bool is_file_backed)
 {
-    bool is_shared = is_mapping_shared(region);
+    bool is_shared = vma_shared(region);
 
     if (!is_file_backed && is_shared)
     {
@@ -1731,17 +1725,6 @@ int vma_setup_backing(struct vm_area_struct *region, size_t pages, bool is_file_
     }
 
     return 0;
-}
-
-/**
- * @brief Determines if a mapping is shared.
- *
- * @param region A pointer to the vm_area_struct.
- * @return True if shared, false if not.
- */
-bool is_mapping_shared(struct vm_area_struct *region)
-{
-    return region->vm_maptype == MAP_SHARED;
 }
 
 /**
@@ -1867,7 +1850,7 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size) REQUIRES
     {
         vma = container_of(l, struct vm_area_struct, vm_detached_node);
         DCHECK(vma->vm_start >= addr && vma->vm_end <= limit);
-        bool is_shared = is_mapping_shared(vma);
+        bool is_shared = vma_shared(vma);
         unsigned long sz = vma->vm_end - vma->vm_start;
 
         vm_mmu_unmap(as, (void *) vma->vm_start, vma_pages(vma), vma);
@@ -1963,7 +1946,7 @@ static int __vm_expand_mapping(struct vm_area_struct *region, size_t new_size)
 
     region->vm_end += diff;
     increment_vm_stat(region->vm_mm, virtual_memory_size, diff);
-    if (is_mapping_shared(region))
+    if (vma_shared(region))
         increment_vm_stat(region->vm_mm, shared_set_size, diff);
 
     int st = mtree_store_range(&region->vm_mm->region_tree, region->vm_start, region->vm_end - 1,
@@ -2244,7 +2227,7 @@ int get_phys_pages(void *_addr, unsigned int flags, struct page **pages, size_t 
             goto out;
         }
 
-        if (reg->vm_maptype == MAP_SHARED)
+        if (vma_shared(reg))
             had_shared_pages = true;
 
         /* Do a permission check. */
@@ -2352,7 +2335,7 @@ int sys_msync(void *ptr, size_t length, int flags)
         unsigned long to_sync = cul::min(length, vma->vm_end - addr);
         struct file *filp = vma->vm_file;
 
-        if (flags & MS_SYNC && filp && is_mapping_shared(vma))
+        if (flags & MS_SYNC && filp && vma_shared(vma))
         {
             unsigned long start = vma->vm_offset + addr - vma->vm_start;
             unsigned long end = start + to_sync;
