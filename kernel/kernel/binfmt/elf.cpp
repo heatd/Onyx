@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2022 Pedro Falcato
+ * Copyright (c) 2017 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -10,6 +10,7 @@
 #include <stdio.h>
 
 #include <onyx/binfmt.h>
+#include <onyx/err.h>
 #include <onyx/exec.h>
 #include <onyx/kunit.h>
 #include <onyx/process.h>
@@ -202,9 +203,9 @@ static void *elf_load(struct binfmt_args *args, elf_ehdr *header)
     {
         base = vm_mmap(nullptr, vm_size_to_pages(needed_size) << PAGE_SHIFT, PROT_NONE,
                        MAP_ANONYMOUS | MAP_PRIVATE, nullptr, 0);
-        if (!base)
+        if (IS_ERR(base))
         {
-            errno = ENOMEM;
+            errno = PTR_ERR(base);
             goto error1;
         }
     }
@@ -286,9 +287,11 @@ static void *elf_load(struct binfmt_args *args, elf_ehdr *header)
 
             // printk("mmaping [%lx, %lx]\n", aligned_address, aligned_address + (pages <<
             // PAGE_SHIFT));
-            if (!vm_mmap((void *) addr, pages << PAGE_SHIFT, prot, MAP_PRIVATE | MAP_FIXED, fd,
-                         offset))
+            void *res = vm_mmap((void *) addr, pages << PAGE_SHIFT, prot, MAP_PRIVATE | MAP_FIXED,
+                                fd, offset);
+            if (IS_ERR(res))
             {
+                errno = PTR_ERR(res);
                 goto error2;
             }
 
@@ -319,10 +322,11 @@ static void *elf_load(struct binfmt_args *args, elf_ehdr *header)
                     if (zero_pages_len % PAGE_SIZE)
                         zero_pages++;
 
-                    if (!vm_mmap(zero_pages_base, zero_pages << PAGE_SHIFT, prot,
-                                 MAP_PRIVATE | MAP_FIXED | MAP_ANON, nullptr, 0))
+                    res = vm_mmap(zero_pages_base, zero_pages << PAGE_SHIFT, prot,
+                                  MAP_PRIVATE | MAP_FIXED | MAP_ANON, nullptr, 0);
+                    if (IS_ERR(res))
                     {
-                        errno = ENOMEM;
+                        errno = PTR_ERR(res);
                         goto error2;
                     }
                 }

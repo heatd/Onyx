@@ -1,11 +1,12 @@
 /*
- * Copyright (c) 2022 - 2023 Pedro Falcato
+ * Copyright (c) 2022 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
 
+#include <onyx/err.h>
 #include <onyx/internal_abi.h>
 #include <onyx/process.h>
 #include <onyx/scheduler.h>
@@ -191,8 +192,8 @@ int process_alloc_stack(struct stack_info *info)
 {
     void *ptr =
         vm_mmap(nullptr, info->length, PROT_WRITE | PROT_READ, MAP_ANON | MAP_PRIVATE, nullptr, 0);
-    if (!ptr)
-        return -ENOMEM;
+    if (IS_ERR(ptr))
+        return PTR_ERR(ptr);
     info->base = ptr;
     info->top = reinterpret_cast<void *>((unsigned long) ptr + info->length);
 
