@@ -375,7 +375,7 @@ ssize_t user_memset(void *data, int val, size_t len);
  * @param is_file_backed True if file backed.
  * @return 0 on success, negative for errors.
  */
-int vm_area_struct_setup_backing(struct vm_area_struct *region, size_t pages, bool is_file_backed);
+int vma_setup_backing(struct vm_area_struct *region, size_t pages, bool is_file_backed);
 
 /**
  * @brief Updates the memory map's ranges.
@@ -479,7 +479,7 @@ struct file;
  * @param flags The mapping flags (see MAP_* as in mmap(2)).
  * @param file An optional pointer to a file, if it is a file mapping.
  * @param off The offset into the file, if it is a file mapping.
- * @return A pointer to the new memory mapping, or NULL if it failed (errno is set).
+ * @return A pointer to the new memory mapping, or an ERR_PTR on error.
  */
 void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file, off_t off);
 

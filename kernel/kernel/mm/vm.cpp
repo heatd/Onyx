@@ -19,6 +19,7 @@
 #include <onyx/cpu.h>
 #include <onyx/dentry.h>
 #include <onyx/dev.h>
+#include <onyx/err.h>
 #include <onyx/file.h>
 #include <onyx/filemap.h>
 #include <onyx/gen/trace_vm.h>
@@ -43,7 +44,6 @@
 #include <onyx/vm.h>
 #include <onyx/vm_layout.h>
 
-#include <libdict/dict.h>
 #include <uapi/fcntl.h>
 #include <uapi/memstat.h>
 
@@ -111,6 +111,82 @@ static inline void vma_free(vm_area_struct *region)
     kmem_cache_free(vm_area_struct_cache, (void *) region);
 }
 
+struct vma_iterator
+{
+    unsigned long index;
+    unsigned long end;
+    struct mm_address_space *mm;
+    struct ma_state mas;
+};
+
+#define VMA_ITERATOR(name, mm, index, end)           \
+    struct vma_iterator name = {index, (end) -1, mm, \
+                                MA_STATE_INIT(&(mm)->region_tree, index, (end) -1)}
+
+#define CONFIG_DEBUG_MM_MMAP
+#ifdef CONFIG_DEBUG_MM_MMAP
+static void validate_mm_tree(struct mm_address_space *mm)
+{
+    VMA_ITERATOR(vmi, mm, 0, -1UL);
+    void *entry_;
+    size_t counting_vss = 0;
+    size_t counting_sss = 0;
+    mas_for_each(&vmi.mas, entry_, -1UL)
+    {
+        struct vm_area_struct *vma = (struct vm_area_struct *) entry_;
+        if (vma->vm_start != vmi.mas.index || vma->vm_end != vmi.mas.last + 1)
+        {
+            pr_err("mm: vma bounds [%016lx, %016lx] do not match maple tree [%016lx, %016lx]\n",
+                   vma->vm_start, vma->vm_end, vmi.mas.index, vmi.mas.last + 1);
+            goto print_tree;
+        }
+
+        counting_vss += vma->vm_end - vma->vm_start;
+        if (vma->vm_maptype == MAP_SHARED)
+            counting_sss += vma->vm_end - vma->vm_start;
+    }
+
+    if (counting_vss != mm->virtual_memory_size)
+    {
+        pr_err("mm: mm %p has wrong vss (%lx vs %lx bytes)\n", mm, counting_vss,
+               mm->virtual_memory_size);
+        goto print_tree;
+    }
+
+    if (counting_sss != mm->shared_set_size)
+    {
+        pr_err("mm: mm %p has wrong shared set size (%lx vs %lx bytes)\n", mm, counting_vss,
+               mm->virtual_memory_size);
+        goto print_tree;
+    }
+
+    return;
+print_tree:
+    pr_err("mm: dumping vmas for mm %p...\n", mm);
+    mas_reset(&vmi.mas);
+    mas_for_each(&vmi.mas, entry_, -1UL)
+    {
+        struct vm_area_struct *vma = (struct vm_area_struct *) entry_;
+        const char *name = "[anon]";
+        if (vma->vm_file)
+            name = vma->vm_file->f_dentry->d_name;
+        pr_err("  [%016lx, %016lx] vma ([%016lx, %016lx] maple tree) flags %x maptype %x  %s\n",
+               vma->vm_start, vma->vm_end, vmi.mas.index, vmi.mas.last + 1, vma->vm_flags,
+               vma->vm_maptype, name);
+    }
+
+    pr_err("mm: dump done.\n");
+}
+
+#else
+
+#define validate_mm_tree(mm) \
+    do                       \
+    {                        \
+    } while (0)
+
+#endif
+
 bool vm_insert_region(struct mm_address_space *as, struct vm_area_struct *region)
 {
     return mtree_insert_range(&as->region_tree, region->vm_start, region->vm_end - 1, region,
@@ -144,29 +220,27 @@ struct vm_area_struct *vm_reserve_region(struct mm_address_space *as, unsigned l
     return region;
 }
 
-static struct vm_area_struct *vm_allocate_region(struct mm_address_space *as, unsigned long min,
-                                                 size_t size, u64 flags) REQUIRES(as->vm_lock)
+unsigned long vm_get_base_address(uint64_t flags, uint32_t type);
+
+static int vm_alloc_address(struct vma_iterator *vmi, u64 flags, size_t size, int type)
+    REQUIRES(vmi->mm->vm_lock)
 {
-    if (!vm_test_vs_rlimit(as, size))
-        return errno = ENOMEM, nullptr;
+    struct mm_address_space *mm = vmi->mm;
+    unsigned long min = vm_get_base_address(flags, type);
 
-    MA_STATE(iter, &as->region_tree, 0, -1UL);
-    if (min < as->start)
-        min = as->start;
+    if (min < mm->start)
+        min = mm->start;
+    if (mas_empty_area(&vmi->mas, min, mm->end, size) != 0)
+        return -ENOMEM;
 
-    if (mas_empty_area(&iter, min, as->end, size) != 0)
-        return nullptr;
-
-    unsigned long new_base = iter.index;
+    unsigned long new_base = vmi->mas.index;
     CHECK((new_base & (PAGE_SIZE - 1)) == 0);
     if (!arch_vm_validate_mmap_region(new_base, size, flags))
-        return nullptr;
+        return -ENOMEM;
 
-    struct vm_area_struct *reg = vm_reserve_region(as, new_base, size);
-    if (reg)
-        increment_vm_stat(as, virtual_memory_size, size);
-
-    return reg;
+    vmi->index = vmi->mas.index;
+    vmi->end = vmi->mas.last;
+    return 0;
 }
 
 void vm_addr_init()
@@ -366,25 +440,6 @@ unsigned long vm_get_base_address(uint64_t flags, uint32_t type)
     }
 }
 
-static struct vm_area_struct *__vm_allocate_virt_region(struct mm_address_space *as, uint64_t flags,
-                                                        size_t pages, uint32_t type, uint64_t prot)
-    REQUIRES(as->vm_lock)
-{
-    MUST_HOLD_MUTEX(&as->vm_lock);
-
-    unsigned long base_addr = vm_get_base_address(flags, type);
-    struct vm_area_struct *region = vm_allocate_region(as, base_addr, pages << PAGE_SHIFT, flags);
-
-    if (region)
-    {
-        if (prot & (VM_WRITE | VM_EXEC))
-            prot |= VM_READ;
-        region->vm_flags = prot;
-    }
-
-    return region;
-}
-
 vm_area_struct *vm_search(struct mm_address_space *mm, void *addr, size_t length)
     REQUIRES_SHARED(mm->vm_lock)
 {
@@ -401,44 +456,7 @@ vm_area_struct *vm_search(struct mm_address_space *mm, void *addr, size_t length
 struct vm_area_struct *__vm_create_region_at(struct mm_address_space *mm, void *addr, size_t pages,
                                              uint32_t type, uint64_t prot) REQUIRES(mm->vm_lock)
 {
-    struct vm_area_struct *v = nullptr;
-
-    if (vm_search(mm, addr, pages << PAGE_SHIFT) != nullptr)
-    {
-        /* We found a region, this is not empty! */
-
-#if VM_CREATE_REGION_AT_DEBUG
-        sched_enable_preempt();
-        printk("Failed to map %p - %lx\n", addr, (unsigned long) addr + (pages << PAGE_SHIFT));
-        vm_print_umap();
-        sched_disable_preempt();
-#endif
-
-        errno = EINVAL;
-        return nullptr;
-    }
-
-    if (!vm_test_vs_rlimit(mm, pages << PAGE_SHIFT))
-    {
-        return errno = ENOMEM, nullptr;
-    }
-
-    v = vm_reserve_region(mm, (unsigned long) addr, pages << PAGE_SHIFT);
-    if (!v)
-    {
-        addr = nullptr;
-        errno = ENOMEM;
-        goto return_;
-    }
-
-    increment_vm_stat(mm, virtual_memory_size, pages << PAGE_SHIFT);
-
-    v->vm_start = (unsigned long) addr;
-    v->vm_end = v->vm_start + (pages << PAGE_SHIFT);
-    v->vm_flags = prot;
-
-return_:
-    return v;
+    return nullptr;
 }
 
 /**
@@ -698,6 +716,77 @@ void vm_merge_with_prev(vm_area_struct *reg)
 #endif
 }
 
+static struct vm_area_struct *vma_create(struct vma_iterator *vmi, int maptype,
+                                         unsigned int vm_flags, struct file *file, off_t off)
+{
+    int err = -ENOMEM;
+    size_t size = vmi->end - vmi->index + 1;
+    struct vm_area_struct *vma = nullptr;
+    if (!vm_test_vs_rlimit(vmi->mm, size))
+        goto out_error;
+
+    vma = vma_alloc();
+    if (!vma)
+        goto out_error;
+    memset(vma, 0, sizeof(*vma));
+    vma->vm_start = vmi->index;
+    vma->vm_end = vmi->end + 1;
+    vma->vm_flags = vm_flags;
+    vma->vm_maptype = maptype;
+    vma->vm_mm = vmi->mm;
+
+    err = mas_store_gfp(&vmi->mas, vma, GFP_KERNEL);
+    if (err)
+        goto free_vma;
+
+    if (file)
+    {
+        vma->vm_offset = off;
+        vma->vm_file = file;
+
+        fd_get(file);
+
+        struct inode *ino = file->f_ino;
+
+        if (S_ISCHR(ino->i_mode))
+        {
+            if (!ino->i_fops->mmap)
+            {
+                err = -ENODEV;
+                goto unmap_vma;
+            }
+
+            void *ret = ino->i_fops->mmap(vma, file);
+            if (!ret)
+            {
+                err = -errno;
+                goto unmap_vma;
+            }
+
+            inode_update_atime(ino);
+            goto out;
+        }
+    }
+
+    if (vma_setup_backing(vma, size >> PAGE_SHIFT, file != nullptr) < 0)
+        goto unmap_vma;
+
+out:
+    increment_vm_stat(vmi->mm, virtual_memory_size, size);
+    if (maptype == MAP_SHARED)
+        increment_vm_stat(vmi->mm, shared_set_size, size);
+
+    return vma;
+unmap_vma:
+    if (file)
+        fd_put(file);
+    CHECK(mas_erase(&vmi->mas) == vma);
+free_vma:
+    vma_free(vma);
+out_error:
+    return (struct vm_area_struct *) ERR_PTR(err);
+}
+
 /**
  * @brief Creates a new user-space mapping.
  * Note: This is mmap(2)'s backend and therefore, most semantics are shared
@@ -709,21 +798,19 @@ void vm_merge_with_prev(vm_area_struct *reg)
  * @param flags The mapping flags (see MAP_* as in mmap(2)).
  * @param file An optional pointer to a file, if it is a file mapping.
  * @param off The offset into the file, if it is a file mapping.
- * @return A pointer to the new memory mapping, or NULL if it failed (errno is set).
+ * @return A pointer to the new memory mapping, or an ERR_PTR on error.
  */
 void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file, off_t off)
 {
-    int st = 0;
-    struct vm_area_struct *area = nullptr;
-    bool is_file_mapping = file != nullptr;
-    void *base = nullptr;
+    struct vm_area_struct *vma = nullptr;
+    unsigned long virt = (unsigned long) addr;
     u64 extra_flags = 0;
 
     struct mm_address_space *mm = get_current_address_space();
 
     /* We don't like this offset. */
     if (off & (PAGE_SIZE - 1))
-        return errno = EINVAL, nullptr;
+        return ERR_PTR(-EINVAL);
 
     scoped_mutex g{mm->vm_lock};
 
@@ -733,7 +820,7 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
     if (prot & (PROT_WRITE | PROT_EXEC))
         prot |= PROT_READ;
 
-    int vm_prot = VM_USER | ((prot & PROT_READ) ? VM_READ : 0) |
+    int vm_prot = VM_USER | ((prot & (PROT_READ | PROT_WRITE | PROT_EXEC)) ? VM_READ : 0) |
                   ((prot & PROT_WRITE) ? VM_WRITE : 0) | ((prot & PROT_EXEC) ? VM_EXEC : 0);
 
     /* Sanitize the address and length */
@@ -741,124 +828,46 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 
     if (aligned_len > arch_low_half_max)
     {
-        st = -ENOMEM;
-        goto out_error;
+        return ERR_PTR(-ENOMEM);
     }
 
-    if (is_higher_half(addr) || (unsigned long) addr & (PAGE_SIZE - 1) ||
-        (unsigned long) addr > arch_low_half_max - aligned_len)
+    if (is_higher_half(addr) || virt & (PAGE_SIZE - 1) || virt > arch_low_half_max - aligned_len ||
+        virt + aligned_len < arch_low_half_min)
     {
         if (flags & MAP_FIXED)
-        {
-            st = -ENOMEM;
-            goto out_error;
-        }
+            return ERR_PTR(-ENOMEM);
         else
+        {
             addr = nullptr;
+            virt = 0;
+        }
     }
+
+    VMA_ITERATOR(vmi, mm, virt, virt + aligned_len);
 
     extra_flags = arch_vm_interpret_mmap_hint_flags(addr, flags);
 
-    if (!addr)
+    if (virt)
     {
         if (flags & MAP_FIXED)
-        {
-            st = -ENOMEM;
-            goto out_error;
-        }
-        /* Specified by POSIX, if addr == nullptr, guess an address */
-        area = __vm_allocate_virt_region(mm, VM_ADDRESS_USER | extra_flags, pages, VM_TYPE_SHARED,
-                                         vm_prot);
-    }
-    else
-    {
-        if (flags & MAP_FIXED)
-        {
             __vm_munmap(mm, addr, pages << PAGE_SHIFT);
-        }
-
-        area = __vm_create_region_at(mm, addr, pages, VM_TYPE_REGULAR, vm_prot);
-        if (!area)
-        {
-            if (flags & MAP_FIXED)
-            {
-                st = -ENOMEM;
-                goto out_error;
-            }
-
-            area = __vm_allocate_virt_region(mm, VM_ADDRESS_USER | extra_flags, pages,
-                                             VM_TYPE_REGULAR, vm_prot);
-        }
     }
-
-    if (!area)
-    {
-        st = -ENOMEM;
-        goto out_error;
-    }
-
-    if (flags & MAP_SHARED)
-        area->vm_maptype = MAP_SHARED;
     else
-        area->vm_maptype = MAP_PRIVATE;
-
-    if (is_file_mapping)
     {
-        // printk("Mapping off %lx, size %lx, prots %x\n", off, length, prot);
-
-        /* Set additional meta-data */
-
-        area->vm_offset = off;
-        area->vm_file = file;
-
-        fd_get(file);
-
-        struct inode *ino = file->f_ino;
-
-        if (S_ISCHR(ino->i_mode))
-        {
-            if (!ino->i_fops->mmap)
-            {
-                __vm_munmap(mm, (void *) area->vm_start, pages << PAGE_SHIFT);
-                return errno = ENODEV, nullptr;
-            }
-
-            void *ret = ino->i_fops->mmap(area, file);
-
-            if (ret)
-                inode_update_atime(ino);
-            else
-                __vm_munmap(mm, (void *) area->vm_start, pages << PAGE_SHIFT);
-
-            if (ret)
-                goto out;
-
-            return ret;
-        }
-    }
-    else if (vm_may_merge_with_adj(area))
-    {
-        base = (void *) area->vm_start;
-        vm_merge_with_prev(area);
-        return base;
+        if (vm_alloc_address(&vmi, VM_ADDRESS_USER | extra_flags, aligned_len, VM_TYPE_REGULAR) < 0)
+            return ERR_PTR(-ENOMEM);
+        virt = vmi.index;
     }
 
-    if (vm_area_struct_setup_backing(area, pages, !(flags & MAP_ANONYMOUS)) < 0)
-    {
-        __vm_munmap(mm, (void *) area->vm_start, pages << PAGE_SHIFT);
-        return errno = ENOMEM, nullptr;
-    }
+    if (flags & MAP_ANONYMOUS)
+        file = nullptr;
 
-out:
-    if (flags & MAP_SHARED)
-        increment_vm_stat(mm, shared_set_size, pages << PAGE_SHIFT);
+    vma = vma_create(&vmi, flags & (MAP_SHARED | MAP_PRIVATE), vm_prot, file, off);
+    if (IS_ERR(vma))
+        return (void *) vma;
 
-    base = (void *) area->vm_start;
-
-    return base;
-
-out_error:
-    return errno = -st, nullptr;
+    validate_mm_tree(mm);
+    return (void *) vma->vm_start;
 }
 
 void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off)
@@ -907,12 +916,6 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
     }
 
     ret = vm_mmap(addr, length, prot, flags, file, off);
-
-    if (ret == nullptr)
-    {
-        ret = (void *) (unsigned long) -errno;
-    }
-
     if (file)
         fd_put(file);
 
@@ -983,61 +986,6 @@ static void vma_post_split(struct vm_area_struct *vma, struct vm_area_struct *ne
         spin_unlock(&vma->vm_obj->mapping_lock);
     }
 }
-
-struct vma_iterator
-{
-    unsigned long index;
-    unsigned long end;
-    struct mm_address_space *mm;
-    struct ma_state mas;
-};
-
-#define VMA_ITERATOR(name, mm, index, end)           \
-    struct vma_iterator name = {index, (end) -1, mm, \
-                                MA_STATE_INIT(&(mm)->region_tree, index, (end) -1)}
-
-#ifdef CONFIG_DEBUG_MM_MMAP
-static void validate_mm_tree(struct mm_address_space *mm)
-{
-    VMA_ITERATOR(vmi, mm, 0, -1UL);
-    void *entry_;
-    mas_for_each(&vmi.mas, entry_, -1UL)
-    {
-        struct vm_area_struct *vma = (struct vm_area_struct *) entry_;
-        if (vma->vm_start != vmi.mas.index || vma->vm_end != vmi.mas.last + 1)
-        {
-            pr_err("mm: vma bounds [%016lx, %016lx] do not match maple tree [%016lx, %016lx]\n",
-                   vma->vm_start, vma->vm_end, vmi.mas.index, vmi.mas.last + 1);
-            goto print_tree;
-        }
-    }
-
-    return;
-print_tree:
-    pr_err("mm: dumping vmas for mm %p...\n", mm);
-    mas_reset(&vmi.mas);
-    mas_for_each(&vmi.mas, entry_, -1UL)
-    {
-        struct vm_area_struct *vma = (struct vm_area_struct *) entry_;
-        const char *name = "[anon]";
-        if (vma->vm_file)
-            name = vma->vm_file->f_dentry->d_name;
-        pr_err("  [%016lx, %016lx] vma ([%016lx, %016lx] maple tree) flags %x maptype %x  %s\n",
-               vma->vm_start, vma->vm_end, vmi.mas.index, vmi.mas.last + 1, vma->vm_flags,
-               vma->vm_maptype, name);
-    }
-
-    pr_err("mm: dump done.\n");
-}
-
-#else
-
-#define validate_mm_tree(mm) \
-    do                       \
-    {                        \
-    } while (0)
-
-#endif
 
 static struct vm_area_struct *vm_split_region(struct mm_address_space *as,
                                               struct vm_area_struct *vma, unsigned long addr,
@@ -2025,7 +1973,7 @@ void vm_do_fatal_page_fault(struct fault_info *info)
  * @param is_file_backed True if file backed.
  * @return 0 on success, negative for errors.
  */
-int vm_area_struct_setup_backing(struct vm_area_struct *region, size_t pages, bool is_file_backed)
+int vma_setup_backing(struct vm_area_struct *region, size_t pages, bool is_file_backed)
 {
     bool is_shared = is_mapping_shared(region);
 
@@ -2098,28 +2046,7 @@ bool is_file_backed(struct vm_area_struct *region)
 void *map_page_list(struct page *pl, size_t size, uint64_t prot)
     EXCLUDES(kernel_address_space.vm_lock)
 {
-    // TODO: Maybe also use vmalloc for this?
-    scoped_mutex g{kernel_address_space.vm_lock};
-    struct vm_area_struct *entry = __vm_allocate_virt_region(
-        &kernel_address_space, VM_KERNEL, vm_size_to_pages(size), VM_TYPE_REGULAR, prot);
-    if (!entry)
-        return nullptr;
-    void *vaddr = (void *) entry->vm_start;
-
-    uintptr_t u = (uintptr_t) vaddr;
-    while (pl != nullptr)
-    {
-        if (!map_pages_to_vaddr((void *) u, page_to_phys(pl), PAGE_SIZE, prot))
-        {
-            __vm_munmap(&kernel_address_space, vaddr, size);
-            return nullptr;
-        }
-
-        pl = pl->next_un.next_allocation;
-        u += PAGE_SIZE;
-    }
-
-    return vaddr;
+    return nullptr;
 }
 
 /**
@@ -2154,10 +2081,8 @@ int vm_create_brk(struct mm_address_space *mm)
     mm->brk = vm_mmap(vm_gen_brk_base(), 1 << PAGE_SHIFT, PROT_WRITE,
                       MAP_PRIVATE | MAP_FIXED | MAP_ANON, nullptr, 0);
 
-    if (!mm->brk)
-    {
-        return -ENOMEM;
-    }
+    if (IS_ERR(mm->brk))
+        return PTR_ERR(mm->brk);
 
     return 0;
 }
@@ -2412,12 +2337,7 @@ void *vm_remap_create_new_mapping_of_shared_pages(struct mm_address_space *mm, v
     }
     else
     {
-        new_mapping =
-            vm_allocate_region(mm, (unsigned long) mm->mmap_base, new_size, VM_ADDRESS_USER);
-        if (new_mapping)
-        {
-            new_mapping->vm_flags = old_region->vm_flags;
-        }
+        new_mapping = nullptr;
     }
 
     if (!new_mapping)
