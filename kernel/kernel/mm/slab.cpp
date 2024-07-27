@@ -137,7 +137,7 @@ struct slab_cache *kmem_cache_create(const char *name, size_t size, size_t align
     }
 
     c->objsize = ALIGN_TO(c->objsize, c->alignment);
-    c->redzone = ALIGN_TO(c->redzone, c->alignment);
+    c->redzone = ALIGN_TO(c->redzone / 2, c->alignment) * 2;
 
     if (c->objsize > PAGE_SIZE)
     {
@@ -1131,6 +1131,9 @@ static void kmem_cache_free_pcpu(struct slab_cache *cache, void *ptr)
 
 void kasan_kfree(void *ptr, struct slab_cache *cache, size_t chunk_size)
 {
+    if ((unsigned long) ptr % cache->alignment) [[unlikely]]
+        panic("slab: Bad pointer %p", ptr);
+
     bufctl *buf = (bufctl *) ptr;
 
     if (buf->flags == BUFCTL_PATTERN_FREE) [[unlikely]]
