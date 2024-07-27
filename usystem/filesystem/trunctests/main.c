@@ -186,9 +186,10 @@ static void truncation_test(int fd, void *ptr, unsigned int filesize, unsigned i
 
     if (memcmp(buffer, uncow + newsize, to_trunc))
         errx(1, "read() and MAP_PRIVATE mmap contents don't match (rmap is broken?)");
-#ifndef __linux__
+#if !defined(__linux__) && !defined(__onyx__)
     /* Okay, Linux doesn't seem to preserve CoW'd MAP_PRIVATE memory in this case. This is weird,
-     * but seems to be allowed by POSIX. FreeBSD does the obvious, so does Onyx. */
+     * but seems to be allowed by POSIX. FreeBSD does the obvious. Onyx (due to anon memory being
+     * stored in page tables) also doesn't preserve it. */
     if (!memcmp(buffer, cow + newsize, to_trunc))
         errx(1, "read() and cow'd MAP_PRIVATE mmap contents match (rmap is broken?)");
 #endif

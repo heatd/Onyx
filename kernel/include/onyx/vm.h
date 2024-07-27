@@ -141,7 +141,6 @@ struct vm_area_struct
     struct file *vm_file;
     off_t vm_offset;
     struct vm_object *vm_obj;
-    struct amap *vm_amap;
     struct interval_tree_node vm_objhead;
 };
 

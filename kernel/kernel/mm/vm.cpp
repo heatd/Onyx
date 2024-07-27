@@ -23,7 +23,6 @@
 #include <onyx/filemap.h>
 #include <onyx/gen/trace_vm.h>
 #include <onyx/log.h>
-#include <onyx/mm/amap.h>
 #include <onyx/mm/kasan.h>
 #include <onyx/mm/shmem.h>
 #include <onyx/mm/slab.h>
@@ -328,11 +327,6 @@ void vm_area_struct_destroy(struct vm_area_struct *region)
         vmo_unref(region->vm_obj);
     }
 
-    if (region->vm_amap)
-    {
-        amap_unref(region->vm_amap);
-    }
-
     memset_explicit(region, 0xfd, sizeof(struct vm_area_struct));
 
     vma_free(region);
@@ -507,11 +501,6 @@ static bool fork_vm_area_struct(struct vm_area_struct *region, struct fork_itera
         {
             vmo_assign_mapping(new_region->vm_obj, new_region);
             vmo_ref(new_region->vm_obj);
-        }
-
-        if (new_region->vm_amap)
-        {
-            amap_ref(new_region->vm_amap);
         }
     }
     else
@@ -953,8 +942,7 @@ int sys_munmap(void *addr, size_t length)
     return ret;
 }
 
-void vm_copy_region(const struct vm_area_struct *source, struct vm_area_struct *dest,
-                    int copy_amap = 1)
+void vm_copy_region(const struct vm_area_struct *source, struct vm_area_struct *dest)
 {
     dest->vm_file = source->vm_file;
     if (dest->vm_file)
@@ -972,13 +960,6 @@ void vm_copy_region(const struct vm_area_struct *source, struct vm_area_struct *
     dest->vm_obj = source->vm_obj;
     if (dest->vm_obj)
         vmo_ref(dest->vm_obj);
-
-    if (copy_amap)
-    {
-        dest->vm_amap = source->vm_amap;
-        if (dest->vm_amap)
-            amap_ref(dest->vm_amap);
-    }
 
     dest->vm_ops = source->vm_ops;
 }
@@ -1065,32 +1046,12 @@ static struct vm_area_struct *vm_split_region(struct mm_address_space *as,
 {
     DCHECK((addr & (PAGE_SIZE - 1)) == 0);
     size_t region_off = addr - vma->vm_start;
-    size_t off_pages = region_off >> PAGE_SHIFT;
     struct vm_area_struct *newr = vma_alloc();
     if (!newr)
         return nullptr;
 
     memset(newr, 0, sizeof(*newr));
-    vm_copy_region(vma, newr, 0);
-
-    if (vma->vm_amap)
-    {
-        auto new_amap = amap_split(vma->vm_amap, vma, off_pages);
-        if (!new_amap)
-        {
-            vma_free(newr);
-            return nullptr;
-        }
-
-        /* Below region gets the original 'vma->vm_amap', top gets the new */
-        if (below)
-        {
-            newr->vm_amap = vma->vm_amap;
-            vma->vm_amap = new_amap;
-        }
-        else
-            newr->vm_amap = new_amap;
-    }
+    vm_copy_region(vma, newr);
 
     DCHECK(vma->vm_end > addr);
 

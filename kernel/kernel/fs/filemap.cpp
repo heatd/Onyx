@@ -10,7 +10,6 @@
 #include <onyx/block/blk_plug.h>
 #include <onyx/filemap.h>
 #include <onyx/gen/trace_filemap.h>
-#include <onyx/mm/amap.h>
 #include <onyx/mm/page_lru.h>
 #include <onyx/page.h>
 #include <onyx/pagecache.h>
@@ -585,17 +584,18 @@ int filemap_fdatasync(struct inode *inode, unsigned long start, unsigned long en
 static int filemap_mkwrite_private(struct vm_pf_context *ctx,
                                    struct page *page) NO_THREAD_SAFETY_ANALYSIS
 {
-    struct vm_area_struct *region = ctx->entry;
     struct page *newp = nullptr;
-    unsigned long pgoff = (ctx->vpage - region->vm_start) >> PAGE_SHIFT;
     /* write-fault, let's CoW the page */
 
-    /* Lazily allocate the vm_amap struct */
-    if (!region->vm_amap)
+    if (page_flag_set(page, PAGE_FLAG_ANON) && page_mapcount(page) == 1)
     {
-        region->vm_amap = amap_alloc(vma_pages(region) << PAGE_SHIFT);
-        if (!region->vm_amap)
-            return -ENOMEM;
+        /* If this is an anon page *and* mapcount = 1, avoid allocating a new page. Since mapcount =
+         * 1 (AND *ANON*), no one else can grab a ref. */
+        /* TODO: We might be able to explore this - we may avoid the TLB shootdown and just change
+         * prots, but it would require significant code refactoring as-is. */
+        ctx->page = page;
+        page_ref(page);
+        return 0;
     }
 
     /* Allocate a brand new page and copy the old page */
@@ -605,14 +605,6 @@ static int filemap_mkwrite_private(struct vm_pf_context *ctx,
     page_set_anon(newp);
 
     copy_page_to_page(page_to_phys(newp), page_to_phys(page));
-
-    if (amap_add(region->vm_amap, newp, region, pgoff, true) < 0)
-    {
-        free_page(newp);
-        return -ENOMEM;
-    }
-
-    page_unref(page);
     ctx->page = newp;
     return 0;
 }
@@ -651,8 +643,6 @@ static int filemap_fault(struct vm_pf_context *ctx) NO_THREAD_SAFETY_ANALYSIS
     struct inode *ino = region->vm_file->f_ino;
     int st = 0;
     unsigned long pgoff = (ctx->vpage - region->vm_start) >> PAGE_SHIFT;
-    bool amap = true;
-    bool newp = false;
     bool needs_invalidate = false;
 
     /* We need to lock the page in case we're mapping it (that is, it's either a read-fault on
@@ -661,18 +651,17 @@ static int filemap_fault(struct vm_pf_context *ctx) NO_THREAD_SAFETY_ANALYSIS
                   region->vm_maptype == MAP_SHARED;
 
     /* Permission checks have already been handled before .fault() */
-    if (region->vm_amap)
+
+    /* If a page was present, use that as the CoW source */
+    if (region->vm_maptype == MAP_PRIVATE && ctx->mapping_info & PAGE_PRESENT)
     {
-        /* Check if the amap has any kind of page. It's possible we may need to CoW that */
-        page = amap_get(region->vm_amap, pgoff);
-        if (page)
-            locked = false;
+        page = phys_to_page(MAPPING_INFO_PADDR(ctx->mapping_info));
+        DCHECK(info->write && !(ctx->mapping_info & PAGE_WRITABLE));
     }
 
     if (!page)
     {
         unsigned long fileoff = (region->vm_offset >> PAGE_SHIFT) + pgoff;
-        amap = false;
         if (ino->i_size <= (fileoff << PAGE_SHIFT))
         {
             info->signal = VM_SIGBUS;
@@ -686,8 +675,6 @@ static int filemap_fault(struct vm_pf_context *ctx) NO_THREAD_SAFETY_ANALYSIS
         if (st < 0)
             goto err;
     }
-
-    (void) amap;
 
 #ifdef FILEMAP_PARANOID
     if (ctx->mapping_info & PAGE_PRESENT)
@@ -711,8 +698,6 @@ static int filemap_fault(struct vm_pf_context *ctx) NO_THREAD_SAFETY_ANALYSIS
         {
             DCHECK(!locked);
             st = filemap_mkwrite_private(ctx, page);
-            if (st == 0)
-                newp = true;
         }
         else
             st = filemap_mkwrite_shared(ctx, page);
@@ -730,9 +715,6 @@ static int filemap_fault(struct vm_pf_context *ctx) NO_THREAD_SAFETY_ANALYSIS
                      ctx->entry))
         goto enomem;
 
-    /* TODO: Hmm... Do we want to invalidate the TLB when doing CoW? We don't actually need to do
-     * that. We could just take the spurious fault ezpz, and it would possibly be more efficient on
-     * IPI shootdown architectures? */
     if (needs_invalidate)
         vm_invalidate_range(ctx->vpage, 1);
 
@@ -742,8 +724,7 @@ static int filemap_fault(struct vm_pf_context *ctx) NO_THREAD_SAFETY_ANALYSIS
      */
     if (locked)
         unlock_page(page);
-    if (!newp)
-        page_unref(page);
+    page_unref(page);
     return 0;
 enomem:
     st = -ENOMEM;
@@ -751,7 +732,7 @@ err:
     info->error_info = VM_SIGSEGV;
     if (locked && page)
         unlock_page(page);
-    if (page && !newp)
+    if (page)
         page_unref(page);
     return st;
 }
