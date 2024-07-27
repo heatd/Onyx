@@ -1,4 +1,4 @@
-mm-y:= bootmem.o page.o pagealloc.o vm_object.o vm.o vmalloc.o reclaim.o amap.o anon.o mincore.o page_lru.o
+mm-y:= bootmem.o page.o pagealloc.o vm_object.o vm.o vmalloc.o reclaim.o anon.o mincore.o page_lru.o
 mm-$(CONFIG_KUNIT)+= vm_tests.o
 mm-$(CONFIG_X86)+= memory.o
 mm-$(CONFIG_RISCV)+= memory.o
