@@ -70,6 +70,7 @@ int loopback_pollrx(netif *nif)
         spin_unlock(&pqueue_lock);
 
         netif_process_pbuf(nif, pbuf);
+        pbuf->unref();
 
         // Relock for the next run.
         spin_lock(&pqueue_lock);

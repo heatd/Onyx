@@ -12,6 +12,8 @@
 #define rcu_read_lock()   sched_disable_preempt()
 #define rcu_read_unlock() sched_enable_preempt()
 
+__BEGIN_CDECLS
+
 struct rcu_head
 {
     struct rcu_head *next;
@@ -33,6 +35,8 @@ void rcu_do_quiesc();
  *
  */
 void rcu_work();
+
+__END_CDECLS
 
 #define rcu_dereference(ptr) __atomic_load_n(&(ptr), __ATOMIC_RELAXED)
 

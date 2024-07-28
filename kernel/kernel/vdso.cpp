@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -15,6 +15,7 @@
 #include <onyx/anon_inode.h>
 #include <onyx/clock.h>
 #include <onyx/compiler.h>
+#include <onyx/err.h>
 #include <onyx/file.h>
 #include <onyx/log.h>
 #include <onyx/mm/vm_object.h>
@@ -55,7 +56,7 @@ private:
 
     bool create_vmo()
     {
-        vdso_file = anon_inode_open(S_IFCHR, &dummy_fops, "[vdso]");
+        vdso_file = anon_inode_open(S_IFREG, &dummy_fops, "[vdso]");
         CHECK(vdso_file);
 
         auto vmo = vdso_file->f_ino->i_pages;
@@ -185,7 +186,14 @@ __attribute__((no_sanitize_undefined)) bool vdso::init()
 
 void *vdso::map()
 {
-    return vm_mmap(nullptr, length, PROT_READ | PROT_EXEC, MAP_PRIVATE, vdso_file, 0);
+    void *addr = vm_mmap(nullptr, length, PROT_READ | PROT_EXEC, MAP_PRIVATE, vdso_file, 0);
+    if (IS_ERR(addr))
+    {
+        pr_info("vdso: Failed to map vdso: %ld\n", PTR_ERR(addr));
+        return nullptr;
+    }
+
+    return addr;
 }
 
 void *vdso_map(void)

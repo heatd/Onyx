@@ -361,6 +361,18 @@ void vmo_assign_mapping(vm_object *vmo, vm_area_struct *vma)
 }
 
 /**
+ * @brief Removes a mapping from the VMO
+ * Does not take the lock
+ * @param vmo The target vm object
+ * @param vma The VMA
+ */
+void vmo_remove_mapping_locked(struct vm_object *vmo, struct vm_area_struct *vma)
+{
+    DCHECK(spin_lock_held(&vmo->mapping_lock));
+    interval_tree_remove(&vmo->mappings, &vma->vm_objhead);
+}
+
+/**
  * @brief Removes a mapping on the VMO.
  *
  * @param vmo The target VMO.
@@ -369,7 +381,7 @@ void vmo_assign_mapping(vm_object *vmo, vm_area_struct *vma)
 void vmo_remove_mapping(vm_object *vmo, vm_area_struct *region)
 {
     scoped_lock g{vmo->mapping_lock};
-    interval_tree_remove(&vmo->mappings, &region->vm_objhead);
+    vmo_remove_mapping_locked(vmo, region);
 }
 
 void vm_obj_reassign_mapping(struct vm_object *vm_obj, struct vm_area_struct *vma)
@@ -540,8 +552,15 @@ bool vm_obj_remove_page(struct vm_object *obj, struct page *page)
     if (__atomic_load_n(&page->ref, __ATOMIC_RELAXED) > expected_refs)
         return false;
     obj->unmap_page(page->pageoff << PAGE_SHIFT);
+    if (page_mapcount(page) > 0)
+    {
+        /* It's entirely possible the page's mapcount is larger than 0. If, for instance, the page
+         * removal and a fork race in any way (fork does not take the page lock). In such cases,
+         * fail to remove. If mapcount is 0, we know it is stable (it cannot be forked, because it
+         * is unmapped; and, since we hold the page lock, no new mappers may arise.) */
+        return false;
+    }
     /* After this, page->ref must be 1 (if the VM system is working properly) */
-    CHECK_PAGE(page_mapcount(page) == 0, page);
     CHECK_PAGE(page->ref == 1, page);
     obj->vm_pages.store(page->pageoff, 0);
     return true;

@@ -10,64 +10,53 @@
 #define CONFIG_SMP_NR_CPUS 64
 #endif
 
-constexpr unsigned long cpumask_size_in_longs()
+struct cpumask
 {
-    auto long_size_bits = sizeof(unsigned long) * 8;
-    auto size = CONFIG_SMP_NR_CPUS / long_size_bits;
+#define LONG_SIZE_BITS __LONG_WIDTH__
+#define CPUMASK_SIZE   CONFIG_SMP_NR_CPUS / LONG_SIZE_BITS
+    unsigned long mask[CPUMASK_SIZE];
 
-    if (CONFIG_SMP_NR_CPUS % long_size_bits)
-        size++;
-
-    return size;
-}
-
-class cpumask
-{
-private:
-    static constexpr unsigned long long_size_bits = sizeof(unsigned long) * 8;
-    unsigned long mask[cpumask_size_in_longs()];
-
-public:
+#ifdef __cplusplus
     explicit constexpr cpumask() : mask{}
     {
     }
 
     constexpr void set_cpu(unsigned long cpu)
     {
-        auto long_idx = cpu / long_size_bits;
-        auto bit_idx = cpu % long_size_bits;
+        auto long_idx = cpu / LONG_SIZE_BITS;
+        auto bit_idx = cpu % LONG_SIZE_BITS;
 
         mask[long_idx] |= (1UL << bit_idx);
     }
 
     void set_cpu_atomic(unsigned long cpu)
     {
-        auto long_idx = cpu / long_size_bits;
-        auto bit_idx = cpu % long_size_bits;
+        auto long_idx = cpu / LONG_SIZE_BITS;
+        auto bit_idx = cpu % LONG_SIZE_BITS;
 
         __atomic_or_fetch(&mask[long_idx], (1UL << bit_idx), __ATOMIC_RELAXED);
     }
 
     constexpr void remove_cpu(unsigned long cpu)
     {
-        auto long_idx = cpu / long_size_bits;
-        auto bit_idx = cpu % long_size_bits;
+        auto long_idx = cpu / LONG_SIZE_BITS;
+        auto bit_idx = cpu % LONG_SIZE_BITS;
 
         mask[long_idx] &= ~(1UL << bit_idx);
     }
 
     void remove_cpu_atomic(unsigned long cpu)
     {
-        auto long_idx = cpu / long_size_bits;
-        auto bit_idx = cpu % long_size_bits;
+        auto long_idx = cpu / LONG_SIZE_BITS;
+        auto bit_idx = cpu % LONG_SIZE_BITS;
 
         __atomic_and_fetch(&mask[long_idx], ~(1UL << bit_idx), __ATOMIC_RELAXED);
     }
 
     constexpr bool is_cpu_set(unsigned long cpu) const
     {
-        auto long_idx = cpu / long_size_bits;
-        auto bit_idx = cpu % long_size_bits;
+        auto long_idx = cpu / LONG_SIZE_BITS;
+        auto bit_idx = cpu % LONG_SIZE_BITS;
 
         return mask[long_idx] & (1UL << bit_idx);
     }
@@ -81,7 +70,7 @@ public:
 
     constexpr cpumask& operator|=(const cpumask& rhs)
     {
-        for (unsigned long i = 0; i < cpumask_size_in_longs(); i++)
+        for (unsigned long i = 0; i < CPUMASK_SIZE; i++)
         {
             mask[i] |= rhs.mask[i];
         }
@@ -99,7 +88,7 @@ public:
     {
         cpumask m{*this};
 
-        for (unsigned long i = 0; i < cpumask_size_in_longs(); i++)
+        for (unsigned long i = 0; i < CPUMASK_SIZE; i++)
         {
             m.mask[i] = ~m.mask[i];
         }
@@ -109,7 +98,7 @@ public:
 
     constexpr cpumask& operator&=(const cpumask& rhs)
     {
-        for (unsigned long i = 0; i < cpumask_size_in_longs(); i++)
+        for (unsigned long i = 0; i < CPUMASK_SIZE; i++)
         {
             mask[i] &= rhs.mask[i];
         }
@@ -125,7 +114,7 @@ public:
 
     constexpr cpumask& operator^=(const cpumask& rhs)
     {
-        for (unsigned long i = 0; i < cpumask_size_in_longs(); i++)
+        for (unsigned long i = 0; i < CPUMASK_SIZE; i++)
         {
             mask[i] ^= rhs.mask[i];
         }
@@ -143,7 +132,7 @@ public:
     template <typename Callable>
     void for_every_cpu(Callable c)
     {
-        for (unsigned long i = 0; i < cpumask_size_in_longs(); i++)
+        for (unsigned long i = 0; i < CPUMASK_SIZE; i++)
         {
             int curr_bit = -1;
 
@@ -166,7 +155,7 @@ public:
                 /* The word == 0 case has already been dealt with before this */
                 curr_bit = __builtin_ffsl(word) - 1;
 
-                auto cpu = long_size_bits * i + curr_bit;
+                auto cpu = LONG_SIZE_BITS * i + curr_bit;
 
                 if (!c(cpu))
                     return;
@@ -208,6 +197,7 @@ public:
 
         return true;
     }
+#endif
 };
 
 #endif

@@ -95,4 +95,9 @@ static inline void spin_unlock(struct spinlock *lock) __RELEASE(lock)
 
 #define MUST_HOLD_LOCK(lock) assert(spin_lock_held(lock) != false)
 
+typedef struct spinlock spinlock_t;
+#define spin_lock_init(s) spinlock_init(s)
+
+#define __SPIN_LOCK_UNLOCKED(name) (spinlock_t) STATIC_SPINLOCK_INIT
+
 #endif

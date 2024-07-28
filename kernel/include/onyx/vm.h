@@ -16,15 +16,12 @@
 
 #include <onyx/interval_tree.h>
 #include <onyx/list.h>
+#include <onyx/mm_address_space.h>
 #include <onyx/mutex.h>
 #include <onyx/paging.h>
 #include <onyx/scheduler.h>
 #include <onyx/spinlock.h>
 #include <onyx/types.h>
-
-#ifdef __cplusplus
-#include <onyx/mm_address_space.h>
-#endif
 
 #include <platform/page.h>
 #include <platform/vm.h>
@@ -50,16 +47,17 @@ __BEGIN_CDECLS
 #define VM_TYPE_FILE_BACKED (5)
 #define VM_TYPE_MODULE      (6)
 
-#define VM_WRITE         (1 << 0)
-#define VM_EXEC          (1 << 1)
-#define VM_USER          (1 << 2)
-#define VM_NOCACHE       (1 << 3)
-#define VM_WRITETHROUGH  (1 << 4)
-#define VM_WC            (1 << 5)
-#define VM_WP            (1 << 6)
-#define VM_DONT_MAP_OVER (1 << 7)
-#define VM_READ          (1 << 8)
+#define VM_READ          (1 << 0)
+#define VM_WRITE         (1 << 1)
+#define VM_EXEC          (1 << 2)
+#define VM_USER          (1 << 3)
+#define VM_NOCACHE       (1 << 4)
+#define VM_WRITETHROUGH  (1 << 5)
+#define VM_WC            (1 << 6)
+#define VM_WP            (1 << 7)
+#define VM_DONT_MAP_OVER (1 << 8)
 #define VM_NOFLUSH       (1 << 9)
+#define VM_SHARED        (1 << 10)
 
 /* Internal flags used by the mm code */
 #define __VM_CACHE_TYPE_REGULAR     0
@@ -89,11 +87,9 @@ static inline unsigned long vm_prot_to_cache_type(uint64_t prot)
 
 #define PHYS_TO_VIRT(x) (void *) ((uintptr_t) (x) + PHYS_BASE)
 
-#define VM_PFNMAP               (1 << 1)
-#define VM_USING_MAP_SHARED_OPT (1 << 2)
+#define VM_PFNMAP (1 << 1)
 
 struct vm_object;
-struct amap;
 struct fault_info;
 
 struct vm_pf_context
@@ -133,24 +129,32 @@ struct vm_area_struct
     unsigned long vm_end;
 
     union {
-        struct bst_node vm_tree_node;
+        /* TODO: Can we union this with something else? */
         struct list_head vm_detached_node;
     };
 
     int vm_flags;
-    int vm_maptype;
     struct mm_address_space *vm_mm;
     const struct vm_operations *vm_ops;
     struct file *vm_file;
     off_t vm_offset;
     struct vm_object *vm_obj;
-    struct amap *vm_amap;
     struct interval_tree_node vm_objhead;
 };
 
 static inline unsigned long vma_pages(const struct vm_area_struct *vma)
 {
     return (vma->vm_end - vma->vm_start) >> PAGE_SHIFT;
+}
+
+static inline bool vma_shared(const struct vm_area_struct *vma)
+{
+    return vma->vm_flags & VM_SHARED;
+}
+
+static inline bool vma_private(const struct vm_area_struct *vma)
+{
+    return !vma_shared(vma);
 }
 
 #define VM_OK      0x0
@@ -379,7 +383,7 @@ ssize_t user_memset(void *data, int val, size_t len);
  * @param is_file_backed True if file backed.
  * @return 0 on success, negative for errors.
  */
-int vm_area_struct_setup_backing(struct vm_area_struct *region, size_t pages, bool is_file_backed);
+int vma_setup_backing(struct vm_area_struct *region, size_t pages, bool is_file_backed);
 
 /**
  * @brief Updates the memory map's ranges.
@@ -432,14 +436,6 @@ void *__map_pages_to_vaddr(struct mm_address_space *as, void *virt, void *phys, 
                            size_t flags);
 
 /**
- * @brief Determines if a mapping is shared.
- *
- * @param region A pointer to the vm_area_struct.
- * @return True if shared, false if not.
- */
-bool is_mapping_shared(struct vm_area_struct *region);
-
-/**
  * @brief Determines if a mapping is file backed.
  *
  * @param region A pointer to the vm_area_struct.
@@ -483,7 +479,7 @@ struct file;
  * @param flags The mapping flags (see MAP_* as in mmap(2)).
  * @param file An optional pointer to a file, if it is a file mapping.
  * @param off The offset into the file, if it is a file mapping.
- * @return A pointer to the new memory mapping, or NULL if it failed (errno is set).
+ * @return A pointer to the new memory mapping, or an ERR_PTR on error.
  */
 void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file, off_t off);
 
@@ -503,19 +499,6 @@ struct tlb_shootdown
 void vm_invalidate_range(unsigned long addr, size_t pages);
 
 struct process;
-
-/**
- * @brief Directly maps a page into the paging tables.
- *
- * @param as The target address space.
- * @param virt The virtual address.
- * @param phys The physical address of the page.
- * @param prot Desired protection flags.
- * @param vma VMA for this mapping (optional)
- * @return NULL if out of memory, else virt.
- */
-void *vm_map_page(struct mm_address_space *as, uint64_t virt, uint64_t phys, uint64_t prot,
-                  struct vm_area_struct *vma);
 
 /**
  * @brief Allocates a new mapping and maps a list of pages.
@@ -799,6 +782,9 @@ static inline bool vma_is_pfnmap(struct vm_area_struct *vma)
     return vma == NULL;
 }
 
+void vm_do_mmu_mprotect(struct mm_address_space *as, void *address, size_t nr_pgs, int old_prots,
+                        int new_prots);
+
 __END_CDECLS
 
 #ifdef __cplusplus
@@ -813,8 +799,11 @@ template <typename Callable>
 inline void vm_for_every_region(mm_address_space &as, Callable func)
 {
     vm_area_struct *entry;
-    bst_for_every_entry(&as.region_tree, entry, vm_area_struct, vm_tree_node)
+    unsigned long index = 0;
+    void *entry_;
+    mt_for_each(&as.region_tree, entry_, index, -1UL)
     {
+        entry = (vm_area_struct *) entry_;
         if (!func(entry))
             break;
     }

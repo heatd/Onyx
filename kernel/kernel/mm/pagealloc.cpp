@@ -832,7 +832,7 @@ struct page *page_node::alloc_order(unsigned int order, unsigned long flags)
         else if (flags & __GFP_WAKE_PAGEDAEMON)
         {
             unsigned long cur_seq = wake_up_pagedaemon(order, attempt);
-            if (!(flags & __GFP_ATOMIC))
+            if (!(flags & (__GFP_ATOMIC | __GFP_NOWAIT)))
             {
                 wait_for_event(&paged_data.paged_waiters_queue, cur_seq < paged_data.reclaim_seq);
             }
@@ -853,8 +853,12 @@ out:
 
     return page;
 failure:
-    pr_warn("pagealloc: Failed allocation of order %u, gfp_flags %lx, on:\n", order, flags);
-    stack_trace();
+    if (!(flags & __GFP_NOWARN))
+    {
+        pr_warn("pagealloc: Failed allocation of order %u, gfp_flags %lx, on:\n", order, flags);
+        stack_trace();
+    }
+
     return nullptr;
 }
 

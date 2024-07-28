@@ -144,4 +144,6 @@
 #define ERFKILL         132
 #define EHWPOISON       133
 
+#define MAX_ERRNO 4095
+
 #endif

@@ -32,7 +32,7 @@ void *zero_mmap(struct vm_area_struct *area, struct file *node)
 {
     vm_make_anon(area);
 
-    if (vm_area_struct_setup_backing(area, vma_pages(area), false) < 0)
+    if (vma_setup_backing(area, vma_pages(area), false) < 0)
         return nullptr;
 
     return (void *) area->vm_start;

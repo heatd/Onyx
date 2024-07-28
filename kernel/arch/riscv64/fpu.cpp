@@ -106,6 +106,8 @@ static slab_cache *fpu_cache = nullptr;
  */
 void fpu_init_cache()
 {
+    if (fpu_cache)
+        return;
     fpu_cache = kmem_cache_create("fpu-state", save_size, fpu_get_save_alignment(), 0, nullptr);
     if (!fpu_cache)
         panic("Out of memory allocating fpu state");

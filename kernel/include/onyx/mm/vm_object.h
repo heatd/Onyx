@@ -287,6 +287,14 @@ bool vm_obj_remove_page(struct vm_object *obj, struct page *page);
 
 long vm_obj_get_page_references(struct vm_object *obj, struct page *page, unsigned int *vm_flags);
 
+/**
+ * @brief Removes a mapping from the VMO
+ * Does not take the lock
+ * @param vmo The target vm object
+ * @param vma The VMA
+ */
+void vmo_remove_mapping_locked(struct vm_object *vmo, struct vm_area_struct *vma);
+
 __END_CDECLS
 
 #endif

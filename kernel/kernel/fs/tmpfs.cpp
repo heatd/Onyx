@@ -229,7 +229,8 @@ struct file_ops tmpfs_fops = {.read = nullptr,
                               .writepage = tmpfs_writepage,
                               .prepare_write = tmpfs_prepare_write,
                               .read_iter = filemap_read_iter,
-                              .write_iter = filemap_write_iter};
+                              .write_iter = filemap_write_iter,
+                              .fsyncdata = filemap_writepages};
 
 static void tmpfs_free_page(struct vm_object *vmo, struct page *page)
 {

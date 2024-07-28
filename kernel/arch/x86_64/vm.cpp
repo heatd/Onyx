@@ -61,7 +61,7 @@ u64 arch_vm_interpret_mmap_hint_flags(void *hint, int flags)
 bool arch_vm_validate_mmap_region(unsigned long start, unsigned long size, u64 flags)
 {
     // Check if we can indeed return this region
-    if (start > 0x00007fffffffffff || start + size > 0x00007fffffffffff)
+    if (start > 0x00007fffffffffff || start + size - 1 > 0x00007fffffffffff)
     {
         return flags & VM_FULL_ADDRESS_SPACE;
     }

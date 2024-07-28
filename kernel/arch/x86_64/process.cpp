@@ -7,6 +7,7 @@
  */
 #include <errno.h>
 
+#include <onyx/err.h>
 #include <onyx/process.h>
 #include <onyx/scheduler.h>
 #include <onyx/thread.h>
@@ -79,8 +80,8 @@ int process_alloc_stack(struct stack_info *info)
 {
     void *ptr =
         vm_mmap(nullptr, info->length, PROT_WRITE | PROT_READ, MAP_ANON | MAP_PRIVATE, nullptr, 0);
-    if (!ptr)
-        return -ENOMEM;
+    if (IS_ERR(ptr))
+        return PTR_ERR(ptr);
     info->base = ptr;
     info->top = reinterpret_cast<void *>((unsigned long) ptr + info->length);
 

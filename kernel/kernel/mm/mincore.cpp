@@ -19,12 +19,13 @@ static long do_pagemap(struct mm_address_space *as, unsigned long start, unsigne
 
     scoped_mutex g{as->vm_lock};
     long pfns_processed = 0;
-    struct vm_area_struct *vma = vm_search(as, (void *) start, 1);
-    if (!vma)
-        return -ENOMEM;
 
-    while (vma)
+    vm_area_struct *vma;
+    unsigned long index = start;
+    void *entry_;
+    mt_for_each(&as->region_tree, entry_, index, end)
     {
+        vma = (vm_area_struct *) entry_;
         if (vma->vm_start > end)
             break;
 
@@ -38,9 +39,6 @@ static long do_pagemap(struct mm_address_space *as, unsigned long start, unsigne
 
         if (start == end)
             break;
-
-        vma = containerof_null_safe(bst_next(&as->region_tree, &vma->vm_tree_node),
-                                    struct vm_area_struct, vm_tree_node);
     }
 
     return pfns_processed;
@@ -55,7 +53,7 @@ int sys_mpagemap(void *addr, size_t length, u64 *pagemap)
     struct page *buffer;
     int ret = 0;
 
-    if (start < as->start || end > as->end)
+    if (start < as->start || end > as->end + 1)
         return -EINVAL;
 
     buffer = alloc_page(GFP_KERNEL);

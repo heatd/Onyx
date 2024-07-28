@@ -1314,7 +1314,7 @@ ssize_t process::query_vm_regions(void *ubuf, ssize_t len, unsigned long what, s
     vm_for_every_region(*address_space, [&](vm_area_struct *region) -> bool {
         onx_process_vm_region *reg = (onx_process_vm_region *) ptr;
         reg->size = sizeof(onx_process_vm_region);
-        reg->mapping_type = region->vm_maptype;
+        reg->mapping_type = vma_shared(region) ? MAP_SHARED : MAP_PRIVATE;
         reg->protection = 0;
 
         if (region->vm_flags & VM_READ)

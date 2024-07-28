@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Pedro Falcato
+ * Copyright (c) 2023 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -7,7 +7,6 @@
  */
 
 #include <onyx/dentry.h>
-#include <onyx/mm/amap.h>
 #include <onyx/mm/shmem.h>
 #include <onyx/tmpfs.h>
 #include <onyx/vm.h>
@@ -20,8 +19,7 @@ int vm_anon_fault(struct vm_pf_context *ctx)
 {
     struct vm_area_struct *region = ctx->entry;
     struct fault_info *info = ctx->info;
-    struct page *page = nullptr;
-    unsigned long pgoff = (ctx->vpage - region->vm_start) >> PAGE_SHIFT;
+    struct page *page = nullptr, *oldp = nullptr;
     bool needs_invd = false;
 
     /* Permission checks have already been handled before .fault() */
@@ -36,27 +34,39 @@ int vm_anon_fault(struct vm_pf_context *ctx)
     }
     else
     {
-        /* Lazily allocate the vm_amap struct */
-        if (!region->vm_amap)
+        bool copy_old = false;
+        if (ctx->mapping_info & PAGE_PRESENT)
         {
-            region->vm_amap = amap_alloc(vma_pages(region) << PAGE_SHIFT);
-            if (!region->vm_amap)
-                goto enomem;
+            oldp = phys_to_page(MAPPING_INFO_PADDR(ctx->mapping_info));
+            DCHECK(info->write && !(ctx->mapping_info & PAGE_WRITABLE));
+            if (oldp != vm_get_zero_page())
+                copy_old = true;
+            needs_invd = true;
+
+            if (copy_old && page_flag_set(oldp, PAGE_FLAG_ANON) && page_mapcount(oldp) == 1)
+            {
+                /* If this is an anon page *and* mapcount = 1, avoid allocating a new page. Since
+                 * mapcount = 1 (AND *ANON*), no one else can grab a ref. */
+                /* TODO: We might be able to explore this - we may avoid the TLB shootdown and just
+                 * change prots, but it would require significant code refactoring as-is. */
+                /* TODO: checking mapcount = 1 probably isn't this easy once we get swapping,
+                 * because refs may come and go. Will we need the page lock? */
+                page = oldp;
+                page_ref(page);
+                goto map;
+            }
+
+            /* oldp's mapcount will be decremented in vm_map_page */
         }
 
-        /* Allocate a brand-new zero-filled page */
-        page = alloc_page(GFP_KERNEL);
+        /* Allocate a brand-new (possibly zero-filled) page */
+        page = alloc_page((copy_old ? PAGE_ALLOC_NO_ZERO : 0) | GFP_KERNEL);
         if (!page)
             goto enomem;
         page_set_anon(page);
 
-        if (amap_add(region->vm_amap, page, region, pgoff, false) < 0)
-        {
-            free_page(page);
-            goto enomem;
-        }
-
-        needs_invd = ctx->mapping_info & PAGE_PRESENT;
+        if (copy_old)
+            copy_page_to_page(page_to_phys(page), page_to_phys(oldp));
         goto map;
     }
 
@@ -67,6 +77,9 @@ map:
     if (needs_invd)
         vm_invalidate_range(ctx->vpage, 1);
 
+    /* The mapcount holds the only reference we need for anon pages... */
+    if (info->write)
+        page_unref(page);
     return 0;
 enomem:
     info->error_info = VM_SIGSEGV;
