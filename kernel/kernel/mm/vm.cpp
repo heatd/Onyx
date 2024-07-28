@@ -69,6 +69,7 @@ static bool vm_mapping_is_cow(struct vm_area_struct *entry);
 
 vm_area_struct *vm_search(struct mm_address_space *mm, void *addr, size_t length)
     REQUIRES_SHARED(mm->vm_lock);
+static void vma_pre_adjust(struct vm_area_struct *vma);
 
 /**
  * @brief Finds a vm region.
@@ -121,6 +122,7 @@ struct vma_iterator
     struct vma_iterator name = {index, (end) -1, mm, \
                                 MA_STATE_INIT(&(mm)->region_tree, index, (end) -1)}
 
+#define CONFIG_DEBUG_MM_MMAP
 #ifdef CONFIG_DEBUG_MM_MMAP
 static void validate_mm_tree(struct mm_address_space *mm)
 {
@@ -160,7 +162,7 @@ static void validate_mm_tree(struct mm_address_space *mm)
     return;
 print_tree:
     pr_err("mm: dumping vmas for mm %p...\n", mm);
-    mas_reset(&vmi.mas);
+    mas_set(&vmi.mas, 0);
     mas_for_each(&vmi.mas, entry_, -1UL)
     {
         struct vm_area_struct *vma = (struct vm_area_struct *) entry_;
@@ -543,7 +545,7 @@ int vm_fork_address_space(struct mm_address_space *addr_space) EXCLUDES(addr_spa
     assert(addr_space->active_mask.is_empty());
 
     mutex_init(&addr_space->vm_lock);
-
+    validate_mm_tree(addr_space);
     return 0;
 }
 
@@ -581,6 +583,102 @@ void vm_change_perms(void *range, size_t pages, int perms) NO_THREAD_SAFETY_ANAL
 
     if (needs_release)
         mutex_unlock(&as->vm_lock);
+}
+
+static bool vma_can_merge_into(struct vm_area_struct *vma, size_t size, int vm_flags,
+                               struct file *file, off_t off, bool before)
+{
+    if (vma->vm_file && file)
+    {
+        off_t desired_vma_off = vma->vm_offset + (vma->vm_end - vma->vm_start);
+        if (!before)
+            desired_vma_off = off + size;
+        if (off != desired_vma_off)
+            return false;
+    }
+
+    return vma->vm_flags == vm_flags && vma->vm_file == file;
+}
+
+static void vma_post_adjust(struct vm_area_struct *vma)
+{
+    if (vma->vm_obj)
+    {
+        vm_obj_reassign_mapping(vma->vm_obj, vma);
+        spin_unlock(&vma->vm_obj->mapping_lock);
+    }
+}
+
+static struct vm_area_struct *vma_merge_around(struct vma_iterator *vmi, unsigned int vm_flags,
+                                               struct file *file, off_t off)
+    REQUIRES(vmi->mm->vm_lock)
+{
+    struct vm_area_struct *prev, *next, *ret = nullptr;
+    size_t new_size = vmi->end - vmi->index + 1;
+
+    prev = (struct vm_area_struct *) mas_prev(&vmi->mas, vmi->index - 1);
+    next = (struct vm_area_struct *) mas_next(&vmi->mas, vmi->end + 1);
+
+    if (prev && !vma_can_merge_into(prev, new_size, vm_flags, file, off, true))
+        prev = nullptr;
+    if (next && !vma_can_merge_into(next, new_size, vm_flags, file, off, false))
+        next = nullptr;
+
+    if (prev && next)
+    {
+        /* We can merge with prev *and* next. The whole range (prev->vm_start to next->vm_end) will
+         * be covered by a single VMA */
+        DCHECK(prev->vm_end == vmi->index && next->vm_start == vmi->end + 1);
+        mas_set_range(&vmi->mas, prev->vm_start, next->vm_end - 1);
+        if (mas_store_gfp(&vmi->mas, prev, GFP_KERNEL) != 0)
+            return nullptr;
+
+        vma_pre_adjust(prev);
+        prev->vm_end = next->vm_end;
+        if (next->vm_obj)
+        {
+            /* Remove ourselves from the vm obj */
+            vmo_remove_mapping_locked(next->vm_obj, next);
+        }
+
+        vma_post_adjust(prev);
+        vma_free(next);
+        ret = prev;
+    }
+    else if (prev)
+    {
+        /* Merging with prev, quite simple, just nudge vm_end */
+        DCHECK(prev->vm_end == vmi->index);
+        mas_set_range(&vmi->mas, prev->vm_start, vmi->end);
+        if (mas_store_gfp(&vmi->mas, prev, GFP_KERNEL) != 0)
+            return nullptr;
+        vma_pre_adjust(prev);
+        prev->vm_end = vmi->end + 1;
+        vma_post_adjust(prev);
+        ret = prev;
+    }
+    else if (next)
+    {
+        /* Merging with next, nudge vm_start and vm_offset if required */
+        DCHECK(next->vm_start == vmi->end + 1);
+        mas_set_range(&vmi->mas, vmi->index, next->vm_end - 1);
+        if (mas_store_gfp(&vmi->mas, next, GFP_KERNEL) != 0)
+            return nullptr;
+        vma_pre_adjust(next);
+        if (file)
+            next->vm_offset -= (next->vm_start - vmi->index);
+        next->vm_start = vmi->index;
+        vma_post_adjust(next);
+        ret = next;
+    }
+
+    if (ret)
+    {
+        increment_vm_stat(vmi->mm, virtual_memory_size, new_size);
+        if (vma_shared(ret))
+            increment_vm_stat(vmi->mm, shared_set_size, new_size);
+    }
+    return ret;
 }
 
 static struct vm_area_struct *vma_create(struct vma_iterator *vmi, unsigned int vm_flags,
@@ -726,6 +824,16 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
         virt = vmi.index;
     }
 
+    if (!vm_test_vs_rlimit(mm, vmi.end - vmi.index + 1))
+        return ERR_PTR(-ENOMEM);
+
+    vma = vma_merge_around(&vmi, vm_prot, file, off);
+    if (vma)
+        goto out;
+
+    /* vma_merge_around may touch around the vmi, reset the state */
+    mas_set_range(&vmi.mas, vmi.index, vmi.end);
+
     if (flags & MAP_ANONYMOUS)
         file = nullptr;
 
@@ -733,8 +841,9 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
     if (IS_ERR(vma))
         return (void *) vma;
 
+out:
     validate_mm_tree(mm);
-    return (void *) vma->vm_start;
+    return (void *) virt;
 }
 
 void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off)
@@ -826,7 +935,7 @@ static void vm_copy_region(const struct vm_area_struct *source, struct vm_area_s
     dest->vm_ops = source->vm_ops;
 }
 
-static void vma_pre_split(struct vm_area_struct *vma)
+static void vma_pre_adjust(struct vm_area_struct *vma)
 {
     /* Lock the rmap intances. This stops us from every seeing an inconsistent data structure on
      * rmap's side. */
@@ -857,12 +966,18 @@ static struct vm_area_struct *vm_split_region(struct mm_address_space *as,
     if (!newr)
         return nullptr;
 
+    if (mas_expected_entries(&vmi->mas, 1) == -ENOMEM)
+    {
+        vma_free(newr);
+        return nullptr;
+    }
+
     memset(newr, 0, sizeof(*newr));
     vm_copy_region(vma, newr);
 
     DCHECK(vma->vm_end > addr);
 
-    vma_pre_split(vma);
+    vma_pre_adjust(vma);
 
     if (below)
     {
@@ -885,7 +1000,6 @@ static struct vm_area_struct *vm_split_region(struct mm_address_space *as,
     mas_set_range(&vmi->mas, newr->vm_start, newr->vm_end - 1);
     CHECK(mas_store(&vmi->mas, newr) == vma);
     DCHECK(vmi->mas.index == newr->vm_start);
-    validate_mm_tree(as);
     return newr;
 }
 
@@ -1198,36 +1312,6 @@ static int find_page_err_to_signal(int st)
         default:
             return VM_SIGSEGV;
     }
-}
-
-static int vm_prepare_write(struct inode *inode, struct page *p)
-{
-    /* TODO: All of this needs a good rework. We must be careful with i_size (we can't just allocate
-     * on a whole page like this). We need to retry if the page was truncated. This should not be
-     * core vm.cpp code. */
-    lock_page(p);
-
-    /* Correctness: We set the i_size before truncating pages from the page cache, so this should
-     * not race... I think? */
-    size_t i_size = inode->i_size;
-    if (p->owner != inode->i_pages)
-    {
-        pr_warn("vm: (inode %lu, dev %lu) just had a truncate race, which is not yet handled "
-                "correctly...\n",
-                inode->i_inode, inode->i_dev);
-        unlock_page(p);
-        return -ENOENT;
-    }
-
-    size_t len = PAGE_SIZE;
-    size_t offset = p->pageoff << PAGE_SHIFT;
-    if (offset + PAGE_SIZE > i_size)
-        len = i_size - offset;
-
-    int st = inode->i_fops->prepare_write(inode, p, offset, 0, len);
-    filemap_mark_dirty(inode, p, p->pageoff);
-    unlock_page(p);
-    return st;
 }
 
 static bool vm_mapping_is_cow(struct vm_area_struct *entry)
