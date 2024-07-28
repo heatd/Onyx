@@ -361,6 +361,18 @@ void vmo_assign_mapping(vm_object *vmo, vm_area_struct *vma)
 }
 
 /**
+ * @brief Removes a mapping from the VMO
+ * Does not take the lock
+ * @param vmo The target vm object
+ * @param vma The VMA
+ */
+void vmo_remove_mapping_locked(struct vm_object *vmo, struct vm_area_struct *vma)
+{
+    DCHECK(spin_lock_held(&vmo->mapping_lock));
+    interval_tree_remove(&vmo->mappings, &vma->vm_objhead);
+}
+
+/**
  * @brief Removes a mapping on the VMO.
  *
  * @param vmo The target VMO.
@@ -369,7 +381,7 @@ void vmo_assign_mapping(vm_object *vmo, vm_area_struct *vma)
 void vmo_remove_mapping(vm_object *vmo, vm_area_struct *region)
 {
     scoped_lock g{vmo->mapping_lock};
-    interval_tree_remove(&vmo->mappings, &region->vm_objhead);
+    vmo_remove_mapping_locked(vmo, region);
 }
 
 void vm_obj_reassign_mapping(struct vm_object *vm_obj, struct vm_area_struct *vma)
