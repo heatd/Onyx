@@ -120,6 +120,13 @@ SECTIONS
 		*(.eh_frame)
 	} : rodata
 
+	__bug_tab ALIGN(8) : AT(ADDR(__bug_tab) - VIRT_BASE)
+	{
+		PROVIDE_HIDDEN(__start___bug_tab = .);
+		*(__bug_tab*);
+		PROVIDE_HIDDEN(__end___bug_tab = .);
+	} : rodata
+
 	.note.gnu.build-id :
 	{
         PROVIDE_HIDDEN(__build_id_note_start = .);

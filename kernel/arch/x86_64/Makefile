@@ -3,7 +3,7 @@ x86_64-y:= apic.o avx.o boot.o copy_user.o copy.o cpu.o debug.o \
 	isr.o kvm.o mce.o multiboot2.o mmu.o pat.o pic.o pit.o ptrace.o signal.o smbios.o \
 	realmode.o smp.o strace.o syscall.o thread.o tsc.o \
 	tss.o vdso_helper.o vm.o process.o powerctl.o alternatives.o random.o \
-	hpet.o code_patch.o
+	hpet.o code_patch.o bug.o
 
 x86_64-$(CONFIG_KTRACE)+= ktrace.o fentry.o
 x86_64-$(CONFIG_ACPI)+= acpi/acpi.o

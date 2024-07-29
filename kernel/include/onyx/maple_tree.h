@@ -11,6 +11,8 @@
 #include <limits.h>
 #include <string.h>
 
+#include <onyx/assert.h>
+#include <onyx/bug.h>
 #include <onyx/limits.h>
 #include <onyx/rcupdate.h>
 #include <onyx/spinlock.h>
@@ -31,7 +33,7 @@ typedef unsigned int gfp_t;
  *
  * Nodes in the tree point to their parent unless bit 0 is set.
  */
-#if defined(CONFIG_64BIT) || defined(BUILD_VDSO32_64)
+#ifdef __LP64__
 /* 64bit sizes */
 #define MAPLE_NODE_SLOTS     31 /* 256 bytes including ->parent */
 #define MAPLE_RANGE64_SLOTS  16 /* 256 bytes */
@@ -598,8 +600,7 @@ __always_inline void mas_reset(struct ma_state *mas)
 #define mas_for_each(__mas, __entry, __max) while (((__entry) = mas_find((__mas), (__max))) != NULL)
 
 #if defined(__onyx__)
-#define WARN_ON(x) (x)
-#define BUG_ON(x)
+#define BUG_ON(x) CHECK(!(x))
 #endif
 
 #ifdef CONFIG_DEBUG_MAPLE_TREE

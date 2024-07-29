@@ -157,10 +157,13 @@ void boundrange_exception(struct registers *ctx)
     kernel_tkill(SIGILL, current, SIGNAL_FORCE, &info);
 }
 
+bool handle_bug(struct registers *ctx);
 void invalid_opcode_exception(struct registers *ctx)
 {
     if (is_kernel_exception(ctx))
     {
+        if (handle_bug(ctx))
+            return;
         dump_interrupt_context(ctx);
         panic("Invalid instruction exception");
     }
