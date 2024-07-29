@@ -2077,9 +2077,16 @@ int sys_utimensat(int dirfd, const char *pathname, const struct timespec *times,
     }
 
     struct timespec ktimes[2];
+    if (times)
+    {
 
-    if (copy_from_user(ktimes, times, sizeof(ktimes)) < 0)
-        return -EFAULT;
+        if (copy_from_user(ktimes, times, sizeof(ktimes)) < 0)
+            return -EFAULT;
+    }
+    else
+    {
+        ktimes[0].tv_nsec = ktimes[1].tv_nsec = UTIME_NOW;
+    }
 
     auto_file dir;
 
