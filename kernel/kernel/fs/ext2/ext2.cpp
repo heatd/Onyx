@@ -798,6 +798,20 @@ __init void init_ext2drv()
         FATAL("ext2", "error initializing the fs mount data\n");
 }
 
+#define EXT2_FT_UNKNOWN 0
+#define EXT2_FT_REG     1
+#define EXT2_FT_DIR     2
+#define EXT2_FT_CHRDEV  3
+#define EXT2_FT_BLKDEV  4
+#define EXT2_FT_FIFO    5
+#define EXT2_FT_SOCK    6
+#define EXT2_FT_SYMLINK 7
+#define EXT2_FT_MAX     8
+
+static const u8 ft_to_dt_table[] = {
+    DT_UNKNOWN, DT_REG, DT_DIR, DT_CHR, DT_BLK, DT_FIFO, DT_SOCK, DT_LNK,
+};
+
 off_t ext2_getdirent(struct dirent *buf, off_t off, struct file *f)
 {
     off_t new_off;
@@ -826,7 +840,7 @@ off_t ext2_getdirent(struct dirent *buf, off_t off, struct file *f)
     buf->d_ino = entry.inode;
     buf->d_off = off;
     buf->d_reclen = sizeof(struct dirent) - (256 - (entry.name_len + 1));
-    buf->d_type = entry.file_type;
+    buf->d_type = entry.file_type >= EXT2_FT_MAX ? DT_UNKNOWN : ft_to_dt_table[entry.file_type];
 
     new_off = off + entry.rec_len;
 
