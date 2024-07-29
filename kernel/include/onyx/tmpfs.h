@@ -38,7 +38,7 @@ public:
 
     list_head_cpp<tmpfs_superblock> fs_list_node;
 
-    file_ops *tmpfs_ops_;
+    const file_ops *tmpfs_ops_;
     atomic<size_t> nblocks;
     atomic<size_t> ino_nr;
 
