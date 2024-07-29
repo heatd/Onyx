@@ -479,7 +479,6 @@ bool process_wait_exit(process *child, wait_info &winfo)
     do_getrusage(RUSAGE_BOTH, &winfo.usage, child);
 
     winfo.pid = child->get_pid();
-
     winfo.wstatus = child->exit_code;
 
     if (winfo.reap_wait())
@@ -954,14 +953,8 @@ void process_kill_other_threads(void)
         s->valid_sub = false;
     }
 
-    {
-        scoped_lock g{current->signal_lock};
-        current->exit_code = exit_code;
-
-        /* Finally, wake up any possible concerned parents */
-        wait_queue_wake_all(&current->parent->wait_child_event);
-        current->signal_group_flags |= SIGNAL_GROUP_EXIT;
-    }
+    /* TODO: This is broken, we need a ref... */
+    struct process *parent = READ_ONCE(current->parent);
 
     siginfo_t info = {};
 
@@ -982,7 +975,18 @@ void process_kill_other_threads(void)
         info.si_status = WTERMSIG(exit_code);
     }
 
-    kernel_raise_signal(SIGCHLD, current->parent, 0, &info);
+    {
+        current->remove_thread(current_thread);
+        current_thread->owner = nullptr;
+        scoped_lock g{current->signal_lock};
+        current->exit_code = exit_code;
+
+        /* Finally, wake up any possible concerned parents */
+        wait_queue_wake_all(&current->parent->wait_child_event);
+        current->signal_group_flags |= SIGNAL_GROUP_EXIT;
+    }
+
+    kernel_raise_signal(SIGCHLD, parent, 0, &info);
 
     /* Set this in this order exactly */
     current_thread->flags = THREAD_IS_DYING;
