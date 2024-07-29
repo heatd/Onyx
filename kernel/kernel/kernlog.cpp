@@ -330,7 +330,7 @@ int putchar(int c)
 extern "C" int vprintf(const char *__restrict__ format, va_list va)
 {
     unsigned long flags = spin_lock_irqsave(&printk_lock);
-
+    unsigned int loglevel_off = 0;
     u8 log_level = __KERN_DEFAULT;
 
     if (format[0] == __KERN_SOH)
@@ -340,20 +340,31 @@ extern "C" int vprintf(const char *__restrict__ format, va_list va)
         format += 2;
     }
 
-    char buf[1];
+    char buf[3];
     va_list vap;
     va_copy(vap, va);
-    int i = vsnprintf(buf, 1, format, vap);
+    int i = vsnprintf(buf, 3, format, vap);
     CHECK(i >= 0);
     CHECK(i <= MAX_LINE);
+
+    if (i >= 2 && buf[0] == __KERN_SOH)
+    {
+        /* The format string specifies its log level. Play some funny tricks with the buffer (by
+         * offsetting the vsnprintf buf by 2 back, slightly overwriting a bit of the header). */
+        log_level = buf[1] - '0';
+        loglevel_off = 2;
+        i -= loglevel_off;
+    }
 
     struct printk_header *header = printk_buf.get_buf(sizeof(struct printk_header) + i + 1);
     header->log_level = log_level;
     header->seq = printk_buf.get_seq();
-    header->timestamp = clocksource_get_time();
     DCHECK(header->length >= i + sizeof(struct printk_header));
-    i = vsnprintf(header->data, header->length - sizeof(struct printk_header), format, va);
+    i = vsnprintf(header->data - loglevel_off,
+                  header->length - sizeof(struct printk_header) + loglevel_off, format, va);
     CHECK(i >= 0);
+    /* Only set the timestamp *after we printed* due to loglevel_off overwriting header->timestamp*/
+    header->timestamp = clocksource_get_time();
     spin_unlock_irqrestore(&printk_lock, flags);
 
     if (log_level <= __KERN_WARN)
