@@ -17,6 +17,7 @@
 
 #include <stdbool.h>
 
+#include <onyx/assert.h>
 #include <onyx/compiler.h>
 
 #include <uapi/errno.h>
@@ -165,6 +166,19 @@ static inline bool xa_is_retry(const void *entry)
 static inline bool xa_is_advanced(const void *entry)
 {
     return xa_is_internal(entry) && (entry <= XA_RETRY_ENTRY);
+}
+
+/**
+ * xa_mk_value() - Create an XArray entry from an integer.
+ * @v: Value to store in XArray.
+ *
+ * Context: Any context.
+ * Return: An entry suitable for storing in the XArray.
+ */
+static inline void *xa_mk_value(unsigned long v)
+{
+    DCHECK(!((long) v < 0));
+    return (void *) ((v << 1) | 1);
 }
 
 #endif
