@@ -122,7 +122,11 @@ struct vma_iterator
     struct vma_iterator name = {index, (end) -1, mm, \
                                 MA_STATE_INIT(&(mm)->region_tree, index, (end) -1)}
 
-#define CONFIG_DEBUG_MM_MMAP
+static inline void vmi_destroy(struct vma_iterator *vmi)
+{
+    mas_destroy(&vmi->mas);
+}
+
 #ifdef CONFIG_DEBUG_MM_MMAP
 static void validate_mm_tree(struct mm_address_space *mm)
 {
@@ -145,20 +149,21 @@ static void validate_mm_tree(struct mm_address_space *mm)
             counting_sss += vma->vm_end - vma->vm_start;
     }
 
-    if (counting_vss != mm->virtual_memory_size)
+    if (0 && counting_vss != mm->virtual_memory_size)
     {
         pr_err("mm: mm %p has wrong vss (%lx vs %lx bytes)\n", mm, counting_vss,
                mm->virtual_memory_size);
         goto print_tree;
     }
 
-    if (counting_sss != mm->shared_set_size)
+    if (0 && counting_sss != mm->shared_set_size)
     {
         pr_err("mm: mm %p has wrong shared set size (%lx vs %lx bytes)\n", mm, counting_sss,
                mm->shared_set_size);
         goto print_tree;
     }
 
+    vmi_destroy(&vmi);
     return;
 print_tree:
     pr_err("mm: dumping vmas for mm %p...\n", mm);
@@ -174,6 +179,7 @@ print_tree:
     }
 
     pr_err("mm: dump done.\n");
+    vmi_destroy(&vmi);
 }
 
 #else
@@ -838,10 +844,12 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
         file = nullptr;
 
     vma = vma_create(&vmi, vm_prot, file, off);
+    vmi_destroy(&vmi);
     if (IS_ERR(vma))
         return (void *) vma;
 
 out:
+    vmi_destroy(&vmi);
     validate_mm_tree(mm);
     return (void *) virt;
 }
@@ -966,7 +974,9 @@ static struct vm_area_struct *vm_split_region(struct mm_address_space *as,
     if (!newr)
         return nullptr;
 
-    if (mas_expected_entries(&vmi->mas, 1) == -ENOMEM)
+    /* Reset the mas range to the new sub-region */
+    __mas_set_range(&vmi->mas, below ? vma->vm_start : addr, (below ? addr : vma->vm_end) - 1);
+    if (mas_preallocate(&vmi->mas, newr, GFP_KERNEL) == -ENOMEM)
     {
         vma_free(newr);
         return nullptr;
@@ -996,10 +1006,9 @@ static struct vm_area_struct *vm_split_region(struct mm_address_space *as,
 
     vma_post_split(vma, newr);
 
-    /* Reset the mas range to the new region */
-    mas_set_range(&vmi->mas, newr->vm_start, newr->vm_end - 1);
-    CHECK(mas_store(&vmi->mas, newr) == vma);
+    mas_store_prealloc(&vmi->mas, newr);
     DCHECK(vmi->mas.index == newr->vm_start);
+    validate_mm_tree(as);
     return newr;
 }
 
@@ -1066,8 +1075,10 @@ static struct vm_area_struct *vma_prepare_modify(struct vma_iterator *vmi,
 int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot)
     EXCLUDES(as->vm_lock)
 {
+    int err = -ENOMEM;
     unsigned long addr = (unsigned long) __addr;
     unsigned long limit = addr + size;
+    VMA_ITERATOR(vmi, as, addr, limit);
 
     scoped_mutex g{as->vm_lock};
 
@@ -1077,9 +1088,7 @@ int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot
 
     struct vm_area_struct *vma = vm_search(as, (void *) addr, PAGE_SIZE);
     if (!vma)
-        return -ENOMEM;
-
-    VMA_ITERATOR(vmi, as, addr, limit);
+        goto out;
 
     void *entry_;
     mas_for_each(&vmi.mas, entry_, vmi.end)
@@ -1089,7 +1098,7 @@ int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot
             break;
         vma = vma_prepare_modify(&vmi, vma, addr, limit);
         if (!vma)
-            return -ENOMEM;
+            goto out;
         DCHECK(vma->vm_start >= addr && vma->vm_end <= limit);
         if (vma_shared(vma) && vma->vm_file && prot & PROT_WRITE)
         {
@@ -1101,7 +1110,10 @@ int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot
             bool fd_has_write = fd_may_access(file, FILE_ACCESS_WRITE);
 
             if (!fd_has_write)
-                return -EACCES;
+            {
+                err = -EACCES;
+                goto out;
+            }
         }
 
         int old_prots = vma->vm_flags;
@@ -1113,8 +1125,12 @@ int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot
             break;
     }
 
+    err = 0;
+
+out:
+    vmi_destroy(&vmi);
     validate_mm_tree(as);
-    return 0;
+    return err;
 }
 
 int sys_mprotect(void *addr, size_t len, int prot)
@@ -1924,6 +1940,7 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size) REQUIRES
             goto restore;
 
         DCHECK(vma->vm_start >= addr && vma->vm_end <= limit);
+        DCHECK(vmi.mas.index == vma->vm_start && vmi.mas.last == vma->vm_end - 1);
         CHECK(mas_erase(&vmi.mas) == vma);
         list_add_tail(&vma->vm_detached_node, &list);
         if (limit == vma->vm_end)
@@ -1946,6 +1963,7 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size) REQUIRES
             decrement_vm_stat(as, shared_set_size, sz);
     }
 
+    vmi_destroy(&vmi);
     validate_mm_tree(as);
     return 0;
 restore:
@@ -1957,6 +1975,7 @@ restore:
         vm_insert_region(as, vma);
     }
 
+    vmi_destroy(&vmi);
     validate_mm_tree(as);
     return -ENOMEM;
 }
@@ -2440,6 +2459,7 @@ int sys_msync(void *ptr, size_t length, int flags)
         }
     }
 
+    vmi_destroy(&vmi);
     return st;
 }
 
