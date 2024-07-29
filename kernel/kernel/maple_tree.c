@@ -163,7 +163,6 @@ struct maple_subtree_state
 #define trace_ma_read(...)
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 #define EXPORT_SYMBOL(s)
-#define WARN_ON_ONCE(x) (x)
 
 #ifdef CONFIG_KASAN_STACK
 /* Prevent mas_wr_bnode() from exceeding the stack frame limit */
