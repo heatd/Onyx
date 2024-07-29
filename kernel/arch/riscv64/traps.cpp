@@ -323,6 +323,8 @@ extern "C" unsigned long riscv_handle_trap(registers_t *regs)
 
     const auto is_exception = !(regs->cause & RISCV_SCAUSE_INTERRUPT);
     const auto cause = regs->cause & ~RISCV_SCAUSE_INTERRUPT;
+    if (get_current_thread())
+        get_current_thread()->regs = regs;
 
     if (is_exception)
         riscv_handle_exception(regs, cause);
