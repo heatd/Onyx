@@ -895,7 +895,7 @@ int sys_dup23_internal(int oldfd, int newfd, int dupflags, unsigned int flags)
 
     scoped_lock g{ioctx->fdlock};
 
-    if ((unsigned int) newfd > ioctx->table->file_desc_entries)
+    if ((unsigned int) newfd >= ioctx->table->file_desc_entries)
     {
         int st = enlarge_file_descriptor_table(current, (unsigned int) newfd + 1);
         if (st < 0)
