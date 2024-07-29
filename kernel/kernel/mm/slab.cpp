@@ -1260,6 +1260,7 @@ void kmem_cache_free_bulk(struct slab_cache *cache, size_t size, void **ptrs)
                 free_slots--;
             }
 
+            i++;
             if (--size == 0)
                 break;
         }
