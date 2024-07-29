@@ -321,12 +321,25 @@ void sched_decrease_quantum(clockevent *ev)
     unsigned int quantum = get_per_cpu(sched_quantum);
     if (quantum > 0)
         add_per_cpu(sched_quantum, -1);
+    struct thread *current = get_current_thread();
+    if (current)
+    {
+        if (in_kernel_space_regs(current->regs))
+        {
+            current->cputime_info.system_time += NS_PER_MS;
+            if (current->owner)
+                __atomic_add_fetch(&current->owner->system_time, NS_PER_MS, __ATOMIC_RELAXED);
+        }
+        else
+        {
+            get_current_thread()->cputime_info.user_time += NS_PER_MS;
+            if (current->owner)
+                __atomic_add_fetch(&current->owner->user_time, NS_PER_MS, __ATOMIC_RELAXED);
+        }
+    }
 
     if (quantum == 1)
-    {
-        thread *curr = get_current_thread();
-        atomic_or_relaxed(curr->flags, THREAD_NEEDS_RESCHED);
-    }
+        atomic_or_relaxed(current->flags, THREAD_NEEDS_RESCHED);
 
     if (get_cpu_nr() == 0)
     {

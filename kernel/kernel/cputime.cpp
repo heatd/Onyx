@@ -15,6 +15,9 @@ void do_cputime_accounting(void)
 {
     auto current = get_current_thread();
     auto current_process = get_current_process();
+    /* TODO: Fix this. We're screwing up system_time vs user_time *hard* on, e.g, make workloads.
+     * Replacing with just counting ticks. */
+    return;
 
     auto now = clocksource_get_time();
     auto &timeinfo = current->cputime_info;

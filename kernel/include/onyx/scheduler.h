@@ -38,6 +38,7 @@ struct process;
 struct mm_address_space;
 struct kcov_data;
 struct blk_plug;
+struct registers;
 
 #define THREAD_STRUCT_CANARY 0xcacacacafdfddead
 #define THREAD_DEAD_CANARY   0xdeadbeefbeefdead
@@ -78,6 +79,8 @@ typedef struct thread
 
     /* Used by the block subsystem to plug up incoming requests */
     struct blk_plug *plug;
+
+    struct registers *regs;
 
 #ifdef CONFIG_KCOV
     struct kcov_data *kcov_data{nullptr};

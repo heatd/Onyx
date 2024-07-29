@@ -678,6 +678,8 @@ extern "C" unsigned long x86_dispatch_interrupt(struct registers *regs)
     struct trap_stack tpstack;
 
     context_tracking_enter_kernel();
+    if (get_current_thread())
+        get_current_thread()->regs = regs;
     auto undo_ = isr_enter_stack(regs, &tpstack);
 
     if (vec_no < EXCEPTION_VECTORS_END)
