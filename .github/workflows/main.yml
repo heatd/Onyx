@@ -46,10 +46,10 @@ jobs:
       # Runs a set of commands using the runners shell
       - name: Build Onyx
         run: |
-          cp kernel/configs/kernel.config.x86_64 kernel/kernel.config
           export SYSROOT=$PWD/sysroot
           export ONYX_ARCH=x86_64
           ./scripts/setup_build.sh
+          make -C kernel defconfig
           RUN_CLANG_TIDY=0 make -j $(nproc) liveiso
           ./scripts/create_disk_image.sh disk-image.img --bootable efi
 
@@ -106,11 +106,11 @@ jobs:
       # Runs a set of commands using the runners shell
       - name: Build Onyx
         run: |
-          cp kernel/configs/kernel.config.x86_64 kernel/kernel.config
           export CLANG_PATH=$PWD/onyx-llvm
           export SYSROOT=$PWD/sysroot
           export ONYX_ARCH=x86_64
           ./scripts/setup_build.sh
+          make -C kernel defconfig
           RUN_CLANG_TIDY=0 make -j $(nproc) liveiso
           ./scripts/create_disk_image.sh disk-image-llvm.img --bootable efi
 
@@ -164,10 +164,10 @@ jobs:
 
       - name: Build Onyx
         run: |
-          cp kernel/configs/kernel.config.riscv kernel/kernel.config
           export SYSROOT=$PWD/sysroot
           export ONYX_ARCH=riscv64
           ./scripts/setup_build.sh
+          make -C kernel defconfig
           RUN_CLANG_TIDY=0 make -j $(nproc) fullbuild-plus-initrd
           mkdir -p boot
           cp kernel/vmonyx boot/
@@ -216,11 +216,11 @@ jobs:
       # Runs a set of commands using the runners shell
       - name: Build Onyx
         run: |
-          cp kernel/configs/kernel.config.riscv kernel/kernel.config
           export CLANG_PATH=$PWD/onyx-llvm
           export SYSROOT=$PWD/sysroot
           export ONYX_ARCH=riscv64
           ./scripts/setup_build.sh
+          make -C kernel defconfig
           make -j $(nproc) fullbuild-plus-initrd
           mkdir -p boot
           cp kernel/vmonyx boot/
@@ -287,8 +287,8 @@ jobs:
       - name: Build sysroot
         run: |
           export ONYX_ARCH=${{ matrix.target_arch }}
-          cp kernel/configs/kernel.config.x86_64 kernel/kernel.config
           ./scripts/setup_build.sh
+          make -C kernel defconfig
           make install-headers -j $(nproc)
           ./scripts/build_libc_for_toolchain.sh
           tar cvf minimal-sysroot-${{ matrix.target_arch }}.tar sysroot/
@@ -385,7 +385,6 @@ jobs:
             (steps.toolchain-cache-llvm.outputs.cache-hit != 'true' && matrix.toolchain == 'llvm')
         run: |
           scripts/ci/install_github_ci_deps.sh
-          cp kernel/configs/kernel.config.x86_64 kernel/kernel.config
           export PATH="$PATH:$PWD/gn_bin"
           echo "$PWD/gn_bin" >> $GITHUB_PATH
 
@@ -400,6 +399,7 @@ jobs:
           export SYSROOT=$PWD/sysroot
           export ONYX_ARCH=${{ matrix.target_arch }}
           ./scripts/setup_build.sh
+          make -C kernel defconfig
           mkdir -p toolchain_binaries-${{ matrix.toolchain }}
           if ! ./toolchains/scripts/build_toolchain.sh toolchain_build toolchain_binaries-${{ matrix.toolchain }} \
             -a ${{ matrix.target_arch }} --toolchain=${{ matrix.toolchain }}; then
@@ -453,10 +453,10 @@ jobs:
 
       - name: Build Onyx
         run: |
-          cp kernel/configs/kernel.config.arm64 kernel/kernel.config
           export SYSROOT=$PWD/sysroot
           export ONYX_ARCH=arm64
           ./scripts/setup_build.sh
+          make -C kernel defconfig
           RUN_CLANG_TIDY=0 make -j $(nproc) fullbuild-plus-initrd
           mkdir -p boot
           cp kernel/vmonyx boot/
@@ -505,11 +505,11 @@ jobs:
       # Runs a set of commands using the runners shell
       - name: Build Onyx
         run: |
-          cp kernel/configs/kernel.config.arm64 kernel/kernel.config
           export CLANG_PATH=$PWD/onyx-llvm
           export SYSROOT=$PWD/sysroot
           export ONYX_ARCH=arm64
           ./scripts/setup_build.sh
+          make -C kernel defconfig
           make -j $(nproc) fullbuild-plus-initrd
           mkdir -p boot
           cp kernel/vmonyx boot/
@@ -556,11 +556,11 @@ jobs:
       # Runs a set of commands using the runners shell
       - name: Build Onyx
         run: |
-          cp kernel/configs/kernel.config.x86_64 kernel/kernel.config
           export SYSROOT=$PWD/sysroot
           export ONYX_ARCH=x86_64
           cd kernel && ../scripts/ci/enable-debug-kernel.sh && cd ..
           ./scripts/setup_build.sh
+          make -C kernel defconfig
           make -j $(nproc) liveiso
           USE_KVM=0 ./scripts/ci/run-tests.py
   
@@ -600,12 +600,12 @@ jobs:
       # Runs a set of commands using the runners shell
       - name: Build Onyx
         run: |
-          cp kernel/configs/kernel.config.x86_64 kernel/kernel.config
           export CLANG_PATH=$PWD/onyx-llvm
           export SYSROOT=$PWD/sysroot
           export ONYX_ARCH=x86_64
           cd kernel && ../scripts/ci/enable-debug-kernel.sh && cd ..
           ./scripts/setup_build.sh
+          make -C kernel defconfig
           make -j $(nproc) liveiso
           USE_KVM=0 ./scripts/ci/run-tests.py
 
@@ -643,11 +643,11 @@ jobs:
 
       - name: Build Onyx
         run: |
-          cp kernel/configs/kernel.config.riscv kernel/kernel.config
           export SYSROOT=$PWD/sysroot
           export ONYX_ARCH=riscv64
           cd kernel && ../scripts/ci/enable-debug-kernel.sh && cd ..
           ./scripts/setup_build.sh
+          make -C kernel defconfig
           make -j $(nproc) fullbuild-plus-full-initrd
           USE_KVM=0 ./scripts/ci/run-tests.py
   
@@ -687,11 +687,11 @@ jobs:
       # Runs a set of commands using the runners shell
       - name: Build Onyx
         run: |
-          cp kernel/configs/kernel.config.riscv kernel/kernel.config
           export CLANG_PATH=$PWD/onyx-llvm
           export SYSROOT=$PWD/sysroot
           export ONYX_ARCH=riscv64
           cd kernel && ../scripts/ci/enable-debug-kernel.sh && cd ..
           ./scripts/setup_build.sh
+          make -C kernel defconfig
           make -j $(nproc) fullbuild-plus-full-initrd
           USE_KVM=0 ./scripts/ci/run-tests.py

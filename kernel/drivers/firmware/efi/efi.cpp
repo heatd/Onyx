@@ -13,7 +13,6 @@
 #include <onyx/utf8.h>
 #include <onyx/utfstring.h>
 #include <onyx/vm.h>
-#include <onyx/x86/include/platform/vm.h>
 
 #include <efi/efi.h>
 

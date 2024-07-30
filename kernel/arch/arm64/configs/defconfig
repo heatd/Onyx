@@ -1,0 +1,100 @@
+#
+# Automatically generated file; DO NOT EDIT.
+# Onyx arm64 kernel configuration
+#
+CONFIG_ARM64=y
+
+#
+# Drivers
+#
+CONFIG_ACPI=y
+
+#
+# Real-time clock support
+#
+# CONFIG_RTC_GOLDFISH is not set
+# end of Real-time clock support
+
+#
+# Serial UART support
+#
+CONFIG_SERIAL_UART8250=y
+CONFIG_SERIAL_UART8250_ACPI=y
+CONFIG_SERIAL_UART8250_DEVTREE=y
+# end of Serial UART support
+
+CONFIG_VIRTIO=y
+CONFIG_VIRTIO_BLK=y
+CONFIG_VIRTIO_NET=y
+
+#
+# Networking Drivers
+#
+CONFIG_E1000=y
+CONFIG_RTL8168=y
+# end of Networking Drivers
+
+CONFIG_NVME=y
+
+#
+# Firmware support/drivers
+#
+CONFIG_EFI=y
+# end of Firmware support/drivers
+
+CONFIG_ATA=y
+CONFIG_AHCI=y
+CONFIG_PCI=y
+CONFIG_BGA=y
+# end of Drivers
+
+CONFIG_NET=y
+
+#
+# Filesystems
+#
+CONFIG_EXT2=y
+# end of Filesystems
+
+#
+# Security options
+#
+CONFIG_KASLR=y
+CONFIG_ASLR=y
+# end of Security options
+
+#
+# Debugging options
+#
+# CONFIG_DEBUG_MAPLE_TREE is not set
+# CONFIG_DEBUG_ADDRESS_SPACE_ACCT is not set
+# CONFIG_DEBUG_MM_MMAP is not set
+# CONFIG_DCHECK is not set
+# CONFIG_UBSAN is not set
+# CONFIG_KASAN is not set
+# CONFIG_KCSAN is not set
+# CONFIG_KCOV is not set
+# CONFIG_KUNIT is not set
+# CONFIG_PAGE_OWNER is not set
+# CONFIG_SCHED_DUMP_THREADS_MAGIC is not set
+# end of Debugging options
+
+#
+# Tracing options
+#
+CONFIG_KTRACE=y
+# end of Tracing options
+
+#
+# General kernel options
+#
+CONFIG_SMP_NR_CPUS=64
+# CONFIG_LTO is not set
+# end of General kernel options
+
+#
+# Library options
+#
+CONFIG_DEVICE_TREE=y
+CONFIG_ZSTD=y
+# end of Library options

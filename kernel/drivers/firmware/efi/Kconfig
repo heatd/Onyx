@@ -1,0 +1,5 @@
+config EFI
+    bool "EFI firmware support"
+    help
+        EFI firmware (runtime) support. Pick this if you have a remotely modern x86 PC,
+        an arm64 server or a riscv64 board with EFI.

@@ -1,0 +1,3 @@
+config RISCV
+    def_bool y
+    select DEVICE_TREE

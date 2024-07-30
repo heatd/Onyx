@@ -15,14 +15,6 @@
 
 #include <onyx/atomic.hpp>
 
-#ifdef CONFIG_KASAN_MINIMAL_QUARANTINE
-#define QUARANTINE_DEFAULT_MAX_SIZE_PCPU 0x8000
-#define QUARANTINE_DEFAULT_MAX_SIZE      0x1000000
-#else
-#define QUARANTINE_DEFAULT_MAX_SIZE      0x10000000
-#define QUARANTINE_DEFAULT_MAX_SIZE_PCPU 0x100000
-#endif
-
 void kmem_free_kasan(void *ptr);
 
 /**
@@ -130,7 +122,7 @@ struct quarantine_queue
 
 struct quarantine_percpu
 {
-    quarantine_queue queue{QUARANTINE_DEFAULT_MAX_SIZE_PCPU};
+    quarantine_queue queue{CONFIG_KASAN_QUARANTINE_PCPU_SIZE};
     atomic<int> touched;
 } __align_cache;
 
@@ -143,7 +135,7 @@ struct quarantine_percpu
 class quarantine
 {
 private:
-    quarantine_queue queue_{QUARANTINE_DEFAULT_MAX_SIZE};
+    quarantine_queue queue_{CONFIG_KASAN_QUARANTINE_SIZE};
     spinlock queue_lock_;
     quarantine_percpu pcpu_[CONFIG_SMP_NR_CPUS];
 

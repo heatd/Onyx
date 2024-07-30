@@ -1,0 +1,6 @@
+config BGA
+    tristate "Bochs VGA support"
+    depends on PCI
+    help
+        Bochs VGA support.
+        If planning to run on virtual machines, say Y/M.

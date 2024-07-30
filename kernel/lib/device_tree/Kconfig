@@ -1,0 +1,5 @@
+config DEVICE_TREE
+    bool "Device Tree Support"
+    help
+        Device Tree Support.
+        Say Y if your platform uses device trees (most SBCs do). 

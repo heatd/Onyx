@@ -16,7 +16,7 @@ obj-$(CONFIG_EFI)_NOKASAN+= arch/x86_64/efistub/early.o
 
 obj-y+= $(patsubst %, arch/x86_64/%, $(x86_64-y))
 
-arch/x86_64/vdso_helper.o: arch/x86_64/vdso_helper.S onyx-vdso.so.0 kernel.config
+arch/x86_64/vdso_helper.o: arch/x86_64/vdso_helper.S onyx-vdso.so.0 .config
 	@$(CC) -c $(CPPFLAGS) -o $@ $<
 
 arch/x86_64/efistub/early.o: CFLAGS:=$(filter-out -flto -mindirect-branch=thunk -mfunction-return=thunk-extern -mcmodel=kernel -fsanitize=undefined, $(CFLAGS)) -fPIE -fno-stack-protector

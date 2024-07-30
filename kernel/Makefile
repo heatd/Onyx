@@ -1,6 +1,7 @@
+export ONYX_ARCH:=$(shell ../scripts/onyx_arch.sh)
 HOSTARCH:=$(ONYX_ARCH)
 
-include kernel.config
+-include .config
 
 ifeq ($(CONFIG_CC_OPTIMIZE_SIZE), y)
 CFLAGS?=-Os -g
@@ -70,8 +71,8 @@ ARCHDIR:=arch/$(HOSTARCH)
 
 GENERATED_HEADERS:=include/onyx/config.h include/onyx/gen/syscall.h
 
-include/onyx/config.h: ../scripts/config_to_header.py kernel.config
-	../scripts/config_to_header.py include/onyx/config.h
+include/onyx/config.h: .config
+	grep -v "#" .config | sed -E -e 's/=/ /' -e 's/^[^\n]/#define C/' > include/onyx/config.h
 
 include $(ARCHDIR)/make.config
 
@@ -418,3 +419,17 @@ endif
 	mkdir -p $(DESTDIR)/usr/share/man
 	mkdir -p $(DESTDIR)/usr/share/man/man9
 	cp onyx.9 $(DESTDIR)/usr/share/man/man9
+
+help:
+	@$(MAKE) -C scripts/kconfig help obj=$(shell pwd)/scripts/kconfig src=$(shell pwd)/scripts/kconfig
+
+kconfig_targets:= config nconfig menuconfig xconfig gconfig defconfig oldconfig
+.PHONY: $(kconfig_targets)
+
+$(kconfig_targets):
+	@$(MAKE) -C scripts/kconfig $@ obj=$(shell pwd)/scripts/kconfig src=$(shell pwd)/scripts/kconfig
+
+%_defconfig:
+	@$(MAKE) -C scripts/kconfig $@ obj=$(shell pwd)/scripts/kconfig src=$(shell pwd)/scripts/kconfig
+
+all: vmonyx

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 - 2023 Pedro Falcato
+ * Copyright (c) 2022 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -12,7 +12,11 @@
 
 #define CHECK(x) assert(x)
 
-// TODO(heat): make this dependent on CONFIG_DEBUG or so
+#ifdef CONFIG_DCHECK
 #define DCHECK(x) assert(x)
+#else
+/* Use __builtin_constant_p to discard unused warnings, while not evaluating the expression. */
+#define DCHECK(x) ((void) __builtin_constant_p((x)))
+#endif
 
 #endif

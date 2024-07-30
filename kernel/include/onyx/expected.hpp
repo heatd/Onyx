@@ -17,6 +17,8 @@
 #define panic(...) abort()
 #endif
 
+#include <onyx/compiler.h>
+
 #include <onyx/utility.hpp>
 
 template <typename _Errortype>
@@ -64,7 +66,7 @@ public:
     constexpr expected(expected<_Type, _ErrorType>&& rhs)
     {
         _has_value = rhs._has_value;
-        if (_has_value)
+        if (_has_value) [[likely]]
             new (&t) _Type{cul::move(rhs.t)};
         else
             new (&e) _ErrorType{cul::move(rhs.e)};
@@ -113,17 +115,17 @@ public:
 
     constexpr bool has_value() const
     {
-        return _has_value;
+        return likely(_has_value);
     }
 
     constexpr bool has_error() const
     {
-        return !_has_value;
+        return unlikely(!_has_value);
     }
 
     constexpr _Type&& unwrap()
     {
-        if (!_has_value)
+        if (has_error())
             panic("Expected %p does not have a value\n", this);
         return cul::move(t);
     }

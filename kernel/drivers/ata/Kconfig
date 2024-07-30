@@ -1,0 +1,5 @@
+config ATA
+    tristate "IDE ATA support"
+    depends on PCI
+    help
+        IDE ATA support. Pick this if you're running on a virtual machine, or an older x86 PC machine.

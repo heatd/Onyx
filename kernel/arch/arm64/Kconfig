@@ -1,0 +1,3 @@
+config ARM64
+    def_bool y
+    select DEVICE_TREE

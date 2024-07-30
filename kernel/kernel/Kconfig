@@ -1,0 +1,164 @@
+source "kernel/net/Kconfig"
+source "kernel/fs/Kconfig"
+
+menu "Security options"
+
+config KASLR
+    bool "Kernel Address Space Layout Randomization"
+    default y
+    help
+        Enable Kernel Address Space Layout Randomization. Results in a likely
+        slight performance hit, but is important in the defence of the system
+        against attacks.
+
+        If in doubt, say Y.
+
+config ASLR
+    bool "Address Space Layout Randomization (userspace)"
+    default y
+    help
+        Enable Address Space Layout Randomization. Results in a likely
+        slight performance hit, but is important in the defence of the system
+        against attacks.
+
+        If in doubt, say Y.
+
+
+endmenu
+
+menu "Debugging options"
+
+config DEBUG_MAPLE_TREE
+    bool "Maple tree debugging"
+    help
+        Enable Maple Tree Debugging checks.
+
+        If in doubt, say N.
+
+config DEBUG_ADDRESS_SPACE_ACCT
+    bool "Address space accounting checks"
+    help
+        Enable address space accounting checks around various places.
+        Has a very real cost.
+
+        If in doubt, say N.
+
+config DEBUG_MM_MMAP
+    bool "mmap tree validation checks"
+    help
+        Enable mmap tree validation checks after most mmap tree operations.
+        Has a very real cost.
+
+        If in doubt, say N.
+
+config DCHECK
+    bool "Enable debug CHECKs (DCHECKs)"
+    help
+        Enable debug assertions. Code should not be behaviorally impacted.
+
+        If in doubt, say N.
+
+config UBSAN
+    bool "Undefined Behavior Sanitizer (UBSAN)"
+    help
+        Enable UBSAN, which detects undefined behavior. It's very useful
+        when developing, but has a real performance cost.
+
+        If in doubt, say N.
+
+config KASAN
+    bool "Kernel Address Space Sanitizer (KASAN)"
+    help
+        Enable KASAN, which finds all sorts of memory errors. It's very useful
+        when developing, but has a _very_ real performance and memory cost.
+
+        If in doubt, say N.
+
+if KASAN
+    config KASAN_QUARANTINE_PCPU_SIZE
+        hex "KASAN quarantine percpu size"
+        default 0x100000
+        help
+            Controls the KASAN quarantine percpu size. Has an impact on performance *and* memory usage.
+
+    config KASAN_QUARANTINE_SIZE
+        hex "KASAN quarantine size"
+        default 0x10000000
+        help
+            Controls the KASAN quarantine size. Has an impact on memory usage. If too
+            high (compared to the memory size), you might experience system instability.
+
+endif
+
+config KCSAN
+    bool "Kernel Concurrency Sanitizer (KCSAN)"
+    # KCSAN and KASAN are mutually excluded (by the compiler itself)
+    depends on !KASAN
+    help
+        Enable KCSAN, which helps find concurrency issues, using a sampling method.
+        Has a very real performance cost.
+
+        If in doubt, say N.
+
+config KCOV
+    bool "Kernel coverage (kcov)"
+    help
+        Enable KCOV, which helps fuzzers find issues by giving them coverage data.
+        Has a very real performance cost.
+
+        If in doubt, say N.
+
+config KUNIT
+    bool "Kernel unit testing"
+    help
+        Enable kernel unit tests. Has a big footprint on kernel .text size.
+
+        If in doubt, say N.
+
+config PAGE_OWNER
+    bool "Page owner tracking"
+    help
+        Enable page owner tracking. Helps debugging page lock/UAF issues.
+
+        If in doubt, say N.
+
+config SCHED_DUMP_THREADS_MAGIC
+    bool "Numlock thread info dumping"
+    help
+        Enable thread info dumping for all threads in the system when the
+        vterm recieves a numlock.
+
+        If in doubt, say N.
+endmenu
+
+menu "Tracing options"
+
+config KTRACE
+    bool "Kernel tracing"
+    default y
+    help
+        Enable ktrace, which is a bag of various different tracing facilities. Most importantly,
+        required by trace(1). Should have near zero cost.
+
+        If in doubt, say Y.
+
+endmenu
+
+menu "General kernel options"
+
+config SMP_NR_CPUS
+    int "Maximum number of CPUs"
+    range 64 256
+    default 64
+    help
+        Number of CPUs supported by the kernel (upper-bound).
+        Substancially affects memory usage.
+
+config LTO
+    bool "Use Link-time optimization when building the kernel"
+    help
+        Use LTO when building the kernel. May result in worse debugging,
+        tracing and possible breakage. Results in slower kernel builds.
+
+        If in doubt, say N.
+endmenu

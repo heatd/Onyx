@@ -5,4 +5,5 @@ vmonyx*
 *.d
 kernel/syscall_thunk.cpp
 include/onyx/gen/*
-
+.config
+.config.old

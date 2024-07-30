@@ -34,8 +34,9 @@ in the project root).
 ## Step 3: Prepare build environment
 
 1. `export ONYX_ARCH=x86_64`
-2. Install appropriate kernel config under `kernel/kernel.config`. There are pre-existing examples in
-`kernel/configs`, these are fine choices.
+2. Run `make -C kernel defconfig` or obtain a .config through other means. The `menuconfig`
+target can be used to change a config graphically, and you can also use `oldconfig` to update
+an older config file.
 
 ## Step 4: Build or obtain the toolchains
 

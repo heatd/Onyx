@@ -9,8 +9,6 @@
 #include <string>
 #include <thread>
 
-#include <onyx/expected.hpp>
-
 class Logger
 {
 private:
