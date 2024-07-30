@@ -1,0 +1,7 @@
+mainmenu "Onyx $(ONYX_ARCH) kernel configuration"
+
+source "arch/$(ONYX_ARCH)/Kconfig"
+
+source "drivers/Kconfig"
+source "kernel/Kconfig"
+source "lib/Kconfig"

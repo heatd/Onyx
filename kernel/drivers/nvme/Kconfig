@@ -1,0 +1,4 @@
+config NVME
+    bool "NVMe PCI support"
+    help
+        NVMe PCI support.

@@ -1,0 +1,26 @@
+menu "Library options"
+
+source "lib/device_tree/Kconfig"
+
+menuconfig ZSTD
+    bool "ZSTD compression/decompression support"
+    default y
+    depends on !ARM64
+    help
+        Enable in-kernel ZSTD compression/decompression support.
+        Can be used by initramfs decompression and filesystems (etc).
+
+        When in doubt, say Y.
+
+if ZSTD
+    config ZSTD_NO_KASAN
+        bool "Disable KASAN on libzstd code"
+        default y
+        depends on KASAN
+        help
+            Speed up boot times by disabling KASAN on the libzstd code.
+
+            When in doubt, say Y.
+endif
+
+endmenu

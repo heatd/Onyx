@@ -1,0 +1,6 @@
+config AHCI
+    tristate "Advanced Host Controller Interface support"
+    depends on PCI
+    help
+        Advanced Host Controller Interface storage support.
+        Pick this if you're running a remotely modern x86 PC.

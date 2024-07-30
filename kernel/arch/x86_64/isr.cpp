@@ -222,7 +222,7 @@ void stack_segment_fault(struct registers *ctx)
     kernel_tkill(SIGSEGV, current, SIGNAL_FORCE, &info);
 }
 
-#ifdef ENABLE_SCREAM_EXCEPTION
+#ifdef CONFIG_VERBOSE_SEGV
 vm_area_struct *vm_search(struct mm_address_space *mm, void *addr, size_t length)
     REQUIRES_SHARED(mm->vm_lock);
 
@@ -231,6 +231,9 @@ mutex dumplock;
 
 static void attempt_map_pointer(unsigned long word)
 {
+#define BUFSZ 1024
+    char buf[BUFSZ];
+    size_t pos = 0;
     struct mm_address_space *mm = get_current_address_space();
 
     scoped_mutex g{mm->vm_lock};
@@ -238,18 +241,22 @@ static void attempt_map_pointer(unsigned long word)
     struct vm_area_struct *vm = vm_search(mm, (void *) word, 1);
     if (vm)
     {
-        dumpprint(" --> refers to ");
+        pos += snprintf(buf + pos, BUFSZ - pos, " ^^ refers to ");
+
         if (vm->vm_file)
         {
             auto off = vm->vm_offset;
-            dumpprint("%s+%lx", vm->vm_file->f_dentry->d_name, off + (word - vm->vm_start));
+            pos += snprintf(buf + pos, BUFSZ - pos, "%s+%lx", vm->vm_file->f_dentry->d_name,
+                            off + (word - vm->vm_start));
         }
         else
-            dumpprint(" [anon region + %lx]", (word - vm->vm_start));
+            pos += snprintf(buf + pos, BUFSZ - pos, " [anon region + %lx]", (word - vm->vm_start));
 
         if (vm->vm_flags & VM_EXEC)
-            dumpprint(" # executable (.text?)");
+            pos += snprintf(buf + +pos, BUFSZ - pos, " # executable (.text?)");
+        dumpprint("%s\n", buf);
     }
+#undef BUFSZ
 }
 
 static void dumpstack(unsigned long rip, const void *stack)
@@ -259,18 +266,19 @@ static void dumpstack(unsigned long rip, const void *stack)
 
     dumpprint("RIP: %016lx", rip);
     attempt_map_pointer(rip);
-    dumpprint("\n");
 
-    copy_from_user(words, (const void *) stack, sizeof(words));
+    if (copy_from_user(words, (const void *) stack, sizeof(words)) < 0)
+    {
+        pr_info("trap: dumpstack faulted, skipping stack dump\n");
+        return;
+    }
+
     for (int i = 0; i < 32; i++)
     {
         unsigned long word = words[i];
         // Lets try to "symbolize" it
         dumpprint("stack#%d: %016lx", i, words[i]);
-
         attempt_map_pointer(word);
-
-        dumpprint("\n");
     }
 }
 

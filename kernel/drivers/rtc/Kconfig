@@ -1,0 +1,16 @@
+menu "Real-time clock support"
+
+config RTC_PC
+    def_bool y if X86_PLATFORM = "pc"
+    depends on X86_PLATFORM = "pc"
+    prompt "PC RTC Support"
+    help
+        RTC support for commodity x86 PCs.
+
+config RTC_GOLDFISH
+    bool
+    prompt "Goldfish RTC support"
+    help
+        RTC support for Goldfish, which is common hardware for virtual machines.
+
+endmenu

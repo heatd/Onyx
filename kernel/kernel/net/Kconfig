@@ -1,0 +1,6 @@
+config NET
+    def_bool y
+    prompt "Networking support"
+    help
+        Networking support, with a full TCP/IP stack (v4 + v6 + UDP), using Berkeley sockets.
+        When in doubt, say Y.

@@ -1,0 +1,4 @@
+menuconfig PCI
+    bool "Peripheral Component Interconnect bus support"
+    help
+        PCI bus support. When in doubt, say Y. 

@@ -1,0 +1,17 @@
+
+if NET
+
+menu "Networking Drivers"
+
+config E1000
+    tristate "Intel E1000 (and co.) NIC support"
+    help
+        Intel e1000 (and others) NIC support.
+
+config RTL8168
+    tristate "Realtek RTL8168 NIC support"
+    help
+        Realtek RTL8168 NIC support.
+endmenu
+
+endif

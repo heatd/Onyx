@@ -1,0 +1,13 @@
+menu "Filesystems"
+
+config EXT2
+    bool "ext2 filesystem support"
+    default y
+    help
+        ext2 is the standard Onyx filesystem, and used/supported on other
+        platforms such as Linux and the BSDs.
+
+        If unsure, say Y.
+
+
+endmenu

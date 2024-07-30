@@ -1,0 +1,60 @@
+config X86
+	def_bool y
+
+menu "Architecture Options"
+
+config X86_PLATFORM
+	string
+	prompt "Platform for which the kernel is being configured"
+	default "pc"
+	select PCI
+	select AHCI
+	select ATA
+	select EFI
+	help
+	 Platform for which the kernel is being configured.
+	 This option controls what drivers get selected by default.
+	 The only valid choice is 'pc'.
+
+config RELOCATABLE_PHYS
+	bool "Physically relocatable kernel support"
+	default y
+	help
+		Controls if the kernel is physically relocatable. Decreases the
+		likelyhood of certain attacks while improving chances it boots on weird
+		physical memory maps. Has very little to no cost. 
+
+		If in doubt, say Y.
+
+config X86_MITIGATE_SLS
+	bool "Straight Line Speculation mitigation"
+	default y
+	help
+		Mitigate against x86 SLS attacks, at the cost of performance.
+
+		If in doubt, say Y.
+
+config X86_RETPOLINE
+	bool "Retpoline mitigations (for spectre v2)"
+	default y
+	help
+		Mitigate against spectre v2 by employing retpoline.
+		Has a very palpable cost on indirect branches.
+
+		If in doubt, say Y.
+
+config X86_RETHUNK
+	bool "Rethunk mitigations (for Retbleed)"
+	default y
+	help
+		(Try to) mitigate retbleed by employing a return think.
+		Has a very palpable performance cost.
+
+		If in doubt, say Y.
+
+config VERBOSE_SEGV
+	bool "Dump verbose segfault logs in dmesg"
+	help
+		Dump whatever info we can get (stack addresses, etc) and map them into
+		file + offset (for later symbolization).
+endmenu

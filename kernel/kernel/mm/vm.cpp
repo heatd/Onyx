@@ -468,7 +468,9 @@ static bool fork_vm_area_struct(struct vm_area_struct *region, struct mm_address
 
     if (mmu_fork_tables(region, mm) < 0)
         return false;
+#ifdef CONFIG_DEBUG_ADDRESS_SPACE_ACCT
     mmu_verify_address_space_accounting(mm);
+#endif
     return true;
 }
 
@@ -511,7 +513,7 @@ int vm_fork_address_space(struct mm_address_space *addr_space) EXCLUDES(addr_spa
     struct mm_address_space *current_mm = get_current_address_space();
     scoped_mutex g{current_mm->vm_lock};
 
-#if CONFIG_DEBUG_ADDRESS_SPACE_ACCT
+#ifdef CONFIG_DEBUG_ADDRESS_SPACE_ACCT
     mmu_verify_address_space_accounting(get_current_address_space());
 #endif
 
@@ -544,7 +546,7 @@ int vm_fork_address_space(struct mm_address_space *addr_space) EXCLUDES(addr_spa
     addr_space->start = current_mm->start;
     addr_space->end = current_mm->end;
 
-#if CONFIG_DEBUG_ADDRESS_SPACE_ACCT
+#ifdef CONFIG_DEBUG_ADDRESS_SPACE_ACCT
     mmu_verify_address_space_accounting(addr_space);
 #endif
 

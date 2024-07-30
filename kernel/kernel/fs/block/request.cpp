@@ -199,7 +199,7 @@ int block_attempt_merge(struct request *req, struct bio_req *bio, size_t bio_siz
         merge = MERGE_BACK;
     else
     {
-        DCHECK(false);
+        UNREACHABLE();
     }
 
     return block_do_merge(req, bio, bio_sectors, merge);

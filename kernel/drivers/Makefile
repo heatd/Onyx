@@ -16,31 +16,6 @@ include drivers/serial/Makefile
 include drivers/net/Makefile
 include drivers/firmware/Makefile
 include drivers/rtc/Makefile
-
-ifeq ($(CONFIG_ACPI), y)
-
 include drivers/acpi/Makefile
-
-endif
-
-ifeq ($(CONFIG_X86), y)
-
-ifeq ($(CONFIG_X86_PLATFORM), pc)
-
 include drivers/pci/Makefile
 include drivers/ps2/Makefile
-
-endif
-endif
-
-ifeq ($(CONFIG_RISCV), y)
-
-include drivers/pci/Makefile
-
-endif
-
-ifeq ($(CONFIG_ARM64), y)
-
-include drivers/pci/Makefile
-
-endif

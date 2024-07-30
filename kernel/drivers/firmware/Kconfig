@@ -1,0 +1,5 @@
+menu "Firmware support/drivers"
+
+source "drivers/firmware/efi/Kconfig"
+
+endmenu

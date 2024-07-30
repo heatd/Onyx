@@ -1,0 +1,26 @@
+menu "Serial UART support"
+
+menuconfig SERIAL_UART8250
+    bool "UART8250 serial support"
+    default y if X86_PLATFORM = "pc"
+    help
+        UART8250 support. Provides serial for lots of commodity x86 PCs.
+if SERIAL_UART8250
+    config SERIAL_UART8250_ACPI
+        bool "UART 8250 ACPI support"
+        default y if ACPI
+        depends on ACPI
+        help
+            Support for binding to UART 8250 hardware using ACPI.
+            When in doubt, say Y.
+    config SERIAL_UART8250_DEVTREE
+        bool "UART 8250 device tree support"
+        default y if DEVICE_TREE
+        depends on DEVICE_TREE
+        help
+            Support for binding and discovering UART8250 hardware using the device tree.
+            When in doubt, say Y.
+
+endif
+
+endmenu

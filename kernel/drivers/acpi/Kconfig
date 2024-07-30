@@ -1,0 +1,8 @@
+
+config ACPI
+    def_bool y
+    prompt "ACPI support"
+    help
+     Enable support for the Advanced Configuration and Power Interface (ACPI). This
+     option will enlargen your kernel by a significant amount. Strongly recommended to choose Y,
+     particularly for modern x86/arm64/riscv64 systems.

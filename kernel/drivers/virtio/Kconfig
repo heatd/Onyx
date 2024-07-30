@@ -1,0 +1,19 @@
+menuconfig VIRTIO
+    bool "Virtio device support"
+    depends on PCI
+    help
+        Virtio device support. For now, only virtio PCI devices are supported.
+        If looking to run on virtual machines, say Y/M.
+
+if VIRTIO
+    config VIRTIO_BLK
+        bool "virtio-blk device support"
+        help
+            Virtio block device support. If looking to run on virtual machines, say Y/M.
+    
+    config VIRTIO_NET
+        bool "virtio-net device support"
+        depends on NET
+        help
+            virtio-net NIC device support. If looking to run on virtual machines, say Y/M.
+endif
