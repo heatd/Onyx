@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <onyx/block.h>
 #include <onyx/buffer.h>
 #include <onyx/compiler.h>
 #include <onyx/cred.h>
@@ -655,37 +656,42 @@ int ext2_statfs(struct statfs *buf, superblock *sb)
     return ((ext2_superblock *) sb)->stat_fs(buf);
 }
 
-struct inode *ext2_mount_partition(struct blockdev *dev)
+struct superblock *ext2_mount_partition(struct vfs_mount_info *info)
 {
-    LOG("ext2", "mounting ext2 partition on block device %s\n", dev->name.c_str());
-    ext2_superblock *sb = new ext2_superblock;
-    if (!sb)
-        return nullptr;
-
+    struct blockdev *dev = info->bdev;
+    int err = -ENOMEM;
     struct inode *root_inode = nullptr;
     unsigned int block_size = 0;
     unsigned long superblock_block = 0;
     unsigned long sb_off = 0;
     unsigned long entries = 0;
+    struct block_buf *b = nullptr;
+    superblock_t *ext2_sb = nullptr;
+
+    pr_info("ext2: mounting ext2 partition on block device %s\n", dev->name.c_str());
+    ext2_superblock *sb = new ext2_superblock;
+    if (!sb)
+        goto error;
 
     dev->sb = sb;
+    err = -EIO;
     if (block_set_bsize(dev, EXT2_SUPERBLOCK_OFFSET) < 0)
-        return nullptr;
+        goto error;
     sb->s_block_size = EXT2_SUPERBLOCK_OFFSET;
     sb->s_bdev = dev;
 
-    struct block_buf *b = sb_read_block(sb, 1);
+    b = sb_read_block(sb, 1);
     if (!b)
-        return nullptr;
+        goto error;
 
-    superblock_t *ext2_sb = (superblock_t *) block_buf_data(b);
+    ext2_sb = (superblock_t *) block_buf_data(b);
 
     if (ext2_sb->s_magic == EXT2_SIGNATURE)
-        LOG("ext2", "valid ext2 signature detected!\n");
+        pr_info("ext2: valid ext2 signature detected!\n");
     else
     {
-        ERROR("ext2", "invalid ext2 signature %x\n", ext2_sb->s_magic);
-        errno = EINVAL;
+        pr_err("ext2: invalid ext2 signature %x\n", ext2_sb->s_magic);
+        err = EINVAL;
         goto error;
     }
 
@@ -693,7 +699,8 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 
     if (block_size > MAX_BLOCK_SIZE)
     {
-        ERROR("ext2", "bad block size %u\n", block_size);
+        pr_err("ext2: bad block size %u\n", block_size);
+        err = -EINVAL;
         goto error;
     }
 
@@ -733,7 +740,7 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
     }
     else
     {
-        ERROR("ext2", "couldn't mount: Unknown revision level");
+        pr_err("ext2: couldn't mount: Unknown revision level\n");
         goto error;
     }
 
@@ -783,13 +790,14 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 
     root_inode->i_fops = &ext2_ops;
 
-    return root_inode;
+    d_positiveize(info->root_dir, root_inode);
+    return sb;
 error:
     if (b)
         block_buf_put(b);
     delete sb;
 
-    return nullptr;
+    return (struct superblock *) ERR_PTR(err);
 }
 
 __init void init_ext2drv()

@@ -1220,112 +1220,6 @@ off_t sys_lseek(int fd, off_t offset, int whence)
     return ret;
 }
 
-int sys_mount(const char *usource, const char *utarget, const char *ufilesystemtype,
-              unsigned long mountflags, const void *data)
-{
-    const char *source = nullptr;
-    const char *target = nullptr;
-    struct file *block_file = nullptr;
-    const char *filesystemtype = nullptr;
-    int ret = 0;
-    fs_mount *fs = nullptr;
-    struct blockdev *d = nullptr;
-    struct inode *node = nullptr;
-    char *str = nullptr;
-
-    source = strcpy_from_user(usource);
-    if (!source)
-    {
-        ret = -errno;
-        goto out;
-    }
-
-    target = strcpy_from_user(utarget);
-    if (!target)
-    {
-        ret = -errno;
-        goto out;
-    }
-
-    filesystemtype = strcpy_from_user(ufilesystemtype);
-    if (!filesystemtype)
-    {
-        ret = -errno;
-        goto out;
-    }
-    /* Find the 'filesystemtype's handler */
-    fs = fs_mount_get(filesystemtype);
-    if (!fs)
-    {
-        ret = -ENODEV;
-        goto out;
-    }
-
-    if (fs->flags & FS_MOUNT_PSEUDO_FS)
-    {
-        // Pseudo fs's dont have a backing block device
-        block_file = nullptr;
-        d = nullptr;
-    }
-    else
-    {
-        block_file = open_vfs(get_fs_root(), source);
-        if (!block_file)
-        {
-            ret = -ENOENT;
-            goto out;
-        }
-
-        if (!S_ISBLK(block_file->f_ino->i_mode))
-        {
-            ret = -ENOTBLK;
-            goto out;
-        }
-
-        d = blkdev_get_dev(block_file);
-        if (bdev_do_open(d, false) < 0)
-        {
-            /* This shouldn't happen, but handle it anyway */
-            ret = -EIO;
-            d = nullptr;
-            goto out;
-        }
-    }
-
-    if (!(node = fs->mount(d)))
-    {
-        ret = -EINVAL;
-        goto out;
-    }
-
-    str = strdup(target);
-    if (!str)
-    {
-        ret = -ENOMEM;
-        goto out;
-    }
-
-    if (mount_fs(node, str) < 0)
-    {
-        free(str);
-    }
-    else
-        d = nullptr;
-
-out:
-    if (d)
-        bdev_release(d);
-    if (block_file)
-        fd_put(block_file);
-    if (source)
-        free((void *) source);
-    if (target)
-        free((void *) target);
-    if (filesystemtype)
-        free((void *) filesystemtype);
-    return ret;
-}
-
 int do_dupfd(struct file *f, int fdbase, bool cloexec)
 {
     if (fdbase < 0)
@@ -1710,22 +1604,7 @@ int sys_openat(int dirfd, const char *upath, int flags, mode_t mode)
 
 int sys_fmount(int fd, const char *upath)
 {
-    struct file *f = get_file_description(fd);
-    if (!f)
-        return -errno;
-
-    const char *path = strcpy_from_user(upath);
-    if (!path)
-    {
-        fd_put(f);
-        return -errno;
-    }
-
-    int st = mount_fs(f->f_ino, path);
-
-    free((void *) path);
-    fd_put(f);
-    return st;
+    return 0;
 }
 
 void file_do_cloexec(struct ioctx *ctx)

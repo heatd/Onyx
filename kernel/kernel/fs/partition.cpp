@@ -10,6 +10,7 @@
 #include <stdio.h>
 
 #include <onyx/bio.h>
+#include <onyx/block.h>
 #include <onyx/crc32.h>
 #include <onyx/fs_mount.h>
 #include <onyx/gpt.h>
@@ -28,8 +29,11 @@ static spinlock fs_mount_list_lock;
  * @param name Name of the filesystem, passed by mount(2)
  * @return 0 on success, else negative error codes
  */
-int fs_mount_add(fs_sb_mount handler, unsigned int flags, cul::string name)
+int fs_mount_add(fs_sb_mount handler, unsigned int flags, const char *name)
 {
+    if (WARN_ON(strlen(name) >= FS_MOUNT_MAX_NAME))
+        return -EINVAL;
+
     scoped_lock g{fs_mount_list_lock};
     auto mount = make_unique<fs_mount>();
 
@@ -38,7 +42,7 @@ int fs_mount_add(fs_sb_mount handler, unsigned int flags, cul::string name)
 
     mount->mount = handler;
     mount->flags = flags;
-    mount->name = cul::move(name);
+    strcpy(mount->name, name);
 
     list_add_tail(&mount->list_node, &fs_mount_list);
 
@@ -59,8 +63,7 @@ fs_mount *fs_mount_get(const char *fsname)
     list_for_every (&fs_mount_list)
     {
         auto mount = container_of(l, fs_mount, list_node);
-
-        if (mount->name == fsname)
+        if (!strcmp(mount->name, fsname))
             return mount;
     }
 
