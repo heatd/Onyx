@@ -311,7 +311,6 @@ dentry *dentry_create(const char *name, inode *inode, dentry *parent, u16 flags)
 
     INIT_LIST_HEAD(&new_dentry->d_children_head);
 
-    new_dentry->d_mount_dentry = nullptr;
     new_dentry->d_ops = &default_dops;
     new_dentry->d_flags.store(flags, mem_order::release);
 
@@ -472,111 +471,6 @@ dentry *dentry_lookup_internal(std::string_view v, dentry *dir, dentry_lookup_fl
     if (!dent)
         dent = __dentry_try_to_open(v, dir, !(flags & DENTRY_LOOKUP_UNLOCKED));
     return dent;
-}
-
-dentry *dentry_mount(const char *mountpoint, struct inode *inode)
-{
-    if (!strcmp(mountpoint, "/")) [[unlikely]]
-    {
-        /* shortpath: We're creating the absolute root inode */
-        auto d = (root_dentry = dentry_create(mountpoint, inode, nullptr));
-        if (d)
-            d->d_flags |= DENTRY_FLAG_MOUNT_ROOT;
-        return d;
-    }
-
-    char *path = strdup(mountpoint);
-    if (!path)
-        return nullptr;
-
-    auto fs_root = get_filesystem_root();
-    dentry_get(fs_root->file->f_dentry);
-    std::string_view name{mountpoint, strlen(mountpoint)};
-    nameidata namedata{name, fs_root->file->f_dentry, nullptr};
-
-    auto base_dentry = dentry_resolve(namedata);
-    if (!base_dentry)
-    {
-        free((void *) path);
-        return nullptr;
-    }
-
-    if (!dentry_is_dir(base_dentry))
-    {
-        free((void *) path);
-        dentry_put(base_dentry);
-        errno = ENOTDIR;
-        return nullptr;
-    }
-
-    dentry *new_d = inode->i_dentry ?: dentry_create(basename(path), inode, base_dentry);
-
-    if (inode->i_dentry)
-    {
-        /* TODO: I don't believe it's adjusting d_parent properly */
-        dentry_put(inode->i_dentry->d_parent);
-        dentry_get(base_dentry);
-        inode->i_dentry->d_parent = base_dentry;
-    }
-
-    if (new_d)
-    {
-        base_dentry->d_lock.lock_write();
-        if (base_dentry->d_flags & DENTRY_FLAG_MOUNTPOINT)
-        {
-            free((void *) path);
-            base_dentry->d_lock.unlock_write();
-            return errno = EBUSY, nullptr;
-        }
-
-        base_dentry->d_mount_dentry = new_d;
-        base_dentry->d_flags |= DENTRY_FLAG_MOUNTPOINT;
-        dentry_get(new_d);
-        new_d->d_flags |= DENTRY_FLAG_MOUNT_ROOT;
-        inode->i_dentry = new_d;
-
-        base_dentry->d_lock.unlock_write();
-    }
-
-    free((void *) path);
-    dentry_put(base_dentry);
-
-    return new_d;
-}
-
-int mount_fs(struct inode *fsroot, const char *path)
-{
-    assert(fsroot != nullptr);
-
-    printf("mount_fs: Mounting on %s\n", path);
-
-    if (!strcmp(path, "/"))
-    {
-        file *f = (file *) zalloc(sizeof(*f));
-        if (!f)
-            return -ENOMEM;
-        f->f_ino = fsroot;
-        f->f_refcount = 1;
-        f->f_dentry = dentry_mount("/", fsroot);
-        assert(f->f_dentry != nullptr);
-
-        auto fs_root = get_filesystem_root();
-        if (fs_root->file)
-        {
-            fd_put(fs_root->file);
-        }
-
-        fs_root->file = f;
-    }
-    else
-    {
-        dentry *d;
-        if (!(d = dentry_mount(path, fsroot)))
-            return -errno;
-        dentry_put(d);
-    }
-
-    return 0;
 }
 
 void dentry_init()

@@ -28,6 +28,8 @@ struct creds
 
 struct process;
 
+__BEGIN_CDECLS
+
 struct creds *creds_get(void);
 struct creds *__creds_get(struct process *p);
 struct creds *creds_get_write(void);
@@ -55,6 +57,8 @@ static inline void creds_init(struct creds *c)
 }
 
 bool cred_is_in_group(struct creds *c, gid_t gid);
+
+__END_CDECLS
 
 #ifdef __cplusplus
 

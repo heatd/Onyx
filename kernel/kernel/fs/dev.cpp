@@ -661,12 +661,12 @@ static off_t devfs_getdirent(struct dirent *buf, off_t off, struct file *file)
  * @param dev Traditionally a pointer to blockdev, but our case, unused.
  * @return Pointer to the root inode, or nullptr in case of an error
  */
-inode *devfs_mount(blockdev *dev)
+struct superblock *devfs_mount(struct vfs_mount_info *info)
 {
     auto ex = dev_register_blockdevs(0, 1, 0, nullptr, "devfs");
 
     if (ex.has_error())
-        return errno = -ex.error(), nullptr;
+        return (struct superblock *) ERR_PTR(ex.error());
 
     auto new_fs = make_unique<superblock>();
     if (!new_fs)
@@ -682,12 +682,11 @@ inode *devfs_mount(blockdev *dev)
     if (!node)
     {
         dev_unregister_dev(ex.value(), true);
-        return nullptr;
+        return (struct superblock *) ERR_PTR(-ENOMEM);
     }
 
-    new_fs.release();
-
-    return node;
+    d_positiveize(info->root_dir, node);
+    return new_fs.release();
 }
 
 static void devfs_add_dir(const char *name, mode_t mode)

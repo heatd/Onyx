@@ -229,8 +229,6 @@ int ftruncate_vfs(off_t length, struct file *vnode);
 
 int symlink_vfs(const char *path, const char *dest, struct dentry *base);
 
-int mount_fs(struct inode *node, const char *mp);
-
 int vfs_init(void);
 
 struct inode *inode_create(bool is_cached);

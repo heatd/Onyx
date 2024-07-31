@@ -18,4 +18,6 @@
 #define IS_ERR(x)  IS_ERR_VALUE(x)
 #define PTR_ERR(x) ((long) (x))
 
+#define IS_ERR_OR_NULL(x) (unlikely(IS_ERR_VALUE((x)) || (x) == NULL))
+
 #endif

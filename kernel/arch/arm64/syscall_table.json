@@ -244,7 +244,8 @@
                 "data"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "execve",

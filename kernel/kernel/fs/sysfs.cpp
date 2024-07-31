@@ -161,11 +161,6 @@ INIT_LEVEL_VERY_EARLY_CORE_ENTRY(sysfs_init);
 
 void sysfs_mount()
 {
-    if (sysfs_root_ino)
-    {
-        if (mount_fs(sysfs_root_ino, "/sys") < 0)
-            panic("sysfs_mount: Could not mount /sys\n");
-    }
 }
 
 off_t sysfs_getdirent(struct dirent *buf, off_t off, struct file *_file)

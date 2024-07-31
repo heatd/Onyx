@@ -8,6 +8,7 @@
 #include <onyx/cred.h>
 #include <onyx/dentry.h>
 #include <onyx/file.h>
+#include <onyx/mount.h>
 #include <onyx/namei.h>
 #include <onyx/process.h>
 #include <onyx/user.h>
@@ -199,8 +200,9 @@ static int namei_walk_component(std::string_view v, nameidata &data, unsigned in
     }
     else if (dentry_is_mountpoint(new_found))
     {
-        auto dest = new_found->d_mount_dentry;
-        dentry_get(dest);
+        auto dest = mnt_traverse(new_found);
+        if (!dest)
+            return -ENOENT;
         dwrapper = dest;
         new_found = dwrapper.get_dentry();
     }

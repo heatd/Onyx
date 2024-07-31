@@ -18,8 +18,11 @@
 #include <onyx/rwlock.h>
 #include <onyx/vfs.h>
 
+#ifdef __cplusplus
 #include <onyx/atomic.hpp>
+#endif
 
+__BEGIN_CDECLS
 #define INLINE_NAME_MAX 40
 
 #define DENTRY_FLAG_MOUNTPOINT (1 << 0)
@@ -37,7 +40,7 @@ struct dentry_operations
 struct dentry
 {
     unsigned long d_ref;
-    rwslock d_lock;
+    RWSLOCK d_lock;
 
     char *d_name;
     char d_inline_name[INLINE_NAME_MAX];
@@ -49,10 +52,13 @@ struct dentry
     struct list_head d_parent_dir_node;
     struct list_head d_cache_node;
     struct list_head d_children_head;
-    struct dentry *d_mount_dentry;
     const struct dentry_operations *d_ops;
     unsigned long d_private;
+#ifdef __cplusplus
     atomic<uint16_t> d_flags;
+#else
+    u16 d_flags;
+#endif
 };
 
 struct dentry *dentry_open(char *path, struct dentry *base);
@@ -85,6 +91,18 @@ static inline bool d_is_negative(struct dentry *dentry)
 }
 
 void d_positiveize(struct dentry *dentry, struct inode *inode);
+
+__always_inline bool dentry_is_dir(const struct dentry *d)
+{
+    return S_ISDIR(d->d_inode->i_mode);
+}
+
+__always_inline bool dentry_is_symlink(const struct dentry *d)
+{
+    return S_ISLNK(d->d_inode->i_mode);
+}
+
+__END_CDECLS
 
 #ifdef __cplusplus
 
@@ -206,16 +224,6 @@ public:
  *
  */
 void dentry_trim_caches();
-
-__always_inline bool dentry_is_dir(const dentry *d)
-{
-    return S_ISDIR(d->d_inode->i_mode);
-}
-
-__always_inline bool dentry_is_symlink(const dentry *d)
-{
-    return S_ISLNK(d->d_inode->i_mode);
-}
 
 __always_inline bool dentry_is_mountpoint(const dentry *dir)
 {

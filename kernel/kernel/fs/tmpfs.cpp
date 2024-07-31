@@ -17,6 +17,7 @@
 #include <onyx/filemap.h>
 #include <onyx/fs_mount.h>
 #include <onyx/log.h>
+#include <onyx/mount.h>
 #include <onyx/mutex.h>
 #include <onyx/page.h>
 #include <onyx/tmpfs.h>
@@ -394,21 +395,19 @@ tmpfs_superblock *tmpfs_create_sb()
  * @param dev Traditionally a pointer to blockdev, but our case, unused.
  * @return Pointer to the root inode, or nullptr in case of an error
  */
-inode *tmpfs_mount(blockdev *bdev)
+struct superblock *tmpfs_mount(struct vfs_mount_info *info)
 {
-    LOG("tmpfs", "Mounting a new instance of tmpfs\n");
-
+    pr_info("tmpfs: Mounting a new instance of tmpfs\n");
     auto new_sb = tmpfs_create_sb();
     if (!new_sb)
-        return errno = ENOMEM, nullptr;
+        return (struct superblock *) ERR_PTR(-ENOMEM);
 
     char name[NAME_MAX + 1];
     snprintf(name, NAME_MAX, "tmpfs-%lu", new_sb->fs_minor);
 
     auto ex = dev_register_blockdevs(0, 1, 0, nullptr, name);
-
     if (ex.has_error())
-        return errno = -ex.error(), nullptr;
+        return (struct superblock *) ERR_PTR(ex.error());
 
     auto blockdev = ex.value();
 
@@ -419,10 +418,11 @@ inode *tmpfs_mount(blockdev *bdev)
     {
         dev_unregister_dev(blockdev, true);
         delete new_sb;
-        return errno = ENOMEM, nullptr;
+        return (struct superblock *) ERR_PTR(-ENOMEM);
     }
 
-    return node;
+    d_positiveize(info->root_dir, node);
+    return new_sb;
 }
 
 /**
@@ -433,20 +433,8 @@ inode *tmpfs_mount(blockdev *bdev)
  */
 int tmpfs_kern_mount(const char *mountpoint)
 {
-    LOG("tmpfs", "Mounting on %s\n", mountpoint);
-
-    auto node = tmpfs_mount(nullptr);
-
-    if (!node)
-        return -errno;
-
-    if (mount_fs(node, mountpoint) < 0)
-    {
-        // TODO: Destroy the filesystem or something
-        return -errno;
-    }
-
-    return 0;
+    pr_info("tmpfs: Mounting on %s\n", mountpoint);
+    return do_mount("tmpfs", mountpoint, "tmpfs", 0, nullptr);
 }
 
 __init void tmpfs_init()
