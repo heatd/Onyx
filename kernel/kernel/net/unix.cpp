@@ -693,8 +693,7 @@ expected<un_name, int> sockaddr_to_un(sockaddr *addr, socklen_t addrlen)
         if (!p)
             return unexpected{-ENOMEM};
 
-        auto_file cwd = get_current_directory();
-        auto_file f = open_vfs(cwd.get_file(), p.c_str());
+        auto_file f = open_vfs(AT_FDCWD, p.c_str());
         if (!f)
             return unexpected{-errno};
         if (!S_ISSOCK(f.get_file()->f_ino->i_mode))

@@ -284,12 +284,28 @@ int lookup_start(nameidata &data)
     auto &path = data.paths[data.pdepth];
     bool absolute = path.view[0] == '/';
 
+    if (!data.root)
+    {
+        struct filesystem_root *root = get_filesystem_root();
+        data.root = root->file->f_dentry;
+        dentry_get(data.root);
+    }
+
     if (absolute)
     {
         if (data.cur)
             dentry_put(data.cur);
         data.cur = data.root;
         dentry_get(data.root);
+    }
+    else if (!data.cur)
+    {
+        /* Grab the CWD */
+        struct file *f = get_dirfd_file(data.dirfd);
+        if (!f)
+            return -EBADF;
+        data.cur = f->f_dentry;
+        dentry_get(data.cur);
     }
 
     path.view = std::string_view(&path.view[(int) absolute], path.view.length() - (int) absolute);
@@ -316,12 +332,13 @@ int namei_lookup(nameidata &data)
         return -ENOENT;
     }
 
-    lookup_start(data);
+    int st = lookup_start(data);
+    if (st < 0)
+        return st;
 
     bool must_be_dir = data.lookup_flags & (LOOKUP_INTERNAL_TRAILING_SLASH | LOOKUP_MUST_BE_DIR);
 
-    auto st = namei_resolve_path(data);
-
+    st = namei_resolve_path(data);
     if (st < 0)
         return st;
 
@@ -352,34 +369,13 @@ dentry *dentry_resolve(nameidata &data)
     return data.getcur();
 }
 
-file *open_vfs_with_flags(file *f, const char *name, unsigned int lookup_flags
-#if 0
-                            ,unsigned int open_flags, mode_t mode
-#endif
-)
+file *open_vfs_with_flags(int dirfd, const char *name, unsigned int lookup_flags)
 {
-    bool unref_f = false;
-    auto fs_root = get_filesystem_root();
-
-    if (!f) [[unlikely]]
-    {
-        f = get_current_directory();
-        unref_f = true;
-        fd_get(f);
-    }
-
-    dentry_get(fs_root->file->f_dentry);
-    dentry_get(f->f_dentry);
-
-    nameidata namedata{std::string_view{name, strlen(name)}, fs_root->file->f_dentry, f->f_dentry};
-
+    nameidata namedata{std::string_view{name, strlen(name)}, nullptr, nullptr};
     namedata.lookup_flags = lookup_flags;
+    namedata.dirfd = dirfd;
 
     auto dent = dentry_resolve(namedata);
-
-    if (unref_f) [[unlikely]]
-        fd_put(f);
-
     if (!dent)
         return nullptr;
 
@@ -519,7 +515,7 @@ out:
     return st;
 }
 
-expected<file *, int> vfs_open(file *base, const char *name, unsigned int open_flags, mode_t mode)
+expected<file *, int> vfs_open(int dirfd, const char *name, unsigned int open_flags, mode_t mode)
 {
     const unsigned int flags = open_flags & O_DIRECTORY ? LOOKUP_MUST_BE_DIR : 0;
     auto fs_root = get_filesystem_root();
@@ -529,13 +525,11 @@ expected<file *, int> vfs_open(file *base, const char *name, unsigned int open_f
         return unexpected{-EINVAL};
 
     dentry_get(fs_root->file->f_dentry);
-    dentry_get(base->f_dentry);
 
-    nameidata namedata{std::string_view{name, strlen(name)}, fs_root->file->f_dentry,
-                       base->f_dentry};
+    nameidata namedata{std::string_view{name, strlen(name)}, fs_root->file->f_dentry, nullptr};
+    namedata.dirfd = dirfd;
 
     auto &pathname = namedata.paths[namedata.pdepth].view;
-
     auto pathname_length = pathname.length();
 
     if (pathname_length >= PATH_MAX)
@@ -543,13 +537,14 @@ expected<file *, int> vfs_open(file *base, const char *name, unsigned int open_f
     if (pathname_length == 0)
         return unexpected<int>{-ENOENT};
 
-    lookup_start(namedata);
+    int st = lookup_start(namedata);
+    if (st < 0)
+        return unexpected<int>{st};
+
     namedata.lookup_flags = flags | LOOKUP_DONT_DO_LAST_NAME;
 
     /* Start the actual lookup loop. */
     dentry *dent;
-    int st = 0;
-
     for (;;)
     {
         st = namei_resolve_path(namedata);
@@ -679,12 +674,14 @@ static expected<dentry *, int> namei_lookup_parent(dentry *base, const char *nam
     if (pathname_length == 0)
         return unexpected<int>{-ENOENT};
 
-    lookup_start(namedata);
+    int st = lookup_start(namedata);
+    if (st < 0)
+        return unexpected<int>{st};
+
     namedata.lookup_flags = flags | LOOKUP_DONT_DO_LAST_NAME;
 
     /* Start the actual lookup loop. */
     dentry *dent;
-    int st = 0;
 
     for (;;)
     {
@@ -731,9 +728,9 @@ static expected<dentry *, int> namei_lookup_parentf(file *base, const char *name
     return namei_lookup_parent(base->f_dentry, name, flags, outp);
 }
 
-struct file *open_vfs(struct file *dir, const char *path)
+struct file *open_vfs(int dirfd, const char *path)
 {
-    return open_vfs_with_flags(dir, path, 0);
+    return open_vfs_with_flags(dirfd, path, 0);
 }
 
 /* Helper to open specific dentries */
@@ -996,17 +993,13 @@ int do_sys_link(int olddirfd, const char *uoldpath, int newdirfd, const char *un
 
     auto_file olddir, newdir;
 
-    if (auto st = olddir.from_dirfd(olddirfd); st != 0)
-        return st;
-
     if (auto st = newdir.from_dirfd(newdirfd); st != 0)
         return st;
 
     if (flags & AT_SYMLINK_FOLLOW)
         lookup_flags &= ~LOOKUP_NOFOLLOW;
 
-    auto_file src_file = open_vfs_with_flags(olddir.get_file(), oldpath.data(), lookup_flags);
-
+    auto_file src_file = open_vfs_with_flags(olddirfd, oldpath.data(), lookup_flags);
     if (!src_file)
         return -errno;
 
@@ -1370,7 +1363,7 @@ int sys_chroot(const char *upath)
     if (!is_root_user())
         return -EPERM;
 
-    auto ex = vfs_open(get_current_directory(), path.data(), O_RDONLY | O_DIRECTORY, 0000);
+    auto ex = vfs_open(AT_FDCWD, path.data(), O_RDONLY | O_DIRECTORY, 0000);
     if (ex.has_error())
         return ex.error();
     current = get_current_process();

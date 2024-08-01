@@ -714,11 +714,10 @@ bool may_noatime(file *f)
     return g.get()->euid == 0 || f->f_ino->i_uid == g.get()->euid;
 }
 
-static expected<struct file *, int> try_to_open(struct file *base, const char *filename, int flags,
+static expected<struct file *, int> try_to_open(int dirfd, const char *filename, int flags,
                                                 mode_t mode)
 {
-    auto ex = vfs_open(base, filename, flags, mode);
-
+    auto ex = vfs_open(dirfd, filename, flags, mode);
     if (ex.has_error())
         return unexpected<int>{ex.error()};
 
@@ -781,7 +780,7 @@ static expected<struct file *, int> try_to_open(struct file *base, const char *f
      O_APPEND | O_CLOEXEC | O_LARGEFILE | O_TRUNC | O_NOCTTY | O_PATH | O_NOATIME | O_DIRECT | \
      O_SYNC)
 
-int do_sys_open(const char *filename, int flags, mode_t mode, struct file *__rel)
+int do_sys_open(const char *filename, int flags, mode_t mode, int dirfd)
 {
     if (flags & ~VALID_OPEN_FLAGS)
     {
@@ -791,16 +790,11 @@ int do_sys_open(const char *filename, int flags, mode_t mode, struct file *__rel
 #endif
         return -EINVAL;
     }
-
-    // printk("Open(%s, %x)\n", filename, flags);
     /* This function does all the open() work, open(2) and openat(2) use this */
-    struct file *rel = __rel;
-    struct file *base = get_fs_base(filename, rel);
-
     int fd_num = -1;
 
     /* Open/creat the file */
-    auto ex = try_to_open(base, filename, flags, mode);
+    auto ex = try_to_open(dirfd, filename, flags, mode);
     if (ex.has_error())
     {
         return ex.error();
@@ -831,12 +825,9 @@ int sys_open(const char *ufilename, int flags, mode_t mode)
     const char *filename = strcpy_from_user(ufilename);
     if (!filename)
         return -errno;
-    struct file *cwd = get_current_directory();
-    /* TODO: Unify open and openat better */
     /* open(2) does relative opens using the current working directory */
-    int fd = do_sys_open(filename, flags, mode, cwd);
+    int fd = do_sys_open(filename, flags, mode, AT_FDCWD);
     free((char *) filename);
-    fd_put(cwd);
     return fd;
 }
 
@@ -1381,6 +1372,8 @@ int sys_fcntl(int fd, int cmd, unsigned long arg)
 
 #define FSTATAT_VALID_FLAGS (AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH)
 
+int sys_fstat(int fd, struct stat *);
+
 int sys_fstatat(int dirfd, const char *upathname, struct stat *ubuf, int flags)
 {
     if (flags & ~FSTATAT_VALID_FLAGS)
@@ -1391,31 +1384,20 @@ int sys_fstatat(int dirfd, const char *upathname, struct stat *ubuf, int flags)
         return ex.error();
 
     struct stat buf = {};
-    auto_file f;
-    if (const int st = f.from_dirfd(dirfd); st < 0)
-        return st;
-
     int st = 0;
 
     if (flags & AT_EMPTY_PATH && strlen(s.data()) == 0)
-    {
-        st = stat_vfs(&buf, f.get_file());
-    }
-    else
-    {
-        unsigned int open_flags = 0;
-        if (flags & AT_SYMLINK_NOFOLLOW)
-            open_flags |= LOOKUP_NOFOLLOW;
+        return sys_fstat(dirfd, ubuf);
 
-        auto_file f2 = open_vfs_with_flags(f.get_file(), s.data(), open_flags);
+    unsigned int open_flags = 0;
+    if (flags & AT_SYMLINK_NOFOLLOW)
+        open_flags |= LOOKUP_NOFOLLOW;
 
-        if (!f2)
-        {
-            return -errno;
-        }
+    auto_file f2 = open_vfs_with_flags(dirfd, s.data(), open_flags);
+    if (!f2)
+        return -errno;
 
-        st = stat_vfs(&buf, f2.get_file());
-    }
+    st = stat_vfs(&buf, f2.get_file());
 
     if (st == 0)
     {
@@ -1456,14 +1438,10 @@ int sys_chdir(const char *upath)
         return -errno;
 
     int st = 0;
-    struct file *curr = get_current_directory();
-    struct file *base = get_fs_base(path, curr);
-    struct file *dir = open_vfs(base, path);
+    struct file *dir = open_vfs(AT_FDCWD, path);
     struct file *f, *old;
     struct process *current;
     struct ioctx *ctx;
-
-    fd_put(curr);
 
     if (!dir)
     {
@@ -1565,6 +1543,15 @@ int sys_getcwd(char *path, size_t size)
 struct file *get_dirfd_file(int dirfd)
 {
     struct file *dirfd_desc = nullptr;
+    if (!get_current_process())
+    {
+        /* If we do *not* have a process, return root */
+        WARN_ON(dirfd != AT_FDCWD);
+        dirfd_desc = get_filesystem_root()->file;
+        fd_get(dirfd_desc);
+        return dirfd_desc;
+    }
+
     if (dirfd != AT_FDCWD)
     {
         dirfd_desc = get_file_description(dirfd);
@@ -1579,26 +1566,12 @@ struct file *get_dirfd_file(int dirfd)
 
 int sys_openat(int dirfd, const char *upath, int flags, mode_t mode)
 {
-    struct file *dirfd_desc = nullptr;
-
-    dirfd_desc = get_dirfd_file(dirfd);
-    if (!dirfd_desc)
-        return -errno;
-
     const char *path = strcpy_from_user(upath);
     if (!path)
-    {
-        if (dirfd_desc)
-            fd_put(dirfd_desc);
         return -errno;
-    }
 
-    int fd = do_sys_open(path, flags, mode, dirfd_desc);
-
+    int fd = do_sys_open(path, flags, mode, dirfd);
     free((char *) path);
-    if (dirfd_desc)
-        fd_put(dirfd_desc);
-
     return fd;
 }
 
@@ -1656,13 +1629,10 @@ int sys_faccessat(int dirfd, const char *upath, int amode, int flags)
     user_string path;
     auto_file f;
 
-    if (int st = f.from_dirfd(dirfd); st < 0)
-        return st;
-
     if (auto res = path.from_user(upath); res.has_error())
         return -EFAULT;
 
-    auto_file file = open_vfs(f.get_file(), path.data());
+    auto_file file = open_vfs(dirfd, path.data());
 
     unsigned int mask = ((amode & R_OK) ? FILE_ACCESS_READ : 0) |
                         ((amode & X_OK) ? FILE_ACCESS_EXECUTE : 0) |
@@ -1806,14 +1776,7 @@ ssize_t sys_readlinkat(int dirfd, const char *upathname, char *ubuf, size_t bufs
     char *buf;
     size_t buf_len, to_copy;
 
-    struct file *base = get_dirfd_file(dirfd);
-    if (!base)
-    {
-        st = -errno;
-        goto out;
-    }
-
-    f = open_vfs_with_flags(base, pathname, LOOKUP_NOFOLLOW);
+    f = open_vfs_with_flags(dirfd, pathname, LOOKUP_NOFOLLOW);
     if (!f)
     {
         st = -errno;
@@ -1841,8 +1804,6 @@ out1:
     fd_put(f);
 out:
     free(pathname);
-    if (base)
-        fd_put(base);
     return st;
 }
 
@@ -1878,12 +1839,8 @@ int sys_fchmodat(int dirfd, const char *pathname, mode_t mode, int flags)
     if (auto ex = path.from_user(pathname); ex.has_error())
         return ex.error();
 
-    auto_file dir;
-    if (int st = dir.from_dirfd(dirfd); st < 0)
-        return st;
-
     int open_flags = (flags & AT_SYMLINK_NOFOLLOW ? LOOKUP_NOFOLLOW : 0);
-    auto_file f = open_vfs_with_flags(dir.get_file(), path.data(), open_flags);
+    auto_file f = open_vfs_with_flags(dirfd, path.data(), open_flags);
 
     if (!f)
         return -errno;
@@ -1972,11 +1929,8 @@ int sys_utimensat(int dirfd, const char *pathname, const struct timespec *times,
     auto_file f;
     if (pathname)
     {
-        if (int st = dir.from_dirfd(dirfd); st < 0)
-            return st;
-
         int open_flags = (flags & AT_SYMLINK_NOFOLLOW ? LOOKUP_NOFOLLOW : 0);
-        f = open_vfs_with_flags(dir.get_file(), path.data(), open_flags);
+        f = open_vfs_with_flags(dirfd, path.data(), open_flags);
 
         if (!f)
             return -errno;
@@ -2075,8 +2029,7 @@ int sys_fchownat_core(int dirfd, const char *pathname, uid_t owner, gid_t group,
             return st;
 
         int open_flags = (flags & AT_SYMLINK_NOFOLLOW ? LOOKUP_NOFOLLOW : 0);
-        f = open_vfs_with_flags(dir.get_file(), pathname, open_flags);
-
+        f = open_vfs_with_flags(dirfd, pathname, open_flags);
         if (!f)
             return -errno;
     }
@@ -2154,8 +2107,7 @@ int sys_statfs(const char *upath, struct statfs *ubuf)
     if (auto ex = path.from_user(upath); ex.has_error())
         return ex.error();
 
-    auto_file cwd = get_current_directory();
-    auto_file f = open_vfs(cwd.get_file(), path.data());
+    auto_file f = open_vfs(AT_FDCWD, path.data());
     if (!f)
         return -errno;
 

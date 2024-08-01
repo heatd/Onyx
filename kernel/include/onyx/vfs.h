@@ -23,6 +23,7 @@
 #include <onyx/vm.h>
 
 #include <uapi/dirent.h>
+#include <uapi/fcntl.h>
 #include <uapi/stat.h>
 
 struct inode;
@@ -206,8 +207,8 @@ struct file
 
 int inode_create_vmo(struct inode *ino);
 
-struct file *open_vfs_with_flags(struct file *dir, const char *path, unsigned int flags);
-struct file *open_vfs(struct file *dir, const char *path);
+struct file *open_vfs_with_flags(int dirfd, const char *path, unsigned int flags);
+struct file *open_vfs(int dirfd, const char *path);
 
 ssize_t read_vfs(size_t offset, size_t length, void *buffer, struct file *file);
 

@@ -434,7 +434,7 @@ int sys_execve(const char *p, const char **argv, const char **envp)
 
     /* Open the file */
     f = get_current_directory();
-    exec_file = open_vfs(pick_between_cwd_and_root(path, current), path);
+    exec_file = open_vfs(AT_FDCWD, path);
 
     fd_put(f);
 

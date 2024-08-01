@@ -210,7 +210,7 @@ int load_module(const char *path, const char *name)
 
     module_add(mod);
 
-    file = open_vfs(get_fs_root(), path);
+    file = open_vfs(AT_FDCWD, path);
     if (!file)
     {
         errno = ENOENT;

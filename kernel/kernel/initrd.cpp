@@ -42,6 +42,7 @@ unsigned int parse_perms_from_tar(tar_header_t *entry)
 void tar_handle_entry(tar_header_t *entry, onx::stream &str)
 {
     char *saveptr;
+    char pathbuf[NAME_MAX];
     if (memcmp(entry->magic, "ustar ", 5))
         panic("Tar entry with invalid magic value");
     auto len = strnlen(entry->filename, 100);
@@ -63,9 +64,7 @@ void tar_handle_entry(tar_header_t *entry, onx::stream &str)
     char *old = filename;
 
     assert(filename != nullptr);
-
     filename = dirname(filename);
-
     filename = strtok_r(filename, "/", &saveptr);
 
     struct file *node = get_fs_root();
@@ -75,10 +74,12 @@ void tar_handle_entry(tar_header_t *entry, onx::stream &str)
         {
             struct file *last = node;
         retry:
-            if (!(node = open_vfs(node, filename)))
+            strlcpy(pathbuf, entry->filename, len + 1);
+            pathbuf[filename + strlen(filename) - old] = '\0';
+            if (!(node = open_vfs(AT_FDCWD, pathbuf)))
             {
                 node = last;
-                auto ex = mkdir_vfs(filename, 0755, node->f_dentry);
+                auto ex = mkdir_vfs(pathbuf, 0755, node->f_dentry);
                 if (ex.has_error())
                 {
                     perror("mkdir");
@@ -94,12 +95,11 @@ void tar_handle_entry(tar_header_t *entry, onx::stream &str)
     /* After creat/opening the directories, create it and populate it */
     strlcpy(old, entry->filename, len + 1);
     filename = old;
-    filename = basename(filename);
     unsigned int perms = parse_perms_from_tar(entry);
 
     if (entry->typeflag == TAR_TYPE_FILE)
     {
-        auto ex = creat_vfs(node->f_dentry, filename, perms);
+        auto ex = creat_vfs(get_filesystem_root()->file->f_dentry, filename, perms);
         if (ex.has_error())
             panic("Could not create file from initrd - errno %d", ex.error());
 
@@ -113,13 +113,13 @@ void tar_handle_entry(tar_header_t *entry, onx::stream &str)
     }
     else if (entry->typeflag == TAR_TYPE_DIR)
     {
-        auto dent = mkdir_vfs(filename, perms, node->f_dentry).unwrap();
+        auto dent = mkdir_vfs(filename, perms, get_filesystem_root()->file->f_dentry).unwrap();
         dentry_put(dent);
     }
     else if (entry->typeflag == TAR_TYPE_SYMLNK)
     {
         char *buffer = (char *) entry->linkname;
-        int st = symlink_vfs(filename, buffer, node->f_dentry);
+        int st = symlink_vfs(filename, buffer, get_filesystem_root()->file->f_dentry);
         CHECK(st == 0);
     }
 }

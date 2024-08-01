@@ -106,7 +106,7 @@ static struct blockdev *resolve_bdev(const char *source, struct fs_mount *fs)
         return NULL;
     }
 
-    struct file *block_file = open_vfs(get_fs_root(), source);
+    struct file *block_file = open_vfs(AT_FDCWD, source);
     if (!block_file)
     {
         ret = -ENOENT;
@@ -162,7 +162,7 @@ static int mnt_commit(struct mount *mnt, const char *target)
      * flags on a dentry, etc. */
     if (strcmp(target, "/"))
     {
-        struct file *filp = open_vfs(get_fs_root(), target);
+        struct file *filp = open_vfs(AT_FDCWD, target);
         if (!filp)
             return -errno;
         if (!dentry_is_dir(filp->f_dentry))
