@@ -20,11 +20,6 @@ enum class fs_token_type : uint8_t
     LAST_NAME_IN_PATH
 };
 
-struct last_name_handling
-{
-    virtual expected<dentry *, int> operator()(nameidata &data, std::string_view &name) = 0;
-};
-
 #define LOOKUP_NOFOLLOW                (1 << 0)
 #define LOOKUP_FAIL_IF_LINK            (1 << 1)
 #define LOOKUP_MUST_BE_DIR             (1 << 2)
@@ -80,12 +75,9 @@ struct nameidata
     int pdepth{0};
     struct path paths[SYMLOOP_MAX];
 
-    last_name_handling *handler;
-
     unsigned int lookup_flags{};
 
-    nameidata(std::string_view view, dentry *root, dentry *rel, last_name_handling *h = nullptr)
-        : root{root}, cur{rel}, handler{h}
+    nameidata(std::string_view view, dentry *root, dentry *rel) : root{root}, cur{rel}
     {
         paths[0] = path{view};
     }
