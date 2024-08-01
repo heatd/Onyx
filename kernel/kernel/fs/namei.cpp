@@ -271,24 +271,6 @@ static int namei_resolve_path(nameidata &data)
             return 0;
         }
 
-        bool is_last_name = data.pdepth == 0 &&
-                            data.paths[data.pdepth].token_type == fs_token_type::LAST_NAME_IN_PATH;
-
-        if (is_last_name && data.handler)
-        {
-            // printk("^^ is last name\n");
-            // printk("data.handler: %p\n", data.handler);
-            auto ex = data.handler->operator()(data, v);
-            if (ex.has_value())
-            {
-                dentry_put(data.cur);
-                data.cur = ex.value();
-                return 0;
-            }
-
-            return ex.error();
-        }
-
         int st = namei_walk_component(v, data);
         if (st < 0)
             return st;
