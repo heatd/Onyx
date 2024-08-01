@@ -12,6 +12,8 @@
 #include <onyx/dentry.h>
 #include <onyx/limits.h>
 
+#include <uapi/fcntl.h>
+
 #include <onyx/string_view.hpp>
 
 enum class fs_token_type : uint8_t
@@ -76,6 +78,7 @@ struct nameidata
     struct path paths[SYMLOOP_MAX];
 
     unsigned int lookup_flags{};
+    int dirfd{AT_FDCWD};
 
     nameidata(std::string_view view, dentry *root, dentry *rel) : root{root}, cur{rel}
     {
@@ -102,6 +105,6 @@ struct nameidata
     }
 };
 
-expected<file *, int> vfs_open(file *base, const char *name, unsigned int open_flags, mode_t mode);
+expected<file *, int> vfs_open(int dirfd, const char *name, unsigned int open_flags, mode_t mode);
 
 #endif

@@ -46,7 +46,7 @@ void *bin_do_interp(struct binfmt_args *_args)
     struct binfmt_args args;
     memcpy(&args, _args, sizeof(struct binfmt_args));
 
-    struct file *file = open_vfs(get_fs_root(), args.interp_path);
+    struct file *file = open_vfs(AT_FDCWD, args.interp_path);
     if (!file)
     {
 #if 0
