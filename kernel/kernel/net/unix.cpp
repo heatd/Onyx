@@ -549,10 +549,7 @@ int un_socket::do_anon_bind(cul::string anon_address)
 int un_socket::do_fs_bind(cul::string path)
 {
     const auto perms = 0777 & ~get_current_process()->ctx.umask;
-    auto_file curr_dir = get_current_directory();
-    auto base = get_fs_base(path.c_str(), curr_dir.get_file());
-
-    auto ex = mknod_vfs(path.c_str(), perms | S_IFSOCK, 0, base->f_dentry);
+    auto ex = mknod_vfs(path.c_str(), perms | S_IFSOCK, 0, AT_FDCWD);
 
     if (ex.has_error())
     {
@@ -573,7 +570,7 @@ int un_socket::do_fs_bind(cul::string path)
     if (!un_sock_table.add_socket(this, 0))
     {
         dentry_put(ex.value());
-        unlink_vfs(path.c_str(), 0, base);
+        unlink_vfs(path.c_str(), 0, AT_FDCWD);
         src_addr_.dentry_ = nullptr;
         return -ENOMEM;
     }

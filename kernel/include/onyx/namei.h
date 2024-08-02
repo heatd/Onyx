@@ -80,7 +80,7 @@ struct nameidata
     unsigned int lookup_flags{};
     int dirfd{AT_FDCWD};
 
-    nameidata(std::string_view view, dentry *root, dentry *rel) : root{root}, cur{rel}
+    nameidata(std::string_view view) : root{nullptr}, cur{nullptr}
     {
         paths[0] = path{view};
     }

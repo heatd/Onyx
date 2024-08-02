@@ -47,16 +47,6 @@ fd_table *fdtable_alloc();
  */
 void fdtable_free(struct fd_table *table);
 
-bool is_absolute_filename(const char *file)
-{
-    return *file == '/';
-}
-
-struct file *get_fs_base(const char *file, struct file *rel_base)
-{
-    return is_absolute_filename(file) ? get_fs_root() : rel_base;
-}
-
 struct file *get_current_directory()
 {
     struct ioctx *ctx = &get_current_process()->ctx;
@@ -1655,53 +1645,21 @@ int sys_access(const char *path, int amode)
     return sys_faccessat(AT_FDCWD, path, amode, 0);
 }
 
-int do_sys_mkdir(const char *path, mode_t mode, struct file *dir)
-{
-    struct file *base = get_fs_base(path, dir);
-
-    auto ex = mkdir_vfs(path, mode & ~get_current_umask(), base->f_dentry);
-    if (ex.has_error())
-        return ex.error();
-
-    dentry_put(ex.value());
-    return 0;
-}
-
 int sys_mkdirat(int dirfd, const char *upath, mode_t mode)
 {
-    struct file *dir;
-    struct file *dirfd_desc = nullptr;
-
-    dirfd_desc = get_dirfd_file(dirfd);
-    if (!dirfd_desc)
-    {
-        return -errno;
-    }
-
-    dir = dirfd_desc;
-
-    if (!S_ISDIR(dir->f_ino->i_mode))
-    {
-        if (dirfd_desc)
-            fd_put(dirfd_desc);
-        return -ENOTDIR;
-    }
-
     char *path = strcpy_from_user(upath);
     if (!path)
-    {
-        if (dirfd_desc)
-            fd_put(dirfd_desc);
         return -errno;
-    }
 
-    int ret = do_sys_mkdir(path, mode, dir);
+    int err = 0;
 
+    auto ex = mkdir_vfs(path, mode & ~get_current_umask(), dirfd);
+    if (ex.has_error())
+        err = ex.error();
+    else
+        dentry_put(ex.value());
     free((char *) path);
-    if (dirfd_desc)
-        fd_put(dirfd_desc);
-
-    return ret;
+    return err;
 }
 
 int sys_mkdir(const char *upath, mode_t mode)
@@ -1709,53 +1667,22 @@ int sys_mkdir(const char *upath, mode_t mode)
     return sys_mkdirat(AT_FDCWD, upath, mode);
 }
 
-int do_sys_mknodat(const char *path, mode_t mode, dev_t dev, struct file *dir)
-{
-    struct file *base = get_fs_base(path, dir);
-
-    auto ex = mknod_vfs(path, mode & ~get_current_umask(), dev, base->f_dentry);
-    if (ex.has_error())
-        return ex.error();
-
-    dentry_put(ex.value());
-    return 0;
-}
-
 int sys_mknodat(int dirfd, const char *upath, mode_t mode, dev_t dev)
 {
-    struct file *dir;
-    struct file *dirfd_desc = nullptr;
-
-    dirfd_desc = get_dirfd_file(dirfd);
-    if (!dirfd_desc)
-    {
-        return -errno;
-    }
-
-    dir = dirfd_desc;
-
-    if (!S_ISDIR(dir->f_ino->i_mode))
-    {
-        if (dirfd_desc)
-            fd_put(dirfd_desc);
-        return -ENOTDIR;
-    }
-
     char *path = strcpy_from_user(upath);
     if (!path)
-    {
-        if (dirfd_desc)
-            fd_put(dirfd_desc);
         return -errno;
-    }
 
-    int ret = do_sys_mknodat(path, mode, dev, dir);
+    int err = 0;
+
+    auto ex = mknod_vfs(path, mode & ~get_current_umask(), dev, dirfd);
+    if (ex.has_error())
+        err = ex.error();
+    else
+        dentry_put(ex.value());
 
     free((char *) path);
-    if (dirfd_desc)
-        fd_put(dirfd_desc);
-
-    return ret;
+    return err;
 }
 
 int sys_mknod(const char *pathname, mode_t mode, dev_t dev)

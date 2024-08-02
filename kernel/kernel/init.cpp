@@ -117,7 +117,7 @@ int find_and_exec_init(const char **argv, const char **envp)
 		fd_put(streams);
 	}
 #endif
-    proc->ctx.cwd = get_fs_root();
+    proc->ctx.cwd = get_filesystem_root()->file;
     fd_get(proc->ctx.cwd);
 
     const char *init_paths[] = {"/sbin/init", "/bin/init", "/bin/sh"};

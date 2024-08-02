@@ -358,14 +358,6 @@ extern "C" [[noreturn]] void return_from_execve(void *entry, void *stack);
     execve(2): Executes a program with argv and envp, replacing the current process.
 */
 
-struct file *pick_between_cwd_and_root(char *p, struct process *proc)
-{
-    if (*p == '/')
-        return get_fs_root();
-    else
-        return proc->ctx.cwd;
-}
-
 bool file_is_executable(struct file *exec_file)
 {
     if (!S_ISREG(exec_file->f_ino->i_mode) || !file_can_access(exec_file, FILE_ACCESS_EXECUTE))
