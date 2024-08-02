@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Pedro Falcato
+ * Copyright (c) 2023 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 license.
  *
  * SPDX-License-Identifier: GPL-2.0-only
@@ -7,6 +7,7 @@
 #include <onyx/clock.h>
 #include <onyx/cpumask.h>
 #include <onyx/gen/trace_rcupdate.h>
+#include <onyx/mm/slab.h>
 #include <onyx/percpu.h>
 #include <onyx/rcupdate.h>
 #include <onyx/scheduler.h>
@@ -168,7 +169,15 @@ struct rcu_cblist
                 break;
             processed++;
             struct rcu_head *next = it->next;
-            it->func(it);
+            if (is_kfree_rcu_off((unsigned long) (void *) it->func))
+            {
+                /* This is a kfree, and ->func represents the offset of the rcu_head with relation
+                 * to the real object. */
+                void *ptr = (void *) ((unsigned long) it - (unsigned long) it->func);
+                kfree(ptr);
+            }
+            else
+                it->func(it);
 
             it = next;
         }
@@ -394,4 +403,24 @@ void synchronize_rcu()
         WAIT_FOR_FOREVER, 0);
 
     DCHECK(token.wake == 1);
+}
+
+void __kfree_rcu(struct rcu_head *head, unsigned long off)
+{
+    head->func = (void (*)(struct rcu_head *))(void *) off;
+    head->next = nullptr;
+
+    auto flags = irq_save_and_disable();
+
+    rcu_pcpublk *rpb = get_per_cpu_ptr(rcu_percpu);
+    rpb->next.add(head);
+
+    if (rpb->next.nelems >= onetime_processed_limit)
+    {
+        // Attempt to force a queiscent state as soon as possible in this thread,
+        // as the next list is getting too long. This is done to minimize latency and grace periods.
+        sched_should_resched();
+    }
+
+    irq_restore(flags);
 }

@@ -7,6 +7,8 @@
 #ifndef _ONYX_RCUPDATE_H
 #define _ONYX_RCUPDATE_H
 
+#include <stddef.h>
+
 #include <onyx/preempt.h>
 
 #define rcu_read_lock()   sched_disable_preempt()
@@ -22,6 +24,15 @@ struct rcu_head
 
 void call_rcu(struct rcu_head *head, void (*callback)(struct rcu_head *head));
 void synchronize_rcu();
+void __kfree_rcu(struct rcu_head *head, unsigned long off);
+
+#define is_kfree_rcu_off(off) ((off) < 4096)
+#define kfree_rcu(ptr, head)                                                  \
+    ({                                                                        \
+        unsigned long off = offsetof(__typeof__(*(ptr)), head);               \
+        _Static_assert(is_kfree_rcu_off(offsetof(__typeof__(*(ptr)), head))); \
+        __kfree_rcu(&(ptr)->head, off);                                       \
+    })
 
 /**
  * @brief Handle a quiescent state
