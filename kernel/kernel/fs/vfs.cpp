@@ -37,32 +37,47 @@ struct file *mount_list = nullptr;
 
 bool inode_is_cacheable(struct inode *file);
 
-struct filesystem_root boot_root = {};
+static struct path boot_root;
 
 int vfs_init()
 {
-    object_init(&boot_root.object, nullptr);
+    path_init(&boot_root);
     dentry_init();
     file_cache_init();
 
     return 0;
 }
 
-struct filesystem_root *get_filesystem_root()
+int set_root(struct path *path)
+{
+    boot_root = *path;
+    path_get(&boot_root);
+    if (get_current_process())
+    {
+        /* eww eww ewew eww eww eww eww*/
+        get_current_process()->ctx.root = boot_root;
+        path_get(&boot_root);
+    }
+
+    return 0;
+}
+
+struct path get_filesystem_root()
 {
     struct process *p = get_current_process();
     if (!p)
-        return &boot_root;
-    DCHECK(p->ctx.root != nullptr);
+    {
+        /* We won't worry about races here, the "boot_root" is used fairly ephemerally */
+        path_get(&boot_root);
+        return boot_root;
+    }
 
-    return p->ctx.root;
-}
-
-struct file *get_fs_root()
-{
-    struct filesystem_root *root = get_filesystem_root();
-
-    return root->file;
+    spin_lock(&p->ctx.cwd_lock);
+    DCHECK(!path_is_null(&p->ctx.root));
+    struct path root = p->ctx.root;
+    path_get(&root);
+    spin_unlock(&p->ctx.cwd_lock);
+    return root;
 }
 
 #ifdef CONFIG_CHECK_PAGE_CACHE_INTEGRITY

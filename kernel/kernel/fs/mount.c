@@ -180,14 +180,12 @@ static int mnt_commit(struct mount *mnt, const char *target)
     }
     else
     {
-        /* TODO: Clean this shit up */
-        struct file *f = (struct file *) zalloc(sizeof(*f));
-        if (!f)
-            return -ENOMEM;
-        f->f_ino = mnt->mnt_root->d_inode;
-        f->f_refcount = 1;
-        f->f_dentry = mnt->mnt_root;
-        get_filesystem_root()->file = f;
+        /* TODO: This is weird and complicated, given that our boot_root doesn't really match after
+         * we chroot. In any case, mount on / should generally disallowed, apart from the first
+         * mount of all. We don't handle this properly. */
+        struct path p = {mnt->mnt_root};
+        if (set_root(&p) < 0)
+            return -EBUSY;
     }
 
     /* Register this mount on the table */
@@ -231,7 +229,7 @@ int do_mount(const char *source, const char *target, const char *fstype, unsigne
         goto out;
     mnt_init(mnt, mnt_flags);
 
-    root_dentry = dentry_create("", NULL, NULL, DENTRY_FLAG_MOUNT_ROOT);
+    root_dentry = dentry_create("", NULL, NULL, DENTRY_FLAG_MOUNT_ROOT | DENTRY_FLAG_NEGATIVE);
     if (!root_dentry)
         goto out2;
 

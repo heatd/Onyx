@@ -286,9 +286,8 @@ static int namei_resolve_path(nameidata &data)
     DCHECK(path_is_null(&data.root));
     DCHECK(path_is_null(&data.cur));
 
-    struct filesystem_root *root = get_filesystem_root();
-    data.root = root->file->f_path;
-    path_get(&data.root);
+    /* Note: get_filesystem_root() returns us a ref */
+    data.root = get_filesystem_root();
 
     if (absolute)
     {
@@ -298,12 +297,9 @@ static int namei_resolve_path(nameidata &data)
     else
     {
         /* Grab the CWD */
-        struct file *f = get_dirfd_file(data.dirfd);
-        if (!f)
-            return -EBADF;
-        data.cur = f->f_path;
-        path_get(&data.cur);
-        fd_put(f);
+        int err = get_dirfd(data.dirfd, &data.cur);
+        if (err < 0)
+            return err;
     }
 
     path.view = std::string_view(&path.view[(int) absolute], path.view.length() - (int) absolute);
@@ -618,7 +614,7 @@ static int do_lookup_parent_last(nameidata &data)
 
         /* Not a symlink, use parent (cur = parent). */
         path_put(&data.cur);
-        DCHECK(data.parent);
+        DCHECK(!path_is_null(&data.parent));
         data.cur = data.parent;
         path_init(&data.parent);
     }
@@ -1322,16 +1318,37 @@ int sys_chroot(const char *upath)
 {
     process *current;
     user_string path;
+    struct path root, old;
     if (auto res = path.from_user(upath); res.has_error())
         return res.error();
     if (!is_root_user())
         return -EPERM;
 
-    auto ex = vfs_open(AT_FDCWD, path.data(), O_RDONLY | O_DIRECTORY, 0000);
-    if (ex.has_error())
-        return ex.error();
+    int err = path_openat(AT_FDCWD, path.data(), LOOKUP_MUST_BE_DIR, &root);
+    if (err < 0)
+        return err;
     current = get_current_process();
-    /* TODO: Solve root directory leaks (this is also racy!) */
-    current->ctx.root->file = ex.value();
+    struct ioctx *ctx = &current->ctx;
+
+    spin_lock(&ctx->cwd_lock);
+    /* We drop the ref *after* the lock is dropped */
+    old = ctx->root;
+    ctx->root = root;
+    spin_unlock(&ctx->cwd_lock);
+    path_put(&old);
+
+    return 0;
+}
+
+int path_openat(int dirfd, const char *name, unsigned int flags, struct path *path)
+{
+    nameidata namedata{std::string_view{name, strlen(name)}};
+    namedata.lookup_flags = flags;
+
+    int err = namei_lookup(namedata);
+    if (err < 0)
+        return err;
+
+    *path = namedata.getcur();
     return 0;
 }
