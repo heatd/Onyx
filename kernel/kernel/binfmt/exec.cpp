@@ -378,7 +378,6 @@ int sys_execve(const char *p, const char **argv, const char **envp)
     int argc;
     char **kenv = nullptr;
     char **karg = nullptr;
-    struct file *f = nullptr;
     unsigned long old = 0;
     void *entry = nullptr;
     binfmt_args args{};
@@ -425,11 +424,7 @@ int sys_execve(const char *p, const char **argv, const char **envp)
     thread_change_addr_limit(VM_USER_ADDR_LIMIT);
 
     /* Open the file */
-    f = get_current_directory();
     exec_file = open_vfs(AT_FDCWD, path);
-
-    fd_put(f);
-
     if (!exec_file)
     {
         st = -errno;
