@@ -1076,9 +1076,9 @@ int unlink_vfs(const char *path, int flags, int dirfd)
     /* The fs unlink succeeded! Lets change the dcache now that we can't fail! */
     if (child)
     {
-        scoped_rwslock<rw_lock::write> g{dentry->d_lock};
-
+        spin_lock(&dentry->d_lock);
         dentry_do_unlink(child);
+        spin_unlock(&dentry->d_lock);
     }
 
 out2:

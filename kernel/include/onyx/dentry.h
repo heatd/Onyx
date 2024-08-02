@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 - 2023 Pedro Falcato
+ * Copyright (c) 2018 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -16,6 +16,7 @@
 #include <onyx/inode.h>
 #include <onyx/limits.h>
 #include <onyx/list.h>
+#include <onyx/rcupdate.h>
 #include <onyx/rwlock.h>
 
 #ifdef __cplusplus
@@ -40,7 +41,7 @@ struct dentry_operations
 struct dentry
 {
     unsigned long d_ref;
-    RWSLOCK d_lock;
+    struct spinlock d_lock;
 
     char *d_name;
     char d_inline_name[INLINE_NAME_MAX];
@@ -53,6 +54,7 @@ struct dentry
     struct list_head d_cache_node;
     struct list_head d_children_head;
     const struct dentry_operations *d_ops;
+    struct rcu_head d_rcu;
     unsigned long d_private;
 #ifdef __cplusplus
     atomic<uint16_t> d_flags;

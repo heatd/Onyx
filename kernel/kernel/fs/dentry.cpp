@@ -19,6 +19,8 @@
 #include <onyx/mm/slab.h>
 #include <onyx/mtable.h>
 #include <onyx/namei.h>
+#include <onyx/rculist.h>
+#include <onyx/seqlock.h>
 #include <onyx/user.h>
 #include <onyx/vfs.h>
 #include <onyx/wait.h>
@@ -30,7 +32,11 @@
 #include <onyx/string_view.hpp>
 
 static struct slab_cache *dentry_cache;
-dentry *root_dentry = nullptr;
+
+/* rename_lock is held (write!) throughout a *dcache-level* rename. This protects against hashtable
+ * entries going bad, and against ->d_parent being changed. It's held in read-mode when traversing
+ * the dcache hashtable. */
+static seqlock_t rename_lock;
 
 fnv_hash_t hash_dentry(dentry *&d)
 {
@@ -47,13 +53,12 @@ fnv_hash_t hash_dentry_fields(dentry *parent, std::string_view name)
 }
 
 cul::hashtable2<dentry *, 1024, fnv_hash_t, hash_dentry> dentry_ht;
-static rwslock dentry_ht_locks[1024];
+static spinlock dentry_ht_locks[1024];
 
 [[gnu::always_inline]] static inline bool dentry_compare_name(dentry *dent,
                                                               std::string_view &to_cmp)
 {
     std::string_view dent_name{dent->d_name, dent->d_name_length};
-
     return dent_name.compare(to_cmp) == 0;
 }
 
@@ -67,26 +72,31 @@ static inline int d_revalidate(struct dentry *dentry, unsigned int flags)
 void dentry_remove_from_cache(dentry *dent, dentry *parent);
 void dentry_kill_unlocked(dentry *entry);
 
-static dentry *dentry_open_from_cache_unlocked(dentry *dent, std::string_view name)
+static dentry *d_lookup_internal(dentry *dent, std::string_view name)
 {
     auto namehash = fnv_hash(name.data(), name.length());
     auto hash = hash_dentry_fields(dent, name);
     auto index = dentry_ht.get_hashtable_index(hash);
     auto list = dentry_ht.get_hashtable(index);
 
-    list_for_every (list)
+    list_for_every_rcu (list)
     {
-        dentry *d = container_of(l, dentry, d_cache_node);
+        struct dentry *d = container_of(l, struct dentry, d_cache_node);
 
         if (d->d_parent != dent || d->d_name_hash != namehash)
             continue;
 
-        scoped_rwslock<rw_lock::read> g{d->d_lock};
+        spin_lock(&d->d_lock);
+        if ((d->d_flags & DENTRY_FLAG_HASHED) == 0)
+            goto skip;
         if (d->d_parent == dent && d->d_name_hash == namehash && dentry_compare_name(d, name))
         {
             dentry_get(d);
+            spin_unlock(&d->d_lock);
             return d;
         }
+    skip:
+        spin_unlock(&d->d_lock);
     }
 
     return nullptr;
@@ -94,11 +104,20 @@ static dentry *dentry_open_from_cache_unlocked(dentry *dent, std::string_view na
 
 static dentry *dentry_open_from_cache(dentry *dent, std::string_view name)
 {
-    auto hash = hash_dentry_fields(dent, name);
-    auto index = dentry_ht.get_hashtable_index(hash);
-    scoped_rwslock<rw_lock::read> g{dentry_ht_locks[index]};
-    dentry *found = dentry_open_from_cache_unlocked(dent, name);
-    g.unlock();
+    unsigned int old;
+    struct dentry *found;
+    rcu_read_lock();
+
+    do
+    {
+        old = read_seqbegin(&rename_lock);
+        found = d_lookup_internal(dent, name);
+        if (found)
+            break;
+    } while (read_seqretry(&rename_lock, old));
+
+    rcu_read_unlock();
+
     if (found)
     {
         if (!d_revalidate(found, 0))
@@ -119,20 +138,22 @@ void dentry_remove_from_cache(dentry *dent, dentry *parent)
 {
     auto hash = hash_dentry_fields(parent, std::string_view{dent->d_name, dent->d_name_length});
     auto index = dentry_ht.get_hashtable_index(hash);
-    scoped_rwslock<rw_lock::write> g{dentry_ht_locks[index]};
+    spin_lock(&dentry_ht_locks[index]);
 
-    list_remove(&dent->d_cache_node);
+    list_remove_rcu(&dent->d_cache_node);
     dent->d_flags &= ~DENTRY_FLAG_HASHED;
+    spin_unlock(&dentry_ht_locks[index]);
 }
 
 static void dentry_add_to_cache(dentry *dent, dentry *parent)
 {
     auto hash = hash_dentry_fields(parent, std::string_view{dent->d_name, dent->d_name_length});
     auto index = dentry_ht.get_hashtable_index(hash);
-    scoped_rwslock<rw_lock::write> g{dentry_ht_locks[index]};
+    spin_lock(&dentry_ht_locks[index]);
 
-    list_add_tail(&dent->d_cache_node, dentry_ht.get_hashtable(index));
+    list_add_tail_rcu(&dent->d_cache_node, dentry_ht.get_hashtable(index));
     dent->d_flags |= DENTRY_FLAG_HASHED;
+    spin_unlock(&dentry_ht_locks[index]);
 }
 
 static struct dentry *dentry_add_to_cache_careful(dentry *dent, dentry *parent)
@@ -142,20 +163,22 @@ static struct dentry *dentry_add_to_cache_careful(dentry *dent, dentry *parent)
     fnv_hash_t hash = hash_dentry_fields(parent, name);
     size_t index = dentry_ht.get_hashtable_index(hash);
     struct dentry *ret;
-    scoped_rwslock<rw_lock::write> g{dentry_ht_locks[index]};
+    spin_lock(&dentry_ht_locks[index]);
 
-    ret = dentry_open_from_cache_unlocked(parent, name);
+    ret = d_lookup_internal(parent, name);
     if (ret)
     {
         /* We lost the parallel lookup race and found a dentry, lets put the current one and return
          * this one. */
+        spin_unlock(&dentry_ht_locks[index]);
         dentry_put(dent);
         return ret;
     }
 
-    list_add_tail(&dent->d_cache_node, dentry_ht.get_hashtable(index));
+    list_add_tail_rcu(&dent->d_cache_node, dentry_ht.get_hashtable(index));
     dent->d_flags |= DENTRY_FLAG_HASHED;
     dentry_get(dent);
+    spin_unlock(&dentry_ht_locks[index]);
     return dent;
 }
 
@@ -181,14 +204,11 @@ void dentry_destroy(dentry *d)
 {
     if (d->d_parent)
     {
-        {
-            scoped_rwslock<rw_lock::write> g{d->d_parent->d_lock};
-            list_remove(&d->d_parent_dir_node);
-        }
-
+        spin_lock(&d->d_parent->d_lock);
+        list_remove(&d->d_parent_dir_node);
+        spin_unlock(&d->d_parent->d_lock);
         if (d->d_flags & DENTRY_FLAG_HASHED)
             dentry_remove_from_cache(d, d->d_parent);
-
         dentry_put(d->d_parent);
     }
 
@@ -202,12 +222,10 @@ void dentry_destroy(dentry *d)
         inode_unref(d->d_inode);
 
     if (d->d_name_length >= INLINE_NAME_MAX)
-    {
         free((void *) d->d_name);
-    }
 
     d->~dentry();
-    kmem_cache_free(dentry_cache, d);
+    kfree_rcu(d, d_rcu);
 }
 
 /**
@@ -215,13 +233,14 @@ void dentry_destroy(dentry *d)
  *
  * @param d Dentry
  */
-void dentry_fail_lookup(dentry *d)
+void dentry_fail_lookup(struct dentry *d)
 {
     dentry_remove_from_cache(d, d->d_parent);
 
     {
-        scoped_rwslock<rw_lock::write> g{d->d_parent->d_lock};
+        spin_lock(&d->d_parent->d_lock);
         list_remove(&d->d_parent_dir_node);
+        spin_unlock(&d->d_parent->d_lock);
         dentry_put(d->d_parent);
         d->d_parent = nullptr;
         d->d_flags |= DENTRY_FLAG_FAILED;
@@ -273,6 +292,7 @@ dentry *dentry_create(const char *name, inode *inode, dentry *parent, u16 flags)
 
     new_dentry = new (new_dentry) dentry;
 
+    spinlock_init(&new_dentry->d_lock);
     new_dentry->d_ref = 1;
     new_dentry->d_name = new_dentry->d_inline_name;
 
@@ -420,7 +440,7 @@ static dentry *__dentry_try_to_open(std::string_view name, dentry *dir, bool loc
     return dent;
 }
 
-dentry *__dentry_parent(dentry *dir)
+struct dentry *__dentry_parent(struct dentry *dir)
 {
     auto ret = dir->d_parent;
 
@@ -430,11 +450,12 @@ dentry *__dentry_parent(dentry *dir)
     return ret;
 }
 
-dentry *dentry_parent(dentry *dir)
+struct dentry *dentry_parent(struct dentry *dir)
 {
-    scoped_rwslock<rw_lock::read> g{dir->d_lock};
-
-    return __dentry_parent(dir);
+    spin_lock(&dir->d_lock);
+    struct dentry *parent = __dentry_parent(dir);
+    spin_unlock(&dir->d_lock);
+    return parent;
 }
 
 dentry *dentry_lookup_internal(std::string_view v, dentry *dir, dentry_lookup_flags_t flags)
@@ -595,13 +616,13 @@ static void dentry_shrink_subtree(struct dentry *dentry)
     list_for_every_safe (&dentry->d_children_head)
     {
         struct dentry *child = container_of(l, struct dentry, d_parent_dir_node);
-        child->d_lock.lock_write();
+        spin_lock(&child->d_lock);
         unsigned long predicted_refs = 1;
 
         /* This is racey, we don't have lockref... TODO? */
         if (child->d_ref != predicted_refs)
         {
-            child->d_lock.unlock_write();
+            spin_unlock(&child->d_lock);
             continue;
         }
 
@@ -610,7 +631,7 @@ static void dentry_shrink_subtree(struct dentry *dentry)
 
         list_remove(&child->d_parent_dir_node);
         child->d_parent = nullptr;
-        child->d_lock.unlock_write();
+        spin_unlock(&child->d_lock);
         dentry_put(dentry);
         dentry_put(child);
     }
@@ -619,7 +640,7 @@ static void dentry_shrink_subtree(struct dentry *dentry)
 void dentry_do_unlink(dentry *entry)
 {
     /* Perform the actual unlink, by write-locking, nulling d_parent */
-    entry->d_lock.lock_write();
+    spin_lock(&entry->d_lock);
 
     auto parent = entry->d_parent;
     dentry_put(parent);
@@ -638,7 +659,7 @@ void dentry_do_unlink(dentry *entry)
     }
 
     dentry_remove_from_cache(entry, parent);
-    entry->d_lock.unlock_write();
+    spin_unlock(&entry->d_lock);
 
     // We can do this because we're holding the parent dir's lock
     list_remove(&entry->d_parent_dir_node);
@@ -701,7 +722,7 @@ static bool dentry_is_in_chain(struct dentry *dentry, unsigned long chain)
 void dentry_do_rename_unlink(dentry *entry)
 {
     /* Perform the actual unlink, by write-locking, nulling d_parent */
-    entry->d_lock.lock_write();
+    spin_lock(&entry->d_lock);
 
     auto parent = entry->d_parent;
     dentry_put(parent);
@@ -709,13 +730,13 @@ void dentry_do_rename_unlink(dentry *entry)
 
     /* The dcache buckets are already locked, so we don't grab the lock again. Just open-code the
      * removal. */
-    list_remove(&entry->d_cache_node);
+    list_remove_rcu(&entry->d_cache_node);
     entry->d_flags &= ~DENTRY_FLAG_HASHED;
 
     if (!d_is_negative(entry) && dentry_is_dir(entry))
         dentry_shrink_subtree(entry);
 
-    entry->d_lock.unlock_write();
+    spin_unlock(&entry->d_lock);
 
     // We can do this because we're holding the parent dir's lock
     list_remove(&entry->d_parent_dir_node);
@@ -735,6 +756,8 @@ void dentry_rename(dentry *dent, const char *name, dentry *parent,
     unsigned long oldi = dentry_ht.get_hashtable_index(old_hash);
     unsigned long newi = dentry_ht.get_hashtable_index(new_hash);
 
+    write_seqlock(&rename_lock);
+
     /* General strategy: We need the rename to be atomic. We'll do the name exchange under the
      * lock. We must be careful wrt lock ordering. */
     if (name_length >= INLINE_NAME_MAX)
@@ -746,27 +769,27 @@ void dentry_rename(dentry *dent, const char *name, dentry *parent,
     /* Lock the two dcache chains. Smaller first. */
     if (oldi < newi)
     {
-        dentry_ht_locks[oldi].lock_write();
-        dentry_ht_locks[newi].lock_write();
+        spin_lock(&dentry_ht_locks[oldi]);
+        spin_lock(&dentry_ht_locks[newi]);
     }
     else if (oldi > newi)
     {
-        dentry_ht_locks[newi].lock_write();
-        dentry_ht_locks[oldi].lock_write();
+        spin_lock(&dentry_ht_locks[newi]);
+        spin_lock(&dentry_ht_locks[oldi]);
     }
     else
     {
         /* We're working with a single hash chain */
-        dentry_ht_locks[oldi].lock_write();
+        spin_lock(&dentry_ht_locks[oldi]);
     }
 
     dentry_do_rename_unlink(dst);
-    dent->d_lock.lock_write();
+    spin_lock(&dent->d_lock);
 
     DCHECK(dentry_is_in_chain(dent, oldi));
 
-    list_remove(&dent->d_cache_node);
-    list_add_tail(&dent->d_cache_node, dentry_ht.get_hashtable(newi));
+    list_remove_rcu(&dent->d_cache_node);
+    list_add_tail_rcu(&dent->d_cache_node, dentry_ht.get_hashtable(newi));
 
     if (parent != dent->d_parent)
     {
@@ -775,13 +798,13 @@ void dentry_rename(dentry *dent, const char *name, dentry *parent,
 
         if (old < parent)
         {
-            old->d_lock.lock_write();
-            parent->d_lock.lock_write();
+            spin_lock(&old->d_lock);
+            spin_lock(&parent->d_lock);
         }
         else
         {
-            parent->d_lock.lock_write();
-            old->d_lock.lock_write();
+            spin_lock(&parent->d_lock);
+            spin_lock(&old->d_lock);
         }
 
         list_remove(&dent->d_parent_dir_node);
@@ -791,13 +814,13 @@ void dentry_rename(dentry *dent, const char *name, dentry *parent,
 
         if (old < parent)
         {
-            parent->d_lock.unlock_write();
-            old->d_lock.unlock_write();
+            spin_unlock(&parent->d_lock);
+            spin_unlock(&old->d_lock);
         }
         else
         {
-            old->d_lock.unlock_write();
-            parent->d_lock.unlock_write();
+            spin_unlock(&old->d_lock);
+            spin_unlock(&parent->d_lock);
         }
 
         dentry_put(old);
@@ -828,36 +851,41 @@ void dentry_rename(dentry *dent, const char *name, dentry *parent,
 
     dent->d_name_length = name_length;
     dent->d_name_hash = fnv_hash(name, name_length);
-    dent->d_lock.unlock_write();
+    spin_unlock(&dent->d_lock);
 
     if (oldi < newi)
     {
-        dentry_ht_locks[newi].unlock_write();
-        dentry_ht_locks[oldi].unlock_write();
+        spin_unlock(&dentry_ht_locks[newi]);
+        spin_unlock(&dentry_ht_locks[oldi]);
     }
     else if (oldi > newi)
     {
-        dentry_ht_locks[oldi].unlock_write();
-        dentry_ht_locks[newi].unlock_write();
+        spin_unlock(&dentry_ht_locks[oldi]);
+        spin_unlock(&dentry_ht_locks[newi]);
     }
     else
-        dentry_ht_locks[oldi].unlock_write();
+        spin_unlock(&dentry_ht_locks[oldi]);
+
+    write_sequnlock(&rename_lock);
 }
 
 bool dentry_is_empty(dentry *dir)
 {
-    scoped_rwslock<rw_lock::write> g{dir->d_lock};
+    bool empty = true;
+    spin_lock(&dir->d_lock);
     list_for_every_safe (&dir->d_children_head)
     {
         struct dentry *dentry = container_of(l, struct dentry, d_parent_dir_node);
         if (!d_is_negative(dentry))
-            return false;
+        {
+            empty = false;
+            break;
+        }
     }
 
-    return true;
+    spin_unlock(&dir->d_lock);
+    return empty;
 }
-
-cul::atomic_size_t killed_dentries = 0;
 
 /**
  * @brief Trim the dentry caches
@@ -865,56 +893,6 @@ cul::atomic_size_t killed_dentries = 0;
  */
 void dentry_trim_caches()
 {
-    auto currdent = root_dentry;
-    dentry_get(currdent);
-    linked_list<dentry *> dentry_queue;
-
-    // For every dentry, try to evict unused children
-    while (currdent)
-    {
-
-        // If ref > 1, we *may* have children
-        if (currdent->d_ref > 1)
-        {
-            scoped_rwslock<rw_lock::write> g{currdent->d_lock};
-
-            list_for_every_safe (&currdent->d_children_head)
-            {
-                dentry *d = container_of(l, dentry, d_parent_dir_node);
-
-                if (d->d_ref == 1)
-                {
-                    // If we're destroying this dentry, take a peek at the parent and
-                    // check if they have a ref of 2 (refe'd by themselves for existing, and us)
-                    // If so, add their parent to the queue so we can revisit this later.
-                    if (d->d_parent && d->d_parent->d_ref == 2)
-                    {
-                        auto parent = dentry_parent(d->d_parent);
-                        dentry_queue.add(parent);
-                    }
-
-                    killed_dentries++;
-                    // Ready for destruction, remove and destroy
-                    dentry_kill_unlocked(d);
-                }
-                else
-                {
-                    // Still has refs. If directory, try and clean it up next
-                    if (dentry_is_dir(d))
-                    {
-                        // We need to ref dentries, so we don't lose them magically
-                        dentry_get(d);
-                        dentry_queue.add(d);
-                    }
-                }
-            }
-        }
-
-        dentry_put(currdent);
-
-        currdent = dentry_queue.is_empty() ? nullptr : dentry_queue.pop_head();
-    }
-
     kmem_cache_purge(dentry_cache);
 }
 
