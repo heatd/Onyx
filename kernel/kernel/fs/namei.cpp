@@ -279,17 +279,16 @@ static int namei_resolve_path(nameidata &data)
     return 0;
 }
 
-int lookup_start(nameidata &data)
+[[nodiscard]] static int lookup_start(nameidata &data)
 {
     auto &path = data.paths[data.pdepth];
     bool absolute = path.view[0] == '/';
+    DCHECK(data.root == nullptr);
+    DCHECK(data.cur == nullptr);
 
-    if (!data.root)
-    {
-        struct filesystem_root *root = get_filesystem_root();
-        data.root = root->file->f_dentry;
-        dentry_get(data.root);
-    }
+    struct filesystem_root *root = get_filesystem_root();
+    data.root = root->file->f_dentry;
+    dentry_get(data.root);
 
     if (absolute)
     {
@@ -306,6 +305,7 @@ int lookup_start(nameidata &data)
             return -EBADF;
         data.cur = f->f_dentry;
         dentry_get(data.cur);
+        fd_put(f);
     }
 
     path.view = std::string_view(&path.view[(int) absolute], path.view.length() - (int) absolute);
@@ -371,7 +371,7 @@ dentry *dentry_resolve(nameidata &data)
 
 file *open_vfs_with_flags(int dirfd, const char *name, unsigned int lookup_flags)
 {
-    nameidata namedata{std::string_view{name, strlen(name)}, nullptr, nullptr};
+    nameidata namedata{std::string_view{name, strlen(name)}};
     namedata.lookup_flags = lookup_flags;
     namedata.dirfd = dirfd;
 
@@ -518,15 +518,12 @@ out:
 expected<file *, int> vfs_open(int dirfd, const char *name, unsigned int open_flags, mode_t mode)
 {
     const unsigned int flags = open_flags & O_DIRECTORY ? LOOKUP_MUST_BE_DIR : 0;
-    auto fs_root = get_filesystem_root();
 
     /* See the big comment in nameitests and https://lwn.net/Articles/926782/ */
     if ((open_flags & (O_DIRECTORY | O_CREAT)) == (O_DIRECTORY | O_CREAT))
         return unexpected{-EINVAL};
 
-    dentry_get(fs_root->file->f_dentry);
-
-    nameidata namedata{std::string_view{name, strlen(name)}, fs_root->file->f_dentry, nullptr};
+    nameidata namedata{std::string_view{name, strlen(name)}};
     namedata.dirfd = dirfd;
 
     auto &pathname = namedata.paths[namedata.pdepth].view;
@@ -654,19 +651,13 @@ out:
     return st;
 }
 
-static expected<dentry *, int> namei_lookup_parent(dentry *base, const char *name,
-                                                   unsigned int flags, struct path *outp)
+static expected<dentry *, int> namei_lookup_parentat(int dirfd, const char *name,
+                                                     unsigned int flags, struct path *outp)
 {
-    auto fs_root = get_filesystem_root();
-    DCHECK(base != nullptr);
-
-    dentry_get(fs_root->file->f_dentry);
-    dentry_get(base);
-
-    nameidata namedata{std::string_view{name, strlen(name)}, fs_root->file->f_dentry, base};
+    nameidata namedata{std::string_view{name, strlen(name)}};
+    namedata.dirfd = dirfd;
 
     auto &pathname = namedata.paths[namedata.pdepth].view;
-
     auto pathname_length = pathname.length();
 
     if (pathname_length >= PATH_MAX)
@@ -722,33 +713,23 @@ static expected<dentry *, int> namei_lookup_parent(dentry *base, const char *nam
     return dent;
 }
 
-static expected<dentry *, int> namei_lookup_parentf(file *base, const char *name,
-                                                    unsigned int flags, struct path *outp)
-{
-    return namei_lookup_parent(base->f_dentry, name, flags, outp);
-}
-
 struct file *open_vfs(int dirfd, const char *path)
 {
     return open_vfs_with_flags(dirfd, path, 0);
 }
 
 /* Helper to open specific dentries */
-dentry *dentry_do_open(dentry *base, const char *path, unsigned int lookup_flags = 0)
+dentry *dentry_do_open(int dirfd, const char *path, unsigned int lookup_flags = 0)
 {
-    auto fs_root = get_filesystem_root();
-
-    dentry_get(fs_root->file->f_dentry);
-    dentry_get(base);
-
-    nameidata namedata{std::string_view{path, strlen(path)}, fs_root->file->f_dentry, base};
+    nameidata namedata{std::string_view{path, strlen(path)}};
+    namedata.dirfd = dirfd;
     namedata.lookup_flags = lookup_flags;
 
     return dentry_resolve(namedata);
 }
 
-static expected<struct dentry *, int> namei_create_generic(struct dentry *base, const char *path,
-                                                           mode_t mode, dev_t dev,
+static expected<struct dentry *, int> namei_create_generic(int dirfd, const char *path, mode_t mode,
+                                                           dev_t dev,
                                                            unsigned int extra_lookup_flags = 0)
 {
     int st;
@@ -756,7 +737,7 @@ static expected<struct dentry *, int> namei_create_generic(struct dentry *base, 
     struct inode *inode = nullptr;
     unsigned int lookup_flags = NAMEI_ALLOW_NEGATIVE | extra_lookup_flags;
 
-    auto ex = namei_lookup_parent(base, path, lookup_flags, &last_name);
+    auto ex = namei_lookup_parentat(dirfd, path, lookup_flags, &last_name);
     if (ex.has_error())
         return unexpected<int>{ex.error()};
 
@@ -822,38 +803,38 @@ unlock_err:
     return unexpected<int>{st};
 }
 
-expected<dentry *, int> creat_vfs(dentry *base, const char *path, int mode)
+expected<dentry *, int> creat_vfs(int dirfd, const char *path, int mode)
 {
     // Mask out the possible file type bits and set IFREG for a regular creat
     mode &= ~S_IFMT;
     mode |= S_IFREG;
-    return namei_create_generic(base, path, mode, 0);
+    return namei_create_generic(dirfd, path, mode, 0);
 }
 
 #define S_IFBAD (~(S_IFDIR | S_IFCHR | S_IFBLK | S_IFREG | S_IFIFO | S_IFLNK | S_IFSOCK))
 
-expected<dentry *, int> mknod_vfs(const char *path, mode_t mode, dev_t dev, struct dentry *dir)
+expected<dentry *, int> mknod_vfs(const char *path, mode_t mode, dev_t dev, int dirfd)
 {
     if (mode & S_IFMT & S_IFBAD)
         return unexpected<int>{-EINVAL};
-    return namei_create_generic(dir, path, mode, 0);
+    return namei_create_generic(dirfd, path, mode, 0);
 }
 
-expected<dentry *, int> mkdir_vfs(const char *path, mode_t mode, struct dentry *dir)
+expected<dentry *, int> mkdir_vfs(const char *path, mode_t mode, int dirfd)
 {
     mode &= ~S_IFMT;
     mode |= S_IFDIR;
-    return namei_create_generic(dir, path, mode, 0, LOOKUP_FAIL_IF_LINK);
+    return namei_create_generic(dirfd, path, mode, 0, LOOKUP_FAIL_IF_LINK);
 }
 
-int symlink_vfs(const char *path, const char *dest, struct dentry *base)
+int symlink_vfs(const char *path, const char *dest, int dirfd)
 {
     int st;
     struct path last_name;
     struct inode *inode = nullptr;
     unsigned int lookup_flags = NAMEI_ALLOW_NEGATIVE;
 
-    auto ex = namei_lookup_parent(base, path, lookup_flags, &last_name);
+    auto ex = namei_lookup_parentat(dirfd, path, lookup_flags, &last_name);
     if (ex.has_error())
         return ex.error();
 
@@ -905,14 +886,14 @@ unlock_err:
     return st;
 }
 
-int link_vfs(struct file *target, dentry *rel_base, const char *newpath)
+int link_vfs(struct file *target, int dirfd, const char *newpath)
 {
     int st;
     struct path last_name;
     unsigned int lookup_flags = NAMEI_ALLOW_NEGATIVE;
     struct inode *dest_ino = target->f_ino;
 
-    auto ex = namei_lookup_parent(rel_base, newpath, lookup_flags, &last_name);
+    auto ex = namei_lookup_parentat(dirfd, newpath, lookup_flags, &last_name);
     if (ex.has_error())
         return ex.error();
 
@@ -991,11 +972,6 @@ int do_sys_link(int olddirfd, const char *uoldpath, int newdirfd, const char *un
     if (auto res = newpath.from_user(unewpath); !res.has_value())
         return res.error();
 
-    auto_file olddir, newdir;
-
-    if (auto st = newdir.from_dirfd(newdirfd); st != 0)
-        return st;
-
     if (flags & AT_SYMLINK_FOLLOW)
         lookup_flags &= ~LOOKUP_NOFOLLOW;
 
@@ -1006,7 +982,7 @@ int do_sys_link(int olddirfd, const char *uoldpath, int newdirfd, const char *un
     if (src_file.is_dir())
         return -EPERM;
 
-    return link_vfs(src_file.get_file(), newdir.get_file()->f_dentry, newpath.data());
+    return link_vfs(src_file.get_file(), newdirfd, newpath.data());
 }
 
 int sys_link(const char *oldpath, const char *newpath)
@@ -1019,7 +995,7 @@ int sys_linkat(int olddirfd, const char *oldpath, int newdirfd, const char *newp
     return do_sys_link(olddirfd, oldpath, newdirfd, newpath, flags);
 }
 
-int unlink_vfs(const char *path, int flags, struct file *node)
+int unlink_vfs(const char *path, int flags, int dirfd)
 {
     int st = 0;
     struct path last_name;
@@ -1028,7 +1004,7 @@ int unlink_vfs(const char *path, int flags, struct file *node)
     char _name[NAME_MAX + 1] = {};
 
     unsigned int lookup_flag = LOOKUP_NOFOLLOW;
-    auto ex = namei_lookup_parentf(node, path, lookup_flag, &last_name);
+    auto ex = namei_lookup_parentat(dirfd, path, lookup_flag, &last_name);
     if (ex.has_error())
         return ex.error();
 
@@ -1118,12 +1094,9 @@ int do_sys_unlink(int dirfd, const char *upathname, int flags)
     if (flags & ~VALID_UNLINKAT_FLAGS)
         return -EINVAL;
 
-    if (auto st = dir.from_dirfd(dirfd); st != 0)
-        return st;
-
     if (auto res = pathname.from_user(upathname); !res.has_value())
         return res.error();
-    return unlink_vfs(pathname.data(), flags, dir.get_file());
+    return unlink_vfs(pathname.data(), flags, dirfd);
 }
 
 int sys_unlink(const char *pathname)
@@ -1145,17 +1118,14 @@ int sys_rmdir(const char *pathname)
 
 int sys_symlinkat(const char *utarget, int newdirfd, const char *ulinkpath)
 {
-    auto_file dir;
     user_string target, linkpath;
 
     if (auto res = target.from_user(utarget); !res.has_value())
         return res.error();
     if (auto res = linkpath.from_user(ulinkpath); !res.has_value())
         return res.error();
-    if (auto st = dir.from_dirfd(newdirfd); st < 0)
-        return st;
 
-    return symlink_vfs(linkpath.data(), target.data(), dir.get_file()->f_dentry);
+    return symlink_vfs(linkpath.data(), target.data(), newdirfd);
 }
 
 int sys_symlink(const char *target, const char *linkpath)
@@ -1312,7 +1282,6 @@ int do_renameat(struct dentry *dir, struct path &last, struct dentry *old)
 
 int sys_renameat(int olddirfd, const char *uoldpath, int newdirfd, const char *unewpath)
 {
-    auto_file olddir, newdir;
     user_string oldpath, newpath;
     struct path last_name;
 
@@ -1321,14 +1290,8 @@ int sys_renameat(int olddirfd, const char *uoldpath, int newdirfd, const char *u
     if (auto res = newpath.from_user(unewpath); res.has_error())
         return res.error();
 
-    if (int st = olddir.from_dirfd(olddirfd); st < 0)
-        return st;
-
-    if (int st = newdir.from_dirfd(newdirfd); st < 0)
-        return st;
-
     /* rename operates on the old and new symlinks and not their destination */
-    auto_dentry old = dentry_do_open(olddir.get_file()->f_dentry, oldpath.data(), LOOKUP_NOFOLLOW);
+    auto_dentry old = dentry_do_open(olddirfd, oldpath.data(), LOOKUP_NOFOLLOW);
     if (!old)
         return -errno;
 
@@ -1341,7 +1304,7 @@ int sys_renameat(int olddirfd, const char *uoldpath, int newdirfd, const char *u
         return -EACCES;
 
     unsigned int lookup_flag = LOOKUP_NOFOLLOW;
-    auto ex = namei_lookup_parentf(newdir.get_file(), newpath.data(), lookup_flag, &last_name);
+    auto ex = namei_lookup_parentat(newdirfd, newpath.data(), lookup_flag, &last_name);
     if (ex.has_error())
         return ex.error();
     auto_dentry dir = ex.value();

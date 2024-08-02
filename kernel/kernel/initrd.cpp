@@ -67,19 +67,17 @@ void tar_handle_entry(tar_header_t *entry, onx::stream &str)
     filename = dirname(filename);
     filename = strtok_r(filename, "/", &saveptr);
 
-    struct file *node = get_fs_root();
     if (*filename != '.' && strlen(filename) != 1)
     {
         while (filename)
         {
-            struct file *last = node;
         retry:
             strlcpy(pathbuf, entry->filename, len + 1);
             pathbuf[filename + strlen(filename) - old] = '\0';
-            if (!(node = open_vfs(AT_FDCWD, pathbuf)))
+            struct file *f = open_vfs(AT_FDCWD, pathbuf);
+            if (!f)
             {
-                node = last;
-                auto ex = mkdir_vfs(pathbuf, 0755, node->f_dentry);
+                auto ex = mkdir_vfs(pathbuf, 0755, AT_FDCWD);
                 if (ex.has_error())
                 {
                     perror("mkdir");
@@ -99,7 +97,7 @@ void tar_handle_entry(tar_header_t *entry, onx::stream &str)
 
     if (entry->typeflag == TAR_TYPE_FILE)
     {
-        auto ex = creat_vfs(get_filesystem_root()->file->f_dentry, filename, perms);
+        auto ex = creat_vfs(AT_FDCWD, filename, perms);
         if (ex.has_error())
             panic("Could not create file from initrd - errno %d", ex.error());
 
@@ -113,13 +111,13 @@ void tar_handle_entry(tar_header_t *entry, onx::stream &str)
     }
     else if (entry->typeflag == TAR_TYPE_DIR)
     {
-        auto dent = mkdir_vfs(filename, perms, get_filesystem_root()->file->f_dentry).unwrap();
+        auto dent = mkdir_vfs(filename, perms, AT_FDCWD).unwrap();
         dentry_put(dent);
     }
     else if (entry->typeflag == TAR_TYPE_SYMLNK)
     {
         char *buffer = (char *) entry->linkname;
-        int st = symlink_vfs(filename, buffer, get_filesystem_root()->file->f_dentry);
+        int st = symlink_vfs(filename, buffer, AT_FDCWD);
         CHECK(st == 0);
     }
 }

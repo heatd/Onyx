@@ -228,13 +228,11 @@ int stat_vfs(struct stat *buf, struct file *node);
 
 int ftruncate_vfs(off_t length, struct file *vnode);
 
-int symlink_vfs(const char *path, const char *dest, struct dentry *base);
+int symlink_vfs(const char *path, const char *dest, int dirfd);
 
 int vfs_init(void);
 
 struct inode *inode_create(bool is_cached);
-
-struct file *get_fs_root(void);
 
 short poll_vfs(void *poll_file, short events, struct file *node);
 
@@ -242,15 +240,11 @@ int fallocate_vfs(int mode, off_t offset, off_t len, struct file *file);
 
 struct file *get_current_directory(void);
 
-int link_vfs(struct file *target, struct file *rel_base, const char *newpath);
-
 #define UNLINK_VFS_DONT_TEST_EMPTY (1 << 24)
 
-int unlink_vfs(const char *name, int flags, struct file *node);
+int unlink_vfs(const char *path, int flags, int dirfd);
 
 char *readlink_vfs(struct file *file);
-
-struct file *get_fs_base(const char *file, struct file *rel_base);
 
 /* C does not support default args... */
 #ifdef __cplusplus
@@ -367,9 +361,9 @@ void put_dentry_to_dirent(struct dirent *buf, struct dentry *dentry,
 
 extern "C++"
 {
-expected<dentry *, int> creat_vfs(dentry *base, const char *path, int mode);
-expected<dentry *, int> mknod_vfs(const char *path, mode_t mode, dev_t dev, struct dentry *dir);
-expected<dentry *, int> mkdir_vfs(const char *path, mode_t mode, struct dentry *dir);
+expected<dentry *, int> creat_vfs(int dirfd, const char *path, int mode);
+expected<dentry *, int> mknod_vfs(const char *path, mode_t mode, dev_t dev, int dirfd);
+expected<dentry *, int> mkdir_vfs(const char *path, mode_t mode, int dirfd);
 }
 #endif
 
