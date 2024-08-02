@@ -732,7 +732,7 @@ struct file *inode_to_file(struct inode *ino)
     f->f_flags = 0;
     f->f_refcount = 1;
     f->f_seek = 0;
-    f->f_dentry = nullptr;
+    path_init(&f->f_path);
     f->f_flock = nullptr;
     ra_state_init(&f->f_ra_state);
 

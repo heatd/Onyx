@@ -11,6 +11,7 @@
 
 #include <onyx/dentry.h>
 #include <onyx/limits.h>
+#include <onyx/path.h>
 
 #include <uapi/fcntl.h>
 
@@ -34,16 +35,16 @@ enum class fs_token_type : uint8_t
  * @brief Represents a path during a lookup
  *
  */
-struct path
+struct lookup_path
 {
     std::string_view view;
     void *ownbuf{nullptr};
     fs_token_type token_type{fs_token_type::REGULAR_TOKEN};
     size_t pos{0};
 
-    path() = default;
+    lookup_path() = default;
 
-    path(std::string_view view) : view{view}
+    lookup_path(std::string_view view) : view{view}
     {
     }
 
@@ -64,10 +65,10 @@ struct nameidata
      * chdir or *at, or purely through kernel-side use).
      */
     /* Note: root and location always hold a reference to the underlying object */
-    dentry *root;
-    dentry *cur;
+    struct path root;
+    struct path cur;
     /* Keeps the parent of cur, *if* we walked once */
-    dentry *parent{nullptr};
+    struct path parent;
 
     static constexpr const size_t max_loops = SYMLOOP_MAX;
     /* Number of symbolic links found while looking up -
@@ -75,32 +76,34 @@ struct nameidata
      */
     int nloops{0};
     int pdepth{0};
-    struct path paths[SYMLOOP_MAX];
+    struct lookup_path paths[SYMLOOP_MAX];
 
     unsigned int lookup_flags{};
     int dirfd{AT_FDCWD};
 
-    nameidata(std::string_view view) : root{nullptr}, cur{nullptr}
+    nameidata(std::string_view view)
     {
-        paths[0] = path{view};
+        paths[0] = lookup_path{view};
+        path_init(&root);
+        path_init(&cur);
+        path_init(&parent);
     }
 
     ~nameidata();
 
-    void setcur(dentry *newcur)
+    void setcur(struct path newcur)
     {
-        DCHECK(newcur != nullptr);
-        if (parent)
-            dentry_put(parent);
+        DCHECK(!path_is_null(&newcur));
+        path_put(&parent);
         parent = cur;
         cur = newcur;
     }
 
-    dentry *getcur()
+    path getcur()
     {
-        DCHECK(cur != nullptr);
+        DCHECK(!path_is_null(&cur));
         auto ret = cur;
-        cur = nullptr;
+        path_init(&cur);
         return ret;
     }
 };

@@ -101,7 +101,7 @@ void fd_put(struct file *fd)
 
         close_vfs(fd->f_ino);
         // printk("file %s dentry refs %lu\n", fd->f_dentry->d_name, fd->f_dentry->d_ref);
-        dentry_put(fd->f_dentry);
+        path_put(&fd->f_path);
         file_free(fd);
     }
 }
