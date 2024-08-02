@@ -195,24 +195,17 @@ process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *p
     if (!proc->pid_struct)
         return errno = ENOMEM, nullptr;
 
-    struct filesystem_root *root = (struct filesystem_root *) kmalloc(sizeof(*root), GFP_KERNEL);
-    if (!root)
-        return nullptr;
-    proc->ctx.root = root;
-    root->file = get_filesystem_root()->file;
-    fd_get(root->file);
+    proc->ctx.root = get_filesystem_root();
 
     if (ctx)
     {
-        fd_get(ctx->cwd);
-
+        spin_lock(&ctx->cwd_lock);
+        path_get(&ctx->cwd);
         proc->ctx.cwd = ctx->cwd;
+        spin_unlock(&ctx->cwd_lock);
 
         if (copy_file_descriptors(proc, ctx) < 0)
-        {
-            fd_put(ctx->cwd);
             return nullptr;
-        }
     }
     else
     {
@@ -841,12 +834,9 @@ void process_wait_for_dead_threads(process *process)
 void process_end(process *process)
 {
     process_remove_from_list(process);
-
     process_wait_for_dead_threads(process);
-
-    if (process->ctx.cwd)
-        fd_put(process->ctx.cwd);
-
+    path_put(&process->ctx.cwd);
+    path_put(&process->ctx.root);
     delete process;
 }
 

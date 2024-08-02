@@ -10,6 +10,7 @@
 
 #include <onyx/file.h>
 #include <onyx/mutex.h>
+#include <onyx/path.h>
 #include <onyx/rcupdate.h>
 #include <onyx/types.h>
 #include <onyx/vfs.h>
@@ -38,10 +39,10 @@ struct ioctx
 {
     /* Current working directory */
     struct spinlock cwd_lock CPP_DFLINIT;
-    struct file *cwd CPP_DFLINIT;
     struct spinlock fdlock CPP_DFLINIT;
     struct fd_table __rcu *table CPP_DFLINIT;
-    struct filesystem_root *root;
+    struct path root CPP_DFLINIT;
+    struct path cwd CPP_DFLINIT;
     mode_t umask CPP_DFLINIT;
 };
 

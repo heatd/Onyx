@@ -47,23 +47,15 @@ fd_table *fdtable_alloc();
  */
 void fdtable_free(struct fd_table *table);
 
-struct file *get_current_directory()
+static struct path get_current_directory()
 {
     struct ioctx *ctx = &get_current_process()->ctx;
+    struct path p;
     spin_lock(&ctx->cwd_lock);
-
-    struct file *fp = ctx->cwd;
-
-    if (unlikely(!fp))
-    {
-        spin_unlock(&ctx->cwd_lock);
-        return nullptr;
-    }
-
-    fd_get(fp);
-
+    p = ctx->cwd;
+    path_get(&p);
     spin_unlock(&ctx->cwd_lock);
-    return fp;
+    return p;
 }
 
 void fd_get(struct file *fd)
@@ -1428,42 +1420,33 @@ int sys_chdir(const char *upath)
         return -errno;
 
     int st = 0;
-    struct file *dir = open_vfs(AT_FDCWD, path);
-    struct file *f, *old;
     struct process *current;
     struct ioctx *ctx;
+    struct path newdir, old;
+    st = path_openat(AT_FDCWD, path, LOOKUP_MUST_BE_DIR, &newdir);
+    if (st < 0)
+        goto out;
 
-    if (!dir)
+    /* The current working directory we chose must be searchable by the calling process */
+    if (!inode_can_access(newdir.dentry->d_inode, FILE_ACCESS_EXECUTE))
     {
-        st = -errno;
+        path_put(&newdir);
+        st = -EACCES;
         goto out;
     }
 
-    if (!S_ISDIR(dir->f_ino->i_mode))
-    {
-        st = -ENOTDIR;
-        goto close_file;
-    }
-
-    f = dir;
-
     current = get_current_process();
     ctx = &current->ctx;
+
     spin_lock(&ctx->cwd_lock);
-
     old = ctx->cwd;
-    ctx->cwd = f;
-
+    ctx->cwd = newdir;
     spin_unlock(&ctx->cwd_lock);
 
     /* We've swapped ptrs atomically and now we're dropping the cwd reference.
      * Note that any current users of the cwd are using it properly.
      */
-    fd_put(old);
-    goto out;
-close_file:
-    if (dir)
-        fd_put(dir);
+    path_put(&old);
 out:
     if (path)
         free((void *) path);
@@ -1472,32 +1455,47 @@ out:
 
 int sys_fchdir(int fildes)
 {
+    int st = 0;
+    struct path old;
+    path_init(&old);
+
     struct file *f = get_file_description(fildes);
     if (!f)
         return -errno;
 
-    struct file *node = f;
-    if (!S_ISDIR(node->f_ino->i_mode))
+    if (!S_ISDIR(f->f_ino->i_mode))
     {
-        fd_put(f);
-        return -ENOTDIR;
+        st = -ENOTDIR;
+        goto out;
     }
 
-    struct process *current = get_current_process();
-    struct ioctx *ctx = &current->ctx;
+    /* The current working directory we chose must be searchable by the calling process */
+    if (!inode_can_access(f->f_ino, FILE_ACCESS_EXECUTE))
+    {
+        st = -EACCES;
+        goto out;
+    }
+
+    struct process *current;
+    struct ioctx *ctx;
+
+    current = get_current_process();
+    ctx = &current->ctx;
+
     spin_lock(&ctx->cwd_lock);
-
-    struct file *old = ctx->cwd;
-    ctx->cwd = f;
-
+    old = ctx->cwd;
+    ctx->cwd = f->f_path;
+    path_get(&ctx->cwd);
     spin_unlock(&ctx->cwd_lock);
 
+out:
     /* We've swapped ptrs atomically and now we're dropping the cwd reference.
      * Note that any current users of the cwd are using it properly.
      */
-    fd_put(old);
+    fd_put(f);
+    path_put(&old);
 
-    return 0;
+    return st;
 }
 
 int sys_getcwd(char *path, size_t size)
@@ -1505,15 +1503,11 @@ int sys_getcwd(char *path, size_t size)
     if (size == 0 && path != nullptr)
         return -EINVAL;
 
-    struct file *cwd = get_current_directory();
-    char *name = dentry_to_file_name(cwd->f_dentry);
-
-    fd_put(cwd);
-
+    struct path cwd = get_current_directory();
+    char *name = dentry_to_file_name(cwd.dentry);
+    path_put(&cwd);
     if (!name)
-    {
         return -errno;
-    }
 
     if (strlen(name) + 1 > size)
     {
@@ -1530,28 +1524,28 @@ int sys_getcwd(char *path, size_t size)
     return strlen(name);
 }
 
-struct file *get_dirfd_file(int dirfd)
+int get_dirfd(int dirfd, struct path *cwd)
 {
-    struct file *dirfd_desc = nullptr;
     if (!get_current_process())
     {
         /* If we do *not* have a process, return root */
         WARN_ON(dirfd != AT_FDCWD);
-        dirfd_desc = get_filesystem_root()->file;
-        fd_get(dirfd_desc);
-        return dirfd_desc;
+        *cwd = get_filesystem_root();
+        return 0;
     }
 
     if (dirfd != AT_FDCWD)
     {
-        dirfd_desc = get_file_description(dirfd);
-        if (!dirfd_desc)
-            return nullptr;
+        auto_fd fd = fdget(dirfd);
+        if (!fd)
+            return -EBADF;
+        *cwd = fd.get_file()->f_path;
+        return 0;
     }
     else
-        dirfd_desc = get_current_directory();
+        *cwd = get_current_directory();
 
-    return dirfd_desc;
+    return 0;
 }
 
 int sys_openat(int dirfd, const char *upath, int flags, mode_t mode)
@@ -1946,15 +1940,12 @@ int sys_fchownat_core(int dirfd, const char *pathname, uid_t owner, gid_t group,
         if (!(flags & AT_EMPTY_PATH))
             return -ENOENT;
         // Empty path, interpret as dirfd = ino
-        if (int st = f.from_dirfd(dirfd); st < 0)
-            return st;
+        f = get_file_description(dirfd);
+        if (!f)
+            return -errno;
     }
     else
     {
-        auto_file dir;
-        if (int st = dir.from_dirfd(dirfd); st < 0)
-            return st;
-
         int open_flags = (flags & AT_SYMLINK_NOFOLLOW ? LOOKUP_NOFOLLOW : 0);
         f = open_vfs_with_flags(dirfd, pathname, open_flags);
         if (!f)

@@ -105,8 +105,6 @@ short poll_vfs(void *poll_file, short events, struct file *node);
 
 int fallocate_vfs(int mode, off_t offset, off_t len, struct file *file);
 
-struct file *get_current_directory(void);
-
 #define UNLINK_VFS_DONT_TEST_EMPTY (1 << 24)
 
 int unlink_vfs(const char *path, int flags, int dirfd);
@@ -170,13 +168,9 @@ bool fd_may_access(struct file *f, unsigned int access);
 struct file *inode_to_file(struct inode *ino);
 int inode_truncate_range(struct inode *inode, size_t start, size_t end);
 
-struct filesystem_root
-{
-    struct object object;
-    struct file *file;
-};
+struct path get_filesystem_root(void);
 
-struct filesystem_root *get_filesystem_root(void);
+int path_openat(int dirfd, const char *name, unsigned int flags, struct path *path);
 
 /* Must be called with i_rwlock held */
 static inline void inode_set_size(struct inode *ino, size_t size)
@@ -277,6 +271,8 @@ int noop_prepare_write(struct inode *ino, struct page *page, size_t page_off, si
 
 void inode_wait_writeback(struct inode *ino);
 bool inode_no_dirty(struct inode *ino, unsigned int flags);
+
+int set_root(struct path *path);
 
 __END_CDECLS
 

@@ -491,12 +491,17 @@ char *dentry_to_file_name(struct dentry *dentry)
     size_t buf_len = 2;
     char *buf = nullptr;
     char *s = nullptr;
-    auto fs_root = get_filesystem_root()->file->f_dentry;
+    struct path p = get_filesystem_root();
+    auto fs_root = p.dentry;
 
     if (fs_root == dentry)
+    {
+        path_put(&p);
         return strdup("/");
+    }
 
     dentry_get(fs_root);
+    path_put(&p);
 
     auto d = dentry;
     struct list_head element_list;
@@ -644,20 +649,20 @@ void dentry_do_unlink(dentry *entry)
 
 bool dentry_does_not_have_parent(dentry *dir, dentry *to_not_have)
 {
-    auto_dentry fs_root = get_filesystem_root()->file->f_dentry;
+    struct path root = get_filesystem_root();
+    auto_dentry fs_root = root.dentry;
     auto_dentry d = dir;
 
     /* Get another ref here to have prettier code */
     dentry_get(d.get_dentry());
     dentry_get(fs_root.get_dentry());
+    path_put(&root);
 
     /* TODO: Is this logic safe from race conditions? */
     while (d.get_dentry() != fs_root.get_dentry() && d.get_dentry() != nullptr)
     {
         if (d.get_dentry() == to_not_have)
-        {
             return false;
-        }
 
         d = __dentry_parent(d.get_dentry());
     }

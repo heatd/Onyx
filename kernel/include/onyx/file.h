@@ -45,7 +45,7 @@ void file_free(struct file *file);
 
 int allocate_file_descriptor_table(struct process *process);
 int copy_file_descriptors(struct process *process, struct ioctx *ctx);
-struct file *get_dirfd_file(int dirfd);
+int get_dirfd(int dirfd, struct path *cwd);
 void process_destroy_file_descriptors(struct process *process);
 
 #define OPEN_FLAGS_ACCESS_MODE(flags) (flags & 0x3)
@@ -168,14 +168,6 @@ public:
     int from_fd(int fd)
     {
         f = get_file_description(fd);
-        if (!f)
-            return -errno;
-        return 0;
-    }
-
-    int from_dirfd(int dirfd)
-    {
-        f = get_dirfd_file(dirfd);
         if (!f)
             return -errno;
         return 0;
