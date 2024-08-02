@@ -1540,6 +1540,7 @@ int get_dirfd(int dirfd, struct path *cwd)
         if (!fd)
             return -EBADF;
         *cwd = fd.get_file()->f_path;
+        path_get(cwd);
         return 0;
     }
     else
