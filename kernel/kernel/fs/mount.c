@@ -71,30 +71,37 @@ static struct mount *mnt_find_by_mp(struct dentry *mountpoint)
     return NULL;
 }
 
-struct dentry *mnt_traverse(struct dentry *mountpoint)
+struct mount *mnt_traverse(struct dentry *mountpoint)
 {
     /* All of this runs under rcu_read_lock. We use a seqlock to make sure we safely traverse
      * from one mountpoint to another. */
     unsigned int seq = 0;
-    struct dentry *dst = NULL;
+    struct mount *mnt = NULL;
     rcu_read_lock();
+    /* TODO: Traverse stacked mounts properly (i.e mount /tmp mount /tmp mount /tmp)*/
 
     do
     {
-        if (dst)
-            dentry_put(dst);
-        dst = NULL;
+        if (mnt)
+            mnt_put(mnt);
+        mnt = NULL;
         seq = read_seqbegin(&mount_lock);
-        struct mount *mnt = mnt_find_by_mp(mountpoint);
+        mnt = mnt_find_by_mp(mountpoint);
         if (!mnt)
             break;
-        /* TODO: Broken when umount, please fix l8er */
-        dst = mnt->mnt_root;
-        dentry_get(dst);
+        mnt_get(mnt);
+
+        /* TODO: Will pair with something on the umount side */
+        smp_mb();
+        if (mnt->mnt_flags & MNT_DOOMED)
+        {
+            mnt_put(mnt);
+            mnt = NULL;
+        }
     } while (read_seqretry(&mount_lock, seq));
 
     rcu_read_unlock();
-    return dst;
+    return mnt;
 }
 
 static struct blockdev *resolve_bdev(const char *source, struct fs_mount *fs)
@@ -183,7 +190,7 @@ static int mnt_commit(struct mount *mnt, const char *target)
         /* TODO: This is weird and complicated, given that our boot_root doesn't really match after
          * we chroot. In any case, mount on / should generally disallowed, apart from the first
          * mount of all. We don't handle this properly. */
-        struct path p = {mnt->mnt_root};
+        struct path p = {mnt->mnt_root, mnt};
         if (set_root(&p) < 0)
             return -EBUSY;
     }
@@ -201,6 +208,7 @@ static int mnt_commit(struct mount *mnt, const char *target)
         __atomic_or_fetch(&mnt->mnt_point->d_flags, DENTRY_FLAG_MOUNTPOINT, __ATOMIC_RELEASE);
 
     write_sequnlock(&mount_lock);
+    pr_info("mounted %p on %s\n", mnt, target);
 
     return 0;
 }

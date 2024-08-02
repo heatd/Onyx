@@ -14,6 +14,8 @@
 struct dentry;
 struct superblock;
 
+#define MNT_DOOMED (1 << 31)
+
 struct mount
 {
     struct dentry *mnt_root;
@@ -33,12 +35,17 @@ static inline void mnt_get(struct mount *mnt)
     __atomic_add_fetch(&mnt->mnt_count, 1, __ATOMIC_RELAXED);
 }
 
+static inline void mnt_put(struct mount *mnt)
+{
+    __atomic_sub_fetch(&mnt->mnt_count, 1, __ATOMIC_RELAXED);
+}
+
 __BEGIN_CDECLS
 
 int do_mount(const char *source, const char *target, const char *fstype, unsigned long mnt_flags,
              const void *data);
 
-struct dentry *mnt_traverse(struct dentry *mountpoint);
+struct mount *mnt_traverse(struct dentry *mountpoint);
 
 __END_CDECLS
 

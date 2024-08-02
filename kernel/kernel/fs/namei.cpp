@@ -161,6 +161,7 @@ static int namei_walk_component(std::string_view v, nameidata &data, unsigned in
     }
 
     new_found = dwrapper.get_dentry();
+    struct mount *mnt = data.cur.mount;
 
     if (d_is_negative(new_found))
     {
@@ -174,7 +175,9 @@ static int namei_walk_component(std::string_view v, nameidata &data, unsigned in
         if (flags & NAMEI_NO_FOLLOW_SYM)
         {
             /* Save parent and location for the caller */
-            data.setcur(path{dwrapper.release()});
+            struct path p = path{dwrapper.release(), mnt};
+            mnt_get(mnt);
+            data.setcur(p);
             return 0;
         }
         /* POSIX states that paths that end in a trailing slash are required to be the same as
@@ -200,14 +203,19 @@ static int namei_walk_component(std::string_view v, nameidata &data, unsigned in
     }
     else if (dentry_is_mountpoint(new_found))
     {
-        auto dest = mnt_traverse(new_found);
-        if (!dest)
-            return -ENOENT;
-        dwrapper = dest;
-        new_found = dwrapper.get_dentry();
+        struct mount *new_mount = mnt_traverse(new_found);
+        if (new_mount)
+        {
+            dwrapper = new_mount->mnt_root;
+            dentry_get(dwrapper.get_dentry());
+            mnt = new_mount;
+            new_found = dwrapper.get_dentry();
+        }
     }
 
-    data.setcur(path{dwrapper.release()});
+    if (mnt == data.cur.mount)
+        mnt_get(mnt);
+    data.setcur(path{dwrapper.release(), mnt});
 
     return 0;
 }
@@ -224,8 +232,8 @@ static int namei_resolve_path(nameidata &data)
     // printk("Resolving %s\n", data.paths[0].view.data());
 
     /* If we get a null path here, assume the caller did the proper sanitation, so this could be
-     * something akin to: open("/"), where the first slash was already consumed and now we're left
-     * with an empty path; so return success.
+     * something akin to: open("/"), where the first slash was already consumed and now we're
+     * left with an empty path; so return success.
      */
     if (data.paths[data.pdepth].view.length() == 0)
         return 0;
@@ -255,8 +263,8 @@ static int namei_resolve_path(nameidata &data)
         }
 
         /* Get the next token from the path.
-         * Note that it does not consume *if* this is the last token and the caller asked for us not
-         * to do so.
+         * Note that it does not consume *if* this is the last token and the caller asked for us
+         * not to do so.
          */
         v = get_token_from_path(path, data.lookup_flags & LOOKUP_DONT_DO_LAST_NAME);
         if (v.length() > NAME_MAX)
@@ -454,8 +462,9 @@ static int do_last_open(nameidata &data, int open_flags, mode_t mode)
         {
             if ((open_flags & (O_EXCL | O_CREAT)) == (O_EXCL | O_CREAT))
             {
-                /* If O_EXCL and O_CREAT are set, and path names a symbolic link, open() shall fail
-                 * and set errno to [EEXIST], regardless of the contents of the symbolic link. */
+                /* If O_EXCL and O_CREAT are set, and path names a symbolic link, open() shall
+                 * fail and set errno to [EEXIST], regardless of the contents of the symbolic
+                 * link. */
                 st = -EEXIST;
             }
             else if (open_flags & O_NOFOLLOW)
@@ -589,10 +598,10 @@ static int do_lookup_parent_last(nameidata &data)
         {
             if (data.lookup_flags & LOOKUP_FAIL_IF_LINK)
             {
-                /* Annoying error code, but it's what mkdir requires... We dont have another caller
-                 * of LOOKUP_FAIL_IF_LINK that's not mkdir, and -ELOOP can easily be confused with
-                 * another symlink-related error (e.g exceeding nloops), so we can't easily convert
-                 * -ELOOP to -EEXIST in mkdir_vfs. */
+                /* Annoying error code, but it's what mkdir requires... We dont have another
+                 * caller of LOOKUP_FAIL_IF_LINK that's not mkdir, and -ELOOP can easily be
+                 * confused with another symlink-related error (e.g exceeding nloops), so we
+                 * can't easily convert -ELOOP to -EEXIST in mkdir_vfs. */
                 st = -EEXIST;
                 goto out;
             }
@@ -622,8 +631,8 @@ static int do_lookup_parent_last(nameidata &data)
     {
         /* Not found, no problem. We return -ENOENT. The caller will make sure to check if this
          * -ENOENT is actually a valid -ENOENT, or success. It can only be success if we end up
-         * being the last name in the whole path, i.e it's not something like /brokensym/test where
-         * we could get a false 0. */
+         * being the last name in the whole path, i.e it's not something like /brokensym/test
+         * where we could get a false 0. */
         st = -ENOENT;
     }
 
@@ -672,7 +681,8 @@ static int namei_lookup_parentat(int dirfd, const char *name, unsigned int flags
 
             if (st == -ENOENT)
             {
-                /* Translate the -ENOENT to a 0 if need be. See the comment in do_lookup_parent_last
+                /* Translate the -ENOENT to a 0 if need be. See the comment in
+                 * do_lookup_parent_last
                  */
                 bool was_last_name = true;
                 for (int i = namedata.pdepth; i >= 0; i--)
@@ -717,6 +727,8 @@ dentry *dentry_do_open(int dirfd, const char *path, unsigned int lookup_flags = 
     int err = dentry_resolve(namedata, &p);
     if (err < 0)
         return errno = err, nullptr;
+    if (p.mount)
+        mnt_put(p.mount);
     return p.dentry;
 }
 
