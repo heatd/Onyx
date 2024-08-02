@@ -19,7 +19,7 @@
 
 // XXX(heat): lookup root seems to leak
 
-std::string_view get_token_from_path(path &path, bool no_consume_if_last)
+std::string_view get_token_from_path(lookup_path &path, bool no_consume_if_last)
 {
     const auto &view = path.view;
     while (true)
@@ -102,15 +102,15 @@ static int dentry_follow_symlink(nameidata &data, dentry *symlink, unsigned int 
     if (target_str[0] == '/')
     {
         /* Switch location to root */
-        dentry_put(data.cur);
+        path_put(&data.cur);
         data.cur = data.root;
-        dentry_get(data.cur);
+        path_get(&data.cur);
     }
     else if (flags & DENTRY_FOLLOW_SYMLINK_NOT_NAMEI_WALK_COMPONENT)
     {
-        dentry_put(data.cur);
+        path_put(&data.cur);
         data.cur = data.parent;
-        data.parent = nullptr;
+        path_init(&data.parent);
     }
 
     return 0;
@@ -131,23 +131,23 @@ static int namei_walk_component(std::string_view v, nameidata &data, unsigned in
     dentry *new_found;
 
     file f;
-    f.f_ino = data.cur->d_inode;
+    f.f_ino = data.cur.dentry->d_inode;
 
-    if (!dentry_is_dir(data.cur))
+    if (!dentry_is_dir(data.cur.dentry))
         return -ENOTDIR;
 
     if (!file_can_access(&f, FILE_ACCESS_EXECUTE))
         return -EACCES;
 
-    if (data.cur == data.root && !v.compare("..")) [[unlikely]]
+    if (path_is_equal(&data.cur, &data.root) && !v.compare("..")) [[unlikely]]
     {
         /* Stop from escaping the chroot */
         return 0;
     }
     else
     {
-        dwrapper =
-            dentry_lookup_internal(v, data.cur, unlocked_lookup ? DENTRY_LOOKUP_UNLOCKED : 0);
+        dwrapper = dentry_lookup_internal(v, data.cur.dentry,
+                                          unlocked_lookup ? DENTRY_LOOKUP_UNLOCKED : 0);
         if (!dwrapper)
         {
             DCHECK(errno != 0);
@@ -174,7 +174,7 @@ static int namei_walk_component(std::string_view v, nameidata &data, unsigned in
         if (flags & NAMEI_NO_FOLLOW_SYM)
         {
             /* Save parent and location for the caller */
-            data.setcur(dwrapper.release());
+            data.setcur(path{dwrapper.release()});
             return 0;
         }
         /* POSIX states that paths that end in a trailing slash are required to be the same as
@@ -207,7 +207,7 @@ static int namei_walk_component(std::string_view v, nameidata &data, unsigned in
         new_found = dwrapper.get_dentry();
     }
 
-    data.setcur(dwrapper.release());
+    data.setcur(path{dwrapper.release()});
 
     return 0;
 }
@@ -244,7 +244,7 @@ static int namei_resolve_path(nameidata &data)
             if (path.trailing_slash())
             {
                 // Check if we indeed opened a directory here
-                if (!dentry_is_dir(data.cur))
+                if (!dentry_is_dir(data.cur.dentry))
                     return -ENOTDIR;
             }
 
@@ -283,28 +283,26 @@ static int namei_resolve_path(nameidata &data)
 {
     auto &path = data.paths[data.pdepth];
     bool absolute = path.view[0] == '/';
-    DCHECK(data.root == nullptr);
-    DCHECK(data.cur == nullptr);
+    DCHECK(path_is_null(&data.root));
+    DCHECK(path_is_null(&data.cur));
 
     struct filesystem_root *root = get_filesystem_root();
-    data.root = root->file->f_dentry;
-    dentry_get(data.root);
+    data.root = root->file->f_path;
+    path_get(&data.root);
 
     if (absolute)
     {
-        if (data.cur)
-            dentry_put(data.cur);
         data.cur = data.root;
-        dentry_get(data.root);
+        path_get(&data.root);
     }
-    else if (!data.cur)
+    else
     {
         /* Grab the CWD */
         struct file *f = get_dirfd_file(data.dirfd);
         if (!f)
             return -EBADF;
-        data.cur = f->f_dentry;
-        dentry_get(data.cur);
+        data.cur = f->f_path;
+        path_get(&data.cur);
         fd_put(f);
     }
 
@@ -319,22 +317,22 @@ int namei_lookup(nameidata &data)
 
     auto pathname_length = pathname.length();
 
+    int st = lookup_start(data);
+    if (st < 0)
+        return st;
+
     if (pathname_length >= PATH_MAX)
         return -ENAMETOOLONG;
     if (pathname_length == 0)
     {
         if (data.lookup_flags & LOOKUP_EMPTY_PATH)
         {
-            assert(data.cur != nullptr);
+            assert(!path_is_null(&data.cur));
             return 0;
         }
 
         return -ENOENT;
     }
-
-    int st = lookup_start(data);
-    if (st < 0)
-        return st;
 
     bool must_be_dir = data.lookup_flags & (LOOKUP_INTERNAL_TRAILING_SLASH | LOOKUP_MUST_BE_DIR);
 
@@ -342,7 +340,7 @@ int namei_lookup(nameidata &data)
     if (st < 0)
         return st;
 
-    if (!dentry_is_dir(data.cur) && must_be_dir)
+    if (!dentry_is_dir(data.cur.dentry) && must_be_dir)
         return -ENOTDIR;
 
     return 0;
@@ -351,22 +349,18 @@ int namei_lookup(nameidata &data)
 nameidata::~nameidata()
 {
     // Clean up
-    // Note that .cur is always not unrefed, as the result of the lookup
-    if (parent)
-        dentry_put(parent);
-    if (root)
-        dentry_put(root);
-    /* cur must've been consumed */
-    if (cur)
-        dentry_put(cur);
+    path_put(&parent);
+    path_put(&root);
+    path_put(&cur);
 }
 
-dentry *dentry_resolve(nameidata &data)
+static int dentry_resolve(nameidata &data, struct path *p)
 {
     int st = namei_lookup(data);
     if (st < 0)
-        return errno = -st, nullptr;
-    return data.getcur();
+        return st;
+    *p = data.getcur();
+    return 0;
 }
 
 file *open_vfs_with_flags(int dirfd, const char *name, unsigned int lookup_flags)
@@ -374,21 +368,23 @@ file *open_vfs_with_flags(int dirfd, const char *name, unsigned int lookup_flags
     nameidata namedata{std::string_view{name, strlen(name)}};
     namedata.lookup_flags = lookup_flags;
     namedata.dirfd = dirfd;
+    struct path p;
+    path_init(&p);
 
-    auto dent = dentry_resolve(namedata);
-    if (!dent)
-        return nullptr;
+    int err = dentry_resolve(namedata, &p);
+    /* TODO: Fix this interface's error reporting */
+    if (err < 0)
+        return errno = -err, nullptr;
 
-    auto new_file = inode_to_file(dent->d_inode);
+    auto new_file = inode_to_file(p.dentry->d_inode);
     if (!new_file)
     {
-        dentry_put(dent);
+        path_put(&p);
         return nullptr;
     }
 
-    inode_ref(dent->d_inode);
-    new_file->f_dentry = dent;
-
+    inode_ref(p.dentry->d_inode);
+    new_file->f_path = p;
     return new_file;
 }
 
@@ -414,7 +410,7 @@ static int do_creat(dentry *dir, struct inode *inode, struct dentry *dentry, mod
 
 static int do_last_open(nameidata &data, int open_flags, mode_t mode)
 {
-    dentry *cur = data.cur;
+    dentry *cur = data.cur.dentry;
     inode *curino = cur->d_inode;
     bool lockwrite = open_flags & O_CREAT;
     int st = 0;
@@ -447,18 +443,18 @@ static int do_last_open(nameidata &data, int open_flags, mode_t mode)
 
     st = namei_walk_component(last, data, lookup_flags);
 
-    if (st < 0 || (open_flags & O_CREAT && d_is_negative(data.cur)))
+    if (st < 0 || (open_flags & O_CREAT && d_is_negative(data.cur.dentry)))
     {
         /* Failed to walk, try to creat if we can */
         if (open_flags & O_CREAT)
-            st = do_creat(cur, curino, data.cur, mode, data);
+            st = do_creat(cur, curino, data.cur.dentry, mode, data);
     }
     else
     {
         /* Ok, we found the component, great. */
         /* First, handle symlinks */
 
-        if (dentry_is_symlink(data.cur))
+        if (dentry_is_symlink(data.cur.dentry))
         {
             if ((open_flags & (O_EXCL | O_CREAT)) == (O_EXCL | O_CREAT))
             {
@@ -473,7 +469,7 @@ static int do_last_open(nameidata &data, int open_flags, mode_t mode)
             else
             {
                 /* If we can/should follow, follow the symlink */
-                st = dentry_follow_symlink(data, data.cur,
+                st = dentry_follow_symlink(data, data.cur.dentry,
                                            DENTRY_FOLLOW_SYMLINK_NOT_NAMEI_WALK_COMPONENT);
 
                 if (st == 0)
@@ -483,7 +479,7 @@ static int do_last_open(nameidata &data, int open_flags, mode_t mode)
             goto out;
         }
 
-        if ((path.trailing_slash() || open_flags & O_DIRECTORY) && !dentry_is_dir(data.cur))
+        if ((path.trailing_slash() || open_flags & O_DIRECTORY) && !dentry_is_dir(data.cur.dentry))
         {
             st = -ENOTDIR;
             goto out;
@@ -541,7 +537,7 @@ expected<file *, int> vfs_open(int dirfd, const char *name, unsigned int open_fl
     namedata.lookup_flags = flags | LOOKUP_DONT_DO_LAST_NAME;
 
     /* Start the actual lookup loop. */
-    dentry *dent;
+    struct path p;
     for (;;)
     {
         st = namei_resolve_path(namedata);
@@ -558,24 +554,23 @@ expected<file *, int> vfs_open(int dirfd, const char *name, unsigned int open_fl
     if (st < 0)
         return unexpected<int>{st};
 
-    dent = namedata.getcur();
+    p = namedata.getcur();
 
-    auto new_file = inode_to_file(dent->d_inode);
+    auto new_file = inode_to_file(p.dentry->d_inode);
     if (!new_file)
     {
-        dentry_put(dent);
+        path_put(&p);
         return nullptr;
     }
 
-    inode_ref(dent->d_inode);
-    new_file->f_dentry = dent;
-
+    inode_ref(p.dentry->d_inode);
+    new_file->f_path = p;
     return new_file;
 }
 
 static int do_lookup_parent_last(nameidata &data)
 {
-    dentry *cur = data.cur;
+    dentry *cur = data.cur.dentry;
     inode *curino = cur->d_inode;
     int st = 0;
     auto &path = data.paths[data.pdepth];
@@ -594,7 +589,7 @@ static int do_lookup_parent_last(nameidata &data)
     {
         /* Ok, we found the last component, great. */
         /* Handle symlinks */
-        if (dentry_is_symlink(data.cur))
+        if (dentry_is_symlink(data.cur.dentry))
         {
             if (data.lookup_flags & LOOKUP_FAIL_IF_LINK)
             {
@@ -612,7 +607,7 @@ static int do_lookup_parent_last(nameidata &data)
                  * Since we are consuming this last token, re-call get_token_from_path.
                  */
                 get_token_from_path(path, false);
-                st = dentry_follow_symlink(data, data.cur,
+                st = dentry_follow_symlink(data, data.cur.dentry,
                                            DENTRY_FOLLOW_SYMLINK_NOT_NAMEI_WALK_COMPONENT);
 
                 if (st == 0)
@@ -622,10 +617,10 @@ static int do_lookup_parent_last(nameidata &data)
         }
 
         /* Not a symlink, use parent (cur = parent). */
-        dentry_put(data.cur);
+        path_put(&data.cur);
         DCHECK(data.parent);
         data.cur = data.parent;
-        data.parent = nullptr;
+        path_init(&data.parent);
     }
     else
     {
@@ -651,8 +646,8 @@ out:
     return st;
 }
 
-static expected<dentry *, int> namei_lookup_parentat(int dirfd, const char *name,
-                                                     unsigned int flags, struct path *outp)
+static int namei_lookup_parentat(int dirfd, const char *name, unsigned int flags,
+                                 struct lookup_path *outn, struct path *parent)
 {
     nameidata namedata{std::string_view{name, strlen(name)}};
     namedata.dirfd = dirfd;
@@ -661,19 +656,17 @@ static expected<dentry *, int> namei_lookup_parentat(int dirfd, const char *name
     auto pathname_length = pathname.length();
 
     if (pathname_length >= PATH_MAX)
-        return unexpected<int>{-ENAMETOOLONG};
+        return -ENAMETOOLONG;
     if (pathname_length == 0)
-        return unexpected<int>{-ENOENT};
+        return -ENOENT;
 
     int st = lookup_start(namedata);
     if (st < 0)
-        return unexpected<int>{st};
+        return st;
 
     namedata.lookup_flags = flags | LOOKUP_DONT_DO_LAST_NAME;
 
     /* Start the actual lookup loop. */
-    dentry *dent;
-
     for (;;)
     {
         st = namei_resolve_path(namedata);
@@ -704,13 +697,12 @@ static expected<dentry *, int> namei_lookup_parentat(int dirfd, const char *name
     }
 
     if (st < 0)
-        return unexpected<int>{st};
+        return st;
 
-    dent = namedata.getcur();
-    DCHECK(dent != nullptr);
-    *outp = namedata.paths[namedata.pdepth];
-
-    return dent;
+    DCHECK(!path_is_null(&namedata.cur));
+    *outn = namedata.paths[namedata.pdepth];
+    *parent = namedata.getcur();
+    return 0;
 }
 
 struct file *open_vfs(int dirfd, const char *path)
@@ -724,8 +716,12 @@ dentry *dentry_do_open(int dirfd, const char *path, unsigned int lookup_flags = 
     nameidata namedata{std::string_view{path, strlen(path)}};
     namedata.dirfd = dirfd;
     namedata.lookup_flags = lookup_flags;
+    struct path p;
 
-    return dentry_resolve(namedata);
+    int err = dentry_resolve(namedata, &p);
+    if (err < 0)
+        return errno = err, nullptr;
+    return p.dentry;
 }
 
 static expected<struct dentry *, int> namei_create_generic(int dirfd, const char *path, mode_t mode,
@@ -733,16 +729,17 @@ static expected<struct dentry *, int> namei_create_generic(int dirfd, const char
                                                            unsigned int extra_lookup_flags = 0)
 {
     int st;
-    struct path last_name;
+    struct lookup_path last_name;
     struct inode *inode = nullptr;
     unsigned int lookup_flags = NAMEI_ALLOW_NEGATIVE | extra_lookup_flags;
+    struct path parent;
 
-    auto ex = namei_lookup_parentat(dirfd, path, lookup_flags, &last_name);
-    if (ex.has_error())
-        return unexpected<int>{ex.error()};
+    st = namei_lookup_parentat(dirfd, path, lookup_flags, &last_name, &parent);
+    if (st < 0)
+        return unexpected<int>{st};
 
     /* Ok, we have the directory, lock the inode and fetch the negative dentry */
-    struct dentry *dir = ex.value();
+    struct dentry *dir = parent.dentry;
     struct inode *dir_ino = dir->d_inode;
     inode_lock(dir_ino);
 
@@ -793,13 +790,13 @@ static expected<struct dentry *, int> namei_create_generic(int dirfd, const char
     d_positiveize(dent, inode);
 
     inode_unlock(dir_ino);
-    dentry_put(dir);
+    path_put(&parent);
     return dent;
 put_unlock_err:
     dentry_put(dent);
 unlock_err:
     inode_unlock(dir_ino);
-    dentry_put(dir);
+    path_put(&parent);
     return unexpected<int>{st};
 }
 
@@ -830,16 +827,17 @@ expected<dentry *, int> mkdir_vfs(const char *path, mode_t mode, int dirfd)
 int symlink_vfs(const char *path, const char *dest, int dirfd)
 {
     int st;
-    struct path last_name;
+    struct lookup_path last_name;
     struct inode *inode = nullptr;
     unsigned int lookup_flags = NAMEI_ALLOW_NEGATIVE;
+    struct path parent;
 
-    auto ex = namei_lookup_parentat(dirfd, path, lookup_flags, &last_name);
-    if (ex.has_error())
-        return ex.error();
+    st = namei_lookup_parentat(dirfd, path, lookup_flags, &last_name, &parent);
+    if (st < 0)
+        return st;
 
     /* Ok, we have the directory, lock the inode and fetch the negative dentry */
-    struct dentry *dir = ex.value();
+    struct dentry *dir = parent.dentry;
     struct inode *dir_ino = dir->d_inode;
     inode_lock(dir_ino);
 
@@ -875,30 +873,31 @@ int symlink_vfs(const char *path, const char *dest, int dirfd)
     d_positiveize(dent, inode);
 
     inode_unlock(dir_ino);
-    dentry_put(dir);
+    path_put(&parent);
     dentry_put(dent);
     return 0;
 put_unlock_err:
     dentry_put(dent);
 unlock_err:
     inode_unlock(dir_ino);
-    dentry_put(dir);
+    path_put(&parent);
     return st;
 }
 
 int link_vfs(struct file *target, int dirfd, const char *newpath)
 {
     int st;
-    struct path last_name;
+    struct lookup_path last_name;
     unsigned int lookup_flags = NAMEI_ALLOW_NEGATIVE;
     struct inode *dest_ino = target->f_ino;
+    struct path parent;
 
-    auto ex = namei_lookup_parentat(dirfd, newpath, lookup_flags, &last_name);
-    if (ex.has_error())
-        return ex.error();
+    st = namei_lookup_parentat(dirfd, newpath, lookup_flags, &last_name, &parent);
+    if (st < 0)
+        return st;
 
     /* Ok, we have the directory, lock the inode and fetch the negative dentry */
-    struct dentry *dir = ex.value();
+    struct dentry *dir = parent.dentry;
     struct inode *dir_ino = dir->d_inode;
     inode_lock(dir_ino);
 
@@ -941,14 +940,14 @@ int link_vfs(struct file *target, int dirfd, const char *newpath)
     inode_inc_nlink(dest_ino);
 
     inode_unlock(dir_ino);
-    dentry_put(dir);
+    path_put(&parent);
     dentry_put(dent);
     return 0;
 put_unlock_err:
     dentry_put(dent);
 unlock_err:
     inode_unlock(dir_ino);
-    dentry_put(dir);
+    path_put(&parent);
     return st;
 }
 
@@ -998,15 +997,16 @@ int sys_linkat(int olddirfd, const char *oldpath, int newdirfd, const char *newp
 int unlink_vfs(const char *path, int flags, int dirfd)
 {
     int st = 0;
-    struct path last_name;
+    struct lookup_path last_name;
+    struct path parent;
     dentry *child = nullptr, *dentry = nullptr;
     inode *inode = nullptr;
     char _name[NAME_MAX + 1] = {};
 
     unsigned int lookup_flag = LOOKUP_NOFOLLOW;
-    auto ex = namei_lookup_parentat(dirfd, path, lookup_flag, &last_name);
-    if (ex.has_error())
-        return ex.error();
+    st = namei_lookup_parentat(dirfd, path, lookup_flag, &last_name, &parent);
+    if (st < 0)
+        return st;
 
     auto name = get_token_from_path(last_name, false);
     if (!name.compare(".") || !name.compare(".."))
@@ -1015,7 +1015,7 @@ int unlink_vfs(const char *path, int flags, int dirfd)
         goto out;
     }
 
-    dentry = ex.value();
+    dentry = parent.dentry;
     inode = dentry->d_inode;
 
     if (!inode_can_access(inode, FILE_ACCESS_WRITE))
@@ -1080,7 +1080,7 @@ out2:
     if (child)
         dentry_put(child);
 out:
-    dentry_put(dentry);
+    path_put(&parent);
     return st;
 }
 
@@ -1149,7 +1149,7 @@ static int fallback_rename(struct dentry *old_parent, struct dentry *old, struct
 
     struct file f;
     f.f_ino = old->d_inode;
-    f.f_dentry = old;
+    f.f_path = path{old};
 
     /* Now link the name on disk */
     st = dir->d_inode->i_fops->link(&f, dest->d_name, dir);
@@ -1164,7 +1164,7 @@ static int fallback_rename(struct dentry *old_parent, struct dentry *old, struct
     return 0;
 }
 
-int do_renameat(struct dentry *dir, struct path &last, struct dentry *old)
+int do_renameat(struct dentry *dir, struct lookup_path &last, struct dentry *old)
 {
     std::string_view name = get_token_from_path(last, false);
     if (!name.compare(".") || !name.compare(".."))
@@ -1283,7 +1283,8 @@ int do_renameat(struct dentry *dir, struct path &last, struct dentry *old)
 int sys_renameat(int olddirfd, const char *uoldpath, int newdirfd, const char *unewpath)
 {
     user_string oldpath, newpath;
-    struct path last_name;
+    struct lookup_path last_name;
+    struct path parent;
 
     if (auto res = oldpath.from_user(uoldpath); res.has_error())
         return res.error();
@@ -1304,12 +1305,12 @@ int sys_renameat(int olddirfd, const char *uoldpath, int newdirfd, const char *u
         return -EACCES;
 
     unsigned int lookup_flag = LOOKUP_NOFOLLOW;
-    auto ex = namei_lookup_parentat(newdirfd, newpath.data(), lookup_flag, &last_name);
-    if (ex.has_error())
-        return ex.error();
-    auto_dentry dir = ex.value();
-
-    return do_renameat(dir.get_dentry(), last_name, old.get_dentry());
+    int st = namei_lookup_parentat(newdirfd, newpath.data(), lookup_flag, &last_name, &parent);
+    if (st < 0)
+        return st;
+    st = do_renameat(parent.dentry, last_name, old.get_dentry());
+    path_put(&parent);
+    return st;
 }
 
 int sys_rename(const char *oldpath, const char *newpath)

@@ -13,10 +13,10 @@
 #include <stdint.h>
 
 #include <onyx/fnv.h>
+#include <onyx/inode.h>
 #include <onyx/limits.h>
 #include <onyx/list.h>
 #include <onyx/rwlock.h>
-#include <onyx/vfs.h>
 
 #ifdef __cplusplus
 #include <onyx/atomic.hpp>
@@ -114,8 +114,6 @@ using dentry_lookup_flags_t = uint16_t;
 
 dentry *dentry_lookup_internal(std::string_view v, dentry *dir, dentry_lookup_flags_t flags = 0);
 
-struct nameidata;
-dentry *dentry_resolve(nameidata &data);
 void dentry_destroy(dentry *d);
 dentry *dentry_parent(dentry *dir);
 bool dentry_is_empty(dentry *dir);
