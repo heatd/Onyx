@@ -125,7 +125,7 @@ struct file *anon_get_shmem(size_t len)
     return f;
 err:
     if (dentry)
-        dentry_put(dentry);
+        dput(dentry);
     if (ino)
         inode_unref(ino);
     return nullptr;

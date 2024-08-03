@@ -612,7 +612,7 @@ static off_t devfs_getdirent(struct dirent *buf, off_t off, struct file *file)
         /* .. */
         auto parent = dentry_parent(dent);
         put_dentry_to_dirent(buf, parent, "..");
-        dentry_put(parent);
+        dput(parent);
     }
     else
     {

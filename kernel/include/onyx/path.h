@@ -19,14 +19,14 @@ struct path
 
 static inline void path_get(struct path *p)
 {
-    dentry_get(p->dentry);
+    dget(p->dentry);
     mnt_get(p->mount);
 }
 
 static inline void path_put(struct path *p)
 {
     if (p->dentry)
-        dentry_put(p->dentry);
+        dput(p->dentry);
     if (p->mount)
         mnt_put(p->mount);
 }

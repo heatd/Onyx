@@ -1652,7 +1652,7 @@ int sys_mkdirat(int dirfd, const char *upath, mode_t mode)
     if (ex.has_error())
         err = ex.error();
     else
-        dentry_put(ex.value());
+        dput(ex.value());
     free((char *) path);
     return err;
 }
@@ -1674,7 +1674,7 @@ int sys_mknodat(int dirfd, const char *upath, mode_t mode, dev_t dev)
     if (ex.has_error())
         err = ex.error();
     else
-        dentry_put(ex.value());
+        dput(ex.value());
 
     free((char *) path);
     return err;

@@ -87,7 +87,7 @@ struct un_name
         if (is_fs_sock_)
         {
             n.dentry_ = dentry_;
-            dentry_get(dentry_);
+            dget(dentry_);
         }
         else
         {
@@ -104,7 +104,7 @@ struct un_name
         if (is_fs_sock_)
         {
             if (dentry_)
-                dentry_put(dentry_);
+                dput(dentry_);
             dentry_ = nullptr;
         }
         else
@@ -161,7 +161,7 @@ struct un_name
         if (is_fs_sock_)
         {
             if (dentry_)
-                dentry_put(dentry_);
+                dput(dentry_);
         }
         else
             anon_path_.~basic_string();
@@ -569,7 +569,7 @@ int un_socket::do_fs_bind(cul::string path)
     // Failure seems very unlikely.
     if (!un_sock_table.add_socket(this, 0))
     {
-        dentry_put(ex.value());
+        dput(ex.value());
         unlink_vfs(path.c_str(), 0, AT_FDCWD);
         src_addr_.dentry_ = nullptr;
         return -ENOMEM;
@@ -696,7 +696,7 @@ expected<un_name, int> sockaddr_to_un(sockaddr *addr, socklen_t addrlen)
         if (!S_ISSOCK(f.get_file()->f_ino->i_mode))
             return unexpected{-ECONNREFUSED};
         name.dentry_ = f.get_file()->f_dentry;
-        dentry_get(name.dentry_);
+        dget(name.dentry_);
     }
 
     return cul::move(name);

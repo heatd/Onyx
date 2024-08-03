@@ -47,7 +47,7 @@ struct inode *tmpfs_creat(struct dentry *dentry, int mode, struct dentry *dir)
 {
     struct inode *inode = tmpfs_create_inode(static_cast<mode_t>(S_IFREG | mode), dir);
     if (inode)
-        dentry_get(dentry);
+        dget(dentry);
     return inode;
 }
 
@@ -70,7 +70,7 @@ inode *tmpfs_symlink(struct dentry *dentry, const char *dest, struct dentry *dir
     }
 
     new_ino->link = link_name;
-    dentry_get(dentry);
+    dget(dentry);
     return new_ino;
 }
 
@@ -81,7 +81,7 @@ inode *tmpfs_mkdir(struct dentry *dentry, mode_t mode, struct dentry *dir)
     {
         inode->i_nlink++;
         inode_inc_nlink(dir->d_inode);
-        dentry_get(dentry);
+        dget(dentry);
     }
 
     return inode;
@@ -91,7 +91,7 @@ inode *tmpfs_mknod(struct dentry *dentry, mode_t mode, dev_t dev, struct dentry 
 {
     struct inode *inode = tmpfs_create_inode(mode, dir, dev);
     if (inode)
-        dentry_get(dentry);
+        dget(dentry);
     return inode;
 }
 
@@ -115,7 +115,7 @@ int tmpfs_unlink(const char *name, int flags, struct dentry *dir)
             return -ENOTEMPTY;
     }
 
-    dentry_put(child);
+    dput(child);
 
     return 0;
 }
@@ -131,7 +131,7 @@ static int tmpfs_rename(struct dentry *src_parent, struct dentry *src, struct de
             return -ENOTDIR;
         if (dentry_is_dir(dst) && !dentry_is_empty(dst))
             return -ENOTEMPTY;
-        dentry_put(dst);
+        dput(dst);
     }
 
     if (dentry_is_dir(src))
@@ -196,7 +196,7 @@ off_t tmpfs_getdirent(struct dirent *buf, off_t off, struct file *file)
         if (!parent) // We're root, so use ourselves
             parent = dent;
         put_dentry_to_dirent(buf, parent, "..");
-        dentry_put(parent);
+        dput(parent);
     }
     else
     {

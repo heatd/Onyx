@@ -732,7 +732,7 @@ static int pipe_create(struct file **pipe_readable, struct file **pipe_writeable
     wr->f_dentry = anon_pipe_dent;
 
     // Get new refs for the second fd
-    dentry_get(anon_pipe_dent);
+    dget(anon_pipe_dent);
     inode_ref(anon_pipe_ino);
 
     *pipe_readable = rd;
@@ -742,7 +742,7 @@ static int pipe_create(struct file **pipe_readable, struct file **pipe_writeable
 
     return 0;
 err2:
-    dentry_put(anon_pipe_dent);
+    dput(anon_pipe_dent);
 err0:
     if (anon_pipe_ino)
         close_vfs(anon_pipe_ino);
