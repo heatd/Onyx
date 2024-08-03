@@ -171,7 +171,7 @@ int sys_proc_event_attach(pid_t pid, unsigned long flags)
     struct file *f = inode_to_file(ino);
     if (!f)
     {
-        dentry_put(d);
+        dput(d);
         close_vfs(ino);
         return -ENOMEM;
     }
@@ -183,7 +183,7 @@ int sys_proc_event_attach(pid_t pid, unsigned long flags)
     {
         process_put(p);
         free(ino);
-        dentry_put(d);
+        dput(d);
         free(new_sub);
         return -errno;
     }

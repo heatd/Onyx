@@ -207,7 +207,7 @@ static int namei_walk_component(std::string_view v, nameidata &data, unsigned in
         if (new_mount)
         {
             dwrapper = new_mount->mnt_root;
-            dentry_get(dwrapper.get_dentry());
+            dget(dwrapper.get_dentry());
             mnt = new_mount;
             new_found = dwrapper.get_dentry();
         }
@@ -801,7 +801,7 @@ static expected<struct dentry *, int> namei_create_generic(int dirfd, const char
     path_put(&parent);
     return dent;
 put_unlock_err:
-    dentry_put(dent);
+    dput(dent);
 unlock_err:
     inode_unlock(dir_ino);
     path_put(&parent);
@@ -882,10 +882,10 @@ int symlink_vfs(const char *path, const char *dest, int dirfd)
 
     inode_unlock(dir_ino);
     path_put(&parent);
-    dentry_put(dent);
+    dput(dent);
     return 0;
 put_unlock_err:
-    dentry_put(dent);
+    dput(dent);
 unlock_err:
     inode_unlock(dir_ino);
     path_put(&parent);
@@ -949,10 +949,10 @@ int link_vfs(struct file *target, int dirfd, const char *newpath)
 
     inode_unlock(dir_ino);
     path_put(&parent);
-    dentry_put(dent);
+    dput(dent);
     return 0;
 put_unlock_err:
-    dentry_put(dent);
+    dput(dent);
 unlock_err:
     inode_unlock(dir_ino);
     path_put(&parent);
@@ -1046,7 +1046,7 @@ int unlink_vfs(const char *path, int flags, int dirfd)
         if (d_is_negative(child))
         {
             st = -ENOENT;
-            dentry_put(child);
+            dput(child);
             goto out;
         }
         /* Can't do that... Note that dentry always exists if it's a mountpoint */
@@ -1059,7 +1059,7 @@ int unlink_vfs(const char *path, int flags, int dirfd)
 
         if (st < 0)
         {
-            dentry_put(child);
+            dput(child);
             goto out;
         }
     }
@@ -1086,7 +1086,7 @@ out2:
 
     /* Release the reference that we got from dentry_lookup_internal */
     if (child)
-        dentry_put(child);
+        dput(child);
 out:
     path_put(&parent);
     return st;
@@ -1227,7 +1227,7 @@ int do_renameat(struct dentry *dir, struct lookup_path &last, struct dentry *old
     /* Can't do that... Note that dentry always exists if it's a mountpoint */
     if (dentry_involved_with_mount(dest))
     {
-        dentry_put(dest);
+        dput(dest);
         return -EBUSY;
     }
 
@@ -1243,7 +1243,7 @@ int do_renameat(struct dentry *dir, struct lookup_path &last, struct dentry *old
         /* Not sure if this is 100% correct */
         if (dentry_is_dir(old) ^ dentry_is_dir(dest))
         {
-            dentry_put(dest);
+            dput(dest);
             return -EISDIR;
         }
     }
@@ -1252,15 +1252,15 @@ int do_renameat(struct dentry *dir, struct lookup_path &last, struct dentry *old
 
     if (!old_parent)
     {
-        dentry_put(dest);
+        dput(dest);
         return -ENOENT;
     }
 
     /* It's invalid to try to make a directory be a subdirectory of itself */
     if (!dentry_does_not_have_parent(dir, old))
     {
-        dentry_put(dest);
-        dentry_put(old_parent);
+        dput(dest);
+        dput(old_parent);
         return -EINVAL;
     }
 
@@ -1277,14 +1277,14 @@ int do_renameat(struct dentry *dir, struct lookup_path &last, struct dentry *old
 
     if (st < 0)
     {
-        dentry_put(dest);
-        dentry_put(old_parent);
+        dput(dest);
+        dput(old_parent);
         return st;
     }
 
     dentry_rename(old, _name, dir, dest);
-    dentry_put(dest);
-    dentry_put(old_parent);
+    dput(dest);
+    dput(old_parent);
     return 0;
 }
 

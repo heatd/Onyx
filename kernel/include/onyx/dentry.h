@@ -38,6 +38,8 @@ struct dentry_operations
     int (*d_revalidate)(struct dentry *, unsigned int flags);
 };
 
+#define D_REF_LOCKED (1UL << 63)
+
 struct dentry
 {
     unsigned long d_ref;
@@ -66,8 +68,8 @@ struct dentry
 struct dentry *dentry_open(char *path, struct dentry *base);
 struct dentry *dentry_mount(const char *mountpoint, struct inode *inode);
 void dentry_init();
-void dentry_put(struct dentry *d);
-void dentry_get(struct dentry *d);
+void dput(struct dentry *d);
+void dget(struct dentry *d);
 struct inode;
 struct dentry *dentry_create(const char *name, struct inode *inode, struct dentry *parent,
                              u16 flags
@@ -128,13 +130,13 @@ private:
     void ref() const
     {
         if (d)
-            dentry_get(d);
+            dget(d);
     }
 
     void unref() const
     {
         if (d)
-            dentry_put(d);
+            dput(d);
     }
 
 public:
@@ -147,7 +149,7 @@ public:
     ~auto_dentry()
     {
         if (d)
-            dentry_put(d);
+            dput(d);
     }
 
     auto_dentry &operator=(const auto_dentry &rhs)

@@ -83,7 +83,7 @@ void tar_handle_entry(tar_header_t *entry, onx::stream &str)
                     perror("mkdir");
                     panic("Error loading initrd");
                 }
-                dentry_put(ex.value());
+                dput(ex.value());
                 goto retry;
             }
 
@@ -112,7 +112,7 @@ void tar_handle_entry(tar_header_t *entry, onx::stream &str)
     else if (entry->typeflag == TAR_TYPE_DIR)
     {
         auto dent = mkdir_vfs(filename, perms, AT_FDCWD).unwrap();
-        dentry_put(dent);
+        dput(dent);
     }
     else if (entry->typeflag == TAR_TYPE_SYMLNK)
     {
