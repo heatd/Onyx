@@ -64,6 +64,7 @@ struct file *anon_inode_open(mode_t file_type, struct file_ops *ops, const char 
     dentry = dentry_create(name, ino, nullptr);
     if (!dentry)
         goto err;
+    dget(dentry);
 
     f = inode_to_file(ino);
     if (!f)
@@ -73,7 +74,7 @@ struct file *anon_inode_open(mode_t file_type, struct file_ops *ops, const char 
     return f;
 err:
     if (dentry)
-        dentry_put(dentry);
+        dput(dentry);
     if (ino)
         inode_unref(ino);
     return nullptr;

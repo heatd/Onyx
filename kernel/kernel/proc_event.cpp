@@ -168,6 +168,8 @@ int sys_proc_event_attach(pid_t pid, unsigned long flags)
         return -ENOMEM;
     }
 
+    dget(d);
+
     struct file *f = inode_to_file(ino);
     if (!f)
     {

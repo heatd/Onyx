@@ -31,7 +31,21 @@ static inline unsigned int read_seqbegin(seqlock_t *sl)
 
 static inline bool read_seqretry(seqlock_t *sl, unsigned int old)
 {
-    return read_seqcount_retry(&sl->seqcount, old);
+    return !(old & 1) && read_seqcount_retry(&sl->seqcount, old);
+}
+
+static inline void read_seqbegin_or_lock(seqlock_t *sl, unsigned int *seq)
+{
+    if (unlikely(*seq & 1))
+        spin_lock(&sl->lock);
+    else
+        *seq = read_seqbegin(sl);
+}
+
+static inline void done_seqretry(seqlock_t *sl, unsigned int seq)
+{
+    if (unlikely(seq & 1))
+        spin_unlock(&sl->lock);
 }
 
 #endif

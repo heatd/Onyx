@@ -80,6 +80,7 @@ static void shrink_objects(struct reclaim_data *data, unsigned long free_page_ta
         if (st == SHRINK_STOP)
             continue;
 
+        pr_info("shrinker %s freed %lu objects\n", shrinker->name, control.nr_freed);
         needed_bytes -= control.nr_freed * average_object_size;
     }
 

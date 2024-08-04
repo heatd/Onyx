@@ -907,6 +907,7 @@ file *socket_inode_to_file(inode *ino)
         return nullptr;
     }
 
+    dget(dent);
     f->f_dentry = dent;
     return f;
 }

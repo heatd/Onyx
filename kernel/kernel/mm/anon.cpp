@@ -116,6 +116,7 @@ struct file *anon_get_shmem(size_t len)
     dentry = dentry_create("[anon_shmem]", ino, nullptr);
     if (!dentry)
         goto err;
+    dget(dentry);
 
     f = inode_to_file(ino);
     if (!f)

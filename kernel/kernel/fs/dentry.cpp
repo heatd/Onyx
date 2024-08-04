@@ -70,7 +70,6 @@ static inline int d_revalidate(struct dentry *dentry, unsigned int flags)
 }
 
 void dentry_remove_from_cache(dentry *dent, dentry *parent);
-void dentry_kill_unlocked(dentry *entry);
 
 static dentry *d_lookup_internal(dentry *dent, std::string_view name)
 {
@@ -177,7 +176,6 @@ static struct dentry *dentry_add_to_cache_careful(dentry *dent, dentry *parent)
 
     list_add_tail_rcu(&dent->d_cache_node, dentry_ht.get_hashtable(index));
     dent->d_flags |= DENTRY_FLAG_HASHED;
-    dget(dent);
     spin_unlock(&dentry_ht_locks[index]);
     return dent;
 }
@@ -262,6 +260,42 @@ static inline void d_unfreeze_refs(struct dentry *dentry)
     __atomic_and_fetch(&dentry->d_ref, ~D_REF_LOCKED, __ATOMIC_RELEASE);
 }
 
+static inline void d_add_lru(struct dentry *dentry)
+{
+    DCHECK(spin_lock_held(&dentry->d_lock));
+    DCHECK(!(dentry->d_flags & (DENTRY_FLAG_LRU | DENTRY_FLAG_SHRINK)));
+    struct superblock *sb;
+    /* Sniff out the sb from our inode, or our parent's inode. This _should_ be safe, our parent's
+     * inode can't go away magically. */
+
+    if (dentry->d_inode)
+        sb = dentry->d_inode->i_sb;
+    else
+        sb = dentry->d_parent->d_inode->i_sb;
+    DCHECK(sb != nullptr);
+
+    dentry->d_flags |= DENTRY_FLAG_LRU;
+    lru_list_add(&sb->s_dcache_lru, &dentry->d_lru);
+}
+
+static inline void d_remove_lru(struct dentry *dentry)
+{
+    DCHECK((dentry->d_flags & (DENTRY_FLAG_LRU | DENTRY_FLAG_SHRINK)) == DENTRY_FLAG_LRU);
+    DCHECK(spin_lock_held(&dentry->d_lock));
+
+    struct superblock *sb;
+    /* Sniff out the sb from our inode, or our parent's inode. This _should_ be safe, our parent's
+     * inode can't go away magically. */
+
+    if (dentry->d_inode)
+        sb = dentry->d_inode->i_sb;
+    else
+        sb = dentry->d_parent->d_inode->i_sb;
+
+    lru_list_remove(&sb->s_dcache_lru, &dentry->d_lru);
+    dentry->d_flags &= ~DENTRY_FLAG_LRU;
+}
+
 static bool d_should_retain(struct dentry *dentry, bool locked)
 {
     unsigned long flags;
@@ -270,6 +304,16 @@ static bool d_should_retain(struct dentry *dentry, bool locked)
     flags = dentry->d_flags.load(mem_order::relaxed);
     if (!(flags & DENTRY_FLAG_HASHED))
         return false;
+
+    if (!(flags & DENTRY_FLAG_LRU))
+    {
+        /* If not in an LRU, try to add it (if locked) */
+        if (!locked)
+            return false;
+        d_add_lru(dentry);
+    }
+    else if (!(flags & DENTRY_FLAG_REFERENCED))
+        dentry->d_flags |= DENTRY_FLAG_REFERENCED;
 
     return true;
 }
@@ -336,6 +380,9 @@ static struct dentry *d_destroy(struct dentry *dentry)
 
     if (dentry->d_flags & DENTRY_FLAG_HASHED)
         dentry_remove_from_cache(dentry, dentry->d_parent);
+
+    if ((dentry->d_flags & (DENTRY_FLAG_LRU | DENTRY_FLAG_SHRINK)) == DENTRY_FLAG_LRU)
+        d_remove_lru(dentry);
 
     if (dentry->d_inode)
     {
@@ -728,53 +775,7 @@ error:
     return nullptr;
 }
 
-static void dentry_shrink_subtree(struct dentry *dentry)
-{
-#if 0
-    /* Keep shrinking this subtree while we can find able children. Dentries with reference counts
-     * != 1 are skipped. */
-    DEFINE_LIST(queue);
-    for (; dentry != nullptr;
-         dentry = list_is_empty(&queue)
-                      ? nullptr
-                      : container_of(list_first_element(&queue), struct dentry, d_parent_dir_node))
-    {
-        if (!dentry_is_dir(dentry))
-            continue;
-        list_for_every_safe (&dentry->d_children_head)
-        {
-            if (dentry->d_flags & DENTRY_FLAG_HASHED)
-            {
-                dentry_remove_from_cache(dentry, dentry->d_parent);
-                dentry_put(dentry);
-            }
-        }
-    }
-#endif
-    /* TODO. For now, axe entries in a single level and bugger off */
-    list_for_every_safe (&dentry->d_children_head)
-    {
-        struct dentry *child = container_of(l, struct dentry, d_parent_dir_node);
-        spin_lock(&child->d_lock);
-        unsigned long predicted_refs = 1;
-
-        /* This is racey, we don't have lockref... TODO? */
-        if (child->d_ref != predicted_refs)
-        {
-            spin_unlock(&child->d_lock);
-            continue;
-        }
-
-        if (child->d_flags & DENTRY_FLAG_HASHED)
-            dentry_remove_from_cache(child, dentry);
-
-        list_remove(&child->d_parent_dir_node);
-        child->d_parent = nullptr;
-        spin_unlock(&child->d_lock);
-        dput(dentry);
-        dput(child);
-    }
-}
+void dentry_shrink_subtree(struct dentry *dentry);
 
 void dentry_do_unlink(dentry *entry)
 {
@@ -1062,4 +1063,253 @@ void d_positiveize(struct dentry *dentry, struct inode *inode)
     DCHECK(dentry->d_flags & DENTRY_FLAG_NEGATIVE);
     dentry->d_inode = inode;
     dentry->d_flags.and_fetch(~DENTRY_FLAG_NEGATIVE, mem_order::release);
+}
+
+enum d_walk_ret
+{
+    D_WALK_CONTINUE,
+    D_WALK_QUIT,
+    D_WALK_NORETRY,
+    D_WALK_SKIP,
+    __D_WALK_RESTART
+};
+
+struct d_walk_state
+{
+    struct dentry *root;
+    struct dentry *parent;
+    struct dentry *dentry;
+    unsigned int seq;
+    enum d_walk_ret stop;
+    bool retry;
+};
+
+static void d_ascend(struct d_walk_state *state)
+{
+    struct dentry *parent = state->parent;
+    struct dentry *parent2 = parent->d_parent;
+
+    if (state->root == parent)
+    {
+        state->stop = D_WALK_QUIT;
+        return;
+    }
+
+    rcu_read_lock();
+    spin_unlock(&parent->d_lock);
+    spin_lock(&parent2->d_lock);
+    /* Let's be careful going up... If we had a rename at the same time, restart the whole
+     * process *with rename_lock held* */
+    if (read_seqretry(&rename_lock, state->seq))
+    {
+        spin_unlock(&parent2->d_lock);
+        state->seq = 1;
+        if (state->retry)
+        {
+            read_seqbegin_or_lock(&rename_lock, &state->seq);
+            state->stop = __D_WALK_RESTART;
+        }
+        else
+            state->stop = D_WALK_QUIT;
+        rcu_read_unlock();
+        return;
+    }
+
+    state->parent = parent2;
+    state->dentry = parent;
+    rcu_read_unlock();
+}
+
+void d_walk(struct dentry *parent, void *data,
+            enum d_walk_ret (*enter)(void *data, struct dentry *))
+{
+    struct d_walk_state state;
+    enum d_walk_ret ret;
+    state.seq = 0;
+    state.retry = true;
+    read_seqbegin_or_lock(&rename_lock, &state.seq);
+restart:
+    state.root = parent;
+    state.parent = parent;
+    state.dentry = NULL;
+    state.stop = D_WALK_CONTINUE;
+    spin_lock(&state.parent->d_lock);
+
+    ret = enter(data, state.parent);
+    switch (ret)
+    {
+        case D_WALK_CONTINUE:
+            break;
+        case D_WALK_NORETRY:
+            state.retry = false;
+            break;
+        case D_WALK_SKIP:
+        case D_WALK_QUIT:
+            goto out;
+        case __D_WALK_RESTART:
+            spin_unlock(&state.parent->d_lock);
+            goto restart;
+    }
+
+    while (state.stop != D_WALK_QUIT)
+    {
+    repeat:
+        state.dentry =
+            list_prepare_entry(state.dentry, &state.parent->d_children_head, d_parent_dir_node);
+
+        list_for_each_entry_continue(state.dentry, &state.parent->d_children_head,
+                                     d_parent_dir_node)
+        {
+            spin_lock(&state.dentry->d_lock);
+            ret = enter(data, state.dentry);
+            switch (ret)
+            {
+                case D_WALK_CONTINUE:
+                    break;
+                case D_WALK_NORETRY:
+                    state.retry = false;
+                    break;
+                case D_WALK_SKIP:
+                    spin_unlock(&state.dentry->d_lock);
+                    continue;
+                case D_WALK_QUIT:
+                    spin_unlock(&state.dentry->d_lock);
+                    goto out;
+                case __D_WALK_RESTART:
+                    spin_unlock(&state.dentry->d_lock);
+                    goto restart;
+            }
+
+            if (!list_is_empty(&state.dentry->d_children_head))
+            {
+                spin_unlock(&state.parent->d_lock);
+                state.parent = state.dentry;
+                state.dentry = NULL;
+                goto repeat;
+            }
+
+            spin_unlock(&state.dentry->d_lock);
+        }
+
+        d_ascend(&state);
+        if (state.stop == __D_WALK_RESTART)
+            goto restart;
+    }
+
+out:
+    spin_unlock(&state.parent->d_lock);
+    done_seqretry(&rename_lock, state.seq);
+}
+
+struct shrink_data
+{
+    struct list_head shrink_list;
+};
+
+static d_walk_ret find_shrink(void *data, struct dentry *dentry)
+{
+    struct shrink_data *s = (struct shrink_data *) data;
+    if (dentry->d_ref == 0)
+    {
+        if (!(dentry->d_flags & DENTRY_FLAG_SHRINK))
+        {
+            if (dentry->d_flags & DENTRY_FLAG_LRU)
+                d_remove_lru(dentry);
+
+            list_add_tail(&dentry->d_lru, &s->shrink_list);
+            dentry->d_flags |= DENTRY_FLAG_SHRINK | DENTRY_FLAG_LRU;
+        }
+    }
+
+    return D_WALK_CONTINUE;
+}
+
+static void kill_one(struct dentry *dentry)
+{
+    spin_lock(&dentry->d_lock);
+    d_freeze_refs(dentry);
+
+    if (d_refs(dentry) != 0)
+    {
+        d_unfreeze_refs(dentry);
+        spin_unlock(&dentry->d_lock);
+        return;
+    }
+
+    while ((dentry = d_destroy(dentry)))
+        ;
+}
+
+void shrink_list(struct shrink_data *s)
+{
+    list_for_every_safe (&s->shrink_list)
+    {
+        struct dentry *dentry = container_of(l, struct dentry, d_lru);
+        list_remove(&dentry->d_lru);
+        kill_one(dentry);
+    }
+}
+
+void dentry_shrink_subtree(struct dentry *dentry)
+{
+    struct shrink_data data;
+    INIT_LIST_HEAD(&data.shrink_list);
+    for (;;)
+    {
+        d_walk(dentry, &data, find_shrink);
+        if (list_is_empty(&data.shrink_list))
+            break;
+        shrink_list(&data);
+    }
+}
+
+enum lru_walk_ret scan_dcache_lru_one(struct lru_list *lru, struct list_head *object, void *data)
+{
+    struct dentry *dentry = container_of(object, struct dentry, d_lru);
+    struct dcache_scan_result *scan_res = (struct dcache_scan_result *) data;
+    if (spin_try_lock(&dentry->d_lock))
+        return LRU_WALK_SKIP;
+    d_freeze_refs(dentry);
+
+    if (d_refs(dentry) == 0)
+    {
+        scan_res->scanned_bytes += sizeof(struct dentry) + dentry->d_name_length;
+        scan_res->scanned_objs++;
+    }
+
+    d_unfreeze_refs(dentry);
+    spin_unlock(&dentry->d_lock);
+    return LRU_WALK_SKIP;
+}
+
+enum lru_walk_ret shrink_dcache_lru_one(struct lru_list *lru, struct list_head *object, void *data)
+{
+    struct dentry *dentry = container_of(object, struct dentry, d_lru);
+    struct dcache_shrink_result *shrink_res = (struct dcache_shrink_result *) data;
+    if (!shrink_res->to_shrink_objs)
+        return LRU_WALK_STOP;
+
+    if (spin_try_lock(&dentry->d_lock))
+        return LRU_WALK_SKIP;
+
+    if (dentry->d_flags & DENTRY_FLAG_REFERENCED)
+    {
+        dentry->d_flags &= ~DENTRY_FLAG_REFERENCED;
+        spin_unlock(&dentry->d_lock);
+        return LRU_WALK_ROTATE;
+    }
+
+    /* No need to freeze refs, shrink_list will take care of the final check */
+    if (d_refs(dentry) > 0)
+    {
+        spin_unlock(&dentry->d_lock);
+        return LRU_WALK_SKIP;
+    }
+
+    dentry->d_flags |= DENTRY_FLAG_SHRINK;
+    list_remove(&dentry->d_lru);
+    list_add_tail(&dentry->d_lru, &shrink_res->reclaim_list);
+    spin_unlock(&dentry->d_lock);
+    shrink_res->to_shrink_objs--;
+    return LRU_WALK_REMOVED;
 }

@@ -12,6 +12,8 @@
 #include <sys/statfs.h>
 
 #include <onyx/list.h>
+#include <onyx/lru.h>
+#include <onyx/mm/shrinker.h>
 #include <onyx/mutex.h>
 #include <onyx/spinlock.h>
 #include <onyx/types.h>
@@ -37,6 +39,8 @@ struct superblock
     dev_t s_devnr;
     unsigned long s_flags;
     struct mutex s_rename_lock;
+    struct lru_list s_dcache_lru;
+    struct shrinker s_shrinker;
 };
 
 __BEGIN_CDECLS
