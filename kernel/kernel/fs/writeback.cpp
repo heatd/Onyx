@@ -231,7 +231,42 @@ void flush_do_sync()
     }
 }
 
+enum d_walk_ret
+{
+    D_WALK_CONTINUE,
+    D_WALK_QUIT,
+    D_WALK_NORETRY,
+    D_WALK_SKIP,
+    __D_WALK_RESTART
+};
+
+void d_walk(struct dentry *parent, void *data,
+            enum d_walk_ret (*enter)(void *data, struct dentry *));
+
+void kasan_check_memory(unsigned long addr, size_t size, bool write);
+
+static enum d_walk_ret enter(void *data, struct dentry *dentry)
+{
+    kasan_check_memory((unsigned long) dentry, sizeof(struct dentry), false);
+    pr_info("dentry %s refs %lx\n", dentry->d_name, dentry->d_ref);
+    (*((int *) data))++;
+    return D_WALK_CONTINUE;
+}
+
+void dentry_shrink_subtree(struct dentry *dentry);
+
 void sys_sync()
 {
     flush_do_sync();
+    struct path p = get_filesystem_root();
+    int dentries = 0;
+    d_walk(p.dentry, &dentries, enter);
+    pr_info("seen %d dentries\n", dentries);
+    DCHECK(!sched_is_preemption_disabled());
+    dentry_shrink_subtree(p.dentry);
+    DCHECK(!sched_is_preemption_disabled());
+    dentries = 0;
+    d_walk(p.dentry, &dentries, enter);
+    pr_info("seen %d dentries\n", dentries);
+    DCHECK(!sched_is_preemption_disabled());
 }

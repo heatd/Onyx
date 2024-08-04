@@ -204,6 +204,20 @@ static inline void list_splice_tail(struct list_head *src, struct list_head *dst
         list_splice_internal(src, dst->prev, dst);
 }
 
+static inline int list_is_head(const struct list_head *list, const struct list_head *head)
+{
+    return list == head;
+}
+
+#define list_entry(ptr, type, member)         container_of(ptr, type, member)
+#define list_next_entry(pos, member)          list_entry((pos)->member.next, __typeof__(*(pos)), member)
+#define list_prepare_entry(pos, head, member) ((pos) ?: list_entry(head, __typeof__(*pos), member))
+#define list_entry_is_head(pos, head, member) list_is_head(&pos->member, (head))
+
+#define list_for_each_entry_continue(pos, head, member)                              \
+    for (pos = list_next_entry(pos, member); !list_entry_is_head(pos, head, member); \
+         pos = list_next_entry(pos, member))
+
 /*
  * TODO: This code is weird, inconsistent, and needs to be rewritten
  * and re-thought.

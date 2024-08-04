@@ -733,6 +733,7 @@ static int pipe_create(struct file **pipe_readable, struct file **pipe_writeable
 
     // Get new refs for the second fd
     dget(anon_pipe_dent);
+    dget(anon_pipe_dent);
     inode_ref(anon_pipe_ino);
 
     *pipe_readable = rd;

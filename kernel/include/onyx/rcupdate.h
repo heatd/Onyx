@@ -26,6 +26,10 @@ void call_rcu(struct rcu_head *head, void (*callback)(struct rcu_head *head));
 void synchronize_rcu();
 void __kfree_rcu(struct rcu_head *head, unsigned long off);
 
+#ifdef __cplusplus
+#define _Static_assert(x) static_assert(x)
+#endif
+
 #define is_kfree_rcu_off(off) ((off) < 4096)
 #define kfree_rcu(ptr, head)                                                  \
     ({                                                                        \

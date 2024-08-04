@@ -61,7 +61,7 @@ static struct mount *mnt_find_by_mp(struct dentry *mountpoint)
 {
     /* rcu_read_lock held */
     unsigned int bucket = fnv_hash(&mountpoint, sizeof(void *)) & (MT_HASH_SIZE - 1);
-    list_for_every_rcu(&mp_hashtable[bucket])
+    list_for_every_rcu (&mp_hashtable[bucket])
     {
         struct mount *mnt = container_of(l, struct mount, mnt_mp_node);
         if (mnt->mnt_point == mountpoint)
@@ -179,7 +179,7 @@ static int mnt_commit(struct mount *mnt, const char *target)
         }
 
         mnt->mnt_point = filp->f_dentry;
-        dentry_get(mnt->mnt_point);
+        dget(mnt->mnt_point);
         /* Another hack... */
         mnt->mnt_root->d_parent = mnt->mnt_point;
         /* TODO: This isn't quite safe when we get proper mnt putting and umount */
@@ -202,7 +202,7 @@ static int mnt_commit(struct mount *mnt, const char *target)
     list_add_tail(&mnt->mnt_node, &mount_hashtable[mnt_hashbucket(mnt)]);
 
     /* Ref up for the mount root */
-    dentry_get(mnt->mnt_root);
+    dget(mnt->mnt_root);
 
     if (mnt->mnt_point)
         __atomic_or_fetch(&mnt->mnt_point->d_flags, DENTRY_FLAG_MOUNTPOINT, __ATOMIC_RELEASE);
@@ -263,7 +263,7 @@ int do_mount(const char *source, const char *target, const char *fstype, unsigne
         mnt = NULL;
 out3:
     if (root_dentry)
-        dentry_put(root_dentry);
+        dput(root_dentry);
 out2:
     if (mnt)
         kfree(mnt);

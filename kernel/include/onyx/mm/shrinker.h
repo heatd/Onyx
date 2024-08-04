@@ -10,6 +10,8 @@
 
 #include <onyx/list.h>
 
+__BEGIN_CDECLS
+
 struct shrink_control
 {
     /**
@@ -40,5 +42,7 @@ struct shrinker
 
 void shrinker_register(struct shrinker *shr);
 void shrinker_unregister(struct shrinker *shr);
+
+__END_CDECLS
 
 #endif

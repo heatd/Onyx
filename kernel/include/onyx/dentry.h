@@ -16,6 +16,7 @@
 #include <onyx/inode.h>
 #include <onyx/limits.h>
 #include <onyx/list.h>
+#include <onyx/lru.h>
 #include <onyx/rcupdate.h>
 #include <onyx/rwlock.h>
 
@@ -32,6 +33,9 @@ __BEGIN_CDECLS
 #define DENTRY_FLAG_FAILED     (1 << 3)
 #define DENTRY_FLAG_NEGATIVE   (1 << 4)
 #define DENTRY_FLAG_HASHED     (1 << 5)
+#define DENTRY_FLAG_SHRINK     (1 << 6)
+#define DENTRY_FLAG_LRU        (1 << 7)
+#define DENTRY_FLAG_REFERENCED (1 << 8)
 
 struct dentry_operations
 {
@@ -56,7 +60,11 @@ struct dentry
     struct list_head d_cache_node;
     struct list_head d_children_head;
     const struct dentry_operations *d_ops;
-    struct rcu_head d_rcu;
+    union {
+        struct rcu_head d_rcu;
+        struct list_head d_lru;
+    };
+
     unsigned long d_private;
 #ifdef __cplusplus
     atomic<uint16_t> d_flags;
@@ -105,6 +113,22 @@ __always_inline bool dentry_is_symlink(const struct dentry *d)
 {
     return S_ISLNK(d->d_inode->i_mode);
 }
+
+struct dcache_scan_result
+{
+    unsigned long scanned_bytes;
+    unsigned long scanned_objs;
+};
+
+struct dcache_shrink_result
+{
+    unsigned long to_shrink_bytes;
+    unsigned long to_shrink_objs;
+    struct list_head reclaim_list;
+};
+
+enum lru_walk_ret scan_dcache_lru_one(struct lru_list *lru, struct list_head *object, void *data);
+enum lru_walk_ret shrink_dcache_lru_one(struct lru_list *lru, struct list_head *object, void *data);
 
 __END_CDECLS
 

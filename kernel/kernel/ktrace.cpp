@@ -450,7 +450,7 @@ static int buffd_create(struct file **pfd, u32 cpu_nr)
     wr->f_dentry = anon_dent;
 
     // Get new refs for the second fd
-    dentry_get(anon_dent);
+    dget(anon_dent);
     inode_ref(anon_ino);
 
     *pfd = rd;
@@ -458,7 +458,7 @@ static int buffd_create(struct file **pfd, u32 cpu_nr)
     anon_ino->i_helper = (void *) (unsigned long) cpu_nr;
     return 0;
 err2:
-    dentry_put(anon_dent);
+    dput(anon_dent);
 err0:
     if (anon_ino)
         close_vfs(anon_ino);
