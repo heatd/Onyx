@@ -92,7 +92,6 @@ struct mount *mnt_traverse(struct dentry *mountpoint)
             break;
         mnt_get(mnt);
 
-        /* TODO: Will pair with something on the umount side */
         smp_mb();
         if (mnt->mnt_flags & MNT_DOOMED)
         {
@@ -332,6 +331,7 @@ static bool attempt_disconnect(struct mount *mount)
     /* No one can grab a reference to a mount while we hold mount_lock. As such, checking the refs
      * here is mostly safe. Note that we can spuriouly see a ref-up here, but that's not _really_ a
      * problem. We expect a mnt_count of 1 for the struct path we hold. */
+    smp_mb();
     if (mount->mnt_count == 1)
     {
         struct dentry *mp = mount->mnt_point;
@@ -343,6 +343,7 @@ static bool attempt_disconnect(struct mount *mount)
          * There's no race because MOUNTPOINT is only set while holding mount_lock in write mode. */
         if (!mnt_find_by_mp(mp))
             __atomic_and_fetch(&mp->d_flags, ~DENTRY_FLAG_MOUNTPOINT, __ATOMIC_RELEASE);
+        mount->mnt_flags |= MNT_DOOMED;
     }
 
     write_sequnlock(&mount_lock);
