@@ -1079,6 +1079,8 @@ int unlink_vfs(const char *path, int flags, int dirfd)
         spin_lock(&dentry->d_lock);
         dentry_do_unlink(child);
         spin_unlock(&dentry->d_lock);
+        if (dentry_is_dir(child))
+            dentry_shrink_subtree(child);
     }
 
 out2:

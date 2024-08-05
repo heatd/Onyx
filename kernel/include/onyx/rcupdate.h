@@ -27,15 +27,17 @@ void synchronize_rcu();
 void __kfree_rcu(struct rcu_head *head, unsigned long off);
 
 #ifdef __cplusplus
-#define _Static_assert(x) static_assert(x)
+#define _Static_assert(x, m) static_assert(x, m)
 #endif
 
 #define is_kfree_rcu_off(off) ((off) < 4096)
-#define kfree_rcu(ptr, head)                                                  \
-    ({                                                                        \
-        unsigned long off = offsetof(__typeof__(*(ptr)), head);               \
-        _Static_assert(is_kfree_rcu_off(offsetof(__typeof__(*(ptr)), head))); \
-        __kfree_rcu(&(ptr)->head, off);                                       \
+#define kfree_rcu(ptr, head)                                                                   \
+    ({                                                                                         \
+        unsigned long off = offsetof(__typeof__(*(ptr)), head);                                \
+        _Static_assert(                                                                        \
+            is_kfree_rcu_off(offsetof(__typeof__(*(ptr)), head)),                              \
+            "kfree_rcu's rcu_head needs to be within 4096 bytes off the start of the struct"); \
+        __kfree_rcu(&(ptr)->head, off);                                                        \
     })
 
 /**

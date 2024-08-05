@@ -7,6 +7,7 @@
  */
 
 #include <stdio.h>
+#include <sys/mount.h>
 
 #include <onyx/compiler.h>
 #include <onyx/cred.h>
@@ -208,7 +209,6 @@ static int mnt_commit(struct mount *mnt, const char *target)
         __atomic_or_fetch(&mnt->mnt_point->d_flags, DENTRY_FLAG_MOUNTPOINT, __ATOMIC_RELEASE);
 
     write_sequnlock(&mount_lock);
-    pr_info("mounted %p on %s\n", mnt, target);
 
     return 0;
 }
@@ -314,6 +314,101 @@ out:
     if (filesystemtype)
         free((void *) filesystemtype);
     return ret;
+}
+
+/* HACK */
+#define LOOKUP_NOFOLLOW                (1 << 0)
+#define LOOKUP_FAIL_IF_LINK            (1 << 1)
+#define LOOKUP_MUST_BE_DIR             (1 << 2)
+#define LOOKUP_INTERNAL_TRAILING_SLASH (1 << 3)
+#define LOOKUP_EMPTY_PATH              (1 << 4)
+#define LOOKUP_DONT_DO_LAST_NAME       (1 << 5)
+#define LOOKUP_INTERNAL_SAW_LAST_NAME  (1U << 31)
+
+static bool attempt_disconnect(struct mount *mount)
+{
+    bool ok = false;
+    write_seqlock(&mount_lock);
+    /* No one can grab a reference to a mount while we hold mount_lock. As such, checking the refs
+     * here is mostly safe. Note that we can spuriouly see a ref-up here, but that's not _really_ a
+     * problem. We expect a mnt_count of 1 for the struct path we hold. */
+    if (mount->mnt_count == 1)
+    {
+        struct dentry *mp = mount->mnt_point;
+        list_remove(&mount->mnt_mp_node);
+        list_remove(&mount->mnt_node);
+        ok = true;
+
+        /* Check if we have nothing mounted at mp anymore. If so, unset DENTRY_FLAG_MOUNTPOINT.
+         * There's no race because MOUNTPOINT is only set while holding mount_lock in write mode. */
+        if (!mnt_find_by_mp(mp))
+            __atomic_and_fetch(&mp->d_flags, ~DENTRY_FLAG_MOUNTPOINT, __ATOMIC_RELEASE);
+    }
+
+    write_sequnlock(&mount_lock);
+    return ok;
+}
+
+static int do_umount_path(struct path *path, int flags)
+{
+    int err = -EINVAL;
+    struct mount *mount = path->mount;
+
+    /* Check if the path given is actually a mountpoint */
+    if (path->mount->mnt_root != path->dentry)
+        goto out_put_path;
+
+    err = -EBUSY;
+    if (!attempt_disconnect(mount))
+        goto out_put_path;
+
+    /* Mount was disconnected. No one should hold a reference to one of this mount's dentries after
+     * this. */
+    path_put(path);
+
+    if (mount->mnt_sb->umount)
+        mount->mnt_sb->umount(mount);
+
+    dentry_shrink_subtree(mount->mnt_root);
+    dput(mount->mnt_point);
+
+    WARN_ON(mount->mnt_root->d_ref != 1);
+
+    /* Undo our fake d_parent... */
+    mount->mnt_root->d_parent = NULL;
+    /* Finally, put our root */
+    dput(mount->mnt_root);
+
+    /* Now shutdown the superblock */
+    sb_shutdown(mount->mnt_sb);
+    kfree_rcu(mount, mnt_rcu);
+    return 0;
+out_put_path:
+    path_put(path);
+    return err;
+}
+
+int sys_umount2(const char *utarget, int flags)
+{
+    if (!is_root_user())
+        return -EPERM;
+    const char *target = strcpy_from_user(utarget);
+    if (!target)
+        return -errno;
+    if (flags & ~UMOUNT_NOFOLLOW)
+        return -EINVAL;
+
+    struct path path;
+    int err =
+        path_openat(AT_FDCWD, target,
+                    LOOKUP_MUST_BE_DIR | (flags & UMOUNT_NOFOLLOW ? LOOKUP_NOFOLLOW : 0), &path);
+    if (err < 0)
+        goto out;
+
+    err = do_umount_path(&path, flags);
+out:
+    free((void *) target);
+    return err;
 }
 
 static __init void mount_init(void)

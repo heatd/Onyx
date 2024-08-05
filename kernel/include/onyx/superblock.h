@@ -15,12 +15,14 @@
 #include <onyx/lru.h>
 #include <onyx/mm/shrinker.h>
 #include <onyx/mutex.h>
+#include <onyx/rcupdate.h>
 #include <onyx/spinlock.h>
 #include <onyx/types.h>
 
 struct file;
 struct bio_req;
 struct blockdev;
+struct mount;
 
 #define SB_FLAG_NODIRTY   (1 << 0)
 #define SB_FLAG_IN_MEMORY (1 << 1)
@@ -34,13 +36,18 @@ struct superblock
     int (*flush_inode)(struct inode *inode, bool in_sync);
     int (*kill_inode)(struct inode *inode);
     int (*statfs)(struct statfs *buf, struct superblock *sb);
+    int (*umount)(struct mount *mnt);
+    int (*shutdown)(struct superblock *sb);
     unsigned int s_block_size;
     struct blockdev *s_bdev;
     dev_t s_devnr;
     unsigned long s_flags;
     struct mutex s_rename_lock;
     struct lru_list s_dcache_lru;
-    struct shrinker s_shrinker;
+    union {
+        struct shrinker s_shrinker;
+        struct rcu_head s_rcu;
+    };
 };
 
 __BEGIN_CDECLS
@@ -51,6 +58,8 @@ void superblock_add_inode_unlocked(struct superblock *sb, struct inode *inode);
 void superblock_add_inode(struct superblock *sb, struct inode *inode);
 void superblock_remove_inode(struct superblock *sb, struct inode *inode);
 void superblock_kill(struct superblock *sb);
+void sb_shutdown(struct superblock *sb);
+int sb_generic_shutdown(struct superblock *sb);
 
 struct page_iov;
 

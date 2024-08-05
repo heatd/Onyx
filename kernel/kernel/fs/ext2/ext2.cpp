@@ -656,6 +656,16 @@ int ext2_statfs(struct statfs *buf, superblock *sb)
     return ((ext2_superblock *) sb)->stat_fs(buf);
 }
 
+static int ext2_shutdown_sb(struct superblock *sb_)
+{
+    ext2_superblock *sb = (ext2_superblock *) sb_;
+    /* Shutdown the sb generically first, then tear down the ext2_superblock. This is required for
+     * e.g sync purposes. */
+    sb_generic_shutdown(sb);
+    sb->~ext2_superblock();
+    return 0;
+}
+
 struct superblock *ext2_mount_partition(struct vfs_mount_info *info)
 {
     struct blockdev *dev = info->bdev;
@@ -782,6 +792,7 @@ struct superblock *ext2_mount_partition(struct vfs_mount_info *info)
     sb->flush_inode = ext2_flush_inode;
     sb->kill_inode = ext2_kill_inode;
     sb->statfs = ext2_statfs;
+    sb->shutdown = ext2_shutdown_sb;
 
     sb->sb->s_mtime = clock_get_posix_time();
     sb->sb->s_mnt_count++;
