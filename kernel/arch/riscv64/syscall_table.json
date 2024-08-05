@@ -2736,5 +2736,22 @@
         ],
         "return_type": "int",
         "abi": "c"
+    },
+    {
+        "name": "umount2",
+        "nr": 156,
+        "nr_args": 2,
+        "args": [
+            [
+                "const char *",
+                "target"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
     }
 ]

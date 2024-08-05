@@ -31,9 +31,6 @@
 // TODO: Parts of this should definitely be separated as they're generic enough
 // for every pseudo filesystem we might want to stick in Onyx
 
-static DECLARE_MUTEX(tmpfs_list_lock);
-static struct list_head filesystems = LIST_HEAD_INIT(filesystems);
-
 atomic<ino_t> tmpfs_superblock::curr_minor_number{1};
 
 tmpfs_inode *tmpfs_create_inode(mode_t mode, struct dentry *dir, dev_t rdev = 0)
@@ -370,13 +367,10 @@ tmpfs_inode *tmpfs_superblock::create_inode(mode_t mode, dev_t rdev)
     return inode;
 }
 
-static void tmpfs_append(tmpfs_superblock *fs)
+static int tmpfs_umount(struct mount *mnt)
 {
-    mutex_lock(&tmpfs_list_lock);
-
-    list_add_tail(&fs->fs_list_node, &filesystems);
-
-    mutex_unlock(&tmpfs_list_lock);
+    dentry_unref_subtree(mnt->mnt_root);
+    return 0;
 }
 
 tmpfs_superblock *tmpfs_create_sb()
@@ -384,8 +378,7 @@ tmpfs_superblock *tmpfs_create_sb()
     tmpfs_superblock *new_fs = new tmpfs_superblock{};
     if (!new_fs)
         return nullptr;
-
-    tmpfs_append(new_fs);
+    new_fs->umount = tmpfs_umount;
     return new_fs;
 }
 
@@ -421,7 +414,9 @@ struct superblock *tmpfs_mount(struct vfs_mount_info *info)
         return (struct superblock *) ERR_PTR(-ENOMEM);
     }
 
+    node->i_nlink = 2;
     d_positiveize(info->root_dir, node);
+    dget(info->root_dir);
     return new_sb;
 }
 

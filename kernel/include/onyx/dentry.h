@@ -130,6 +130,16 @@ struct dcache_shrink_result
 enum lru_walk_ret scan_dcache_lru_one(struct lru_list *lru, struct list_head *object, void *data);
 enum lru_walk_ret shrink_dcache_lru_one(struct lru_list *lru, struct list_head *object, void *data);
 
+void dentry_shrink_subtree(struct dentry *dentry);
+
+/**
+ * @brief Do the final unref on a whole subtree
+ * Should _only_ be used by in-memory filesystems that use the dcache as their directories.
+ *
+ * @param dentry Root dentry
+ */
+void dentry_unref_subtree(struct dentry *dentry);
+
 __END_CDECLS
 
 #ifdef __cplusplus

@@ -785,6 +785,8 @@ void dentry_do_unlink(dentry *entry)
     auto parent = entry->d_parent;
     DCHECK(spin_lock_held(&parent->d_lock));
     dput_locked(parent);
+    if ((entry->d_flags & (DENTRY_FLAG_LRU | DENTRY_FLAG_SHRINK)) == DENTRY_FLAG_LRU)
+        d_remove_lru(entry);
     entry->d_parent = nullptr;
 
     if (!d_is_negative(entry))
@@ -795,7 +797,6 @@ void dentry_do_unlink(dentry *entry)
         {
             inode_dec_nlink(parent->d_inode);
             inode_dec_nlink(entry->d_inode);
-            dentry_shrink_subtree(entry);
         }
     }
 
@@ -865,6 +866,8 @@ void dentry_do_rename_unlink(dentry *entry)
     auto parent = entry->d_parent;
     DCHECK(spin_lock_held(&parent->d_lock));
     WARN_ON(dput_locked(parent) == 0);
+    if ((entry->d_flags & (DENTRY_FLAG_LRU | DENTRY_FLAG_SHRINK)) == DENTRY_FLAG_LRU)
+        d_remove_lru(entry);
     entry->d_parent = nullptr;
 
     /* The dcache buckets are already locked, so we don't grab the lock again. Just open-code the
@@ -920,7 +923,10 @@ void dentry_rename(dentry *dent, const char *name, dentry *parent,
         spin_lock(&dentry_ht_locks[oldi]);
     }
 
+    spin_lock(&parent->d_lock);
     dentry_do_rename_unlink(dst);
+    spin_unlock(&parent->d_lock);
+
     spin_lock(&dent->d_lock);
 
     DCHECK(dentry_is_in_chain(dent, oldi));
@@ -1261,6 +1267,47 @@ void dentry_shrink_subtree(struct dentry *dentry)
             break;
         shrink_list(&data);
     }
+}
+
+static d_walk_ret find_unref(void *data, struct dentry *dentry)
+{
+    struct shrink_data *s = (struct shrink_data *) data;
+    if (!(dentry->d_flags & DENTRY_FLAG_SHRINK))
+    {
+        if (dentry->d_flags & DENTRY_FLAG_LRU)
+            d_remove_lru(dentry);
+
+        list_add_tail(&dentry->d_lru, &s->shrink_list);
+        dentry->d_flags |= DENTRY_FLAG_SHRINK | DENTRY_FLAG_LRU;
+    }
+
+    return D_WALK_CONTINUE;
+}
+
+static void unref_list(struct shrink_data *s)
+{
+    list_for_every_safe (&s->shrink_list)
+    {
+        struct dentry *dentry = container_of(l, struct dentry, d_lru);
+        list_remove(&dentry->d_lru);
+        dentry->d_flags &= ~(DENTRY_FLAG_SHRINK | DENTRY_FLAG_LRU);
+        dput(dentry);
+    }
+}
+
+/**
+ * @brief Do the final unref on a whole subtree
+ * Should _only_ be used by in-memory filesystems that use the dcache as their directories.
+ *
+ * @param dentry Root dentry
+ */
+void dentry_unref_subtree(struct dentry *dentry)
+{
+    struct shrink_data data;
+    INIT_LIST_HEAD(&data.shrink_list);
+    d_walk(dentry, &data, find_unref);
+    if (!list_is_empty(&data.shrink_list))
+        unref_list(&data);
 }
 
 enum lru_walk_ret scan_dcache_lru_one(struct lru_list *lru, struct list_head *object, void *data)

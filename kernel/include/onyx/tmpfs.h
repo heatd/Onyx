@@ -36,15 +36,12 @@ public:
 
     dev_t fs_minor;
 
-    list_head_cpp<tmpfs_superblock> fs_list_node;
-
     const file_ops *tmpfs_ops_;
     atomic<size_t> nblocks;
     atomic<size_t> ino_nr;
 
     tmpfs_superblock()
-        : superblock{}, curr_inode{}, fs_minor{++curr_minor_number}, fs_list_node{this},
-          tmpfs_ops_{&tmpfs_fops}
+        : superblock{}, curr_inode{}, fs_minor{++curr_minor_number}, tmpfs_ops_{&tmpfs_fops}
     {
         superblock_init(this);
         s_block_size = PAGE_SIZE;
