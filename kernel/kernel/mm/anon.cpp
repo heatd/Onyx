@@ -8,6 +8,7 @@
 
 #include <onyx/dentry.h>
 #include <onyx/mm/shmem.h>
+#include <onyx/rmap.h>
 #include <onyx/tmpfs.h>
 #include <onyx/vm.h>
 
@@ -59,11 +60,17 @@ int vm_anon_fault(struct vm_pf_context *ctx)
             /* oldp's mapcount will be decremented in vm_map_page */
         }
 
+        struct anon_vma *anon = anon_vma_prepare(ctx->entry);
+        if (!anon)
+            return -ENOMEM;
+
         /* Allocate a brand-new (possibly zero-filled) page */
         page = alloc_page((copy_old ? PAGE_ALLOC_NO_ZERO : 0) | GFP_KERNEL);
         if (!page)
             goto enomem;
         page_set_anon(page);
+        page->owner = (struct vm_object *) anon;
+        page->pageoff = ctx->vpage;
 
         if (copy_old)
             copy_page_to_page(page_to_phys(page), page_to_phys(oldp));

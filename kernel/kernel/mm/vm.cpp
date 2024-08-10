@@ -35,6 +35,7 @@
 #include <onyx/percpu.h>
 #include <onyx/process.h>
 #include <onyx/random.h>
+#include <onyx/rmap.h>
 #include <onyx/spinlock.h>
 #include <onyx/sysfs.h>
 #include <onyx/timer.h>
@@ -352,6 +353,9 @@ static void vma_destroy(struct vm_area_struct *region)
         vmo_unref(region->vm_obj);
     }
 
+    if (region->anon_vma)
+        anon_vma_unlink(region->anon_vma, region);
+
     memset_explicit(region, 0xfd, sizeof(struct vm_area_struct));
 
     vma_free(region);
@@ -416,7 +420,7 @@ int vm_clone_as(mm_address_space *addr_space, mm_address_space *original)
 #define DEBUG_FORK_VM 0
 static bool fork_vm_area_struct(struct vm_area_struct *region, struct mm_address_space *mm)
 {
-    bool vmo_failure, is_private, needs_to_fork_memory;
+    bool is_private;
     bool res;
 
     struct vm_area_struct *new_region = vma_alloc();
@@ -435,14 +439,15 @@ static bool fork_vm_area_struct(struct vm_area_struct *region, struct mm_address
 
     assert(res == true);
 
+    if (new_region->anon_vma)
+        anon_vma_link(new_region->anon_vma, new_region);
+
     if (new_region->vm_file)
         fd_get(new_region->vm_file);
 
-    vmo_failure = false;
     is_private = vma_private(new_region);
-    needs_to_fork_memory = is_private;
 
-    if (needs_to_fork_memory)
+    if (is_private)
     {
         /* No need to ref the vmo since it was a new vmo created for us while forking. */
         if (new_region->vm_obj)
@@ -455,13 +460,6 @@ static bool fork_vm_area_struct(struct vm_area_struct *region, struct mm_address
     {
         vmo_ref(new_region->vm_obj);
         vmo_assign_mapping(new_region->vm_obj, new_region);
-    }
-
-    if (vmo_failure)
-    {
-        vm_remove_region(mm, new_region);
-        vma_free(new_region);
-        return false;
     }
 
     new_region->vm_mm = mm;
@@ -492,7 +490,7 @@ static void tear_down_addr_space(struct mm_address_space *addr_space)
     vm_area_struct *entry;
     void *entry_;
     unsigned long index = 0;
-    mt_for_each(&addr_space->region_tree, entry_, index, -1UL)
+    mt_for_each (&addr_space->region_tree, entry_, index, -1UL)
     {
         entry = (vm_area_struct *) entry_;
         addr_space_delete(entry);
@@ -526,7 +524,7 @@ int vm_fork_address_space(struct mm_address_space *addr_space) EXCLUDES(addr_spa
     vm_area_struct *entry;
     void *entry_;
     unsigned long index = 0;
-    mt_for_each(&current_mm->region_tree, entry_, index, -1UL)
+    mt_for_each (&current_mm->region_tree, entry_, index, -1UL)
     {
         entry = (vm_area_struct *) entry_;
         if (!fork_vm_area_struct(entry, addr_space))
@@ -610,11 +608,54 @@ static bool vma_can_merge_into(struct vm_area_struct *vma, size_t size, int vm_f
 
 static void vma_post_adjust(struct vm_area_struct *vma)
 {
+    if (vma->anon_vma)
+        spin_unlock(&vma->anon_vma->lock);
+
     if (vma->vm_obj)
     {
         vm_obj_reassign_mapping(vma->vm_obj, vma);
         spin_unlock(&vma->vm_obj->mapping_lock);
     }
+}
+
+static bool can_merge_anon_vmas(struct anon_vma *anon_vma1, struct anon_vma *anon_vma2)
+{
+    return !anon_vma1 || !anon_vma2 || (anon_vma1 == anon_vma2);
+}
+
+static void anon_vma_merge(struct vm_area_struct *vma1, struct vm_area_struct *vma2)
+{
+    /* vma_pre_merge has been called, anon_vma lock held */
+    /* Either one of the vmas does not have an anon_vma, or they're both the same */
+    if (!vma1->anon_vma)
+    {
+        /* Grab the second vma's anon vma, and add ourselves to it */
+        vma1->anon_vma = vma2->anon_vma;
+        if (vma1->anon_vma)
+            __anon_vma_link(vma1->anon_vma, vma1);
+    }
+
+    if (vma2->anon_vma)
+        __anon_vma_unlink(vma2->anon_vma, vma2);
+}
+
+static void vma_pre_merge(struct vm_area_struct *vma1, struct vm_area_struct *vma2)
+{
+    /* Lock the rmap intances. This stops us from every seeing an inconsistent data structure on
+     * rmap's side. */
+    struct anon_vma *anon_vma = vma1->anon_vma ? vma1->anon_vma : vma2->anon_vma;
+    DCHECK(vma1->vm_obj == vma2->vm_obj);
+    if (vma1->vm_obj)
+        spin_lock(&vma1->vm_obj->mapping_lock);
+
+    if (anon_vma)
+        spin_lock(&anon_vma->lock);
+}
+
+static void vma_post_merge(struct vm_area_struct *vma1, struct vm_area_struct *vma2)
+{
+    /* We don't need to do anything fancy for post-merge, for now, so deal with adjusting prev */
+    vma_post_adjust(vma1);
 }
 
 static struct vm_area_struct *vma_merge_around(struct vma_iterator *vmi, unsigned int vm_flags,
@@ -632,7 +673,7 @@ static struct vm_area_struct *vma_merge_around(struct vma_iterator *vmi, unsigne
     if (next && !vma_can_merge_into(next, new_size, vm_flags, file, off, false))
         next = nullptr;
 
-    if (prev && next)
+    if (prev && next && can_merge_anon_vmas(prev->anon_vma, next->anon_vma))
     {
         /* We can merge with prev *and* next. The whole range (prev->vm_start to next->vm_end) will
          * be covered by a single VMA */
@@ -641,7 +682,7 @@ static struct vm_area_struct *vma_merge_around(struct vma_iterator *vmi, unsigne
         if (mas_store_gfp(&vmi->mas, prev, GFP_KERNEL) != 0)
             return nullptr;
 
-        vma_pre_adjust(prev);
+        vma_pre_merge(prev, next);
         prev->vm_end = next->vm_end;
         if (next->vm_obj)
         {
@@ -649,6 +690,7 @@ static struct vm_area_struct *vma_merge_around(struct vma_iterator *vmi, unsigne
             vmo_remove_mapping_locked(next->vm_obj, next);
         }
 
+        anon_vma_merge(prev, next);
         vma_post_adjust(prev);
         vma_free(next);
         ret = prev;
@@ -941,7 +983,7 @@ static void vm_copy_region(const struct vm_area_struct *source, struct vm_area_s
     dest->vm_obj = source->vm_obj;
     if (dest->vm_obj)
         vmo_ref(dest->vm_obj);
-
+    dest->anon_vma = source->anon_vma;
     dest->vm_ops = source->vm_ops;
 }
 
@@ -951,11 +993,20 @@ static void vma_pre_adjust(struct vm_area_struct *vma)
      * rmap's side. */
     if (vma->vm_obj)
         spin_lock(&vma->vm_obj->mapping_lock);
+
+    if (vma->anon_vma)
+        spin_lock(&vma->anon_vma->lock);
 }
 
 static void vma_post_split(struct vm_area_struct *vma, struct vm_area_struct *new_vma)
 {
     /* Correct the rmaps post-split, and unlock. */
+    if (vma->anon_vma)
+    {
+        __anon_vma_link(vma->anon_vma, new_vma);
+        spin_unlock(&vma->anon_vma->lock);
+    }
+
     if (vma->vm_obj)
     {
         DCHECK(vma->vm_obj == new_vma->vm_obj);
@@ -1337,6 +1388,17 @@ static bool vm_mapping_is_cow(struct vm_area_struct *entry)
     return vma_private(entry);
 }
 
+static bool vm_fault_was_spurious(struct fault_info *info, struct vm_pf_context *pf)
+{
+    if (!(pf->mapping_info & PAGE_PRESENT))
+        return false;
+    if (info->write && !(pf->mapping_info & PAGE_WRITABLE))
+        return false;
+    if (info->exec && !(pf->mapping_info & PAGE_EXECUTABLE))
+        return false;
+    return true;
+}
+
 static int __vm_handle_pf(struct vm_area_struct *entry, struct fault_info *info)
 {
     const pid_t pid = get_current_process()->pid_;
@@ -1352,6 +1414,10 @@ static int __vm_handle_pf(struct vm_area_struct *entry, struct fault_info *info)
     context.page = nullptr;
     context.page_rwx = entry->vm_flags;
     context.mapping_info = get_mapping_info((void *) context.vpage);
+
+    /* If spurious, invalidate the TLB _locally_ and retry */
+    if (vm_fault_was_spurious(info, &context))
+        return 0;
 
     if (entry->vm_ops && entry->vm_ops->fault)
         return entry->vm_ops->fault(&context);
@@ -1461,7 +1527,7 @@ void vm_destroy_addr_space(struct mm_address_space *mm)
     vm_area_struct *entry;
     void *entry_;
     unsigned long index = 0;
-    mt_for_each(&mm->region_tree, entry_, index, -1UL)
+    mt_for_each (&mm->region_tree, entry_, index, -1UL)
     {
         entry = (vm_area_struct *) entry_;
         vm_destroy_area(entry);
