@@ -1,12 +1,13 @@
 group("utils") {
-    deps = [
-        "dmesg",
-        "login",
-        "memstat",
-        "ping",
-        "printenv",
-        "uuidgen",
-        "pmap",
-        "tr"
-    ]
+  deps = [
+    "dmesg",
+    "login",
+    "memstat",
+    "ping",
+    "pmap",
+    "printenv",
+    "swap",
+    "tr",
+    "uuidgen",
+  ]
 }

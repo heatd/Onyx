@@ -199,6 +199,7 @@ void block_queue_pending_io_queue(io_queue *queue);
  */
 void bio_queue_pending_req(struct request *req);
 
+__BEGIN_CDECLS
 /**
  * @brief Set the block device's block size
  *
@@ -208,7 +209,6 @@ void bio_queue_pending_req(struct request *req);
  */
 int block_set_bsize(struct blockdev *bdev, unsigned int block_size);
 
-__BEGIN_CDECLS
 int bdev_do_open(struct blockdev *bdev, bool exclusive);
 void bdev_release(struct blockdev *bdev);
 __END_CDECLS

@@ -7,6 +7,7 @@
  */
 #include <onyx/cred.h>
 #include <onyx/dentry.h>
+#include <onyx/err.h>
 #include <onyx/file.h>
 #include <onyx/mount.h>
 #include <onyx/namei.h>
@@ -17,7 +18,88 @@
 
 #include <onyx/memory.hpp>
 
-// XXX(heat): lookup root seems to leak
+enum class fs_token_type : uint8_t
+{
+    REGULAR_TOKEN = 0,
+    LAST_NAME_IN_PATH
+};
+
+/**
+ * @brief Represents a path during a lookup
+ *
+ */
+struct lookup_path
+{
+    std::string_view view;
+    void *ownbuf{nullptr};
+    fs_token_type token_type{fs_token_type::REGULAR_TOKEN};
+    size_t pos{0};
+
+    lookup_path() = default;
+
+    lookup_path(std::string_view view) : view{view}
+    {
+    }
+
+    constexpr bool trailing_slash() const
+    {
+        return view[view.length() - 1] == '/';
+    }
+};
+
+struct nameidata
+{
+    /* Data needed to resolve filesystem names:
+     * view - Contains the pathname;
+     * pos - Contains the offset in the parsing of the pathname;
+     * root - Contains the lookup's filesystem root;
+     * cur - Contains the current relative location and
+     * starts at whatever was passed as the relative dir (controlled with
+     * chdir or *at, or purely through kernel-side use).
+     */
+    /* Note: root and location always hold a reference to the underlying object */
+    struct path root;
+    struct path cur;
+    /* Keeps the parent of cur, *if* we walked once */
+    struct path parent;
+
+    static constexpr const size_t max_loops = SYMLOOP_MAX;
+    /* Number of symbolic links found while looking up -
+     * if it reaches max_symlinks, the lookup fails with -ELOOP.
+     */
+    int nloops{0};
+    int pdepth{0};
+    struct lookup_path paths[SYMLOOP_MAX];
+
+    unsigned int lookup_flags{};
+    int dirfd{AT_FDCWD};
+
+    nameidata(std::string_view view)
+    {
+        paths[0] = lookup_path{view};
+        path_init(&root);
+        path_init(&cur);
+        path_init(&parent);
+    }
+
+    ~nameidata();
+
+    void setcur(struct path newcur)
+    {
+        DCHECK(!path_is_null(&newcur));
+        path_put(&parent);
+        parent = cur;
+        cur = newcur;
+    }
+
+    path getcur()
+    {
+        DCHECK(!path_is_null(&cur));
+        auto ret = cur;
+        path_init(&cur);
+        return ret;
+    }
+};
 
 std::string_view get_token_from_path(lookup_path &path, bool no_consume_if_last)
 {
@@ -1365,4 +1447,11 @@ int path_openat(int dirfd, const char *name, unsigned int flags, struct path *pa
 
     *path = namedata.getcur();
     return 0;
+}
+
+extern "C" struct file *c_vfs_open(int dirfd, const char *name, unsigned int open_flags,
+                                   mode_t mode)
+{
+    auto ex = vfs_open(dirfd, name, open_flags, mode);
+    return ex.has_value() ? ex.value() : (struct file *) ERR_PTR(ex.error());
 }
