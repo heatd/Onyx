@@ -487,6 +487,47 @@ struct block_buf *sb_read_block(const struct superblock *sb, unsigned long block
     return buf;
 }
 
+struct block_buf *bdev_read_block(struct blockdev *bdev, unsigned long block)
+{
+    size_t real_off = bdev->block_size * block;
+    size_t aligned_off = real_off & -PAGE_SIZE;
+
+    struct page *page;
+
+    int st = filemap_find_page(bdev->b_ino, real_off >> PAGE_SHIFT, 0, &page, nullptr);
+
+    if (st < 0)
+        return nullptr;
+
+    auto buf = reinterpret_cast<block_buf *>(page->priv);
+
+    while (buf && buf->block_nr != block)
+        buf = buf->next;
+
+    if (unlikely(!buf))
+    {
+        size_t page_off = real_off - aligned_off;
+        sector_t aligned_block = aligned_off / bdev->block_size;
+        sector_t block_nr = aligned_block + ((real_off - aligned_off) / bdev->block_size);
+
+        if (!(buf = page_add_blockbuf(page, page_off)))
+        {
+            page_unref(page);
+            return nullptr;
+        }
+
+        buf->block_nr = block_nr;
+        buf->block_size = bdev->block_size;
+        buf->dev = bdev;
+    }
+
+    block_buf_get(buf);
+
+    page_unref(page);
+
+    return buf;
+}
+
 void block_buf_dirty(block_buf *buf)
 {
     if (!bb_test_and_set(buf, BLOCKBUF_FLAG_DIRTY))

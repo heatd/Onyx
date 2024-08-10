@@ -2797,6 +2797,35 @@
         ],
         "return_type": "int",
         "abi": "c"
+    },
+    {
+        "name": "swapon",
+        "nr": 157,
+        "nr_args": 2,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "swapoff",
+        "nr": 158,
+        "nr_args": 1,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
     }
-
 ]

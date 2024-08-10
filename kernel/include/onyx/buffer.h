@@ -158,6 +158,8 @@ void page_remove_block_buf(struct page *page, size_t offset, size_t end);
 
 void buffer_free_page(struct vm_object *vmo, struct page *page);
 
+struct block_buf *bdev_read_block(struct blockdev *bdev, unsigned long block);
+
 __END_CDECLS
 
 #ifdef __cplusplus

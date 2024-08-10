@@ -1,0 +1,22 @@
+import("//build/app.gni")
+
+app_executable("mkswap") {
+  package_name = "swap"
+  output_name = "mkswap"
+  deps = [ "//lib/libuuid" ]
+  sources = [ "mkswap.c" ]
+}
+
+app_executable("swapon") {
+  package_name = "swap"
+  output_name = "swapon"
+  deps = [ "//lib/libuuid" ]
+  sources = [ "swapon.c" ]
+}
+
+group("swap") {
+  deps = [
+    ":mkswap",
+    ":swapon",
+  ]
+}
