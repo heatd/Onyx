@@ -14,7 +14,7 @@
 struct dentry;
 struct superblock;
 
-#define MNT_DOOMED (1 << 31)
+#define MNT_DOOMED (1U << 31)
 
 struct mount
 {
