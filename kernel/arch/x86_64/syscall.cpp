@@ -55,8 +55,12 @@ extern "C" long do_syscall64(struct syscall_frame *frame)
 
     context_tracking_exit_kernel();
 
-    if (sched_is_preemption_disabled()) [[unlikely]]
-        panic("Trying to return from a syscall (%ld) with preemption disabled!\n", syscall_nr);
+    if (WARN_ON(sched_is_preemption_disabled()))
+    {
+        pr_err("Trying to return from a syscall (%ld) with preemption disabled! Fixing up...\n",
+               syscall_nr);
+        write_per_cpu(preemption_counter, 0);
+    }
 
     return ret;
 }
