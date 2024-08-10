@@ -14,6 +14,7 @@
 #include <onyx/page.h>
 #include <onyx/pagecache.h>
 #include <onyx/readahead.h>
+#include <onyx/rmap.h>
 #include <onyx/vfs.h>
 #include <onyx/vm.h>
 
@@ -585,6 +586,9 @@ static int filemap_mkwrite_private(struct vm_pf_context *ctx,
                                    struct page *page) NO_THREAD_SAFETY_ANALYSIS
 {
     struct page *newp = nullptr;
+    struct anon_vma *anon = anon_vma_prepare(ctx->entry);
+    if (!anon)
+        return -ENOMEM;
     /* write-fault, let's CoW the page */
 
     if (page_flag_set(page, PAGE_FLAG_ANON) && page_mapcount(page) == 1)
@@ -603,6 +607,8 @@ static int filemap_mkwrite_private(struct vm_pf_context *ctx,
     if (!newp)
         return -ENOMEM;
     page_set_anon(newp);
+    newp->owner = (struct vm_object *) anon;
+    page->pageoff = ctx->vpage;
 
     copy_page_to_page(page_to_phys(newp), page_to_phys(page));
     ctx->page = newp;

@@ -116,6 +116,8 @@ struct vm_operations
 extern const struct vm_operations anon_vmops;
 extern const struct vm_operations file_vmops;
 
+struct anon_vma;
+
 /**
  * @brief A VM region is a segment of an address space which is mapped and has some
  * particular metadata in common. These are stored in an mm_address_space and are managed by
@@ -140,6 +142,8 @@ struct vm_area_struct
     off_t vm_offset;
     struct vm_object *vm_obj;
     struct interval_tree_node vm_objhead;
+    struct anon_vma *anon_vma;
+    struct list_head anon_vma_node;
 };
 
 static inline unsigned long vma_pages(const struct vm_area_struct *vma)
@@ -801,7 +805,7 @@ inline void vm_for_every_region(mm_address_space &as, Callable func)
     vm_area_struct *entry;
     unsigned long index = 0;
     void *entry_;
-    mt_for_each(&as.region_tree, entry_, index, -1UL)
+    mt_for_each (&as.region_tree, entry_, index, -1UL)
     {
         entry = (vm_area_struct *) entry_;
         if (!func(entry))
