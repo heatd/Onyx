@@ -67,6 +67,7 @@ file *handle_inode_to_file(inode *ino)
         fd_put(f);
         return nullptr;
     }
+    dent->d_ref = 1;
 
     f->f_dentry = dent;
     return f;
