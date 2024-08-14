@@ -161,6 +161,18 @@ enum maple_type {
 	maple_arange_64,
 };
 
+enum store_type {
+	wr_invalid,
+	wr_new_root,
+	wr_store_root,
+	wr_exact_fit,
+	wr_spanning_store,
+	wr_split_store,
+	wr_rebalance,
+	wr_append,
+	wr_node_store,
+	wr_slot_store,
+};
 
 /**
  * DOC: Maple tree flags
@@ -449,6 +461,7 @@ struct ma_state {
 	unsigned char offset;
 	unsigned char mas_flags;
 	unsigned char end;		/* The end of the node */
+	enum store_type store_type;	/* The type of store needed for this operation */
 };
 
 struct ma_wr_state {
@@ -490,6 +503,7 @@ struct ma_wr_state {
 	.alloc = NULL,                 \
 	.status = ma_start,            \
 	.mas_flags = 0,                \
+	.store_type = wr_invalid,      \
 }
     
     
