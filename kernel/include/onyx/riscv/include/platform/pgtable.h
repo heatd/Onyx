@@ -38,7 +38,8 @@ typedef u64 pgprotval_t;
  * called on these struct pages. */
 #define _PAGE_SPECIAL   (1 << 8)
 
-#define _PAGE_HUGE (_PAGE_WRITE | _PAGE_EXEC | _PAGE_READ)
+#define _PAGE_HUGE     (_PAGE_WRITE | _PAGE_EXEC | _PAGE_READ)
+#define _PAGE_PROTNONE _PAGE_GLOBAL
 
 typedef struct pgd
 {
@@ -208,7 +209,7 @@ static inline bool pmd_present(pmd_t pmd)
 
 static inline bool pte_present(pte_t pte)
 {
-    return pte_val(pte) & _PAGE_PRESENT;
+    return pte_val(pte) & (_PAGE_PRESENT | _PAGE_PROTNONE);
 }
 
 #define KERNEL_PGTBL (_PAGE_PRESENT)
@@ -283,6 +284,11 @@ static void set_pgd(pgd_t *pgd, pgd_t val)
 static inline pte_t pte_mkyoung(pte_t pte)
 {
     return __pte(pte_val(pte) & ~_PAGE_ACCESSED);
+}
+
+static inline pte_t pte_mkwrite(pte_t pte)
+{
+    return __pte(pte_val(pte) | _PAGE_WRITE);
 }
 
 /* PML4-level hugepages not supported on x86, for now... */
@@ -377,10 +383,50 @@ static inline pgprot_t calc_pgprot(u64 phys, u64 prots)
                              (special_mapping ? _PAGE_SPECIAL : 0);
 
     if (!(prots & (VM_READ | VM_WRITE | VM_EXEC)))
+    {
         page_prots &= ~_PAGE_PRESENT;
+        page_prots |= _PAGE_PROTNONE;
+    }
 
     return __pgprot(page_prots);
 }
+
+static inline bool pte_protnone(pte_t pte)
+{
+    return (pte_val(pte) & (_PAGE_PRESENT | _PAGE_PROTNONE)) == _PAGE_PROTNONE;
+}
+
+#define ARCH_SWAP_NR_TYPES  16
+#define ARCH_SWP_TYPE_SHIFT 60
+#define ARCH_SWP_OFF_SHIFT  6
+#define ARCH_SWP_OFF_MASK   ((1UL << ARCH_SWP_TYPE_SHIFT) - 1)
+
+/* Swap entry format:  64 | type (4 bits) 60 | offset (in hw pages) | PROT_NONE (aliases with G) |
+ * ... | 0 (PRESENT). PROT_NONE must not conflict with any important permission or A/D (because
+ * we'll use it after faulting it back). */
+#define SWP_TYPE(entry)   ((entry).swp >> ARCH_SWP_TYPE_SHIFT)
+#define SWP_OFFSET(entry) (((entry).swp & ARCH_SWP_OFF_MASK) >> ARCH_SWP_OFF_SHIFT)
+#define SWP_ENTRY(type, offset) \
+    ((swp_entry_t){.swp = (type) << ARCH_SWP_TYPE_SHIFT | (offset) << ARCH_SWP_OFF_SHIFT})
+
+#define pte_to_swp_entry(pte) ((swp_entry_t){.swp = pte_val(pte)})
+
+/**
+ * @brief Invalidate the TLB after upgrading PTE protection
+ * Invalidates the TLB when upgrading PTE permissions. It isn't required to sync this invalidation
+ * with other cores.
+ * @param mm Address space
+ * @param virt Virtual address to invalidate
+ */
+void tlbi_upgrade_pte_prots(struct mm_address_space *mm, unsigned long virt);
+
+/**
+ * @brief Handle a seemingly spurious fault locally
+ * Make sure we sync the TLB when we find a spurious fault.
+ * @param mm Address space
+ * @param virt Virtual address to invalidate
+ */
+void tlbi_handle_spurious_fault_pte(struct mm_address_space *mm, unsigned long virt);
 
 #include <onyx/mm/pgtable-nop4d.h>
 

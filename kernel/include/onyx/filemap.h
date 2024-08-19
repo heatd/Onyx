@@ -55,19 +55,18 @@ ssize_t filemap_write_iter(struct file *filp, size_t off, struct iovec_iter *ite
 int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags, struct page **outp,
                       struct readahead_state *ra_state);
 
-void page_start_writeback(struct page *page, struct inode *inode) REQUIRES(page);
+void page_start_writeback(struct page *page) REQUIRES(page);
 
-void page_end_writeback(struct page *page, struct inode *inode);
+void page_end_writeback(struct page *page);
 
 /**
  * @brief Marks a page dirty in the filemap
  *
- * @param ino Inode to mark dirty
  * @param page Page to mark dirty
  * @param pgoff Page offset
  * @invariant page is locked
  */
-void filemap_mark_dirty(struct inode *ino, struct page *page, size_t pgoff) REQUIRES(page);
+void filemap_mark_dirty(struct page *page, size_t pgoff) REQUIRES(page);
 
 struct writepages_info;
 
@@ -94,7 +93,7 @@ struct readpages_state
  */
 struct page *readpages_next_page(struct readpages_state *state);
 
-void page_clear_dirty(struct page *page) REQUIRES(page);
+void filemap_clear_dirty(struct page *page) REQUIRES(page);
 
 __END_CDECLS
 

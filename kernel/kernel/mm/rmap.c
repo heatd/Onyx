@@ -10,6 +10,7 @@
 
 #include <onyx/compiler.h>
 #include <onyx/mm/slab.h>
+#include <onyx/mm/vm_object.h>
 #include <onyx/page.h>
 #include <onyx/rmap.h>
 
@@ -98,4 +99,132 @@ void anon_vma_link(struct anon_vma *anon, struct vm_area_struct *vma)
     spin_lock(&anon->lock);
     __anon_vma_link(anon, vma);
     spin_unlock(&anon->lock);
+}
+
+struct rmap_walk_info
+{
+    int (*walk_one)(struct vm_area_struct *vma, struct page *page, unsigned long addr,
+                    void *context);
+    void *context;
+};
+
+static int rmap_walk_anon(struct rmap_walk_info *info, struct page *page)
+{
+    DCHECK_PAGE(page_flag_set(page, PAGE_FLAG_ANON), page);
+    struct anon_vma *anon_vma = (struct anon_vma *) page->owner;
+
+    /* anon_vma doesn't exist or can be stale if the page was unmapped. */
+    if (!page_mapcount(page))
+        return 0;
+
+    /* TODO: We might need TYPESAFE_BY_RCU for anon_vma? */
+    unsigned long page_addr = page->pageoff;
+    int st = 0;
+
+    spin_lock(&anon_vma->lock);
+
+    list_for_every (&anon_vma->vma_list)
+    {
+        struct vm_area_struct *vma = container_of(l, struct vm_area_struct, anon_vma_node);
+        /* Check if the vma does cover the page (we stash the addr in pgoff[1]). If so, call it.
+         * [1]: This idea is bound to find issues on mremaps. I don't know how we're going to deal
+         * with this yet. */
+        if (vma->vm_start > page_addr || vma->vm_end <= page_addr)
+            continue;
+        /* TODO: Ideally we'd go possibly down the tree and find the pte immediately (and do the
+         * upfront checks for the page being mapped and the same page that we're looking for). But
+         * the current interfaces aren't suited for this */
+        st = info->walk_one(vma, page, page_addr, info->context);
+        if (st)
+            break;
+    }
+
+    spin_unlock(&anon_vma->lock);
+    return st;
+}
+
+static inline void vm_obj_assert_interval_tree(size_t pgoff, struct vm_area_struct *vma)
+{
+    const off_t vmregion_end = vma->vm_offset + (vma_pages(vma) << PAGE_SHIFT);
+    DCHECK(vma->vm_objhead.start <= pgoff && vma->vm_objhead.end >= pgoff);
+    DCHECK(vma->vm_offset <= (off_t) (pgoff << PAGE_SHIFT) &&
+           vmregion_end > (off_t) (pgoff << PAGE_SHIFT));
+    DCHECK((vma->vm_offset >> PAGE_SHIFT) == (off_t) vma->vm_objhead.start &&
+           vma->vm_objhead.end == (vma->vm_offset >> PAGE_SHIFT) + vma_pages(vma) - 1);
+}
+
+static int rmap_walk_file(struct rmap_walk_info *info, struct page *page)
+{
+    struct vm_object *obj = page->owner;
+    spin_lock(&obj->mapping_lock);
+    size_t offset = page->pageoff;
+    struct vm_area_struct *vma;
+    int st = 0;
+
+    for_intervals_in_range(&obj->mappings, vma, struct vm_area_struct, vm_objhead, offset, offset)
+    {
+        vm_obj_assert_interval_tree(offset, vma);
+        st = info->walk_one(vma, page, (vma->vm_start + (offset << PAGE_SHIFT) - vma->vm_offset),
+                            info->context);
+        if (st)
+            break;
+    }
+
+    spin_unlock(&obj->mapping_lock);
+    return st;
+}
+
+int rmap_walk(struct rmap_walk_info *info, struct page *page)
+{
+    if (page_flag_set(page, PAGE_FLAG_ANON))
+        return rmap_walk_anon(info, page);
+    return rmap_walk_file(info, page);
+}
+
+struct refs_info
+{
+    long references;
+    unsigned int *vm_flags;
+};
+
+static int rmap_get_page_refs_one(struct vm_area_struct *vma, struct page *page, unsigned long addr,
+                                  void *ctx)
+{
+    struct refs_info *info = ctx;
+    info->references += mmu_get_clear_referenced(vma->vm_mm, (void *) addr, page);
+    *info->vm_flags |= vma->vm_flags;
+    return 0;
+}
+
+static long rmap_get_page_refs_anon(struct page *page, unsigned int *vm_flags)
+{
+    *vm_flags = 0;
+    struct refs_info info = {};
+    info.vm_flags = vm_flags;
+    int st =
+        rmap_walk_anon(&(struct rmap_walk_info){.walk_one = rmap_get_page_refs_one, &info}, page);
+    if (st < 0)
+        return st;
+    return info.references;
+}
+
+long rmap_get_page_references(struct page *page, unsigned int *vm_flags)
+{
+    if (page_flag_set(page, PAGE_FLAG_ANON))
+        return rmap_get_page_refs_anon(page, vm_flags);
+    return vm_obj_get_page_references(page->owner, page, vm_flags);
+}
+
+static int rmap_try_to_unmap_one(struct vm_area_struct *vma, struct page *page, unsigned long addr,
+                                 void *ctx)
+{
+    return try_to_unmap_one(page, vma, addr);
+}
+
+int rmap_try_to_unmap(struct page *page)
+{
+    struct rmap_walk_info info;
+    info.walk_one = rmap_try_to_unmap_one;
+    info.context = NULL;
+    return rmap_walk(&info, page);
 }

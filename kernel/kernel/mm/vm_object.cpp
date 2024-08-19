@@ -16,6 +16,7 @@
 #include <onyx/page.h>
 #include <onyx/panic.h>
 #include <onyx/scoped_lock.h>
+#include <onyx/swap.h>
 #include <onyx/utils.h>
 #include <onyx/vm.h>
 
@@ -104,9 +105,6 @@ struct page *vm_object::insert_page_unlocked(unsigned long off, struct page *pag
     if (int st0 = vm_pages.store(off >> PAGE_SHIFT, (unsigned long) page); st0 < 0)
         return nullptr;
 
-    page->pageoff = off >> PAGE_SHIFT;
-    page->owner = this;
-
     return page;
 }
 
@@ -176,6 +174,8 @@ int vmo_add_page(size_t off, struct page *p, vm_object *vmo)
     scoped_lock g{vmo->page_lock};
     if (!vmo->insert_page_unlocked(off, p))
         return -ENOMEM;
+    p->pageoff = off >> PAGE_SHIFT;
+    p->owner = vmo;
     return 0;
 }
 
@@ -320,6 +320,18 @@ void vm_object::unmap_page(size_t offset)
         vm_obj_assert_interval_tree(offset, vma);
         vm_mmu_unmap(vma->vm_mm, (void *) (vma->vm_start + (offset << PAGE_SHIFT) - vma->vm_offset),
                      1, vma);
+    }
+}
+
+void vm_obj_try_to_unmap(struct vm_object *obj, struct page *page)
+{
+    scoped_lock g{obj->mapping_lock};
+    size_t offset = page->pageoff;
+    struct vm_area_struct *vma;
+    for_intervals_in_range(&obj->mappings, vma, struct vm_area_struct, vm_objhead, offset, offset)
+    {
+        vm_obj_assert_interval_tree(offset, vma);
+        try_to_unmap_one(page, vma, (vma->vm_start + (offset << PAGE_SHIFT) - vma->vm_offset));
     }
 }
 
@@ -541,29 +553,27 @@ void vm_obj_clean_page(struct vm_object *obj, struct page *page)
 
 bool vm_obj_remove_page(struct vm_object *obj, struct page *page)
 {
-    scoped_lock g{obj->page_lock};
+    bool ret = false;
     DCHECK_PAGE(page_locked(page), page);
-    DCHECK_PAGE(page->owner == obj, page);
+    DCHECK_PAGE(page_vmobj(page) == obj, page);
     DCHECK_PAGE(page->ref != 0, page);
-    /* Under the lock, pages can't get their references incremented, so we check if pins == 1 here.
+
+    spin_lock(&obj->page_lock);
+    /* Under the lock, pages can't get their references incremented, so we check if pins == 2 here.
      * We take into account the mapcount, because virtual references can be punted off.
      */
-    unsigned int expected_refs = 1 + (page_mapcount(page) > 0);
+
+    unsigned int expected_refs = 2 + (page_mapcount(page) > 0);
     if (__atomic_load_n(&page->ref, __ATOMIC_RELAXED) > expected_refs)
-        return false;
-    obj->unmap_page(page->pageoff << PAGE_SHIFT);
-    if (page_mapcount(page) > 0)
-    {
-        /* It's entirely possible the page's mapcount is larger than 0. If, for instance, the page
-         * removal and a fork race in any way (fork does not take the page lock). In such cases,
-         * fail to remove. If mapcount is 0, we know it is stable (it cannot be forked, because it
-         * is unmapped; and, since we hold the page lock, no new mappers may arise.) */
-        return false;
-    }
-    /* After this, page->ref must be 1 (if the VM system is working properly) */
-    CHECK_PAGE(page->ref == 1, page);
-    obj->vm_pages.store(page->pageoff, 0);
-    return true;
+        goto out;
+
+    obj->vm_pages.store(page_pgoff(page), 0);
+    if (page_test_swap(page))
+        swap_unset_swapcache(swpval_to_swp_entry(page->priv));
+    ret = true;
+out:
+    spin_unlock(&obj->page_lock);
+    return ret;
 }
 
 long vm_obj_get_page_references(struct vm_object *obj, struct page *page, unsigned int *vm_flags)

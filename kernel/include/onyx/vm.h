@@ -90,23 +90,7 @@ static inline unsigned long vm_prot_to_cache_type(uint64_t prot)
 #define VM_PFNMAP (1 << 1)
 
 struct vm_object;
-struct fault_info;
-
-struct vm_pf_context
-{
-    /* The vm area in question */
-    struct vm_area_struct *entry;
-    /* This fault's info */
-    struct fault_info *info;
-    /* vpage - fault_address but page aligned */
-    unsigned long vpage;
-    /* Page permissions - is prefilled by calling code */
-    int page_rwx;
-    /* Mapping info if page was present */
-    unsigned long mapping_info;
-    /* The to-be-mapped page - filled by called code */
-    struct page *page;
-};
+struct vm_pf_context;
 
 struct vm_operations
 {

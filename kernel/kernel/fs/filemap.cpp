@@ -17,6 +17,7 @@
 #include <onyx/rmap.h>
 #include <onyx/vfs.h>
 #include <onyx/vm.h>
+#include <onyx/vm_fault.h>
 
 #include <uapi/fcntl.h>
 
@@ -267,34 +268,45 @@ ssize_t filemap_read_iter(struct file *filp, size_t off, iovec_iter *iter, unsig
 /**
  * @brief Marks a page dirty in the filemap
  *
- * @param ino Inode to mark dirty
  * @param page Page to mark dirty
  * @param pgoff Page offset
  * @invariant page is locked
  */
-void filemap_mark_dirty(struct inode *ino, struct page *page, size_t pgoff) REQUIRES(page)
+void filemap_mark_dirty(struct page *page, size_t pgoff) REQUIRES(page)
 {
     DCHECK(page_locked(page));
+    struct vm_object *object = page_vmobj(page);
+    struct inode *ino = object->ino;
+
     // if (ino->i_sb && ino->i_sb->s_flags & SB_FLAG_NODIRTY)
     //     return;
     if (!page_test_set_flag(page, PAGE_FLAG_DIRTY))
         return; /* Already marked as dirty, not our problem! */
 
-    trace_filemap_dirty_page(ino->i_inode, ino->i_dev, pgoff);
+    if (ino)
+        trace_filemap_dirty_page(ino->i_inode, ino->i_dev, pgoff);
     /* Set the DIRTY mark, for writeback */
     {
-        scoped_lock g{ino->i_pages->page_lock};
-        ino->i_pages->vm_pages.set_mark(pgoff, FILEMAP_MARK_DIRTY);
+        scoped_lock g{object->page_lock};
+        object->vm_pages.set_mark(pgoff, FILEMAP_MARK_DIRTY);
+    }
+
+    if (page_test_reclaim(page))
+    {
+        /* If we got a new dirty, this is probably not the best page to reclaim, even if we were/are
+         * in the process. */
+        page_clear_reclaim(page);
     }
 
     /* TODO: This is horribly leaky and horrible and awful but it stops NR_DIRTY from leaking on
      * tmpfs filesystems. I'll refrain from making a proper interface for this, because this really
      * needs the axe.
      */
-    if (!inode_no_dirty(ino, I_DATADIRTY))
+    if (!ino || !inode_no_dirty(ino, I_DATADIRTY))
         inc_page_stat(page, NR_DIRTY);
 
-    inode_mark_dirty(ino, I_DATADIRTY);
+    if (ino)
+        inode_mark_dirty(ino, I_DATADIRTY);
 }
 
 ssize_t file_write_cache_unlocked(void *buffer, size_t len, struct inode *ino, size_t offset)
@@ -335,7 +347,7 @@ ssize_t file_write_cache_unlocked(void *buffer, size_t len, struct inode *ino, s
             return -EFAULT;
         }
 
-        filemap_mark_dirty(ino, page, offset >> PAGE_SHIFT);
+        filemap_mark_dirty(page, offset >> PAGE_SHIFT);
         unlock_page(page);
 
         page_unpin(page);
@@ -414,7 +426,7 @@ ssize_t filemap_write_iter(struct file *filp, size_t off, iovec_iter *iter, unsi
         ssize_t copied = copy_from_iter(iter, (u8 *) buffer + cache_off, rest);
 
         if (copied > 0)
-            filemap_mark_dirty(ino, page, off >> PAGE_SHIFT);
+            filemap_mark_dirty(page, off >> PAGE_SHIFT);
 
         unlock_page(page);
         page_unpin(page);
@@ -454,10 +466,9 @@ static int filemap_get_tagged_pages(struct inode *inode, unsigned int mark, unsi
     return batchidx;
 }
 
-void page_start_writeback(struct page *page, struct inode *inode)
-    EXCLUDES(inode->i_pages->page_lock) REQUIRES(page)
+void page_start_writeback(struct page *page) EXCLUDES(inode->i_pages->page_lock) REQUIRES(page)
 {
-    struct vm_object *obj = inode->i_pages;
+    struct vm_object *obj = page_vmobj(page);
     scoped_lock g{obj->page_lock};
     obj->vm_pages.set_mark(page->pageoff, FILEMAP_MARK_WRITEBACK);
     page_set_writeback(page);
@@ -465,21 +476,28 @@ void page_start_writeback(struct page *page, struct inode *inode)
     inc_page_stat(page, NR_WRITEBACK);
 }
 
-void page_end_writeback(struct page *page, struct inode *inode) EXCLUDES(inode->i_pages->page_lock)
+void page_end_writeback(struct page *page) EXCLUDES(inode->i_pages->page_lock)
 {
-    struct vm_object *obj = inode->i_pages;
+    struct vm_object *obj = page_vmobj(page);
     spin_lock(&obj->page_lock);
     obj->vm_pages.clear_mark(page->pageoff, FILEMAP_MARK_WRITEBACK);
     spin_unlock(&obj->page_lock);
     page_clear_writeback(page);
+
+    if (page_test_reclaim(page))
+    {
+        page_clear_reclaim(page);
+        page_lru_demote_reclaim(page);
+    }
+
     page_unref(page);
     dec_page_stat(page, NR_WRITEBACK);
 }
 
-void page_clear_dirty(struct page *page) REQUIRES(page)
+void filemap_clear_dirty(struct page *page) REQUIRES(page)
 {
     /* Clear the dirty flag for IO */
-    struct vm_object *obj = page->owner;
+    struct vm_object *obj = page_vmobj(page);
     __atomic_and_fetch(&page->flags, ~PAGE_FLAG_DIRTY, __ATOMIC_RELEASE);
 
     {
@@ -487,7 +505,9 @@ void page_clear_dirty(struct page *page) REQUIRES(page)
         obj->vm_pages.clear_mark(page->pageoff, FILEMAP_MARK_DIRTY);
     }
 
-    vm_obj_clean_page(obj, page);
+    /* Nothing to clear in PTEs if this is a swap page */
+    if (!page_test_swap(page))
+        vm_obj_clean_page(obj, page);
     dec_page_stat(page, NR_DIRTY);
 }
 
@@ -545,9 +565,19 @@ int filemap_writepages(struct inode *inode,
             continue;
         }
 
-        page_clear_dirty(page);
+        filemap_clear_dirty(page);
 
-        ssize_t st = inode->i_fops->writepage(page, pageoff << PAGE_SHIFT, inode);
+        ssize_t st = -EIO;
+
+        if (inode->i_fops->writepage)
+            st = inode->i_fops->writepage(page, pageoff << PAGE_SHIFT, inode);
+        else if (inode->i_pages->ops->writepage)
+            st = inode->i_pages->ops->writepage(inode->i_pages, page, pageoff << PAGE_SHIFT);
+        else
+        {
+            /* Warn if we the inode we got doesn't have a valid writepage */
+            __WARN();
+        }
 
         if (st < 0)
         {
@@ -591,7 +621,7 @@ static int filemap_mkwrite_private(struct vm_pf_context *ctx,
         return -ENOMEM;
     /* write-fault, let's CoW the page */
 
-    if (page_flag_set(page, PAGE_FLAG_ANON) && page_mapcount(page) == 1)
+    if (0 && page_flag_set(page, PAGE_FLAG_ANON) && page_mapcount(page) == 1)
     {
         /* If this is an anon page *and* mapcount = 1, avoid allocating a new page. Since mapcount =
          * 1 (AND *ANON*), no one else can grab a ref. */
@@ -608,9 +638,11 @@ static int filemap_mkwrite_private(struct vm_pf_context *ctx,
         return -ENOMEM;
     page_set_anon(newp);
     newp->owner = (struct vm_object *) anon;
-    page->pageoff = ctx->vpage;
+    newp->pageoff = ctx->vpage;
+    page_add_lru(newp);
 
     copy_page_to_page(page_to_phys(newp), page_to_phys(page));
+    page_set_dirty(newp);
     ctx->page = newp;
     return 0;
 }
@@ -629,7 +661,7 @@ static int vm_prepare_write(struct inode *inode, struct page *p) REQUIRES(p)
         len = i_size - offset;
 
     int st = inode->i_fops->prepare_write(inode, p, offset, 0, len);
-    filemap_mark_dirty(inode, p, p->pageoff);
+    filemap_mark_dirty(p, p->pageoff);
     return st;
 }
 

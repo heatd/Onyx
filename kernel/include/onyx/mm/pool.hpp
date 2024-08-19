@@ -315,6 +315,7 @@ public:
     NO_ASAN bool expand_pool(unsigned int gfp_flags)
     {
         // std::cout << "Expanding pool.\n";
+        spin_unlock(&lock);
         auto allocation_size = memory_pool_segment<T, using_vm>::memory_pool_size();
 
         memory_pool_segment<T, using_vm> seg{allocation_size};
@@ -325,7 +326,11 @@ public:
             void *vmalloc_seg = vmalloc(allocation_size >> PAGE_SHIFT, VM_TYPE_REGULAR,
                                         VM_READ | VM_WRITE, gfp_flags);
             if (!vmalloc_seg)
+            {
+                spin_lock(&lock);
                 return false;
+            }
+
             seg.set_vmalloc_seg(vmalloc_seg);
             address = vmalloc_seg;
         }
@@ -335,7 +340,11 @@ public:
                 alloc_pages(pages2order(allocation_size >> PAGE_SHIFT),
                             PAGE_ALLOC_NO_ZERO | PAGE_ALLOC_CONTIGUOUS | gfp_flags);
             if (!pages)
+            {
+                spin_lock(&lock);
                 return false;
+            }
+
             seg.set_pages(pages);
             address = PAGE_TO_VIRT(pages);
         }
@@ -346,6 +355,8 @@ public:
 
         auto &mmap_seg = *static_cast<memory_pool_segment<T, using_vm> *>(address);
         mmap_seg = cul::move(seg);
+
+        spin_lock(&lock);
 
         auto pair = mmap_seg.setup_chunks();
         free_chunk_head = pair.first;

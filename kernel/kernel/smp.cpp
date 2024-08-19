@@ -209,8 +209,7 @@ void sync_call_with_local(sync_call_func f, void *context, const cpumask &mask_,
     }
     else
     {
-        /* TODO: GFP_ATOMIC, these allocations must not fail... */
-        control_block = ctlblk_pool.allocate(GFP_KERNEL);
+        control_block = ctlblk_pool.allocate(GFP_ATOMIC);
         if (!control_block)
             panic("out of memory on sync_call_with_local");
     }
@@ -218,7 +217,7 @@ void sync_call_with_local(sync_call_func f, void *context, const cpumask &mask_,
     new (control_block) internal::sync_call_cntrlblk{f, context, mask, flags};
 
     mask.for_every_cpu([&](unsigned long cpu) -> bool {
-        auto ptr = sync_call_pool.allocate();
+        auto ptr = sync_call_pool.allocate(GFP_ATOMIC);
         if (!ptr)
             panic("Out of memory on sync call");
 

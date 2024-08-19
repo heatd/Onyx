@@ -9,6 +9,7 @@
 #define _ONYX_IOVEC_ITER_H
 
 #include <errno.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 

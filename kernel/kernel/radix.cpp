@@ -57,7 +57,7 @@ __init static void radix_init_slab()
 
 radix_tree_node *radix_tree::allocate_table()
 {
-    auto node = kmem_cache_alloc(node_cache, GFP_KERNEL);
+    auto node = kmem_cache_alloc(node_cache, GFP_ATOMIC);
     if (!node) [[unlikely]]
         return nullptr;
     memset(node, 0, sizeof(radix_tree_node));

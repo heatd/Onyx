@@ -134,12 +134,10 @@ static memory_pool<vmalloc_region> pool;
  * @param gfp_flags GFP flags
  * @return Pointer to a vmalloc_region, or nullptr
  */
-static struct vmalloc_region *vmalloc_insert_region(struct vmalloc_tree *tree, unsigned long start,
+static struct vmalloc_region *vmalloc_insert_region(struct vmalloc_tree *tree,
+                                                    struct vmalloc_region *reg, unsigned long start,
                                                     size_t pages, int perms, unsigned int gfp_flags)
 {
-    auto reg = pool.allocate(gfp_flags);
-    if (!reg)
-        return nullptr;
     reg->addr = start;
     reg->pages = pages;
     reg->perms = perms;
@@ -182,20 +180,29 @@ void *vmalloc(size_t pages, int type, int perms, unsigned int gfp_flags)
     if (!pgs)
         return errno = ENOMEM, nullptr;
 
+    auto reg = pool.allocate(gfp_flags);
+    if (!reg)
+    {
+        free_page_list(pgs);
+        return errno = ENOMEM, nullptr;
+    }
+
     scoped_lock g{vmalloc_tree.lock};
     auto start = vmalloc_allocate_base(&vmalloc_tree, 0, pages << PAGE_SHIFT);
 
     if (start + (pages << PAGE_SHIFT) > vmalloc_tree.start + vmalloc_tree.length)
     {
         free_page_list(pgs);
+        pool.free(reg);
         return errno = ENOMEM, nullptr;
     }
 
-    auto vmal_reg = vmalloc_insert_region(&vmalloc_tree, start, pages, perms,
+    auto vmal_reg = vmalloc_insert_region(&vmalloc_tree, reg, start, pages, perms,
                                           gfp_flags | PAGE_ALLOC_NO_SANITIZER_SHADOW);
     if (!vmal_reg)
     {
         free_page_list(pgs);
+        pool.free(reg);
         return errno = ENOMEM, nullptr;
     }
 
@@ -338,16 +345,26 @@ void vfree(void *ptr, size_t pages)
 void *mmiomap(void *phys, size_t size, size_t flags)
 {
     size_t pages = vm_size_to_pages(size);
+    auto reg = pool.allocate(GFP_KERNEL);
+    if (!reg)
+        return errno = ENOMEM, nullptr;
+
     scoped_lock g{vmalloc_tree.lock};
     auto start = vmalloc_allocate_base(&vmalloc_tree, 0, pages << PAGE_SHIFT);
 
     if (start + (pages << PAGE_SHIFT) > vmalloc_tree.start + vmalloc_tree.length)
+    {
+        pool.free(reg);
         return errno = ENOMEM, nullptr;
+    }
 
-    auto vmal_reg = vmalloc_insert_region(&vmalloc_tree, start, pages, flags,
+    auto vmal_reg = vmalloc_insert_region(&vmalloc_tree, reg, start, pages, flags,
                                           GFP_KERNEL | PAGE_ALLOC_NO_SANITIZER_SHADOW);
     if (!vmal_reg)
+    {
+        pool.free(reg);
         return errno = ENOMEM, nullptr;
+    }
 
     auto delvmr = [vmal_reg]() {
         bst_delete(&vmalloc_tree.root, &vmal_reg->tree_node);

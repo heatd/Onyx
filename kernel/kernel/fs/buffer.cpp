@@ -29,7 +29,7 @@ static void buffer_writepage_end(struct bio_req *req)
 {
     struct page *page = req->vec[0].page;
     DCHECK(page != nullptr);
-    page_end_writeback(page, (struct inode *) req->b_private);
+    page_end_writeback(page);
 }
 
 ssize_t buffer_writepage(struct page *page, size_t offset, struct inode *ino) REQUIRES(page)
@@ -86,7 +86,7 @@ ssize_t buffer_writepage(struct page *page, size_t offset, struct inode *ino) RE
     vec.page_off = first_dirty->page_off;
     vec.page = first_dirty->this_page;
 
-    page_start_writeback(page, ino);
+    page_start_writeback(page);
 
     unlock_page(page);
 
@@ -534,7 +534,7 @@ void block_buf_dirty(block_buf *buf)
         return;
     struct page *page = buf->this_page;
     lock_page(page);
-    filemap_mark_dirty(buf->dev->b_ino, page, buf->this_page->pageoff);
+    filemap_mark_dirty(page, buf->this_page->pageoff);
     unlock_page(page);
 }
 

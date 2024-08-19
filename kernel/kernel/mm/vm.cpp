@@ -33,16 +33,19 @@
 #include <onyx/paging.h>
 #include <onyx/panic.h>
 #include <onyx/percpu.h>
+#include <onyx/pgtable.h>
 #include <onyx/process.h>
 #include <onyx/random.h>
 #include <onyx/rmap.h>
 #include <onyx/spinlock.h>
+#include <onyx/swap.h>
 #include <onyx/sysfs.h>
 #include <onyx/timer.h>
 #include <onyx/user.h>
 #include <onyx/utils.h>
 #include <onyx/vfs.h>
 #include <onyx/vm.h>
+#include <onyx/vm_fault.h>
 #include <onyx/vm_layout.h>
 
 #include <uapi/fcntl.h>
@@ -1413,11 +1416,22 @@ static int __vm_handle_pf(struct vm_area_struct *entry, struct fault_info *info)
     context.vpage = info->fault_address & -PAGE_SIZE;
     context.page = nullptr;
     context.page_rwx = entry->vm_flags;
+    context.oldpte = pte_get(entry->vm_mm, context.vpage);
     context.mapping_info = get_mapping_info((void *) context.vpage);
+
+    if (!pte_none(context.oldpte) && (!pte_present(context.oldpte) || pte_protnone(context.oldpte)))
+        return do_swap_page(&context);
+
+    if (pte_present(context.oldpte) && !pte_write(context.oldpte) && fault_write &&
+        vma_private(entry))
+        return do_wp_page(&context);
 
     /* If spurious, invalidate the TLB _locally_ and retry */
     if (vm_fault_was_spurious(info, &context))
+    {
+        tlbi_handle_spurious_fault_pte(entry->vm_mm, context.vpage);
         return 0;
+    }
 
     if (entry->vm_ops && entry->vm_ops->fault)
         return entry->vm_ops->fault(&context);

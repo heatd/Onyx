@@ -131,7 +131,7 @@ static void pagedaemon(void * /*arg*/)
         }
 
     wake:
-        __atomic_add_fetch(&paged_data.reclaim_seq, 1, __ATOMIC_RELEASE);
+        __atomic_store_n(&paged_data.reclaim_seq, paged_data.request_seq, __ATOMIC_RELEASE);
         /* Wake up anyone that may potentially be waiting for us */
         wait_queue_wake_all(&paged_data.paged_waiters_queue);
 
@@ -720,7 +720,6 @@ void free_page(struct page *p)
 
     if (__page_unref(p) == 0)
     {
-        p->next_un.next_allocation = NULL;
         main_node.free_page(p);
         // printf("free pages %p, %p\n", page_to_phys(p), __builtin_return_address(0));
     }
@@ -802,6 +801,11 @@ struct page *page_node::alloc_order(unsigned int order, unsigned long flags)
     struct page *page = nullptr;
     unsigned int attempt = 0;
 
+    if (flags & __GFP_MAY_RECLAIM && !(flags & (__GFP_NOWAIT | __GFP_ATOMIC)))
+    {
+        MAY_SLEEP();
+    }
+
     for (;;)
     {
         if (attempt == PAGE_ALLOC_MAX_RECLAIM_ATTEMPT)
@@ -877,15 +881,18 @@ void __reclaim_page(struct page *new_page)
 
 void page_node::free_page(struct page *p)
 {
-    CHECK(!(p->flags & (PAGE_FLAG_WRITEBACK | PAGE_FLAG_LOCKED)));
+    CHECK_PAGE(
+        !(p->flags & (PAGE_FLAG_WRITEBACK | PAGE_FLAG_LOCKED | PAGE_FLAG_SWAP | PAGE_FLAG_WAITERS)),
+        p);
 #ifdef CONFIG_PAGE_OWNER
     page_owner_freed(p);
 #endif
-    DCHECK(!page_flag_set(p, PAGE_FLAG_LRU));
+    if (page_flag_set(p, PAGE_FLAG_LRU))
+        page_remove_lru(p);
+
     if (page_flag_set(p, PAGE_FLAG_ANON))
         dec_page_stat(p, NR_ANON);
 
-    unsigned long cpu_flags = spin_lock_irqsave(&node_lock);
     /* Reset the page */
     p->flags = 0;
     p->owner = nullptr;
@@ -900,8 +907,6 @@ void page_node::free_page(struct page *p)
     struct page_zone *z = pick_zone((unsigned long) page_to_phys(p));
     // XXX Free higher order stuff directly
     page_zone_free(z, p, 0);
-
-    spin_unlock_irqrestore(&node_lock, cpu_flags);
 }
 
 /**

@@ -13,6 +13,7 @@
 #include <onyx/page.h>
 #include <onyx/paging.h>
 #include <onyx/panic.h>
+#include <onyx/pgtable.h>
 #include <onyx/process.h>
 #include <onyx/riscv/intrinsics.h>
 #include <onyx/smp.h>
@@ -538,4 +539,27 @@ void mmu_verify_address_space_accounting(mm_address_space *as)
 
     assert(acct.page_table_size == as->page_tables_size);
     assert(acct.resident_set_size == as->resident_set_size);
+}
+
+/**
+ * @brief Invalidate the TLB after upgrading PTE protection
+ * Invalidates the TLB when upgrading PTE permissions. It isn't required to sync this invalidation
+ * with other cores.
+ * @param mm Address space
+ * @param virt Virtual address to invalidate
+ */
+void tlbi_upgrade_pte_prots(struct mm_address_space *mm, unsigned long virt)
+{
+    __native_tlb_invalidate_page((void *) virt);
+}
+
+/**
+ * @brief Handle a seemingly spurious fault locally
+ * Make sure we sync the TLB when we find a spurious fault.
+ * @param mm Address space
+ * @param virt Virtual address to invalidate
+ */
+void tlbi_handle_spurious_fault_pte(struct mm_address_space *mm, unsigned long virt)
+{
+    __native_tlb_invalidate_page((void *) virt);
 }

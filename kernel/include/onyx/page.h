@@ -74,6 +74,31 @@ __BEGIN_CDECLS
 #define PAGE_FLAG_LRU         (1 << 11)
 #define PAGE_FLAG_REFERENCED  (1 << 12)
 #define PAGE_FLAG_ACTIVE      (1 << 13)
+#define PAGE_FLAG_SWAP        (1 << 14)
+#define PAGE_FLAG_RECLAIM     (1 << 15)
+
+#define PAGEFLAG_OPS(lowercase, uppercase)                                          \
+    static inline void page_clear_##lowercase(struct page *page)                    \
+    {                                                                               \
+        __atomic_and_fetch(&page->flags, ~PAGE_FLAG_##uppercase, __ATOMIC_RELEASE); \
+    }                                                                               \
+    static inline void page_set_##lowercase(struct page *page)                      \
+    {                                                                               \
+        __atomic_or_fetch(&page->flags, PAGE_FLAG_##uppercase, __ATOMIC_RELEASE);   \
+    }                                                                               \
+    static inline bool page_test_set_##lowercase(struct page *page)                 \
+    {                                                                               \
+        return page_test_set_flag(page, PAGE_FLAG_##uppercase);                     \
+    }                                                                               \
+    static inline bool page_test_clear_##lowercase(struct page *page)               \
+    {                                                                               \
+        return page_test_clear_flag(page, PAGE_FLAG_##uppercase);                   \
+    }                                                                               \
+                                                                                    \
+    static inline bool page_test_##lowercase(const struct page *page)               \
+    {                                                                               \
+        return page_flag_set(page, PAGE_FLAG_##uppercase);                          \
+    }
 
 struct vm_object;
 
@@ -172,7 +197,7 @@ struct page *page_add_page_late(void *paddr);
 #define __GFP_NOWARN          (1 << 14)
 #define __GFP_NOWAIT          (1 << 15)
 #define __GFP_MAY_RECLAIM     (__GFP_DIRECT_RECLAIM | __GFP_WAKE_PAGEDAEMON)
-#define GFP_KERNEL            (__GFP_MAY_RECLAIM | __GFP_IO)
+#define GFP_KERNEL            (__GFP_MAY_RECLAIM | __GFP_IO | __GFP_FS)
 #define GFP_ATOMIC            (__GFP_ATOMIC | __GFP_WAKE_PAGEDAEMON)
 #define GFP_NOIO              (__GFP_MAY_RECLAIM)
 #define GFP_NOFS              (__GFP_MAY_RECLAIM | __GFP_IO)
@@ -328,12 +353,25 @@ __always_inline bool page_test_set_flag(struct page *p, unsigned long flag)
     return true;
 }
 
-__always_inline bool page_flag_set(struct page *p, unsigned long flag)
+__always_inline bool page_test_clear_flag(struct page *p, unsigned long flag)
+{
+    unsigned long word;
+    do
+    {
+        word = __atomic_load_n(&p->flags, __ATOMIC_ACQUIRE);
+        if (!(word & flag))
+            return false;
+    } while (!__atomic_compare_exchange_n(&p->flags, &word, word & ~flag, false, __ATOMIC_RELEASE,
+                                          __ATOMIC_RELAXED));
+    return true;
+}
+
+__always_inline bool page_flag_set(const struct page *p, unsigned long flag)
 {
     return READ_ONCE(p->flags) & flag;
 }
 
-__always_inline bool page_locked(struct page *p)
+__always_inline bool page_locked(const struct page *p)
 {
     return page_flag_set(p, PAGE_FLAG_LOCKED);
 }
@@ -511,7 +549,6 @@ enum page_stat
     NR_WRITEBACK,
     NR_SLAB_RECLAIMABLE,
     NR_SLAB_UNRECLAIMABLE,
-    /* LRU currently not implemented */
     NR_INACTIVE_FILE,
     NR_ACTIVE_FILE,
     NR_INACTIVE_ANON,
@@ -568,6 +605,17 @@ static inline void page_set_anon(struct page *page)
     __atomic_or_fetch(&page->flags, PAGE_FLAG_ANON, __ATOMIC_RELEASE);
     inc_page_stat(page, NR_ANON);
 }
+
+PAGEFLAG_OPS(reclaim, RECLAIM);
+PAGEFLAG_OPS(referenced, REFERENCED);
+PAGEFLAG_OPS(swap, SWAP);
+PAGEFLAG_OPS(active, ACTIVE);
+PAGEFLAG_OPS(lru, LRU);
+PAGEFLAG_OPS(uptodate, UPTODATE);
+PAGEFLAG_OPS(dirty, DIRTY);
+
+struct vm_object *page_vmobj(struct page *page);
+unsigned long page_pgoff(struct page *page);
 
 __END_CDECLS
 

@@ -51,6 +51,7 @@ struct vm_object_ops
 {
     void (*free_page)(struct vm_object *vmo, struct page *page);
     void (*truncate_partial)(struct vm_object *vmobj, struct page *page, size_t offset, size_t len);
+    ssize_t (*writepage)(struct vm_object *vm_obj, struct page *page, size_t off);
 };
 
 #define VMO_FLAG_LOCK_FUTURE_PAGES (1 << 0)
