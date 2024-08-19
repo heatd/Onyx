@@ -18,20 +18,13 @@
 #define CONFIG_SMP_NR_CPUS 64
 #endif
 
-#ifdef __cplusplus
-#include <onyx/atomic.hpp>
-#define ATOMIC_TYPE(type) atomic<type>
-#else
-#define ATOMIC_TYPE(type) type
-#endif
-
 #define SLAB_CACHE_PERCPU_MAGAZINE_SIZE 128
 
 struct slab_cache_percpu_context
 {
     void *magazine[SLAB_CACHE_PERCPU_MAGAZINE_SIZE];
     int size;
-    ATOMIC_TYPE(int) touched;
+    int touched;
     unsigned long active_objs;
 } __align_cache;
 

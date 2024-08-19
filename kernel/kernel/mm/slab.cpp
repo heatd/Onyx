@@ -556,7 +556,7 @@ NO_ASAN static struct slab *kmem_cache_create_slab(struct slab_cache *cache, uns
     size_t nr_pages = slab_size >> PAGE_SHIFT;
     for (size_t i = 0; i < nr_pages; i++)
     {
-        char *ptr = start + (i << PAGE_SHIFT);
+        ptr = start + (i << PAGE_SHIFT);
         struct page *page = kmem_pointer_to_page(ptr);
         page->priv = (unsigned long) slab;
     }
@@ -755,7 +755,7 @@ static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
     }
 
     /* Release the pcpu. We're going to effectively drop it in a bit */
-    pcpu->touched.store(0, mem_order::relaxed);
+    __atomic_store_n(&pcpu->touched, 0, __ATOMIC_RELAXED);
 
     sched_enable_preempt();
     /* Allocate N slabs and add them to allocated_slabs. These are temporarily isolated from the
@@ -789,7 +789,7 @@ static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
      * cache's free slabs list. */
     sched_disable_preempt();
     pcpu = &cache->pcpu[get_cpu_nr()];
-    pcpu->touched.store(1, mem_order::relaxed);
+    __atomic_store_n(&pcpu->touched, 1, __ATOMIC_RELAXED);
 
     spin_lock(&cache->lock);
     /* Splice the allocated_slabs to free_slabs */
@@ -882,7 +882,7 @@ void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
 
     struct slab_cache_percpu_context *pcpu = &cache->pcpu[get_cpu_nr()];
 
-    pcpu->touched.store(1, mem_order::release);
+    __atomic_store_n(&pcpu->touched, 1, __ATOMIC_RELEASE);
 
     if (!pcpu->size) [[unlikely]]
     {
@@ -903,7 +903,7 @@ void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
     ((struct bufctl *) ret)->flags = 0;
 
     pcpu->active_objs++;
-    pcpu->touched.store(0, mem_order::release);
+    __atomic_store_n(&pcpu->touched, 0, __ATOMIC_RELEASE);
     sched_enable_preempt();
 
     kmem_cache_post_alloc(cache, flags, ret);
@@ -955,7 +955,7 @@ size_t kmem_cache_alloc_bulk(struct slab_cache *cache, unsigned int gfp_flags, s
         // Disable preemption so we can safely touch the percpu data
         sched_disable_preempt();
         struct slab_cache_percpu_context *pcpu = &cache->pcpu[get_cpu_nr()];
-        pcpu->touched.store(1, mem_order::release);
+        __atomic_store_n(&pcpu->touched, 1, __ATOMIC_RELEASE);
         if (unlikely(!pcpu->size))
         {
             /* Refill and try again */
@@ -981,7 +981,7 @@ size_t kmem_cache_alloc_bulk(struct slab_cache *cache, unsigned int gfp_flags, s
             pcpu->active_objs++;
         }
 
-        pcpu->touched.store(0, mem_order::release);
+        __atomic_store_n(&pcpu->touched, 0, __ATOMIC_RELEASE);
         sched_enable_preempt();
     }
 
@@ -1104,12 +1104,11 @@ static void kmem_cache_free_pcpu(struct slab_cache *cache, void *ptr)
 {
     sched_disable_preempt();
     struct slab_cache_percpu_context *pcpu = &cache->pcpu[get_cpu_nr()];
-    pcpu->touched.store(1, mem_order::release);
+    __atomic_store_n(&pcpu->touched, 1, __ATOMIC_RELEASE);
     if (pcpu->size == cache->mag_limit) [[unlikely]]
         kmem_cache_return_pcpu_batch(cache, pcpu);
     kmem_cache_free_pcpu_single(cache, pcpu, ptr);
-
-    pcpu->touched.store(0, mem_order::release);
+    __atomic_store_n(&pcpu->touched, 0, __ATOMIC_RELEASE);
     sched_enable_preempt();
 }
 
@@ -1232,7 +1231,7 @@ void kmem_cache_free_bulk(struct slab_cache *cache, size_t size, void **ptrs)
     {
         sched_disable_preempt();
         struct slab_cache_percpu_context *pcpu = &cache->pcpu[get_cpu_nr()];
-        pcpu->touched.store(1, mem_order::release);
+        __atomic_store_n(&pcpu->touched, 1, __ATOMIC_RELEASE);
 
         if (pcpu->size == cache->mag_limit) [[unlikely]]
             kmem_cache_return_pcpu_batch(cache, pcpu);
@@ -1251,7 +1250,7 @@ void kmem_cache_free_bulk(struct slab_cache *cache, size_t size, void **ptrs)
                 break;
         }
 
-        pcpu->touched.store(0, mem_order::release);
+        __atomic_store_n(&pcpu->touched, 0, __ATOMIC_RELEASE);
         sched_enable_preempt();
     }
 }
@@ -1360,7 +1359,7 @@ static void kmem_cache_shrink_pcpu_all(struct slab_cache *cache)
     for (unsigned int i = 0; i < get_nr_cpus(); i++)
     {
         struct slab_cache_percpu_context *pcpu = &cache->pcpu[i];
-        if (pcpu->touched.load(mem_order::relaxed) > 0)
+        if (__atomic_load_n(&pcpu->touched, __ATOMIC_RELAXED) > 0)
             continue;
         for (int j = 0; j < pcpu->size; j++)
         {
