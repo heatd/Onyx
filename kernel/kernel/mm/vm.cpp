@@ -64,7 +64,7 @@ uintptr_t low_half_min = arch_low_half_min;
  */
 uintptr_t vmalloc_space = arch_vmalloc_off;
 
-void kmalloc_init();
+extern "C" void kmalloc_init();
 void vm_remove_region(struct mm_address_space *as, struct vm_area_struct *region);
 int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size);
 static bool limits_are_contained(struct vm_area_struct *reg, unsigned long start,

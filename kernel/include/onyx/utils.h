@@ -39,6 +39,8 @@ __END_CDECLS
         __auto_type __y = y;   \
         __x > __y ? __x : __y; \
     })
+
+#define align_up2(number, alignment) (((number) + ((alignment) -1)) & -(alignment))
 #else
 
 template <typename Type>

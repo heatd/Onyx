@@ -6,9 +6,7 @@
 #ifndef _ONYX_CPUMASK_H
 #define _ONYX_CPUMASK_H
 
-#ifndef CONFIG_SMP_NR_CPUS
-#define CONFIG_SMP_NR_CPUS 64
-#endif
+#include <string.h>
 
 struct cpumask
 {
@@ -17,7 +15,7 @@ struct cpumask
     unsigned long mask[CPUMASK_SIZE];
 
 #ifdef __cplusplus
-    explicit constexpr cpumask() : mask{}
+    constexpr cpumask() : mask{}
     {
     }
 
@@ -199,5 +197,13 @@ struct cpumask
     }
 #endif
 };
+
+static inline struct cpumask cpumask_all_but_one(unsigned long cpu)
+{
+    struct cpumask c;
+    memset(&c, 0xff, sizeof(c));
+    c.mask[cpu / LONG_SIZE_BITS] &= ~(1UL << (cpu % LONG_SIZE_BITS));
+    return c;
+}
 
 #endif
