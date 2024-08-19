@@ -14,6 +14,7 @@
 #include <onyx/page.h>
 #include <onyx/paging.h>
 #include <onyx/panic.h>
+#include <onyx/pgtable.h>
 #include <onyx/process.h>
 #include <onyx/smp.h>
 #include <onyx/vm.h>
@@ -281,7 +282,7 @@ void x86_setup_placement_mappings(void)
 
 extern "C"
 {
-unsigned int pgd_shift = 39, p4d_ptrs = 1;
+int pgd_shift = 39, p4d_ptrs = 1;
 }
 
 NO_ASAN
@@ -686,6 +687,32 @@ void x86_invalidate_tlb(void *context)
         paging_invalidate((void *) addr, pages);
         add_per_cpu(tlb_nr_invals, 1);
     }
+}
+
+/**
+ * @brief Invalidate the TLB after upgrading PTE protection
+ * Invalidates the TLB when upgrading PTE permissions. It isn't required to sync this invalidation
+ * with other cores.
+ * @param mm Address space
+ * @param virt Virtual address to invalidate
+ */
+void tlbi_upgrade_pte_prots(struct mm_address_space *mm, unsigned long virt)
+{
+    /* Dodge the IPIs and just paging_invalidate */
+    paging_invalidate((void *) virt, 1);
+    add_per_cpu(tlb_nr_invals, 1);
+}
+
+/**
+ * @brief Handle a seemingly spurious fault locally
+ * Make sure we sync the TLB when we find a spurious fault.
+ * @param mm Address space
+ * @param virt Virtual address to invalidate
+ */
+void tlbi_handle_spurious_fault_pte(struct mm_address_space *mm, unsigned long virt)
+{
+    paging_invalidate((void *) virt, 1);
+    add_per_cpu(tlb_nr_invals, 1);
 }
 
 /**

@@ -730,3 +730,8 @@ out:
     mutex_unlock(&bdev->bdev_lock);
     return st;
 }
+
+unsigned int bdev_sector_size(struct blockdev *bdev)
+{
+    return bdev->sector_size;
+}

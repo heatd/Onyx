@@ -7,10 +7,12 @@
  */
 
 #include <onyx/dentry.h>
+#include <onyx/mm/page_lru.h>
 #include <onyx/mm/shmem.h>
 #include <onyx/rmap.h>
 #include <onyx/tmpfs.h>
 #include <onyx/vm.h>
+#include <onyx/vm_fault.h>
 
 int vm_anon_fault(struct vm_pf_context *ctx);
 
@@ -36,15 +38,15 @@ int vm_anon_fault(struct vm_pf_context *ctx)
     else
     {
         bool copy_old = false;
-        if (ctx->mapping_info & PAGE_PRESENT)
+        if (pte_present(ctx->oldpte))
         {
-            oldp = phys_to_page(MAPPING_INFO_PADDR(ctx->mapping_info));
-            DCHECK(info->write && !(ctx->mapping_info & PAGE_WRITABLE));
+            oldp = phys_to_page(pte_addr(ctx->oldpte));
+            DCHECK(info->write && !pte_write(ctx->oldpte));
             if (oldp != vm_get_zero_page())
                 copy_old = true;
             needs_invd = true;
 
-            if (copy_old && page_flag_set(oldp, PAGE_FLAG_ANON) && page_mapcount(oldp) == 1)
+            if (copy_old && 0 && page_flag_set(oldp, PAGE_FLAG_ANON) && page_mapcount(oldp) == 1)
             {
                 /* If this is an anon page *and* mapcount = 1, avoid allocating a new page. Since
                  * mapcount = 1 (AND *ANON*), no one else can grab a ref. */
@@ -71,6 +73,8 @@ int vm_anon_fault(struct vm_pf_context *ctx)
         page_set_anon(page);
         page->owner = (struct vm_object *) anon;
         page->pageoff = ctx->vpage;
+        page_add_lru(page);
+        page_set_dirty(page);
 
         if (copy_old)
             copy_page_to_page(page_to_phys(page), page_to_phys(oldp));

@@ -9,7 +9,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <onyx/compiler.h>
+
+__BEGIN_CDECLS
+
 uint32_t crc32_calculate(uint8_t *ptr, size_t len);
 uint32_t crc32_calculate_eth(uint8_t *ptr, size_t len);
 
+__END_CDECLS
 #endif

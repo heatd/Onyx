@@ -5,10 +5,14 @@
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
+#include <onyx/filemap.h>
+#include <onyx/mm/page_lru.h>
+#include <onyx/pgtable.h>
 #include <onyx/process.h>
+#include <onyx/rmap.h>
+#include <onyx/swap.h>
 #include <onyx/vm.h>
-
-#include "pgtable.h"
+#include <onyx/vm_fault.h>
 
 static p4d_t *__p4d_alloc(struct mm_address_space *mm)
 {
@@ -167,21 +171,24 @@ void *vm_map_page(struct mm_address_space *as, uint64_t virt, uint64_t phys, uin
     pgprot_t pgprot = calc_pgprot(phys, prot);
     set_pte(pte, pte_mkpte(phys, pgprot));
 
-    if (pte_none(oldpte))
+    if (!pte_present(oldpte))
         increment_vm_stat(as, resident_set_size, PAGE_SIZE);
 
     if (likely(!ispfnmap))
     {
-        if (unlikely(!pte_none(oldpte) && !pte_special(oldpte)))
+        if (prot & VM_DONT_MAP_OVER)
+            WARN_ON(pte_addr(oldpte) != phys);
+
+        struct page *newp = phys_to_page(phys);
+        if (likely(!special_mapping))
+            page_add_mapcount(newp);
+
+        if (unlikely(pte_present(oldpte) && !pte_special(oldpte)))
         {
             /* If old was a thing, decrement the mapcount */
             struct page *oldp = phys_to_page(pte_addr(oldpte));
             page_sub_mapcount(oldp);
         }
-
-        struct page *newp = phys_to_page(phys);
-        if (likely(!special_mapping))
-            page_add_mapcount(newp);
     }
 
     spin_unlock(&as->page_table_lock);
@@ -417,7 +424,7 @@ retry:
         tlbi->start = addr;
         tlbi->end = addr + PAGE_SIZE;
         tlbi->active = true;
-        return;
+        goto out;
     }
 
     /* TODO: Measure this heuristic. We need a solid, realistic benchmark that allows us to measure
@@ -436,6 +443,8 @@ retry:
         tlbi->start = addr;
     else if (addr >= tlbi->end)
         tlbi->end = addr + PAGE_SIZE;
+
+out:
     if (page)
         tlbi_add_defer_free(tlbi, page);
 }
@@ -519,18 +528,28 @@ static enum unmap_result pte_unmap_range(struct unmap_info *uinfo, pte_t *pte, u
     {
         next_start = min(pte_addr_end(start), end);
         pte_t old = *pte;
+        struct page *page = NULL;
         if (pte_none(old))
             continue;
 
-        if (!uinfo->kernel && !pte_special(old))
+        if (!pte_present(old))
         {
-            struct page *page = phys_to_page(pte_addr(old));
+            swp_entry_t entry = pte_to_swp_entry(old);
+            swap_put(entry);
+        }
+
+        if (!uinfo->kernel && !pte_special(old) && (pte_present(old) || pte_protnone(old)))
+        {
+            page = phys_to_page(pte_addr(old));
+            /* Ref the page, so it doesn't go away before the tlbi */
+            page_ref(page);
             page_sub_mapcount(page);
         }
 
-        decrement_vm_stat(uinfo->mm, resident_set_size, PAGE_SIZE);
+        if (pte_present(old) || pte_protnone(old))
+            decrement_vm_stat(uinfo->mm, resident_set_size, PAGE_SIZE);
         set_pte(pte, __pte(0));
-        tlbi_remove_page(&uinfo->tlbi, start, NULL);
+        tlbi_remove_page(&uinfo->tlbi, start, page);
     }
 
     /* If we *know* the page table is clear, tell it to the caller so we skip expensive checks */
@@ -753,11 +772,13 @@ bool paging_write_protect(void *addr, struct mm_address_space *mm)
 
 static void pte_change_prot(pte_t *ptep, int vmflags)
 {
-    /* Note: Preserve the A bits */
+    /* Note: Preserve the A and D bits */
     pte_t pte = *ptep;
     pte_t newpte = pte_mkpte(pte_addr(pte), calc_pgprot(pte_addr(pte), vmflags));
     if (pte_accessed(pte))
         pte_val(newpte) |= _PAGE_ACCESSED;
+    if (pte_dirty(pte))
+        pte_val(newpte) |= _PAGE_DIRTY;
     set_pte(ptep, newpte);
 }
 
@@ -879,11 +900,17 @@ static int pte_fork_range(struct tlbi_tracker *tlbi, pte_t *pte, pte_t *old_pte,
         pte_t old = *old_pte;
         if (pte_none(old))
             continue;
+        if (!pte_present(old))
+        {
+            __swap_inc_map(pte_to_swp_entry(old));
+            set_pte(pte, old);
+            continue;
+        }
 
         if (!vma_is_pfnmap(old_vma) && !pte_special(old))
             page_add_mapcount(phys_to_page(pte_addr(old)));
 
-        if (vma_private(old_vma))
+        if (!pte_protnone(old) && vma_private(old_vma))
         {
             /* We must CoW MAP_PRIVATE */
             set_pte(old_pte, pte_wrprotect(old));
@@ -1023,4 +1050,226 @@ int mmu_fork_tables(struct vm_area_struct *old_vma, struct mm_address_space *mm)
     if (tlbi_active(&tlbi))
         tlbi_end_batch(&tlbi);
     return err;
+}
+
+int try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
+                     unsigned long addr) NO_THREAD_SAFETY_ANALYSIS
+{
+    struct mm_address_space *mm = vma->vm_mm;
+    pte_t *pte, oldpte;
+    struct tlbi_tracker tlbi;
+    tlbi_tracker_init(&tlbi);
+
+    spin_lock(&mm->page_table_lock);
+
+    pte = pte_get_from_addr(vma->vm_mm, addr);
+    if (!pte || (!pte_present(*pte) && !pte_protnone(*pte)))
+        goto out;
+
+    oldpte = *pte;
+
+    if (pte_addr(oldpte) != (unsigned long) page_to_phys(page))
+    {
+        /* Not the same page, don't unmap */
+        goto out;
+    }
+
+    DCHECK(!pte_special(oldpte));
+    /* Ref the page. This makes sure it _doesnt_ go away after the sub_mapcount. We need this so the
+     * page isn't freed before the tlbi. */
+    page_ref(page);
+    page_sub_mapcount(page);
+
+    if (page_test_swap(page))
+    {
+        if (pte_dirty(oldpte))
+            filemap_mark_dirty(page, page->pageoff);
+        swap_inc_map(page);
+        /* Replace this pte with a swap pte */
+        set_pte(pte, __pte(page->priv));
+    }
+    else
+        set_pte(pte, __pte(0));
+    if (pte_present(oldpte) || pte_protnone(oldpte))
+    {
+        if (!pte_protnone(oldpte))
+            tlbi_remove_page(&tlbi, addr, page);
+        decrement_vm_stat(mm, resident_set_size, PAGE_SIZE);
+    }
+
+out:
+    spin_unlock(&mm->page_table_lock);
+
+    if (tlbi_active(&tlbi))
+        tlbi_end_batch(&tlbi);
+
+    return 0;
+}
+
+pte_t pte_get(struct mm_address_space *mm, unsigned long addr)
+{
+    spin_lock(&mm->page_table_lock);
+    /* pte_mknone? */
+    pte_t ret = __pte(0);
+    pte_t *pte = pte_get_from_addr(mm, addr);
+
+    if (pte)
+        ret = *pte;
+    spin_unlock(&mm->page_table_lock);
+    return ret;
+}
+
+pte_t *ptep_get_locked(struct mm_address_space *mm, unsigned long addr, struct spinlock **lock)
+{
+    spin_lock(&mm->page_table_lock);
+    /* pte_mknone? */
+    pte_t *pte = pte_get_from_addr(mm, addr);
+    if (!pte)
+    {
+        spin_unlock(&mm->page_table_lock);
+        return NULL;
+    }
+
+    *lock = &mm->page_table_lock;
+    return pte;
+}
+
+int pgtable_prealloc(struct mm_address_space *mm, unsigned long virt)
+{
+    pgd_t *pgd;
+    p4d_t *p4d;
+    pud_t *pud;
+    pmd_t *pmd;
+    pte_t *pte;
+    spin_lock(&mm->page_table_lock);
+
+    pgd = pgd_offset(mm, virt);
+
+    p4d = p4d_get_or_alloc(pgd, virt, mm);
+    if (unlikely(!p4d))
+        goto oom;
+
+    pud = pud_get_or_alloc(p4d, virt, mm);
+    if (unlikely(!pud))
+        goto oom;
+
+    pmd = pmd_get_or_alloc(pud, virt, mm);
+    if (unlikely(!pmd))
+        goto oom;
+
+    pte = pte_get_or_alloc(pmd, virt, mm);
+    if (unlikely(!pte))
+        goto oom;
+    spin_unlock(&mm->page_table_lock);
+    return 0;
+oom:
+    spin_unlock(&mm->page_table_lock);
+    return -ENOMEM;
+}
+
+static bool wp_may_reuse_old(struct page *page)
+{
+    /* Check if there are circumstances to use the old page as the new dirtied page. Basically, we
+     * want to check for refcount/mapcount while also being careful about the page going away at
+     * some point. Page tables are locked. */
+    if (page->ref > 1U + page_test_swap(page))
+        return false;
+    if (page_mapcount(page) > 1)
+        return false;
+    /* Try-lock it, and recheck these conditions. The swap tests for instance are racy without the
+     * lock. */
+    if (!try_lock_page(page))
+        return false;
+    if (page->ref > 1U + page_test_swap(page))
+        goto no_unlock;
+    if (page_test_swap(page))
+        goto no_unlock;
+    if (page_mapcount(page) > 1)
+        goto no_unlock;
+
+    unlock_page(page);
+    return true;
+no_unlock:
+    unlock_page(page);
+    return false;
+}
+
+static int do_reuse_wp(struct vm_pf_context *context, struct page *oldp, pte_t *pte,
+                       struct spinlock *lock)
+{
+    set_pte(pte, pte_mkwrite(*pte));
+    /* We keep the same PFN. This is okay. We can get away with a core-local TLB invalidation. Other
+     * cores either re-fetch the correct entry from the TLB, or take a spurious fault. Either
+     * situation is faster than possibly IPI'ing or broadcasting a TLBI. */
+    spin_unlock(lock);
+    tlbi_upgrade_pte_prots(context->entry->vm_mm, context->vpage);
+    return 0;
+}
+
+int do_wp_page(struct vm_pf_context *context)
+{
+    struct page *oldp = phys_to_page(pte_addr(context->oldpte));
+    bool was_zeropage = oldp == vm_get_zero_page();
+    struct page *new_page;
+    pte_t *ptep;
+    u64 phys;
+    struct spinlock *lock;
+    struct tlbi_tracker tlbi;
+    struct anon_vma *anon = anon_vma_prepare(context->entry);
+    if (!anon)
+        return -ENOMEM;
+
+    ptep = ptep_get_locked(context->entry->vm_mm, context->vpage, &lock);
+    if (ptep->pte != context->oldpte.pte)
+    {
+        spin_unlock(lock);
+        return 0;
+    }
+
+    if (!was_zeropage && wp_may_reuse_old(oldp))
+        return do_reuse_wp(context, oldp, ptep, lock);
+
+    spin_unlock(lock);
+
+    new_page = alloc_page(GFP_KERNEL | (was_zeropage ? 0 : PAGE_ALLOC_NO_ZERO));
+    if (!new_page)
+        return -ENOMEM;
+
+    if (!was_zeropage)
+        copy_page_to_page(page_to_phys(new_page), page_to_phys(oldp));
+
+    new_page->owner = (struct vm_object *) anon;
+    new_page->pageoff = context->vpage;
+    page_set_dirty(new_page);
+    page_set_anon(new_page);
+    page_add_lru(new_page);
+
+    tlbi_tracker_init(&tlbi);
+
+    spin_lock(lock);
+    if (ptep->pte != context->oldpte.pte)
+    {
+        page_unref(new_page);
+        goto out;
+    }
+
+    DCHECK(pte_present(*ptep));
+
+    if (!was_zeropage)
+    {
+        /* Ref the page, so it doesn't go away before the tlbi */
+        page_ref(oldp);
+        page_sub_mapcount(oldp);
+    }
+
+    phys = (u64) page_to_phys(new_page);
+    page_add_mapcount(new_page);
+    set_pte(ptep, pte_mkpte(phys, calc_pgprot(phys, context->entry->vm_flags)));
+    tlbi_remove_page(&tlbi, context->vpage, !was_zeropage ? oldp : NULL);
+    page_unref(new_page);
+out:
+    if (tlbi_active(&tlbi))
+        tlbi_end_batch(&tlbi);
+    spin_unlock(lock);
+    return 0;
 }

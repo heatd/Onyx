@@ -14,12 +14,16 @@
 
 struct page;
 
-#define NR_LRU_LISTS 2
-
+#define LRU_ANON_OFF 2
 enum lru_state
 {
-    LRU_INACTIVE = 0,
-    LRU_ACTIVE
+    LRU_INACTIVE_BASE = 0,
+    LRU_INACTIVE_FILE = 0,
+    LRU_ACTIVE_BASE,
+    LRU_ACTIVE_FILE = LRU_ACTIVE_BASE,
+    LRU_INACTIVE_ANON,
+    LRU_ACTIVE_ANON,
+    NR_LRU_LISTS
 };
 
 struct page_lru
@@ -40,6 +44,7 @@ __BEGIN_CDECLS
 
 void page_add_lru(struct page *page);
 void page_remove_lru(struct page *page);
+void page_lru_demote_reclaim(struct page *page);
 
 __END_CDECLS
 

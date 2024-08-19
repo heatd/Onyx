@@ -134,8 +134,11 @@ int mmu_fork_tables(struct vm_area_struct *old_region, struct mm_address_space *
 unsigned long get_mapping_info(void *addr);
 unsigned long __get_mapping_info(void *addr, struct mm_address_space *as);
 
+struct vm_pf_context;
 struct page;
 unsigned int mmu_get_clear_referenced(struct mm_address_space *mm, void *addr, struct page *page);
+int try_to_unmap_one(struct page *page, struct vm_area_struct *vma, unsigned long addr);
+int do_wp_page(struct vm_pf_context *context);
 
 __END_CDECLS
 

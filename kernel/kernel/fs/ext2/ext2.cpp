@@ -43,7 +43,7 @@ int ext2_link_fops(struct file *target, const char *name, struct dentry *dir);
 int ext2_fallocate(int mode, off_t off, off_t len, struct file *f);
 int ext2_ftruncate(size_t len, struct file *f);
 ssize_t ext2_readpage(struct page *page, size_t off, struct inode *ino);
-ssize_t ext2_writepage(struct page *page, size_t off, struct inode *ino);
+static ssize_t ext2_writepage(struct vm_object *obj, page *page, size_t off);
 int ext2_prepare_write(inode *ino, struct page *page, size_t page_off, size_t offset, size_t len);
 int ext2_link(struct inode *target, const char *name, struct inode *dir);
 inode *ext2_symlink(struct dentry *dentry, const char *dest, struct dentry *dir);
@@ -68,7 +68,6 @@ struct file_ops ext2_ops = {
     .unlink = ext2_unlink,
     .fallocate = ext2_fallocate,
     .readpage = ext2_readpage,
-    .writepage = ext2_writepage,
     .prepare_write = ext2_prepare_write,
     .read_iter = filemap_read_iter,
     .write_iter = filemap_write_iter,
@@ -119,18 +118,20 @@ static void ext2_writepage_endio(struct bio_req *req)
     spin_lock(&head->pagestate_lock);
     bb_clear_flag(buf, BLOCKBUF_FLAG_WRITEBACK);
     if (!page_has_writeback_bufs(page))
-        page_end_writeback(page, page->owner->ino);
+        page_end_writeback(page);
     spin_unlock(&head->pagestate_lock);
 }
 
-ssize_t ext2_writepage(page *page, size_t off, inode *ino) REQUIRES(page) RELEASE(page)
+static ssize_t ext2_writepage(struct vm_object *obj, page *page, size_t off) REQUIRES(page)
+    RELEASE(page)
 {
     auto buf = block_buf_from_page(page);
+    struct inode *ino = obj->ino;
     auto sb = ext2_superblock_from_inode(ino);
     unsigned int nr_ios = 0;
     DCHECK(buf != nullptr);
 
-    page_start_writeback(page, ino);
+    page_start_writeback(page);
 
     while (buf)
     {
@@ -153,7 +154,7 @@ ssize_t ext2_writepage(page *page, size_t off, inode *ino) REQUIRES(page) RELEAS
 
         if (sb_write_bio(sb, v, 1, buf->block_nr, ext2_writepage_endio, buf) < 0)
         {
-            page_end_writeback(page, ino);
+            page_end_writeback(page);
             sb->error("Error writing back page");
             unlock_page(page);
             return -EIO;
@@ -434,6 +435,7 @@ void ext2_truncate_partial(struct vm_object *vmobj, struct page *page, size_t of
 static const struct vm_object_ops ext2_vm_obj_ops = {
     .free_page = buffer_free_page,
     .truncate_partial = ext2_truncate_partial,
+    .writepage = ext2_writepage,
 };
 
 struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
@@ -1059,6 +1061,6 @@ void ext2_truncate_partial(struct vm_object *vmobj, struct page *page, size_t of
     if (!has_blocks)
     {
         /* If we have no blocks, clean the dirty page */
-        page_clear_dirty(page);
+        filemap_clear_dirty(page);
     }
 }

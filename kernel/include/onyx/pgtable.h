@@ -8,6 +8,19 @@
 #ifndef _ONYX_PGTABLE_H
 #define _ONYX_PGTABLE_H
 
+#include <onyx/compiler.h>
+
+__BEGIN_CDECLS
+
+/* platform/pgtable needs to see this type */
+typedef unsigned long swpval_t;
+typedef struct
+{
+    swpval_t swp;
+} swp_entry_t;
+
+#define swpval_to_swp_entry(swpval) ((swp_entry_t){.swp = (swpval)})
+
 #include <platform/pgtable.h>
 
 #ifndef set_pgd
@@ -215,5 +228,10 @@ static inline unsigned long pte_addr_end(unsigned long addr)
     unsigned long end = (addr & -PTE_SIZE) + PTE_SIZE;
     return end < addr ? -1UL : end;
 }
+
+pte_t pte_get(struct mm_address_space *mm, unsigned long addr);
+pte_t *ptep_get_locked(struct mm_address_space *mm, unsigned long addr, struct spinlock **lock);
+int pgtable_prealloc(struct mm_address_space *mm, unsigned long virt);
+__END_CDECLS
 
 #endif

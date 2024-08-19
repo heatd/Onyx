@@ -7,6 +7,7 @@
  */
 #include <stdio.h>
 
+#include <onyx/filemap.h>
 #include <onyx/mm/kasan.h>
 #include <onyx/mm/page_node.h>
 #include <onyx/mm/reclaim.h>
@@ -14,7 +15,9 @@
 #include <onyx/mm/slab.h>
 #include <onyx/mm/vm_object.h>
 #include <onyx/page.h>
+#include <onyx/rmap.h>
 #include <onyx/rwlock.h>
+#include <onyx/swap.h>
 #include <onyx/vfs.h>
 
 static struct list_head shrinker_list = LIST_HEAD_INIT(shrinker_list);
@@ -121,6 +124,7 @@ static const struct page_flag flags[] = {
     X(PAGE_FLAG_UPTODATE),    X(PAGE_FLAG_WRITEBACK),
     X(PAGE_FLAG_READAHEAD),   X(PAGE_FLAG_LRU),
     X(PAGE_FLAG_REFERENCED),  X(PAGE_FLAG_ACTIVE),
+    X(PAGE_FLAG_SWAP),        X(PAGE_FLAG_RECLAIM),
 };
 
 #ifdef __clang__
@@ -129,7 +133,7 @@ static const struct page_flag flags[] = {
 
 #undef X
 
-static void dump_page(struct page *page)
+void dump_page(struct page *page)
 {
     char flags_buf[128];
     char *b = flags_buf;
@@ -158,7 +162,7 @@ static void dump_page(struct page *page)
             page->mapcount, page_mapcount(page));
     pr_crit("  flags: %016lx (%s)  private: %016lx\n", page->flags, flags_buf, page->priv);
     pr_crit("  owner: %p  pageoff %lx\n", page->owner, page->pageoff);
-    if (page->owner)
+    if (page->owner && !page_flag_set(page, PAGE_FLAG_ANON))
     {
         struct inode *inode = page->owner->ino;
         pr_crit("  owner vm_obj_ops: %ps  inode num %lu dev %lu\n", page->owner->ops,
@@ -178,15 +182,59 @@ void bug_on_page(struct page *page, const char *expr, const char *file, unsigned
     if (unlikely(!(expr)))      \
         bug_on_page(page, #expr, __FILE__, __LINE__, __func__);
 
-static enum lru_result shrink_page(struct page *page)
+enum pageout_result
 {
-    DCHECK_PAGE(page->owner, page);
+    PAGE_ACTIVATE = 0,
+    PAGE_WRITTEN,
+    PAGE_ROTATE
+};
+
+static bool may_writeout(struct reclaim_data *data, struct page *page)
+{
+    /* Check if we can writeout the page. We'll assume all normal file page writeback is __GFP_FS,
+     * and all swap IO is __GFP_IO. */
+    if (data->gfp_flags & __GFP_FS)
+        return true;
+    if (!page_test_swap(page) || !(data->gfp_flags & __GFP_IO))
+        return false;
+    return true;
+}
+
+static enum pageout_result pageout(struct reclaim_data *data, struct page *page,
+                                   struct vm_object *obj) REQUIRES(page)
+    RELEASE(page) NO_THREAD_SAFETY_ANALYSIS
+{
+    if (!may_writeout(data, page))
+        return PAGE_ROTATE;
+
+    if (!obj->ops->writepage)
+        return PAGE_ACTIVATE;
+    filemap_clear_dirty(page);
+    ssize_t st = obj->ops->writepage(obj, page, page_pgoff(page) << PAGE_SHIFT);
+    if (st < 0)
+        pr_warn("pageout %p off %lx callback %pS = %zd\n", page, page->pageoff, obj->ops->writepage,
+                st);
+    DCHECK_PAGE(!page_locked(page), page);
+    return PAGE_WRITTEN;
+}
+
+static enum lru_result shrink_page(struct reclaim_data *data,
+                                   struct page *page) NO_THREAD_SAFETY_ANALYSIS
+{
     if (!try_lock_page(page))
         return LRU_ROTATE;
-    struct vm_object *obj = page->owner;
+
+    if (page_test_swap(page) && !page->owner)
+    {
+        /* Huh. Incomplete swapcache page? Skip. */
+        goto rotate;
+    }
+
+    DCHECK_PAGE(page->owner, page);
+    struct vm_object *obj;
     unsigned int vm_flags = 0;
 
-    long refs = vm_obj_get_page_references(obj, page, &vm_flags);
+    long refs = rmap_get_page_references(page, &vm_flags);
     /* Always activate executable pages or (actively) shared pages */
     if (vm_flags & VM_EXEC || refs > 1)
     {
@@ -202,17 +250,77 @@ static enum lru_result shrink_page(struct page *page)
     {
         /* Activate a referenced page with pte refs, or reference it if not referenced yet */
         unlock_page(page);
-        if (page_flag_set(page, PAGE_FLAG_REFERENCED))
+        if (page_test_referenced(page))
             return LRU_ACTIVATE;
-        page_set_flag(page, PAGE_FLAG_REFERENCED);
+        page_set_referenced(page);
         return LRU_ROTATE;
     }
 
-    if (page_flag_set(page, PAGE_FLAG_REFERENCED) || page_flag_set(page, PAGE_FLAG_DIRTY))
+    if (page_test_referenced(page))
     {
-        __atomic_and_fetch(&page->flags, ~PAGE_FLAG_REFERENCED, __ATOMIC_RELAXED);
-        unlock_page(page);
-        return LRU_ROTATE;
+        page_clear_referenced(page);
+        goto rotate;
+    }
+
+    if (page_flag_set(page, PAGE_FLAG_ANON) && !page_test_swap(page))
+    {
+        int err = swap_add(page);
+        if (err < 0)
+            goto rotate;
+    }
+
+    /* Set RECLAIM. If we have to bail the reclaim (because e.g it is dirty), certain code points
+     * will know to demote the page back to INACTIVE head, so we look at it again (hopefully
+     * clean). */
+
+    rmap_try_to_unmap(page);
+
+    if (page_mapcount(page) > 0)
+    {
+        /* We failed to unmap it all :( Rotate the page */
+        goto rotate;
+    }
+
+    if (page_flag_set(page, PAGE_FLAG_ANON))
+        WARN_ON(!page_test_swap(page));
+
+    page_set_reclaim(page);
+
+    obj = page_vmobj(page);
+    if (page_flag_set(page, PAGE_FLAG_DIRTY))
+    {
+        enum pageout_result res = pageout(data, page, obj);
+        switch (res)
+        {
+            case PAGE_ROTATE: {
+                goto rotate;
+            }
+
+            case PAGE_ACTIVATE: {
+                unlock_page(page);
+                return LRU_ACTIVATE;
+            }
+
+            case PAGE_WRITTEN: {
+                /* Check if the write was synchronous, or if it somehow has completed already. If
+                 * so, try to reclaim it synchronously. */
+                if (page_flag_set(page, PAGE_FLAG_DIRTY))
+                    goto rotate_unlocked;
+                if (page_flag_set(page, PAGE_FLAG_WRITEBACK))
+                    goto rotate_unlocked;
+
+                if (!try_lock_page(page))
+                    goto rotate_unlocked;
+
+                /* Repeat these checks */
+                if (page_flag_set(page, PAGE_FLAG_DIRTY) ||
+                    page_flag_set(page, PAGE_FLAG_WRITEBACK))
+                    goto rotate;
+
+                /* We can reclaim it, keep going! */
+                break;
+            }
+        }
     }
 
     /* This should be a stable reference. TODO: What if truncation? What if the inode goes away
@@ -226,19 +334,26 @@ static enum lru_result shrink_page(struct page *page)
     }
 
     unlock_page(page);
-    DCHECK(page->ref == 1);
-    dec_page_stat(page, NR_FILE);
-    dec_page_stat(page, NR_INACTIVE_FILE);
+    DCHECK(page->ref == 2);
+    page_unref(page);
+    if (!page_flag_set(page, PAGE_FLAG_ANON))
+        dec_page_stat(page, NR_FILE);
+
     list_remove(&page->lru_node);
-    __atomic_and_fetch(&page->flags, ~PAGE_FLAG_LRU, __ATOMIC_RELAXED);
+    page_clear_lru(page);
+    page_clear_swap(page);
     if (obj->ops->free_page)
         obj->ops->free_page(obj, page);
     else
         free_page(page);
     return LRU_SHRINK;
+rotate:
+    unlock_page(page);
+rotate_unlocked:
+    return LRU_ROTATE;
 }
 
-#define DEBUG_SHRINK_ZONE 1
+#undef DEBUG_SHRINK_ZONE
 
 static unsigned long inactive_file_min(const unsigned long stats[PAGE_STATS_MAX])
 {
@@ -246,16 +361,24 @@ static unsigned long inactive_file_min(const unsigned long stats[PAGE_STATS_MAX]
     return (stats[NR_INACTIVE_FILE] + stats[NR_ACTIVE_FILE]) / 4;
 }
 
-static void shrink_active_list(struct page_node *node, struct page_zone *zone,
+static unsigned long inactive_anon_min(const unsigned long stats[PAGE_STATS_MAX])
+{
+    /* Target at least 1/4 of the total anon as the inactive list's size */
+    return (stats[NR_INACTIVE_ANON] + stats[NR_ACTIVE_ANON]) / 4;
+}
+
+static void shrink_active_list(struct page_node *node, enum lru_state lru_list,
+                               struct page_zone *zone,
                                const unsigned long pagestats[PAGE_STATS_MAX],
                                unsigned long target_inactive)
 {
     /* Attempt to shrink the active list such that we hit target_inactive */
     struct page_lru *lru = &zone->zone_lru;
+    enum lru_state inactive = lru_list - 1;
     spin_lock(&lru->lock);
-    DCHECK(target_inactive > pagestats[NR_INACTIVE_FILE]);
-    unsigned long to_move = target_inactive - pagestats[NR_INACTIVE_FILE];
-    list_for_every_safe (&lru->lru_lists[LRU_ACTIVE])
+    DCHECK(target_inactive > pagestats[NR_INACTIVE_FILE + inactive]);
+    unsigned long to_move = target_inactive - pagestats[NR_INACTIVE_FILE + inactive];
+    list_for_every_safe (&lru->lru_lists[lru_list])
     {
         if (to_move-- == 0)
             break;
@@ -264,52 +387,74 @@ static void shrink_active_list(struct page_node *node, struct page_zone *zone,
          * pages, we'll be able to fetch again, no problem. */
         if (page_flag_set(page, PAGE_FLAG_REFERENCED))
         {
-            __atomic_and_fetch(&page->flags, ~PAGE_FLAG_REFERENCED, __ATOMIC_RELAXED);
+            page_clear_referenced(page);
             list_remove(&page->lru_node);
-            list_add_tail(&page->lru_node, &lru->lru_lists[LRU_ACTIVE]);
+            list_add_tail(&page->lru_node, &lru->lru_lists[lru_list]);
             continue;
         }
 
         list_remove(&page->lru_node);
-        list_add_tail(&page->lru_node, &lru->lru_lists[LRU_INACTIVE]);
-        dec_page_stat(page, NR_ACTIVE_FILE);
-        inc_page_stat(page, NR_INACTIVE_FILE);
+        list_add_tail(&page->lru_node, &lru->lru_lists[inactive]);
+        dec_page_stat(page, NR_INACTIVE_FILE + lru_list);
+        inc_page_stat(page, NR_INACTIVE_FILE + inactive);
     }
 
     spin_unlock(&lru->lock);
 }
 
-static void shrink_zone(struct reclaim_data *data, struct page_node *node, struct page_zone *zone,
-                        unsigned long target_freep)
+static inline int page_to_state(struct page *page)
 {
-    unsigned long target = target_freep;
-    unsigned long stats[PAGE_STATS_MAX];
-    page_accumulate_stats(stats);
-    (void) target;
-    struct page_lru *lru = &zone->zone_lru;
+    return page_flag_set(page, PAGE_FLAG_ANON) ? LRU_ANON_OFF : 0;
+}
+
+static void isolate_pages(struct page_lru *lru, enum lru_state list, struct list_head *page_list,
+                          unsigned long nr_pages)
+{
     DEFINE_LIST(rotate_list);
-    DEFINE_LIST(activate_list);
-
-    unsigned long min_inactive = inactive_file_min(stats);
-    if (stats[NR_INACTIVE_FILE] < min_inactive)
-        shrink_active_list(node, zone, stats, min_inactive);
-    spin_lock(&lru->lock);
-
-    list_for_every_safe (&lru->lru_lists[LRU_INACTIVE])
+    list_for_every_safe (&lru->lru_lists[list])
     {
         struct page *page = container_of(l, struct page, lru_node);
-        enum lru_result res = shrink_page(page);
+        if (page_flag_set(page, PAGE_FLAG_REFERENCED))
+        {
+            /* Rotate it (dont even attempt to isolate the page) */
+            page_clear_referenced(page);
+            list_remove(&page->lru_node);
+            list_add_tail(&page->lru_node, &rotate_list);
+            continue;
+        }
+
+        /* Not sure if we need a page_try_get here... */
+        page_ref(page);
+        DCHECK(page->ref > 1);
+        page_clear_lru(page);
+        list_remove(&page->lru_node);
+        dec_page_stat(page, NR_INACTIVE_FILE + page_to_state(page));
+        list_add_tail(&page->lru_node, page_list);
+        if (--nr_pages == 0)
+            break;
+    }
+
+    list_splice(&rotate_list, &lru->lru_lists[list]);
+}
+
+static unsigned long shrink_page_list(struct reclaim_data *data, struct page_lru *lru,
+                                      struct list_head *page_list)
+{
+    DEFINE_LIST(rotate_list);
+    DEFINE_LIST(activate_list);
+    unsigned long freedp = 0;
+    list_for_every_safe (page_list)
+    {
+        struct page *page = container_of(l, struct page, lru_node);
+        DCHECK_PAGE(!page_flag_set(page, PAGE_FLAG_LRU), page);
+        enum lru_result res = shrink_page(data, page);
         if (res == LRU_ROTATE)
         {
             list_remove(&page->lru_node);
             list_add_tail(&page->lru_node, &rotate_list);
         }
         else if (res == LRU_SHRINK)
-        {
-            target_freep--;
-            if (target_freep == 0)
-                break;
-        }
+            freedp++;
         else if (res == LRU_ACTIVATE)
         {
             list_remove(&page->lru_node);
@@ -317,26 +462,104 @@ static void shrink_zone(struct reclaim_data *data, struct page_node *node, struc
         }
     }
 
-#ifdef DEBUG_SHRINK_ZONE
-    pr_warn("shrink_zone: Zone %s freed %lu pages (out of %lu)\n", zone->name,
-            target - target_freep, target);
-    pr_warn("shrink_zone: inactive %lu active %lu\n", stats[NR_INACTIVE_FILE],
-            stats[NR_ACTIVE_FILE]);
-#endif
-    list_splice(&rotate_list, &lru->lru_lists[LRU_INACTIVE]);
+    if (list_is_empty(&rotate_list) && list_is_empty(&activate_list))
+        goto out;
+
+    spin_lock(&lru->lock);
+    list_for_every_safe (&rotate_list)
+    {
+        struct page *page = container_of(l, struct page, lru_node);
+        list_remove(&page->lru_node);
+        list_add_tail(&page->lru_node, &lru->lru_lists[LRU_INACTIVE_FILE + page_to_state(page)]);
+        page_set_lru(page);
+        inc_page_stat(page, NR_INACTIVE_FILE + page_to_state(page));
+        page_unref(page);
+    }
+
     list_for_every_safe (&activate_list)
     {
-        /* TODO: We're doing this in the wrong place... */
         struct page *page = container_of(l, struct page, lru_node);
         list_remove(&page->lru_node);
         page_set_flag(page, PAGE_FLAG_ACTIVE);
-        dec_page_stat(page, NR_INACTIVE_FILE);
-        inc_page_stat(page, NR_ACTIVE_FILE);
-        __atomic_and_fetch(&page->flags, ~PAGE_FLAG_REFERENCED, __ATOMIC_RELEASE);
-        list_add_tail(&page->lru_node, &lru->lru_lists[LRU_ACTIVE]);
+        inc_page_stat(page, NR_ACTIVE_FILE + page_to_state(page));
+        page_clear_referenced(page);
+        list_add_tail(&page->lru_node, &lru->lru_lists[LRU_ACTIVE_FILE + page_to_state(page)]);
+        page_unref(page);
     }
 
     spin_unlock(&lru->lock);
+
+out:
+    return freedp;
+}
+
+static unsigned long isolate_and_shrink(struct reclaim_data *data, enum lru_state lru_list,
+                                        struct page_lru *lru, unsigned long nr)
+{
+    DEFINE_LIST(isolate_list);
+    if (!nr)
+        return 0;
+
+    spin_lock(&lru->lock);
+    isolate_pages(lru, lru_list, &isolate_list, nr);
+    spin_unlock(&lru->lock);
+
+    return shrink_page_list(data, lru, &isolate_list);
+}
+
+static void calculate_scan(unsigned long stats[PAGE_STATS_MAX])
+{
+    bool has_swap = swap_is_available();
+    unsigned int file_ratio = has_swap ? 2 : 1;
+    stats[NR_INACTIVE_FILE] /= file_ratio;
+    if (has_swap)
+        stats[NR_INACTIVE_ANON] /= 2;
+    else
+        stats[NR_INACTIVE_ANON] = 0;
+}
+
+#define SWAP_CLUSTER_MAX 64UL
+
+static void shrink_zone(struct reclaim_data *data, struct page_node *node, struct page_zone *zone,
+                        long target_freep)
+{
+    unsigned long stats[PAGE_STATS_MAX];
+    page_accumulate_stats(stats);
+    struct page_lru *lru = &zone->zone_lru;
+
+    unsigned long min_inactive = inactive_file_min(stats);
+    unsigned long min_inactive_anon = inactive_anon_min(stats);
+    if (stats[NR_INACTIVE_FILE] < min_inactive)
+        shrink_active_list(node, LRU_ACTIVE_FILE, zone, stats, min_inactive);
+    if (stats[NR_INACTIVE_ANON] < min_inactive_anon)
+        shrink_active_list(node, LRU_ACTIVE_ANON, zone, stats, min_inactive_anon);
+
+    page_accumulate_stats(stats);
+    calculate_scan(stats);
+
+    while (target_freep > 0)
+    {
+        unsigned long nr_file = min(stats[NR_INACTIVE_FILE], SWAP_CLUSTER_MAX);
+        unsigned nr_anon = min(stats[NR_INACTIVE_ANON], SWAP_CLUSTER_MAX);
+        if (!nr_file && !nr_anon)
+            break;
+
+        stats[NR_INACTIVE_FILE] -= nr_file;
+        stats[NR_INACTIVE_ANON] -= nr_anon;
+
+        unsigned long freed = isolate_and_shrink(data, LRU_INACTIVE_FILE, lru, nr_file);
+        data->nr_reclaimed += freed;
+        target_freep -= freed;
+        freed = isolate_and_shrink(data, LRU_INACTIVE_ANON, lru, nr_anon);
+        data->nr_reclaimed += freed;
+        target_freep -= freed;
+    }
+
+#ifdef DEBUG_SHRINK_ZONE
+    pr_warn("shrink_zone: Zone %s freed %lu pages (out of %lu)\n", zone->name, freed, target_freep);
+    pr_warn("shrink_zone: inactive %lu active %lu\n", stats[NR_INACTIVE_FILE],
+            stats[NR_ACTIVE_FILE]);
+#endif
 }
 
 static void shrink_page_zones(struct reclaim_data *data, struct page_node *node)

@@ -211,5 +211,6 @@ int block_set_bsize(struct blockdev *bdev, unsigned int block_size);
 
 int bdev_do_open(struct blockdev *bdev, bool exclusive);
 void bdev_release(struct blockdev *bdev);
+unsigned int bdev_sector_size(struct blockdev *bdev);
 __END_CDECLS
 #endif

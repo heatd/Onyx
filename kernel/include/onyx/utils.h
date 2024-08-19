@@ -12,9 +12,15 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include <onyx/compiler.h>
+
+__BEGIN_CDECLS
+
 void *memdup(const void *ptr, size_t size);
 void *copy_page(void *vaddr, void *p2);
 void *copy_page_to_page(void *p1, void *p2);
+
+__END_CDECLS
 
 #define container_of(ptr, type, member) ((type *) ((char *) ptr - offsetof(type, member)))
 #define containerof_null_safe(ptr, type, member) \

@@ -27,5 +27,9 @@ void __anon_vma_link(struct anon_vma *anon, struct vm_area_struct *vma);
 void anon_vma_link(struct anon_vma *anon, struct vm_area_struct *vma);
 struct anon_vma *anon_vma_prepare(struct vm_area_struct *vma);
 
+long rmap_get_page_references(struct page *page, unsigned int *vm_flags);
+
+int rmap_try_to_unmap(struct page *page);
+
 __END_CDECLS
 #endif

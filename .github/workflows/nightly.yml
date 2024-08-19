@@ -418,6 +418,7 @@ jobs:
           name: ${{ env.toolchain_id }}
           path: ${{ env.toolchain_id }}.tar.zst
   build-arm64:
+    if: ${{ false }}
     runs-on: ubuntu-22.04
     needs: build-toolchains
 
@@ -467,6 +468,7 @@ jobs:
           path: arm64-onyx-image.tar.zst
   
   build-llvm-arm64:
+    if: ${{ false }}
     # The type of runner that the job will run on
     runs-on: ubuntu-22.04
     needs: build-toolchains

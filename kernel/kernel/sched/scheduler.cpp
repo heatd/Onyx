@@ -1227,6 +1227,8 @@ extern "C" unsigned long thread_get_addr_limit(void)
     return t->addr_limit;
 }
 
+extern process *first_process;
+
 /**
  * @brief Check if we can sleep (to be used by debugging functions)
  *
@@ -1234,7 +1236,7 @@ extern "C" unsigned long thread_get_addr_limit(void)
  */
 bool __can_sleep_internal()
 {
-    if (!get_current_thread() || is_in_panic())
+    if (!get_current_thread() || is_in_panic() || !first_process)
         return true;
     return !sched_is_preemption_disabled() && !irq_is_disabled();
 }

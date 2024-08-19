@@ -19,7 +19,7 @@
 #include <onyx/mm/pool.hpp>
 
 static mutex cache_list_lock;
-static struct list_head cache_list = LIST_HEAD_INIT(cache_list);
+static struct list_head cache_list GUARDED_BY(cache_list_lock) = LIST_HEAD_INIT(cache_list);
 
 memory_pool<slab_cache, MEMORY_POOL_USE_VM> slab_cache_pool;
 
@@ -791,6 +791,7 @@ static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
          * use __GFP_ATOMIC for the first slab, and anything else is very much extra, thus hardly
          * "__GFP_ATOMIC". */
         flags &= ~__GFP_ATOMIC;
+        flags |= __GFP_NOWAIT;
         list_add_tail(&s->slab_list_node, &allocated_slabs);
     }
 

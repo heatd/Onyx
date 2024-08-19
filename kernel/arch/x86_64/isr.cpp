@@ -383,6 +383,13 @@ void page_fault_handler(struct registers *ctx)
         vm_do_fatal_page_fault(&info);
         dumpstack(ctx->rip, (const void *) ctx->rsp);
     }
+
+    if (WARN_ON(sched_is_preemption_disabled()))
+    {
+        pr_err("Trying to return from a page fault with preemption disabled (%lx)! Fixing up...\n",
+               sched_get_preempt_counter());
+        write_per_cpu(preemption_counter, 0);
+    }
 }
 
 void x87_fpu_exception(struct registers *ctx)
