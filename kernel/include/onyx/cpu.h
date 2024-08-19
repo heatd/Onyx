@@ -333,6 +333,8 @@ struct cpu_message
     struct list_head node;
 };
 
+__BEGIN_CDECLS
+
 void cpu_identify();
 void cpu_init_late();
 unsigned int get_nr_cpus();
@@ -346,6 +348,8 @@ void __cpu_resched();
 void cpu_messages_init(unsigned int cpu);
 void *cpu_handle_messages(void *stack);
 void *cpu_resched(void *stack);
+
+__END_CDECLS
 
 /* CPU messages */
 #define CPU_KILL        (unsigned long) -1

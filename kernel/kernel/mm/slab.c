@@ -6,6 +6,8 @@
  * SPDX-License-Identifier: GPL-2.0-only
  */
 
+#include <stdio.h>
+
 #include <onyx/cpu.h>
 #include <onyx/list.h>
 #include <onyx/mm/slab.h>
@@ -16,14 +18,13 @@
 #include <onyx/stackdepot.h>
 #include <onyx/vm.h>
 
-#include <onyx/mm/pool.hpp>
-
-static mutex cache_list_lock;
+static struct mutex cache_list_lock;
 static struct list_head cache_list GUARDED_BY(cache_list_lock) = LIST_HEAD_INIT(cache_list);
 
-memory_pool<slab_cache, MEMORY_POOL_USE_VM> slab_cache_pool;
-
 #define KMEM_CACHE_KEEP_THRESHOLD 131072
+
+struct slab_cache *slab_cache_alloc(void);
+void slab_cache_free(struct slab_cache *);
 
 struct bufctl;
 
@@ -98,17 +99,17 @@ static void kmem_cache_free_slab(struct slab *slab);
  * @param alignment Alignment of each object
  * @param flags Flags (see KMEM_CACHE_*)
  * @param ctor Unused
- * @return Pointer to the new slab_cache, or nullptr in case of an error
+ * @return Pointer to the new slab_cache, or NULL in case of an error
  */
 struct slab_cache *kmem_cache_create(const char *name, size_t size, size_t alignment,
                                      unsigned int flags, void (*ctor)(void *))
 {
-    struct slab_cache *c = slab_cache_pool.allocate();
+    struct slab_cache *c = slab_cache_alloc();
     if (!c)
     {
         if (flags & KMEM_CACHE_PANIC)
             panic("kmem_cache_create of %s failed!", name);
-        return nullptr;
+        return NULL;
     }
 
     c->name = name;
@@ -165,8 +166,9 @@ struct slab_cache *kmem_cache_create(const char *name, size_t size, size_t align
     else
         c->mag_limit = SLAB_CACHE_PERCPU_MAGAZINE_SIZE;
 
-    scoped_mutex g{cache_list_lock};
+    mutex_lock(&cache_list_lock);
     list_add_tail(&c->cache_list_node, &cache_list);
+    mutex_unlock(&cache_list_lock);
     return c;
 }
 
@@ -276,7 +278,7 @@ ALWAYS_INLINE static inline void kmem_move_slab_to_free(struct slab *s)
  *
  * @param s Slab
  * @param flags Flags
- * @return Allocated object. This function cannot return nullptr.
+ * @return Allocated object. This function cannot return NULL.
  */
 static void *kmem_cache_alloc_from_slab(struct slab *s, unsigned int flags)
 {
@@ -355,7 +357,7 @@ static inline size_t kmem_calc_slab_size(struct slab_cache *cache)
     else
     {
         // Temporary, should find a better heuristic
-        return cul::align_up2(effobjsize * 8 + sizeof(struct slab), (size_t) PAGE_SIZE);
+        return align_up2(effobjsize * 8 + sizeof(struct slab), (size_t) PAGE_SIZE);
     }
 }
 
@@ -389,17 +391,15 @@ static inline size_t kmem_calc_slab_nr_objs(struct slab_cache *cache)
  */
 struct page *kmem_pointer_to_page(void *mem)
 {
-    if ((unsigned long) mem >= PHYS_BASE && (unsigned long) mem < PHYS_BASE_LIMIT) [[likely]]
+    if (likely((unsigned long) mem >= PHYS_BASE && (unsigned long) mem < PHYS_BASE_LIMIT))
     {
         unsigned long phys = ((unsigned long) mem - PHYS_BASE);
         return phys_to_page(phys);
     }
 
     unsigned long info = get_mapping_info(mem);
-    if (!(info & PAGE_PRESENT)) [[unlikely]]
-    {
+    if (unlikely(!(info & PAGE_PRESENT)))
         panic("slab: Bad pointer %p passed to free\n", mem);
-    }
 
     unsigned long phys = MAPPING_INFO_PADDR(info);
     return phys_to_page(phys);
@@ -416,10 +416,8 @@ struct slab *kmem_pointer_to_slab(void *mem)
 {
     struct page *page = kmem_pointer_to_page(mem);
     struct slab *s = (struct slab *) page->priv;
-    if (!s) [[unlikely]]
-    {
+    if (unlikely(!s))
         panic("slab: Bad pointer %p passed to free\n", mem);
-    }
 
     return s;
 }
@@ -429,17 +427,15 @@ struct slab *kmem_pointer_to_slab(void *mem)
  * This function returns null if its not part of a slab.
  *
  * @param mem Pointer to memory
- * @return struct slab, or nullptr
+ * @return struct slab, or NULL
  */
 struct slab *kmem_pointer_to_slab_maybe(void *mem)
 {
     unsigned long info = get_mapping_info(mem);
-    if (!(info & PAGE_PRESENT)) [[unlikely]]
-    {
-        return nullptr;
-    }
+    if (unlikely(!(info & PAGE_PRESENT)))
+        return NULL;
 
-    unsigned long phys MAPPING_INFO_PADDR(info);
+    unsigned long phys = MAPPING_INFO_PADDR(info);
     struct page *page = phys_to_page(phys);
 
     struct slab *s = (struct slab *) page->priv;
@@ -461,24 +457,24 @@ static void kmem_slab_unaccount_pages(struct slab *slab, unsigned int flags)
  * @param cache Slab cache
  * @param flags Allocation flags
  * @param no_add Don't add the new slab to the list
- * @return A pointer to the new slab, or nullptr in OOM situations.
+ * @return A pointer to the new slab, or NULL in OOM situations.
  */
 NO_ASAN static struct slab *kmem_cache_create_slab(struct slab_cache *cache, unsigned int flags,
                                                    bool no_add)
 {
-    char *start = nullptr;
-    struct page *pages = nullptr;
-    char *ptr = nullptr;
+    char *start = NULL;
+    struct page *pages = NULL;
+    char *ptr = NULL;
 
     size_t slab_size = kmem_calc_slab_size(cache);
 
-    if (!(cache->flags & KMEM_CACHE_VMALLOC)) [[likely]]
+    if (likely(!(cache->flags & KMEM_CACHE_VMALLOC)))
     {
         unsigned int order = pages2order(slab_size >> PAGE_SHIFT);
         slab_size = 1UL << (order + PAGE_SHIFT);
         pages = alloc_pages(order, PAGE_ALLOC_NO_ZERO | PAGE_ALLOC_CONTIGUOUS);
         if (!pages)
-            return nullptr;
+            return NULL;
         start = (char *) PAGE_TO_VIRT(pages);
         for (unsigned long i = 0; i < (1UL << order); i++)
             inc_page_stat(&pages[i], NR_SLAB_UNRECLAIMABLE);
@@ -487,7 +483,7 @@ NO_ASAN static struct slab *kmem_cache_create_slab(struct slab_cache *cache, uns
     {
         start = (char *) vmalloc(slab_size >> PAGE_SHIFT, VM_TYPE_HEAP, VM_READ | VM_WRITE, flags);
         if (!start)
-            return nullptr;
+            return NULL;
         for (pages = vmalloc_to_pages(start); pages; pages = pages->next_un.next_allocation)
             inc_page_stat(pages, NR_SLAB_UNRECLAIMABLE);
     }
@@ -499,8 +495,8 @@ NO_ASAN static struct slab *kmem_cache_create_slab(struct slab_cache *cache, uns
     const size_t useful_size = slab_size - sizeof(struct slab);
     const size_t nr_objects = useful_size / (cache->objsize + cache->redzone);
 
-    struct bufctl *first = nullptr;
-    struct bufctl *last = nullptr;
+    struct bufctl *first = NULL;
+    struct bufctl *last = NULL;
     // Setup objects and chain them together
     for (size_t i = 0; i < nr_objects; i++, ptr += cache->objsize)
     {
@@ -511,7 +507,7 @@ NO_ASAN static struct slab *kmem_cache_create_slab(struct slab_cache *cache, uns
         ptr += redzone;
 
         struct bufctl *ctl = (struct bufctl *) ptr;
-        ctl->next = nullptr;
+        ctl->next = NULL;
         ctl->flags = BUFCTL_PATTERN_FREE;
         if (last)
             last->next = ctl;
@@ -573,7 +569,7 @@ NO_ASAN static struct slab *kmem_cache_create_slab(struct slab_cache *cache, uns
  *
  * @param cache Slab cache
  * @param flags Allocation flags
- * @return Allocated object, or nullptr in OOM situations
+ * @return Allocated object, or NULL in OOM situations
  */
 static void *kmem_cache_alloc_noslab(struct slab_cache *cache, unsigned int flags)
 {
@@ -583,14 +579,14 @@ static void *kmem_cache_alloc_noslab(struct slab_cache *cache, unsigned int flag
     spin_lock(&cache->lock);
 
     if (!s)
-        return nullptr;
+        return NULL;
 
     /* TODO: This is redundant but alloc_from_slab insists on *moving* us from/to lists */
     list_add_tail(&s->slab_list_node, &cache->free_slabs);
     cache->nfreeslabs++;
     ASSERT_SLAB_COUNT(cache);
     void *obj = kmem_cache_alloc_from_slab(s, flags);
-    DCHECK(obj != nullptr);
+    DCHECK(obj != NULL);
 
     return obj;
 }
@@ -601,13 +597,13 @@ static void *kmem_cache_alloc_noslab(struct slab_cache *cache, unsigned int flag
  *
  * @param cache Slab cache
  * @param flags Allocation flags
- * @return Allocated object, or nullptr in OOM situations.
+ * @return Allocated object, or NULL in OOM situations.
  */
 void *kmem_cache_alloc_nopcpu(struct slab_cache *cache, unsigned int flags)
 {
-    scoped_lock g{cache->lock};
     void *ptr;
 
+    spin_lock(&cache->lock);
     if (cache->npartialslabs != 0)
         ptr = kmem_cache_alloc_from_partial(cache, flags);
     else if (cache->nfreeslabs != 0)
@@ -615,8 +611,9 @@ void *kmem_cache_alloc_nopcpu(struct slab_cache *cache, unsigned int flags)
     else
         ptr = kmem_cache_alloc_noslab(cache, flags);
 
-    if (ptr) [[likely]]
+    if (likely(ptr))
         cache->pcpu[get_cpu_nr()].active_objs++;
+    spin_unlock(&cache->lock);
     return ptr;
 }
 
@@ -631,7 +628,7 @@ static inline struct slab *kmem_pick_slab_for_refill(struct slab_cache *cache)
     /* Cache is locked */
     /* Pick out a slab from the partial list, or the free list. Prefer partial to reduce
      * fragmentation. */
-    struct slab *slab = nullptr;
+    struct slab *slab = NULL;
     if (cache->npartialslabs)
         slab = container_of(list_first_element(&cache->partial_slabs), struct slab, slab_list_node);
     else if (cache->nfreeslabs)
@@ -667,12 +664,12 @@ static void kmem_cache_reload_mag_with_slab(struct slab_cache *cache,
             panic("Bad buf %p, slab %p", buf, slab);
 
         pcpu->magazine[pcpu->size++] = (void *) buf;
-        slab->object_list = (bufctl *) buf->next;
+        slab->object_list = (struct bufctl *) buf->next;
 
         if (!buf->next && j + 1 != avail)
             panic("Corrupted buf %p, slab %p", buf, slab);
 
-        buf = (bufctl *) buf->next;
+        buf = (struct bufctl *) buf->next;
         slab->active_objects++;
     }
 }
@@ -865,11 +862,11 @@ __always_inline void kmem_cache_post_alloc_bulk(struct slab_cache *cache, unsign
  *
  * @param cache Slab cache
  * @param flags Allocation flags
- * @return Allocated object, or nullptr in OOM situations.
+ * @return Allocated object, or NULL in OOM situations.
  */
 void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
 {
-    if (cache->flags & KMEM_CACHE_NOPCPU) [[unlikely]]
+    if (unlikely(cache->flags & KMEM_CACHE_NOPCPU))
     {
         void *ret = kmem_cache_alloc_nopcpu(cache, flags);
         if (ret)
@@ -884,7 +881,7 @@ void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
 
     __atomic_store_n(&pcpu->touched, 1, __ATOMIC_RELEASE);
 
-    if (!pcpu->size) [[unlikely]]
+    if (unlikely(!pcpu->size))
     {
         // If our magazine is empty, lets refill it
         int st = kmem_cache_alloc_refill_mag(cache, pcpu, flags);
@@ -893,7 +890,8 @@ void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
         if (st < 0)
         {
             sched_enable_preempt();
-            return errno = ENOMEM, nullptr;
+            errno = ENOMEM;
+            return NULL;
         }
     }
 
@@ -976,7 +974,7 @@ size_t kmem_cache_alloc_bulk(struct slab_cache *cache, unsigned int gfp_flags, s
         while (to_take--)
         {
             void *ptr = pcpu->magazine[--pcpu->size];
-            ((bufctl *) ptr)->flags = 0;
+            ((struct bufctl *) ptr)->flags = 0;
             res[i++] = ptr;
             pcpu->active_objs++;
         }
@@ -1002,14 +1000,14 @@ enomem:
  */
 static void kmem_free_to_slab(struct slab_cache *cache, struct slab *slab, void *ptr)
 {
-    if ((unsigned long) ptr % cache->alignment) [[unlikely]]
+    if (unlikely((unsigned long) ptr % cache->alignment))
         panic("slab: Bad pointer %p", ptr);
 
     struct bufctl *ctl = (struct bufctl *) ptr;
     if (ctl->flags == BUFCTL_PATTERN_FREE)
         panic("slab: Double free at %p", ptr);
 
-    ctl->next = nullptr;
+    ctl->next = NULL;
     ctl->flags = BUFCTL_PATTERN_FREE;
     // This freed object is hot, so put it in the head of the slab list
     struct bufctl *first = slab->object_list;
@@ -1025,7 +1023,7 @@ static void kmem_free_to_slab(struct slab_cache *cache, struct slab *slab, void 
     }
     else if (slab->active_objects == 0)
     {
-        if (cache->objsize >= KMEM_CACHE_KEEP_THRESHOLD) [[unlikely]]
+        if (unlikely(cache->objsize >= KMEM_CACHE_KEEP_THRESHOLD))
         {
             // Free the slab, since these objects are way too large
             // we may as well assume they're a one-off allocation, as they
@@ -1055,14 +1053,15 @@ static void kfree_nopcpu(void *ptr)
     asan_poison_shadow((unsigned long) ptr, cache->objsize, KASAN_FREED);
 #endif
 
-    scoped_lock g{cache->lock};
+    spin_lock(&cache->lock);
     kmem_free_to_slab(cache, slab, ptr);
     cache->pcpu[get_cpu_nr()].active_objs--;
+    spin_unlock(&cache->lock);
 }
 
 void kmem_cache_return_pcpu_batch(struct slab_cache *cache, struct slab_cache_percpu_context *pcpu)
 {
-    scoped_lock g{cache->lock};
+    spin_lock(&cache->lock);
     int size = cache->mag_limit;
     int batchsize = size / 2;
     for (int i = 0; i < batchsize; i++)
@@ -1070,15 +1069,15 @@ void kmem_cache_return_pcpu_batch(struct slab_cache *cache, struct slab_cache_pe
         void *ptr = pcpu->magazine[i];
         struct slab *slab = kmem_pointer_to_slab(ptr);
 
-        if (slab->cache != cache) [[unlikely]]
+        if (unlikely(slab->cache != cache))
             panic("slab: Pointer %p was returned to the wrong cache\n", ptr);
-        ((bufctl *) ptr)->flags = 0;
+        ((struct bufctl *) ptr)->flags = 0;
         kmem_free_to_slab(cache, slab, ptr);
         pcpu->size--;
     }
 
     // Unlock the cache since we're about to do an expensive-ish memmove
-    g.unlock();
+    spin_unlock(&cache->lock);
 
     memmove(pcpu->magazine, &pcpu->magazine[batchsize], (size - pcpu->size) * sizeof(void *));
 }
@@ -1089,10 +1088,10 @@ __always_inline void kmem_cache_free_pcpu_single(struct slab_cache *cache,
     DCHECK(pcpu->size < cache->mag_limit);
     struct bufctl *buf = (struct bufctl *) ptr;
 
-    if ((unsigned long) ptr % cache->alignment) [[unlikely]]
+    if (unlikely((unsigned long) ptr % cache->alignment))
         panic("slab: Bad pointer %p", ptr);
 
-    if (buf->flags == BUFCTL_PATTERN_FREE) [[unlikely]]
+    if (unlikely(buf->flags == BUFCTL_PATTERN_FREE))
         panic("slab: Double free at %p\n", ptr);
 
     pcpu->magazine[pcpu->size++] = ptr;
@@ -1105,7 +1104,7 @@ static void kmem_cache_free_pcpu(struct slab_cache *cache, void *ptr)
     sched_disable_preempt();
     struct slab_cache_percpu_context *pcpu = &cache->pcpu[get_cpu_nr()];
     __atomic_store_n(&pcpu->touched, 1, __ATOMIC_RELEASE);
-    if (pcpu->size == cache->mag_limit) [[unlikely]]
+    if (unlikely(pcpu->size == cache->mag_limit))
         kmem_cache_return_pcpu_batch(cache, pcpu);
     kmem_cache_free_pcpu_single(cache, pcpu, ptr);
     __atomic_store_n(&pcpu->touched, 0, __ATOMIC_RELEASE);
@@ -1116,12 +1115,12 @@ static void kmem_cache_free_pcpu(struct slab_cache *cache, void *ptr)
 
 void kasan_kfree(void *ptr, struct slab_cache *cache, size_t chunk_size)
 {
-    if ((unsigned long) ptr % cache->alignment) [[unlikely]]
+    if (unlikely((unsigned long) ptr % cache->alignment))
         panic("slab: Bad pointer %p", ptr);
 
-    bufctl *buf = (bufctl *) ptr;
+    struct bufctl *buf = (struct bufctl *) ptr;
 
-    if (buf->flags == BUFCTL_PATTERN_FREE) [[unlikely]]
+    if (unlikely(buf->flags == BUFCTL_PATTERN_FREE))
     {
         panic("slab: Double free at %p\n", ptr);
     }
@@ -1158,7 +1157,7 @@ static void kmem_cache_free_bulk_kasan(struct slab_cache *cache, size_t size, vo
  */
 void kfree(void *ptr)
 {
-    if (!ptr) [[unlikely]]
+    if (unlikely(!ptr))
         return;
     struct slab *slab = kmem_pointer_to_slab(ptr);
     struct slab_cache *cache = slab->cache;
@@ -1183,7 +1182,7 @@ void kfree(void *ptr)
  */
 void kmem_cache_free(struct slab_cache *cache, void *ptr)
 {
-    if (!ptr) [[unlikely]]
+    if (unlikely(!ptr))
         return;
 
 #ifdef CONFIG_KASAN
@@ -1191,7 +1190,7 @@ void kmem_cache_free(struct slab_cache *cache, void *ptr)
     return;
 #endif
 
-    if (cache->flags & KMEM_CACHE_NOPCPU) [[unlikely]]
+    if (unlikely(cache->flags & KMEM_CACHE_NOPCPU))
         return kfree_nopcpu(ptr);
     kmem_cache_free_pcpu(cache, ptr);
 }
@@ -1233,7 +1232,7 @@ void kmem_cache_free_bulk(struct slab_cache *cache, size_t size, void **ptrs)
         struct slab_cache_percpu_context *pcpu = &cache->pcpu[get_cpu_nr()];
         __atomic_store_n(&pcpu->touched, 1, __ATOMIC_RELEASE);
 
-        if (pcpu->size == cache->mag_limit) [[unlikely]]
+        if (unlikely(pcpu->size == cache->mag_limit))
             kmem_cache_return_pcpu_batch(cache, pcpu);
 
         int free_slots = cache->mag_limit - pcpu->size;
@@ -1270,7 +1269,7 @@ static void kmem_cache_free_slab(struct slab *slab)
     list_remove(&slab->slab_list_node);
     kmem_slab_unaccount_pages(slab, cache->flags);
     // After freeing the slab we may no longer touch the struct slab
-    if (!(cache->flags & KMEM_CACHE_VMALLOC)) [[likely]]
+    if (likely(!(cache->flags & KMEM_CACHE_VMALLOC)))
         free_pages(slab->pages);
     else
         vfree(slab->start, slab->size >> PAGE_SHIFT);
@@ -1295,6 +1294,11 @@ static void kmem_purge_remote(struct slab_rendezvous *rndvz)
     __atomic_sub_fetch(&rndvz->waiting_for_cpus, 1, __ATOMIC_RELAXED);
 }
 
+static void kmem_purge_cb(void *ctx)
+{
+    kmem_purge_remote((struct slab_rendezvous *) ctx);
+}
+
 /**
  * @brief Start a slab allocator freeze
  * When the slab allocator is frozen, no one can enter the per-cpu "area" of any cache. That is
@@ -1312,9 +1316,8 @@ static void kmem_slab_freeze_start(struct slab_rendezvous *rndvz)
     unsigned int to_sync = get_nr_cpus() - 1;
     rndvz->ack = 0;
     __atomic_store_n(&rndvz->waiting_for_cpus, to_sync, __ATOMIC_RELEASE);
-
-    smp::sync_call([](void *ctx) { kmem_purge_remote((slab_rendezvous *) ctx); }, rndvz,
-                   cpumask::all_but_one(get_cpu_nr()), SYNC_CALL_NOWAIT);
+    struct cpumask mask = cpumask_all_but_one(get_cpu_nr());
+    smp_sync_call(kmem_purge_cb, rndvz, &mask, SYNC_CALL_NOWAIT);
 
     while (__atomic_load_n(&rndvz->waiting_for_cpus, __ATOMIC_ACQUIRE) > 0)
         cpu_relax();
@@ -1366,9 +1369,9 @@ static void kmem_cache_shrink_pcpu_all(struct slab_cache *cache)
             void *ptr = pcpu->magazine[j];
             struct slab *slab = kmem_pointer_to_slab(ptr);
 
-            if (slab->cache != cache) [[unlikely]]
+            if (unlikely(slab->cache != cache))
                 panic("slab: Pointer %p was returned to the wrong cache\n", ptr);
-            ((bufctl *) ptr)->flags = 0;
+            ((struct bufctl *) ptr)->flags = 0;
             kmem_free_to_slab(cache, slab, ptr);
         }
 
@@ -1416,7 +1419,7 @@ static unsigned long kmem_cache_release_free_all(struct slab_cache *cache,
  */
 static unsigned long kmem_cache_shrink(struct slab_cache *cache, unsigned long target_freep)
 {
-    scoped_lock g{cache->lock};
+    spin_lock(&cache->lock);
 
     sched_disable_preempt();
 
@@ -1429,6 +1432,7 @@ static unsigned long kmem_cache_shrink(struct slab_cache *cache, unsigned long t
     ASSERT_SLAB_COUNT(cache);
     unsigned long freed = kmem_cache_release_free_all(cache, target_freep);
     kmem_slab_freeze_wait(&rndvz);
+    spin_unlock(&cache->lock);
     return freed;
 }
 
@@ -1465,21 +1469,17 @@ void kmem_cache_destroy(struct slab_cache *cache)
     kasan_flush_quarantine();
 #endif
 
-    {
-        scoped_mutex g{cache_list_lock};
-        kmem_cache_shrink(cache, ULONG_MAX);
+    mutex_lock(&cache_list_lock);
+    kmem_cache_shrink(cache, ULONG_MAX);
 
-        if (cache->npartialslabs || cache->nfullslabs)
-        {
-            panic("slab: Tried to destroy cache %s (%p) which has live objects\n", cache->name,
-                  cache);
-        }
+    if (cache->npartialslabs || cache->nfullslabs)
+        panic("slab: Tried to destroy cache %s (%p) which has live objects\n", cache->name, cache);
 
-        list_remove(&cache->cache_list_node);
-    }
+    list_remove(&cache->cache_list_node);
+    mutex_unlock(&cache_list_lock);
 
     // Destroy the slab cache itself
-    slab_cache_pool.free(cache);
+    slab_cache_free(cache);
 }
 
 #define KMALLOC_NR_CACHES 22
@@ -1502,7 +1502,7 @@ void kmalloc_init()
             flags |= KMEM_CACHE_VMALLOC;
 #endif
         snprintf(kmalloc_cache_names[i], 20, "kmalloc-%zu", size);
-        kmalloc_caches[i] = kmem_cache_create(kmalloc_cache_names[i], size, 0, flags, nullptr);
+        kmalloc_caches[i] = kmem_cache_create(kmalloc_cache_names[i], size, 0, flags, NULL);
         if (!kmalloc_caches[i])
             panic("Early out of memory\n");
     }
@@ -1510,15 +1510,15 @@ void kmalloc_init()
 
 static inline int size_to_order(size_t size)
 {
-    if (size < 2) [[unlikely]]
+    if (unlikely(size < 2))
         return 0;
 
     size_t order = ilog2(size - 1) + 1;
-    if (order < 4) [[unlikely]]
+    if (unlikely(order < 4))
         order = 4;
     order -= 4;
 
-    if (order >= KMALLOC_NR_CACHES) [[unlikely]]
+    if (unlikely(order >= KMALLOC_NR_CACHES))
         return -1;
     return (int) order;
 }
@@ -1528,7 +1528,7 @@ void *kmalloc(size_t size, int flags)
     int order = size_to_order(size);
 
     if (order < 0)
-        return nullptr;
+        return NULL;
 
     void *ret = kmem_cache_alloc(kmalloc_caches[order], flags);
 
@@ -1558,13 +1558,13 @@ void free(void *ptr)
 void *kcalloc(size_t nr, size_t size, int flags)
 {
     if (array_overflows(nr, size))
-        return errno = EOVERFLOW, nullptr;
+        return NULL;
 
     const size_t len = nr * size;
 
     void *ptr = kmalloc(len, flags);
-    if (!ptr) [[unlikely]]
-        return errno = ENOMEM, nullptr;
+    if (unlikely(!ptr))
+        return NULL;
 
     memset(ptr, 0, len);
     return ptr;
@@ -1596,7 +1596,7 @@ void *realloc(void *ptr, size_t size)
 
     void *newbuf = malloc(size);
     if (!newbuf)
-        return nullptr;
+        return NULL;
     __memcpy(newbuf, ptr, old_slab->cache->objsize);
     kfree(ptr);
     return newbuf;
@@ -1604,14 +1604,14 @@ void *realloc(void *ptr, size_t size)
 
 int posix_memalign(void **pptr, size_t align, size_t len)
 {
-    *pptr = nullptr;
+    *pptr = NULL;
     return -1;
 }
 
 void *reallocarray(void *ptr, size_t m, size_t n)
 {
     if (array_overflows(m, n))
-        return errno = EOVERFLOW, nullptr;
+        return NULL;
     return realloc(ptr, n * m);
 }
 
@@ -1620,10 +1620,11 @@ void *reallocarray(void *ptr, size_t m, size_t n)
 void kmem_free_kasan(void *ptr)
 {
     struct slab *slab = kmem_pointer_to_slab(ptr);
-    assert(slab != nullptr);
-    ((bufctl *) ptr)->flags = 0;
-    scoped_lock g{slab->cache->lock};
+    assert(slab != NULL);
+    ((struct bufctl *) ptr)->flags = 0;
+    spin_lock(&slab->cache->lock);
     kmem_free_to_slab(slab->cache, slab, ptr);
+    spin_unlock(&slab->cache->lock);
 }
 
 static void stack_trace_print(unsigned long *entries, unsigned long nr)
@@ -1660,7 +1661,7 @@ void kmem_cache_print_slab_info_kasan(void *mem, struct slab *slab)
     const size_t nr_objects = slab->nobjects;
     u8 *ptr = (u8 *) slab->start;
 
-    struct kasan_slab_obj_info *info = nullptr;
+    struct kasan_slab_obj_info *info = NULL;
     for (size_t i = 0; i < nr_objects; i++, ptr += cache->objsize + cache->redzone)
     {
         size_t eff_size = cache->objsize + cache->redzone;
@@ -1710,7 +1711,7 @@ void kmem_cache_print_slab_info_kasan(void *mem, struct slab *slab)
  */
 void slab_shrink_caches(unsigned long target_freep)
 {
-    scoped_mutex g{cache_list_lock};
+    mutex_lock(&cache_list_lock);
     struct slab_rendezvous rndvz;
     sched_disable_preempt();
     kmem_slab_freeze_start(&rndvz);
@@ -1736,23 +1737,25 @@ void slab_shrink_caches(unsigned long target_freep)
         struct slab_cache *cache = container_of(l, struct slab_cache, cache_list_node);
         unsigned long freed = 0;
         /* The limitation above does not apply, because caches have been unfrozen. */
-        scoped_lock g{cache->lock};
+        spin_lock(&cache->lock);
         freed = kmem_cache_release_free_all(cache, target_freep);
+        spin_unlock(&cache->lock);
         if (freed >= target_freep)
             break;
         target_freep -= freed;
     }
 
     kmem_slab_freeze_wait(&rndvz);
+    mutex_unlock(&cache_list_lock);
 }
 
 void kmem_print_stats()
 {
-    scoped_mutex g{cache_list_lock};
+    mutex_lock(&cache_list_lock);
     list_for_every (&cache_list)
     {
         struct slab_cache *cache = container_of(l, struct slab_cache, cache_list_node);
-        scoped_lock g2{cache->lock};
+        spin_lock(&cache->lock);
         unsigned long total = (cache->nfreeslabs + cache->npartialslabs + cache->nfullslabs) *
                               kmem_calc_slab_size(cache);
         unsigned long nactive = 0;
@@ -1762,5 +1765,7 @@ void kmem_print_stats()
                 "total slab size\n",
                 cache->name, cache->objsize, cache->nfullslabs, cache->nfreeslabs,
                 cache->npartialslabs, nactive, nactive * cache->objsize, total);
+        spin_unlock(&cache->lock);
     }
+    mutex_unlock(&cache_list_lock);
 }

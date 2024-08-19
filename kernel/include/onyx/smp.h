@@ -10,12 +10,15 @@
 
 #include <stddef.h>
 
+#include <onyx/cpumask.h>
 #include <onyx/limits.h>
 #include <onyx/percpu.h>
 
-#ifdef __cplusplus
+#define SYNC_CALL_NOWAIT (1 << 0)
 
-#include <onyx/cpumask.h>
+typedef void (*sync_call_func)(void *context);
+
+#ifdef __cplusplus
 
 namespace smp
 {
@@ -26,10 +29,6 @@ void boot(unsigned int cpu);
 unsigned int get_online_cpus();
 
 void boot_cpus();
-
-using sync_call_func = void (*)(void *context);
-
-#define SYNC_CALL_NOWAIT (1 << 0)
 
 /**
  * @brief Calls f on every CPU
@@ -88,6 +87,16 @@ __attribute__((always_inline)) static inline unsigned int get_cpu_nr()
 
 void smp_parse_cpus(void *madt);
 void smp_boot_cpus();
+
+/**
+ * @brief Calls f on every CPU
+ *
+ * @param f The function to call on every cpu
+ * @param context Context to get passed to f
+ * @param mask Mask of cpus that will execute this
+ * @param flags Flags for the sync call
+ */
+void smp_sync_call(sync_call_func f, void *context, const struct cpumask *mask, unsigned int flags);
 
 #ifdef __cplusplus
 }

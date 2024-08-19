@@ -261,3 +261,16 @@ unsigned int get_nr_cpus()
 {
     return smp::nr_cpus;
 }
+
+/**
+ * @brief Calls f on every CPU
+ *
+ * @param f The function to call on every cpu
+ * @param context Context to get passed to f
+ * @param mask Mask of cpus that will execute this
+ * @param flags Flags for the sync call
+ */
+void smp_sync_call(sync_call_func f, void *context, const cpumask *mask, unsigned int flags)
+{
+    smp::sync_call(f, context, *mask, flags);
+}

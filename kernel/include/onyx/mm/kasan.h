@@ -13,14 +13,14 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <onyx/compiler.h>
+
+__BEGIN_CDECLS
+
 void kasan_init();
 int kasan_alloc_shadow(unsigned long addr, size_t size, bool accessible);
 
-#ifdef __cplusplus
-extern "C"
-#endif
-    void
-    kasan_set_state(unsigned long *ptr, size_t size, int state);
+void kasan_set_state(unsigned long *ptr, size_t size, int state);
 void asan_unpoison_shadow(unsigned long addr, size_t size);
 void asan_poison_shadow(unsigned long addr, size_t size, uint8_t value);
 
@@ -28,11 +28,8 @@ void asan_poison_shadow(unsigned long addr, size_t size, uint8_t value);
  * @brief Flush the KASAN memory quarantine
  *
  */
-#ifdef __cplusplus
-extern "C"
-#endif
-    void
-    kasan_flush_quarantine();
+
+void kasan_flush_quarantine();
 
 /**
  * @brief Add a chunk to the KASAN quarantine
@@ -58,4 +55,5 @@ size_t kasan_get_redzone_size(size_t objsize);
 #define KASAN_QUARANTINED  0x9e
 #define KASAN_LEFT_REDZONE 0xfa
 
+__END_CDECLS
 #endif
