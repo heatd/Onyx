@@ -16,22 +16,23 @@
 
 static struct slab_cache *anon_vma_cache;
 
+static void anon_vma_ctor(void *ctor)
+{
+    struct anon_vma *vma = ctor;
+    spinlock_init(&vma->lock);
+    INIT_LIST_HEAD(&vma->vma_list);
+}
+
 void __init anon_vma_init(void)
 {
-    anon_vma_cache = kmem_cache_create("anon_vma", sizeof(struct anon_vma),
-                                       _Alignof(struct anon_vma), KMEM_CACHE_PANIC, NULL);
+    anon_vma_cache =
+        kmem_cache_create("anon_vma", sizeof(struct anon_vma), _Alignof(struct anon_vma),
+                          KMEM_CACHE_PANIC | SLAB_TYPESAFE_BY_RCU, anon_vma_ctor);
 }
 
 struct anon_vma *anon_vma_alloc(void)
 {
-    struct anon_vma *anon = kmem_cache_alloc(anon_vma_cache, GFP_KERNEL);
-    if (anon)
-    {
-        spinlock_init(&anon->lock);
-        INIT_LIST_HEAD(&anon->vma_list);
-    }
-
-    return anon;
+    return kmem_cache_alloc(anon_vma_cache, GFP_KERNEL);
 }
 
 void __anon_vma_unlink(struct anon_vma *anon, struct vm_area_struct *vma)
@@ -108,20 +109,41 @@ struct rmap_walk_info
     void *context;
 };
 
+static struct anon_vma *anon_vma_lock(struct page *page)
+{
+    /* We use RCU read lock and TYPESAFE_BY_RCU to get by here. The idea goes like this: We check if
+     * page_mapcount != 0 under the rcu_read_lock; if this is true, the anon_vma struct _must_ be
+     * valid. We then spin_lock the anon_vma (which only works because TYPESAFE_BY_RCU and the read
+     * lock enforce type stability here). We then recheck the mapcount under the lock. */
+    struct anon_vma *anon_vma;
+    rcu_read_lock();
+    anon_vma = (struct anon_vma *) READ_ONCE(page->owner);
+    if (!page_mapcount(page))
+        goto no_anon_vma;
+
+    spin_lock(&anon_vma->lock);
+    if (!page_mapcount(page))
+    {
+        spin_unlock(&anon_vma->lock);
+        goto no_anon_vma;
+    }
+
+    rcu_read_unlock();
+    return anon_vma;
+no_anon_vma:
+    rcu_read_unlock();
+    return NULL;
+}
+
 static int rmap_walk_anon(struct rmap_walk_info *info, struct page *page)
 {
     DCHECK_PAGE(page_flag_set(page, PAGE_FLAG_ANON), page);
-    struct anon_vma *anon_vma = (struct anon_vma *) page->owner;
-
-    /* anon_vma doesn't exist or can be stale if the page was unmapped. */
-    if (!page_mapcount(page))
+    struct anon_vma *anon_vma = anon_vma_lock(page);
+    if (!anon_vma)
         return 0;
 
-    /* TODO: We might need TYPESAFE_BY_RCU for anon_vma? */
     unsigned long page_addr = page->pageoff;
     int st = 0;
-
-    spin_lock(&anon_vma->lock);
 
     list_for_every (&anon_vma->vma_list)
     {

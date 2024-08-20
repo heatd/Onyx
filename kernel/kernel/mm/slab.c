@@ -14,6 +14,7 @@
 #include <onyx/modules.h>
 #include <onyx/page.h>
 #include <onyx/perf_probe.h>
+#include <onyx/rcupdate.h>
 #include <onyx/rwlock.h>
 #include <onyx/stackdepot.h>
 #include <onyx/vm.h>
@@ -56,7 +57,10 @@ struct slab
     };
 
     size_t size;
-    struct list_head slab_list_node;
+    union {
+        struct list_head slab_list_node;
+        struct rcu_head typesafe_by_rcu;
+    };
     struct bufctl *object_list;
     size_t active_objects;
     size_t nobjects;
@@ -121,6 +125,7 @@ struct slab_cache *kmem_cache_create(const char *name, size_t size, size_t align
     c->redzone = 0;
 #endif
     c->flags = flags | KMEM_CACHE_VMALLOC;
+    c->bufctl_off = 0;
 
     // Minimum object alignment is 16
     c->alignment = alignment;
@@ -135,6 +140,15 @@ struct slab_cache *kmem_cache_create(const char *name, size_t size, size_t align
     if (flags & KMEM_CACHE_HWALIGN)
     {
         c->alignment = ALIGN_TO(c->alignment, 64);
+    }
+
+    if (flags & SLAB_TYPESAFE_BY_RCU || ctor)
+    {
+        /* We can't place the bufctl inside the object, because either ctor or TYPESAFE_BY_RCU were
+         * specified, and these are only useful if the allocator _does not_ touch the object. As
+         * such, we place the bufctls right outside the object. */
+        c->bufctl_off = c->objsize;
+        c->objsize += sizeof(struct bufctl);
     }
 
     c->objsize = ALIGN_TO(c->objsize, c->alignment);
@@ -173,6 +187,16 @@ struct slab_cache *kmem_cache_create(const char *name, size_t size, size_t align
 }
 
 #define ALWAYS_INLINE __attribute__((always_inline))
+
+ALWAYS_INLINE static inline void *kmem_bufctl_to_ptr(struct slab_cache *cache, struct bufctl *buf)
+{
+    return ((void *) buf) - cache->bufctl_off;
+}
+
+ALWAYS_INLINE static inline struct bufctl *kmem_bufctl_from_ptr(struct slab_cache *cache, void *ptr)
+{
+    return ptr + cache->bufctl_off;
+}
 
 #ifdef SLAB_DEBUG_COUNTS
 /* Kept here and not in list.h, because this is a horrible pattern that should not be used for
@@ -307,7 +331,7 @@ static void *kmem_cache_alloc_from_slab(struct slab *s, unsigned int flags)
 
     ret->flags = 0;
 
-    return (void *) ret;
+    return kmem_bufctl_to_ptr(s->cache, ret);
 }
 
 /**
@@ -505,8 +529,9 @@ NO_ASAN static struct slab *kmem_cache_create_slab(struct slab_cache *cache, uns
         asan_poison_shadow((unsigned long) ptr, redzone, KASAN_LEFT_REDZONE);
 #endif
         ptr += redzone;
-
-        struct bufctl *ctl = (struct bufctl *) ptr;
+        if (cache->ctor)
+            cache->ctor(ptr);
+        struct bufctl *ctl = (struct bufctl *) (ptr + cache->bufctl_off);
         ctl->next = NULL;
         ctl->flags = BUFCTL_PATTERN_FREE;
         if (last)
@@ -663,7 +688,7 @@ static void kmem_cache_reload_mag_with_slab(struct slab_cache *cache,
         if (buf->flags != BUFCTL_PATTERN_FREE)
             panic("Bad buf %p, slab %p", buf, slab);
 
-        pcpu->magazine[pcpu->size++] = (void *) buf;
+        pcpu->magazine[pcpu->size++] = kmem_bufctl_to_ptr(cache, buf);
         slab->object_list = (struct bufctl *) buf->next;
 
         if (!buf->next && j + 1 != avail)
@@ -898,7 +923,7 @@ void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
     // If we have objects on our magazine, pop one out and
     // return.
     void *ret = pcpu->magazine[--pcpu->size];
-    ((struct bufctl *) ret)->flags = 0;
+    kmem_bufctl_from_ptr(cache, ret)->flags = 0;
 
     pcpu->active_objs++;
     __atomic_store_n(&pcpu->touched, 0, __ATOMIC_RELEASE);
@@ -974,7 +999,7 @@ size_t kmem_cache_alloc_bulk(struct slab_cache *cache, unsigned int gfp_flags, s
         while (to_take--)
         {
             void *ptr = pcpu->magazine[--pcpu->size];
-            ((struct bufctl *) ptr)->flags = 0;
+            kmem_bufctl_from_ptr(cache, ptr)->flags = 0;
             res[i++] = ptr;
             pcpu->active_objs++;
         }
@@ -1003,7 +1028,7 @@ static void kmem_free_to_slab(struct slab_cache *cache, struct slab *slab, void 
     if (unlikely((unsigned long) ptr % cache->alignment))
         panic("slab: Bad pointer %p", ptr);
 
-    struct bufctl *ctl = (struct bufctl *) ptr;
+    struct bufctl *ctl = kmem_bufctl_from_ptr(cache, ptr);
     if (ctl->flags == BUFCTL_PATTERN_FREE)
         panic("slab: Double free at %p", ptr);
 
@@ -1049,9 +1074,13 @@ static void kfree_nopcpu(void *ptr)
     struct slab *slab = kmem_pointer_to_slab(ptr);
     struct slab_cache *cache = slab->cache;
 
+    /* TYPESAFE_BY_RCU cannot participate in typical KASAN lifetime shenanigans. :/ */
+    if (!(cache->flags & SLAB_TYPESAFE_BY_RCU))
+    {
 #ifdef CONFIG_KASAN
-    asan_poison_shadow((unsigned long) ptr, cache->objsize, KASAN_FREED);
+        asan_poison_shadow((unsigned long) ptr, cache->objsize, KASAN_FREED);
 #endif
+    }
 
     spin_lock(&cache->lock);
     kmem_free_to_slab(cache, slab, ptr);
@@ -1071,7 +1100,7 @@ void kmem_cache_return_pcpu_batch(struct slab_cache *cache, struct slab_cache_pe
 
         if (unlikely(slab->cache != cache))
             panic("slab: Pointer %p was returned to the wrong cache\n", ptr);
-        ((struct bufctl *) ptr)->flags = 0;
+        kmem_bufctl_from_ptr(cache, ptr)->flags = 0;
         kmem_free_to_slab(cache, slab, ptr);
         pcpu->size--;
     }
@@ -1086,7 +1115,7 @@ __always_inline void kmem_cache_free_pcpu_single(struct slab_cache *cache,
                                                  struct slab_cache_percpu_context *pcpu, void *ptr)
 {
     DCHECK(pcpu->size < cache->mag_limit);
-    struct bufctl *buf = (struct bufctl *) ptr;
+    struct bufctl *buf = kmem_bufctl_from_ptr(cache, ptr);
 
     if (unlikely((unsigned long) ptr % cache->alignment))
         panic("slab: Bad pointer %p", ptr);
@@ -1118,7 +1147,7 @@ void kasan_kfree(void *ptr, struct slab_cache *cache, size_t chunk_size)
     if (unlikely((unsigned long) ptr % cache->alignment))
         panic("slab: Bad pointer %p", ptr);
 
-    struct bufctl *buf = (struct bufctl *) ptr;
+    struct bufctl *buf = kmem_bufctl_from_ptr(cache, ptr);
 
     if (unlikely(buf->flags == BUFCTL_PATTERN_FREE))
     {
@@ -1126,7 +1155,9 @@ void kasan_kfree(void *ptr, struct slab_cache *cache, size_t chunk_size)
     }
 
     buf->flags = BUFCTL_PATTERN_FREE;
-    asan_poison_shadow((unsigned long) ptr, chunk_size, KASAN_FREED);
+    if (!(cache->flags & SLAB_TYPESAFE_BY_RCU))
+        asan_poison_shadow((unsigned long) ptr, chunk_size, KASAN_FREED);
+
     kasan_register_free(ptr, cache);
 #ifndef NOQUARANTINE
     kasan_quarantine_add_chunk(buf, chunk_size);
@@ -1260,6 +1291,23 @@ void kmem_cache_free_bulk(struct slab_cache *cache, size_t size, void **ptrs)
  *
  * @param slab Slab to free
  */
+static void __kmem_cache_free_slab(struct slab *slab)
+{
+    assert(slab->active_objects == 0);
+    struct slab_cache *cache = slab->cache;
+
+    // After freeing the slab we may no longer touch the struct slab
+    if (likely(!(cache->flags & KMEM_CACHE_VMALLOC)))
+        free_pages(slab->pages);
+    else
+        vfree(slab->start, slab->size >> PAGE_SHIFT);
+}
+
+static void kmem_cache_typesafe_free(struct rcu_head *head)
+{
+    __kmem_cache_free_slab(container_of(head, struct slab, typesafe_by_rcu));
+}
+
 static void kmem_cache_free_slab(struct slab *slab)
 {
     assert(slab->active_objects == 0);
@@ -1268,11 +1316,10 @@ static void kmem_cache_free_slab(struct slab *slab)
     // Free it from the free list
     list_remove(&slab->slab_list_node);
     kmem_slab_unaccount_pages(slab, cache->flags);
-    // After freeing the slab we may no longer touch the struct slab
-    if (likely(!(cache->flags & KMEM_CACHE_VMALLOC)))
-        free_pages(slab->pages);
+    if (cache->flags & SLAB_TYPESAFE_BY_RCU)
+        call_rcu(&slab->typesafe_by_rcu, kmem_cache_typesafe_free);
     else
-        vfree(slab->start, slab->size >> PAGE_SHIFT);
+        __kmem_cache_free_slab(slab);
 }
 
 struct slab_rendezvous
@@ -1371,7 +1418,7 @@ static void kmem_cache_shrink_pcpu_all(struct slab_cache *cache)
 
             if (unlikely(slab->cache != cache))
                 panic("slab: Pointer %p was returned to the wrong cache\n", ptr);
-            ((struct bufctl *) ptr)->flags = 0;
+            kmem_bufctl_from_ptr(cache, ptr)->flags = 0;
             kmem_free_to_slab(cache, slab, ptr);
         }
 
@@ -1621,7 +1668,7 @@ void kmem_free_kasan(void *ptr)
 {
     struct slab *slab = kmem_pointer_to_slab(ptr);
     assert(slab != NULL);
-    ((struct bufctl *) ptr)->flags = 0;
+    kmem_bufctl_from_ptr(cache, ptr)->flags = 0;
     spin_lock(&slab->cache->lock);
     kmem_free_to_slab(slab->cache, slab, ptr);
     spin_unlock(&slab->cache->lock);
@@ -1633,7 +1680,7 @@ static void stack_trace_print(unsigned long *entries, unsigned long nr)
     for (unsigned long i = 0; i < nr; i++)
     {
         char sym[SYM_SYMBOLIZE_BUFSIZ];
-        int st = sym_symbolize((void *) entries[i], cul::slice<char>{sym, sizeof(sym)});
+        int st = sym_symbolize((void *) entries[i], sym, sizeof(sym), 0);
         if (st < 0)
             break;
         pr_crit("\t%s\n", sym);

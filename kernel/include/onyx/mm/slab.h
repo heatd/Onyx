@@ -47,9 +47,10 @@ struct slab_cache
     size_t nfullslabs;
     struct list_head cache_list_node;
     unsigned int flags;
+    unsigned int bufctl_off;
     struct spinlock lock;
-    void (*ctor)(void *);
     int mag_limit;
+    void (*ctor)(void *);
     // TODO: This is horrible. We need a way to allocate percpu memory,
     // and then either trim it or grow it when CPUs come online.
     struct slab_cache_percpu_context pcpu[CONFIG_SMP_NR_CPUS] __align_cache;
@@ -57,13 +58,20 @@ struct slab_cache
 
 __BEGIN_CDECLS
 
-#define KMEM_CACHE_HWALIGN (1 << 0)
-#define KMEM_CACHE_VMALLOC (1 << 1)
-#define KMEM_CACHE_NOPCPU  (1 << 2)
+#define KMEM_CACHE_HWALIGN         (1 << 0)
+#define KMEM_CACHE_VMALLOC         (1 << 1)
+#define KMEM_CACHE_NOPCPU          (1 << 2)
 /* Panic if kmem_cache_create fails */
-#define KMEM_CACHE_PANIC   (1 << 3)
+#define KMEM_CACHE_PANIC           (1 << 3)
+/* TYPESAFE_BY_RCU makes it so objects _wont switch types_ during an RCU read section. As in the
+ * slab itself will not be freed or reused until the read section ends. So a reference that was
+ * valid during an RCU read section will keep pointing to an object of the same type and remain
+ * "valid", even after getting kfree'd. This flag is most useful with a given ctor to initialize the
+ * objects before kmem_cache_alloc. */
+#define KMEM_CACHE_TYPESAFE_BY_RCU (1 << 4)
 
-#define SLAB_PANIC KMEM_CACHE_PANIC
+#define SLAB_PANIC           KMEM_CACHE_PANIC
+#define SLAB_TYPESAFE_BY_RCU KMEM_CACHE_TYPESAFE_BY_RCU
 
 /**
  * @brief Create a slab cache
