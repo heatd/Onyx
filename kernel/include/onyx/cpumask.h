@@ -201,7 +201,7 @@ struct cpumask
 static inline struct cpumask cpumask_all_but_one(unsigned long cpu)
 {
     struct cpumask c;
-    memset(&c, 0xff, sizeof(c));
+    memset((void*) &c, 0xff, sizeof(c));
     c.mask[cpu / LONG_SIZE_BITS] &= ~(1UL << (cpu % LONG_SIZE_BITS));
     return c;
 }
