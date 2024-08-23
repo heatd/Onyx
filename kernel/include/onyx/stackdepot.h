@@ -8,6 +8,7 @@
 #ifndef _ONYX_STACKDEPOT_H
 #define _ONYX_STACKDEPOT_H
 
+#include <onyx/compiler.h>
 #include <onyx/types.h>
 
 typedef u32 depot_stack_handle_t;
@@ -23,7 +24,11 @@ struct stacktrace
     unsigned long entries[];
 };
 
+__BEGIN_CDECLS
+
 depot_stack_handle_t stackdepot_save_stack(unsigned long *entries, unsigned long nr_entries);
 struct stacktrace *stackdepot_from_handle(depot_stack_handle_t handle);
+
+__END_CDECLS
 
 #endif

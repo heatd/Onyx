@@ -114,7 +114,7 @@ static struct stacktrace *stackdepot_alloc_stack(unsigned long *entries, unsigne
 
         if (curr_slab + 1 == STACKDEPOT_MAX_SLABS)
             return nullptr;
-        struct page *slab = alloc_pages(STACKDEPOT_SLAB_ORDER, GFP_KERNEL | __GFP_NO_INSTRUMENT);
+        struct page *slab = alloc_pages(STACKDEPOT_SLAB_ORDER, GFP_ATOMIC | __GFP_NO_INSTRUMENT);
         if (!slab)
             return nullptr;
         curr_slab++;

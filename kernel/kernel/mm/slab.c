@@ -1666,12 +1666,15 @@ void *reallocarray(void *ptr, size_t m, size_t n)
 
 void kmem_free_kasan(void *ptr)
 {
+    struct slab_cache *cache;
     struct slab *slab = kmem_pointer_to_slab(ptr);
     assert(slab != NULL);
+
+    cache = slab->cache;
     kmem_bufctl_from_ptr(cache, ptr)->flags = 0;
-    spin_lock(&slab->cache->lock);
-    kmem_free_to_slab(slab->cache, slab, ptr);
-    spin_unlock(&slab->cache->lock);
+    spin_lock(&cache->lock);
+    kmem_free_to_slab(cache, slab, ptr);
+    spin_unlock(&cache->lock);
 }
 
 static void stack_trace_print(unsigned long *entries, unsigned long nr)
@@ -1697,7 +1700,7 @@ static void stack_trace_print(unsigned long *entries, unsigned long nr)
  */
 void kmem_cache_print_slab_info_kasan(void *mem, struct slab *slab)
 {
-    slab_cache *cache = slab->cache;
+    struct slab_cache *cache = slab->cache;
     const char *status =
         (slab->active_objects == 0 ? "free"
                                    : (slab->active_objects == slab->nobjects ? "full" : "partial"));

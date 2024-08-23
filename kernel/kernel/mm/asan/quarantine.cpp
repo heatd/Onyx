@@ -9,13 +9,14 @@
 #include <stddef.h>
 
 #include <onyx/cpu.h>
+#include <onyx/mm/kasan.h>
 #include <onyx/scheduler.h>
 #include <onyx/scoped_lock.h>
 #include <onyx/spinlock.h>
 
 #include <onyx/atomic.hpp>
 
-void kmem_free_kasan(void *ptr);
+extern "C" void kmem_free_kasan(void *ptr);
 
 /**
  * @brief Each quarantine chunk is a pointer to the next chunk, or nullptr
