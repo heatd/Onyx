@@ -134,6 +134,7 @@ public:
     bool reuse_addr : 1;
 
     bool broadcast_allowed : 1;
+    bool proto_needs_work : 1 {0};
 
     hrtime_t rcv_timeout;
     hrtime_t snd_timeout;

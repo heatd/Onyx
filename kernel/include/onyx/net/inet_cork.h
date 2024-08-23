@@ -15,6 +15,8 @@
 
 #include <uapi/posix-types.h>
 
+#define INET_CORK_APPEND_NEW_PBF 1
+
 class inet_cork
 {
 protected:
@@ -66,6 +68,12 @@ public:
     {
         packet_list_len++;
         list_add_tail(&buf->list_node, &packet_list);
+    }
+
+    packetbuf *get_tail()
+    {
+        DCHECK(!list_is_empty(&packet_list));
+        return list_head_cpp<packetbuf>::self_from_list_head(list_last_element(&packet_list));
     }
 };
 
