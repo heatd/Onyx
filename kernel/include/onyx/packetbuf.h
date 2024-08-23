@@ -28,6 +28,11 @@ struct vm_object;
 #define PACKETBUF_GSO_TSO6 (1 << 1)
 #define PACKETBUF_GSO_UFO  (1 << 2)
 
+struct tcp_packetbuf_info
+{
+    u32 seq, seq_len;
+};
+
 /**
  * @brief The packetbuf is the data structure used to transport data up and
  * down the network stack. Its design is inspired by linux's sk_buff but adapted
@@ -95,6 +100,10 @@ struct packetbuf : public refcountable
 
     union {
         inet_route route;
+    };
+
+    union {
+        struct tcp_packetbuf_info tpi;
     };
 
 private:

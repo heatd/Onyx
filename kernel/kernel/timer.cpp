@@ -120,17 +120,12 @@ void timer_handle_events(struct timer *t)
         list_for_every_safe (&to_handle)
         {
             struct clockevent *ev = container_of(l, struct clockevent, list_node);
-
+            list_remove(&ev->list_node);
+            ev->flags &= ~(CLOCKEVENT_FLAG_PENDING | CLOCKEVENT_FLAG_POISON);
+            ev->timer = nullptr;
             ev->callback(ev);
 
-            ev->flags &= ~CLOCKEVENT_FLAG_PENDING;
-            if (!(ev->flags & CLOCKEVENT_FLAG_PULSE))
-            {
-                ev->flags &= ~CLOCKEVENT_FLAG_POISON;
-                list_remove(&to_handle);
-                ev->timer = nullptr;
-            }
-            else
+            if (ev->flags & CLOCKEVENT_FLAG_PULSE)
             {
                 ev->flags &= ~CLOCKEVENT_FLAG_POISON;
                 timer_queue_clockevent(ev);

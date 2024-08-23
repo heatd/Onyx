@@ -12,22 +12,29 @@
 
 #include <onyx/compiler.h>
 #include <onyx/kunit.h>
+#include <onyx/mm/slab.h>
 #include <onyx/mm/vm_object.h>
 #include <onyx/packetbuf.h>
 
 #include <onyx/memory.hpp>
-#include <onyx/mm/pool.hpp>
 
-memory_pool<packetbuf, MEMORY_POOL_USABLE_ON_IRQ> packetbuf_pool;
+static struct slab_cache *packetbuf_cache;
+
+static __init void packetbuf_init_cache()
+{
+    packetbuf_cache = kmem_cache_create("packetbuf", sizeof(packetbuf), alignof(packetbuf),
+                                        SLAB_PANIC | KMEM_CACHE_HWALIGN, nullptr);
+}
 
 void *packetbuf::operator new(size_t length)
 {
-    return packetbuf_pool.allocate();
+    /* TODO: DO NOT GFP_ATOMIC PLEASE */
+    return kmem_cache_alloc(packetbuf_cache, GFP_ATOMIC);
 }
 
 void packetbuf::operator delete(void *ptr)
 {
-    packetbuf_pool.free(reinterpret_cast<packetbuf *>(ptr));
+    kmem_cache_free(packetbuf_cache, ptr);
 }
 
 /**
@@ -150,24 +157,25 @@ packetbuf *packetbuf_clone(packetbuf *original)
     if (!buf)
         return nullptr;
 
-    auto buf_len = original->start_page_off() + original->length();
-
-    if (!buf->allocate_space(buf_len))
+    for (size_t i = 0; i < PACKETBUF_MAX_NR_PAGES + 2; i++)
     {
-        return nullptr;
+        struct page_iov &vec = original->page_vec[i];
+        if (vec.page)
+            page_ref(vec.page);
+        buf->page_vec[i] = vec;
     }
 
-    memcpy(buf->buffer_start, original->buffer_start, buf_len);
-
-    auto nhoff = original->net_header - (unsigned char *) original->buffer_start;
-    auto thoff = original->transport_header - (unsigned char *) original->buffer_start;
-    buf->reserve_headers(original->start_page_off());
-
-    buf->net_header = (unsigned char *) buf->buffer_start + nhoff;
-    buf->transport_header = (unsigned char *) buf->buffer_start + thoff;
-
-    buf->put(original->length());
+    buf->buffer_start = original->buffer_start;
+    buf->end = original->end;
+    buf->data = original->data;
+    buf->tail = original->tail;
+    buf->net_header = original->net_header;
+    buf->transport_header = original->transport_header;
+    buf->link_header = original->link_header;
+    buf->phy_header = original->phy_header;
     buf->domain = original->domain;
+    buf->route = original->route;
+    buf->tpi = original->tpi;
 
     return buf.release();
 }

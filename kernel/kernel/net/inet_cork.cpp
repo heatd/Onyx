@@ -13,55 +13,55 @@ int inet_cork::append_data(const iovec *vec, size_t vec_len, size_t proto_hdr_si
                            size_t max_packet_len)
 {
     size_t read_in_vec = 0;
+    packetbuf *packet = nullptr;
+    unsigned int packet_len = 0;
 
-    // TODO: Go straight to the tail?
-    list_for_every (&packet_list)
+    if (list_is_empty(&packet_list))
+        goto alloc_append;
+
+    packet = get_tail();
+    if (!vec_len)
+        return 0;
+
+    while ((packet_len = packet->length()) + proto_hdr_size < max_packet_len)
     {
-        if (!vec_len)
-            break;
-
-        auto packet = list_head_cpp<packetbuf>::self_from_list_head(l);
-        auto packet_len = packet->length();
 
 #if DEBUG_INET_CORK
         printk("Length: %u\n", packet->length());
         printk("Max packet len %lu, proto hdr size %lu\n", max_packet_len, proto_hdr_size);
 #endif
 
-        if (packet_len + proto_hdr_size < max_packet_len)
+        /* OOOH, we've got some room, let's expand! */
+        const uint8_t *ubuf = (uint8_t *) vec->iov_base + read_in_vec;
+        auto len = vec->iov_len - read_in_vec;
+        unsigned int to_expand = cul::clamp(len, max_packet_len - packet_len);
+#if DEBUG_INET_CORK
+        printk("Expanding buffer %u\n", to_expand);
+#endif
+        ssize_t st = packet->expand_buffer(ubuf, to_expand);
+
+        if (st < 0)
+            return -ENOBUFS;
+
+#if DEBUG_INET_CORK
+        printk("St: %ld\n", st);
+#endif
+
+        read_in_vec += st;
+
+        if (read_in_vec == vec->iov_len)
         {
-            /* OOOH, we've got some room, let's expand! */
-            const uint8_t *ubuf = (uint8_t *) vec->iov_base + read_in_vec;
-            auto len = vec->iov_len - read_in_vec;
-            unsigned int to_expand = cul::clamp(len, max_packet_len - packet_len);
-#if DEBUG_INET_CORK
-            printk("Expanding buffer %u\n", to_expand);
-#endif
-            auto st = packet->expand_buffer(ubuf, to_expand);
-
-            if (st < 0)
-            {
-                return -ENOBUFS;
-            }
-
-#if DEBUG_INET_CORK
-            printk("St: %ld\n", st);
-#endif
-
-            read_in_vec += st;
-
-            if (read_in_vec == vec->iov_len)
-            {
-                vec++;
-                read_in_vec = 0;
-                vec_len--;
-            }
+            vec++;
+            read_in_vec = 0;
+            vec_len--;
         }
+
+        /* Good, we're finished. */
+        if (!vec_len)
+            return 0;
     }
 
-    if (!vec_len)
-        return 0;
-
+alloc_append:
     return alloc_and_append(vec, vec_len, proto_hdr_size, max_packet_len, read_in_vec);
 }
 
@@ -76,12 +76,11 @@ int inet_cork::alloc_and_append(const iovec *vec, size_t vec_len, size_t proto_h
         if (packet_list_len == 1 && sock_type == SOCK_DGRAM)
             return -EMSGSIZE;
 
-        auto packet = new packetbuf;
+        packetbuf *packet = new packetbuf;
         if (!packet)
             return -ENOBUFS;
 
-        auto iov_len = vec->iov_len;
-
+        size_t iov_len = vec->iov_len;
         if (vec_nr == 0)
         {
             // We might be creating a new packet from a partial iov that already filled
@@ -90,8 +89,9 @@ int inet_cork::alloc_and_append(const iovec *vec, size_t vec_len, size_t proto_h
             iov_len -= skip_first;
         }
 
-        auto max_payload = cul::clamp(iov_len - added_from_vec, max_packet_len - proto_hdr_len);
-        auto to_alloc = max_payload + proto_hdr_len + PACKET_MAX_HEAD_LENGTH;
+        unsigned long max_payload =
+            cul::clamp(iov_len - added_from_vec, max_packet_len - proto_hdr_len);
+        unsigned long to_alloc = max_payload + proto_hdr_len + PACKET_MAX_HEAD_LENGTH;
 
         auto ubuf = (const uint8_t *) vec->iov_base + added_from_vec;
 
@@ -125,7 +125,7 @@ int inet_cork::alloc_and_append(const iovec *vec, size_t vec_len, size_t proto_h
         }
     }
 
-    return 0;
+    return INET_CORK_APPEND_NEW_PBF;
 }
 
 int inet_cork::send(const iflow &flow, void (*prepare_headers)(packetbuf *buf, const iflow &flow))

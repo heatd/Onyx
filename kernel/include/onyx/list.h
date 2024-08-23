@@ -156,6 +156,8 @@ static inline void list_reset(struct list_head *head)
     for (struct list_head *l = (lh)->next, *____tmp = l->next; l != (lh); \
          l = ____tmp, ____tmp = l->next)
 
+#define list_for_every_reverse(lh) for (struct list_head *l = (lh)->prev; l != (lh); l = l->prev)
+
 static inline void list_copy(struct list_head *dest, const struct list_head *src)
 {
     dest->prev = src->prev;

@@ -116,7 +116,7 @@ int tcp_socket::do_receive_syn_sent(const packet_handling_data &data)
 
     auto starting_seq_number = ntohl(tcphdr->sequence_number);
     uint32_t seqs = 1;
-    ack_number = starting_seq_number + seqs;
+    rcv_next = starting_seq_number + seqs;
 
     do_ack(data.buffer);
 
@@ -131,7 +131,7 @@ int tcp_socket::do_receive_syn_sent(const packet_handling_data &data)
         return -ENOBUFS;
     }
 
-    auto ex = sendpbuf(res, true);
+    auto ex = sendpbuf(res.get(), true);
 
     if (ex.has_error())
     {
@@ -145,23 +145,66 @@ int tcp_socket::do_receive_syn_sent(const packet_handling_data &data)
     return 0;
 }
 
+static void tcp_eat_head(struct packetbuf *pbf, unsigned int len)
+{
+    /* TODO: Support packetbufs larger than PAGE_SIZE */
+    pbf->data += len;
+    pbf->tpi.seq += len;
+    pbf->tpi.seq_len -= len;
+}
+
+/**
+ * @brief Do the ACK
+ * @param new_una New snd_una
+ *
+ * @return True if ack completely covers the packet (i.e can be freed)
+ */
+bool tcp_pending_out::do_ack(u32 new_una)
+{
+    u32 ack_length = buf->tpi.seq_len;
+
+    u32 final_seq = buf->tpi.seq + ack_length;
+    if (final_seq > new_una)
+    {
+        /* Partial ACK. Eat up the packetbuf's head */
+        tcp_eat_head(buf.get(), new_una - buf->tpi.seq);
+        return false;
+    }
+
+    acked = true;
+    if (done_callback)
+        done_callback(this);
+    return true;
+}
 /**
  * @brief Does acknowledgement of packets
  *
  * @param buf Packetbuf of the ack packet we got
  */
-void tcp_socket::do_ack(packetbuf *buf)
+int tcp_socket::do_ack(packetbuf *buf)
 {
     tcp_header *tcphdr = (tcp_header *) buf->transport_header;
-    auto ack = ntohl(tcphdr->ack_number);
+    u32 ack = ntohl(tcphdr->ack_number);
+
+    /* If the segment acks something not yet sent, send an ACK */
+    if (ack > snd_next)
+    {
+        send_ack();
+        return TCP_DROP_ACK_UNSENT;
+    }
+
+    /* If SND.UNA < SEG.ACK =< SND.NXT, then set SND.UNA <- SEG.ACK */
+    if (snd_una >= ack)
+        return TCP_DROP_ACK_DUP;
+
+    /* TODO: Send window updates (if ack == snd_una) */
 
     scoped_lock g{pending_out_lock};
-
     list_for_every_safe (&pending_out_packets)
     {
         auto pkt = list_head_cpp<tcp_pending_out>::self_from_list_head(l);
 
-        if (!pkt->ack_for_packet(last_ack_number, ack))
+        if (!pkt->ack_for_packet(snd_una - 1, ack))
             continue;
 
         auto tph = (tcp_header *) pkt->buf->transport_header;
@@ -172,29 +215,22 @@ void tcp_socket::do_ack(packetbuf *buf)
             state = tcp_state::TCP_STATE_FIN_WAIT_2;
         }
 
-        pkt->do_ack();
-
-        wait_queue_wake_all(&pkt->wq);
-
-        pkt->remove();
-
-        /* Unref *must* be the last thing we do */
-        pkt->unref();
-    }
-
-    last_ack_number = ack;
-
-    g.unlock();
-
-    if (list_is_empty(&pending_out_packets))
-    {
-        // Try to send any possible pending packets
-        if (int st = try_to_send(); st < 0)
+        if (pkt->do_ack(ack))
         {
-            sock_err = -st;
-            return;
+            wait_queue_wake_all(&pkt->wq);
+            pkt->remove();
+            /* Unref *must* be the last thing we do */
+            pkt->unref();
         }
     }
+
+    if (list_is_empty(&pending_out_packets))
+        stop_retransmit();
+
+    snd_una = ack;
+    g.unlock();
+
+    return 0;
 }
 
 /**
@@ -227,7 +263,7 @@ void tcp_socket::send_reset()
     /* Assume the max window size as the window size, for now */
     tph->window_size = htons(our_window_size);
     tph->source_port = saddr().port;
-    tph->sequence_number = htonl(sequence_nr());
+    tph->sequence_number = htonl(snd_next);
     tph->data_offset_and_flags = htons(data_off | flags);
     tph->dest_port = dest.port;
     tph->urgent_pointer = 0;
@@ -358,7 +394,7 @@ void tcp_socket::send_ack()
         sock_err = ENOBUFS;
     }
 
-    if (auto ex = sendpbuf(pbuf, true); ex.has_error())
+    if (auto ex = sendpbuf(pbuf.get(), true); ex.has_error())
     {
         sock_err = ex.error();
     }
@@ -561,9 +597,9 @@ int tcp_socket::make_connection_from(const tcp_connection_req *req)
     src_addr = req->from;
     dest_addr = req->to;
 
-    seq_number = req->seq_number;
-    ack_number = req->ack_number;
-    last_ack_number = ack_number - 1;
+    snd_next = req->seq_number;
+    snd_una = snd_next - 1;
+    rcv_next = req->ack_number;
     mss = req->mss;
     window_size = req->window_size;
     window_size_shift = req->window_shift;
@@ -639,7 +675,6 @@ int tcp_socket::accept_connection(tcp_connection_req *req, const packet_handling
 
     list_remove(&req->list_node);
     syn_queue_len--;
-    timer_cancel_event(&req->syn_ack_pending->timer);
     delete req;
 
     list_add_tail(&sock->accept_node, &accept_queue);
@@ -724,17 +759,18 @@ int tcp_socket::do_established_rcv(const packet_handling_data &data)
 {
     const auto tcphdr = (const tcp_header *) data.header;
     auto flags = htons(tcphdr->data_offset_and_flags);
+    int drop = 0;
 
     if (!(flags & TCP_FLAG_ACK))
     {
         // Every segment received after established needs to have ACK set
-        return 0;
+        return TCP_DROP_NOACK;
     }
 
     if (flags & TCP_FLAG_SYN)
     {
         // SYN is not a valid flag in this state
-        return 0;
+        return TCP_DROP_GENERIC;
     }
 
     /* ack_number holds the other side of the connection's sequence number */
@@ -745,7 +781,7 @@ int tcp_socket::do_established_rcv(const packet_handling_data &data)
     if (flags & TCP_FLAG_FIN)
         seqs++;
 
-    ack_number = starting_seq_number + seqs;
+    rcv_next = starting_seq_number + seqs;
 
     // Send a reset if we got data and we're not queueing data anymore
     if (shutdown_state & SHUTDOWN_RD && data_size != 0)
@@ -777,10 +813,17 @@ int tcp_socket::do_established_rcv(const packet_handling_data &data)
     else if (data_size == 0 && (flags & 0xff) == TCP_FLAG_ACK)
     {
         // Process the ACK
-        do_ack(data.buffer);
+        drop = do_ack(data.buffer);
     }
 
-    return 0;
+    if (list_is_empty(&pending_out_packets))
+    {
+        // Try to send any possible pending packets
+        if (int st = try_to_send(); st < 0)
+            sock_err = -st;
+    }
+
+    return drop;
 }
 
 /**
@@ -838,6 +881,17 @@ void tcp_socket::handle_backlog()
 
         pbuf->unref();
     }
+
+    if (proto_needs_work)
+    {
+        if (retrans_pending)
+        {
+            retransmit_segments();
+            retrans_pending = 0;
+        }
+
+        proto_needs_work = false;
+    }
 }
 
 int tcp_socket::handle_segment(const tcp_socket::packet_handling_data &data)
@@ -870,7 +924,7 @@ int tcp_socket::handle_packet(const tcp_socket::packet_handling_data &data)
     uint16_t header_size = tcp_header_data_off_to_length(data_off);
 
     if (data.tcp_segment_size < header_size)
-        return -1;
+        return TCP_DROP_BAD_PACKET;
 #if 0
 	printk("segment size: %u\n", data.tcp_segment_size);
 	printk("header size: %u\n", header_size);
@@ -899,9 +953,7 @@ int tcp_socket::handle_packet(const tcp_socket::packet_handling_data &data)
         return 0;
     }
 
-    handle_segment(data);
-
-    return 0;
+    return handle_segment(data);
 }
 
 int tcp_send_rst_no_socket(const inet_route &route, in_port_t dstport, in_port_t srcport,
@@ -966,13 +1018,13 @@ int tcp_handle_packet(const inet_route &route, packetbuf *buf)
     auto header = reinterpret_cast<tcp_header *>(buf->data);
 
     if (!validate_tcp_packet(header, buf->length())) [[unlikely]]
-        return 0;
+        return TCP_DROP_BAD_PACKET;
 
     buf->transport_header = (unsigned char *) header;
 
     // TCP connections don't run on broadcast/mcast
     if (route.flags & (INET4_ROUTE_FLAG_BROADCAST | INET4_ROUTE_FLAG_MULTICAST))
-        return 0;
+        return TCP_DROP_BAD_PACKET;
 
     ref_guard<tcp_socket> socket{inet_resolve_socket_conn<tcp_socket>(
         ip_header->source_ip, header->source_port, header->dest_port, IPPROTO_TCP, route.nif,
@@ -988,7 +1040,7 @@ int tcp_handle_packet(const inet_route &route, packetbuf *buf)
             tcp_send_rst_no_socket(route, header->dest_port, header->source_port, AF_INET,
                                    route.nif);
         /* No socket bound, bad packet. */
-        return 0;
+        return TCP_DROP_NOSOCK;
     }
 
     sockaddr_in_both both;
@@ -998,7 +1050,8 @@ int tcp_handle_packet(const inet_route &route, packetbuf *buf)
                                                        &both, AF_INET, route};
 
     st = socket->handle_packet(handle_data);
-
+    if (st != 0)
+        pr_info("socket drop %d\n", st);
     return st;
 }
 
@@ -1009,13 +1062,13 @@ int tcp6_handle_packet(const inet_route &route, packetbuf *buf)
     auto header = reinterpret_cast<tcp_header *>(buf->data);
 
     if (!validate_tcp_packet(header, buf->length())) [[unlikely]]
-        return 0;
+        return TCP_DROP_BAD_PACKET;
 
     buf->transport_header = (unsigned char *) header;
 
     // TCP connections don't run on broadcast/mcast
     if (route.flags & (INET4_ROUTE_FLAG_BROADCAST | INET4_ROUTE_FLAG_MULTICAST))
-        return 0;
+        return TCP_DROP_BAD_PACKET;
 
     ref_guard<tcp_socket> socket{inet6_resolve_socket_conn<tcp_socket>(
         ip_header->src_addr, header->source_port, ip_header->dst_addr, header->dest_port,
@@ -1030,7 +1083,7 @@ int tcp6_handle_packet(const inet_route &route, packetbuf *buf)
             tcp_send_rst_no_socket(route, header->dest_port, header->source_port, AF_INET6,
                                    route.nif);
         /* No socket bound, bad packet. */
-        return 0;
+        return TCP_DROP_NOSOCK;
     }
 
     sockaddr_in_both both;
@@ -1187,16 +1240,6 @@ ref_guard<packetbuf> tcp_packet::result()
     return buf;
 }
 
-int tcp_packet::wait_for_ack()
-{
-    return wait_for_event_interruptible(&ack_wq, acked);
-}
-
-int tcp_packet::wait_for_ack_timeout(hrtime_t _timeout)
-{
-    return wait_for_event_timeout_interruptible(&ack_wq, acked, _timeout);
-}
-
 bool tcp_socket::parse_options(tcp_header *packet)
 {
     auto flags = ntohs(packet->data_offset_and_flags);
@@ -1261,55 +1304,45 @@ constexpr uint16_t tcp_headers_overhead = sizeof(struct tcp_header);
 
 void tcp_out_timeout(clockevent *ev)
 {
-    tcp_pending_out *t = (tcp_pending_out *) ev->priv;
+    tcp_socket *t = (tcp_socket *) ev->priv;
+    t->do_retransmit();
+}
 
-    if (t->acked)
+void tcp_socket::do_retransmit()
+{
+    socket_lock.lock_bh();
+    if (!socket_lock.is_ours())
     {
-        ev->flags &= ~CLOCKEVENT_FLAG_PULSE;
+        retrans_pending = 1;
+        proto_needs_work = true;
+    }
+    else
+        retransmit_segments();
+    socket_lock.unlock_bh();
+}
+
+void tcp_socket::retransmit_segments()
+{
+    if (retransmit_try == tcp_retransmission_max)
+    {
+        /* Send a RST and give up */
+        send_reset();
+        retrans_active = false;
         return;
     }
 
-    if (t->transmission_try == tcp_retransmission_max)
+    /* Go through pending out, resubmit, and reschedule a new timer */
+    list_for_every (&pending_out_packets)
     {
-        wait_queue_wake_all(&t->wq);
-        ev->flags &= ~CLOCKEVENT_FLAG_PULSE;
-        if (t->fail)
-            t->fail(t);
-        scoped_lock g{t->sock->pending_out_lock};
-        list_remove(&t->node);
-        return;
+        tcp_pending_out *out = list_head_cpp<tcp_pending_out>::self_from_list_head(l);
+        send_segment(out->buf.get());
     }
 
-    t->transmission_try++;
-    // printk("out r%u\n", t->transmission_try);
-    tcp_socket *sock = t->sock;
-
-    iflow flow{sock->route_cache, IPPROTO_TCP, sock->effective_domain() == AF_INET6};
-
-    // Since the packet has already been pre-prepared by the network stack
-    // we can just send it straight through the network interface
-    int st = netif_send_packet(flow.nif, t->buf.get());
-
-    if (st < 0)
-    {
-        // If something failed, signal an error and stop retransmitting.
-        sock->sock_err = -st;
-        wait_queue_wake_all(&t->wq);
-        ev->flags &= ~CLOCKEVENT_FLAG_PULSE;
-        if (t->fail)
-            t->fail(t);
-        scoped_lock g{t->sock->pending_out_lock};
-        list_remove(&t->node);
-        return;
-    }
-
-    hrtime_t next_timeout = 200;
-    for (unsigned int i = 0; i < t->transmission_try; i++)
-    {
-        next_timeout *= 2;
-    }
-
-    ev->deadline = clocksource_get_time() + next_timeout * NS_PER_MS;
+    hrtime_t timeout = 200 * NS_PER_MS;
+    retransmit_try++;
+    for (int i = 0; i < retransmit_try; i++)
+        timeout *= 2;
+    start_retransmit_timer(timeout);
 }
 
 /**
@@ -1365,6 +1398,31 @@ void tcp_out_synack_timeout(clockevent *ev)
     ev->deadline = clocksource_get_time() + next_timeout * NS_PER_MS;
 }
 
+void tcp_socket::start_retransmit_timer(hrtime_t timeout)
+{
+    retransmit_timer.callback = tcp_out_timeout;
+    retransmit_timer.flags = 0;
+    retransmit_timer.deadline = clocksource_get_time() + timeout;
+    retransmit_timer.priv = this;
+    timer_queue_clockevent(&retransmit_timer);
+}
+
+void tcp_socket::start_retransmit()
+{
+    /* Socket lock must be held */
+    retransmit_try = 0;
+    start_retransmit_timer(200 * NS_PER_MS);
+    retrans_active = true;
+}
+
+void tcp_socket::stop_retransmit()
+{
+    retransmit_try = 0;
+    if (retrans_active)
+        timer_cancel_event(&retransmit_timer);
+    retrans_active = false;
+}
+
 /**
  * @brief Sends a packetbuf
  *
@@ -1372,7 +1430,7 @@ void tcp_out_synack_timeout(clockevent *ev)
  * @param noack True if no ack is needed
  * @return Expected of a ref_guard to a tcp_pending_out, or a negative error code
  */
-expected<ref_guard<tcp_pending_out>, int> tcp_socket::sendpbuf(ref_guard<packetbuf> buf, bool noack)
+expected<ref_guard<tcp_pending_out>, int> tcp_socket::sendpbuf(packetbuf *buf, bool noack)
 {
     const auto eff_domain = effective_domain();
     iflow flow{route_cache, IPPROTO_TCP, eff_domain == AF_INET6};
@@ -1387,30 +1445,25 @@ expected<ref_guard<tcp_pending_out>, int> tcp_socket::sendpbuf(ref_guard<packetb
             return unexpected{-ENOBUFS};
         }
 
-        pending->buf = buf;
-        pending->timer.deadline = clocksource_get_time() + 200 * NS_PER_MS;
-        pending->timer.priv = pending.get();
-        pending->timer.flags = CLOCKEVENT_FLAG_PULSE;
-        pending->timer.callback = tcp_out_timeout;
+        buf->ref();
+        pending->buf = ref_guard{buf};
         append_pending_out(pending.get());
     }
 
     int st = -EINVAL;
     if (eff_domain == AF_INET)
-        st = ip::v4::send_packet(flow, buf.get());
+        st = ip::v4::send_packet(flow, buf);
     else if (eff_domain == AF_INET6)
-        st = ip::v6::send_packet(flow, buf.get());
+        st = ip::v6::send_packet(flow, buf);
 
     if (st < 0)
         return unexpected{st};
 
-    if (!noack)
-    {
-        timer_queue_clockevent(&pending->timer);
-    }
-
     if (noack)
         return ref_guard<tcp_pending_out>{};
+
+    if (!retrans_active)
+        start_retransmit();
 
     return pending;
 }
@@ -1434,10 +1487,6 @@ int tcp_connection_req::sendpbuf(ref_guard<packetbuf> buf, bool noack)
             return -ENOBUFS;
 
         pending->buf = buf;
-        pending->timer.deadline = clocksource_get_time() + 200 * NS_PER_MS;
-        pending->timer.priv = pending.get();
-        pending->timer.flags = CLOCKEVENT_FLAG_PULSE;
-        pending->timer.callback = tcp_out_synack_timeout;
         syn_ack_pending = pending;
     }
 
@@ -1449,11 +1498,6 @@ int tcp_connection_req::sendpbuf(ref_guard<packetbuf> buf, bool noack)
 
     if (st < 0)
         return st;
-
-    if (!noack)
-    {
-        timer_queue_clockevent(&pending->timer);
-    }
 
     return 0;
 }
@@ -1486,7 +1530,7 @@ int tcp_socket::start_handshake(netif *nif, int flags)
     if (!buf)
         return -ENOBUFS;
 
-    auto ex = sendpbuf(buf);
+    auto ex = sendpbuf(buf.get());
 
     if (ex.has_error())
         return ex.error();
@@ -1533,7 +1577,6 @@ void tcp_socket::finish_conn()
     // Race?
     state = tcp_state::TCP_STATE_ESTABLISHED;
     connection_pending = false;
-    expected_ack = ack_number;
     connected = true;
     sock_err = 0;
     wait_queue_wake_all(&conn_wq);
@@ -1541,10 +1584,9 @@ void tcp_socket::finish_conn()
 
 int tcp_socket::start_connection(int flags)
 {
-    seq_number = arc4random();
+    snd_next = snd_una = arc4random();
 
     auto fam = get_proto_fam();
-
     auto result = fam->route(src_addr, dest_addr, domain);
 
     if (result.has_error())
@@ -1602,9 +1644,121 @@ int tcp_socket::connect(struct sockaddr *addr, socklen_t addrlen, int flags)
     return start_connection(flags);
 }
 
+/**
+ * @brief Prepare segment for sending
+ *
+ * @param buf Packetbuf
+ */
+void tcp_socket::prepare_segment(packetbuf *pbf)
+{
+    unsigned int flags = TCP_FLAG_ACK;
+    auto segment_len = pbf->length();
+    pbf->tpi.seq = snd_next;
+    pbf->tpi.seq_len = segment_len;
+    snd_next += segment_len;
+
+    if (flags & TCP_FLAG_FIN)
+    {
+        pbf->tpi.seq_len++;
+        snd_next++;
+    }
+}
+
+int tcp_socket::append_data(const iovec *vec, size_t vec_len, size_t mss)
+{
+    size_t read_in_vec = 0;
+    packetbuf *packet = nullptr;
+    unsigned int packet_len = 0;
+
+    if (list_is_empty(pending_out.get_packet_list()))
+        goto alloc_append;
+
+    packet = pending_out.get_tail();
+    if (!vec_len)
+        return 0;
+
+    while ((packet_len = packet->length()) < mss)
+    {
+        /* OOOH, we've got some room, let's expand! */
+        const uint8_t *ubuf = (uint8_t *) vec->iov_base + read_in_vec;
+        auto len = vec->iov_len - read_in_vec;
+        unsigned int to_expand = cul::clamp(len, mss - packet_len);
+        ssize_t st = packet->expand_buffer(ubuf, to_expand);
+
+        if (st < 0)
+            return -ENOBUFS;
+
+        packet->tpi.seq_len += to_expand;
+        read_in_vec += st;
+        if (read_in_vec == vec->iov_len)
+        {
+            vec++;
+            read_in_vec = 0;
+            vec_len--;
+        }
+
+        /* Good, we're finished. */
+        if (!vec_len)
+            return 0;
+    }
+
+alloc_append:
+    return alloc_and_append(vec, vec_len, mss, read_in_vec);
+}
+
+int tcp_socket::alloc_and_append(const iovec *vec, size_t vec_len, size_t mss, size_t skip_first)
+{
+    size_t added_from_vec = 0;
+    size_t vec_nr = 0;
+    while (vec_len)
+    {
+        packetbuf *packet = new packetbuf;
+        if (!packet)
+            return -ENOBUFS;
+
+        size_t iov_len = vec->iov_len;
+        if (vec_nr == 0)
+        {
+            // We might be creating a new packet from a partial iov that already filled
+            // some other packet in the list.
+
+            iov_len -= skip_first;
+        }
+
+        unsigned long max_payload = cul::clamp(iov_len - added_from_vec, mss);
+        unsigned long to_alloc = max_payload + mss + PACKET_MAX_HEAD_LENGTH;
+
+        auto ubuf = (const uint8_t *) vec->iov_base + added_from_vec;
+
+        if (!packet->allocate_space(to_alloc))
+        {
+            delete packet;
+            return -ENOBUFS;
+        }
+
+        packet->reserve_headers(PACKET_MAX_HEAD_LENGTH);
+        auto st = packet->expand_buffer(ubuf, max_payload);
+
+        prepare_segment(packet);
+        assert((size_t) st == max_payload);
+        added_from_vec += max_payload;
+        list_add_tail(&packet->list_node, pending_out.get_packet_list());
+
+        if (added_from_vec == iov_len)
+        {
+            added_from_vec = 0;
+            vec_len--;
+            vec++;
+            vec_nr++;
+        }
+    }
+
+    return 0;
+}
+
 ssize_t tcp_socket::queue_data(iovec *vec, int vlen, size_t len)
 {
-    return pending_out.append_data(vec, vlen, 0, mss);
+    return append_data(vec, vlen, mss);
 }
 
 ssize_t tcp_socket::get_max_payload_len(uint16_t tcp_header_len)
@@ -1625,35 +1779,22 @@ bool tcp_socket::nagle_can_send(packetbuf *buf)
     return (other_window() >= mss && buf->length() == mss) || list_is_empty(&pending_out_packets);
 }
 
-/**
- * @brief Sends a data segment
- *
- * @param buf Packetbuf to send
- * @return 0 on success, negative error codes
- */
-int tcp_socket::send_segment(packetbuf *buf)
+packetbuf *tcp_socket::clone_for_send(packetbuf *buf)
 {
     if (buf->transport_header)
     {
-        // We've tried sending this before, and it didn't work
-        // so just try to re-trigger sendpbuf
-
-        // Horrible logic, should be separated into another function
-        auto segment_len = buf->tail - (buf->transport_header + sizeof(tcp_header));
-        auto ex = sendpbuf(ref_guard<packetbuf>{buf});
-
-        if (ex.has_error())
-            return ex.error();
-
-        // Send went fine, decrement the window size
-        window_size -= segment_len;
-        return 0;
+        /* Oh? We have a TCP header already, we're supposed to send this out. */
+        /* TODO: no. */
+        buf->ref();
+        return buf;
     }
 
-    unsigned int flags = TCP_FLAG_ACK;
-    auto segment_len = buf->length();
-    tcp_header *header = (tcp_header *) buf->push_header(sizeof(tcp_header));
-    buf->transport_header = (unsigned char *) header;
+    packetbuf *pbf = packetbuf_clone(buf);
+    if (!pbf)
+        return nullptr;
+
+    tcp_header *header = (tcp_header *) pbf->push_header(sizeof(tcp_header));
+    pbf->transport_header = (unsigned char *) header;
 
     memset(header, 0, sizeof(tcp_header));
 
@@ -1664,43 +1805,51 @@ int tcp_socket::send_segment(packetbuf *buf)
     /* Assume the max window size as the window size, for now */
     header->window_size = htons(our_window_size);
     header->source_port = saddr().port;
-    header->sequence_number = htonl(sequence_nr());
-    header->data_offset_and_flags = htons(data_off | flags);
+    header->sequence_number = htonl(pbf->tpi.seq);
+    header->data_offset_and_flags = htons(data_off | TCP_FLAG_ACK);
     header->dest_port = dest.port;
     header->urgent_pointer = 0;
-
-    if (flags & TCP_FLAG_ACK)
-        header->ack_number = htonl(acknowledge_nr());
-    else
-        header->ack_number = 0;
-
-    // TODO: options?
 
     auto &route = route_cache;
     auto nif = route.nif;
 
     bool need_csum = true;
 
-    if (can_offload_csum(nif, buf))
+    if (can_offload_csum(nif, pbf))
     {
-        buf->csum_offset = &header->checksum;
-        buf->csum_start = (unsigned char *) header;
-        buf->needs_csum = 1;
+        pbf->csum_offset = &header->checksum;
+        pbf->csum_start = (unsigned char *) header;
+        pbf->needs_csum = 1;
         need_csum = false;
     }
 
+    header->ack_number = htonl(acknowledge_nr());
     header->checksum = call_based_on_inet(tcp_calculate_checksum, header,
-                                          static_cast<uint16_t>(sizeof(tcp_header) + segment_len),
+                                          static_cast<uint16_t>(sizeof(tcp_header) + buf->length()),
                                           route.src_addr, route.dst_addr, need_csum);
 
-    uint32_t seqs = segment_len;
-    if (flags & TCP_FLAG_SYN)
-        seqs++;
+    return pbf;
+}
 
-    sequence_nr() += seqs;
+/**
+ * @brief Sends a data segment
+ *
+ * @param buf Packetbuf to send
+ * @return 0 on success, negative error codes
+ */
+int tcp_socket::send_segment(packetbuf *buf)
+{
+    // TODO: options?
+    auto segment_len = buf->length();
+    packetbuf *pbf = clone_for_send(buf);
+    if (!pbf)
+        return -ENOMEM;
 
-    auto ex = sendpbuf(ref_guard<packetbuf>{buf});
+    if (WARN_ON_ONCE(segment_len > mss))
+        pr_err("tcp: segment size %u > mss %u\n", segment_len, mss);
 
+    auto ex = sendpbuf(pbf);
+    pbf->unref();
     if (ex.has_error())
         return ex.error();
 
@@ -1770,14 +1919,10 @@ ssize_t tcp_socket::sendmsg(const msghdr *msg, int flags)
 
     auto st = queue_data(msg->msg_iov, msg->msg_iovlen, (size_t) len);
     if (st < 0)
-    {
         return st;
-    }
 
     if (int _st = try_to_send(); _st < 0)
-    {
         return _st;
-    }
 
     return len;
 }
@@ -1945,7 +2090,7 @@ int tcp_socket::send_fin()
     /* Assume the max window size as the window size, for now */
     tph->window_size = htons(our_window_size);
     tph->source_port = saddr().port;
-    tph->sequence_number = htonl(sequence_nr());
+    tph->sequence_number = htonl(snd_next);
     tph->data_offset_and_flags = htons(data_off | flags);
     tph->dest_port = dest.port;
     tph->urgent_pointer = 0;
@@ -1973,7 +2118,7 @@ int tcp_socket::send_fin()
     // Note: Since we're shutting down the socket, there's no need to be careful wrt
     // cork code trying to fit more sendmsg() data into our fin packet.
 
-    sequence_nr()++; // For the FIN
+    snd_next++; // For the FIN
 
     return 0;
 }

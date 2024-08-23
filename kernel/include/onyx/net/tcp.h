@@ -53,13 +53,13 @@ struct tcp_header
 
 #define TCP_HEADER_MAX_SIZE 60
 
-#define TCP_OPTION_END_OF_OPTIONS (0)
-#define TCP_OPTION_NOP            (1)
-#define TCP_OPTION_MSS            (2)
-#define TCP_OPTION_WINDOW_SCALE   (3)
+#define TCP_OPTION_END_OF_OPTIONS   (0)
+#define TCP_OPTION_NOP              (1)
+#define TCP_OPTION_MSS              (2)
+#define TCP_OPTION_WINDOW_SCALE     (3)
 #define TCP_OPTION_SACK_PERGPLv2TED (4)
-#define TCP_OPTION_SACK           (5)
-#define TCP_OPTION_TIMESTAMP      (8)
+#define TCP_OPTION_SACK             (5)
+#define TCP_OPTION_TIMESTAMP        (8)
 
 #define TCP_GET_DATA_OFF(off) (off >> TCP_DATA_OFFSET_SHIFT)
 
@@ -324,31 +324,30 @@ class tcp_socket : public inet_socket
 private:
     enum tcp_state state;
     int type;
-    struct semaphore packet_semaphore;
-    struct list_head packet_list_head;
-    struct spinlock packet_lock;
-    struct spinlock tcp_ack_list_lock;
-    struct list_head tcp_ack_list;
     struct list_head pending_out_packets;
     wait_queue tcp_ack_wq;
     wait_queue conn_wq;
-    uint32_t seq_number;
-    uint32_t ack_number;
-    uint32_t last_ack_number;
-    size_t current_pos;
     uint16_t mss;
     uint32_t window_size;
     uint8_t window_size_shift;
     uint32_t our_window_size;
     uint8_t our_window_shift;
-    uint32_t expected_ack;
+
+    /* First byte that's unacknowledged (everything before it has been ack'd) */
+    u32 snd_una;
+    /* Next allowed sequence number (everything before it has been ack'd or is in-transit) */
+    u32 snd_next;
+    /* First unseen sequence number */
+    u32 rcv_next;
     bool connection_pending;
     inet_cork pending_out;
-    /* TODO: Add a lock for this stuff up here */
-    struct list_head pending_accept_node;
-    struct list_head pending_accept_list;
 
     bool nagle_enabled : 1;
+    bool retrans_active : 1 {0};
+    int retrans_pending : 1 {0};
+
+    int retransmit_try{0};
+    struct clockevent retransmit_timer;
     // Done as a pointer so we save some space
     unique_ptr<clockevent> time_wait_timer;
 
@@ -364,41 +363,6 @@ private:
     wait_queue accept_wq;
 
     list_head_cpp<tcp_socket> accept_node;
-
-    template <typename pred>
-    tcp_ack *find_ack(pred predicate)
-    {
-        list_for_every (&tcp_ack_list)
-        {
-            tcp_ack *ack = container_of(l, tcp_ack, list_node);
-            if (predicate(ack))
-            {
-                return ack;
-            }
-        }
-
-        return nullptr;
-    }
-
-    template <typename pred>
-    tcp_ack *wait_for_ack(pred predicate, int &error, bool remove = true)
-    {
-        spin_lock(&tcp_ack_list_lock);
-
-        tcp_ack *ack = nullptr;
-
-        int st = wait_for_event_locked_timeout_interruptible(&tcp_ack_wq,
-                                                             (ack = find_ack(predicate)) != nullptr,
-                                                             100 * NS_PER_SEC, &tcp_ack_list_lock);
-
-        if (ack && remove)
-            ack->remove();
-
-        error = st;
-        spin_unlock(&tcp_ack_list_lock);
-
-        return ack;
-    }
 
     int start_handshake(netif *nif, int flags);
 
@@ -488,6 +452,26 @@ private:
      */
     void append_backlog(packetbuf *buf);
 
+    /**
+     * @brief Prepare segment for sending
+     *
+     * @param buf Packetbuf
+     */
+    void prepare_segment(packetbuf *buf);
+
+    packetbuf *clone_for_send(packetbuf *buf);
+
+    void start_retransmit();
+
+    void start_retransmit_timer(hrtime_t timeout);
+
+    void retransmit_segments();
+
+    void stop_retransmit();
+
+    int append_data(const iovec *vec, size_t vec_len, size_t mss);
+    int alloc_and_append(const iovec *vec, size_t vec_len, size_t mss, size_t skip_first);
+
 public:
     struct spinlock pending_out_lock;
 
@@ -574,20 +558,17 @@ public:
 
     // FIXME: Nagle's algorithm was disabled, as it isn't stable.
     tcp_socket()
-        : inet_socket{}, state(tcp_state::TCP_STATE_CLOSED), type(SOCK_STREAM), packet_semaphore{},
-          packet_list_head{}, packet_lock{}, tcp_ack_list_lock{}, pending_out_packets{},
-          tcp_ack_wq{}, conn_wq{}, seq_number{0}, ack_number{0}, current_pos{}, mss{default_mss},
+        : inet_socket{}, state(tcp_state::TCP_STATE_CLOSED),
+          type(SOCK_STREAM), pending_out_packets{}, tcp_ack_wq{}, conn_wq{}, mss{default_mss},
           window_size{0}, window_size_shift{default_window_size_shift}, our_window_size{UINT16_MAX},
-          our_window_shift{default_window_size_shift}, expected_ack{0}, connection_pending{},
-          pending_out{SOCK_STREAM}, pending_accept_list{}, nagle_enabled{false}, time_wait_timer{},
+          our_window_shift{default_window_size_shift}, snd_una{0}, snd_next{0}, rcv_next{0},
+          connection_pending{}, pending_out{SOCK_STREAM}, nagle_enabled{true}, time_wait_timer{},
           syn_queue_len{}, syn_queue{}, accept_queue_len{}, accept_queue{}, accept_node{this},
           pending_out_lock{}
     {
         init_wait_queue_head(&conn_wq);
-        INIT_LIST_HEAD(&tcp_ack_list);
         init_wait_queue_head(&tcp_ack_wq);
         INIT_LIST_HEAD(&pending_out_packets);
-        INIT_LIST_HEAD(&pending_accept_list);
         INIT_LIST_HEAD(&syn_queue);
         INIT_LIST_HEAD(&accept_queue);
         init_wait_queue_head(&accept_wq);
@@ -620,23 +601,16 @@ public:
 
     int start_connection(int flags);
 
-    void append_ack(tcp_ack *ack)
-    {
-        scoped_lock guard{tcp_ack_list_lock};
-        ack->append(&tcp_ack_list);
-        wait_queue_wake_all(&tcp_ack_wq);
-    }
-
     ssize_t sendmsg(const msghdr *msg, int flags) override;
 
-    uint32_t &sequence_nr()
+    u32 &sequence_nr()
     {
-        return seq_number;
+        return snd_next;
     }
 
     uint32_t acknowledge_nr()
     {
-        return ack_number;
+        return rcv_next;
     }
 
     ssize_t queue_data(iovec *vec, int vlen, size_t count);
@@ -661,15 +635,14 @@ public:
      * @param noack True if no ack is needed
      * @return Expected of a ref_guard to a tcp_pending_out, or a negative error code
      */
-    expected<ref_guard<tcp_pending_out>, int> sendpbuf(ref_guard<packetbuf> buf,
-                                                       bool noack = false);
+    expected<ref_guard<tcp_pending_out>, int> sendpbuf(packetbuf *buf, bool noack = false);
 
     /**
      * @brief Does acknowledgement of packets
      *
      * @param buf Packetbuf of the ack packet we got
      */
-    void do_ack(packetbuf *buf);
+    int do_ack(packetbuf *buf);
 
     /**
      * @brief Fail a connection attempt
@@ -706,6 +679,8 @@ public:
      *
      */
     void handle_backlog() override;
+
+    void do_retransmit();
 };
 
 constexpr inline uint16_t tcp_header_length_to_data_off(uint16_t len)
@@ -725,7 +700,6 @@ constexpr inline uint16_t tcp_header_data_off_to_length(uint16_t len)
 struct tcp_pending_out : public refcountable
 {
     ref_guard<packetbuf> buf;
-    struct clockevent timer;
     list_head_cpp<tcp_pending_out> node;
     unsigned int transmission_try{};
     union {
@@ -739,14 +713,13 @@ struct tcp_pending_out : public refcountable
     void (*fail)(tcp_pending_out *out);
     void (*done_callback)(tcp_pending_out *out);
 
-    tcp_pending_out(tcp_socket *s)
-        : refcountable(), node{this}, transmission_try{}, sock{s}, fail{}, done_callback{}
+    tcp_pending_out(tcp_socket *s) : refcountable(), node{this}, sock{s}, fail{}, done_callback{}
     {
         init_wait_queue_head(&wq);
     }
 
     tcp_pending_out(tcp_connection_req *r)
-        : refcountable(), node{this}, transmission_try{}, req{r}, fail{}, done_callback{}
+        : refcountable(), node{this}, req{r}, fail{}, done_callback{}
     {
         init_wait_queue_head(&wq);
     }
@@ -759,7 +732,7 @@ struct tcp_pending_out : public refcountable
      */
     bool done() const
     {
-        return reset || acked || transmission_try == tcp_retransmission_max;
+        return reset || acked;
     }
 
     /**
@@ -788,7 +761,6 @@ struct tcp_pending_out : public refcountable
      */
     void remove()
     {
-        timer_cancel_event(&timer);
         list_remove(&node);
     }
 
@@ -802,33 +774,28 @@ struct tcp_pending_out : public refcountable
     bool ack_for_packet(uint32_t last_ack, uint32_t this_ack) const
     {
         const auto tcphdr = (const tcp_header *) buf->transport_header;
-        uint32_t header_len =
-            tcp_header_data_off_to_length(TCP_GET_DATA_OFF(ntohs(tcphdr->data_offset_and_flags)));
-        uint32_t ack_length = buf->tail - buf->transport_header - header_len;
-
-        auto flags = ntohs(tcphdr->data_offset_and_flags);
-        if (flags & TCP_FLAG_SYN)
-            ack_length++;
-        if (flags & TCP_FLAG_FIN)
-            ack_length++;
-
-        auto starting_seq_number = ntohl(tcphdr->sequence_number);
-        if (starting_seq_number >= last_ack && this_ack >= starting_seq_number + ack_length)
-            return true;
-
-        return false;
+        return ntohl(tcphdr->sequence_number) < this_ack;
     }
 
     /**
      * @brief Do the ACK
+     * @param new_una New snd_una
      *
+     * @return True if ack completely covers the packet (i.e can be freed)
      */
-    void do_ack()
-    {
-        acked = true;
-        if (done_callback)
-            done_callback(this);
-    }
+    bool do_ack(u32 new_una);
+};
+
+enum tcp_drop_reason
+{
+    TCP_ACCEPTED = 0,
+    TCP_DROP_NOSOCK,
+    TCP_DROP_BAD_PACKET,
+    TCP_DROP_CSUM_ERR,
+    TCP_DROP_NOACK,
+    TCP_DROP_GENERIC,
+    TCP_DROP_ACK_UNSENT,
+    TCP_DROP_ACK_DUP,
 };
 
 #endif

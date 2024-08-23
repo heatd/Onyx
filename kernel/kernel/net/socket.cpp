@@ -1460,7 +1460,7 @@ void sock_do_post_work(socket *sock)
 
 bool sock_needs_work(socket *sock)
 {
-    return !list_is_empty(&sock->socket_backlog);
+    return sock->proto_needs_work || !list_is_empty(&sock->socket_backlog);
 }
 
 int sys_getsockname(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
