@@ -344,12 +344,6 @@ ssize_t udp_socket::udp_sendmsg(const msghdr *msg, int flags, const inet_sock_ad
         return st;
     }
 
-#if DEBUG_UDP_CORK
-    printk("appending %lu, total len %u\n", msg->msg_iov[0].iov_len,
-           list_head_cpp<packetbuf>::self_from_list_head(list_first_element(cork.get_packet_list()))
-               ->length());
-#endif
-
     if (!wanting_cork)
     {
         iflow fl{route, src_addr, dst, IPPROTO_UDP};
@@ -479,7 +473,7 @@ void udp_socket::handle_backlog()
     // Take every packet and queue it
     list_for_every_safe (&socket_backlog)
     {
-        auto pbuf = list_head_cpp<packetbuf>::self_from_list_head(l);
+        auto pbuf = container_of(l, packetbuf, list_node);
         list_remove(&pbuf->list_node);
         append_inet_rx_pbuf(pbuf);
         pbuf->unref();
@@ -715,3 +709,5 @@ int udp_socket::getpeername(sockaddr *addr, socklen_t *len)
     copy_addr_to_sockaddr(dest_addr, addr, len);
     return 0;
 }
+
+DEFINE_CPP_SOCKET_OPS(udp_ops, udp_socket);

@@ -134,7 +134,7 @@ int inet_cork::send(const iflow &flow, void (*prepare_headers)(packetbuf *buf, c
 
     list_for_every_safe (&packet_list)
     {
-        auto pbf = list_head_cpp<packetbuf>::self_from_list_head(l);
+        auto pbf = container_of(l, packetbuf, list_node);
 
         prepare_headers(pbf, flow);
 
@@ -166,7 +166,7 @@ inet_cork::~inet_cork()
 {
     list_for_every_safe (&packet_list)
     {
-        auto packet = list_head_cpp<packetbuf>::self_from_list_head(l);
+        auto packet = container_of(l, packetbuf, list_node);
         list_remove(&packet->list_node);
         packet->unref();
     }

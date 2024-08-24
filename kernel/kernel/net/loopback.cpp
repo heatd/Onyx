@@ -61,7 +61,7 @@ int loopback_pollrx(netif *nif)
     spin_lock(&pqueue_lock);
     while (!list_is_empty(&pqueue))
     {
-        auto pbuf = list_head_cpp<packetbuf>::self_from_list_head(list_first_element(&pqueue));
+        auto pbuf = container_of(list_first_element(&pqueue), packetbuf, list_node);
         list_remove(&pbuf->list_node);
 
         // Unlock. process_pbuf may want to send buffers, which may want to lock pqueue, so we must

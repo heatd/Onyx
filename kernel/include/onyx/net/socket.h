@@ -37,65 +37,26 @@
 #define DEFAULT_RX_MAX_BUF UINT16_MAX
 #define DEFAULT_TX_MAX_BUF UINT16_MAX
 
-struct socket_conn_request
-{
-    struct sockaddr saddr;
-    struct list_head list_node;
-};
-
 struct socket;
 
-struct recv_packet
+struct socket_ops
 {
-    union {
-        sockaddr_in in4;
-        sockaddr_in6 in6;
-    } src_addr;
-
-    socklen_t addr_len;
-    void *payload;
-    size_t size;
-    size_t read;
-    list_head_cpp<recv_packet> list_node;
-    cul::vector<uint8_t> ancilliary_data;
-
-public:
-    recv_packet()
-        : src_addr{}, addr_len{}, payload{}, size{}, read{}, list_node{this}, ancilliary_data{}
-    {
-    }
-
-    ~recv_packet()
-    {
-        free(payload);
-    }
-};
-
-class recv_queue
-{
-private:
-    wait_queue recv_wait;
-    struct spinlock recv_queue_lock;
-    struct list_head recv_list;
-    size_t total_data_in_buffers;
-    socket *sock;
-
-    struct list_head *get_recv_packet_list(int msg_flags, size_t required_data, int &error);
-    bool has_data_available(int msg_flags, size_t required_data);
-    void clear_packets();
-
-public:
-    recv_queue(socket *sock) : recv_queue_lock{}, total_data_in_buffers{0}, sock{sock}
-    {
-        init_wait_queue_head(&recv_wait);
-        INIT_LIST_HEAD(&recv_list);
-    }
-
-    ~recv_queue();
-
-    ssize_t recvfrom(void *buf, size_t len, int flags, sockaddr *src_addr, socklen_t *slen);
-    void add_packet(recv_packet *p);
-    bool poll(void *poll_file);
+    void (*destroy)(struct socket *);
+    int (*listen)(struct socket *);
+    struct socket *(*accept)(struct socket *, int flags);
+    int (*bind)(struct socket *, struct sockaddr *addr, socklen_t addrlen);
+    int (*connect)(struct socket *, struct sockaddr *addr, socklen_t addrlen, int flags);
+    ssize_t (*sendmsg)(struct socket *, const struct msghdr *msg, int flags);
+    ssize_t (*recvmsg)(struct socket *, struct msghdr *msg, int flags);
+    int (*getsockname)(struct socket *, struct sockaddr *addr, socklen_t *addrlen);
+    int (*getpeername)(struct socket *, struct sockaddr *addr, socklen_t *addrlen);
+    int (*shutdown)(struct socket *, int how);
+    int (*getsockopt)(struct socket *, int level, int optname, void *optval, socklen_t *optlen);
+    int (*setsockopt)(struct socket *, int level, int optname, const void *optval,
+                      socklen_t optlen);
+    void (*close)(struct socket *);
+    void (*handle_backlog)(struct socket *);
+    short (*poll)(struct socket *, void *poll_file, short events);
 };
 
 struct socket : public refcountable
@@ -105,8 +66,6 @@ public:
     int type;
     int proto;
     int domain;
-    recv_queue in_band_queue;
-    recv_queue oob_data_queue;
     unsigned int flags;
     unsigned int sock_err;
 
@@ -124,8 +83,6 @@ public:
     int nr_pending;
     int backlog;
 
-    proto_family *proto_domain;
-
     struct list_head socket_backlog;
 
     unsigned int rx_max_buf;
@@ -140,13 +97,14 @@ public:
     hrtime_t snd_timeout;
     unsigned int shutdown_state;
 
+    const struct socket_ops *sock_ops;
+
     /* Define a default constructor here */
     socket()
-        : type{}, proto{}, domain{}, in_band_queue{this}, oob_data_queue{this}, flags{}, sock_err{},
-          socket_lock{}, bound{}, connected{}, listener_sem{}, conn_req_list_lock{},
-          conn_request_list{}, nr_pending{}, backlog{}, proto_domain{},
+        : type{}, proto{}, domain{}, flags{}, sock_err{}, socket_lock{}, bound{}, connected{},
+          listener_sem{}, conn_req_list_lock{}, conn_request_list{}, nr_pending{}, backlog{},
           rx_max_buf{DEFAULT_RX_MAX_BUF}, tx_max_buf{DEFAULT_TX_MAX_BUF}, reuse_addr{false},
-          rcv_timeout{0}, snd_timeout{0}, shutdown_state{}
+          rcv_timeout{0}, snd_timeout{0}, shutdown_state{}, sock_ops{}
     {
         INIT_LIST_HEAD(&socket_backlog);
     }
@@ -155,9 +113,7 @@ public:
     {
     }
 
-    ssize_t default_recvfrom(void *buf, size_t len, int flags, sockaddr *src_addr, socklen_t *slen);
-    bool has_data_available(int msg_flags, size_t required_data);
-    virtual short poll(void *poll_file, short events);
+    short poll(void *poll_file, short events);
 
     template <typename Type>
     expected<Type, int> get_socket_option(const void *optval, const socklen_t optlen)
@@ -215,24 +171,24 @@ public:
     if (has_sock_err())  \
     return consume_sock_err()
 
-    virtual int listen();
-    virtual socket *accept(int flags);
-    virtual int bind(sockaddr *addr, socklen_t addrlen);
-    virtual int connect(sockaddr *addr, socklen_t addrlen, int flags);
-    virtual ssize_t sendmsg(const struct msghdr *msg, int flags);
-    virtual ssize_t recvmsg(struct msghdr *msg, int flags);
-    virtual int getsockname(sockaddr *addr, socklen_t *addrlen);
-    virtual int getpeername(sockaddr *addr, socklen_t *addrlen);
-    virtual int shutdown(int how);
-    virtual int getsockopt(int level, int optname, void *optval, socklen_t *optlen) = 0;
-    virtual int setsockopt(int level, int optname, const void *optval, socklen_t optlen) = 0;
+    int listen();
+    socket *accept(int flags);
+    int bind(sockaddr *addr, socklen_t addrlen);
+    int connect(sockaddr *addr, socklen_t addrlen, int flags);
+    ssize_t sendmsg(const struct msghdr *msg, int flags);
+    ssize_t recvmsg(struct msghdr *msg, int flags);
+    int getsockname(sockaddr *addr, socklen_t *addrlen);
+    int getpeername(sockaddr *addr, socklen_t *addrlen);
+    int shutdown(int how);
+    int getsockopt(int level, int optname, void *optval, socklen_t *optlen);
+    int setsockopt(int level, int optname, const void *optval, socklen_t optlen);
 
-    virtual void close()
+    void close()
     {
         unref();
     }
 
-    virtual void handle_backlog()
+    void handle_backlog()
     {
     }
 
@@ -241,12 +197,6 @@ public:
         list_add_tail(node, &socket_backlog);
     }
 };
-
-template <typename T>
-sockaddr &sa_generic(T &s)
-{
-    return (sockaddr &) s;
-}
 
 #define SOL_ICMP   800
 #define SOL_TCP    6
@@ -260,4 +210,114 @@ void socket_init(struct socket *socket);
 #define SHUTDOWN_WR   (1 << 1)
 #define SHUTDOWN_RDWR (SHUTDOWN_RD | SHUTDOWN_WR)
 
+#ifdef __cplusplus
+template <typename T>
+void cpp_destroy(struct socket *sock)
+{
+    ((T *) sock)->~T();
+}
+
+template <typename T>
+int cpp_listen(struct socket *sock)
+{
+    return ((T *) sock)->listen();
+}
+
+template <typename T>
+struct socket *cpp_accept(struct socket *sock, int flags)
+{
+    return ((T *) sock)->accept(flags);
+}
+
+template <typename T>
+int cpp_bind(struct socket *sock, struct sockaddr *addr, socklen_t addrlen)
+{
+    return ((T *) sock)->bind(addr, addrlen);
+}
+
+template <typename T>
+int cpp_connect(struct socket *sock, struct sockaddr *addr, socklen_t addrlen, int flags)
+{
+    return ((T *) sock)->connect(addr, addrlen, flags);
+}
+
+template <typename T>
+ssize_t cpp_sendmsg(struct socket *sock, const struct msghdr *msg, int flags)
+{
+    return ((T *) sock)->sendmsg(msg, flags);
+}
+
+template <typename T>
+ssize_t cpp_recvmsg(struct socket *sock, struct msghdr *msg, int flags)
+{
+    return ((T *) sock)->recvmsg(msg, flags);
+}
+template <typename T>
+int cpp_getsockname(struct socket *sock, struct sockaddr *addr, socklen_t *addrlen)
+{
+    return ((T *) sock)->getsockname(addr, addrlen);
+}
+
+template <typename T>
+int cpp_getpeername(struct socket *sock, struct sockaddr *addr, socklen_t *addrlen)
+{
+    return ((T *) sock)->getpeername(addr, addrlen);
+}
+
+template <typename T>
+int cpp_shutdown(struct socket *sock, int how)
+{
+    return ((T *) sock)->shutdown(how);
+}
+
+template <typename T>
+int cpp_getsockopt(struct socket *sock, int level, int optname, void *optval, socklen_t *optlen)
+{
+    return ((T *) sock)->getsockopt(level, optname, optval, optlen);
+}
+
+template <typename T>
+int cpp_setsockopt(struct socket *sock, int level, int optname, const void *optval,
+                   socklen_t optlen)
+{
+    return ((T *) sock)->setsockopt(level, optname, optval, optlen);
+}
+
+template <typename T>
+void cpp_close(struct socket *sock)
+{
+    return ((T *) sock)->close();
+}
+
+template <typename T>
+void cpp_handle_backlog(struct socket *sock)
+{
+    return ((T *) sock)->handle_backlog();
+}
+
+template <typename T>
+short cpp_poll(struct socket *sock, void *poll_file, short events)
+{
+    return ((T *) sock)->poll(poll_file, events);
+}
+
+#define DEFINE_CPP_SOCKET_OPS(name, type)           \
+    const struct socket_ops name = {                \
+        .destroy = cpp_destroy<type>,               \
+        .listen = cpp_listen<type>,                 \
+        .accept = cpp_accept<type>,                 \
+        .bind = cpp_bind<type>,                     \
+        .connect = cpp_connect<type>,               \
+        .sendmsg = cpp_sendmsg<type>,               \
+        .recvmsg = cpp_recvmsg<type>,               \
+        .getsockname = cpp_getsockname<type>,       \
+        .getpeername = cpp_getpeername<type>,       \
+        .shutdown = cpp_shutdown<type>,             \
+        .getsockopt = cpp_getsockopt<type>,         \
+        .setsockopt = cpp_setsockopt<type>,         \
+        .close = cpp_close<type>,                   \
+        .handle_backlog = cpp_handle_backlog<type>, \
+        .poll = cpp_poll<type>,                     \
+    }
+#endif
 #endif

@@ -197,6 +197,8 @@ struct un_name
     }
 };
 
+extern const struct socket_ops un_ops;
+
 #define UN_CLOSED    0
 #define UN_LISTENING 1
 #define UN_CONNECTED 2
@@ -311,7 +313,7 @@ class un_socket : public socket
             return unexpected<int>{-EPIPE};
 
         auto list_head = list_first_element(&inbuf_list);
-        return list_head_cpp<packetbuf>::self_from_list_head(list_head);
+        return container_of(list_head, packetbuf, list_node);
     }
 
     // Peer will not write anymore (SHUTDOWN_WR). Use this to skip looking at the peer
@@ -341,21 +343,12 @@ public:
         init_wait_queue_head(&inbuf_wq);
         INIT_LIST_HEAD(&inbuf_list);
         INIT_LIST_HEAD(&connection_queue);
+        sock_ops = &un_ops;
     }
 
     ~un_socket() override;
 
-    int getsockopt(int level, int optname, void *optval, socklen_t *optlen) override
-    {
-        return -ENOPROTOOPT;
-    }
-
-    int setsockopt(int level, int optname, const void *optval, socklen_t optlen) override
-    {
-        return -ENOPROTOOPT;
-    }
-
-    int bind(sockaddr *addr, socklen_t addrlen) override;
+    int bind(sockaddr *addr, socklen_t addrlen);
 
     void unbind();
 
@@ -369,19 +362,19 @@ public:
         return src_addr_;
     }
 
-    void close() override;
+    void close();
 
-    int connect(sockaddr *addr, socklen_t addrlen, int flags) override;
+    int connect(sockaddr *addr, socklen_t addrlen, int flags);
 
-    int listen() override;
+    int listen();
 
-    socket *accept(int flags) override;
-    short poll(void *poll_file, short events) override;
+    socket *accept(int flags);
+    short poll(void *poll_file, short events);
 
-    ssize_t sendmsg(const struct msghdr *msg, int flags) override;
-    ssize_t recvmsg(struct msghdr *msg, int flags) override;
-    int getsockname(sockaddr *addr, socklen_t *addrlen) override;
-    int getpeername(sockaddr *addr, socklen_t *addrlen) override;
+    ssize_t sendmsg(const struct msghdr *msg, int flags);
+    ssize_t recvmsg(struct msghdr *msg, int flags);
+    int getsockname(sockaddr *addr, socklen_t *addrlen);
+    int getpeername(sockaddr *addr, socklen_t *addrlen);
 
     ssize_t sendmsg_stream(const struct msghdr *msg, int flags);
     ssize_t recvmsg_stream(struct msghdr *msg, int flags);
@@ -391,8 +384,10 @@ public:
 
     static void connect_pair(un_socket *sock0, un_socket *sock1);
 
-    int shutdown(int how) override;
+    int shutdown(int how);
 };
+
+DEFINE_CPP_SOCKET_OPS(un_ops, un_socket);
 
 class unix_socket_table
 {
@@ -920,7 +915,7 @@ un_socket::~un_socket()
     // Clear out the pending packets
     list_for_every_safe (&inbuf_list)
     {
-        auto pkt = list_head_cpp<packetbuf>::self_from_list_head(l);
+        auto pkt = container_of(l, packetbuf, list_node);
         list_remove(&pkt->list_node);
         pkt->unref();
     }
@@ -996,7 +991,7 @@ ssize_t un_socket::queue_data(const struct msghdr *msg)
             auto l = list_last_element(&inbuf_list);
             if (l)
             {
-                packetbuf *tail = list_head_cpp<packetbuf>::self_from_list_head(l);
+                packetbuf *tail = container_of(l, packetbuf, list_node);
                 if (auto st = fill_pbuf(tail, iter); st < 0)
                     return st;
             }
@@ -1130,7 +1125,7 @@ ssize_t un_socket::recvmsg_stream(struct msghdr *msg, int flags)
     {
         if (iter.empty())
             break;
-        packetbuf *buf = list_head_cpp<packetbuf>::self_from_list_head(l);
+        packetbuf *buf = container_of(l, packetbuf, list_node);
         ssize_t read = buf->copy_iter(iter, flags & MSG_PEEK ? PBF_COPY_ITER_PEEK : 0);
 
         if (read < 0)
@@ -1425,7 +1420,7 @@ TEST(uipc, send_dgram_works)
     ASSERT_TRUE(assert_list(
         &sock0->inbuf_list,
         [&](struct list_head *l, int index) -> bool {
-            const packetbuf *buf = list_head_cpp<packetbuf>::self_from_list_head(l);
+            const packetbuf *buf = container_of(l, packetbuf, list_node);
             return buf->length() == 2 && !memcmp(buf->data, "hi", 2);
         },
         2));
@@ -1445,7 +1440,7 @@ TEST(uipc, send_stream_works)
     ASSERT_TRUE(assert_list(
         &sock0->inbuf_list,
         [&](struct list_head *l, int index) -> bool {
-            const packetbuf *buf = list_head_cpp<packetbuf>::self_from_list_head(l);
+            const packetbuf *buf = container_of(l, packetbuf, list_node);
             return buf->length() == 4 && !memcmp(buf->data, "hihi", 4);
         },
         1));
@@ -1463,7 +1458,7 @@ TEST(uipc, recv_dgram_works)
     ASSERT_TRUE(assert_list(
         &sock0->inbuf_list,
         [&](struct list_head *l, int index) -> bool {
-            const packetbuf *buf = list_head_cpp<packetbuf>::self_from_list_head(l);
+            const packetbuf *buf = container_of(l, packetbuf, list_node);
             return buf->length() == 2 && !memcmp(buf->data, "hi", 2);
         },
         2));
@@ -1486,7 +1481,7 @@ TEST(uipc, recv_stream_works)
     ASSERT_TRUE(assert_list(
         &sock0->inbuf_list,
         [&](struct list_head *l, int index) -> bool {
-            const packetbuf *buf = list_head_cpp<packetbuf>::self_from_list_head(l);
+            const packetbuf *buf = container_of(l, packetbuf, list_node);
             return buf->length() == 4 && !memcmp(buf->data, "hihi", 4);
         },
         1));

@@ -41,6 +41,8 @@ struct udp_packet
 #define UDP_ENCAP_GTP0             4
 #define UDP_ENCAP_GTP1U            5
 
+extern const struct socket_ops udp_ops;
+
 class udp_socket : public inet_socket
 {
     packetbuf *get_rx_head()
@@ -48,7 +50,7 @@ class udp_socket : public inet_socket
         if (list_is_empty(&rx_packet_list))
             return nullptr;
 
-        return list_head_cpp<packetbuf>::self_from_list_head(list_first_element(&rx_packet_list));
+        return container_of(list_first_element(&rx_packet_list), packetbuf, list_node);
     }
 
     bool has_data_available()
@@ -73,29 +75,30 @@ class udp_socket : public inet_socket
 public:
     udp_socket() : wants_cork{0}, cork{SOCK_DGRAM}
     {
+        sock_ops = &udp_ops;
     }
 
-    int bind(sockaddr *addr, socklen_t len) override;
-    int connect(sockaddr *addr, socklen_t len, int flags) override;
-    ssize_t sendmsg(const msghdr *msg, int flags) override;
-    int getsockopt(int level, int optname, void *val, socklen_t *len) override;
-    int setsockopt(int level, int optname, const void *val, socklen_t len) override;
+    int bind(sockaddr *addr, socklen_t len);
+    int connect(sockaddr *addr, socklen_t len, int flags);
+    ssize_t sendmsg(const msghdr *msg, int flags);
+    int getsockopt(int level, int optname, void *val, socklen_t *len);
+    int setsockopt(int level, int optname, const void *val, socklen_t len);
     int send_packet(const msghdr *msg, ssize_t payload_size, in_port_t source_port,
                     in_port_t dest_port, inet_route &route, int msg_domain);
-    ssize_t recvmsg(msghdr *msg, int flags) override;
+    ssize_t recvmsg(msghdr *msg, int flags);
 
     void rx_dgram(packetbuf *buf);
 
-    short poll(void *poll_file, short events) override;
+    short poll(void *poll_file, short events);
 
-    int getsockname(sockaddr *addr, socklen_t *len) override;
-    int getpeername(sockaddr *addr, socklen_t *len) override;
+    int getsockname(sockaddr *addr, socklen_t *len);
+    int getpeername(sockaddr *addr, socklen_t *len);
 
     /**
      * @brief Handle UDP socket backlog
      *
      */
-    void handle_backlog() override;
+    void handle_backlog();
 };
 
 struct socket *udp_create_socket(int type);
