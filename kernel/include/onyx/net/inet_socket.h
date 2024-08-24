@@ -49,12 +49,13 @@ struct inet_socket : public socket
 
     wait_queue rx_wq;
     const inet_proto *proto_info;
+    proto_family *proto_domain;
 
     unsigned int ipv4_on_inet6 : 1, ipv6_only : 1, route_cache_valid : 1;
     int ttl;
 
     inet_socket()
-        : socket{}, src_addr{}, bind_table_node{this}, dest_addr{}, proto_info{},
+        : socket{}, src_addr{}, bind_table_node{this}, dest_addr{}, proto_info{}, proto_domain{},
           ipv4_on_inet6{}, ipv6_only{}, route_cache_valid{}, ttl{INET_DEFAULT_TTL}
     {
         INIT_LIST_HEAD(&rx_packet_list);

@@ -505,11 +505,13 @@ void icmp_socket::handle_backlog()
     // Take every packet and queue it
     list_for_every_safe (&socket_backlog)
     {
-        auto pbuf = list_head_cpp<packetbuf>::self_from_list_head(l);
+        auto pbuf = container_of(l, packetbuf, list_node);
         list_remove(&pbuf->list_node);
         append_inet_rx_pbuf(pbuf);
         pbuf->unref();
     }
 }
+
+DEFINE_CPP_SOCKET_OPS(icmp_ops, icmp_socket);
 
 } // namespace icmp

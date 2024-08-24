@@ -73,7 +73,7 @@ public:
     packetbuf *get_tail()
     {
         DCHECK(!list_is_empty(&packet_list));
-        return list_head_cpp<packetbuf>::self_from_list_head(list_last_element(&packet_list));
+        return container_of(list_last_element(&packet_list), packetbuf, list_node);
     }
 };
 

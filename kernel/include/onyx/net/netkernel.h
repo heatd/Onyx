@@ -24,6 +24,8 @@ namespace netkernel
 
 class netkernel_object;
 
+extern const struct socket_ops netkernel_ops;
+
 class netkernel_socket : public socket
 {
 private:
@@ -35,7 +37,7 @@ private:
         if (list_is_empty(&rx_packet_list))
             return nullptr;
 
-        return list_head_cpp<packetbuf>::self_from_list_head(list_first_element(&rx_packet_list));
+        return container_of(list_first_element(&rx_packet_list), packetbuf, list_node);
     }
 
     bool has_data_available()
@@ -55,6 +57,7 @@ public:
 
     netkernel_socket(int type) : rx_packet_list{}
     {
+        sock_ops = &netkernel_ops;
         domain = AF_NETKERNEL;
         proto = NETKERNEL_PROTO;
         INIT_LIST_HEAD(&rx_packet_list);
@@ -62,11 +65,11 @@ public:
         this->type = type;
     }
 
-    int getsockopt(int level, int optname, void *optval, socklen_t *optlen) override;
-    int setsockopt(int level, int optname, const void *optval, socklen_t optlen) override;
-    int connect(sockaddr *addr, socklen_t addrlen, int flags) override;
-    ssize_t sendmsg(const struct msghdr *msg, int flags) override;
-    ssize_t recvmsg(struct msghdr *msg, int flags) override;
+    int getsockopt(int level, int optname, void *optval, socklen_t *optlen);
+    int setsockopt(int level, int optname, const void *optval, socklen_t optlen);
+    int connect(sockaddr *addr, socklen_t addrlen, int flags);
+    ssize_t sendmsg(const struct msghdr *msg, int flags);
+    ssize_t recvmsg(struct msghdr *msg, int flags);
 
     expected<packetbuf *, int> get_datagram(int flags)
     {
@@ -93,7 +96,7 @@ public:
      * @brief Handle netkernel socket backlog
      *
      */
-    void handle_backlog() override;
+    void handle_backlog();
 };
 
 /**

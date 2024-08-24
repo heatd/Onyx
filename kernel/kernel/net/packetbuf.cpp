@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2023 Pedro Falcato
+ * Copyright (c) 2020 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -14,6 +14,7 @@
 #include <onyx/kunit.h>
 #include <onyx/mm/slab.h>
 #include <onyx/mm/vm_object.h>
+#include <onyx/new.h>
 #include <onyx/packetbuf.h>
 
 #include <onyx/memory.hpp>
@@ -42,11 +43,12 @@ void packetbuf::operator delete(void *ptr)
  * This function is only meant to be called once, at initialisation,
  * and calling it again may make the kernel crash and burn.
  *
+ * @param pbf Packetbuf
  * @param length The maximum length of the whole packet(including headers and footers)
  *
  * @return Returns true if it was successful, false if it was not.
  */
-bool packetbuf::allocate_space(size_t length)
+bool pbf_allocate_space(struct packetbuf *pbf, size_t length)
 {
     /* This should only be called once - essentially,
      * we allocate enough pages for the packet and fill page_vec.
@@ -63,28 +65,38 @@ bool packetbuf::allocate_space(size_t length)
     for (size_t i = 0; i < nr_pages; i++)
     {
         page_ref(pages);
-        page_vec[i].page = pages;
+        pbf->page_vec[i].page = pages;
 
         if (i == 0)
-        {
-            page_vec[i].length = min(length, PAGE_SIZE);
-        }
+            pbf->page_vec[i].length = min(length, PAGE_SIZE);
         else
-        {
-            page_vec[i].length = 0;
-        }
+            pbf->page_vec[i].length = 0;
 
-        length -= page_vec[i].length;
-        page_vec[i].page_off = 0;
+        length -= pbf->page_vec[i].length;
+        pbf->page_vec[i].page_off = 0;
         pages = pages->next_un.next_allocation;
     }
 
-    buffer_start = PAGE_TO_VIRT(pages_head);
-    net_header = transport_header = nullptr;
-    data = tail = (unsigned char *) buffer_start;
-    end = (unsigned char *) buffer_start + PAGE_SIZE;
+    pbf->buffer_start = PAGE_TO_VIRT(pages_head);
+    pbf->net_header = pbf->transport_header = nullptr;
+    pbf->data = pbf->tail = (unsigned char *) pbf->buffer_start;
+    pbf->end = (unsigned char *) pbf->buffer_start + PAGE_SIZE;
 
     return true;
+}
+
+/**
+ * @brief Reserve space for the packet.
+ * This function is only meant to be called once, at initialisation,
+ * and calling it again may make the kernel crash and burn.
+ *
+ * @param length The maximum length of the whole packet(including headers and footers)
+ *
+ * @return Returns true if it was successful, false if it was not.
+ */
+bool packetbuf::allocate_space(size_t length)
+{
+    return pbf_allocate_space(this, length);
 }
 
 /**
@@ -94,8 +106,7 @@ bool packetbuf::allocate_space(size_t length)
  */
 void packetbuf::reserve_headers(unsigned int header_length)
 {
-    data += header_length;
-    tail = data;
+    pbf_reserve_headers(this, header_length);
 }
 
 /**
@@ -107,11 +118,7 @@ void packetbuf::reserve_headers(unsigned int header_length)
  */
 void *packetbuf::push_header(unsigned int header_length)
 {
-    assert((unsigned long) data >= (unsigned long) buffer_start);
-
-    data -= header_length;
-
-    return (void *) data;
+    return pbf_push_header(this, header_length);
 }
 
 /**
@@ -123,13 +130,7 @@ void *packetbuf::push_header(unsigned int header_length)
  */
 void *packetbuf::put(unsigned int size)
 {
-    auto to_ret = tail;
-
-    tail += size;
-
-    assert((unsigned long) tail <= (unsigned long) end);
-
-    return to_ret;
+    return pbf_put(this, size);
 }
 
 /**
@@ -198,11 +199,12 @@ static int allocate_page_vec(page_iov &v)
  * @brief Expands the packet buffer, either by doing put(), expanding page iters, or adding new
  * pages.
  *
+ * @param pbf Packetbuf
  * @param ubuf User address of the buffer.
  * @param len Length of the buffer.
  * @return The amount copied, or a negative error code if we failed to copy anything.
  */
-ssize_t packetbuf::expand_buffer(const void *ubuf_, unsigned int len)
+ssize_t pbf_expand_buffer(struct packetbuf *pbf, const void *ubuf_, unsigned int len)
 {
     // printk("len %u\n", len);
     ssize_t ret = 0;
@@ -210,14 +212,14 @@ ssize_t packetbuf::expand_buffer(const void *ubuf_, unsigned int len)
     /* Right now, trying to expand a packetbuf with zero copy enabled would blow up spectacularly,
      * since it could try to access random pages that may be allocated or something.
      */
-    assert(!zero_copy);
+    assert(!pbf->zero_copy);
 
-    if (can_try_put())
+    if (pbf_can_try_put(pbf))
     {
-        if (tail_room())
+        if (pbf_tail_room(pbf))
         {
-            auto to_put = min(tail_room(), len);
-            auto p = put(to_put);
+            auto to_put = min(pbf_tail_room(pbf), len);
+            auto p = pbf_put(pbf, to_put);
 
             if (copy_from_user(p, ubuf, to_put) < 0)
                 return -EFAULT;
@@ -236,7 +238,7 @@ ssize_t packetbuf::expand_buffer(const void *ubuf_, unsigned int len)
         if (!len)
             break;
 
-        auto &v = page_vec[i];
+        auto &v = pbf->page_vec[i];
 
         if (!v.page)
         {
@@ -269,6 +271,19 @@ ssize_t packetbuf::expand_buffer(const void *ubuf_, unsigned int len)
     }
 
     return ret;
+}
+
+/**
+ * @brief Expands the packet buffer, either by doing put(), expanding page iters, or adding new
+ * pages.
+ *
+ * @param ubuf User address of the buffer.
+ * @param len Length of the buffer.
+ * @return The amount copied, or a negative error code if we failed to copy anything.
+ */
+ssize_t packetbuf::expand_buffer(const void *ubuf, unsigned int len)
+{
+    return pbf_expand_buffer(this, ubuf, len);
 }
 
 /**
@@ -373,6 +388,21 @@ ssize_t packetbuf::copy_iter(iovec_iter &iter, unsigned int flags)
     }
 
     return copied;
+}
+
+void pbf_free(struct packetbuf *pbf)
+{
+    pbf->~packetbuf();
+    kmem_cache_free(packetbuf_cache, pbf);
+}
+
+struct packetbuf *pbf_alloc(gfp_t gfp)
+{
+    struct packetbuf *pbf = (struct packetbuf *) kmem_cache_alloc(packetbuf_cache, gfp);
+    if (!pbf)
+        return nullptr;
+    new (pbf) struct packetbuf;
+    return pbf;
 }
 
 #ifdef CONFIG_KUNIT

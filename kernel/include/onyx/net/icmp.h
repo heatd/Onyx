@@ -87,6 +87,8 @@ struct dst_unreachable_info
     }
 };
 
+extern const socket_ops icmp_ops;
+
 class icmp_socket : public inet_socket
 {
 private:
@@ -101,7 +103,7 @@ private:
         if (list_is_empty(&rx_packet_list))
             return nullptr;
 
-        return list_head_cpp<packetbuf>::self_from_list_head(list_first_element(&rx_packet_list));
+        return container_of(list_first_element(&rx_packet_list), packetbuf, list_node);
     }
 
     bool has_data_available()
@@ -120,17 +122,18 @@ public:
     icmp_socket() : filters_lock{}, filters{}
     {
         spinlock_init(&filters_lock);
+        sock_ops = &icmp_ops;
     }
 
     ~icmp_socket() = default;
 
-    int bind(struct sockaddr *addr, socklen_t addrlen) override;
-    int connect(struct sockaddr *addr, socklen_t addrlen, int flags) override;
-    ssize_t sendmsg(const struct msghdr *msg, int flags) override;
-    int getsockopt(int level, int optname, void *val, socklen_t *len) override;
-    int setsockopt(int level, int optname, const void *val, socklen_t len) override;
-    short poll(void *poll_file, short events) override;
-    ssize_t recvmsg(msghdr *msg, int flags) override;
+    int bind(struct sockaddr *addr, socklen_t addrlen);
+    int connect(struct sockaddr *addr, socklen_t addrlen, int flags);
+    ssize_t sendmsg(const struct msghdr *msg, int flags);
+    int getsockopt(int level, int optname, void *val, socklen_t *len);
+    int setsockopt(int level, int optname, const void *val, socklen_t len);
+    short poll(void *poll_file, short events);
+    ssize_t recvmsg(msghdr *msg, int flags);
 
     bool match_filter(const icmp_header *header)
     {
@@ -155,7 +158,7 @@ public:
      * @brief Handle ICMP socket backlog
      *
      */
-    void handle_backlog() override;
+    void handle_backlog();
 };
 
 icmp_socket *create_socket(int type);

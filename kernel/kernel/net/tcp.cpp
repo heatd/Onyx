@@ -624,7 +624,7 @@ int tcp_socket::make_connection_from(const tcp_connection_req *req)
 
     list_for_every_safe (&req->received_data)
     {
-        auto pbf = list_head_cpp<packetbuf>::self_from_list_head(l);
+        auto pbf = container_of(l, packetbuf, list_node);
         list_remove(&pbf->list_node);
         list_add_tail(&pbf->list_node, &rx_packet_list);
     }
@@ -848,7 +848,7 @@ void tcp_socket::handle_backlog()
 
     list_for_every_safe (&socket_backlog)
     {
-        auto pbuf = list_head_cpp<packetbuf>::self_from_list_head(l);
+        auto pbuf = container_of(l, packetbuf, list_node);
 
         sockaddr_in_both both;
 
@@ -1869,7 +1869,7 @@ int tcp_socket::try_to_send()
 
     list_for_every_safe (packet_list)
     {
-        auto pbf = list_head_cpp<packetbuf>::self_from_list_head(l);
+        auto pbf = container_of(l, packetbuf, list_node);
 
         // Need to stop: the window doesn't allow us to send data
         if (other_window() < pbf->length())
@@ -2379,3 +2379,5 @@ socket *tcp_socket::accept(int flags)
 
     return sock;
 }
+
+DEFINE_CPP_SOCKET_OPS(tcp_ops, tcp_socket);

@@ -319,6 +319,8 @@ struct tcp_connection_req
     int sendpbuf(ref_guard<packetbuf> buf, bool noack);
 };
 
+extern const struct socket_ops tcp_ops;
+
 class tcp_socket : public inet_socket
 {
 private:
@@ -383,7 +385,7 @@ private:
         if (list_is_empty(&rx_packet_list))
             return nullptr;
 
-        return list_head_cpp<packetbuf>::self_from_list_head(list_first_element(&rx_packet_list));
+        return container_of(list_first_element(&rx_packet_list), packetbuf, list_node);
     }
 
     bool has_data_available()
@@ -556,7 +558,6 @@ public:
     static constexpr uint16_t default_mss = 536;
     static constexpr uint16_t default_window_size_shift = 0;
 
-    // FIXME: Nagle's algorithm was disabled, as it isn't stable.
     tcp_socket()
         : inet_socket{}, state(tcp_state::TCP_STATE_CLOSED),
           type(SOCK_STREAM), pending_out_packets{}, tcp_ack_wq{}, conn_wq{}, mss{default_mss},
@@ -572,6 +573,7 @@ public:
         INIT_LIST_HEAD(&syn_queue);
         INIT_LIST_HEAD(&accept_queue);
         init_wait_queue_head(&accept_wq);
+        sock_ops = &tcp_ops;
     }
 
     bool can_send() const
@@ -596,12 +598,12 @@ public:
         return window_size;
     }
 
-    int bind(struct sockaddr *addr, socklen_t addrlen) override;
-    int connect(struct sockaddr *addr, socklen_t addrlen, int flags) override;
+    int bind(struct sockaddr *addr, socklen_t addrlen);
+    int connect(struct sockaddr *addr, socklen_t addrlen, int flags);
 
     int start_connection(int flags);
 
-    ssize_t sendmsg(const msghdr *msg, int flags) override;
+    ssize_t sendmsg(const msghdr *msg, int flags);
 
     u32 &sequence_nr()
     {
@@ -615,18 +617,18 @@ public:
 
     ssize_t queue_data(iovec *vec, int vlen, size_t count);
 
-    int setsockopt(int level, int opt, const void *optval, socklen_t optlen) override;
-    int getsockopt(int level, int opt, void *optval, socklen_t *optlen) override;
-    int shutdown(int how) override;
-    void close() override;
-    ssize_t recvmsg(msghdr *msg, int flags) override;
-    short poll(void *poll_file, short events) override;
+    int setsockopt(int level, int opt, const void *optval, socklen_t optlen);
+    int getsockopt(int level, int opt, void *optval, socklen_t *optlen);
+    int shutdown(int how);
+    void close();
+    ssize_t recvmsg(msghdr *msg, int flags);
+    short poll(void *poll_file, short events);
 
-    int getsockname(sockaddr *addr, socklen_t *len) override;
-    int getpeername(sockaddr *addr, socklen_t *len) override;
-    socket *accept(int flags) override;
+    int getsockname(sockaddr *addr, socklen_t *len);
+    int getpeername(sockaddr *addr, socklen_t *len);
+    socket *accept(int flags);
 
-    int listen() override;
+    int listen();
 
     /**
      * @brief Sends a packetbuf
@@ -678,7 +680,7 @@ public:
      * @brief Handle TCP socket backlog (pending segments)
      *
      */
-    void handle_backlog() override;
+    void handle_backlog();
 
     void do_retransmit();
 };
