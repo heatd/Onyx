@@ -7,25 +7,25 @@
 #define _ONYX_NET_INET_PROTO_FAMILY_H
 
 #include <onyx/net/inet_route.h>
-#include <onyx/net/proto_family.h>
 
 struct netif;
 
 struct inet_socket;
 
 /**
- * @brief Implements IPv4/v6 specific functions through inet_proto_family's vtable.
+ * @brief Implements IPv4/v6 specific functions.
  *        Note that v6's functions redirect to v4 code when they detect the socket is in v4 mode.
  */
-class inet_proto_family : public proto_family
+struct inet_proto_family
 {
-public:
-    virtual int bind(struct sockaddr *addr, socklen_t len, inet_socket *socket) = 0;
-    virtual int bind_any(inet_socket *sock) = 0;
-    virtual expected<inet_route, int> route(const inet_sock_address &from,
-                                            const inet_sock_address &to, int domain) = 0;
-    virtual void unbind(inet_socket *sock) = 0;
-    bool add_socket(inet_socket *sock);
+    int (*bind)(struct sockaddr *addr, socklen_t len, struct inet_socket *sock);
+    int (*bind_any)(struct inet_socket *sock);
+    expected<inet_route, int> (*route)(const inet_sock_address &from, const inet_sock_address &to,
+                                       int domain);
+    void (*unbind)(struct inet_socket *sock);
+#ifdef __cplusplus
+    static bool add_socket(inet_socket *sock);
+#endif
 };
 
 struct ip_option

@@ -612,9 +612,7 @@ int tcp_socket::make_connection_from(const tcp_connection_req *req)
         ipv4_on_inet6 = 1;
     }
 
-    auto fam = get_proto_fam();
-
-    if (!fam->add_socket(this))
+    if (!inet_proto_family::add_socket(this))
     {
         printk("TCP error: Failed to bind on newly accepted socket\n");
         return -EINVAL;
