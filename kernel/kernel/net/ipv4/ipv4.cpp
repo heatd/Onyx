@@ -489,7 +489,7 @@ constexpr bool is_proto_without_ports(int proto)
     return proto == IPPROTO_ICMP;
 }
 
-int proto_family::bind_internal(sockaddr_in *in, inet_socket *sock)
+int bind_internal(sockaddr_in *in, inet_socket *sock)
 {
     auto proto_info = sock->proto_info;
     auto sock_table = proto_info->get_socket_table();
@@ -557,7 +557,7 @@ static constexpr bool is_bind_any(in_addr_t addr)
     return addr == INADDR_ANY || addr == INADDR_BROADCAST;
 }
 
-int proto_family::bind(sockaddr *addr, socklen_t len, inet_socket *sock)
+int bind(sockaddr *addr, socklen_t len, inet_socket *sock)
 {
     if (len != sizeof(sockaddr_in))
         return -EINVAL;
@@ -578,7 +578,7 @@ int proto_family::bind(sockaddr *addr, socklen_t len, inet_socket *sock)
     return 0;
 }
 
-int proto_family::bind_any(inet_socket *sock)
+int bind_any(inet_socket *sock)
 {
     sockaddr_in in = {};
     in.sin_family = AF_INET;
@@ -588,7 +588,7 @@ int proto_family::bind_any(inet_socket *sock)
     return bind((sockaddr *) &in, sizeof(sockaddr_in), sock);
 }
 
-void proto_family::unbind(inet_socket *sock)
+void unbind(inet_socket *sock)
 {
     sock->proto_info->get_socket_table()->remove_socket(sock, 0);
 }
@@ -596,8 +596,8 @@ void proto_family::unbind(inet_socket *sock)
 rwslock routing_table_lock;
 cul::vector<shared_ptr<inet4_route>> routing_table;
 
-expected<inet_route, int> proto_family::route(const inet_sock_address &from,
-                                              const inet_sock_address &to, int domain)
+expected<inet_route, int> route(const inet_sock_address &from, const inet_sock_address &to,
+                                int domain)
 {
     /* domain only matters for IPv6 sockets that need to check if it's running on ipv4-mapped */
     (void) domain;
@@ -721,9 +721,14 @@ bool add_route(inet4_route &route)
     return routing_table.push_back(ptr);
 }
 
-static proto_family v4_protocol;
+static const struct inet_proto_family v4_protocol = {
+    .bind = bind,
+    .bind_any = bind_any,
+    .route = route,
+    .unbind = unbind,
+};
 
-inet_proto_family *get_v4_proto()
+const inet_proto_family *get_v4_proto()
 {
     return &v4_protocol;
 }

@@ -17,21 +17,11 @@
 // Pretty solid TTL default
 #define INET_DEFAULT_TTL 64
 
-class inet_proto_family;
+struct inet_proto_family;
 
 /* Forward declaration of ip::v4/v6::proto_family for inet_socket friendship */
 namespace ip
 {
-
-namespace v4
-{
-class proto_family;
-}
-
-namespace v6
-{
-class proto_family;
-}
 
 void copy_msgname_to_user(struct msghdr *msg, packetbuf *buf, bool isv6, in_port_t port);
 
@@ -49,7 +39,7 @@ struct inet_socket : public socket
 
     wait_queue rx_wq;
     const inet_proto *proto_info;
-    proto_family *proto_domain;
+    const struct inet_proto_family *proto_domain;
 
     unsigned int ipv4_on_inet6 : 1, ipv6_only : 1, route_cache_valid : 1;
     int ttl;
@@ -120,9 +110,9 @@ struct inet_socket : public socket
         return true;
     }
 
-    inet_proto_family *get_proto_fam()
+    const struct inet_proto_family *get_proto_fam()
     {
-        return reinterpret_cast<inet_proto_family *>(proto_domain);
+        return proto_domain;
     }
 
     void append_inet_rx_pbuf(packetbuf *buf);
@@ -163,13 +153,10 @@ struct inet_socket : public socket
 #define call_based_on_inet(func, ...) \
     ((effective_domain() == AF_INET6) ? func<AF_INET6>(__VA_ARGS__) : func<AF_INET>(__VA_ARGS__))
 
-private:
-    friend class ip::v4::proto_family;
-    friend class ip::v6::proto_family;
+public:
     static bool validate_sockaddr_len_pair_v4(sockaddr_in *addr, socklen_t len);
     static bool validate_sockaddr_len_pair_v6(sockaddr_in6 *addr, socklen_t len);
 
-protected:
     /* Modifies *addr too */
     bool validate_sockaddr_len_pair(sockaddr *addr, socklen_t len);
     void unbind();

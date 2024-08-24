@@ -17,7 +17,6 @@
 #include <onyx/net/inet_sock_addr.h>
 #include <onyx/net/ipv6.h>
 #include <onyx/net/netif.h>
-#include <onyx/net/proto_family.h>
 #include <onyx/net/socket.h>
 #include <onyx/net/socket_table.h>
 #include <onyx/packetbuf.h>
@@ -73,19 +72,6 @@ namespace ip
 namespace v4
 {
 
-class proto_family : public inet_proto_family
-{
-private:
-    int bind_internal(sockaddr_in *in, inet_socket *sock);
-
-public:
-    int bind(sockaddr *addr, socklen_t len, inet_socket *socket) override;
-    int bind_any(inet_socket *sock) override;
-    expected<inet_route, int> route(const inet_sock_address &from, const inet_sock_address &to,
-                                    int domain) override;
-    void unbind(inet_socket *sock) override;
-};
-
 int send_packet(const iflow &flow, packetbuf *buf, const cul::slice<ip_option> &options = {});
 
 socket *create_socket(int type, int protocol);
@@ -99,7 +85,7 @@ inline constexpr cul::pair<inet_sock_address, int> sockaddr4_to_isa(const sockad
     return {inet_sock_address{*sa}, AF_INET};
 }
 
-inet_proto_family *get_v4_proto();
+const inet_proto_family *get_v4_proto();
 
 }; // namespace v4
 
