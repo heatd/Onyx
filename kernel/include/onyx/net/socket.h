@@ -16,7 +16,6 @@
 #include <onyx/hybrid_lock.h>
 #include <onyx/iovec_iter.h>
 #include <onyx/net/netif.h>
-#include <onyx/net/proto_family.h>
 #include <onyx/object.h>
 #include <onyx/refcount.h>
 #include <onyx/semaphore.h>
