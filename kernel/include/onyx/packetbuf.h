@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2022 Pedro Falcato
+ * Copyright (c) 2020 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -16,7 +16,6 @@
 #include <onyx/net/inet_route.h>
 #include <onyx/page.h>
 #include <onyx/page_iov.h>
-#include <onyx/refcount.h>
 
 #define PACKETBUF_MAX_NR_PAGES (((UINT16_MAX + 1) / PAGE_SIZE) + 1)
 
@@ -33,6 +32,10 @@ struct tcp_packetbuf_info
     u32 seq, seq_len;
 };
 
+struct packetbuf;
+__BEGIN_CDECLS
+void pbf_free(struct packetbuf *pbf);
+__END_CDECLS
 /**
  * @brief The packetbuf is the data structure used to transport data up and
  * down the network stack. Its design is inspired by linux's sk_buff but adapted
@@ -60,7 +63,7 @@ struct tcp_packetbuf_info
  * implementation.
  *
  */
-struct packetbuf : public refcountable
+struct packetbuf
 {
     /* Reasoning behind this - We're going to need at
      * most 64KiB of space for the buffer, since that's the most we'll
@@ -71,8 +74,10 @@ struct packetbuf : public refcountable
      * [0 ... 120's...] and the end of the page.
      * The other iov is used as a terminating canary.
      */
+    unsigned int refcount;
 
-    struct page_iov page_vec[PACKETBUF_MAX_NR_PAGES + 2];
+#define PBF_PAGE_IOVS PACKETBUF_MAX_NR_PAGES + 2
+    struct page_iov page_vec[PBF_PAGE_IOVS];
 
     unsigned char *phy_header;
     unsigned char *link_header;
@@ -96,38 +101,25 @@ struct packetbuf : public refcountable
     unsigned int zero_copy : 1;
     int domain;
 
-    list_head_cpp<packetbuf> list_node;
+    struct list_head list_node;
 
     union {
-        inet_route route;
+        struct inet_route route;
     };
 
     union {
         struct tcp_packetbuf_info tpi;
     };
 
-private:
-    /* Using put with other page vecs is bound to break something */
-    bool can_try_put() const
-    {
-        return page_vec[1].page == nullptr;
-    }
-
-    unsigned int tail_room() const
-    {
-        return end - tail;
-    }
-
-public:
+#ifdef __cplusplus
     /**
      * @brief Construct a new default packetbuf object.
      *
      */
     packetbuf()
-        : refcountable{}, page_vec{}, phy_header{}, link_header{}, net_header{},
-          transport_header{}, data{}, tail{}, end{}, buffer_start{}, csum_offset{nullptr},
-          csum_start{nullptr}, header_length{}, gso_size{}, gso_flags{},
-          needs_csum{0}, zero_copy{0}, domain{0}, list_node{this}
+        : refcount{1}, page_vec{}, phy_header{}, link_header{}, net_header{}, transport_header{},
+          data{}, tail{}, end{}, buffer_start{}, csum_offset{nullptr}, csum_start{nullptr},
+          header_length{}, gso_size{}, gso_flags{}, needs_csum{0}, zero_copy{0}, domain{0}
     {
     }
 
@@ -139,6 +131,11 @@ public:
 
     void *operator new(size_t length);
     void operator delete(void *ptr);
+
+    void *operator new(size_t length, void *ptr)
+    {
+        return ptr;
+    }
 
     /**
      * @brief Reserve space for the packet.
@@ -280,7 +277,21 @@ public:
      * @return Number of bytes copied, or negative error code
      */
     ssize_t copy_iter(iovec_iter &iter, unsigned int flags);
+
+    void ref()
+    {
+        __atomic_add_fetch(&refcount, 1, __ATOMIC_RELAXED);
+    }
+
+    void unref()
+    {
+        if (__atomic_sub_fetch(&refcount, 1, __ATOMIC_RELAXED) == 0)
+            pbf_free(this);
+    }
+#endif
 };
+
+__BEGIN_CDECLS
 
 /**
  * @brief Clones a packetbuf and returns a metadata-identical and data-identical copy.
@@ -288,7 +299,122 @@ public:
  * @param original The original packetbuf.
  * @return The new packetbuf, or NULL if we ran out of memory.
  */
-packetbuf *packetbuf_clone(packetbuf *original);
+struct packetbuf *packetbuf_clone(struct packetbuf *original);
+
+static inline bool pbf_can_try_put(struct packetbuf *pbf)
+{
+    /* Using put with other page vecs is bound to break something */
+    return pbf->page_vec[1].page == nullptr;
+}
+
+static inline unsigned int pbf_tail_room(struct packetbuf *pbf)
+{
+    return pbf->end - pbf->tail;
+}
+
+/**
+ * @brief Reserve space for the packet.
+ * This function is only meant to be called once, at initialisation,
+ * and calling it again may make the kernel crash and burn.
+ *
+ * @param pbf Packetbuf
+ * @param length The maximum length of the whole packet(including headers and footers)
+ *
+ * @return Returns true if it was successful, false if it was not.
+ */
+bool pbf_allocate_space(struct packetbuf *pbf, size_t length);
+
+/**
+ * @brief Reserve space for the headers.
+ *
+ * @param pbf Packetbuf
+ * @param header_length Length of the headers
+ */
+static inline void pbf_reserve_headers(struct packetbuf *pbf, unsigned int header_length)
+{
+    pbf->data += header_length;
+    pbf->tail = pbf->data;
+}
+
+/**
+ * @brief Get space for a networking header, and adjust data to point to the start of the header.
+ *
+ * @param pbf Packetbuf
+ * @param size Size of the header.
+ *
+ * @return void* The address of the new header.
+ */
+static inline void *pbf_push_header(struct packetbuf *pbf, unsigned int header_length)
+{
+    assert((unsigned long) pbf->data >= (unsigned long) pbf->buffer_start);
+    pbf->data -= header_length;
+    return (void *) pbf->data;
+}
+
+/**
+ * @brief Expands the packet buffer, either by doing put(), expanding page iters, or adding new
+ * pages.
+ *
+ * @param pbf Packetbuf
+ * @param ubuf User address of the buffer.
+ * @param len Length of the buffer.
+ * @return The amount copied, or a negative error code if we failed to copy anything.
+ */
+ssize_t pbf_expand_buffer(struct packetbuf *pbf, const void *ubuf_, unsigned int len);
+
+/**
+ * @brief Get space for data, and advance tail by size.
+ *
+ * @param pbf Packetbuf
+ * @param size The length of the data.
+ *
+ * @return void* The address of the new data.
+ */
+static inline void *pbf_put(struct packetbuf *pbf, unsigned int size)
+{
+    void *ret = pbf->tail;
+    pbf->tail += size;
+    assert((unsigned long) pbf->tail <= (unsigned long) pbf->end);
+    return ret;
+}
+
+/**
+ * @brief Calculates the total length of the buffer.
+ *
+ * @param pbf Packetbuf
+ * @return The length of the packetbuf, in bytes.
+ */
+static inline unsigned int pbf_length(struct packetbuf *pbf)
+{
+    unsigned int out_of_data_area = 0;
+
+    for (unsigned long i = 1; i < PBF_PAGE_IOVS; i++)
+    {
+        if (!pbf->page_vec[i].page)
+            break;
+
+        out_of_data_area += pbf->page_vec[i].length;
+    }
+
+    return (pbf->tail - pbf->data) + out_of_data_area;
+}
+
+static inline void pbf_get(struct packetbuf *pbf)
+{
+    __atomic_add_fetch(&pbf->refcount, 1, __ATOMIC_RELAXED);
+}
+
+static inline void pbf_put(struct packetbuf *pbf)
+{
+    if (__atomic_sub_fetch(&pbf->refcount, 1, __ATOMIC_RELAXED) == 0)
+        pbf_free(pbf);
+}
+
+typedef unsigned int gfp_t;
+
+struct packetbuf *pbf_alloc(gfp_t gfp);
+
+__END_CDECLS
 
 #define PACKET_MAX_HEAD_LENGTH 128
 

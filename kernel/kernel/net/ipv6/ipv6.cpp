@@ -386,7 +386,7 @@ socket *create_socket(int type, int protocol)
     if (protocol == IPPROTO_ICMP)
         return errno = EAFNOSUPPORT, nullptr;
 
-    auto sock = ip::choose_protocol_and_create(type, protocol);
+    inet_socket *sock = (inet_socket *) ip::choose_protocol_and_create(type, protocol);
 
     if (sock)
         sock->proto_domain = &v6_protocol;
