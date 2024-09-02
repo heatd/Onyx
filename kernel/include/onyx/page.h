@@ -76,6 +76,7 @@ __BEGIN_CDECLS
 #define PAGE_FLAG_ACTIVE      (1 << 13)
 #define PAGE_FLAG_SWAP        (1 << 14)
 #define PAGE_FLAG_RECLAIM     (1 << 15)
+#define PAGE_FLAG_HEAD        (1 << 16)
 
 #define PAGEFLAG_OPS(lowercase, uppercase)                                          \
     static inline void page_clear_##lowercase(struct page *page)                    \
@@ -98,6 +99,29 @@ __BEGIN_CDECLS
     static inline bool page_test_##lowercase(const struct page *page)               \
     {                                                                               \
         return page_flag_set(page, PAGE_FLAG_##uppercase);                          \
+    }
+
+#define FOLIOFLAG_OPS(lowercase, uppercase)                                          \
+    static inline void folio_clear_##lowercase(struct folio *folio)                  \
+    {                                                                                \
+        __atomic_and_fetch(&folio->flags, ~PAGE_FLAG_##uppercase, __ATOMIC_RELEASE); \
+    }                                                                                \
+    static inline void folio_set_##lowercase(struct folio *folio)                    \
+    {                                                                                \
+        __atomic_or_fetch(&folio->flags, PAGE_FLAG_##uppercase, __ATOMIC_RELEASE);   \
+    }                                                                                \
+    static inline bool folio_test_set_##lowercase(struct folio *folio)               \
+    {                                                                                \
+        return folio_test_set_flag(folio, PAGE_FLAG_##uppercase);                    \
+    }                                                                                \
+    static inline bool folio_test_clear_##lowercase(struct folio *folio)             \
+    {                                                                                \
+        return folio_test_clear_flag(folio, PAGE_FLAG_##uppercase);                  \
+    }                                                                                \
+                                                                                     \
+    static inline bool folio_test_##lowercase(const struct folio *folio)             \
+    {                                                                                \
+        return folio_flag_set(folio, PAGE_FLAG_##uppercase);                         \
     }
 
 struct vm_object;
@@ -137,6 +161,60 @@ struct CAPABILITY("page") page
 #ifdef CONFIG_PAGE_OWNER
     u32 last_owner, last_lock, last_unlock, last_free;
 #endif
+};
+
+struct CAPABILITY("folio") folio
+{
+    union {
+        struct
+        {
+            unsigned int ref;
+            unsigned int mapcount;
+            unsigned long flags;
+            struct
+            {
+                /* page cache data */
+                struct vm_object *owner;
+                unsigned long pageoff;
+            };
+
+            union {
+                struct
+                {
+                    struct list_head list_node;
+                } page_allocator_node;
+                struct
+                {
+                    union {
+                        struct page *next_allocation;
+                        struct page *next_virtual_region;
+                    } next_un;
+                };
+
+                struct list_head lru_node;
+            };
+
+            unsigned long priv;
+#ifdef CONFIG_PAGE_OWNER
+            u32 last_owner, last_lock, last_unlock, last_free;
+#endif
+        };
+
+        struct page page0;
+    };
+
+    union {
+        struct
+        {
+            unsigned int __ref2;
+            unsigned int __mapcount2;
+            unsigned long __flags2;
+            unsigned long __head;
+            unsigned int __nr_pages;
+        };
+
+        struct page page1;
+    };
 };
 
 struct memstat;
@@ -198,6 +276,7 @@ struct page *page_add_page_late(void *paddr);
 #define __GFP_NOWAIT          (1 << 15)
 #define __GFP_DMA32           PAGE_ALLOC_4GB_LIMIT
 #define GFP_DMA32             __GFP_DMA32
+#define __GFP_COMP            (1 << 16)
 #define __GFP_MAY_RECLAIM     (__GFP_DIRECT_RECLAIM | __GFP_WAKE_PAGEDAEMON)
 #define GFP_KERNEL            (__GFP_MAY_RECLAIM | __GFP_IO | __GFP_FS)
 #define GFP_ATOMIC            (__GFP_ATOMIC | __GFP_WAKE_PAGEDAEMON)
@@ -382,9 +461,40 @@ __always_inline bool page_test_clear_flag(struct page *p, unsigned long flag)
     return true;
 }
 
+__always_inline bool folio_test_set_flag(struct folio *p, unsigned long flag)
+{
+    unsigned long word;
+    do
+    {
+        word = __atomic_load_n(&p->flags, __ATOMIC_ACQUIRE);
+        if (word & flag)
+            return false;
+    } while (!__atomic_compare_exchange_n(&p->flags, &word, word | flag, false, __ATOMIC_RELEASE,
+                                          __ATOMIC_RELAXED));
+    return true;
+}
+
+__always_inline bool folio_test_clear_flag(struct folio *p, unsigned long flag)
+{
+    unsigned long word;
+    do
+    {
+        word = __atomic_load_n(&p->flags, __ATOMIC_ACQUIRE);
+        if (!(word & flag))
+            return false;
+    } while (!__atomic_compare_exchange_n(&p->flags, &word, word & ~flag, false, __ATOMIC_RELEASE,
+                                          __ATOMIC_RELAXED));
+    return true;
+}
+
 __always_inline bool page_flag_set(const struct page *p, unsigned long flag)
 {
     return READ_ONCE(p->flags) & flag;
+}
+
+__always_inline bool folio_flag_set(const struct folio *folio, unsigned long flag)
+{
+    return READ_ONCE(folio->flags) & flag;
 }
 
 __always_inline bool page_locked(const struct page *p)
@@ -413,6 +523,11 @@ __always_inline void page_wait_writeback(struct page *p)
 __always_inline void page_set_flag(struct page *p, unsigned long flag)
 {
     __atomic_fetch_or(&p->flags, flag, __ATOMIC_RELEASE);
+}
+
+__always_inline void folio_set_flag(struct folio *folio, unsigned long flag)
+{
+    __atomic_fetch_or(&folio->flags, flag, __ATOMIC_RELEASE);
 }
 
 void __reclaim_page(struct page *new_page);
@@ -642,6 +757,14 @@ PAGEFLAG_OPS(lru, LRU);
 PAGEFLAG_OPS(uptodate, UPTODATE);
 PAGEFLAG_OPS(dirty, DIRTY);
 PAGEFLAG_OPS(buffer, BUFFER);
+
+FOLIOFLAG_OPS(reclaim, RECLAIM);
+FOLIOFLAG_OPS(referenced, REFERENCED);
+FOLIOFLAG_OPS(swap, SWAP);
+FOLIOFLAG_OPS(active, ACTIVE);
+FOLIOFLAG_OPS(lru, LRU);
+FOLIOFLAG_OPS(uptodate, UPTODATE);
+FOLIOFLAG_OPS(dirty, DIRTY);
 
 struct vm_object *page_vmobj(struct page *page);
 unsigned long page_pgoff(struct page *page);
