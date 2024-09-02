@@ -58,6 +58,7 @@ __BEGIN_CDECLS
 #define VM_DONT_MAP_OVER (1 << 8)
 #define VM_NOFLUSH       (1 << 9)
 #define VM_SHARED        (1 << 10)
+#define VM_HUGETLB       (1 << 11)
 
 /* Internal flags used by the mm code */
 #define __VM_CACHE_TYPE_REGULAR     0
@@ -772,6 +773,8 @@ static inline bool vma_is_pfnmap(struct vm_area_struct *vma)
 
 void vm_do_mmu_mprotect(struct mm_address_space *as, void *address, size_t nr_pgs, int old_prots,
                         int new_prots);
+
+int vm_find_free_area(struct vma_iterator *vmi, unsigned long min, size_t size, size_t alignment);
 
 __END_CDECLS
 

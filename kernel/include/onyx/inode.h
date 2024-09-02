@@ -43,6 +43,8 @@ struct writepages_info
     unsigned int flags;
 };
 
+struct vma_iterator;
+
 /* Wait for writeback to complete (this is part of sync or fsync) */
 #define WRITEPAGES_SYNC (1 << 0)
 
@@ -59,6 +61,8 @@ struct file_ops
     int (*link)(struct file *target_ino, const char *name, struct dentry *dir);
     __symlink symlink;
     void *(*mmap)(struct vm_area_struct *area, struct file *node);
+    int (*find_free_area)(struct vma_iterator *vmi, unsigned long min, size_t size,
+                          struct file *file);
     int (*ftruncate)(size_t length, struct file *node);
     struct inode *(*mkdir)(struct dentry *dentry, mode_t mode, struct dentry *dir);
     struct inode *(*mknod)(struct dentry *dentry, mode_t mode, dev_t dev, struct dentry *dir);
