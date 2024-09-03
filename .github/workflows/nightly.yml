@@ -24,7 +24,7 @@ jobs:
           python-version: '3.11.0' # Require the same version of python as Onyx builds, in order to ease the build
 
       - name: Download the x86_64-onyx-linux toolchain
-        uses: actions/download-artifact@v2.0.8
+        uses: actions/download-artifact@v4.1.7
         with:
           # Artifact name
           name: x86_64-onyx-linux
@@ -86,7 +86,7 @@ jobs:
 
       # Runs a single command using the runners shell
       - name: Download the onyx-llvm-linux toolchain
-        uses: actions/download-artifact@v2.0.8
+        uses: actions/download-artifact@v4.1.7
         with:
           # Artifact name
           name: onyx-llvm-linux
@@ -145,7 +145,7 @@ jobs:
         
 
       - name: Download the riscv64-onyx-linux toolchain
-        uses: actions/download-artifact@v2.0.8
+        uses: actions/download-artifact@v4.1.7
         with:
           # Artifact name
           name: riscv64-onyx-linux
@@ -197,7 +197,7 @@ jobs:
 
       # Runs a single command using the runners shell
       - name: Download the onyx-llvm-linux toolchain
-        uses: actions/download-artifact@v2.0.8
+        uses: actions/download-artifact@v4.1.7
         with:
           # Artifact name
           name: onyx-llvm-linux
@@ -319,7 +319,7 @@ jobs:
           submodules: "recursive"
       
       - name: Download the minimal sysroot
-        uses: actions/download-artifact@v2.0.8
+        uses: actions/download-artifact@v4.1.7
 
       - name: Extract minimal sysroot
         run: |
@@ -433,7 +433,7 @@ jobs:
         
 
       - name: Download the arm64-onyx-linux toolchain
-        uses: actions/download-artifact@v2.0.8
+        uses: actions/download-artifact@v4.1.7
         with:
           # Artifact name
           name: arm64-onyx-linux
@@ -486,7 +486,7 @@ jobs:
 
       # Runs a single command using the runners shell
       - name: Download the onyx-llvm-linux toolchain
-        uses: actions/download-artifact@v2.0.8
+        uses: actions/download-artifact@v4.1.7
         with:
           # Artifact name
           name: onyx-llvm-linux
