@@ -223,15 +223,18 @@ ssize_t pipe::append_iter(iovec_iter *iter, bool atomic)
     pipe_buffer *to_restore = nullptr;
     size_t old_restore_len = 0;
     ssize_t ret = 0;
+    auto avail = available_space();
 
     if (!list_is_empty(&pipe_buffers))
     {
         auto last_buf = container_of(list_last_element(&pipe_buffers), pipe_buffer, list_node);
+        unsigned int buf_tail = last_buf->len_ + last_buf->offset_;
+        unsigned int avail_buf = min(PAGE_SIZE - buf_tail, avail);
 
         // See if we have space in this pipe buffer
         // TODO: Idea to test: memmove data back if we have offset != 0
         // May compact things a bit.
-        if (PAGE_SIZE - last_buf->len_ <= iter->bytes)
+        if (avail_buf > 0)
         {
             // We have space, copy up
             if (atomic)
@@ -239,8 +242,7 @@ ssize_t pipe::append_iter(iovec_iter *iter, bool atomic)
 
             old_restore_len = last_buf->len_;
             u8 *page_buf = (u8 *) PAGE_TO_VIRT(last_buf->page_);
-            ssize_t copied =
-                copy_from_iter(iter, page_buf + last_buf->offset_, PAGE_SIZE - last_buf->len_);
+            ssize_t copied = copy_from_iter(iter, page_buf + buf_tail, avail_buf);
             if (copied < 0)
                 return -EFAULT;
 
@@ -249,10 +251,9 @@ ssize_t pipe::append_iter(iovec_iter *iter, bool atomic)
             assert(last_buf->len_ <= PAGE_SIZE);
             ret += copied;
             curr_len += copied;
+            avail -= copied;
         }
     }
-
-    const auto avail = available_space();
 
     // If we still have more to append and enough space, lets do so
     if (avail && !iter->empty())
@@ -301,6 +302,7 @@ ssize_t pipe::append_iter(iovec_iter *iter, bool atomic)
         buf.release();
     }
 
+    return ret;
 out:
     if (atomic && to_restore)
     {
@@ -513,9 +515,7 @@ ssize_t pipe::read_iter(iovec_iter *iter, unsigned int flags)
         if (!can_read())
         {
             if (ret || writer_count == 0)
-            {
-                return ret;
-            }
+                break;
 
             if (flags & O_NONBLOCK)
             {
@@ -532,20 +532,16 @@ ssize_t pipe::read_iter(iovec_iter *iter, unsigned int flags)
             }
 
             wasfull = available_space() < PIPE_BUF;
-
             continue;
         }
 
         assert(!list_is_empty(&pipe_buffers));
 
         // Consume the first buffer
-
         auto pbf = first_buf();
-
         u8 *page_buf = (u8 *) PAGE_TO_VIRT(pbf->page_) + pbf->offset_;
 
         ssize_t copied = copy_to_iter(iter, page_buf, pbf->len_);
-
         if (copied < 0)
         {
             if (!ret)
