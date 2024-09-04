@@ -22,6 +22,7 @@
 #include <onyx/internal_abi.h>
 #include <onyx/panic.h>
 #include <onyx/random.h>
+#include <onyx/types.h>
 
 #if UINT32_MAX == UINTPTR_MAX
 #define STACK_CHK_GUARD 0xdeadc0de
@@ -39,17 +40,20 @@ extern "C" __attribute__((noreturn, used)) void __stack_chk_fail()
 namespace abi
 {
 
+unsigned long generate_stack_canary()
+{
+    unsigned long guard;
+    arc4random_buf(&guard, sizeof(uintptr_t));
+    return guard;
+}
+
 extern "C" __attribute__((used)) void init_ssp_for_cpu(unsigned int cpu_nr)
 {
-    uintptr_t new_guard = 0;
-    arc4random_buf(&new_guard, sizeof(uintptr_t));
+    static uintptr_t new_guard = generate_stack_canary();
 
     auto abi_details = get_abi_data();
-
     if (cpu_nr == 0)
-    {
         __stack_chk_guard = new_guard;
-    }
 
     abi_details->canary = new_guard;
 }
