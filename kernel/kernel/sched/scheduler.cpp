@@ -75,7 +75,8 @@ static bool is_initialized = false;
 
 void sched_append_to_queue(int priority, unsigned int cpu, thread_t *thread);
 void sched_block(thread *thread);
-void __sched_append_to_queue(int priority, unsigned int cpu, thread_t *thread);
+static void __sched_append_to_queue(int priority, unsigned int cpu, thread_t *thread);
+static void ___sched_append_to_queue(int priority, unsigned int cpu, struct thread *thread);
 
 int sched_rbtree_cmp(const void *t1, const void *t2);
 static rb_tree glbl_thread_list = {.cmp_func = sched_rbtree_cmp};
@@ -85,6 +86,7 @@ PER_CPU_VAR(spinlock scheduler_lock) = STATIC_SPINLOCK_INIT;
 PER_CPU_VAR(thread *thread_queues_head[NUM_PRIO]);
 PER_CPU_VAR(thread *thread_queues_tail[NUM_PRIO]);
 PER_CPU_VAR(thread *current_thread);
+PER_CPU_VAR(unsigned int tasks_in_queues);
 
 void thread_append_to_global_list(thread *t)
 {
@@ -231,11 +233,12 @@ thread_t *__sched_find_next(unsigned int cpu)
         if (current_thread->status == THREAD_RUNNABLE)
         {
             /* Re-append the last thread to the queue */
-            __sched_append_to_queue(current_thread->priority, cpu, current_thread);
+            ___sched_append_to_queue(current_thread->priority, cpu, current_thread);
         }
         else
         {
             add_per_cpu(runnable_delta, -1);
+            add_per_cpu(tasks_in_queues, -1);
         }
 
         spin_unlock_irqrestore(&current_thread->lock, cpu_flags);
@@ -303,11 +306,15 @@ unsigned long nrun = 0;
 
 void calc_avenrun()
 {
-    unsigned long nr_runnable = 0;
+    unsigned long nr_runnable = 0, nr_runnable2 = 0;
 
     for (unsigned int i = 0; i < get_nr_cpus(); i++)
+    {
         nr_runnable += other_cpu_get(runnable_delta, i);
+        nr_runnable2 += other_cpu_get(tasks_in_queues, i);
+    }
 
+    DCHECK(nr_runnable == nr_runnable2);
     if ((long) nr_runnable < 0)
         panic("calc_avenrun: negative nr runnable %ld", nr_runnable);
     nrun = nr_runnable;
@@ -499,7 +506,7 @@ void sched_idle(void *ptr)
     }
 }
 
-void __sched_append_to_queue(int priority, unsigned int cpu, thread *thread)
+static void ___sched_append_to_queue(int priority, unsigned int cpu, struct thread *thread)
 {
     MUST_HOLD_LOCK(get_per_cpu_ptr_any(scheduler_lock, cpu));
 
@@ -527,6 +534,12 @@ void __sched_append_to_queue(int priority, unsigned int cpu, thread *thread)
     }
 }
 
+static void __sched_append_to_queue(int priority, unsigned int cpu, struct thread *thread)
+{
+    add_per_cpu_any(tasks_in_queues, 1, cpu);
+    ___sched_append_to_queue(priority, cpu, thread);
+}
+
 void sched_append_to_queue(int priority, unsigned int cpu, thread_t *thread)
 {
     spin_lock(get_per_cpu_ptr_any(scheduler_lock, cpu));
@@ -538,8 +551,6 @@ void sched_append_to_queue(int priority, unsigned int cpu, thread_t *thread)
     add_per_cpu(runnable_delta, 1);
 }
 
-PER_CPU_VAR(unsigned long active_threads) = 0;
-
 unsigned int sched_allocate_processor(void)
 {
     unsigned int nr_cpus = get_nr_cpus();
@@ -548,13 +559,14 @@ unsigned int sched_allocate_processor(void)
 
     for (unsigned int i = 0; i < nr_cpus; i++)
     {
-        unsigned long active_threads_for_cpu = get_per_cpu_any(active_threads, i);
+        unsigned long active_threads_for_cpu = get_per_cpu_any(tasks_in_queues, i);
         if (active_threads_for_cpu < active_threads_min)
         {
             dest_cpu = i;
             active_threads_min = active_threads_for_cpu;
         }
     }
+
     return dest_cpu;
 }
 
@@ -566,7 +578,6 @@ void thread_add(thread_t *thread, unsigned int cpu_num)
     thread->cpu = cpu_num;
     trace_sched_cpu_assign(thread->id, thread->owner ? thread->owner->pid_ : 0,
                            thread->owner ? thread->owner->comm : NULL, thread->cpu);
-    add_per_cpu_any(active_threads, 1, cpu_num);
     /* Append the thread to the queue */
     sched_append_to_queue(thread->priority, cpu_num, thread);
 }
@@ -921,6 +932,7 @@ void __thread_wake_up(thread *thread, unsigned int cpu)
 {
     MUST_HOLD_LOCK(&thread->lock);
     MUST_HOLD_LOCK(get_per_cpu_ptr_any(scheduler_lock, cpu));
+    unsigned int new_cpu;
 
     /* 1st case: The thread we're "waking up" is running.
      * In this case, just set the status and return, nothing else needed.
@@ -935,7 +947,17 @@ void __thread_wake_up(thread *thread, unsigned int cpu)
     if (thread->status == THREAD_RUNNABLE)
         return;
 
+    new_cpu = sched_allocate_processor();
     thread->status = THREAD_RUNNABLE;
+    if (new_cpu != cpu)
+    {
+        /* Release the locks and reacquire them in proper order, then reappend to the queue. */
+        sched_unlock(thread, CPU_FLAGS_NO_IRQ);
+        thread->cpu = new_cpu;
+        (void) sched_lock(thread);
+        cpu = new_cpu;
+    }
+
     __sched_append_to_queue(thread->priority, cpu, thread);
     add_per_cpu(runnable_delta, 1);
 
@@ -943,9 +965,7 @@ void __thread_wake_up(thread *thread, unsigned int cpu)
     {
         auto curr = get_current_thread();
         if (thread->priority > curr->priority)
-        {
             sched_should_resched();
-        }
     }
     else
     {
@@ -962,9 +982,7 @@ void __thread_wake_up(thread *thread, unsigned int cpu)
 void thread_wake_up(thread_t *thread)
 {
     unsigned long f = sched_lock(thread);
-
     __thread_wake_up(thread, thread->cpu);
-
     sched_unlock(thread, f);
 }
 
