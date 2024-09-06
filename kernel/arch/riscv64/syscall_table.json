@@ -2783,5 +2783,17 @@
         ],
         "return_type": "int",
         "abi": "c"
+    },
+    {
+        "name": "fdatasync",
+        "nr": 159,
+        "nr_args": 1,
+        "args": [
+            [
+                "int",
+                "fd"
+            ]
+        ],
+        "return_type": "int"
     }
 ]

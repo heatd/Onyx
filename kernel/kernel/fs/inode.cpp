@@ -390,6 +390,15 @@ int sys_fsync(int fd)
     return 0;
 }
 
+int sys_fdatasync(int fd)
+{
+    auto_file f;
+    if (f.from_fd(fd) < 0)
+        return -EBADF;
+    inode_sync(f.get_file()->f_ino);
+    return 0;
+}
+
 void inode_add_hole_in_page(struct page *page, size_t page_offset, size_t end_offset) REQUIRES(page)
 {
     page_wait_writeback(page);
