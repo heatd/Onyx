@@ -272,6 +272,10 @@ void poll_wait_helper(void *__poll_file, struct wait_queue *q)
     pf->wait(q);
 }
 
+#define POLLIN_SET  (POLLRDNORM | POLLRDBAND | POLLIN | POLLHUP | POLLERR)
+#define POLLOUT_SET (POLLWRBAND | POLLWRNORM | POLLOUT | POLLERR)
+#define POLLEX_SET  (POLLPRI)
+
 int sys_pselect(int nfds, fd_set *ureadfds, fd_set *uwritefds, fd_set *uexceptfds,
                 const struct timespec *utimeout, struct pselect_arg *uarg)
 {
@@ -346,14 +350,14 @@ int sys_pselect(int nfds, fd_set *ureadfds, fd_set *uwritefds, fd_set *uexceptfd
     poll_table pt;
     auto &vec = pt.get_poll_table();
 
-    /* First, we iterate through the file descriptors and add ourselves
-     * to wait queues if they're set
+    /* First, we iterate through the file descriptors and add
+     * ourselves to wait queues if they're set
      */
     for (int i = 0; i < nfds; i++)
     {
-        short events = (FD_ISSET(i, &readfds) ? POLLIN : 0) |
-                       (FD_ISSET(i, &writefds) ? POLLOUT : 0) |
-                       (FD_ISSET(i, &exceptfds) ? POLLPRI : 0);
+        short events = (FD_ISSET(i, &readfds) ? POLLIN_SET : 0) |
+                       (FD_ISSET(i, &writefds) ? POLLOUT_SET : 0) |
+                       (FD_ISSET(i, &exceptfds) ? POLLEX_SET : 0);
         /* FD not set, continue... */
         if (!events)
             continue;
@@ -373,7 +377,8 @@ int sys_pselect(int nfds, fd_set *ureadfds, fd_set *uwritefds, fd_set *uexceptfd
             return -ENOMEM;
     }
 
-    /* Test if they were zero'd previously - useful to save a bunch of work zeroing memory */
+    /* Test if they were zero'd previously - useful to save a bunch
+     * of work zeroing memory */
     if (ureadfds)
         FD_ZERO(&readfds);
     if (uwritefds)
@@ -386,8 +391,9 @@ int sys_pselect(int nfds, fd_set *ureadfds, fd_set *uwritefds, fd_set *uexceptfd
     while (!should_return)
     {
         /* The current poll implementation wasn't safe.
-         * Particularly, we could miss wakeups in between the check and the sleep,
-         * howver I don't believe this is the case anymore.
+         * Particularly, we could miss wakeups in between the check
+         * and the sleep, howver I don't believe this is the case
+         * anymore.
          */
 
         for (auto &poll_file : vec)
@@ -401,19 +407,19 @@ int sys_pselect(int nfds, fd_set *ureadfds, fd_set *uwritefds, fd_set *uexceptfd
             {
                 auto fd = poll_file->get_fd();
 
-                if (revents & POLLIN)
+                if (revents & POLLIN_SET)
                 {
                     FD_SET(fd, &readfds);
                     fd_bits_set++;
                 }
 
-                if (revents & POLLOUT)
+                if (revents & POLLOUT_SET)
                 {
                     FD_SET(fd, &writefds);
                     fd_bits_set++;
                 }
 
-                if (revents & POLLPRI)
+                if (revents & POLLEX_SET)
                 {
                     FD_SET(fd, &exceptfds);
                     fd_bits_set++;
