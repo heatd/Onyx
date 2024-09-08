@@ -308,7 +308,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-20.04, macos-latest]
+        os: [ubuntu-latest, ubuntu-20.04]
         target_arch: [x86_64, riscv64, arm64]
         toolchain: [gnu]
         include:
@@ -397,9 +397,6 @@ jobs:
           fi
 
           export SYSROOT=$PWD/sysroot
-          export ONYX_ARCH=${{ matrix.target_arch }}
-          ./scripts/setup_build.sh
-          make -C kernel defconfig
           mkdir -p toolchain_binaries-${{ matrix.toolchain }}
           if ! ./toolchains/scripts/build_toolchain.sh toolchain_build toolchain_binaries-${{ matrix.toolchain }} \
             -a ${{ matrix.target_arch }} --toolchain=${{ matrix.toolchain }}; then
