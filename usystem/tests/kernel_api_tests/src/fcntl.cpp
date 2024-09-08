@@ -271,3 +271,15 @@ TEST(posix_adv_locks, bad_args)
     /* But it should work for process file locks... */
     EXPECT_EQ(fcntl(fd.get(), F_SETLK, &lock), 0);
 }
+
+TEST(fcntl, dupfd_bad_base)
+{
+    onx::unique_fd fd = open("flock_file", O_RDWR | O_TRUNC | O_CREAT, 0644);
+    ASSERT_TRUE(fd.valid());
+    ASSERT_EQ(unlink("flock_file"), 0);
+
+    EXPECT_EQ(fcntl(fd.get(), F_DUPFD, -1), -1);
+    EXPECT_EQ(errno, EINVAL);
+    EXPECT_EQ(fcntl(fd.get(), F_DUPFD, sysconf(_SC_OPEN_MAX)), -1);
+    EXPECT_EQ(errno, EINVAL);
+}
