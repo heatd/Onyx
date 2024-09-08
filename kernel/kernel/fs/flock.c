@@ -180,7 +180,7 @@ static bool flock_validate(int cmd, const struct flock *arg)
     if (cmd_is_ofd_lock(cmd))
     {
         if (arg->l_pid != 0)
-            return -EINVAL;
+            return false;
     }
 
     if (arg->l_type != F_RDLCK && arg->l_type != F_WRLCK && arg->l_type != F_UNLCK)
