@@ -690,13 +690,6 @@ hrtime_t sched_sleep(unsigned long ns)
     ev.callback = sched_sleep_unblock;
     ev.priv = current;
 
-    /* This clockevent can run atomically because it's a simple thread_wake_up,
-     * which is safe to call from atomic/interrupt context.
-     */
-    ev.flags = CLOCKEVENT_FLAG_ATOMIC;
-    ev.deadline = clocksource_get_time() + ns;
-    timer_queue_clockevent(&ev);
-
     /* This is a bit of a hack but we need this in cases where we have timeout but we're not
      * supposed to be woken by signals. In this case, wait_for_event_* already set the current
      * state.
@@ -708,9 +701,17 @@ hrtime_t sched_sleep(unsigned long ns)
         status = THREAD_INTERRUPTIBLE;
     }
 
+    /* This clockevent can run atomically because it's a simple thread_wake_up,
+     * which is safe to call from atomic/interrupt context.
+     */
+    ev.flags = CLOCKEVENT_FLAG_ATOMIC;
+    ev.deadline = clocksource_get_time() + ns;
+    timer_queue_clockevent(&ev);
+
     if (status != THREAD_INTERRUPTIBLE || !signal_is_pending())
         sched_yield();
 
+    set_current_state(THREAD_RUNNABLE);
     /* Lets remove the event in the case where we got woken up by a signal or by another thread */
     timer_cancel_event(&ev);
 
