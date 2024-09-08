@@ -128,6 +128,12 @@ int printk(const char *__restrict, ...);
 #define pr_info(fmt, ...) printk(KERN_INFO pr_fmt(fmt), ##__VA_ARGS__)
 #define pr_debug(fmt, ...) printk(KERN_DEBUG pr_fmt(fmt), ##__VA_ARGS__)
 
+#define pr_warn_once(fmt, ...)                                   \
+    ({                                                           \
+        static bool do_once = 0;                                 \
+        if (!__atomic_exchange_n(&do_once, 1, __ATOMIC_RELAXED)) \
+            pr_warn(fmt, __VA_ARGS__);                           \
+    })
 
 int fprintf(FILE *__restrict, const char *__restrict, ...);
 int sprintf(char *__restrict, const char *__restrict, ...);

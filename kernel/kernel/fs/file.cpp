@@ -30,6 +30,7 @@
 #include <onyx/vm.h>
 
 #include <uapi/fcntl.h>
+#include <uapi/flock.h>
 #include <uapi/posix-types.h>
 #include <uapi/stat.h>
 
@@ -88,6 +89,7 @@ void fd_put(struct file *fd)
     {
         if (fd->f_flock)
             flock_release(fd);
+        flock_remove_ofd(fd);
         if (fd->f_ino->i_fops->release)
             fd->f_ino->i_fops->release(fd);
 
@@ -252,6 +254,11 @@ public:
         f = nullptr;
         return ret;
     }
+
+    bool has_seek() const
+    {
+        return flags & FDGET_SEEK;
+    }
 };
 
 struct file *__get_file_description(int fd, struct process *p)
@@ -320,6 +327,12 @@ expected<file *, int> __file_close_unlocked(int fd, struct process *p)
     return f;
 }
 
+void filp_close(struct file *filp)
+{
+    flock_remove_posix(filp);
+    fd_put(filp);
+}
+
 int __file_close(int fd, struct process *p)
 {
     struct ioctx *ctx = &p->ctx;
@@ -333,8 +346,7 @@ int __file_close(int fd, struct process *p)
     if (ex.has_error())
         return ex.error();
 
-    fd_put(ex.value());
-
+    filp_close(ex.value());
     return 0;
 }
 
@@ -505,7 +517,7 @@ void process_destroy_file_descriptors(process *process)
         if (!fd_is_open(i, table))
             continue;
 
-        fd_put(ftable[i]);
+        filp_close(ftable[i]);
     }
 
     rcu_assign_pointer(ctx->table, nullptr);
@@ -907,7 +919,7 @@ int sys_dup23_internal(int oldfd, int newfd, int dupflags, unsigned int flags)
     g.unlock();
 
     if (newf_old)
-        fd_put(newf_old);
+        filp_close(newf_old);
 
     return newfd;
 }
@@ -1305,6 +1317,13 @@ int default_fcntl(struct file *f, int cmd, unsigned long arg)
     return -EINVAL;
 }
 
+static int fcntl_adv_lock(int fd, int cmd, struct flock *arg)
+{
+    /* Note: We need to use seek here for functionality internal usage */
+    auto_fd file = fdget_seek(fd);
+    return flock_do_posix(file.get_file(), cmd, arg, file.has_seek());
+}
+
 int sys_fcntl(int fd, int cmd, unsigned long arg)
 {
     struct ioctx *ctx = &get_current_process()->ctx;
@@ -1334,6 +1353,14 @@ int sys_fcntl(int fd, int cmd, unsigned long arg)
             return fcntl_f_getfl(fd, ctx);
         case F_SETFL:
             return fcntl_f_setfl(fd, ctx, arg);
+
+        case F_GETLK:
+        case F_SETLKW:
+        case F_SETLK:
+        case F_OFD_GETLK:
+        case F_OFD_SETLK:
+        case F_OFD_SETLKW:
+            return fcntl_adv_lock(fd, cmd, (struct flock *) arg);
 
         default: {
             // Call the file's fcntl method if it exists
@@ -1581,7 +1608,7 @@ void file_do_cloexec(struct ioctx *ctx)
             // FIXME: Doing this under a spinlock is not correct and does crash if the struct file
             // cleanup needs to grab a lock. for instance, during any possible writeback
             auto file = __file_close_unlocked(i, get_current_process()).unwrap();
-            fd_put(file);
+            filp_close(file);
         }
     }
 }
