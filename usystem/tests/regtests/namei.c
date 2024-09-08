@@ -31,6 +31,17 @@ void openslash(void)
     close(fd);
 }
 
+void openslashslash(void)
+{
+    /* Test if opening // works */
+    int fd = open("////", O_RDONLY | O_CLOEXEC);
+    if (fd < 0)
+        err(1, "openslashslash");
+    close(fd);
+    if (access("//", X_OK) < 0)
+        err(1, "openslashslash");
+}
+
 #define ASSERT_ERRNO(_fd, _err)                                                                \
     do                                                                                         \
     {                                                                                          \
@@ -580,6 +591,7 @@ static void negativedent(void)
 int main(void)
 {
     openslash();
+    openslashslash();
     openempty();
     openpathtoolarge();
     setup_tmp();
