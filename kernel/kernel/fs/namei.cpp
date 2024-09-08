@@ -373,6 +373,7 @@ static int namei_resolve_path(nameidata &data)
 {
     auto &path = data.paths[data.pdepth];
     bool absolute = path.view[0] == '/';
+    int offset = 0;
     DCHECK(path_is_null(&data.root));
     DCHECK(path_is_null(&data.cur));
 
@@ -383,6 +384,8 @@ static int namei_resolve_path(nameidata &data)
     {
         data.cur = data.root;
         path_get(&data.root);
+        while (path.view[offset] == '/')
+            offset++;
     }
     else
     {
@@ -392,8 +395,7 @@ static int namei_resolve_path(nameidata &data)
             return err;
     }
 
-    path.view = std::string_view(&path.view[(int) absolute], path.view.length() - (int) absolute);
-
+    path.view = std::string_view(&path.view[offset], path.view.length() - offset);
     return 0;
 }
 
