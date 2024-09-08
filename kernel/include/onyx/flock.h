@@ -71,6 +71,16 @@ int flock_do_posix(struct file *filp, int cmd, struct flock *arg, bool has_seek)
 void flock_remove_ofd(struct file *filp);
 void flock_remove_posix(struct file *filp);
 
+static inline bool flock_needs_unlock(struct flock_info *info)
+{
+    return unlikely(info && !list_is_empty(&info->posix_locks));
+}
+
+static inline void flock_destroy_info(struct flock_info *info)
+{
+    free(info);
+}
+
 __END_CDECLS
 
 #endif

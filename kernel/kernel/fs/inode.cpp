@@ -240,6 +240,9 @@ void inode_release(struct inode *inode)
     if (inode->i_fops->close != nullptr)
         inode->i_fops->close(inode);
 
+    if (inode->i_flock)
+        flock_destroy_info(inode->i_flock);
+
     /* Note: We use kfree here, and not kmem_cache_free, because <inode> in some filesystems is not
      * allocated by inode_create.
      */

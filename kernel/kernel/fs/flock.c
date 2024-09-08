@@ -20,7 +20,8 @@
 
 static void remove_lock(struct flock_file_info *finfo, struct inode *ino)
 {
-    struct flock_info *flck = &ino->i_flock;
+    struct flock_info *flck = inode_to_flock(ino);
+    DCHECK(flck);
     spin_lock(&flck->lock);
     list_remove(&finfo->list_node);
 
@@ -47,12 +48,36 @@ static bool may_lock(struct flock_file_info *finfo, struct flock_info *flck)
     }
 }
 
+static struct flock_info *flock_get_or_alloc(struct inode *inode)
+{
+    struct flock_info *flck = inode_to_flock(inode);
+    if (likely(flck))
+        return flck;
+    flck = kmalloc(sizeof(*flck), GFP_KERNEL);
+    if (!flck)
+        return NULL;
+    flock_init(flck);
+
+    if (cmpxchg(&inode->i_flock, (struct flock_info *) NULL, flck) != NULL)
+    {
+        kfree(flck);
+        flck = inode_to_flock(inode);
+        DCHECK(flck);
+    }
+
+    return flck;
+}
+
 static int do_flock(struct file *filp, int op) REQUIRES(filp->f_seeklock)
 {
     struct flock_file_info *finfo = filp->f_flock;
     struct inode *ino = filp->f_ino;
-    struct flock_info *flck = &ino->i_flock;
+    struct flock_info *flck = flock_get_or_alloc(ino);
     int err = 0;
+
+    if (!flck)
+        return -ENOMEM;
+
     if (!finfo)
     {
         /* Bail early if we didn't have a lock */
@@ -251,8 +276,11 @@ static bool flock_locks_conflict(const struct flock_posix_lock *l1,
 static int flock_getlock_posix(int cmd, struct file *filp, struct flock *arg)
 {
     int err = 0;
-    struct flock_info *info = &filp->f_ino->i_flock;
+    struct flock_info *info = flock_get_or_alloc(filp->f_ino);
     struct flock_posix_lock tmp;
+
+    if (!info)
+        return -ENOMEM;
 
     if (arg->l_type == F_UNLCK)
         return -EINVAL;
@@ -288,11 +316,10 @@ static bool flock_is_ofd(struct flock_posix_lock *pl)
     return pl->flags & FLOCK_POSIX_OFD;
 }
 
-#include <stdio.h>
-
 static int ___flock_setlock_posix(struct file *filp, struct flock_posix_lock *pl)
 {
-    struct flock_info *info = &filp->f_ino->i_flock;
+    struct flock_info *info = inode_to_flock(filp->f_ino);
+    DCHECK(info);
     struct flock_posix_lock *lock, *next;
     bool seen_read = false, seen_write = false;
     bool pass2 = false;
@@ -371,7 +398,7 @@ static int ___flock_setlock_posix(struct file *filp, struct flock_posix_lock *pl
 
 static int __flock_setlock_posix(struct file *filp, struct flock_posix_lock *pl)
 {
-    struct flock_info *info = &filp->f_ino->i_flock;
+    struct flock_info *info = inode_to_flock(filp->f_ino);
     int err;
 
     spin_lock(&info->lock);
@@ -414,10 +441,12 @@ static int flock_setlockw_posix(int cmd, struct file *filp, struct flock *f,
                                 bool has_seek) NO_THREAD_SAFETY_ANALYSIS
 {
     int err;
-    struct flock_info *info = &filp->f_ino->i_flock;
+    struct flock_info *info = inode_to_flock(filp->f_ino);
     struct flock_posix_lock *pl = kmalloc(sizeof(*pl), GFP_KERNEL);
     if (!pl)
         return -ENOMEM;
+
+    DCHECK(info);
 
     if (flock_fill_in(cmd, filp, f, pl) < 0)
     {
@@ -430,7 +459,7 @@ static int flock_setlockw_posix(int cmd, struct file *filp, struct flock *f,
 
     spin_lock(&info->lock);
     err = wait_for_event_locked_interruptible(&info->flock_wq,
-                                              ___flock_setlock_posix(filp, pl) != 0, &info->lock);
+                                              ___flock_setlock_posix(filp, pl) == 0, &info->lock);
     spin_unlock(&info->lock);
 
     if (has_seek)
@@ -450,6 +479,10 @@ int flock_do_posix(struct file *filp, int cmd, struct flock *arg,
 
     if (!flock_validate(cmd, &f))
         return -EINVAL;
+
+    /* Make sure we have flock info for the upcoming call */
+    if (!flock_get_or_alloc(filp->f_ino))
+        return -ENOMEM;
 
     switch (cmd)
     {
@@ -481,8 +514,8 @@ void flock_remove_ofd(struct file *filp)
 {
     struct flock_posix_lock *lock, *next;
     bool unlocked = false;
-    struct flock_info *info = &filp->f_ino->i_flock;
-    if (likely(list_is_empty(&info->posix_locks)))
+    struct flock_info *info = inode_to_flock(filp->f_ino);
+    if (likely(!info || list_is_empty(&info->posix_locks)))
         return;
 
     spin_lock(&info->lock);
@@ -506,8 +539,8 @@ void flock_remove_posix(struct file *filp)
 {
     struct flock_posix_lock *lock, *next;
     bool unlocked = false;
-    struct flock_info *info = &filp->f_ino->i_flock;
-    if (likely(list_is_empty(&info->posix_locks)))
+    struct flock_info *info = inode_to_flock(filp->f_ino);
+    if (likely(!info || list_is_empty(&info->posix_locks)))
         return;
 
     spin_lock(&info->lock);

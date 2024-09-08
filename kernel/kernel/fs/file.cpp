@@ -89,7 +89,10 @@ void fd_put(struct file *fd)
     {
         if (fd->f_flock)
             flock_release(fd);
-        flock_remove_ofd(fd);
+
+        if (file_needs_unlock(fd))
+            flock_remove_ofd(fd);
+
         if (fd->f_ino->i_fops->release)
             fd->f_ino->i_fops->release(fd);
 
@@ -329,7 +332,8 @@ expected<file *, int> __file_close_unlocked(int fd, struct process *p)
 
 void filp_close(struct file *filp)
 {
-    flock_remove_posix(filp);
+    if (file_needs_unlock(filp))
+        flock_remove_posix(filp);
     fd_put(filp);
 }
 

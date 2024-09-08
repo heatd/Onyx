@@ -134,8 +134,7 @@ struct inode
     nlink_t i_nlink;
     blkcnt_t i_blocks;
     struct list_head i_sb_list_node;
-    /* Note: We can't expect that flock is too contended... */
-    struct flock_info i_flock;
+    struct flock_info *i_flock;
 
     /* Write-frequently fields */
     unsigned long i_refc;
@@ -159,5 +158,12 @@ struct inode
     void set_evicting();
 #endif
 };
+
+static inline struct flock_info *inode_to_flock(struct inode *inode)
+{
+    /* We not need an acquire load here for the same reason rcu_dereference doesn't - dependent
+     * stores. */
+    return READ_ONCE(inode->i_flock);
+}
 
 #endif
