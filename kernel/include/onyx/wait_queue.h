@@ -232,6 +232,7 @@ bool signal_is_pending();
 static inline void init_wait_queue_head(struct wait_queue *q)
 {
     INIT_LIST_HEAD(&q->token_list);
+    spinlock_init(&q->lock);
 }
 
 __END_CDECLS

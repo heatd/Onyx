@@ -731,8 +731,6 @@ int inode_init(struct inode *inode, bool is_cached)
 
     spinlock_init(&inode->i_lock);
     rwlock_init(&inode->i_rwlock);
-    flock_init(&inode->i_flock);
-
     return 0;
 }
 

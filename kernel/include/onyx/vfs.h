@@ -72,6 +72,11 @@ struct file
     struct flock_file_info *f_flock;
 };
 
+static inline bool file_needs_unlock(struct file *filp)
+{
+    return flock_needs_unlock(inode_to_flock(filp->f_ino));
+}
+
 int inode_create_vmo(struct inode *ino);
 
 struct file *open_vfs_with_flags(int dirfd, const char *path, unsigned int flags);
