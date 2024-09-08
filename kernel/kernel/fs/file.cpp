@@ -1209,13 +1209,17 @@ off_t sys_lseek(int fd, off_t offset, int whence)
     return ret;
 }
 
-int do_dupfd(struct file *f, int fdbase, bool cloexec)
+static int do_dupfd(struct file *f, int fdbase, bool cloexec)
 {
     if (fdbase < 0)
-        return -EBADF;
+        return -EINVAL;
     int new_fd = alloc_fd(fdbase);
     if (new_fd < 0)
+    {
+        if (new_fd == -EBADF)
+            new_fd = -EINVAL;
         return new_fd;
+    }
 
     struct ioctx *ioctx = &get_current_process()->ctx;
     ioctx->table->file_desc[new_fd] = f;
