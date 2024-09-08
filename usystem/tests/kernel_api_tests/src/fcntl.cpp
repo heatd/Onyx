@@ -230,3 +230,44 @@ TEST(posix_adv_locks, test_close_unlock)
 
     ASSERT_EQ(fcntl(fd2.get(), F_OFD_SETLK, &lock), 0);
 }
+
+TEST(posix_adv_locks, bad_args)
+{
+    /* Throw garbage at the function and see if it doesn't die */
+    onx::unique_fd fd = open("flock_file", O_RDWR | O_TRUNC | O_CREAT, 0644);
+    ASSERT_TRUE(fd.valid());
+    ASSERT_EQ(unlink("flock_file"), 0);
+    struct flock lock;
+    EXPECT_EQ(fcntl(-1, F_SETLK, &lock), -1);
+    EXPECT_EQ(errno, EBADF);
+
+    /* Now start the EINVALs... First off, negative start */
+    lock.l_pid = 10;
+    lock.l_start = -10;
+    lock.l_len = 0;
+    lock.l_type = F_WRLCK;
+    lock.l_whence = SEEK_SET;
+    EXPECT_EQ(fcntl(fd.get(), F_SETLK, &lock), -1);
+    EXPECT_EQ(errno, EINVAL);
+
+    /* Bad type */
+    lock.l_start = 0;
+    lock.l_type = ~0;
+    EXPECT_EQ(fcntl(fd.get(), F_SETLK, &lock), -1);
+    EXPECT_EQ(errno, EINVAL);
+
+    /* Bad seek */
+    lock.l_type = F_WRLCK;
+    lock.l_whence = SEEK_DATA;
+    EXPECT_EQ(fcntl(fd.get(), F_SETLK, &lock), -1);
+    EXPECT_EQ(errno, EINVAL);
+
+    /* l_pid is not 0 for OFD */
+    lock.l_whence = SEEK_SET;
+    lock.l_pid = 10;
+    EXPECT_EQ(fcntl(fd.get(), F_OFD_SETLK, &lock), -1);
+    EXPECT_EQ(errno, EINVAL);
+
+    /* But it should work for process file locks... */
+    EXPECT_EQ(fcntl(fd.get(), F_SETLK, &lock), 0);
+}

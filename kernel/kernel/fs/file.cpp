@@ -1325,6 +1325,8 @@ static int fcntl_adv_lock(int fd, int cmd, struct flock *arg)
 {
     /* Note: We need to use seek here for functionality internal usage */
     auto_fd file = fdget_seek(fd);
+    if (!file)
+        return -EBADF;
     return flock_do_posix(file.get_file(), cmd, arg, file.has_seek());
 }
 
