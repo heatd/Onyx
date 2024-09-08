@@ -407,9 +407,21 @@ static int __flock_setlock_posix(struct file *filp, struct flock_posix_lock *pl)
     return err;
 }
 
+static bool flock_may_lock_perms(struct file *filp, struct flock *fl)
+{
+    int accmode = filp->f_flags & O_RDWRMASK;
+    bool may_read = accmode == O_RDONLY || accmode == O_RDWR;
+    bool may_write = accmode == O_WRONLY || accmode == O_RDWR;
+    return ((fl->l_type == F_WRLCK && may_write) || (fl->l_type == F_RDLCK && may_read)) ||
+           (fl->l_type == F_UNLCK);
+}
+
 static int flock_setlock_posix(int cmd, struct file *filp, struct flock *f)
 {
     int err;
+    if (!flock_may_lock_perms(filp, f))
+        return -EBADF;
+
     struct flock_posix_lock *pl = kmalloc(sizeof(*pl), GFP_KERNEL);
     if (!pl)
         return -ENOMEM;
@@ -442,6 +454,10 @@ static int flock_setlockw_posix(int cmd, struct file *filp, struct flock *f,
 {
     int err;
     struct flock_info *info = inode_to_flock(filp->f_ino);
+
+    if (!flock_may_lock_perms(filp, f))
+        return -EBADF;
+
     struct flock_posix_lock *pl = kmalloc(sizeof(*pl), GFP_KERNEL);
     if (!pl)
         return -ENOMEM;
