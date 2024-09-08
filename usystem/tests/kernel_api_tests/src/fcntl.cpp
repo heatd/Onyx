@@ -272,6 +272,30 @@ TEST(posix_adv_locks, bad_args)
     EXPECT_EQ(fcntl(fd.get(), F_SETLK, &lock), 0);
 }
 
+TEST(posix_adv_locks, no_file_perms)
+{
+    /* POSIX specifies that F_RDCK requires a file opened for reading, and same for write. If not,
+     * fails with EBADF. */
+    onx::unique_fd fd = open("flock_file", O_WRONLY | O_TRUNC | O_CREAT, 0644);
+    onx::unique_fd fd2 = open("flock_file", O_RDONLY | O_TRUNC | O_CREAT, 0644);
+    ASSERT_TRUE(fd.valid());
+    ASSERT_TRUE(fd2.valid());
+    ASSERT_EQ(unlink("flock_file"), 0);
+
+    struct flock lock;
+    lock.l_pid = 10;
+    lock.l_start = 0;
+    lock.l_len = 0;
+    lock.l_type = F_WRLCK;
+    lock.l_whence = SEEK_SET;
+    EXPECT_EQ(fcntl(fd2.get(), F_SETLK, &lock), -1);
+    EXPECT_EQ(errno, EBADF);
+
+    lock.l_type = F_RDLCK;
+    EXPECT_EQ(fcntl(fd.get(), F_SETLK, &lock), -1);
+    EXPECT_EQ(errno, EBADF);
+}
+
 TEST(fcntl, dupfd_bad_base)
 {
     onx::unique_fd fd = open("flock_file", O_RDWR | O_TRUNC | O_CREAT, 0644);
