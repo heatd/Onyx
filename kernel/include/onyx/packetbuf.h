@@ -404,7 +404,7 @@ static inline void pbf_get(struct packetbuf *pbf)
     __atomic_add_fetch(&pbf->refcount, 1, __ATOMIC_RELAXED);
 }
 
-static inline void pbf_put(struct packetbuf *pbf)
+static inline void pbf_put_ref(struct packetbuf *pbf)
 {
     if (__atomic_sub_fetch(&pbf->refcount, 1, __ATOMIC_RELAXED) == 0)
         pbf_free(pbf);
