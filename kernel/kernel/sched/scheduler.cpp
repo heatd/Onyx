@@ -955,7 +955,8 @@ void __thread_wake_up(thread *thread, unsigned int cpu)
         /* Release the locks and reacquire them in proper order, then reappend to the queue. */
         sched_unlock(thread, CPU_FLAGS_NO_IRQ);
         thread->cpu = new_cpu;
-        (void) sched_lock(thread);
+        unsigned long _ = sched_lock(thread);
+        (void) _;
         cpu = new_cpu;
     }
 
