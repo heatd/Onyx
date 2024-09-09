@@ -5,7 +5,7 @@ set -e
 # the base image
 
 sudo apt-get update && sudo apt-get install libmpc-dev libgmp3-dev bison flex libmpfr-dev ninja-build clang lld \
-parted mtools meson libfl2 pkgconf qemu-system
+parted mtools meson libfl2 pkgconf qemu-system uuid-dev
 mkdir gn_bin/
 cd gn_bin
 wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -O gn.zip
