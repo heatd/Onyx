@@ -1213,7 +1213,7 @@ int do_wp_page(struct vm_pf_context *context)
     struct page *new_page;
     pte_t *ptep;
     u64 phys;
-    struct spinlock *lock;
+    struct spinlock *lock = NULL;
     struct tlbi_tracker tlbi;
     struct anon_vma *anon = anon_vma_prepare(context->entry);
     if (!anon)

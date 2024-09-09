@@ -45,7 +45,7 @@ static int perf_probe_enable_wait()
 
     if (!fg)
     {
-        fg = (flame_graph_pcpu *) calloc(sizeof(flame_graph_pcpu), get_nr_cpus());
+        fg = (flame_graph_pcpu *) calloc(get_nr_cpus(), sizeof(flame_graph_pcpu));
         assert(fg != nullptr);
         for (unsigned int i = 0; i < get_nr_cpus(); i++)
         {
@@ -89,7 +89,7 @@ static int perf_probe_enable()
 
     if (!fg)
     {
-        fg = (flame_graph_pcpu *) calloc(sizeof(flame_graph_pcpu), get_nr_cpus());
+        fg = (flame_graph_pcpu *) calloc(get_nr_cpus(), sizeof(flame_graph_pcpu));
         assert(fg != nullptr);
         for (unsigned int i = 0; i < get_nr_cpus(); i++)
         {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -39,8 +39,9 @@ SECTIONS
 		pml5 = .;
 		. += 0x1000;
 		PROVIDE_HIDDEN(__early_page_tables_end = .);
-		PROVIDE_HIDDEN(__early_page_tables_size = __early_page_tables_end - __early_page_tables_start);
 	} : boot
+
+	PROVIDE_HIDDEN(__early_page_tables_size = __early_page_tables_end - __early_page_tables_start);
 
 	. += VIRT_BASE;
 
@@ -51,19 +52,20 @@ SECTIONS
 		*(.init)
 		*(.fini)
 		*(.jcr)
-		*(.dtors)
-		*(.ctors)
 	} : text
 	
 	_ro_start = .;
 
 	.rodata ALIGN(0x1000) : AT(ADDR(.rodata) - VIRT_BASE)
 	{
+		PROVIDE_HIDDEN(__dso_handle = .);
+		. += 8;
 		PROVIDE_HIDDEN(__init_array_start = .);
-		*(.init_array*)
+		KEEP(*(SORT_BY_INIT_PRIORITY(.init_array*) SORT_BY_INIT_PRIORITY(.ctors*)))
 		PROVIDE_HIDDEN(__init_array_end = .);
 		PROVIDE_HIDDEN(__fini_array_start = .);
 		*(.fini_array*)
+		*(.dtors)
 		PROVIDE_HIDDEN(__fini_array_end = .);
 		*(.rodata*)
 		*(.gnu.linkonce.r*)
@@ -185,6 +187,12 @@ SECTIONS
 	kernel_end = .;
 	kernel_phys_end = . - VIRT_BASE;
 	PROVIDE_HIDDEN(__kernel_size = kernel_end - kernel_start);
+
+	/DISCARD/ :
+	{
+		*(.got*)
+		*(.plt*)
+	}
 }
 
 PHDRS

@@ -134,7 +134,7 @@ void *shebang_load(struct binfmt_args *args)
     if (argc_is_zero)
         argc++;
 
-    char **new_argv = (char **) calloc(sizeof(void *), argc + 1);
+    char **new_argv = (char **) calloc(argc + 1, sizeof(void *));
     if (!new_argv)
     {
         free(interp);

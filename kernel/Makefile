@@ -232,8 +232,8 @@ CFLAGS_FOR_LINK:=$(CFLAGS)
 
 ifneq ($(ONYX_USING_CLANG), yes)
 # NOTE: We may not really want this
-CRTBEGIN_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtbeginS.o)
-CRTEND_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtendS.o)
+CRTBEGIN_OBJ:=
+CRTEND_OBJ:=
 LDFLAGS:=$(LDFLAGS) -no-pie
 else
 LDFLAGS:=$(LDFLAGS) -fno-sanitize-link-runtime -Wl,-no-pie

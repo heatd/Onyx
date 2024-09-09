@@ -165,7 +165,6 @@ public:
         internal_lock = l.internal_lock;
         is_locked = l.is_locked;
         l.is_locked = false;
-        l.internal_lock = nullptr;
     }
 
     scoped_mutex& operator=(scoped_mutex&& rhs)
@@ -173,7 +172,6 @@ public:
         internal_lock = rhs.internal_lock;
         is_locked = rhs.is_locked;
         rhs.is_locked = false;
-        rhs.internal_lock = nullptr;
 
         return *this;
     }
