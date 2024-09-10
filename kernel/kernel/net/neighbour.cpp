@@ -68,6 +68,8 @@ void neighbour_table::remove(neighbour* ptr)
             neighbour_cache.remove_element(neigh, hash, it);
             return;
         }
+
+        it++;
     }
 }
 
