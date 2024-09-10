@@ -5,7 +5,7 @@
  */
 
 #include <libtest.h>
-
+#include <stdint.h>
 #include <iostream>
 
 #define weak_alias(name, aliasname) _weak_alias(name, aliasname)

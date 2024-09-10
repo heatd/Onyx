@@ -427,7 +427,7 @@ void output_json(u8 *buf, u8 *bufend, FILE *file)
 
     while (buf != bufend)
     {
-        struct tracing_header *header = (u8 *) buf;
+        struct tracing_header *header = (struct tracing_header *) buf;
         struct traced_event *ev = get_ev(header->evtype);
 
         if (!ev)
