@@ -875,9 +875,6 @@ void dentry_do_rename_unlink(dentry *entry)
     list_remove_rcu(&entry->d_cache_node);
     entry->d_flags &= ~DENTRY_FLAG_HASHED;
 
-    if (!d_is_negative(entry) && dentry_is_dir(entry))
-        dentry_shrink_subtree(entry);
-
     spin_unlock(&entry->d_lock);
 
     // We can do this because we're holding the parent dir's lock
@@ -1008,6 +1005,9 @@ void dentry_rename(dentry *dent, const char *name, dentry *parent,
         spin_unlock(&dentry_ht_locks[oldi]);
 
     write_sequnlock(&rename_lock);
+
+    if (!d_is_negative(dst) && dentry_is_dir(dst))
+        dentry_shrink_subtree(dst);
 
     if (old)
         dput(old);
