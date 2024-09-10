@@ -32,6 +32,7 @@ cul::pair<shared_ptr<neighbour>, bool> neighbour_table::add(const neigh_proto_ad
         auto n_hwaddr = neigh->hwaddr();
         if (neigh->addr_equals(addr))
             return {neigh, false};
+        it++;
     }
 
     if (only_lookup)
