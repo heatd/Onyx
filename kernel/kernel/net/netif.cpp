@@ -13,10 +13,9 @@
 #include <onyx/byteswap.h>
 #include <onyx/dev.h>
 #include <onyx/init.h>
+#include <onyx/net/ip.h>
 #include <onyx/net/netif.h>
 #include <onyx/net/netkernel.h>
-#include <onyx/net/tcp.h>
-#include <onyx/net/udp.h>
 #include <onyx/softirq.h>
 #include <onyx/spinlock.h>
 #include <onyx/vector.h>
@@ -125,10 +124,6 @@ void netif_register_loopback_route6(struct netif *netif)
 void netif_register_if(struct netif *netif)
 {
     INIT_LIST_HEAD(&netif->inet6_addr_list);
-
-    assert(udp_init_netif(netif) == 0);
-
-    assert(tcp_init_netif(netif) == 0);
 
     auto ex = dev_register_chardevs(0, 1, 0, &netif_fops, netif->name);
     if (ex.has_error())
@@ -290,9 +285,6 @@ void netif_signal_rx(netif *nif)
 
         flags |= NETIF_HAS_RX_AVAILABLE;
 
-        if (og_flags & NETIF_DOING_RX_POLL)
-            flags |= NETIF_MISSED_RX;
-
     } while (!__atomic_compare_exchange_n(&nif->flags, &og_flags, flags, false, __ATOMIC_ACQUIRE,
                                           __ATOMIC_RELAXED));
 
@@ -302,58 +294,44 @@ void netif_signal_rx(netif *nif)
     auto queue = get_per_cpu_ptr(rx_queue);
 
     unsigned long cpu_flags = spin_lock_irqsave(&queue->lock);
-
     list_add_tail(&nif->rx_queue_node, &queue->to_rx_list);
-
     spin_unlock_irqrestore(&queue->lock, cpu_flags);
-
     softirq_raise(softirq_vector::SOFTIRQ_VECTOR_NETRX);
 }
 
 void netif_do_rxpoll(netif *nif)
 {
-    __atomic_or_fetch(&nif->flags, NETIF_DOING_RX_POLL, __ATOMIC_RELAXED);
+    unsigned int desired;
+    atomic_or_relaxed(nif->flags, NETIF_DOING_RX_POLL);
 
-    while (true)
+    do
     {
+    retry:
+        atomic_and_relaxed(nif->flags, ~NETIF_HAS_RX_AVAILABLE);
         nif->poll_rx(nif);
-
-        unsigned int flags, og_flags;
-
-        do
-        {
-            og_flags = flags = nif->flags;
-
-            if (!(og_flags & NETIF_MISSED_RX))
-            {
-                nif->rx_end(nif);
-                flags &= ~(NETIF_HAS_RX_AVAILABLE | NETIF_DOING_RX_POLL);
-            }
-
-            flags &= ~NETIF_MISSED_RX;
-
-        } while (!__atomic_compare_exchange_n(&nif->flags, &og_flags, flags, false,
-                                              __ATOMIC_ACQUIRE, __ATOMIC_RELAXED));
-
-        if (!(flags & NETIF_DOING_RX_POLL))
-            break;
-    }
+        desired = READ_ONCE(nif->flags);
+        if (desired & NETIF_HAS_RX_AVAILABLE)
+            goto retry;
+        nif->rx_end(nif);
+    } while (cmpxchg(&nif->flags, desired, desired & ~NETIF_DOING_RX_POLL) != desired);
 }
 
 int netif_do_rx()
 {
     auto queue = get_per_cpu_ptr(rx_queue);
+    DEFINE_LIST(to_rx);
 
-    scoped_lock g{queue->lock};
-
-    list_for_every (&queue->to_rx_list)
     {
-        netif *n = container_of(l, netif, rx_queue_node);
-
-        netif_do_rxpoll(n);
+        scoped_lock<spinlock, true> g{queue->lock};
+        list_splice(&queue->to_rx_list, &to_rx);
     }
 
-    list_reset(&queue->to_rx_list);
+    list_for_every_safe (&to_rx)
+    {
+        netif *n = container_of(l, netif, rx_queue_node);
+        list_remove(&n->rx_queue_node);
+        netif_do_rxpoll(n);
+    }
 
     return 0;
 }
