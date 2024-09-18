@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -72,6 +72,7 @@ void send_echo_reply(ip_header *iphdr, icmp_header *icmphdr, uint16_t length, ne
     response_icmp->code = 0;
     response_icmp->rest = icmphdr->rest;
     memcpy(buf->put(data_length), &icmphdr->echo.data, data_length);
+    response_icmp->checksum = 0;
     response_icmp->checksum = ipsum(response_icmp, length);
 
     inet_sock_address from{src, 0};
