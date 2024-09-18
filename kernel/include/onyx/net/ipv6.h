@@ -120,4 +120,6 @@ int netif_addrcfg(netif *nif, const in6_addr &if_id);
 const struct inet_proto_family *get_v6_proto();
 } // namespace ip::v6
 
+int ip6_finish_output(struct neighbour *neigh, struct packetbuf *pbf, struct netif *nif);
+
 #endif

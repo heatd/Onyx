@@ -1,12 +1,15 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 
 #ifndef _ONYX_NET_INET_ROUTE_H
 #define _ONYX_NET_INET_ROUTE_H
 
+#include <onyx/err.h>
 #include <onyx/net/neighbour.h>
 
 #include <uapi/netinet.h>
@@ -57,7 +60,55 @@ struct inet_route
 
     netif *nif;
     unsigned short flags;
-    shared_ptr<neighbour> dst_hw;
+    struct neighbour *dst_hw{};
+
+    inet_route() = default;
+    ~inet_route()
+    {
+        if (!IS_ERR_OR_NULL(dst_hw))
+            neigh_put(dst_hw);
+    }
+
+    inet_route &operator=(const inet_route &rhs)
+    {
+        if (&rhs == this)
+            return *this;
+        this->src_addr = rhs.src_addr;
+        this->dst_addr = rhs.dst_addr;
+        this->mask = rhs.mask;
+        this->gateway_addr = rhs.gateway_addr;
+        this->nif = rhs.nif;
+        this->flags = rhs.flags;
+        this->dst_hw = rhs.dst_hw;
+        if (rhs.dst_hw)
+            neigh_get(rhs.dst_hw);
+        return *this;
+    }
+
+    inet_route(const inet_route &rhs)
+    {
+        *this = rhs;
+    }
+
+    inet_route &operator=(inet_route &&rhs)
+    {
+        if (&rhs == this)
+            return *this;
+        this->src_addr = rhs.src_addr;
+        this->dst_addr = rhs.dst_addr;
+        this->mask = rhs.mask;
+        this->gateway_addr = rhs.gateway_addr;
+        this->nif = rhs.nif;
+        this->flags = rhs.flags;
+        this->dst_hw = rhs.dst_hw;
+        rhs.dst_hw = nullptr;
+        return *this;
+    }
+
+    inet_route(inet_route &&rhs)
+    {
+        *this = cul::move(rhs);
+    }
 };
 
 #endif

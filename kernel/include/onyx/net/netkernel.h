@@ -10,6 +10,7 @@
 #define _ONYX_NET_NETKERNEL_H
 
 #include <onyx/net/socket.h>
+#include <onyx/packetbuf.h>
 #include <onyx/rwlock.h>
 #include <onyx/vector.h>
 

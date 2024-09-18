@@ -1,11 +1,12 @@
 /*
- * Copyright (c) 2020 - 2022 Pedro Falcato
+ * Copyright (c) 2020 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
 
+#include <onyx/err.h>
 #include <onyx/net/icmpv6.h>
 #include <onyx/net/ip.h>
 #include <onyx/net/ndp.h>
@@ -36,6 +37,16 @@ namespace ip::v6
 static constexpr tx_type ipv6_addr_to_tx_type(const in6_addr &dst)
 {
     return dst.s6_addr[0] == 0xff ? tx_type::multicast : tx_type::unicast;
+}
+
+static int output_mcast(struct packetbuf *pbf, struct netif *nif, struct ip6hdr *hdr)
+{
+    int st;
+    if ((st = nif->dll_ops->setup_header(pbf, tx_type::multicast, tx_protocol::ipv6, nif,
+                                         &hdr->dst_addr)) < 0)
+        return st;
+
+    return netif_send_packet(nif, pbf);
 }
 
 int send_packet(const iflow &flow, packetbuf *buf)
@@ -72,25 +83,12 @@ int send_packet(const iflow &flow, packetbuf *buf)
     hdr->next_header = next_header;
     hdr->hop_limit = flow.ttl;
 
-    int st = 0;
-
     const auto ttype = ipv6_addr_to_tx_type(route.dst_addr.in6);
-    const void *dst_hw = nullptr;
+    if (ttype == tx_type::multicast)
+        return output_mcast(buf, netif, hdr);
 
-    if (ttype == tx_type::unicast)
-    {
-        dst_hw = route.dst_hw->hwaddr().data();
-    }
-    else if (ttype == tx_type::multicast)
-    {
-        /* Let the lower layer figure out the multicast address */
-        dst_hw = &hdr->dst_addr;
-    }
-
-    if ((st = netif->dll_ops->setup_header(buf, ttype, tx_protocol::ipv6, netif, dst_hw)) < 0)
-        return st;
-
-    return netif_send_packet(netif, buf);
+    buf->route = route;
+    return neigh_output(buf->route.dst_hw, buf, netif);
 }
 
 int bind_internal(sockaddr_in6 *in, inet_socket *sock)
@@ -223,6 +221,7 @@ expected<inet_route, int> route_from_routing_table(const inet_sock_address &to,
     shared_ptr<inet6_route> best_route;
     int highest_metric = 0;
     auto dest = to.in6;
+    int longest_prefix = -1;
 
     {
 
@@ -233,12 +232,14 @@ expected<inet_route, int> route_from_routing_table(const inet_sock_address &to,
             /* Do a bitwise and between the destination address and the mask
              * If the result = r.dest, we can use this interface.
              */
+            int mask_bits;
+            const auto masked = dest & r->mask;
 #if 0
 		print_v6_addr(dest);
 		print_v6_addr(r->mask);
 		print_v6_addr(r->dest);
 #endif
-            if ((dest & r->mask) != r->dest)
+            if (masked != r->dest)
                 continue;
 
             if (required_netif && r->nif != required_netif)
@@ -247,15 +248,22 @@ expected<inet_route, int> route_from_routing_table(const inet_sock_address &to,
 		printk("%s is good\n", r->nif->name);
 		printk("is loopback set %u\n", r->nif->flags & NETIF_LOOPBACK);
 #endif
+            /* TODO: This can and should be computed beforehand */
+            mask_bits = count_bits(r->mask.__in6_union.__s6_addr32[0]) +
+                        count_bits(r->mask.__in6_union.__s6_addr32[1]) +
+                        count_bits(r->mask.__in6_union.__s6_addr32[2]) +
+                        count_bits(r->mask.__in6_union.__s6_addr32[3]);
 
-            int mods = 0;
-            if (r->flags & INET4_ROUTE_FLAG_GATEWAY)
-                mods--;
-
-            if (r->metric + mods > highest_metric)
+#if 0
+            pr_warn("dest %pI6 mask %pI6 route dest %pI6 mask_bits %d\n", &dest, &r->mask, &r->dest,
+                    mask_bits);
+#endif
+            if (mask_bits > longest_prefix ||
+                (longest_prefix == mask_bits && r->metric > highest_metric))
             {
                 best_route = r;
                 highest_metric = r->metric;
+                longest_prefix = mask_bits;
             }
         }
     }
@@ -351,14 +359,10 @@ expected<inet_route, int> route(const inet_sock_address &from, const inet_sock_a
         // printk("Gateway %x\n", ntohs(r.gateway_addr.in6.s6_addr16[0]));
     }
 
-    auto res = ndp_resolve(to_resolve, rt.nif);
+    rt.dst_hw = ndp_resolve(to_resolve, rt.nif);
 
-    if (res.has_error()) [[unlikely]]
-    {
-        return unexpected<int>{-ENETUNREACH};
-    }
-
-    rt.dst_hw = res.value();
+    if (IS_ERR(rt.dst_hw)) [[unlikely]]
+        return unexpected<int>{PTR_ERR(rt.dst_hw)};
 
     return rt;
 }
@@ -516,6 +520,16 @@ int inet_socket::setsockopt_inet6(int level, int opt, const void *optval, sockle
             this->ttl = ttl;
             return 0;
         }
+
+        case IPV6_V6ONLY: {
+            auto ex = get_socket_option<int>(optval, len);
+
+            if (ex.has_error())
+                return ex.error();
+
+            ipv6_only = ex.value() ? 1 : 0;
+            return 0;
+        }
     }
 
     return -ENOPROTOOPT;
@@ -528,7 +542,27 @@ int inet_socket::getsockopt_inet6(int level, int opt, void *optval, socklen_t *l
         case IPV6_MULTICAST_HOPS:
         case IPV6_UNICAST_HOPS:
             return put_option(ttl, optval, len);
+        case IPV6_V6ONLY: {
+            int val = ipv6_only;
+            return put_option(val, optval, len);
+        }
     }
 
     return -ENOPROTOOPT;
+}
+
+int ip6_finish_output(struct neighbour *neigh, struct packetbuf *pbf, struct netif *nif)
+{
+    int st = 0;
+    const void *hwaddr = nullptr;
+
+    if (neigh->flags & NUD_FAILED)
+        return -EHOSTUNREACH;
+    hwaddr = neigh->hwaddr;
+
+    if ((st = nif->dll_ops->setup_header(pbf, tx_type::unicast, tx_protocol::ipv6, nif, hwaddr)) <
+        0) [[unlikely]]
+        return st;
+
+    return netif_send_packet(nif, pbf);
 }

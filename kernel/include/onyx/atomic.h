@@ -16,6 +16,10 @@
 #define atomic_and_relaxed(var, mask) (__atomic_and_fetch(&(var), mask, __ATOMIC_RELAXED))
 #define atomic_or_relaxed(var, mask)  (__atomic_or_fetch(&(var), mask, __ATOMIC_RELAXED))
 
+#ifdef __cplusplus
+#define __auto_type auto
+#endif
+
 #define cmpxchg(ptr, old, new)                                                                    \
     ({                                                                                            \
         __auto_type __old = (old);                                                                \

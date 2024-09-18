@@ -13,6 +13,7 @@
 
 #include <onyx/dev.h>
 #include <onyx/driver.h>
+#include <onyx/net/ethernet.h>
 #include <onyx/net/netif.h>
 #include <onyx/wait_queue.h>
 

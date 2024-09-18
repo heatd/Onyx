@@ -216,6 +216,7 @@ static inline int list_is_head(const struct list_head *list, const struct list_h
 #define list_prepare_entry(pos, head, member) ((pos) ?: list_entry(head, __typeof__(*pos), member))
 #define list_entry_is_head(pos, head, member) list_is_head(&pos->member, (head))
 #define list_first_entry(ptr, type, member)   list_entry((ptr)->next, type, member)
+#define list_last_entry(ptr, type, member)    list_entry((ptr)->prev, type, member)
 
 #define list_for_each_entry_continue(pos, head, member)                              \
     for (pos = list_next_entry(pos, member); !list_entry_is_head(pos, head, member); \
