@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -9,9 +9,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Don't change the include order! Maybe TOFIX? */
 #include <onyx/byteswap.h>
 #include <onyx/compiler.h>
+#include <onyx/err.h>
 #include <onyx/log.h>
 #include <onyx/net/arp.h>
 #include <onyx/net/ethernet.h>
@@ -22,20 +22,20 @@
 
 #include <onyx/memory.hpp>
 
-/* TODO: Maybe the neighbour_table could replace some code below, if we add a few virtual functions
- */
 static neighbour_table arp_table{AF_INET};
 static constexpr hrtime_t arp_response_timeout = 250 * NS_PER_MS;
 
 /* 20 minutes in milis */
 static constexpr unsigned long arp_validity_time_ms = 1200000;
 
-int arp_do_request(netif *netif, packetbuf *packet)
+static int arp_do_request(netif *netif, packetbuf *packet, arp_request_t *arp_hdr)
 {
-    auto arp_hdr = (arp_request_t *) packet->data;
-
     auto target_addr = arp_hdr->target_proto_address;
     uint8_t hw_address[6];
+
+    /* TODO */
+    (void) arp_validity_time_ms;
+    (void) arp_response_timeout;
 
     if (netif->local_ip.sin_addr.s_addr == target_addr)
     {
@@ -73,60 +73,51 @@ int arp_do_request(netif *netif, packetbuf *packet)
     return netif_send_packet(netif, buf.get());
 }
 
+static int arp_resolve(struct neighbour *neigh, struct netif *netif);
+
+static const struct neigh_ops arp_ops = {
+    .resolve = arp_resolve,
+    .output = ip_finish_output,
+};
+
 int arp_handle_packet(netif *netif, packetbuf *buf)
 {
-    auto arp = (arp_request_t *) buf->data;
+    struct neighbour *neigh;
+    int added;
+    arp_request_t *arp = (arp_request_t *) pbf_pull(buf, sizeof(arp_request_t));
+    if (!arp)
+        return -1;
 
-    if (buf->length() < sizeof(arp_request_t))
-        return -EINVAL;
     auto op = htons(arp->operation);
 
     if (op == ARP_OP_REQUEST)
-        return arp_do_request(netif, buf);
+        return arp_do_request(netif, buf, arp);
 
     if (op != ARP_OP_REPLY)
         return 0;
 
     in_addr_t req_ip = arp->sender_proto_address;
-    neigh_proto_addr addr;
+    union neigh_proto_addr addr;
     addr.in4addr.s_addr = req_ip;
 
-    auto [ptr, __created] = arp_table.add(addr, true);
-    if (!ptr)
+    neigh = neigh_add(&arp_table, &addr, GFP_ATOMIC, &arp_ops, &added);
+    if (!neigh)
         return 0;
-
-    unsigned char *mac = new unsigned char[ETH_ALEN];
-    if (!mac)
-        return 0;
-    memcpy(mac, arp->sender_hw_address, ETH_ALEN);
-
-    cul::slice<unsigned char> sl{mac, ETH_ALEN};
-    ptr->set_hwaddr(sl);
-    ptr->flags |= NEIGHBOUR_FLAG_HAS_RESPONSE;
-
+    neigh_complete_lookup(neigh, arp->sender_hw_address, ETH_ALEN);
     return 0;
 }
 
-int arp_submit_request(shared_ptr<neighbour> &ptr, uint32_t target_addr, struct netif *netif)
+static int arp_resolve(struct neighbour *neigh, struct netif *netif)
 {
+    in_addr_t target_addr = neigh->proto_addr.in4addr.s_addr;
+
     if (target_addr == INADDR_BROADCAST || target_addr == INADDR_LOOPBACK ||
         netif->flags & NETIF_LOOPBACK)
     {
-        auto _ptr = new unsigned char[ETH_ALEN];
-
-        if (_ptr)
-        {
-            bool is_bcast = target_addr == INADDR_BROADCAST;
-            memset(_ptr, is_bcast ? 0xff : 0, ETH_ALEN);
-            auto sl = cul::slice<unsigned char>{_ptr, ETH_ALEN};
-            ptr->set_hwaddr(sl);
-            ptr->flags |= NEIGHBOUR_FLAG_HAS_RESPONSE | (is_bcast ? NEIGHBOUR_FLAG_BROADCAST : 0);
-        }
-        else
-        {
-            return -ENOMEM;
-        }
-
+        const unsigned char bcast_eth[ETH_ALEN] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+        const unsigned char loopback_eth[ETH_ALEN] = {};
+        __neigh_complete_lookup(neigh, target_addr == INADDR_BROADCAST ? bcast_eth : loopback_eth,
+                                ETH_ALEN);
         return 0;
     }
 
@@ -155,7 +146,7 @@ int arp_submit_request(shared_ptr<neighbour> &ptr, uint32_t target_addr, struct 
     arp->target_hw_address[4] = 0xFF;
     arp->target_hw_address[5] = 0xFF;
     arp->sender_proto_address = netif->local_ip.sin_addr.s_addr;
-    arp->target_proto_address = target_addr;
+    arp->target_proto_address = neigh->proto_addr.in4addr.s_addr;
     if (int st = netif->dll_ops->setup_header(buf.get(), tx_type::broadcast, tx_protocol::arp,
                                               netif, nullptr);
         st < 0)
@@ -164,48 +155,18 @@ int arp_submit_request(shared_ptr<neighbour> &ptr, uint32_t target_addr, struct 
     return netif_send_packet(netif, buf.get());
 }
 
-expected<shared_ptr<neighbour>, int> arp_resolve_in(uint32_t ip, struct netif *netif)
+struct neighbour *arp_resolve_in(uint32_t ip, struct netif *netif)
 {
-    neigh_proto_addr addr;
+    struct neighbour *neigh;
+    int added;
+    union neigh_proto_addr addr;
     addr.in4addr.s_addr = ip;
 
-    auto [ptr, created] = arp_table.add(addr);
-    if (!ptr)
-        return unexpected{-ENOMEM};
+    neigh = neigh_add(&arp_table, &addr, GFP_ATOMIC, &arp_ops, &added);
+    if (!neigh)
+        return (struct neighbour *) ERR_PTR(-ENOMEM);
 
-    if (ptr->flags & NEIGHBOUR_FLAG_UNINITIALISED)
-    {
-        if (created)
-        {
-            if (arp_submit_request(ptr, ip, netif) < 0)
-            {
-                arp_table.remove(ptr.get_data());
-                return unexpected{-ENOMEM};
-            }
-        }
-
-        auto t0 = clocksource_get_time();
-
-        /* TODO: Add a wait_for_bit that can let us wait for random things
-         * without taking up permanent space in the structure
-         */
-        while (!(ptr->flags & NEIGHBOUR_FLAG_HAS_RESPONSE) &&
-               clocksource_get_time() - t0 <= arp_response_timeout)
-            sched_sleep_ms(15);
-
-        if (!(ptr->flags & NEIGHBOUR_FLAG_HAS_RESPONSE))
-        {
-            if (created)
-                arp_table.remove(ptr.get_data());
-            return unexpected{-ENETUNREACH};
-        }
-
-        if (created)
-        {
-            ptr->set_validity(arp_validity_time_ms);
-            ptr->set_initialised();
-        }
-    }
-
-    return ptr;
+    if (neigh_needs_resolve(neigh))
+        neigh_start_resolve(neigh, netif);
+    return neigh;
 }

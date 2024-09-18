@@ -8,6 +8,7 @@
 #ifndef _ONYX_RCULIST_H
 #define _ONYX_RCULIST_H
 
+#include <onyx/atomic.h>
 #include <onyx/list.h>
 #include <onyx/rcupdate.h>
 
@@ -38,5 +39,21 @@ static inline void list_remove_rcu(struct list_head *node)
 {
     list_remove_bulk(node->prev, node->next);
 }
+
+#define list_entry_rcu(ptr, type, member) container_of(READ_ONCE(ptr), type, member)
+/**
+ * list_for_each_entry_rcu	-	iterate over rcu list of given type
+ * @pos:	the type * to use as a loop cursor.
+ * @head:	the head for your list.
+ * @member:	the name of the list_head within the struct.
+ * @cond:	optional lockdep expression if called from non-RCU protection.
+ *
+ * This list-traversal primitive may safely run concurrently with
+ * the _rcu list-mutation primitives such as list_add_rcu()
+ * as long as the traversal is guarded by rcu_read_lock().
+ */
+#define list_for_each_entry_rcu(pos, head, member, cond...)                                    \
+    for (pos = list_entry_rcu((head)->next, __typeof__(*pos), member); &pos->member != (head); \
+         pos = list_entry_rcu(pos->member.next, __typeof__(*pos), member))
 
 #endif

@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 #include <errno.h>
 #include <stdlib.h>
@@ -12,6 +14,7 @@
 
 #include <onyx/byteswap.h>
 #include <onyx/compiler.h>
+#include <onyx/err.h>
 #include <onyx/log.h>
 #include <onyx/net/ethernet.h>
 #include <onyx/net/icmpv6.h>
@@ -36,12 +39,17 @@ struct icmp6_source_link_layer_opt
     unsigned char hwaddr[];
 };
 
-/* TODO: Maybe the neighbour_table could replace some code below, if we add a few virtual functions
- */
-
 /* FIXME: The ndp table should be per interface */
 
 static neighbour_table ndp_table{AF_INET6};
+
+int ndp_submit_request(struct neighbour *neigh, struct netif *netif);
+
+const struct neigh_ops ndp_ops = {
+    .resolve = ndp_submit_request,
+    .output = ip6_finish_output,
+};
+
 static constexpr hrtime_t ndp_response_timeout = 250 * NS_PER_MS;
 
 /* 20 minutes in milis */
@@ -49,17 +57,19 @@ static constexpr unsigned long ndp_validity_time_ms = 1200000;
 
 int ndp_handle_na(netif *netif, packetbuf *buf)
 {
+    (void) ndp_response_timeout;
+    (void) ndp_validity_time_ms;
     if (buf->length() < sizeof(nd_neighbor_advert))
         return -EINVAL;
 
     auto ndp = (struct nd_neighbor_advert *) buf->data;
-
+    int added;
     neigh_proto_addr addr;
     addr.in6addr = ndp->nd_na_target;
 
-    auto [ptr, __created] = ndp_table.add(addr, true);
-    if (!ptr)
-        return 0;
+    struct neighbour *neigh = neigh_add(&ndp_table, &addr, GFP_ATOMIC, &ndp_ops, &added);
+    if (!neigh)
+        return -ENOMEM;
 
     const char *optptr = (const char *) (ndp + 1);
     ssize_t options_len = buf->length() - sizeof(nd_neighbor_solicit);
@@ -91,15 +101,7 @@ int ndp_handle_na(netif *netif, packetbuf *buf)
     if (!target)
         return 0;
 
-    unsigned char *mac = new unsigned char[ETH_ALEN];
-    if (!mac)
-        return 0;
-    memcpy(mac, target, ETH_ALEN);
-
-    cul::slice<unsigned char> sl{mac, ETH_ALEN};
-    ptr->set_hwaddr(sl);
-    ptr->flags |= NEIGHBOUR_FLAG_HAS_RESPONSE;
-
+    neigh_complete_lookup(neigh, target, ETH_ALEN);
     return 0;
 }
 
@@ -183,24 +185,13 @@ in6_addr solicited_node_address(const in6_addr &our_address)
     return ret;
 }
 
-int ndp_submit_request(shared_ptr<neighbour> &ptr, const in6_addr &target_addr, struct netif *netif)
+int ndp_submit_request(struct neighbour *neigh, struct netif *netif)
 {
+    const in6_addr &target_addr = neigh->proto_addr.in6addr;
     if (target_addr == in6addr_loopback || netif->flags & NETIF_LOOPBACK)
     {
-        auto _ptr = new unsigned char[ETH_ALEN];
-
-        if (_ptr)
-        {
-            memset(_ptr, 0, ETH_ALEN);
-            auto sl = cul::slice<unsigned char>{_ptr, ETH_ALEN};
-            ptr->set_hwaddr(sl);
-            ptr->flags |= NEIGHBOUR_FLAG_HAS_RESPONSE;
-        }
-        else
-        {
-            return -ENOMEM;
-        }
-
+        const unsigned char loopback_eth[ETH_ALEN] = {};
+        __neigh_complete_lookup(neigh, loopback_eth, ETH_ALEN);
         return 0;
     }
 
@@ -229,48 +220,18 @@ int ndp_submit_request(shared_ptr<neighbour> &ptr, const in6_addr &target_addr, 
                                                                sizeof(buf_) - sizeof(icmp6_hdr)});
 }
 
-expected<shared_ptr<neighbour>, int> ndp_resolve(const in6_addr &ip, struct netif *netif)
+struct neighbour *ndp_resolve(const in6_addr &ip, struct netif *netif)
 {
-    neigh_proto_addr addr;
+    struct neighbour *neigh;
+    int added;
+    union neigh_proto_addr addr;
     addr.in6addr = ip;
 
-    auto [ptr, created] = ndp_table.add(addr);
-    if (!ptr)
-        return unexpected{-ENOMEM};
+    neigh = neigh_add(&ndp_table, &addr, GFP_ATOMIC, &ndp_ops, &added);
+    if (!neigh)
+        return (struct neighbour *) ERR_PTR(-ENOMEM);
 
-    if (ptr->flags & NEIGHBOUR_FLAG_UNINITIALISED)
-    {
-        if (created)
-        {
-            if (ndp_submit_request(ptr, ip, netif) < 0)
-            {
-                ndp_table.remove(ptr.get_data());
-                return unexpected{-ENOMEM};
-            }
-        }
-
-        auto t0 = clocksource_get_time();
-
-        /* TODO: Add a wait_for_bit that can let us wait for random things
-         * without taking up permanent space in the structure
-         */
-        while (!(ptr->flags & NEIGHBOUR_FLAG_HAS_RESPONSE) &&
-               clocksource_get_time() - t0 <= ndp_response_timeout)
-            sched_sleep_ms(15);
-
-        if (!(ptr->flags & NEIGHBOUR_FLAG_HAS_RESPONSE))
-        {
-            if (created)
-                ndp_table.remove(ptr.get_data());
-            return unexpected{-ENETUNREACH};
-        }
-
-        if (created)
-        {
-            ptr->set_validity(ndp_validity_time_ms);
-            ptr->set_initialised();
-        }
-    }
-
-    return ptr;
+    if (neigh_needs_resolve(neigh))
+        neigh_start_resolve(neigh, netif);
+    return neigh;
 }

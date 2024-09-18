@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -13,6 +13,7 @@
 
 #include <onyx/byteswap.h>
 #include <onyx/cred.h>
+#include <onyx/err.h>
 #include <onyx/init.h>
 #include <onyx/net/arp.h>
 #include <onyx/net/ethernet.h>
@@ -253,26 +254,27 @@ static tx_type detect_tx_type(const inet_route &route)
     return tx_type::unicast;
 }
 
-int send_fragment(const inet_route &route, fragment *frag, netif *nif)
+int send_frag_multicast(tx_type type, const inet_route &route, fragment *frag, netif *nif)
 {
-    auto buf = frag->this_buf;
-    auto type = detect_tx_type(route);
-    int st = 0;
-
-    const void *hwaddr = nullptr;
-
-    if (type != tx_type::broadcast) [[likely]]
-    {
-        if (route.dst_hw->flags & NEIGHBOUR_FLAG_BADENTRY)
-            return -EHOSTUNREACH;
-        hwaddr = route.dst_hw->hwaddr().data();
-    }
-
-    if ((st = nif->dll_ops->setup_header(buf, type, tx_protocol::ipv4, nif, hwaddr)) < 0)
-        [[unlikely]]
+    /* Sending an IPv4 fragment deviates from the neighbour paths because we truly don't communicate
+     * with a neighbour - at least not with a single one. */
+    int st;
+    if ((st = nif->dll_ops->setup_header(frag->this_buf, type, tx_protocol::ipv4, nif, nullptr)) <
+        0) [[unlikely]]
         return st;
 
-    return netif_send_packet(nif, buf);
+    return netif_send_packet(nif, frag->this_buf);
+}
+
+int send_fragment(const inet_route &route, fragment *frag, netif *nif)
+{
+    tx_type type = detect_tx_type(route);
+    if (type != tx_type::unicast)
+        return send_frag_multicast(type, route, frag, nif);
+    struct neighbour *neigh = route.dst_hw;
+    CHECK(neigh != NULL);
+    frag->this_buf->route = route;
+    return neigh_output(neigh, frag->this_buf, nif);
 }
 
 int do_fragmentation(struct send_info *sinfo, size_t payload_size, packetbuf *buf,
@@ -290,9 +292,7 @@ int do_fragmentation(struct send_info *sinfo, size_t payload_size, packetbuf *bu
     list_for_every (&frags)
     {
         struct fragment *frag = container_of(l, struct fragment, list_node);
-
         st = send_fragment(sinfo->route, frag, netif);
-
         if (st < 0)
             goto out;
     }
@@ -324,7 +324,7 @@ int send_packet(const iflow &flow, packetbuf *buf, const cul::slice<ip_option> &
     sinfo.type = flow.protocol;
     sinfo.frags_following = false;
 
-    if (needs_fragmentation(buf->length(), netif))
+    if (needs_fragmentation(payload_size, netif))
     {
         /* TODO: Support ISO(IP segmentation offloading) */
         sinfo.identification = allocate_id();
@@ -451,14 +451,14 @@ int handle_packet(netif *nif, packetbuf *buf)
         route.flags |= INET4_ROUTE_FLAG_BROADCAST;
     }
 
-    new (&buf->route) inet_route{route};
+    buf->route = cul::move(route);
 
     if (header->proto == IPPROTO_UDP)
-        return udp_handle_packet(route, buf);
+        return udp_handle_packet(buf->route, buf);
     else if (header->proto == IPPROTO_TCP)
-        return tcp_handle_packet(route, buf);
+        return tcp_handle_packet(buf->route, buf);
     else if (header->proto == IPPROTO_ICMP)
-        return icmp::handle_packet(route, buf);
+        return icmp::handle_packet(buf->route, buf);
     else
     {
         /* Oh, no, an unhandled protocol! Send an ICMP error message */
@@ -478,7 +478,7 @@ int handle_packet(netif *nif, packetbuf *buf)
         dst_un.dgram = dgram;
         dst_un.next_hop_mtu = 0;
 
-        icmp::send_dst_unreachable(dst_un, nif);
+        // icmp::send_dst_unreachable(dst_un, nif);
     }
 
     return 0;
@@ -615,6 +615,7 @@ expected<inet_route, int> route(const inet_sock_address &from, const inet_sock_a
      */
     shared_ptr<inet4_route> best_route;
     int highest_metric = 0;
+    int longest_prefix = -1;
     auto dest = to.in4.s_addr;
 
     // TODO: Multicast
@@ -641,8 +642,9 @@ expected<inet_route, int> route(const inet_sock_address &from, const inet_sock_a
         /* Do a bitwise and between the destination address and the mask
          * If the result = r.dest, we can use this interface.
          */
+        int mask_bits;
 #if 0
-		printk("dest %x, mask %x, supposed dest %x\n", dest, r->mask, r->dest);
+        pr_info("dest %pI4, mask %pI4, supposed dest %pI4\n", &dest, &r->mask, &r->dest);
 #endif
         if ((dest & r->mask) != r->dest)
             continue;
@@ -650,27 +652,27 @@ expected<inet_route, int> route(const inet_sock_address &from, const inet_sock_a
         if (required_netif && r->nif != required_netif)
             continue;
 #if 0
-		printk("%s is good\n", r->nif->name);
-		printk("is loopback set %u\n", r->nif->flags & NETIF_LOOPBACK);
-#endif
-
-        int mods = 0;
+        pr_info("%s is good\n", r->nif->name);
+        pr_info("is loopback set %u\n", r->nif->flags & NETIF_LOOPBACK);
         if (r->flags & INET4_ROUTE_FLAG_GATEWAY)
-            mods--;
+            pr_info("gateway %pI4\n", &r->gateway);
+#endif
+        /* TODO: This can and should be computed beforehand */
+        mask_bits = count_bits(r->mask);
 
-        if (r->metric + mods > highest_metric)
+        if (mask_bits > longest_prefix ||
+            (longest_prefix == mask_bits && r->metric > highest_metric))
         {
             best_route = r;
             highest_metric = r->metric;
+            longest_prefix = mask_bits;
         }
     }
 
     routing_table_lock.unlock_read();
 
     if (!best_route)
-    {
         return unexpected<int>{-ENETUNREACH};
-    }
 
     inet_route r;
     r.dst_addr.in4 = to.in4;
@@ -681,30 +683,18 @@ expected<inet_route, int> route(const inet_sock_address &from, const inet_sock_a
     r.gateway_addr.in4.s_addr = best_route->gateway;
 
     if (addr_is_broadcast(to.in4.s_addr, r))
-    {
         r.flags |= INET4_ROUTE_FLAG_BROADCAST;
-    }
     else if (addr_is_multicast(to.in4.s_addr))
-    {
         r.flags |= INET4_ROUTE_FLAG_MULTICAST;
-    }
 
     auto to_resolve = r.dst_addr.in4.s_addr;
 
     if (r.flags & INET4_ROUTE_FLAG_GATEWAY)
-    {
         to_resolve = r.gateway_addr.in4.s_addr;
-    }
 
-    auto res = arp_resolve_in(to_resolve, r.nif);
-
-    if (res.has_error()) [[unlikely]]
-    {
-        return unexpected<int>(-ENETUNREACH);
-    }
-
-    r.dst_hw = res.value();
-
+    r.dst_hw = arp_resolve_in(to_resolve, r.nif);
+    if (IS_ERR(r.dst_hw))
+        return unexpected<int>{PTR_ERR(r.dst_hw)};
     return r;
 }
 
@@ -900,4 +890,21 @@ bool inet_proto_family::add_socket(inet_socket *sock)
     auto proto_info = sock->proto_info;
     auto sock_table = proto_info->get_socket_table();
     return sock_table->add_socket(sock, ADD_SOCKET_UNLOCKED);
+}
+
+int ip_finish_output(struct neighbour *neigh, struct packetbuf *pbf, struct netif *nif)
+{
+    auto type = ip::v4::detect_tx_type(pbf->route);
+    int st = 0;
+    const void *hwaddr = nullptr;
+
+    if (neigh->flags & NUD_FAILED)
+        return -EHOSTUNREACH;
+    hwaddr = neigh->hwaddr;
+
+    if ((st = nif->dll_ops->setup_header(pbf, type, tx_protocol::ipv4, nif, hwaddr)) < 0)
+        [[unlikely]]
+        return st;
+
+    return netif_send_packet(nif, pbf);
 }

@@ -231,4 +231,6 @@ constexpr size_t inet_header_size(int domain)
     return size;
 }
 
+int ip_finish_output(struct neighbour *n, struct packetbuf *pbf, struct netif *nif);
+
 #endif
