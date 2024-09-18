@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 
 #ifndef _ONYX_NET_ARP_H
@@ -38,7 +40,7 @@ typedef struct
 
 struct netif;
 
-expected<shared_ptr<neighbour>, int> arp_resolve_in(uint32_t ip, struct netif *netif);
-int arp_handle_packet(netif *netif, packetbuf *buf);
+struct neighbour *arp_resolve_in(uint32_t ip, struct netif *netif);
+int arp_handle_packet(struct netif *netif, struct packetbuf *buf);
 
 #endif

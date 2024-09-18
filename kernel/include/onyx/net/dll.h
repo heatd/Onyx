@@ -6,7 +6,8 @@
 #ifndef _ONYX_NET_DLL_H
 #define _ONYX_NET_DLL_H
 
-struct packetbuf;
+#include <onyx/packetbuf.h>
+
 struct netif;
 
 enum class tx_type
