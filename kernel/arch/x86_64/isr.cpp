@@ -658,7 +658,7 @@ void print_int_stacks()
             /* User or corrupted stack, skip */
             pr_emerg(" (%s stack skipped, bad stack)\n", type);
             tps = next;
-            continue;
+            break;
         }
 
         if (is_trap)
