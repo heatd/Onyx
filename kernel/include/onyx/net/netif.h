@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2022 Pedro Falcato
+ * Copyright (c) 2017 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -14,7 +14,6 @@
 #include <onyx/spinlock.h>
 #include <onyx/vfs.h>
 struct netif;
-#include <onyx/net/arp.h>
 #include <onyx/net/dll.h>
 #include <onyx/vector.h>
 
@@ -29,7 +28,6 @@ struct netif;
 #define NETIF_LOOPBACK              (1 << 5)
 #define NETIF_HAS_RX_AVAILABLE      (1 << 6)
 #define NETIF_DOING_RX_POLL         (1 << 7)
-#define NETIF_MISSED_RX             (1 << 8)
 
 struct packetbuf;
 
