@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <onyx/byteswap.h>
 #include <onyx/modules.h>
 #include <onyx/types.h>
 
@@ -399,6 +400,50 @@ static int dump_buffer(struct stream *stream, void *ptr, struct printf_specifier
     return written;
 }
 
+static int print_ipaddr(struct stream *stream, void *ptr, struct printf_specifier *spec,
+                        const char **pfmt)
+{
+    const char *fmt = *pfmt;
+    if (*fmt == '4')
+    {
+        u32 *inp = ptr;
+        u32 in = *inp;
+        char buf[sizeof("255.255.255.255")];
+        int j = 0;
+        for (int i = 0; i < 4; i++, in >>= 8)
+        {
+            int k = 3;
+            u8 byte = in & 0xff;
+            char tmp[4];
+
+            if (i > 0)
+                buf[j++] = '.';
+
+            if (byte > 0)
+            {
+                while (byte)
+                {
+                    tmp[k--] = '0' + (byte % 10);
+                    byte /= 10;
+                }
+            }
+            else
+            {
+                tmp[k--] = '0';
+            }
+
+            while (k < 3)
+                buf[j++] = tmp[++k];
+        }
+
+        buf[j] = '\0';
+        *pfmt = ++fmt;
+        return printf_do_string(stream, buf, spec->fwidth, spec->precision, spec->flags);
+    }
+
+    return 0;
+}
+
 static int print_pointer(struct stream *stream, void *ptr, struct printf_specifier *spec,
                          const char **pfmt)
 {
@@ -415,6 +460,9 @@ static int print_pointer(struct stream *stream, void *ptr, struct printf_specifi
         case 'h':
             *pfmt = ++fmt;
             return dump_buffer(stream, ptr, spec);
+        case 'I':
+            *pfmt = ++fmt;
+            return print_ipaddr(stream, ptr, spec, pfmt);
         case 'x':
             *pfmt = ++fmt;
             /* fallthrough */
