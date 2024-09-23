@@ -47,18 +47,18 @@ struct color
     uint8_t a;
 };
 
-static struct color default_fg = {.r = 0xaa, .g = 0xaa, .b = 0xaa};
+static struct color default_fg = {204, 204, 204};
 static struct color default_bg = {};
 
 const struct color color_table[] = {
-    {.r = 0, .g = 0, .b = 0},         /* Black */
-    {.r = 0xff},                      /* Red */
-    {.g = 0xff},                      /* Green */
-    {.r = 0xff, .g = 0xff},           /* Yellow */
-    {.b = 0xff},                      /* Blue */
-    {.r = 0xff, .b = 0xff},           /* Magenta */
-    {.g = 0xff, .b = 0xff},           /* Cyan */
-    {.r = 0xaa, .g = 0xaa, .b = 0xaa} /* White */
+    {.r = 0, .g = 0, .b = 0},     /* Black */
+    {.r = 205, .g = 49, .b = 49}, /* Red */
+    {.r = 19, .g = 161, .b = 14}, /* Green */
+    {229, 229, 16},               /* Yellow */
+    {36, 114, 200},               /* Blue */
+    {188, 63, 188},               /* Magenta */
+    {17, 168, 205},               /* Cyan */
+    {204, 204, 204}               /* White */
 };
 
 #define VTERM_CONSOLE_CELL_DIRTY        (1 << 0)
@@ -120,6 +120,11 @@ struct vterm
     struct cond condvar;
     struct mutex condvar_mutex;
     struct vterm_message *msgs;
+    bool reversed;
+    bool flush_all;
+    bool numlck;
+    unsigned long *dirty_row_bitmap;
+    unsigned int bitmap_size;
 
     // Buffer used for any multibyte buffering for utf8
     char multibyte_buffer[10];
@@ -157,6 +162,7 @@ private:
     void do_ri();
     void do_nl();
     void do_cr();
+    void delete_lines(unsigned long nr);
 };
 
 void vterm_append_msg(struct vterm *vterm, struct vterm_message *msg) ACQUIRE(vterm->condvar_mutex)
@@ -189,6 +195,15 @@ void vterm_send_message(struct vterm *vterm, unsigned long message, void *ctx)
     condvar_signal(&vterm->condvar);
 
     mutex_unlock(&vterm->condvar_mutex);
+}
+
+#define LONG_SIZE_BITS __LONG_WIDTH__
+
+static inline void vterm_dirty_cell(unsigned int x, unsigned int y, struct vterm *vt)
+{
+    struct console_cell *cell = &vt->cells[y * vt->columns + x];
+    vterm_set_dirty(cell);
+    vt->dirty_row_bitmap[y / LONG_SIZE_BITS] |= (1UL << (y % LONG_SIZE_BITS));
 }
 
 static inline uint32_t unpack_rgba(struct color color, struct framebuffer *fb)
@@ -270,21 +285,77 @@ void vterm_flush_all(struct vterm *vterm)
         do_vterm_flush_all(vterm);
 }
 
+static inline bool same_colour(const struct color *c1, const struct color *c2)
+{
+    return c1->a == c2->a && c1->r == c2->r && c1->g == c2->g && c1->b == c2->b;
+}
+
+static void vterm_clear_range(struct vterm *vt, unsigned int start_x, unsigned int start_y,
+                              unsigned int end_x, unsigned int end_y)
+{
+    unsigned int x = start_x, y = start_y;
+    unsigned int len;
+
+    if (start_y == end_y)
+        len = end_x - start_x;
+    else
+        len = (vt->columns - start_x) + end_x + (end_y - start_y - 1) * vt->columns;
+
+    struct console_cell *cell = vt->cells + (y * vt->columns) + x;
+
+    for (unsigned int i = 0; i < len; i++)
+    {
+        CHECK(cell < vt->cells + (vt->columns * vt->rows));
+        if (cell->codepoint != ' ' || !same_colour(&cell->bg, &vt->bg) ||
+            !same_colour(&cell->fg, &vt->fg))
+        {
+            cell->codepoint = ' ';
+            cell->bg = vt->bg;
+            cell->fg = vt->fg;
+            vterm_dirty_cell(x, y, vt);
+        }
+
+        cell++;
+        if (unlikely(++x == vt->columns))
+        {
+            x = 0;
+            y++;
+        }
+    }
+}
+
 static void __vterm_scroll(struct framebuffer *fb, struct vterm *vt, unsigned int nr_lines,
                            unsigned int top, unsigned int bottom)
 {
+    if (top + nr_lines >= bottom)
+        nr_lines = (bottom - top) - 1;
+
     unsigned int start = vt->columns * top;
     unsigned int dest = vt->columns * (top + nr_lines);
     unsigned int end = vt->columns * (bottom - nr_lines);
-    memcpy(vt->cells + start, vt->cells + dest, sizeof(struct console_cell) * (end - start));
+    unsigned int x = 0, y = top;
 
-    for (unsigned int i = 0; i < vt->columns * nr_lines; i++)
+    if (bottom > vt->rows || top >= bottom || nr_lines < 1)
+        return;
+
+    for (unsigned int i = 0; i < end - start; i++)
     {
-        struct console_cell *c = &vt->cells[(bottom - nr_lines) * vt->columns + i];
-        c->codepoint = ' ';
-        c->bg = vt->bg;
-        c->fg = vt->fg;
+        struct console_cell *dst = vt->cells + start + i;
+        struct console_cell *src = vt->cells + dest + i;
+        if (dst->codepoint != src->codepoint || !same_colour(&dst->bg, &src->bg) ||
+            !same_colour(&dst->fg, &src->fg))
+            vterm_dirty_cell(x, y, vt);
+        dst->bg = src->bg;
+        dst->fg = src->fg;
+        dst->codepoint = src->codepoint;
+        if (++x == vt->columns)
+        {
+            x = 0;
+            y++;
+        }
     }
+
+    vterm_clear_range(vt, 0, bottom - nr_lines, 0, bottom);
 }
 
 static void vterm_scroll(struct framebuffer *fb, struct vterm *vt)
@@ -295,15 +366,15 @@ static void vterm_scroll(struct framebuffer *fb, struct vterm *vt)
 static void __vterm_scroll_down(struct framebuffer *fb, struct vterm *vt, unsigned int nr,
                                 unsigned int top, unsigned int bottom)
 {
-    unsigned int start = vt->columns * (top + nr);
-    unsigned int dest = vt->columns * top;
-    unsigned int end = vt->columns * (bottom - nr);
-    DCHECK(end > start);
-    memmove(vt->cells + start, vt->cells + dest, sizeof(struct console_cell) * (end - start));
+    unsigned int src, clear, dst;
+    src = clear = top * vt->columns;
+    dst = (top + nr) * vt->columns;
 
+    memmove(vt->cells + dst, vt->cells + src,
+            (bottom - top - nr) * vt->columns * sizeof(struct console_cell));
     for (unsigned int i = 0; i < vt->columns * nr; i++)
     {
-        struct console_cell *c = &vt->cells[dest + i];
+        struct console_cell *c = &vt->cells[clear + i];
         c->codepoint = ' ';
         c->bg = vt->bg;
         c->fg = vt->fg;
@@ -315,20 +386,20 @@ static void vterm_scroll_down(struct framebuffer *fb, struct vterm *vt)
     __vterm_scroll_down(fb, vt, 1, vt->top, vt->bottom);
 }
 
+static inline bool vterm_needs_dirty(struct console_cell *cell, utf32_t c, struct color fg,
+                                     struct color bg)
+{
+    return c != cell->codepoint || !same_colour(&fg, &cell->fg) || !same_colour(&bg, &cell->bg);
+}
+
 void vterm_set_char(utf32_t c, unsigned int x, unsigned int y, struct color fg, struct color bg,
                     struct vterm *vterm)
 {
     struct console_cell *cell = &vterm->cells[y * vterm->columns + x];
+    vterm_dirty_cell(x, y, vterm);
     cell->codepoint = c;
     cell->fg = fg;
     cell->bg = bg;
-    vterm_set_dirty(cell);
-}
-
-void vterm_dirty_cell(unsigned int x, unsigned int y, struct vterm *vt)
-{
-    struct console_cell *cell = &vt->cells[y * vt->columns + x];
-    vterm_set_dirty(cell);
 }
 
 bool vterm_putc(utf32_t c, struct vterm *vt)
@@ -483,17 +554,25 @@ void vterm_flush(struct vterm *vterm);
 void do_vterm_flush(struct vterm *vterm)
 {
     struct font *f = get_font_data();
-    for (unsigned int i = 0; i < vterm->columns; i++)
+    int base_row = 0;
+    for (unsigned int i = 0; i < vterm->bitmap_size; i++, base_row += LONG_SIZE_BITS)
     {
-        for (unsigned int j = 0; j < vterm->rows; j++)
+        while (vterm->dirty_row_bitmap[i] != 0)
         {
-            struct console_cell *cell = &vterm->cells[j * vterm->columns + i];
+            int bit = __builtin_ffsl(vterm->dirty_row_bitmap[i]) - 1;
+            int row = bit + base_row;
+            vterm->dirty_row_bitmap[i] &= ~(1UL << bit);
 
-            if (vterm_is_dirty(cell))
+            for (unsigned int j = 0; j < vterm->columns; j++)
             {
-                draw_char(cell->codepoint, i * f->width, j * f->height, vterm->fb, cell->fg,
-                          cell->bg);
-                vterm_clear_dirty(cell);
+                struct console_cell *cell = &vterm->cells[row * vterm->columns + j];
+
+                if (vterm_is_dirty(cell))
+                {
+                    draw_char(cell->codepoint, j * f->width, row * f->height, vterm->fb, cell->fg,
+                              cell->bg);
+                    vterm_clear_dirty(cell);
+                }
             }
         }
     }
@@ -503,6 +582,13 @@ void platform_serial_write(const char *s, size_t size);
 
 void vterm_flush(struct vterm *vterm)
 {
+    if (vterm->flush_all)
+    {
+        do_vterm_flush_all(vterm);
+        vterm->flush_all = false;
+        return;
+    }
+
     if (vterm->multithread_enabled)
         vterm_send_message(vterm, VTERM_MESSAGE_FLUSH, NULL);
     else
@@ -516,10 +602,10 @@ void vterm_fill_screen(struct vterm *vterm, uint32_t character, struct color fg,
         for (unsigned int j = 0; j < vterm->rows; j++)
         {
             struct console_cell *cell = &vterm->cells[i * vterm->rows + j];
+            vterm_dirty_cell(i, j, vterm);
             cell->codepoint = character;
             cell->bg = bg;
             cell->fg = fg;
-            vterm_set_dirty(cell);
         }
     }
 }
@@ -672,13 +758,27 @@ void vterm_ansi_do_sgr(unsigned long n, struct vterm *vt)
         case ANSI_SGR_RESET: {
             vt->bg = default_bg;
             vt->fg = default_fg;
+            vt->reversed = false;
             break;
         }
 
         case ANSI_SGR_REVERSE: {
+            if (vt->reversed)
+                return;
             struct color temp = vt->bg;
             vt->bg = vt->fg;
             vt->fg = temp;
+            vt->reversed = true;
+            break;
+        }
+
+        case ANSI_SGR_NOREVERSE: {
+            if (!vt->reversed)
+                return;
+            struct color temp = vt->bg;
+            vt->bg = vt->fg;
+            vt->fg = temp;
+            vt->reversed = false;
             break;
         }
 
@@ -737,42 +837,19 @@ void vterm_ansi_erase_in_line(unsigned long n, struct vterm *vt)
     {
         /* Clear from cursor to end */
         case 0: {
-            for (unsigned int i = vt->cursor_x; i < vt->columns; i++)
-            {
-                struct console_cell *c = &vt->cells[vt->cursor_y * vt->columns + i];
-                c->codepoint = ' ';
-                c->fg = vt->fg;
-                c->bg = vt->bg;
-                vterm_set_dirty(c);
-            }
+            vterm_clear_range(vt, vt->cursor_x, vt->cursor_y, vt->columns, vt->cursor_y);
             break;
         }
 
         /* Clear from cursor to beginning */
         case 1: {
-            unsigned int x = vt->cursor_x;
-
-            for (unsigned int i = 0; i <= x; i++)
-            {
-                struct console_cell *c = &vt->cells[vt->cursor_y * vt->columns + i];
-                c->codepoint = ' ';
-                c->fg = vt->fg;
-                c->bg = vt->bg;
-                vterm_set_dirty(c);
-            }
+            vterm_clear_range(vt, 0, vt->cursor_y, vt->cursor_x + 1, vt->cursor_y);
             break;
         }
 
         /* Clear entire line */
         case 2: {
-            for (unsigned int i = 0; i < vt->columns; i++)
-            {
-                struct console_cell *c = &vt->cells[vt->cursor_y * vt->columns + i];
-                c->codepoint = ' ';
-                c->fg = vt->fg;
-                c->bg = vt->bg;
-                vterm_set_dirty(c);
-            }
+            vterm_clear_range(vt, 0, vt->cursor_y, 0, vt->cursor_y + 1);
             break;
         }
     }
@@ -784,39 +861,13 @@ void vterm_ansi_erase_in_display(unsigned long n, struct vterm *vt)
     {
         /* Cursor to end of display */
         case 0: {
-            /* Calculate the cidx, then loop through until the end of the array */
-            unsigned int cidx = vt->cursor_y * vt->columns + vt->cursor_x;
-            unsigned int max = vt->rows * vt->columns;
-            if (cidx + 1 < cidx)
-                break;
-
-            unsigned int iters = max - cidx;
-
-            for (unsigned int i = 0; i < iters; i++)
-            {
-                struct console_cell *c = &vt->cells[cidx + i];
-                c->codepoint = ' ';
-                c->fg = vt->fg;
-                c->bg = vt->bg;
-                vterm_set_dirty(c);
-            }
-
+            vterm_clear_range(vt, vt->cursor_x, vt->cursor_y, 0, vt->rows);
             break;
         }
 
         /* Cursor to start of display */
         case 1: {
-            unsigned int cidx = vt->cursor_y * vt->columns + vt->cursor_x;
-
-            for (unsigned int i = 0; i <= cidx; i++)
-            {
-                struct console_cell *c = &vt->cells[i];
-                c->codepoint = ' ';
-                c->fg = vt->fg;
-                c->bg = vt->bg;
-                vterm_set_dirty(c);
-            }
-
+            vterm_clear_range(vt, 0, 0, vt->cursor_x + 1, vt->cursor_y);
             break;
         }
 
@@ -853,7 +904,7 @@ void vterm_csi_delete_chars(unsigned long chars, struct vterm *vt)
             c->bg = vt->bg;
         }
 
-        vterm_set_dirty(c);
+        vterm_dirty_cell(i, vt->cursor_y, vt);
     }
 }
 
@@ -874,7 +925,7 @@ void vterm::insert_blank(unsigned long nr)
             cell.bg = bg;
         }
 
-        vterm_set_dirty(&cell);
+        vterm_dirty_cell(i, cursor_y, this);
     }
 }
 
@@ -1114,6 +1165,12 @@ void vterm::process_escape_char(char c)
     }
 }
 
+template <typename T>
+static inline T clamp(T val, T min, T max)
+{
+    return cul::min(cul::max(val, min), max);
+}
+
 void vterm::do_csi_command(char escape)
 {
     if (csi_data.dec_private)
@@ -1148,7 +1205,7 @@ void vterm::do_csi_command(char escape)
         case ANSI_CURSOR_HORIZONTAL_ABS: {
             if (args[0] > columns - 1)
                 args[0] = columns - 1;
-            cursor_x = args[0];
+            cursor_x = args[0] - 1;
             break;
         }
 
@@ -1166,7 +1223,6 @@ void vterm::do_csi_command(char escape)
         case ANSI_SCROLL_UP: {
             for (unsigned long i = 0; i < args[0]; i++)
                 vterm_scroll(fb, this);
-            vterm_flush_all(this);
             break;
         }
 
@@ -1256,7 +1312,7 @@ void vterm::do_csi_command(char escape)
             if (args[0] == 0)
                 args[0] = 1;
 
-            // delete_lines(args[0]);
+            delete_lines(args[0]);
             break;
         }
 
@@ -1277,12 +1333,21 @@ void vterm::do_csi_command(char escape)
             {
                 top = args[0] - 1;
                 bottom = args[1];
+                vterm_dirty_cell(cursor_x, cursor_y, this);
+                cursor_x = 0;
+                cursor_y = 0;
             }
             break;
         }
 
+        case CSI_ERASE_CHARS: {
+            unsigned long nr = clamp<unsigned long>(args[0], 1, columns - cursor_x);
+            vterm_clear_range(this, cursor_x, cursor_y, cursor_x + nr, cursor_y);
+            break;
+        }
+
         default: {
-            // printf("Unimplemented escape %c\n", escape);
+            // pr_info("vt: Unimplemented escape %c\n", escape);
             break;
         }
     }
@@ -1309,6 +1374,12 @@ void vterm::insert_lines(unsigned long nr)
     vterm_flush_all(this);
 }
 
+void vterm::delete_lines(unsigned long nr)
+{
+    nr = clamp<unsigned long>(nr, 1, rows - cursor_y);
+    __vterm_scroll(fb, this, nr, cursor_y, bottom);
+}
+
 size_t vterm::do_escape(const char *buffer, size_t len)
 {
     size_t processed = 0;
@@ -1327,32 +1398,23 @@ size_t vterm::do_escape(const char *buffer, size_t len)
     char escape = csi_data.escape_character;
 
 #if 0
-    char buf[50];
     if (in_csi)
-        snprintf(buf, 50, "Seq: %c nargs %lu args {%lu, %lu}\n", escape, csi_data.nr_args,
-                 csi_data.args[0], csi_data.args[1]);
-    if (in_csi && !csi_data.dec_private)
-        platform_serial_write(buf, strlen(buf));
-        // platform_serial_write("Seq: ", strlen("Seq: "));
-        // platform_serial_write(&escape, 1);
-        // platform_serial_write("\n", 1);
+        pr_info("Seq: %c nargs %lu args {%lu, %lu}\n", escape, csi_data.nr_args, csi_data.args[0],
+                csi_data.args[1]);
+    else if (in_dec)
+        pr_info("doing DEC escape %c\n", escape);
+    else
+        pr_info("doing generic escape %c\n", escape);
 #endif
 
     if (in_dec)
-    {
         do_dec_command(escape);
-    }
     else if (in_csi)
-    {
         do_csi_command(escape);
-    }
     else
-    {
         do_generic_escape(escape);
-    }
 
     reset_escape_status();
-
     return processed;
 }
 
@@ -1364,7 +1426,6 @@ ssize_t vterm_write_tty(const void *buffer, size_t size, struct tty *tty)
     mutex_lock(&vt->vt_lock);
     size_t i = 0;
     const char *data = (const char *) buffer;
-    bool did_scroll = false;
 
     for (; i < size; i++)
     {
@@ -1393,18 +1454,14 @@ ssize_t vterm_write_tty(const void *buffer, size_t size, struct tty *tty)
             platform_serial_write(x, strlen(x));
 #endif
             // platform_serial_write(data + i, 1);
-            if (vterm_putc(codepoint, vt))
-                did_scroll = true;
+            vterm_putc(codepoint, vt);
 
             /* We sub a 1 because we're incrementing on the for loop */
             i += codepoint_length - 1;
         }
     }
 
-    if (!did_scroll)
-        vterm_flush(vt);
-    else
-        vterm_flush_all(vt);
+    vterm_flush(vt);
     update_cursor(vt);
 
     mutex_unlock(&vt->vt_lock);
@@ -1456,7 +1513,12 @@ void vterm_init(struct tty *tty)
     vt->fg = default_fg;
     vt->bg = default_bg;
 
-    assert(vt->cells != NULL);
+    int bitmap_size =
+        vt->rows / (sizeof(unsigned long) * 8) + ((vt->rows % (sizeof(unsigned long) * 8)) != 0);
+    vt->dirty_row_bitmap =
+        (unsigned long *) kcalloc(bitmap_size, sizeof(unsigned long), GFP_KERNEL);
+    CHECK(vt->dirty_row_bitmap);
+    vt->bitmap_size = bitmap_size;
 
     vterm_fill_screen(vt, ' ', vt->fg, vt->bg);
 
@@ -1590,42 +1652,78 @@ struct key_action
 };
 
 struct key_action key_actions[] = {
-    {KEYMAP_KEY_A, "a", "A", "\01"},    {KEYMAP_KEY_B, "b", "B", "\02"},
-    {KEYMAP_KEY_C, "c", "C", "\03"},    {KEYMAP_KEY_D, "d", "D", "\04"},
-    {KEYMAP_KEY_E, "e", "E", "\05"},    {KEYMAP_KEY_F, "f", "F", "\06"},
-    {KEYMAP_KEY_G, "g", "G", "\07"},    {KEYMAP_KEY_H, "h", "H", "\010"},
-    {KEYMAP_KEY_I, "i", "I", "\011"},   {KEYMAP_KEY_J, "j", "J", "\012"},
-    {KEYMAP_KEY_K, "k", "K", "\013"},   {KEYMAP_KEY_L, "l", "L", "\014"},
-    {KEYMAP_KEY_M, "m", "M", "\015"},   {KEYMAP_KEY_N, "n", "N", "\016"},
-    {KEYMAP_KEY_O, "o", "O", "\017"},   {KEYMAP_KEY_P, "p", "P", "\020"},
-    {KEYMAP_KEY_Q, "q", "Q", "\021"},   {KEYMAP_KEY_R, "r", "R", "\022"},
-    {KEYMAP_KEY_S, "s", "S", "\023"},   {KEYMAP_KEY_T, "t", "T", "\024"},
-    {KEYMAP_KEY_U, "u", "U", "\025"},   {KEYMAP_KEY_V, "v", "V", "\026"},
-    {KEYMAP_KEY_W, "w", "W", "\027"},   {KEYMAP_KEY_X, "x", "X", "\030"},
-    {KEYMAP_KEY_Y, "y", "Y", "\031"},   {KEYMAP_KEY_Z, "z", "Z", "\032"},
-    {KEYMAP_KEY_0, "0", ")"},           {KEYMAP_KEY_1, "1", "!"},
-    {KEYMAP_KEY_2, "2", "@"},           {KEYMAP_KEY_3, "3", "#"},
-    {KEYMAP_KEY_4, "4", "$"},           {KEYMAP_KEY_5, "5", "%"},
-    {KEYMAP_KEY_6, "6", "^"},           {KEYMAP_KEY_7, "7", "&"},
-    {KEYMAP_KEY_8, "8", "*"},           {KEYMAP_KEY_9, "9", "("},
-    {KEYMAP_KEY_COMMA, ",", "<"},       {KEYMAP_KEY_DOT, ".", ">"},
-    {KEYMAP_KEY_KEYPAD_0, "0"},         {KEYMAP_KEY_KEYPAD_1, "1"},
-    {KEYMAP_KEY_KEYPAD_2, "2"},         {KEYMAP_KEY_KEYPAD_3, "3"},
-    {KEYMAP_KEY_KEYPAD_4, "4"},         {KEYMAP_KEY_KEYPAD_5, "5"},
-    {KEYMAP_KEY_KEYPAD_6, "6"},         {KEYMAP_KEY_KEYPAD_7, "7"},
-    {KEYMAP_KEY_KEYPAD_8, "8"},         {KEYMAP_KEY_KEYPAD_9, "9"},
-    {KEYMAP_KEY_MINUS, "-", "_"},       {KEYMAP_KEY_EQUALS, "=", "+"},
-    {KEYMAP_KEY_LEFTBRACE, "[", "{"},   {KEYMAP_KEY_RIGHTBRACE, "]", "}"},
-    {KEYMAP_KEY_ENTER, "\r"},           {KEYMAP_KEY_SEMICOLON, ";", ":"},
-    {KEYMAP_KEY_GRAVE, "`", "~"},       {KEYMAP_KEY_TAB, "\t"},
-    {KEYMAP_KEY_APOSTROPHE, "'", "\""}, {KEYMAP_KEY_SLASH, "/", "?"},
-    {KEYMAP_KEY_BACKSLASH, "|"},        {KEYMAP_KEY_BACKSPACE, "\x7f"},
-    {KEYMAP_KEY_KEYPAD_DOT, "."},       {KEYMAP_KEY_KEYPAD_SLASH, "/"},
-    {KEYMAP_KEY_KEYPAD_ASTERISK, "*"},  {KEYMAP_KEY_KEYPAD_MINUS, "-"},
-    {KEYMAP_KEY_KEYPAD_PLUS, "+"},      {KEYMAP_KEY_KEYPAD_ENTER, "\n"},
-    {KEYMAP_KEY_SPACE, " ", " "},       {KEYMAP_KEY_ARROW_LEFT, "\033[D"},
-    {KEYMAP_KEY_ARROW_UP, "\033[A"},    {KEYMAP_KEY_ARROW_DOWN, "\033[B"},
-    {KEYMAP_KEY_ARROW_RIGHT, "\033[C"}, {KEYMAP_KEY_ESC, "\033"},
+    {KEYMAP_KEY_A, "a", "A", "\01"},
+    {KEYMAP_KEY_B, "b", "B", "\02"},
+    {KEYMAP_KEY_C, "c", "C", "\03"},
+    {KEYMAP_KEY_D, "d", "D", "\04"},
+    {KEYMAP_KEY_E, "e", "E", "\05"},
+    {KEYMAP_KEY_F, "f", "F", "\06"},
+    {KEYMAP_KEY_G, "g", "G", "\07"},
+    {KEYMAP_KEY_H, "h", "H", "\010"},
+    {KEYMAP_KEY_I, "i", "I", "\011"},
+    {KEYMAP_KEY_J, "j", "J", "\012"},
+    {KEYMAP_KEY_K, "k", "K", "\013"},
+    {KEYMAP_KEY_L, "l", "L", "\014"},
+    {KEYMAP_KEY_M, "m", "M", "\015"},
+    {KEYMAP_KEY_N, "n", "N", "\016"},
+    {KEYMAP_KEY_O, "o", "O", "\017"},
+    {KEYMAP_KEY_P, "p", "P", "\020"},
+    {KEYMAP_KEY_Q, "q", "Q", "\021"},
+    {KEYMAP_KEY_R, "r", "R", "\022"},
+    {KEYMAP_KEY_S, "s", "S", "\023"},
+    {KEYMAP_KEY_T, "t", "T", "\024"},
+    {KEYMAP_KEY_U, "u", "U", "\025"},
+    {KEYMAP_KEY_V, "v", "V", "\026"},
+    {KEYMAP_KEY_W, "w", "W", "\027"},
+    {KEYMAP_KEY_X, "x", "X", "\030"},
+    {KEYMAP_KEY_Y, "y", "Y", "\031"},
+    {KEYMAP_KEY_Z, "z", "Z", "\032"},
+    {KEYMAP_KEY_0, "0", ")"},
+    {KEYMAP_KEY_1, "1", "!"},
+    {KEYMAP_KEY_2, "2", "@"},
+    {KEYMAP_KEY_3, "3", "#"},
+    {KEYMAP_KEY_4, "4", "$"},
+    {KEYMAP_KEY_5, "5", "%"},
+    {KEYMAP_KEY_6, "6", "^"},
+    {KEYMAP_KEY_7, "7", "&"},
+    {KEYMAP_KEY_8, "8", "*"},
+    {KEYMAP_KEY_9, "9", "("},
+    {KEYMAP_KEY_COMMA, ",", "<"},
+    {KEYMAP_KEY_DOT, ".", ">"},
+    {KEYMAP_KEY_KEYPAD_0, "0"},
+    {KEYMAP_KEY_KEYPAD_1, "1"},
+    {KEYMAP_KEY_KEYPAD_2, "2"},
+    {KEYMAP_KEY_KEYPAD_3, "3"},
+    {KEYMAP_KEY_KEYPAD_4, "4"},
+    {KEYMAP_KEY_KEYPAD_5, "5"},
+    {KEYMAP_KEY_KEYPAD_6, "6"},
+    {KEYMAP_KEY_KEYPAD_7, "7"},
+    {KEYMAP_KEY_KEYPAD_8, "8"},
+    {KEYMAP_KEY_KEYPAD_9, "9"},
+    {KEYMAP_KEY_MINUS, "-", "_"},
+    {KEYMAP_KEY_EQUALS, "=", "+"},
+    {KEYMAP_KEY_LEFTBRACE, "[", "{"},
+    {KEYMAP_KEY_RIGHTBRACE, "]", "}"},
+    {KEYMAP_KEY_ENTER, "\r"},
+    {KEYMAP_KEY_SEMICOLON, ";", ":"},
+    {KEYMAP_KEY_GRAVE, "`", "~"},
+    {KEYMAP_KEY_TAB, "\t"},
+    {KEYMAP_KEY_APOSTROPHE, "'", "\""},
+    {KEYMAP_KEY_SLASH, "/", "?"},
+    {KEYMAP_KEY_BACKSLASH, "|"},
+    {KEYMAP_KEY_BACKSPACE, "\x7f"},
+    {KEYMAP_KEY_KEYPAD_DOT, "."},
+    {KEYMAP_KEY_KEYPAD_SLASH, "/"},
+    {KEYMAP_KEY_KEYPAD_ASTERISK, "*"},
+    {KEYMAP_KEY_KEYPAD_MINUS, "-"},
+    {KEYMAP_KEY_KEYPAD_PLUS, "+"},
+    {KEYMAP_KEY_KEYPAD_ENTER, "\n"},
+    {KEYMAP_KEY_SPACE, " ", " "},
+    {KEYMAP_KEY_ARROW_LEFT, "\033[D", NULL, "\033[1;5D"},
+    {KEYMAP_KEY_ARROW_UP, "\033[A", NULL, "\033[1;5A"},
+    {KEYMAP_KEY_ARROW_DOWN, "\033[B", NULL, "\033[1;5B"},
+    {KEYMAP_KEY_ARROW_RIGHT, "\033[C", NULL, "\033[1;5C"},
+    {KEYMAP_KEY_ESC, "\033"},
 };
 
 struct key_action pt_pt_key_actions[] = {
@@ -1697,10 +1795,10 @@ struct key_action pt_pt_key_actions[] = {
     {KEYMAP_KEY_KEYPAD_ENTER, "\n"},
     {KEYMAP_KEY_SPACE, " ", " "},
     {KEYMAP_102ND, "<", ">"},
-    {KEYMAP_KEY_ARROW_LEFT, "\033[D"},
-    {KEYMAP_KEY_ARROW_UP, "\033[A"},
-    {KEYMAP_KEY_ARROW_DOWN, "\033[B"},
-    {KEYMAP_KEY_ARROW_RIGHT, "\033[C"},
+    {KEYMAP_KEY_ARROW_LEFT, "\033[D", NULL, "\033[1;5D"},
+    {KEYMAP_KEY_ARROW_UP, "\033[A", NULL, "\033[1;5A"},
+    {KEYMAP_KEY_ARROW_DOWN, "\033[B", NULL, "\033[1;5B"},
+    {KEYMAP_KEY_ARROW_RIGHT, "\033[C", NULL, "\033[1;5C"},
     {KEYMAP_KEY_ESC, "\033"},
 };
 
@@ -1714,6 +1812,45 @@ void __vterm_receive_input(void *p)
 
 void sched_dump_threads(void);
 
+static bool is_numpad_code(keycode_t code)
+{
+    switch (code)
+    {
+        /* Ew... Depends on the KEYPAD's enum layout */
+        case KEYMAP_KEY_KEYPAD_7 ... KEYMAP_KEY_KEYPAD_PLUS:
+            return true;
+        default:
+            return false;
+    }
+}
+
+static const char *numpad_replacement(keycode_t code, const char *str)
+{
+    switch (code)
+    {
+        case KEYMAP_KEY_KEYPAD_7:
+            return "\033[H";
+        case KEYMAP_KEY_KEYPAD_8:
+            return "\033[A";
+        case KEYMAP_KEY_KEYPAD_9:
+            return "\033[5~";
+        case KEYMAP_KEY_KEYPAD_4:
+            return "\033[D";
+        case KEYMAP_KEY_KEYPAD_5:
+            return "\033[E";
+        case KEYMAP_KEY_KEYPAD_6:
+            return "\033[C";
+        case KEYMAP_KEY_KEYPAD_1:
+            return "\033[F";
+        case KEYMAP_KEY_KEYPAD_2:
+            return "\033[B";
+        case KEYMAP_KEY_KEYPAD_3:
+            return "\033[6~";
+        default:
+            return str;
+    }
+}
+
 int vterm_handle_key(struct vterm *vt, struct input_device *dev, struct input_event *ev)
 {
     /* We have no interest in release events */
@@ -1724,6 +1861,9 @@ int vterm_handle_key(struct vterm *vt, struct input_device *dev, struct input_ev
     if (ev->code == KEYMAP_KEY_KEYPAD_NUMLCK)
         sched_dump_threads();
 #endif
+
+    if (ev->code == KEYMAP_KEY_KEYPAD_NUMLCK)
+        vt->numlck = !vt->numlck;
 
     struct key_action *acts = pt_pt_key_actions;
     struct key_action *desired_action = NULL;
@@ -1761,6 +1901,9 @@ int vterm_handle_key(struct vterm *vt, struct input_device *dev, struct input_ev
     {
         action_string = desired_action->action;
     }
+
+    if (!vt->numlck && is_numpad_code(ev->code))
+        action_string = numpad_replacement(ev->code, action_string);
 
     if (likely(action_string))
     {
