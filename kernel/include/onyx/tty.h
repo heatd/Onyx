@@ -186,6 +186,7 @@ __END_CDECLS
 #define ANSI_SAVE_CURSOR           's'
 #define ANSI_RESTORE_CURSOR        'u'
 #define CSI_DELETE_CHARS           'P'
+#define CSI_ERASE_CHARS            'X'
 #define CSI_INSERT_BLANK           '@'
 #define CSI_INSERT_LINE            'L'
 #define CSI_DELETE_LINE            'M'
@@ -197,21 +198,23 @@ __END_CDECLS
 #define ESC_SAVECUR                '7'
 #define ESC_RESTORECUR             '8'
 
-#define ANSI_SGR_RESET      0
-#define ANSI_SGR_BOLD       1
-#define ANSI_SGR_FAINT      2
-#define ANSI_SGR_ITALIC     3
-#define ANSI_SGR_UNDERLINE  4
-#define ANSI_SGR_SLOWBLINK  5
-#define ANSI_SGR_RAPIDBLINK 6
-#define ANSI_SGR_REVERSE    7
-#define ANSI_SGR_BLINKOFF   25
-#define ANSI_SGR_SETFGMIN   30
-#define ANSI_SGR_SETFGMAX   37
-#define ANSI_SGR_DEFAULTFG  39
-#define ANSI_SGR_SETBGMIN   40
-#define ANSI_SGR_SETBGMAX   47
-#define ANSI_SGR_DEFAULTBG  49
+#define ANSI_SGR_RESET       0
+#define ANSI_SGR_BOLD        1
+#define ANSI_SGR_FAINT       2
+#define ANSI_SGR_ITALIC      3
+#define ANSI_SGR_UNDERLINE   4
+#define ANSI_SGR_SLOWBLINK   5
+#define ANSI_SGR_RAPIDBLINK  6
+#define ANSI_SGR_REVERSE     7
+#define ANSI_SGR_NOUNDERLINE 24
+#define ANSI_SGR_BLINKOFF    25
+#define ANSI_SGR_NOREVERSE   27
+#define ANSI_SGR_SETFGMIN    30
+#define ANSI_SGR_SETFGMAX    37
+#define ANSI_SGR_DEFAULTFG   39
+#define ANSI_SGR_SETBGMIN    40
+#define ANSI_SGR_SETBGMAX    47
+#define ANSI_SGR_DEFAULTBG   49
 
 #define ANSI_COLOR_RED     "\x1b[31m"
 #define ANSI_COLOR_GREEN   "\x1b[32m"
