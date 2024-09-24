@@ -9,7 +9,7 @@ kern-y+= arc4random.o binfmt.o compression.o copy.o cppnew.o cpprt.o crc32.o dev
 
 kern-$(CONFIG_UBSAN)+= ubsan.o
 
-kern-y+= fonts/font.o photon/photon.o binfmt/elf.o binfmt/module_loader.o binfmt/exec.o \
+kern-y+= photon/photon.o binfmt/elf.o binfmt/module_loader.o binfmt/exec.o \
 	libdict/rb_tree.o libdict/tree_common.o libdict/wb_tree.o time/tickless.o binfmt/shebang.o
 kern-$(CONFIG_COMPAT)+= binfmt/elf_compat.o
 
@@ -32,6 +32,7 @@ include kernel/input/Makefile
 include kernel/tty/Makefile
 include kernel/sched/Makefile
 include kernel/kcsan/Makefile
+include kernel/fonts/Makefile
 
 kernel/syscall_thunk.cpp: generate_syscall_bits.py $(ARCHDIR)/syscall_table.json
 	mkdir -p include/onyx/gen
