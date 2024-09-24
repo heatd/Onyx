@@ -280,6 +280,7 @@ void vterm_send_message(struct vterm *vterm, unsigned long message, void *ctx)
 static inline void vterm_dirty_cell(unsigned int x, unsigned int y, struct vterm *vt)
 {
     struct console_cell *cell = &vt->cells[y * vt->columns + x];
+    CHECK(y < vt->rows);
     vterm_set_dirty(cell);
     vt->dirty_row_bitmap[y / LONG_SIZE_BITS] |= (1UL << (y % LONG_SIZE_BITS));
 }
@@ -445,19 +446,35 @@ static void vterm_scroll(struct framebuffer *fb, struct vterm *vt)
 static void __vterm_scroll_down(struct framebuffer *fb, struct vterm *vt, unsigned int nr,
                                 unsigned int top, unsigned int bottom)
 {
-    unsigned int src, clear, dst;
-    src = clear = top * vt->columns;
-    dst = (top + nr) * vt->columns;
+    if (top + nr >= bottom)
+        nr = (bottom - top) - 1;
 
-    memmove(vt->cells + dst, vt->cells + src,
-            (bottom - top - nr) * vt->columns * sizeof(struct console_cell));
-    for (unsigned int i = 0; i < vt->columns * nr; i++)
+    unsigned int dest, end;
+    dest = (top + nr) * vt->columns;
+    end = bottom * vt->columns;
+    unsigned int x = vt->columns - 1, y = bottom - 1;
+
+    if (bottom > vt->rows || top >= bottom || nr < 1)
+        return;
+
+    for (unsigned int i = 0; i < end - dest; i++)
     {
-        struct console_cell *c = &vt->cells[clear + i];
-        c->codepoint = ' ';
-        c->bg = vt->bg;
-        c->fg = vt->fg;
+        struct console_cell *src = vt->cells + ((bottom - nr) * vt->columns) - i - 1;
+        struct console_cell *dst = vt->cells + end - i - 1;
+        if (dst->codepoint != src->codepoint || !same_colour(&dst->bg, &src->bg) ||
+            !same_colour(&dst->fg, &src->fg))
+            vterm_dirty_cell(x, y, vt);
+        dst->bg = src->bg;
+        dst->fg = src->fg;
+        dst->codepoint = src->codepoint;
+        if (x-- == 0)
+        {
+            x = vt->columns - 1;
+            y--;
+        }
     }
+
+    vterm_clear_range(vt, 0, top, 0, top + nr);
 }
 
 static void vterm_scroll_down(struct framebuffer *fb, struct vterm *vt)
@@ -1074,10 +1091,7 @@ void vterm::do_ri()
 {
     vterm_dirty_cell(cursor_x, cursor_y, this);
     if (cursor_y == top)
-    {
         vterm_scroll_down(fb, this);
-        vterm_flush_all(this);
-    }
     else if (cursor_y)
         cursor_y--;
 }
@@ -1089,10 +1103,7 @@ void vterm::do_nl()
     if (cursor_y == bottom)
     {
         if (cursor_y <= bottom && cursor_y >= top)
-        {
             vterm_scroll(fb, this);
-            vterm_flush_all(this);
-        }
         cursor_y--;
     }
 }
@@ -1373,7 +1384,6 @@ void vterm::do_csi_command(char escape)
         case ANSI_SCROLL_DOWN: {
             for (unsigned long i = 0; i < args[0]; i++)
                 vterm_scroll_down(fb, this);
-            vterm_flush_all(this);
             break;
         }
 
@@ -1515,7 +1525,6 @@ void vterm::insert_lines(unsigned long nr)
         nr = possible_lines_to_insert;
 
     __vterm_scroll_down(fb, this, nr, cursor_y, bottom);
-    vterm_flush_all(this);
 }
 
 void vterm::delete_lines(unsigned long nr)
@@ -1700,7 +1709,6 @@ static int vterm_write_con(const char *buffer, size_t size, unsigned int flags,
 
     size_t i = 0;
     const char *data = (const char *) buffer;
-    bool did_scroll = false;
 
     for (; i < size; i++)
     {
@@ -1730,18 +1738,13 @@ static int vterm_write_con(const char *buffer, size_t size, unsigned int flags,
                 vterm_putc('\r', vt);
             }
 
-            if (vterm_putc(codepoint, vt))
-                did_scroll = true;
-
+            vterm_putc(codepoint, vt);
             /* We sub a 1 because we're incrementing on the for loop */
             i += codepoint_length - 1;
         }
     }
 
-    if (!did_scroll)
-        vterm_flush(vt);
-    else
-        vterm_flush_all(vt);
+    vterm_flush(vt);
     update_cursor(vt);
 
     if (has_lock)
