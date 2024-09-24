@@ -15,6 +15,7 @@ struct font
     unsigned int chars;
     unsigned int *mask;
     unsigned char *cursor_bitmap;
+    unsigned int (*utf2char)(unsigned int codepoint);
 };
 
 struct font *get_font_data(void);
