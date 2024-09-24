@@ -61,6 +61,17 @@ const struct color color_table[] = {
     {204, 204, 204}               /* White */
 };
 
+const struct color bright_color_table[] = {
+    {102, 102, 102}, /* Black */
+    {241, 76, 76},   /* Red */
+    {22, 198, 12},   /* Green */
+    {245, 245, 67},  /* Yellow */
+    {59, 142, 234},  /* Blue */
+    {214, 112, 214}, /* Magenta */
+    {41, 184, 219},  /* Cyan */
+    {242, 242, 242}, /* White */
+};
+
 #define VTERM_CONSOLE_CELL_DIRTY        (1 << 0)
 #define VTERM_CONSOLE_CELL_CONTINUATION (1 << 1)
 
@@ -191,6 +202,7 @@ struct vterm
     unsigned int bitmap_size;
     enum Gx_type gx[2];
     u8 charset;
+    bool bold;
 
     // Buffer used for any multibyte buffering for utf8
     char multibyte_buffer[10];
@@ -828,6 +840,32 @@ void vterm_blink_thread(void *ctx)
     }
 }
 
+static void vterm_make_bold(struct vterm *vt)
+{
+    if (!vt->bold)
+        return;
+    for (int i = 0; i < 8; i++)
+    {
+        if (same_colour(&vt->fg, &color_table[i]))
+        {
+            vt->fg = bright_color_table[i];
+            break;
+        }
+    }
+}
+
+static void vterm_undo_bold(struct vterm *vt)
+{
+    for (int i = 0; i < 8; i++)
+    {
+        if (same_colour(&vt->fg, &bright_color_table[i]))
+        {
+            vt->fg = color_table[i];
+            break;
+        }
+    }
+}
+
 void vterm_ansi_do_sgr(unsigned long n, struct vterm *vt)
 {
     switch (n)
@@ -836,15 +874,19 @@ void vterm_ansi_do_sgr(unsigned long n, struct vterm *vt)
             vt->bg = default_bg;
             vt->fg = default_fg;
             vt->reversed = false;
+            vt->bold = false;
+            vterm_undo_bold(vt);
             break;
         }
 
         case ANSI_SGR_REVERSE: {
             if (vt->reversed)
                 return;
+            vterm_undo_bold(vt);
             struct color temp = vt->bg;
             vt->bg = vt->fg;
             vt->fg = temp;
+            vterm_make_bold(vt);
             vt->reversed = true;
             break;
         }
@@ -852,9 +894,11 @@ void vterm_ansi_do_sgr(unsigned long n, struct vterm *vt)
         case ANSI_SGR_NOREVERSE: {
             if (!vt->reversed)
                 return;
+            vterm_undo_bold(vt);
             struct color temp = vt->bg;
             vt->bg = vt->fg;
             vt->fg = temp;
+            vterm_make_bold(vt);
             vt->reversed = false;
             break;
         }
@@ -866,6 +910,7 @@ void vterm_ansi_do_sgr(unsigned long n, struct vterm *vt)
 
         case ANSI_SGR_DEFAULTFG: {
             vt->fg = default_fg;
+            vterm_make_bold(vt);
             break;
         }
 
@@ -893,6 +938,12 @@ void vterm_ansi_do_sgr(unsigned long n, struct vterm *vt)
             break;
         }
 
+        case ANSI_SGR_BOLD: {
+            vt->bold = true;
+            vterm_make_bold(vt);
+            break;
+        }
+
         default: {
             if (n >= ANSI_SGR_SETBGMIN && n <= ANSI_SGR_SETBGMAX)
             {
@@ -902,8 +953,12 @@ void vterm_ansi_do_sgr(unsigned long n, struct vterm *vt)
             else if (n >= ANSI_SGR_SETFGMIN && n <= ANSI_SGR_SETFGMAX)
             {
                 int index = n - ANSI_SGR_SETFGMIN;
-                vt->fg = color_table[index];
+                vt->fg = vt->bold ? bright_color_table[index] : color_table[index];
             }
+#if 0
+            else
+                pr_info("vterm: unimplemented CSI %lu m\n", n);
+#endif
         }
     }
 }
