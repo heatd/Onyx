@@ -10,6 +10,7 @@
 
 #include <onyx/list.h>
 #include <onyx/rcupdate.h>
+#include <onyx/seqlock_types.h>
 
 struct dentry;
 struct superblock;
@@ -46,6 +47,8 @@ int do_mount(const char *source, const char *target, const char *fstype, unsigne
              const void *data);
 
 struct mount *mnt_traverse(struct dentry *mountpoint);
+
+extern seqlock_t mount_lock;
 
 __END_CDECLS
 

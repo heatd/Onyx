@@ -1537,28 +1537,30 @@ out:
 
 int sys_getcwd(char *path, size_t size)
 {
+    char pathbuf[PATH_MAX];
+    size_t pathlen = 0;
     if (size == 0 && path != nullptr)
         return -EINVAL;
 
     struct path cwd = get_current_directory();
-    char *name = dentry_to_file_name(cwd.dentry);
+    char *name = d_path(&cwd, pathbuf, PATH_MAX);
     path_put(&cwd);
-    if (!name)
-        return -errno;
+    if (IS_ERR(name))
+        return PTR_ERR(name);
 
-    if (strlen(name) + 1 > size)
+    pathlen = pathbuf + PATH_MAX - name;
+    if (pathlen > size)
     {
         free(name);
         return -ERANGE;
     }
 
-    if (copy_to_user(path, name, strlen(name) + 1) < 0)
+    if (copy_to_user(path, name, pathlen) < 0)
     {
         free(name);
         return -errno;
     }
-
-    return strlen(name);
+    return pathlen - 1;
 }
 
 int get_dirfd(int dirfd, struct path *cwd)
