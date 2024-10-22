@@ -19,10 +19,13 @@
 #include <onyx/lru.h>
 #include <onyx/rcupdate.h>
 #include <onyx/rwlock.h>
+#include <onyx/seqlock_types.h>
 
 #ifdef __cplusplus
 #include <onyx/atomic.hpp>
 #endif
+
+struct path;
 
 __BEGIN_CDECLS
 #define INLINE_NAME_MAX 40
@@ -85,7 +88,9 @@ struct dentry *dentry_create(const char *name, struct inode *inode, struct dentr
                              = 0
 #endif
 );
-char *dentry_to_file_name(struct dentry *dentry);
+char *d_path(const struct path *path, char *buf, unsigned int buflen);
+
+extern seqlock_t rename_lock;
 
 /**
  * @brief Finish a VFS lookup

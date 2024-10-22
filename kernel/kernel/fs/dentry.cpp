@@ -36,7 +36,7 @@ static struct slab_cache *dentry_cache;
 /* rename_lock is held (write!) throughout a *dcache-level* rename. This protects against hashtable
  * entries going bad, and against ->d_parent being changed. It's held in read-mode when traversing
  * the dcache hashtable. */
-static seqlock_t rename_lock;
+seqlock_t rename_lock;
 
 fnv_hash_t hash_dentry(dentry *&d)
 {
@@ -691,89 +691,6 @@ struct path_element
     dentry *d;
     struct list_head node;
 };
-
-char *dentry_to_file_name(struct dentry *dentry)
-{
-    /* Calculate the initial length as / + the null terminator */
-    size_t buf_len = 2;
-    char *buf = nullptr;
-    char *s = nullptr;
-    struct path p = get_filesystem_root();
-    auto fs_root = p.dentry;
-
-    if (fs_root == dentry)
-    {
-        path_put(&p);
-        return strdup("/");
-    }
-
-    dget(fs_root);
-    path_put(&p);
-
-    auto d = dentry;
-    struct list_head element_list;
-    INIT_LIST_HEAD(&element_list);
-
-    /* Get another ref here to have prettier code */
-    dget(d);
-
-    /* TODO: Is this logic safe from race conditions? */
-    while (d != fs_root && d != nullptr)
-    {
-        path_element *p = new path_element;
-        if (!p)
-            goto error;
-        p->d = d;
-        /* Add 1 to the len because of the separator */
-        buf_len += d->d_name_length + 1;
-        list_add(&p->node, &element_list);
-
-        if (d->d_flags & DENTRY_FLAG_MOUNT_ROOT)
-        {
-            // HACK!
-            d = dentry_parent(d);
-            while (d && d->d_flags & DENTRY_FLAG_MOUNTPOINT)
-                d = dentry_parent(d);
-        }
-        else
-            d = dentry_parent(d);
-    }
-
-    /* Remove one from the end to avoid trailing slashes */
-    buf_len--;
-
-    buf = (char *) malloc(buf_len);
-    if (!buf)
-        goto error;
-    buf[0] = '/';
-    s = &buf[1];
-
-    list_for_every_safe (&element_list)
-    {
-        auto elem = container_of(l, struct path_element, node);
-        auto dent = elem->d;
-        memcpy(s, dent->d_name, dent->d_name_length);
-        s += dent->d_name_length;
-        *s++ = '/';
-        dput(dent);
-        delete elem;
-    }
-
-    buf[buf_len - 1] = '\0';
-    dput(fs_root);
-    return buf;
-
-error:
-    dput(fs_root);
-    list_for_every_safe (&element_list)
-    {
-        auto elem = container_of(l, struct path_element, node);
-        dput(elem->d);
-        delete elem;
-    }
-
-    return nullptr;
-}
 
 void dentry_shrink_subtree(struct dentry *dentry);
 

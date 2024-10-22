@@ -38,7 +38,7 @@ static inline struct blockdev *blkdev_get_dev(struct file *f)
 static struct list_head mount_hashtable[MT_HASH_SIZE];
 static struct list_head mp_hashtable[MT_HASH_SIZE];
 
-static seqlock_t mount_lock;
+seqlock_t mount_lock;
 
 static void mnt_init(struct mount *mnt, unsigned long flags)
 {

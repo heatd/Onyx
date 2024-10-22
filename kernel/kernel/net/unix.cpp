@@ -1204,6 +1204,7 @@ ssize_t un_socket::recvmsg(struct msghdr *msg, int flags)
 
 int un_get_name(sockaddr_un *addr, socklen_t *addrlen, const un_name &name)
 {
+    char pathbuf[PATH_MAX];
     addr->sun_family = AF_UNIX;
 
     if (name.is_anon())
@@ -1213,15 +1214,19 @@ int un_get_name(sockaddr_un *addr, socklen_t *addrlen, const un_name &name)
     }
     else if (name.is_fs_sock_)
     {
-        auto filename = dentry_to_file_name(name.dentry_);
-        if (!filename)
-            return -errno;
-        size_t copied = strlcpy(addr->sun_path, filename, sizeof(addr->sun_path));
+        /* TODO: Fix this path garbage. It will work for now, but unix sockets need to keep struct
+         * path's, not dentries.
+         **/
+        struct path path;
+        path_init(&path);
+        path.dentry = name.dentry_;
+        char *p = d_path(&path, pathbuf, PATH_MAX);
+        if (IS_ERR(p))
+            return PTR_ERR(p);
+        size_t copied = strlcpy(addr->sun_path, p, sizeof(addr->sun_path));
 
         auto len = cul::clamp(copied, sizeof(addr->sun_path));
-
         *addrlen = sizeof(sa_family_t) + len;
-        free(filename);
     }
     else
     {

@@ -19,6 +19,7 @@
 #include <onyx/cpu.h>
 #include <onyx/dentry.h>
 #include <onyx/elf.h>
+#include <onyx/err.h>
 #include <onyx/file.h>
 #include <onyx/futex.h>
 #include <onyx/gen/trace_vm.h>
@@ -1266,16 +1267,19 @@ ssize_t process::query_vm_regions(void *ubuf, ssize_t len, unsigned long what, s
 {
     scoped_mutex g{address_space->vm_lock};
     size_t needed_len = 0;
+    char pathbuf[PATH_MAX];
 
     vm_for_every_region(*address_space, [&](vm_area_struct *region) -> bool {
         needed_len += sizeof(onx_process_vm_region);
 
         if (is_file_backed(region))
         {
-            auto path = dentry_to_file_name(region->vm_file->f_dentry);
-
-            needed_len += strlen(path) + 1;
-            free(path);
+            char *path = d_path(&region->vm_file->f_path, pathbuf, PATH_MAX);
+            /* Path too long? Ignore */
+            if (IS_ERR(path))
+                needed_len = 1;
+            else
+                needed_len = pathbuf + PATH_MAX - path;
         }
 
         if (needed_len % alignof(onx_process_vm_region))
@@ -1332,9 +1336,20 @@ ssize_t process::query_vm_regions(void *ubuf, ssize_t len, unsigned long what, s
 
         if (is_file_backed(region))
         {
-            auto path = dentry_to_file_name(region->vm_file->f_dentry);
-            strcpy(reg->name, path);
-            reg->size += strlen(path) + 1;
+            char *path = d_path(&region->vm_file->f_path, pathbuf, PATH_MAX);
+            /* Path too long? Ignore */
+            if (IS_ERR(path))
+                reg->name[0] = '\0';
+            else
+            {
+                /* FIXME: This is a vulnerability. d_path can change between the initial scan and
+                 * writing. Please fix this!!
+                 **/
+                strcpy(reg->name, path);
+                reg->size += strlen(path);
+            }
+
+            reg->size++;
         }
 
         if (reg->size % alignof(onx_process_vm_region))
