@@ -207,6 +207,7 @@ process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *p
 
         if (copy_file_descriptors(proc, ctx) < 0)
             return nullptr;
+        proc->ctx.umask = READ_ONCE(ctx->umask);
     }
     else
     {
