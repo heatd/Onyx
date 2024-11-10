@@ -327,8 +327,6 @@ void process_remove_from_list(process *process);
 template <typename Callable>
 static void for_every_child(process *proc, Callable cb)
 {
-    scoped_lock g{proc->children_lock};
-
     for (process *p = proc->children; p != nullptr; p = p->next_sibbling)
     {
         if (cb(p) == false)
@@ -596,9 +594,12 @@ pid_t sys_wait4(pid_t pid, int *wstatus, int options, rusage *usage)
         return -EINVAL;
 
     wait_info w{pid, (unsigned int) options};
+    spin_lock(&current->children_lock);
 
-    int st =
-        wait_for_event_interruptible(&current->wait_child_event, wait_handle_processes(current, w));
+    int st = wait_for_event_locked_interruptible(
+        &current->wait_child_event, wait_handle_processes(current, w), &current->children_lock);
+
+    spin_unlock(&current->children_lock);
 
 #if 0
     printk("st %d w.status %d\n", st, w.status);
@@ -969,12 +970,13 @@ void process_kill_other_threads(void)
     {
         current->remove_thread(current_thread);
         current_thread->owner = nullptr;
-        scoped_lock g{current->signal_lock};
+        spin_lock(&current->parent->children_lock);
         current->exit_code = exit_code;
 
         /* Finally, wake up any possible concerned parents */
         wait_queue_wake_all(&current->parent->wait_child_event);
         current->signal_group_flags |= SIGNAL_GROUP_EXIT;
+        spin_unlock(&current->parent->children_lock);
     }
 
     kernel_raise_signal(SIGCHLD, parent, 0, &info);
