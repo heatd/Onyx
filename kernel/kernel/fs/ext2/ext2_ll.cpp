@@ -85,14 +85,11 @@ ext2_inode *ext2_superblock::get_inode(ext2_inode_no inode) const
     }
 
     ext2_inode *ino = (ext2_inode *) malloc(inode_size);
-
     if (!ino)
         return nullptr;
 
     ext2_inode *on_disk = (ext2_inode *) ((char *) block_buf_data(buf) + off);
-
-    memcpy(ino, on_disk, inode_size);
-
+    memcpy(ino, on_disk, min(inode_size, (u16) sizeof(struct ext2_inode)));
     return ino;
 }
 
@@ -126,8 +123,7 @@ void ext2_superblock::update_inode(const ext2_inode *ino, ext2_inode_no inode_no
     }
 
     ext2_inode *on_disk = (ext2_inode *) ((char *) block_buf_data(buf) + off);
-
-    memcpy(on_disk, ino, inode_size);
+    memcpy(on_disk, ino, min(inode_size, (u16) sizeof(struct ext2_inode)));
 
     block_buf_dirty(buf);
 

@@ -904,7 +904,7 @@ struct inode *ext2_mkdir(struct dentry *dentry, mode_t mode, struct dentry *dir)
  */
 void ext2_superblock::error(const char *str) const
 {
-    printk("ext2_error: %s\n", str);
+    pr_err("ext2_error: %s\n", str);
 
     sb->s_state = EXT2_ERROR_FS;
     block_buf_dirty(sb_bb);
