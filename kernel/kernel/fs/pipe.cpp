@@ -926,7 +926,7 @@ int named_pipe_open(struct file *f)
 int pipe::open_named(struct file *filp)
 {
     scoped_mutex g{pipe_lock};
-    ssize_t st;
+    ssize_t st = 0;
 
     // As per standard named pipe behavior, block until a peer shows up
     if ((filp->f_flags & O_RDWRMASK) == O_RDONLY)
@@ -934,7 +934,8 @@ int pipe::open_named(struct file *filp)
         reader_count++;
         wake_all(&write_queue);
         COMPILER_BARRIER();
-        st = wait_for_event_mutex_interruptible(&read_queue, writer_count != 0, &pipe_lock);
+        if (!(filp->f_flags & O_NONBLOCK))
+            st = wait_for_event_mutex_interruptible(&read_queue, writer_count != 0, &pipe_lock);
     }
     else if ((filp->f_flags & O_RDWRMASK) == O_WRONLY)
     {
@@ -942,9 +943,11 @@ int pipe::open_named(struct file *filp)
         wake_all(&read_queue);
         COMPILER_BARRIER();
         // Use a lambda to go around the multiple wait_for_event problem
-        st = [&]() REQUIRES(pipe_lock) -> ssize_t {
-            return wait_for_event_mutex_interruptible(&write_queue, reader_count != 0, &pipe_lock);
-        }();
+        if (!(filp->f_flags & O_NONBLOCK))
+            st = [&]() REQUIRES(pipe_lock) -> ssize_t {
+                return wait_for_event_mutex_interruptible(&write_queue, reader_count != 0,
+                                                          &pipe_lock);
+            }();
     }
     else if ((filp->f_flags & O_RDWRMASK) == O_RDWR)
     {
