@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 - 2023 Pedro Falcato
+ * Copyright (c) 2022 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <onyx/bug.h>
 #include <onyx/compiler.h>
 #include <onyx/panic.h>
 #include <onyx/types.h>
@@ -181,6 +182,8 @@ void ubsan_exit_kunit()
 
 static void ubsan_report_end()
 {
+    if (!die_on_every_ubsan)
+        WARN_ON(1);
     printk("=================================================================================\n");
     if (die_on_every_ubsan) [[unlikely]]
         ubsan_abort();
