@@ -437,12 +437,35 @@ static void isolate_pages(struct page_lru *lru, enum lru_state list, struct list
     list_splice(&rotate_list, &lru->lru_lists[list]);
 }
 
+struct pagebatch
+{
+    struct page *batch[32];
+    int nr;
+};
+
+static bool page_batch_add(struct pagebatch *batch, struct page *page)
+{
+    batch->batch[batch->nr++] = page;
+    return batch->nr == 32;
+}
+
+static void page_unref_batch(struct pagebatch *batch)
+{
+    /* LRU lock *is not held* */
+    for (int i = 0; i < batch->nr; i++)
+        page_unref(batch->batch[i]);
+    batch->nr = 0;
+}
+
 static unsigned long shrink_page_list(struct reclaim_data *data, struct page_lru *lru,
                                       struct list_head *page_list)
 {
     DEFINE_LIST(rotate_list);
     DEFINE_LIST(activate_list);
+    struct pagebatch free_batch;
     unsigned long freedp = 0;
+
+    free_batch.nr = 0;
     list_for_every_safe (page_list)
     {
         struct page *page = container_of(l, struct page, lru_node);
@@ -473,7 +496,12 @@ static unsigned long shrink_page_list(struct reclaim_data *data, struct page_lru
         list_add_tail(&page->lru_node, &lru->lru_lists[LRU_INACTIVE_FILE + page_to_state(page)]);
         page_set_lru(page);
         inc_page_stat(page, NR_INACTIVE_FILE + page_to_state(page));
-        page_unref(page);
+        if (page_batch_add(&free_batch, page))
+        {
+            spin_unlock(&lru->lock);
+            page_unref_batch(&free_batch);
+            spin_lock(&lru->lock);
+        }
     }
 
     list_for_every_safe (&activate_list)
@@ -484,11 +512,16 @@ static unsigned long shrink_page_list(struct reclaim_data *data, struct page_lru
         inc_page_stat(page, NR_ACTIVE_FILE + page_to_state(page));
         page_clear_referenced(page);
         list_add_tail(&page->lru_node, &lru->lru_lists[LRU_ACTIVE_FILE + page_to_state(page)]);
-        page_unref(page);
+        if (page_batch_add(&free_batch, page))
+        {
+            spin_unlock(&lru->lock);
+            page_unref_batch(&free_batch);
+            spin_lock(&lru->lock);
+        }
     }
 
     spin_unlock(&lru->lock);
-
+    page_unref_batch(&free_batch);
 out:
     return freedp;
 }
