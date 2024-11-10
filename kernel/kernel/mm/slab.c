@@ -1669,12 +1669,13 @@ void kmem_free_kasan(void *ptr)
 {
     struct slab_cache *cache;
     struct slab *slab = kmem_pointer_to_slab(ptr);
+    struct bufctl *buf = ptr;
     assert(slab != NULL);
 
     cache = slab->cache;
-    kmem_bufctl_from_ptr(cache, ptr)->flags = 0;
+    buf->flags = 0;
     spin_lock(&cache->lock);
-    kmem_free_to_slab(cache, slab, ptr);
+    kmem_free_to_slab(cache, slab, kmem_bufctl_to_ptr(cache, buf));
     spin_unlock(&cache->lock);
 }
 
