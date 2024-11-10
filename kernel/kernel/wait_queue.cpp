@@ -29,23 +29,11 @@ void wait_queue_wait(struct wait_queue *queue)
     sched_yield();
 }
 
-struct wait_queue_token *wait_queue_wake_unlocked(struct wait_queue *queue)
+struct wait_queue_token *wait_queue_wake_unlocked(struct wait_queue_token *token)
 {
-    MUST_HOLD_LOCK(&queue->lock);
-    assert(list_is_empty(&queue->token_list) == false);
-
-    struct list_head *token_lh = list_first_element(&queue->token_list);
-
-    assert(token_lh != NULL);
-
-    struct wait_queue_token *token = container_of(token_lh, struct wait_queue_token, token_node);
-
-    list_remove(token_lh);
-
-    list_assert_correct(&queue->token_list);
-
+    if (!(token->flags & WQ_TOKEN_NO_DEQUEUE))
+        list_remove(&token->token_node);
     token->signaled = true;
-
     return token;
 }
 
@@ -59,7 +47,8 @@ void wait_queue_wake(struct wait_queue *queue)
         return;
     }
 
-    struct wait_queue_token *t = wait_queue_wake_unlocked(queue);
+    struct wait_queue_token *t = wait_queue_wake_unlocked(
+        list_first_entry(&queue->token_list, struct wait_queue_token, token_node));
 
     if (t->callback)
         t->callback(t->context, t);
@@ -71,11 +60,12 @@ void wait_queue_wake(struct wait_queue *queue)
 
 void wait_queue_wake_all(struct wait_queue *queue)
 {
+    struct wait_queue_token *waiter, *next;
     unsigned long cpu_flags = spin_lock_irqsave(&queue->lock);
 
-    while (!list_is_empty(&queue->token_list))
+    list_for_each_entry_safe (waiter, next, &queue->token_list, token_node)
     {
-        struct wait_queue_token *t = wait_queue_wake_unlocked(queue);
+        struct wait_queue_token *t = wait_queue_wake_unlocked(waiter);
 
         if (t->callback)
             t->callback(t->context, t);

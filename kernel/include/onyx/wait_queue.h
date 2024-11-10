@@ -18,7 +18,8 @@
 #include <onyx/spinlock.h>
 #include <onyx/task_switching.h>
 
-#define WQ_TOKEN_EXCLUSIVE (1u << 0)
+#define WQ_TOKEN_EXCLUSIVE  (1u << 0)
+#define WQ_TOKEN_NO_DEQUEUE (1u << 1)
 
 /* Return values for wait_queue_token::wake */
 #define WQ_WAKE_DO_NOT_WAKE    -1
@@ -125,9 +126,9 @@ bool signal_is_pending();
             goto out_final;                                           \
         init_wq_token(&token);                                        \
                                                                       \
-        set_current_state(state);                                     \
         while (true)                                                  \
         {                                                             \
+            set_current_state(state);                                 \
             token.thread = get_current_thread();                      \
             wait_queue_add(wq, &token);                               \
             if (cond)                                                 \
@@ -156,9 +157,9 @@ bool signal_is_pending();
             goto out_final;                                             \
         init_wq_token(&token);                                          \
                                                                         \
-        set_current_state(state);                                       \
         while (true)                                                    \
         {                                                               \
+            set_current_state(state);                                   \
             token.thread = get_current_thread();                        \
             wait_queue_add(wq, &token);                                 \
             if (cond)                                                   \
