@@ -760,6 +760,26 @@ int vm_mmu_unmap(struct mm_address_space *mm, void *addr, size_t pages, struct v
     return 0;
 }
 
+int zap_page_range(unsigned long start, unsigned long end, struct vm_area_struct *vma)
+{
+    struct mm_address_space *mm = vma->vm_mm;
+    struct unmap_info unmap_info;
+    unmap_info.vma = vma;
+    unmap_info.mm = mm;
+    unmap_info.kernel = 0;
+    unmap_info.full = 0;
+    unmap_info.freepgtables = 0;
+    tlbi_tracker_init(&unmap_info.tlbi);
+
+    spin_lock(&mm->page_table_lock);
+    pgd_unmap_range(&unmap_info, pgd_offset(mm, start), start, end);
+    spin_unlock(&mm->page_table_lock);
+
+    if (tlbi_active(&unmap_info.tlbi))
+        tlbi_end_batch(&unmap_info.tlbi);
+    return 0;
+}
+
 bool paging_write_protect(void *addr, struct mm_address_space *mm)
 {
     spin_lock(&mm->page_table_lock);

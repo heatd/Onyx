@@ -232,6 +232,7 @@ static inline unsigned long pte_addr_end(unsigned long addr)
 pte_t pte_get(struct mm_address_space *mm, unsigned long addr);
 pte_t *ptep_get_locked(struct mm_address_space *mm, unsigned long addr, struct spinlock **lock);
 int pgtable_prealloc(struct mm_address_space *mm, unsigned long virt);
+int zap_page_range(unsigned long start, unsigned long end, struct vm_area_struct *vma);
 __END_CDECLS
 
 #endif
