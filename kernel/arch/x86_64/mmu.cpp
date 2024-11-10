@@ -1092,4 +1092,132 @@ int mmu_map_kasan_shadow(void *shadow_start, size_t pages)
     return 0;
 }
 
+static void pte_kasan_range(pte_t *pte, unsigned long start, unsigned long end)
+{
+    unsigned long zero_shadow = VA2PA(zero_shadow_map);
+    unsigned long next_start;
+    for (; start < end; pte++, start = next_start)
+    {
+        next_start = min(pte_addr_end(start), end);
+        pte_t old = *pte;
+        if (pte_addr(old) != zero_shadow)
+        {
+            CHECK(pte_write(old));
+            continue;
+        }
+
+        void *shadow = alloc_boot_page(1, 0);
+        memset(PHYS_TO_VIRT(shadow), 0, PAGE_SIZE);
+        set_pte(pte, pte_mkpte((u64) shadow,
+                               __pgprot(_PAGE_WRITE | _PAGE_PRESENT | _PAGE_NX | _PAGE_GLOBAL)));
+    }
+}
+
+#define SHADOW(type, hwtype) (VA2PA(shadow_##hwtype))
+
+static void pmd_kasan_range(pmd_t *pmd, unsigned long start, unsigned long end)
+{
+    pte_t *pte;
+    unsigned long next_start;
+    for (; start < end; pmd++, start = next_start)
+    {
+        next_start = min(pmd_addr_end(start), end);
+        if (pmd_none(*pmd))
+            continue;
+        DCHECK(!pmd_huge(*pmd));
+        pte = pte_offset(pmd, start);
+        if (pmd_addr(*pmd) == SHADOW(pte, pt))
+        {
+            pte_t *newpte = (pte_t *) alloc_boot_page(1, 0);
+            memcpy(PHYS_TO_VIRT(newpte), shadow_pt, PAGE_SIZE);
+            set_pmd(pmd, pmd_mkpmd((unsigned long) newpte, __pgprot(KERNEL_PGTBL)));
+            pte = pte_offset(pmd, start);
+        }
+
+        CHECK(pmd_val(*pmd) & (_PAGE_WRITE | _PAGE_PRESENT));
+        pte_kasan_range(pte, start, next_start);
+    }
+}
+
+static void pud_kasan_range(pud_t *pud, unsigned long start, unsigned long end)
+{
+    pmd_t *pmd;
+    unsigned long next_start;
+    for (; start < end; pud++, start = next_start)
+    {
+        next_start = min(pud_addr_end(start), end);
+        if (pud_none(*pud))
+            continue;
+        DCHECK(!pud_huge(*pud));
+        pmd = pmd_offset(pud, start);
+        if (pud_addr(*pud) == SHADOW(pmd, pd))
+        {
+            pmd_t *newpmd = (pmd_t *) alloc_boot_page(1, 0);
+            memcpy(PHYS_TO_VIRT(newpmd), shadow_pd, PAGE_SIZE);
+            set_pud(pud, pud_mkpud((unsigned long) newpmd, __pgprot(KERNEL_PGTBL)));
+            pmd = pmd_offset(pud, start);
+        }
+
+        CHECK(pud_val(*pud) & (_PAGE_WRITE | _PAGE_PRESENT));
+        pmd_kasan_range(pmd, start, next_start);
+    }
+}
+
+static void p4d_kasan_range(p4d_t *p4d, unsigned long start, unsigned long end)
+{
+    pud_t *pud;
+    unsigned long next_start;
+    for (; start < end; p4d++, start = next_start)
+    {
+        next_start = min(p4d_addr_end(start), end);
+        if (WARN_ON(p4d_none(*p4d)))
+            continue;
+        DCHECK(!p4d_huge(*p4d));
+        pud = pud_offset(p4d, start);
+        if (p4d_addr(*p4d) == SHADOW(pud, pdpt))
+        {
+            pud_t *newpud = (pud_t *) alloc_boot_page(1, 0);
+            memcpy(PHYS_TO_VIRT(newpud), shadow_pdpt, PAGE_SIZE);
+            set_p4d(p4d, p4d_mkp4d((unsigned long) newpud, __pgprot(KERNEL_PGTBL)));
+            pud = pud_offset(p4d, start);
+        }
+
+        CHECK(p4d_val(*p4d) & (_PAGE_WRITE | _PAGE_PRESENT));
+        pud_kasan_range(pud, start, next_start);
+    }
+}
+
+static void pgd_kasan_range(pgd_t *pgd, unsigned long start, unsigned long end)
+{
+    p4d_t *p4d;
+    unsigned long next_start;
+    for (; start < end; pgd++, start = next_start)
+    {
+        next_start = min(pgd_addr_end(start), end);
+        if (WARN_ON(pgd_none(*pgd)))
+            continue;
+        p4d = p4d_offset(pgd, start);
+        if (pml5_present() && pgd_addr(*pgd) == SHADOW(p4d, pml4))
+        {
+            p4d_t *newp4d = (p4d_t *) alloc_boot_page(1, 0);
+            memcpy(PHYS_TO_VIRT(newp4d), shadow_pml4, PAGE_SIZE);
+            set_pgd(pgd, pgd_mkpgd((unsigned long) newp4d, __pgprot(KERNEL_PGTBL)));
+            p4d = p4d_offset(pgd, start);
+        }
+
+        p4d_kasan_range(p4d, start, next_start);
+    }
+}
+
+void init_shadow_for_phys(unsigned long addr, size_t len)
+{
+    unsigned long start = (unsigned long) kasan_get_ptr((unsigned long) PHYS_TO_VIRT(addr));
+    unsigned long end = ALIGN_TO(start + (len >> 3), PAGE_SIZE);
+    pr_info("kasan: initializing shadow for [%lx, %lx] (%lx, %lx)\n", addr, addr + len - 1, start,
+            end - 1);
+    pgd_t *pgd = pgd_offset(&kernel_address_space, start);
+    pgd_kasan_range(pgd, start, end);
+    mmu_invalidate_range(start, (end - start) >> PAGE_SHIFT, &kernel_address_space);
+}
+
 #endif

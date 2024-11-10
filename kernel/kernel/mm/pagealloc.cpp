@@ -18,6 +18,7 @@
 
 #include <onyx/copy.h>
 #include <onyx/init.h>
+#include <onyx/mm/kasan.h>
 #include <onyx/mm/page_lru.h>
 #include <onyx/mm/page_node.h>
 #include <onyx/mm/page_zone.h>
@@ -506,6 +507,9 @@ void page_node::add_region(uintptr_t base, size_t size)
         unsigned long end = cul::clamp(start + size, zone->end) + 1;
         unsigned long nr_pages = (end - start) >> PAGE_SHIFT;
         printf("pagealloc: Adding [%016lx, %016lx] to zone %s\n", start, end - 1, zone->name);
+#ifdef CONFIG_KASAN
+        kasan_set_state((unsigned long *) PHYS_TO_VIRT(base), size, 1);
+#endif
         page_zone_add_region(start, nr_pages, zone);
         nr_global_pages.add_fetch(nr_pages, mem_order::release);
         start = end;
@@ -590,6 +594,9 @@ void page_init(size_t memory_size, unsigned long maxpfn)
 
     __kbrk(PHYS_TO_VIRT(ptr), (void *) ((unsigned long) PHYS_TO_VIRT(ptr) + needed_memory));
     page_allocate_pagemap(maxpfn);
+#ifdef CONFIG_KASAN
+    kasan_page_alloc_init();
+#endif
 
     for_every_phys_region([](unsigned long start, size_t size) {
         /* page_add_region can't return an error value since it halts
@@ -772,6 +779,10 @@ __always_inline void prepare_pages_after_alloc(struct page *page, unsigned int o
 
     auto pages = pow2(order);
 
+#ifdef CONFIG_KASAN
+    kasan_set_state((unsigned long *) PAGE_TO_VIRT(page), (1UL << (order + PAGE_SHIFT)), 0);
+#endif
+
     if (page_should_zero(flags))
     {
         memset(PAGE_TO_VIRT(page), 0, 1UL << (order + PAGE_SHIFT));
@@ -892,6 +903,10 @@ void page_node::free_page(struct page *p)
 
     if (page_flag_set(p, PAGE_FLAG_ANON))
         dec_page_stat(p, NR_ANON);
+
+#ifdef CONFIG_KASAN
+    kasan_set_state((unsigned long *) PAGE_TO_VIRT(p), PAGE_SIZE, 1);
+#endif
 
     /* Reset the page */
     p->flags = 0;
