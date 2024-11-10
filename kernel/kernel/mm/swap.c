@@ -522,9 +522,25 @@ static void swap_final_put(swp_entry_t swp)
         return;
     }
 
-    __swap_add_counter(-1);
     *map = 0;
     spin_unlock(&bg->lock);
+}
+
+static u8 swap_get_map(swp_entry_t swp)
+{
+    struct swap_area *sa = swap_areas[SWP_TYPE(swp)];
+    unsigned long eff_off = SWP_OFFSET(swp) - sa->swap_off;
+    struct swap_block_group *bg = &sa->block_groups[eff_off / MAX_BLOCK_GROUP_SIZE];
+    u8 *map;
+    u8 count;
+
+    spin_lock(&bg->lock);
+
+    map = bg->start + (eff_off % MAX_BLOCK_GROUP_SIZE);
+    count = *map;
+    spin_unlock(&bg->lock);
+
+    return count;
 }
 
 void swap_unset_swapcache(swp_entry_t swp)
@@ -565,6 +581,8 @@ void swap_inc_map(struct page *page)
     __swap_inc_map(swpval_to_swp_entry(page->priv));
 }
 
+void dump_page(struct page *page);
+
 static int swap_add_to_swapcache(struct page *page)
 {
     struct page *result;
@@ -583,7 +601,13 @@ static int swap_add_to_swapcache(struct page *page)
 
     /* WARN if a page was stale in the swap cache */
     if (WARN_ON(result != page))
+    {
+        pr_warn("swap: swap space %lu had a stale swapcache entry at %lx (%p vs %p)\n",
+                SWP_TYPE(entry), SWP_OFFSET(entry), result, page);
+        dump_page(result);
+        pr_warn("swap: swap map entry %hhx\n", swap_get_map(entry));
         return -EINVAL;
+    }
     return 0;
 }
 
@@ -611,6 +635,7 @@ int swap_add(struct page *page)
     if (err)
     {
         swap_put_page(page);
+        page_clear_swap(page);
         return err;
     }
 
