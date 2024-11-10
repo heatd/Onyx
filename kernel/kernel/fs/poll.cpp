@@ -23,6 +23,7 @@ void poll_file_entry::wait_on()
     wait_token.thread = get_current_thread();
     wait_token.context = f;
     wait_token.callback = wake_callback;
+    wait_token.flags = WQ_TOKEN_NO_DEQUEUE;
     wait_queue_add(queue, &wait_token);
 }
 
@@ -49,7 +50,7 @@ void poll_file::wait(wait_queue *queue)
     file->wait_on();
 }
 
-sleep_result poll_table::sleep_poll(hrtime_t timeout, bool timeout_valid) const
+sleep_result poll_table::sleep_poll(hrtime_t timeout, bool timeout_valid)
 {
     if (timeout == 0 && timeout_valid)
         return sleep_result::timeout;
@@ -75,7 +76,7 @@ sleep_result poll_table::sleep_poll(hrtime_t timeout, bool timeout_valid) const
     else
         sched_sleep(timeout);
 
-    if (signaled)
+    if (was_signaled())
         return sleep_result::woken_up;
     else if (signal_is_pending())
         return sleep_result::signal;
