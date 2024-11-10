@@ -112,8 +112,10 @@ int tmpfs_unlink(const char *name, int flags, struct dentry *dir)
             return -ENOTEMPTY;
     }
 
+    /* One ref for its tmpfs existence, one ref for dentry_lookup_internal */
+    DCHECK(READ_ONCE(child->d_ref) >= 2);
     dput(child);
-
+    dput(child);
     return 0;
 }
 
