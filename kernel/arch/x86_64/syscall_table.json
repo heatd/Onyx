@@ -2839,5 +2839,26 @@
             ]
         ],
         "return_type": "int"
+    },
+    {
+        "name": "madvise",
+        "nr": 160,
+        "nr_args": 3,
+        "args": [
+            [
+                "void *",
+                "addr"
+            ],
+            [
+                "size_t",
+                "length"
+            ],
+            [
+                "int",
+                "advice"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
     }
 ]
