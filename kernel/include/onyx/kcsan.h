@@ -46,6 +46,25 @@ void __kcsan_check_access(const volatile void *ptr, size_t size, int type);
 #define __KCSAN_BARRIER_TO_SIGNAL_FENCE_rmb     __ATOMIC_ACQUIRE
 #define __KCSAN_BARRIER_TO_SIGNAL_FENCE_release __ATOMIC_RELEASE
 
+struct kcsan_scoped_access
+{
+    union {
+        struct list_head list; /* scoped_accesses list */
+        /*
+         * Not an entry in scoped_accesses list; stack depth from where
+         * the access was initialized.
+         */
+        int stack_depth;
+    };
+
+    /* Access information. */
+    const volatile void *ptr;
+    size_t size;
+    int type;
+    /* Location where scoped access was set up. */
+    unsigned long ip;
+};
+
 struct kcsan_ctx
 {
     int disable_count;  /* disable counter */
@@ -79,7 +98,7 @@ struct kcsan_ctx
 
     /* List of scoped accesses; likely to be empty. */
     struct list_head scoped_accesses;
-
+#define CONFIG_KCSAN_WEAK_MEMORY 1
 #ifdef CONFIG_KCSAN_WEAK_MEMORY
     /*
      * Scoped access for modeling access reordering to detect missing memory

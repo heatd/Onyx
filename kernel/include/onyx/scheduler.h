@@ -87,6 +87,7 @@ typedef struct thread
 #endif
 #ifdef CONFIG_KCSAN
     struct kcsan_ctx kcsan_ctx;
+    int kcsan_stack_depth;
 #endif
     /* And arch dependent stuff in this ifdef */
 #ifdef __x86_64__
@@ -107,6 +108,9 @@ typedef struct thread
           fs{}, gs{}
 #endif
     {
+#ifdef CONFIG_KCSAN
+        kcsan_stack_depth = 0;
+#endif
     }
 
     /**
