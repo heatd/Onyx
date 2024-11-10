@@ -225,24 +225,6 @@ __always_inline struct kcsan_ctx *get_ctx(void)
 __always_inline void
 check_access(const volatile void *ptr, size_t size, int type, unsigned long ip);
 
-struct kcsan_scoped_access {
-	union {
-		struct list_head list; /* scoped_accesses list */
-		/*
-		 * Not an entry in scoped_accesses list; stack depth from where
-		 * the access was initialized.
-		 */
-		int stack_depth;
-	};
-
-	/* Access information. */
-	const volatile void *ptr;
-	size_t size;
-	int type;
-	/* Location where scoped access was set up. */
-	unsigned long ip;
-};
-
 /* Check scoped accesses; never inline because this is a slow-path! */
 static noinline void kcsan_check_scoped_accesses(void)
 {
@@ -417,7 +399,7 @@ void kcsan_restore_irqtrace(struct task_struct *task)
 __always_inline int get_kcsan_stack_depth(void)
 {
 #if CONFIG_KCSAN_WEAK_MEMORY
-	return current->kcsan_stack_depth;
+	return get_current_thread() ? get_current_thread()->kcsan_stack_depth : 0;
 #else
 	BUILD_BUG();
 	return 0;
@@ -427,7 +409,8 @@ __always_inline int get_kcsan_stack_depth(void)
 __always_inline void add_kcsan_stack_depth(int val)
 {
 #if CONFIG_KCSAN_WEAK_MEMORY
-	current->kcsan_stack_depth += val;
+	if (get_current_thread())
+		get_current_thread()->kcsan_stack_depth += val;
 #else
 	BUILD_BUG();
 #endif
