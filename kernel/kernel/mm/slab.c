@@ -124,7 +124,7 @@ struct slab_cache *kmem_cache_create(const char *name, size_t size, size_t align
 #else
     c->redzone = 0;
 #endif
-    c->flags = flags | KMEM_CACHE_VMALLOC;
+    c->flags = flags;
     c->bufctl_off = 0;
 
     // Minimum object alignment is 16
@@ -529,6 +529,7 @@ NO_ASAN static struct slab *kmem_cache_create_slab(struct slab_cache *cache, uns
         asan_poison_shadow((unsigned long) ptr, redzone, KASAN_LEFT_REDZONE);
 #endif
         ptr += redzone;
+        CHECK(((unsigned long) ptr % cache->alignment) == 0);
         if (cache->ctor)
             cache->ctor(ptr);
         struct bufctl *ctl = (struct bufctl *) (ptr + cache->bufctl_off);
@@ -1540,8 +1541,8 @@ void kmalloc_init()
     {
         // We start at 16 bytes
         size_t size = 1UL << (4 + i);
-        unsigned int flags = KMEM_CACHE_VMALLOC;
-#if 0
+        unsigned int flags = 0;
+#if 1
         // TODO: Toggling VMALLOC only for larger sizes is not working well...
         // at least for will-it-scale/page_fault1, it results in major performance regressions.
         // Is this a TLB issue? Maybe?
