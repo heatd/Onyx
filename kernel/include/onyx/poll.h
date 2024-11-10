@@ -232,7 +232,7 @@ public:
 
     void signal()
     {
-        signaled = true;
+        WRITE_ONCE(signaled, true);
     }
 
     bool may_queue() const
@@ -245,13 +245,16 @@ public:
         is_queueing = false;
     }
 
-    bool was_signaled() const
+    bool was_signaled()
     {
-        return signaled;
+        bool res = READ_ONCE(signaled);
+        if (res)
+            WRITE_ONCE(signaled, false);
+        return res;
     }
 
     /* timeout in ms - negative means infinite, 0 means don't sleep */
-    sleep_result sleep_poll(hrtime_t timeout, bool timeout_valid) const;
+    sleep_result sleep_poll(hrtime_t timeout, bool timeout_valid);
 };
 
 void poll_wait_helper(void *poll_file, struct wait_queue *q);
