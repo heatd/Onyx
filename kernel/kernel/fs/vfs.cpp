@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -31,6 +31,8 @@
 #include <onyx/sysfs.h>
 #include <onyx/vfs.h>
 #include <onyx/vm.h>
+
+#include <uapi/ioctls.h>
 
 struct file *fs_root = nullptr;
 struct file *mount_list = nullptr;
@@ -357,10 +359,27 @@ ssize_t read_vfs(size_t offset, size_t len, void *buffer, struct file *file)
     return read_iter_vfs(file, offset, &iter, 0);
 }
 
-int ioctl_vfs(int request, char *argp, struct file *this_)
+int ioctl_vfs(int request, char *argp, struct file *file)
 {
-    if (this_->f_ino->i_fops->ioctl != nullptr)
-        return this_->f_ino->i_fops->ioctl(request, (void *) argp, this_);
+    switch (request)
+    {
+        case FIONBIO: {
+            int on;
+
+            if (copy_from_user(&on, argp, sizeof(on)) < 0)
+                return -EFAULT;
+
+            if (on)
+                file->f_flags |= O_NONBLOCK;
+            else
+                file->f_flags &= ~O_NONBLOCK;
+
+            return 0;
+        }
+    }
+
+    if (file->f_ino->i_fops->ioctl != nullptr)
+        return file->f_ino->i_fops->ioctl(request, (void *) argp, file);
     return -ENOTTY;
 }
 
