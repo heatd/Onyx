@@ -340,20 +340,6 @@ unsigned int socket_ioctl(int request, void *argp, struct file *file)
 {
     switch (request)
     {
-        case FIONBIO: {
-            int on;
-
-            if (copy_from_user(&on, argp, sizeof(on)) < 0)
-                return -EFAULT;
-
-            if (on)
-                file->f_flags |= O_NONBLOCK;
-            else
-                file->f_flags &= ~O_NONBLOCK;
-
-            return 0;
-        }
-
 #ifdef CONFIG_NET
         case SIOCGIFNAME: {
             return do_siocgifname((struct ifreq *) argp);
