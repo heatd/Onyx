@@ -1767,7 +1767,6 @@ void slab_shrink_caches(unsigned long target_freep)
     struct slab_rendezvous rndvz;
     sched_disable_preempt();
     kmem_slab_freeze_start(&rndvz);
-    sched_enable_preempt();
 
     list_for_every (&cache_list)
     {
@@ -1783,6 +1782,7 @@ void slab_shrink_caches(unsigned long target_freep)
     }
 
     kmem_slab_freeze_end(&rndvz);
+    sched_enable_preempt();
 
     list_for_every (&cache_list)
     {
