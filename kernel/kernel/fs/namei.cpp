@@ -159,9 +159,7 @@ static int dentry_follow_symlink(nameidata &data, dentry *symlink, unsigned int 
 
     auto target_str = readlink_vfs(&f);
     if (!target_str)
-    {
         return -errno;
-    }
 
     /* Empty symlinks = -ENOENT. See nameitests for more info. */
     if (target_str[0] == '\0')
@@ -324,9 +322,9 @@ static int namei_resolve_path(nameidata &data)
     {
 #define NAMEI_DEBUG 0
 #if NAMEI_DEBUG
-        printk("pdepth %d %s %s\n", data.pdepth, data.paths[data.pdepth].view.data(),
-               data.paths[data.pdepth].token_type == fs_token_type::LAST_NAME_IN_PATH ? "last"
-                                                                                      : "regular");
+        pr_info("pdepth %d %s %s\n", data.pdepth, data.paths[data.pdepth].view.data(),
+                data.paths[data.pdepth].token_type == fs_token_type::LAST_NAME_IN_PATH ? "last"
+                                                                                       : "regular");
 #endif
         auto &path = data.paths[data.pdepth];
         if (path.token_type == fs_token_type::LAST_NAME_IN_PATH)
@@ -725,6 +723,13 @@ out:
 
     if (st == 0)
     {
+        bool finished_path = true;
+        for (int i = 0; i < data.pdepth; i++)
+            if (data.paths[i].token_type != fs_token_type::LAST_NAME_IN_PATH)
+                finished_path = false;
+        if (finished_path)
+            return 0;
+
         if (data.pdepth > 0)
         {
             data.pdepth--;
@@ -790,6 +795,7 @@ static int namei_lookup_parentat(int dirfd, const char *name, unsigned int flags
         return st;
 
     DCHECK(!path_is_null(&namedata.cur));
+    DCHECK(namedata.paths[namedata.pdepth].token_type != fs_token_type::LAST_NAME_IN_PATH);
     *outn = namedata.paths[namedata.pdepth];
     *parent = namedata.getcur();
     return 0;
