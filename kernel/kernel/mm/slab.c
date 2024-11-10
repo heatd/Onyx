@@ -19,7 +19,7 @@
 #include <onyx/stackdepot.h>
 #include <onyx/vm.h>
 
-static struct mutex cache_list_lock;
+static DECLARE_MUTEX(cache_list_lock);
 static struct list_head cache_list GUARDED_BY(cache_list_lock) = LIST_HEAD_INIT(cache_list);
 
 #define KMEM_CACHE_KEEP_THRESHOLD 131072
