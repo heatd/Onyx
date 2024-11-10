@@ -725,11 +725,9 @@ int signal_send_all(int signal, int flags, siginfo_t *info)
 pid::auto_pid process_get_pgrp(process *p)
 {
     scoped_lock g{p->pgrp_lock};
-
     auto pg = p->process_group;
-
+    CHECK(pg.get() != nullptr);
     pg->ref();
-
     return pg;
 }
 
