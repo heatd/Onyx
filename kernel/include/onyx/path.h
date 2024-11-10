@@ -37,12 +37,12 @@ static inline void path_init(struct path *p)
     p->mount = NULL;
 }
 
-static inline bool path_is_null(struct path *p)
+static inline bool path_is_null(const struct path *p)
 {
     return !p->dentry && !p->mount;
 }
 
-static inline bool path_is_equal(struct path *p1, struct path *p2)
+static inline bool path_is_equal(const struct path *p1, const struct path *p2)
 {
     return p1->mount == p2->mount && p1->dentry == p2->dentry;
 }
