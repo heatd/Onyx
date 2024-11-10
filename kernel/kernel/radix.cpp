@@ -51,7 +51,7 @@ static slab_cache *node_cache;
 __init static void radix_init_slab()
 {
     node_cache = kmem_cache_create("radix_tree_node", sizeof(radix_tree_node), 0,
-                                   KMEM_CACHE_HWALIGN, nullptr);
+                                   KMEM_CACHE_HWALIGN | KMEM_CACHE_VMALLOC, nullptr);
     CHECK(node_cache != nullptr);
 }
 
