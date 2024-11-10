@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2022 Pedro Falcato
+ * Copyright (c) 2019 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -18,6 +18,7 @@
 __BEGIN_CDECLS
 
 void kasan_init();
+void kasan_page_alloc_init();
 int kasan_alloc_shadow(unsigned long addr, size_t size, bool accessible);
 
 void kasan_set_state(unsigned long *ptr, size_t size, int state);

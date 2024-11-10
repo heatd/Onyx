@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2023 Pedro Falcato
+ * Copyright (c) 2019 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -21,6 +21,7 @@
 #include <onyx/page.h>
 #include <onyx/panic.h>
 #include <onyx/percpu.h>
+#include <onyx/pgtable.h>
 #include <onyx/vm.h>
 #include <onyx/vm_layout.h>
 
@@ -704,4 +705,11 @@ size_t kasan_get_redzone_size(size_t objsize)
         return 32;
     else
         return 1024;
+}
+
+void init_shadow_for_phys(unsigned long addr, size_t len);
+
+void kasan_page_alloc_init()
+{
+    for_every_phys_region(init_shadow_for_phys);
 }

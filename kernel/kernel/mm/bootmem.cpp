@@ -24,6 +24,7 @@ struct memory_range
     size_t size;
 };
 
+static unsigned long phys_range_seq = 0;
 memory_range phys_ranges[DEFAULT_NR_MEMORY_RANGES];
 unsigned int nr_phys_ranges = 0;
 
@@ -32,8 +33,14 @@ unsigned int nr_resv_ranges = 0;
 
 void for_every_phys_region(void (*callback)(unsigned long start, size_t size))
 {
+again:
     for (unsigned int i = 0; i < nr_phys_ranges; i++)
+    {
+        unsigned long seq = phys_range_seq;
         callback(phys_ranges[i].start, phys_ranges[i].size);
+        if (phys_range_seq != seq)
+            goto again;
+    }
 }
 
 static void __bootmem_add_range(unsigned long start, size_t size)
@@ -66,6 +73,7 @@ void bootmem_add_range(unsigned long start, size_t size)
 
     // We need to run this because we might already have memory reservations registered
     bootmem_re_reserve_memory();
+    phys_range_seq++;
 }
 
 static void bootmem_remove_range(unsigned int index)
@@ -73,6 +81,7 @@ static void bootmem_remove_range(unsigned int index)
     auto tail_ranges = nr_phys_ranges - index - 1;
     memmove(&phys_ranges[index], &phys_ranges[index + 1], tail_ranges * sizeof(memory_range));
     nr_phys_ranges--;
+    phys_range_seq++;
 }
 
 static void bootmem_add_reserve(unsigned long start, size_t size)
@@ -160,6 +169,7 @@ void bootmem_reserve(unsigned long start, size_t size)
 
     bootmem_add_reserve(start, size);
     bootmem_reserve_memory_ranges(start, size);
+    phys_range_seq++;
 }
 
 void *alloc_boot_page(size_t nr_pages, long flags)
