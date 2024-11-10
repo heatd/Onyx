@@ -803,7 +803,7 @@ static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
          * use __GFP_ATOMIC for the first slab, and anything else is very much extra, thus hardly
          * "__GFP_ATOMIC". */
         flags &= ~__GFP_ATOMIC;
-        flags |= __GFP_NOWAIT;
+        flags |= __GFP_NOWAIT | __GFP_NOWARN;
         list_add_tail(&s->slab_list_node, &allocated_slabs);
     }
 
