@@ -41,10 +41,16 @@ struct tty;
 
 struct color
 {
-    uint8_t r;
-    uint8_t g;
-    uint8_t b;
-    uint8_t a;
+    union {
+        struct
+        {
+            uint8_t r;
+            uint8_t g;
+            uint8_t b;
+            uint8_t a;
+        };
+        u32 rgba;
+    };
 };
 
 static struct color default_fg = {204, 204, 204};
@@ -77,25 +83,25 @@ const struct color bright_color_table[] = {
 
 struct console_cell
 {
-    uint32_t codepoint;
+    uint32_t codepoint : 31;
+    u32 dirty : 1;
     struct color bg;
     struct color fg;
-    uint32_t flags;
 };
 
 static inline void vterm_set_dirty(struct console_cell *c)
 {
-    c->flags |= VTERM_CONSOLE_CELL_DIRTY;
+    c->dirty = VTERM_CONSOLE_CELL_DIRTY;
 }
 
 static inline void vterm_clear_dirty(struct console_cell *c)
 {
-    c->flags &= ~VTERM_CONSOLE_CELL_DIRTY;
+    c->dirty &= ~VTERM_CONSOLE_CELL_DIRTY;
 }
 
 static inline bool vterm_is_dirty(struct console_cell *c)
 {
-    return c->flags & VTERM_CONSOLE_CELL_DIRTY;
+    return c->dirty;
 }
 
 #define VTERM_MESSAGE_FLUSH     1
@@ -367,7 +373,7 @@ void vterm_flush_all(struct vterm *vterm)
 
 static inline bool same_colour(const struct color *c1, const struct color *c2)
 {
-    return c1->a == c2->a && c1->r == c2->r && c1->g == c2->g && c1->b == c2->b;
+    return c1->rgba == c2->rgba;
 }
 
 static void vterm_clear_range(struct vterm *vt, unsigned int start_x, unsigned int start_y,
@@ -950,8 +956,8 @@ void vterm_ansi_do_sgr(unsigned long n, struct vterm *vt)
         }
 
         case ANSI_SGR_BLINKOFF: {
-            if (vt->blink_thread)
-                thread_destroy(vt->blink_thread);
+            // if (vt->blink_thread)
+            //     thread_destroy(vt->blink_thread);
             break;
         }
 
@@ -1148,8 +1154,8 @@ void vterm::do_generic_escape(char escape)
         }
 
         case ')': {
-            /* TODO: Do properly. This is quite awkward to do because parsing ESC ( 0 isn't trivial
-             * since all other ESC's don't take any sort of arguments. */
+            /* TODO: Do properly. This is quite awkward to do because parsing ESC ( 0 isn't
+             * trivial since all other ESC's don't take any sort of arguments. */
             gx[1] = Gx_GRAPH;
             break;
         }
