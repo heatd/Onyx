@@ -99,13 +99,15 @@ void sync_call_cntrlblk::complete(unsigned int cpu)
 #ifdef DEBUG_SMP_SYNC_CALL
     mask.remove_cpu_atomic(cpu);
 #endif
-    waiting_for_completion--;
 
-    if (flags & SYNC_CALL_NOWAIT && waiting_for_completion.load(mem_order::acquire) == 0)
+    if (flags & SYNC_CALL_NOWAIT && waiting_for_completion.sub_fetch(1, mem_order::seq_cst) == 0)
     {
         // Free the control block, no one is waiting for us
         ctlblk_pool.free(this);
+        return;
     }
+
+    waiting_for_completion--;
 }
 
 void sync_call_cntrlblk::wait(sync_call_func local, void *context)
