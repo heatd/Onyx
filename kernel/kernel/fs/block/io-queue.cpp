@@ -115,7 +115,7 @@ void io_queue::__restart_queue()
 void io_queue::submit_batch(struct list_head *req_list, u32 nr_reqs)
 {
     scoped_lock<spinlock, true> g{lock_};
-    list_splice_tail(req_list, &req_list_);
+    list_splice_tail_init(req_list, &req_list_);
     if (nr_entries_ - used_entries_ > 0)
         __restart_queue();
 }
