@@ -535,6 +535,15 @@ static inline uint64_t get_kernel_phys_offset()
 unsigned long pages_under_high_watermark();
 
 /**
+ * @brief Calculate a free page target (for reclaim)
+ *
+ * @param gfp GFP used for the failed allocation/reclaim
+ * @param order Order allocation that failed
+ * @return Free page target. If 0, probably shouldn't reclaim.
+ */
+unsigned long page_reclaim_target(gfp_t gfp, unsigned int order);
+
+/**
  * @brief Drain pages from all zones' pcpu caches
  *
  */
