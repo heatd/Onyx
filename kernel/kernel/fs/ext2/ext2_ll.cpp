@@ -13,6 +13,7 @@
 #include <onyx/dentry.h>
 #include <onyx/dev.h>
 #include <onyx/log.h>
+#include <onyx/mm/slab.h>
 #include <onyx/pagecache.h>
 #include <onyx/panic.h>
 #include <onyx/types.h>
@@ -204,9 +205,9 @@ int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *ino, i
                       ext2_superblock *fs)
 {
     uint8_t *buffer;
-    uint8_t *buf = buffer = (uint8_t *) zalloc(fs->block_size);
+    uint8_t *buf = buffer = (uint8_t *) kcalloc(fs->block_size, 1, GFP_NOFS);
     if (!buf)
-        return errno = ENOMEM, -1;
+        return -ENOMEM;
 
     if (inum == 0)
         panic("Bad inode number passed to ext2_add_direntry");
@@ -343,7 +344,7 @@ int ext2_remove_direntry(uint32_t inum, struct inode *dir, struct ext2_superbloc
 {
     int st = -ENOENT;
     uint8_t *buf_start;
-    uint8_t *buf = buf_start = (uint8_t *) zalloc(fs->block_size);
+    uint8_t *buf = buf_start = (uint8_t *) kcalloc(fs->block_size, 1, GFP_NOFS);
     if (!buf)
         return errno = ENOMEM, -1;
 
@@ -411,7 +412,7 @@ int ext2_retrieve_dirent(inode *inode, const char *name, ext2_superblock *fs,
                          ext2_dirent_result *res)
 {
     int st = -ENOENT;
-    char *buf = static_cast<char *>(zalloc(fs->block_size));
+    char *buf = static_cast<char *>(kcalloc(fs->block_size, 1, GFP_NOFS));
     if (!buf)
         return -ENOMEM;
 
@@ -549,7 +550,7 @@ int ext2_dir_empty(struct inode *ino)
     struct ext2_superblock *fs = ext2_superblock_from_inode(ino);
 
     int st = 1;
-    char *buf = (char *) zalloc(fs->block_size);
+    char *buf = (char *) kcalloc(fs->block_size, 1, GFP_NOFS);
     if (!buf)
         return -ENOMEM;
 

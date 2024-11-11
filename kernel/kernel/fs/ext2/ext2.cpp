@@ -580,8 +580,7 @@ struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct 
     if (int st = ext2_add_direntry(name, inumber, inode, vfs_ino, fs); st < 0)
     {
         thread_change_addr_limit(old);
-        printk("ext2 error %d\n", st);
-        errno = EINVAL;
+        errno = -st;
         goto free_ino_error;
     }
 
