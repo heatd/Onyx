@@ -206,6 +206,12 @@ static inline void list_splice_tail(struct list_head *src, struct list_head *dst
         list_splice_internal(src, dst->prev, dst);
 }
 
+static inline void list_splice_tail_init(struct list_head *src, struct list_head *dst)
+{
+    list_splice_tail(src, dst);
+    INIT_LIST_HEAD(src);
+}
+
 static inline int list_is_head(const struct list_head *list, const struct list_head *head)
 {
     return list == head;
