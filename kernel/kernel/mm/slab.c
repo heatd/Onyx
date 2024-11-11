@@ -496,7 +496,7 @@ NO_ASAN static struct slab *kmem_cache_create_slab(struct slab_cache *cache, uns
     {
         unsigned int order = pages2order(slab_size >> PAGE_SHIFT);
         slab_size = 1UL << (order + PAGE_SHIFT);
-        pages = alloc_pages(order, PAGE_ALLOC_NO_ZERO | PAGE_ALLOC_CONTIGUOUS);
+        pages = alloc_pages(order, flags | PAGE_ALLOC_NO_ZERO | PAGE_ALLOC_CONTIGUOUS);
         if (!pages)
             return NULL;
         start = (char *) PAGE_TO_VIRT(pages);
