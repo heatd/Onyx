@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2023 Pedro Falcato
+ * Copyright (c) 2017 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -39,7 +39,7 @@
  *
  * @return Pointer to struct fd_table, or nullptr
  */
-fd_table *fdtable_alloc();
+static fd_table *fdtable_alloc();
 
 /**
  * @brief Free a struct fd_table
@@ -364,38 +364,65 @@ struct file *get_file_description(int fd)
     return __get_file_description(fd, get_current_process());
 }
 
+static int dup_fdtable(struct ioctx *ctx, struct fd_table *table)
+{
+    struct fd_table *oldt = ctx->table;
+    unsigned int nr_fds = oldt->file_desc_entries;
+
+    /* Release the ioctx lock, required for the next few allocations */
+    spin_unlock(&ctx->fdlock);
+
+    table->file_desc = (file **) kmalloc(nr_fds * sizeof(void *), GFP_KERNEL);
+    table->file_desc_entries = nr_fds;
+    if (!table->file_desc)
+        return -ENOMEM;
+
+    table->cloexec_fds = (unsigned long *) kmalloc(nr_fds / 8, GFP_KERNEL);
+    if (!table->cloexec_fds)
+    {
+        kfree(table->file_desc);
+        return -ENOMEM;
+    }
+
+    table->open_fds = (unsigned long *) kmalloc(nr_fds / 8, GFP_KERNEL);
+    if (!table->open_fds)
+    {
+        kfree(table->file_desc);
+        kfree(table->cloexec_fds);
+        return -ENOMEM;
+    }
+
+    spin_lock(&ctx->fdlock);
+    return 0;
+}
+
 int copy_file_descriptors(struct process *process, struct ioctx *ctx)
 {
-    fd_table *table = fdtable_alloc();
+    int err;
+    struct fd_table *oldt;
+    struct fd_table *table = fdtable_alloc();
     if (!table)
         return -ENOMEM;
 
-    scoped_lock g{ctx->fdlock};
+    spin_lock(&ctx->fdlock);
 
-    fd_table *oldt = ctx->table;
-
-    table->file_desc = (file **) malloc(oldt->file_desc_entries * sizeof(void *));
-    table->file_desc_entries = oldt->file_desc_entries;
-    if (!table->file_desc)
+    for (;;)
     {
-        return -ENOMEM;
+        err = dup_fdtable(ctx, table);
+        /* dup_fdtable drops the lock and doesn't re-lock on error */
+        if (err)
+            return err;
+        if (table->file_desc_entries >= ctx->table->file_desc_entries)
+            break;
+
+        /* Need to re-alloc everything, so free the old data */
+        kfree(table->cloexec_fds);
+        kfree(table->file_desc);
+        kfree(table->open_fds);
+        table->file_desc_entries = 0;
     }
 
-    table->cloexec_fds = (unsigned long *) malloc(table->file_desc_entries / 8);
-    if (!table->cloexec_fds)
-    {
-        free(table->file_desc);
-        return -ENOMEM;
-    }
-
-    table->open_fds = (unsigned long *) malloc(table->file_desc_entries / 8);
-    if (!table->open_fds)
-    {
-        free(table->file_desc);
-        free(table->cloexec_fds);
-        return -ENOMEM;
-    }
-
+    oldt = ctx->table;
     memcpy(table->cloexec_fds, oldt->cloexec_fds, table->file_desc_entries / 8);
     memcpy(table->open_fds, oldt->open_fds, table->file_desc_entries / 8);
 
@@ -406,8 +433,8 @@ int copy_file_descriptors(struct process *process, struct ioctx *ctx)
             fd_get(table->file_desc[i]);
     }
 
+    spin_unlock(&ctx->fdlock);
     rcu_assign_pointer(process->ctx.table, table);
-
     return 0;
 }
 
@@ -417,20 +444,20 @@ int allocate_file_descriptor_table(struct process *process)
     if (!table)
         return -ENOMEM;
 
-    table->file_desc = (file **) zalloc(FILE_DESCRIPTOR_GROW_NR * sizeof(void *));
+    table->file_desc = (file **) kcalloc(FILE_DESCRIPTOR_GROW_NR, sizeof(void *), GFP_KERNEL);
     if (!table->file_desc)
         return -ENOMEM;
 
     table->file_desc_entries = FILE_DESCRIPTOR_GROW_NR;
 
-    table->cloexec_fds = (unsigned long *) zalloc(FILE_DESCRIPTOR_GROW_NR / 8);
+    table->cloexec_fds = (unsigned long *) kcalloc(FILE_DESCRIPTOR_GROW_NR / 8, 1, GFP_KERNEL);
     if (!table->cloexec_fds)
     {
         free(table->file_desc);
         return -ENOMEM;
     }
 
-    table->open_fds = (unsigned long *) zalloc(FILE_DESCRIPTOR_GROW_NR / 8);
+    table->open_fds = (unsigned long *) kcalloc(FILE_DESCRIPTOR_GROW_NR / 8, 1, GFP_KERNEL);
     if (!table->open_fds)
     {
         free(table->file_desc);
@@ -457,32 +484,43 @@ static void defer_free_fd_table_rcu(fd_table *table_)
 #define FD_ENTRIES_TO_FDSET_SIZE(x) ((x) / 8)
 
 /* Enlarges the file descriptor table by FILE_DESCRIPTOR_GROW_NR(64) entries */
-int enlarge_file_descriptor_table(struct process *process, unsigned int new_size)
+static int enlarge_fdtable(struct process *process, unsigned int new_size)
 {
+    int err = -ENOMEM;
     struct fd_table *oldt = process->ctx.table;
-    fd_table *table = fdtable_alloc();
-    if (!table)
-        return -ENOMEM;
-
     unsigned int old_nr_fds = oldt->file_desc_entries;
+    struct fd_table *table = nullptr;
+    struct file **ftable = nullptr;
+    unsigned long *cloexec_fds = nullptr;
+    unsigned long *open_fds = nullptr;
 
     new_size = ALIGN_TO(new_size, FILE_DESCRIPTOR_GROW_NR);
-
     if (new_size > INT_MAX || new_size >= process->get_rlimit(RLIMIT_NOFILE).rlim_cur)
-    {
-        fdtable_free(table);
         return -EMFILE;
-    }
 
-    unsigned int new_nr_fds = new_size;
+    /* Can't allocate with the fdlock held... */
+    spin_unlock(&process->ctx.fdlock);
 
-    struct file **ftable = (file **) zalloc(new_nr_fds * sizeof(void *));
-    unsigned long *cloexec_fds = (unsigned long *) zalloc(FD_ENTRIES_TO_FDSET_SIZE(new_nr_fds));
-    /* We use zalloc here to implicitly zero free fds */
-    unsigned long *open_fds = (unsigned long *) zalloc(FD_ENTRIES_TO_FDSET_SIZE(new_nr_fds));
+    table = fdtable_alloc();
+    if (!table)
+        goto error;
+
+    ftable = (struct file **) kcalloc(new_size, sizeof(void *), GFP_KERNEL);
+    cloexec_fds = (unsigned long *) kcalloc(FD_ENTRIES_TO_FDSET_SIZE(new_size), 1, GFP_KERNEL);
+    /* We use kcalloc here to implicitly zero free fds */
+    open_fds = (unsigned long *) kcalloc(FD_ENTRIES_TO_FDSET_SIZE(new_size), 1, GFP_KERNEL);
     if (!ftable || !cloexec_fds || !open_fds)
         goto error;
 
+    spin_lock(&process->ctx.fdlock);
+    if (process->ctx.table != oldt)
+    {
+        /* Someone changed the fd table while we were gone, retry */
+        err = -EAGAIN;
+        goto error_nolock;
+    }
+
+    DCHECK(process->ctx.table->file_desc_entries == old_nr_fds);
     /* Note that we use old_nr_fds for these copies specifically as to not go
      * out of bounds.
      */
@@ -490,7 +528,7 @@ int enlarge_file_descriptor_table(struct process *process, unsigned int new_size
     memcpy(cloexec_fds, oldt->cloexec_fds, FD_ENTRIES_TO_FDSET_SIZE(old_nr_fds));
     memcpy(open_fds, oldt->open_fds, FD_ENTRIES_TO_FDSET_SIZE(old_nr_fds));
 
-    table->file_desc_entries = new_nr_fds;
+    table->file_desc_entries = new_size;
     rcu_assign_pointer(table->file_desc, ftable);
     rcu_assign_pointer(table->cloexec_fds, cloexec_fds);
     rcu_assign_pointer(table->open_fds, open_fds);
@@ -501,13 +539,15 @@ int enlarge_file_descriptor_table(struct process *process, unsigned int new_size
     return 0;
 
 error:
+    spin_lock(&process->ctx.fdlock);
+error_nolock:
     if (table)
         fdtable_free(table);
     free(ftable);
     free(cloexec_fds);
     free(open_fds);
 
-    return -ENOMEM;
+    return err;
 }
 
 void process_destroy_file_descriptors(process *process)
@@ -580,8 +620,10 @@ int alloc_fd(int fdbase)
 
         /* TODO: Make it so we can enlarge it directly to the size we want */
         int new_entries = table->file_desc_entries + FILE_DESCRIPTOR_GROW_NR;
-        if (int st = enlarge_file_descriptor_table(current, new_entries); st < 0)
+        if (int st = enlarge_fdtable(current, new_entries); st < 0)
         {
+            if (st == -EAGAIN)
+                continue;
             return st;
         }
     }
@@ -870,6 +912,7 @@ int sys_dup23_internal(int oldfd, int newfd, int dupflags, unsigned int flags)
     // printk("pid %d oldfd %d newfd %d\n", get_current_process()->pid, oldfd, newfd);
     struct process *current = get_current_process();
     struct ioctx *ioctx = &current->ctx;
+    struct fd_table *table;
 
     if (newfd < 0 || oldfd < 0)
         return -EBADF;
@@ -884,19 +927,28 @@ int sys_dup23_internal(int oldfd, int newfd, int dupflags, unsigned int flags)
 
     scoped_lock g{ioctx->fdlock};
 
+retry:
+    table = rcu_dereference(ioctx->table);
     if ((unsigned int) newfd >= ioctx->table->file_desc_entries)
     {
-        int st = enlarge_file_descriptor_table(current, (unsigned int) newfd + 1);
+        int st = enlarge_fdtable(current, (unsigned int) newfd + 1);
         if (st < 0)
         {
+            if (st == -EAGAIN)
+            {
+                /* EAGAIN = someone touched the fd table while allocating, retry */
+                goto retry;
+            }
+
             // open() expects EMFILE, dup2/3 expects EBADF
             if (st == -EMFILE)
                 st = -EBADF;
             return st;
         }
+
+        table = rcu_dereference(ioctx->table);
     }
 
-    fd_table *table = rcu_dereference(ioctx->table);
     if (oldfd == newfd)
         return flags & DUP23_DUP3 ? -EINVAL : oldfd;
 
@@ -2112,9 +2164,9 @@ void file_free(struct file *file)
  *
  * @return Pointer to struct fd_table, or nullptr
  */
-fd_table *fdtable_alloc()
+static fd_table *fdtable_alloc()
 {
-    auto table = (fd_table *) kmem_cache_alloc(fdtable_cache, 0);
+    auto table = (fd_table *) kmem_cache_alloc(fdtable_cache, GFP_KERNEL);
     if (table)
         memset(table, 0, sizeof(*table));
     return table;
