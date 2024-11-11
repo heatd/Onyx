@@ -177,17 +177,14 @@ inode *ext2_symlink(struct dentry *dentry, const char *dest, struct dentry *dir)
 
     if (auto st = ext2_set_symlink(ino, dest); st < 0)
     {
-        pr_err("set symlink err %d\n", st);
         errno = -st;
         goto free_ino_error;
     }
 
-    pr_info("creating symlink %s (len %zu)\n", dentry->d_name, dentry->d_name_length);
     if (int st = ext2_add_direntry(dentry->d_name, inumber, inode, vfs_ino, fs); st < 0)
     {
         thread_change_addr_limit(old);
-        printk("ext2 error %d\n", st);
-        errno = EINVAL;
+        errno = -st;
         goto free_ino_error;
     }
 
