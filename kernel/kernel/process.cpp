@@ -173,10 +173,11 @@ process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *p
         assert(process_ids != nullptr);
     }
 
-    auto p = make_unique<process>();
+    unique_ptr<process> p{(struct process *) kmalloc(sizeof(struct process), GFP_KERNEL)};
     if (!p)
         return errno = ENOMEM, nullptr;
 
+    new (p.get()) process;
     auto proc = p.get();
 
     /* TODO: idm_get_id doesn't wrap? POSIX COMPLIANCE */
