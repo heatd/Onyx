@@ -606,6 +606,13 @@ static void shrink_page_zones(struct reclaim_data *data, struct page_node *node)
         if (freep <= zone->low_watermark)
             target = zone->high_watermark - freep;
 
+        /* This logic is weird and leaky (we don't get nearly as many details from
+         * page_reclaim_target as we'd wish), but it should do the job. Get 1.5 * max(order, 3)% of
+         * the zone free.
+         */
+        if (target == 0 && data->failed_order > 0)
+            target = (zone->total_pages / 66) * max(data->failed_order, 3);
+
         if (target == 0)
             continue;
 
@@ -627,7 +634,7 @@ int page_do_reclaim(struct reclaim_data *data)
     int max_tries = data->attempt > 0 ? 5 : 3;
     int nr_tries = 0;
 
-    while ((free_target = pages_under_high_watermark()) > 0)
+    while ((free_target = page_reclaim_target(data->gfp_flags, data->failed_order)) > 0)
     {
         if (nr_tries == max_tries)
             return -1;

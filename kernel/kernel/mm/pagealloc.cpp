@@ -316,6 +316,40 @@ struct page *page_zone_alloc(struct page_zone *zone, unsigned int gfp_flags, uns
     return page_zone_alloc_core(zone, gfp_flags, order);
 }
 
+static bool page_zone_may_alloc(struct page_zone *zone, gfp_t gfp, unsigned int order)
+{
+    bool may = false;
+    unsigned long flags = spin_lock_irqsave(&zone->lock);
+    bool may_use_reserves = gfp & __GFP_ATOMIC;
+    unsigned long free_pages = zone->total_pages - zone->used_pages;
+
+    if (free_pages < (1UL << order))
+        goto out;
+
+    if (!may_use_reserves && zone->min_watermark > free_pages - (1UL << order))
+        goto out;
+
+    if (!list_is_empty(&zone->pages[order])) [[likely]]
+    {
+        may = true;
+        goto out;
+    }
+
+    /* Ok, this order has no pages, see if we could split other higher order ones */
+    for (int i = order + 1; i < PAGEALLOC_NR_ORDERS; i++)
+    {
+        if (!list_is_empty(&zone->pages[i]))
+        {
+            may = true;
+            goto out;
+        }
+    }
+
+out:
+    spin_unlock_irqrestore(&zone->lock, flags);
+    return may;
+}
+
 static void page_zone_add(unsigned long start, unsigned int order, struct page_zone *zone)
 {
     scoped_lock g{zone->lock};
@@ -1016,4 +1050,45 @@ void page_accumulate_stats(unsigned long pages[PAGE_STATS_MAX])
 
         return true;
     });
+}
+
+/**
+ * @brief Calculate a free page target (for reclaim)
+ *
+ * @param gfp GFP used for the failed allocation/reclaim
+ * @param order Order allocation that failed
+ * @return Free page target. If 0, probably shouldn't reclaim.
+ */
+unsigned long page_reclaim_target(gfp_t gfp, unsigned int order)
+{
+    bool may = false;
+    unsigned long free_target = pages_under_high_watermark();
+    if (free_target > 0)
+        return free_target;
+
+    /* Everything is over the high watermark. Check if we indeed can accomplish this allocation.
+     * This does a slight emulation of alloc_page logic paths.
+     */
+    int zone = ZONE_NORMAL;
+
+    if (gfp & PAGE_ALLOC_4GB_LIMIT)
+        zone = ZONE_DMA32;
+
+    while (zone >= 0)
+    {
+        may = page_zone_may_alloc(&main_node.zones[zone], gfp, order);
+        if (may)
+            break;
+        zone--;
+    }
+
+    if (may)
+        return 0;
+
+    /* We are above the high watermark, however we can't allocate this order. Start freeing pages,
+     * as a fixed % of total pages, scaled by order (capped to 3). We heuristically pick 1.5% of
+     * total pages.
+     */
+    free_target = (nr_global_pages / 66) * cul::max(order, 3U);
+    return free_target;
 }
