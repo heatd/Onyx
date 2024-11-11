@@ -374,18 +374,19 @@ __always_inline struct page *get_buddy(struct page *page, unsigned int order, pa
 {
     unsigned long pfn = page_to_pfn(page);
     unsigned long pfn2 = pfn ^ (1UL << order);
+    unsigned long addr2 = pfn2 << PAGE_SHIFT;
 
     // Check if we can indeed merge with a buddy. if so
     // 1) the buddy is not past maxpfn (phys_to_page_mayfail)
     // 2) the buddy is free and the same order as us
     // 3) the buddy is in the same zone
 
-    struct page *p = phys_to_page_mayfail(pfn2 << PAGE_SHIFT);
+    struct page *p = phys_to_page_mayfail(addr2);
     if (!p) [[unlikely]]
         return nullptr;
     if (!(p->flags & PAGE_BUDDY) || p->priv != order)
         return nullptr;
-    if (pfn2 < zone->start || pfn2 > zone->end)
+    if (addr2 < zone->start || addr2 > zone->end)
         return nullptr;
     return p;
 }
