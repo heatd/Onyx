@@ -622,6 +622,7 @@ PAGEFLAG_OPS(active, ACTIVE);
 PAGEFLAG_OPS(lru, LRU);
 PAGEFLAG_OPS(uptodate, UPTODATE);
 PAGEFLAG_OPS(dirty, DIRTY);
+PAGEFLAG_OPS(buffer, BUFFER);
 
 struct vm_object *page_vmobj(struct page *page);
 unsigned long page_pgoff(struct page *page);
