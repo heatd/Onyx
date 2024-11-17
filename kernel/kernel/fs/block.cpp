@@ -71,6 +71,18 @@ unsigned int blkdev_ioctl(int request, void *argp, struct file *f)
             return copy_to_user(argp, &d->sector_size, sizeof(unsigned int));
         }
 
+        case BLKFLSBUF: {
+            if (!is_root_user())
+                return -EACCES;
+            /* Synchronize the block device's page cache and truncate all the pages out! */
+            if (int st = filemap_fdatasync(d->b_ino, 0, -1UL); st < 0)
+                return st;
+
+            if (int st = vmo_punch_range(d->b_ino->i_pages, 0, -1UL); st < 0)
+                return st;
+            return 0;
+        }
+
         default:
             return -EINVAL;
     }
