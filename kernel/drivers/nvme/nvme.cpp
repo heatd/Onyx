@@ -974,12 +974,26 @@ int nvme_device::nvme_queue::pull_sq()
         if (!req)
             break;
 
-        if (int st = device_io_submit(req); st < 0)
+        nvmecmd *cmd = &request_to_pdu(req)->cmd;
+        if (int st = prepare_nvme_request(req->r_flags & BIO_REQ_OP_MASK, cmd, req,
+                                          (nvme_namespace *) req->r_bdev->device_info);
+            st < 0)
         {
-            printf("nvme: device_io_submit failed with err %d, unpulling sqe\n", st);
+            pr_err("nvme: prepare_nvme_request failed with err %d, unpulling sqe\n", st);
             unpull_seq(req);
             break;
         }
+
+        int cid = allocate_cid();
+        DCHECK(cid >= 0);
+        DCHECK(((sq_tail_ + 1) % sq_size_) != sq_head_);
+
+        auto next_entry = sq_tail_;
+
+        sq_tail_ = (sq_tail_ + 1) % sq_size_;
+        cmd->cmd.cdw0.cid = cid;
+        queued_commands_[cmd->cmd.cdw0.cid] = cmd;
+        memcpy(&sq_[next_entry], &cmd->cmd, sizeof(nvmesqe));
     }
 
     /* Queue is full, ring the doorbell */
