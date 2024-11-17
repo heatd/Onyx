@@ -28,7 +28,7 @@ jobs:
         
 
       - name: Download the x86_64-onyx-linux toolchain
-        uses: actions/download-artifact@v2.0.8
+        uses: actions/download-artifact@v4
         with:
           # Artifact name
           name: x86_64-onyx-linux
@@ -54,19 +54,19 @@ jobs:
           ./scripts/create_disk_image.sh disk-image.img --bootable efi
 
       - name: Upload a Build Artifact(Onyx.iso)
-        uses: actions/upload-artifact@v2.1.4
+        uses: actions/upload-artifact@v4
         with:
           name: Onyx ISO
           path: Onyx.iso
 
       - name: Upload a Build Artifact(kernel/vmonyx)
-        uses: actions/upload-artifact@v2.1.4
+        uses: actions/upload-artifact@v4
         with:
           name: vmonyx
           path: kernel/vmonyx
 
       - name: Upload a Build Artifact(Disk image)
-        uses: actions/upload-artifact@v2.1.4
+        uses: actions/upload-artifact@v4
         with:
           name: Disk-image.img
           path: disk-image.img
@@ -89,7 +89,7 @@ jobs:
 
       # Runs a single command using the runners shell
       - name: Download the onyx-llvm-linux toolchain
-        uses: actions/download-artifact@v2.0.8
+        uses: actions/download-artifact@v4
         with:
           # Artifact name
           name: onyx-llvm-linux
@@ -115,19 +115,19 @@ jobs:
           ./scripts/create_disk_image.sh disk-image-llvm.img --bootable efi
 
       - name: Upload a Build Artifact(Onyx.iso)
-        uses: actions/upload-artifact@v2.1.4
+        uses: actions/upload-artifact@v4
         with:
           name: Onyx-iso-llvm
           path: Onyx.iso
 
       - name: Upload a Build Artifact(kernel/vmonyx)
-        uses: actions/upload-artifact@v2.1.4
+        uses: actions/upload-artifact@v4
         with:
           name: vmonyx-llvm
           path: kernel/vmonyx
 
       - name: Upload a Build Artifact(disk-image-llvm)
-        uses: actions/upload-artifact@v2.1.4
+        uses: actions/upload-artifact@v4
         with:
           name: Disk-image-llvm.img
           path: disk-image-llvm.img
@@ -147,7 +147,7 @@ jobs:
         
 
       - name: Download the riscv64-onyx-linux toolchain
-        uses: actions/download-artifact@v2.0.8
+        uses: actions/download-artifact@v4
         with:
           # Artifact name
           name: riscv64-onyx-linux
@@ -176,7 +176,7 @@ jobs:
           zstd -T0 -15 riscv64-onyx-image.tar
 
       - name: Upload the riscv64 boot image
-        uses: actions/upload-artifact@v2.1.4
+        uses: actions/upload-artifact@v4
         with:
           name: Onyx boot image (riscv64)
           path: riscv64-onyx-image.tar.zst
@@ -199,7 +199,7 @@ jobs:
 
       # Runs a single command using the runners shell
       - name: Download the onyx-llvm-linux toolchain
-        uses: actions/download-artifact@v2.0.8
+        uses: actions/download-artifact@v4
         with:
           # Artifact name
           name: onyx-llvm-linux
@@ -229,7 +229,7 @@ jobs:
           zstd -T0 -15 riscv64-onyx-image-llvm.tar
 
       - name: Upload the riscv64 boot image (LLVM)
-        uses: actions/upload-artifact@v2.1.4
+        uses: actions/upload-artifact@v4
         with:
           name: Onyx boot image (riscv64) (llvm)
           path: riscv64-onyx-image-llvm.tar.zst
@@ -295,7 +295,7 @@ jobs:
           zstd -T0 -15 minimal-sysroot-${{ matrix.target_arch }}.tar
 
       - name: Upload the minimal sysroot
-        uses: actions/upload-artifact@v2.1.4
+        uses: actions/upload-artifact@v4
         with:
           name: minimal-sysroot-${{ matrix.target_arch }}
           path: minimal-sysroot-${{ matrix.target_arch }}.tar.zst
@@ -322,7 +322,7 @@ jobs:
           submodules: "recursive"
       
       - name: Download the minimal sysroot
-        uses: actions/download-artifact@v2.0.8
+        uses: actions/download-artifact@v4
 
       - name: Extract minimal sysroot
         run: |
@@ -413,7 +413,7 @@ jobs:
           mv ${{ env.toolchain_id_no_os }} toolchain_binaries-${{ matrix.toolchain }}
 
       - name: Upload the toolchain
-        uses: actions/upload-artifact@v2.1.4
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.toolchain_id }}
           path: ${{ env.toolchain_id }}.tar.zst
@@ -434,7 +434,7 @@ jobs:
         
 
       - name: Download the arm64-onyx-linux toolchain
-        uses: actions/download-artifact@v2.0.8
+        uses: actions/download-artifact@v4
         with:
           # Artifact name
           name: arm64-onyx-linux
@@ -463,7 +463,7 @@ jobs:
           zstd -T0 -15 arm64-onyx-image.tar
 
       - name: Upload the arm64 boot image
-        uses: actions/upload-artifact@v2.1.4
+        uses: actions/upload-artifact@v4
         with:
           name: Onyx boot image (arm64)
           path: arm64-onyx-image.tar.zst
@@ -487,7 +487,7 @@ jobs:
 
       # Runs a single command using the runners shell
       - name: Download the onyx-llvm-linux toolchain
-        uses: actions/download-artifact@v2.0.8
+        uses: actions/download-artifact@v4
         with:
           # Artifact name
           name: onyx-llvm-linux
@@ -517,7 +517,7 @@ jobs:
           zstd -T0 -15 arm64-onyx-image-llvm.tar
 
       - name: Upload the arm64 boot image (LLVM)
-        uses: actions/upload-artifact@v2.1.4
+        uses: actions/upload-artifact@v4
         with:
           name: Onyx boot image (arm64) (llvm)
           path: arm64-onyx-image-llvm.tar.zst
@@ -537,7 +537,7 @@ jobs:
         
 
       - name: Download the x86_64-onyx-linux toolchain
-        uses: actions/download-artifact@v2.0.8
+        uses: actions/download-artifact@v4
         with:
           # Artifact name
           name: x86_64-onyx-linux
@@ -582,7 +582,7 @@ jobs:
 
       # Runs a single command using the runners shell
       - name: Download the onyx-llvm-linux toolchain
-        uses: actions/download-artifact@v2.0.8
+        uses: actions/download-artifact@v4
         with:
           # Artifact name
           name: onyx-llvm-linux
@@ -625,7 +625,7 @@ jobs:
         
 
       - name: Download the riscv64-onyx-linux toolchain
-        uses: actions/download-artifact@v2.0.8
+        uses: actions/download-artifact@v4
         with:
           # Artifact name
           name: riscv64-onyx-linux
@@ -669,7 +669,7 @@ jobs:
 
       # Runs a single command using the runners shell
       - name: Download the onyx-llvm-linux toolchain
-        uses: actions/download-artifact@v2.0.8
+        uses: actions/download-artifact@v4
         with:
           # Artifact name
           name: onyx-llvm-linux
