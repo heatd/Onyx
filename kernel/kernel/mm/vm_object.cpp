@@ -240,6 +240,11 @@ static void vm_obj_truncate_out(struct vm_object *obj, struct page *const *batch
         CHECK(pg->owner == obj);
         int st = obj->vm_pages.store(pg->pageoff, 0);
         CHECK(st == 0);
+        /* Once we release this lock, other people trying to get a stable reference to this page
+         * will re-check owner under the page lock. If it observes a pg->owner == original_vmobj,
+         * it'll keep going without realizing this page is being/was truncated. So we need to
+         * WRITE_ONCE pg->owner here. */
+        WRITE_ONCE(pg->owner, nullptr);
     }
 
     spin_unlock(&obj->page_lock);
@@ -570,6 +575,7 @@ bool vm_obj_remove_page(struct vm_object *obj, struct page *page)
     obj->vm_pages.store(page_pgoff(page), 0);
     if (page_test_swap(page))
         swap_unset_swapcache(swpval_to_swp_entry(page->priv));
+    /* We do not need to reset owner here, because we're the only reference */
     ret = true;
 out:
     spin_unlock(&obj->page_lock);
