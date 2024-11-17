@@ -328,6 +328,18 @@ __attribute__((pure)) static inline struct process *get_current_process()
     return (thread == NULL) ? NULL : (struct process *) thread->owner;
 }
 
+static inline mode_t get_current_umask()
+{
+    if (unlikely(!get_current_process()))
+        return 0;
+    return get_current_process()->ctx.umask;
+}
+
+static inline mode_t do_umask(mode_t mode)
+{
+    return mode & ~get_current_umask();
+}
+
 /**
  * @brief Get the number of active processes
  *
