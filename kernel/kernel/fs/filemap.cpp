@@ -394,6 +394,49 @@ ssize_t file_write_cache(void *buffer, size_t len, struct inode *ino, size_t off
     return file_write_cache_unlocked(buffer, len, ino, offset);
 }
 
+static int default_write_begin(struct file *filp, struct vm_object *vm_obj, off_t off, size_t len,
+                               struct page **ppage)
+{
+    struct page *page = nullptr;
+    struct inode *ino = vm_obj->ino;
+    int st = filemap_find_page(filp->f_ino, off >> PAGE_SHIFT, FIND_PAGE_ACTIVATE, &page,
+                               &filp->f_ra_state);
+
+    if (st < 0)
+        return st;
+
+    auto cache_off = off % PAGE_SIZE;
+    size_t aligned_off = off & -PAGE_SIZE;
+    auto rest = PAGE_SIZE - cache_off;
+
+    if (rest > len)
+        rest = len;
+
+    lock_page(page);
+
+    if (st = ino->i_fops->prepare_write(ino, page, aligned_off, cache_off, rest); st < 0)
+    {
+        unlock_page(page);
+        page_unpin(page);
+        return st;
+    }
+
+    *ppage = page;
+    return 0;
+}
+
+static int default_write_end(struct file *file, struct vm_object *vm_obj, off_t offset,
+                             unsigned int written, unsigned int to_write, struct page *page)
+{
+    struct inode *ino = vm_obj->ino;
+    unlock_page(page);
+    page_unref(page);
+
+    if (written > 0 && (size_t) offset + written > ino->i_size && !S_ISBLK(ino->i_mode))
+        inode_set_size(ino, offset + written);
+    return 0;
+}
+
 /**
  * @brief Write to a generic file (using the page cache) using iovec_iter
  *
@@ -406,6 +449,7 @@ ssize_t file_write_cache(void *buffer, size_t len, struct inode *ino, size_t off
 ssize_t filemap_write_iter(struct file *filp, size_t off, iovec_iter *iter, unsigned int flags)
 {
     struct inode *ino = filp->f_ino;
+    struct vm_object *vm_obj = ino->i_pages;
 
     if (filp->f_flags & O_DIRECT)
         return filemap_do_direct(filp, off, iter, DIRECT_IO_WRITE);
@@ -416,48 +460,33 @@ ssize_t filemap_write_iter(struct file *filp, size_t off, iovec_iter *iter, unsi
 
     while (!iter->empty())
     {
-        struct page *page = nullptr;
-        int st2 = filemap_find_page(filp->f_ino, off >> PAGE_SHIFT, FIND_PAGE_ACTIVATE, &page,
-                                    &filp->f_ra_state);
+        int st2;
+        struct page *page;
 
+        st2 = (vm_obj->ops->write_begin ?: default_write_begin)(filp, vm_obj, off, iter->bytes,
+                                                                &page);
         if (st2 < 0)
             return st ?: st2;
+
         void *buffer = PAGE_TO_VIRT(page);
-
-        auto cache_off = off % PAGE_SIZE;
-        size_t aligned_off = off & -PAGE_SIZE;
-        auto rest = PAGE_SIZE - cache_off;
-
-        if (rest > iter->bytes)
-            rest = iter->bytes;
-
-        lock_page(page);
-
-        if (st2 = ino->i_fops->prepare_write(ino, page, aligned_off, cache_off, rest); st2 < 0)
-        {
-            unlock_page(page);
-            page_unpin(page);
-            return st ?: st2;
-        }
-
+        unsigned int page_off = off - (page->pageoff << PAGE_SHIFT);
+        unsigned int len = min(iter->bytes, PAGE_SIZE - page_off);
         /* copy_from_iter advances the iter automatically */
-        ssize_t copied = copy_from_iter(iter, (u8 *) buffer + cache_off, rest);
+        ssize_t copied = copy_from_iter(iter, (u8 *) buffer + page_off, len);
 
         if (copied > 0)
             filemap_mark_dirty(page, off >> PAGE_SHIFT);
 
-        unlock_page(page);
-        page_unpin(page);
-
+        st2 = (vm_obj->ops->write_end ?: default_write_end)(filp, vm_obj, off,
+                                                            copied > 0 ? copied : 0, len, page);
         if (copied <= 0)
             return st ?: copied;
+        if (st2 < 0)
+            return st ?: st2;
 
         /* note: if copied < rest, we either faulted or ran out of len. in any case, it's handled */
         off += copied;
         st += copied;
-
-        if (off > ino->i_size && !S_ISBLK(ino->i_mode))
-            inode_set_size(ino, off);
     }
 
     return st;
