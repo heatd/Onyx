@@ -164,11 +164,10 @@ static ssize_t ext2_writepage(struct vm_object *obj, page *page, size_t off) REQ
         buf = buf->next;
     }
 
-    unlock_page(page);
-
     /* For this to have been a valid dirty page, we must've been able to submit more than 0 ios (a
      * page full of zero blocks cannot be dirty, as prepare_write must be called). */
-    CHECK(nr_ios > 0);
+    CHECK_PAGE(nr_ios > 0, page);
+    unlock_page(page);
 
     return PAGE_SIZE;
 }
