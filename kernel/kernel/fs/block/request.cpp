@@ -280,6 +280,24 @@ bool blk_merge_plug(struct blk_plug *plug, struct bio_req *bio)
     return false;
 }
 
+void blk_request_dump(struct request *req, const char *log_lvl)
+{
+    printk("%srequest %p: flags %x sectors %llu nsectors %llu nr sgls %zu\n", log_lvl, req,
+           req->r_flags, (unsigned long long) req->r_sector, (unsigned long long) req->r_nsectors,
+           req->r_nr_sgls);
+    printk("%s bdev %p queue %p\n", log_lvl, req->r_bdev, req->r_queue);
+
+    for_every_bio(req, [log_lvl](struct bio_req *bio) -> bool {
+        printk("bio flags %x sector %llu b_end_io %ps\n", bio->flags,
+               (unsigned long long) bio->sector_number, bio->b_end_io);
+        for (size_t i = 0; i < bio->nr_vecs; i++)
+            printk("%spage_iov %zu: page %p (pfn %lu), length %x, page_off %u\n", log_lvl, i,
+                   bio->vec[i].page, page_to_pfn(bio->vec[i].page), bio->vec[i].length,
+                   bio->vec[i].page_off);
+        return true;
+    });
+}
+
 #ifdef CONFIG_KUNIT
 
 static blockdev test_bdev;
@@ -421,6 +439,7 @@ static struct queue_properties nvme_queue_properties()
     qp.inter_sgl_boundary_mask = PAGE_SIZE - 1;
     qp.max_sectors_per_request = 0xffff;
     qp.dma_address_mask = 3;
+    qp.max_sgl_desc_length = PAGE_SIZE;
     return qp;
 }
 

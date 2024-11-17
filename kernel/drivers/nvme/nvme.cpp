@@ -833,6 +833,8 @@ bool nvme_device::nvme_queue::handle_cq()
                        NVME_CQE_STATUS_DNR(cqe->dw3) ? ", do not repeat" : "");
                 pr_err("nvme%u: Related SQE dump: %*ph\n", dev_->device_index_,
                        (int) sizeof(nvmesqe), &command->cmd);
+                if (NVME_CQE_STATUS_DNR(cqe->dw3))
+                    blk_request_dump(command->req, KERN_ERR);
                 command->req->r_flags |= BIO_REQ_EIO;
             }
 

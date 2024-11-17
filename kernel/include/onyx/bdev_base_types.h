@@ -89,6 +89,8 @@ static inline void *b_request_to_data(struct request *req)
     return req + 1;
 }
 
+void blk_request_dump(struct request *req, const char *log_lvl);
+
 struct blk_plug
 {
     struct list_head request_list;
