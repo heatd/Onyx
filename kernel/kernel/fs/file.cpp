@@ -1597,16 +1597,11 @@ int sys_getcwd(char *path, size_t size)
 
     pathlen = pathbuf + PATH_MAX - name;
     if (pathlen > size)
-    {
-        free(name);
         return -ERANGE;
-    }
 
     if (copy_to_user(path, name, pathlen) < 0)
-    {
-        free(name);
         return -errno;
-    }
+
     return pathlen - 1;
 }
 
