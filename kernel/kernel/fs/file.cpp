@@ -743,11 +743,6 @@ void handle_open_flags(struct file *fd, int flags)
         fd->f_seek = fd->f_ino->i_size;
 }
 
-static inline mode_t get_current_umask()
-{
-    return get_current_process()->ctx.umask;
-}
-
 bool may_noatime(file *f)
 {
     creds_guard g;

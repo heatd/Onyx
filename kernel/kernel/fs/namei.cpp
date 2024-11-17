@@ -485,7 +485,8 @@ static int do_creat(dentry *dir, struct inode *inode, struct dentry *dentry, mod
 
     DCHECK(d_is_negative(dentry));
 
-    struct inode *new_inode = inode->i_fops->creat(dentry, (int) mode | S_IFREG, dir);
+    struct inode *new_inode =
+        inode->i_fops->creat(dentry, do_umask((int) (mode & ~S_IFMT) | S_IFREG), dir);
 
     if (!new_inode)
         return -errno;
@@ -861,6 +862,7 @@ static expected<struct dentry *, int> namei_create_generic(int dirfd, const char
         goto put_unlock_err;
     }
 
+    mode = do_umask(mode);
     switch (mode & S_IFMT)
     {
         case S_IFREG:
