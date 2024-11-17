@@ -68,6 +68,8 @@ static void readpages_finish(struct readpages_state *state) NO_THREAD_SAFETY_ANA
     }
 }
 
+u64 bdev_get_size(struct blockdev *bdev);
+
 static int filemap_do_readahead(struct inode *inode, struct readahead_state *ra_state,
                                 unsigned long pgoff) NO_THREAD_SAFETY_ANALYSIS
 {
@@ -75,6 +77,9 @@ static int filemap_do_readahead(struct inode *inode, struct readahead_state *ra_
     size_t size = inode->i_size;
     size_t endpg;
     struct blk_plug plug;
+
+    if (S_ISBLK(inode->i_mode))
+        size = bdev_get_size(inode->i_helper);
 
     /* Do basic bounds checks on our readahead window */
     if (!size)

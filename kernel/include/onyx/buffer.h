@@ -49,6 +49,7 @@ struct block_buf
 #define BLOCKBUF_FLAG_WRITEBACK (1 << 1)
 #define BLOCKBUF_FLAG_UPTODATE  (1 << 2)
 #define BLOCKBUF_FLAG_AREAD     (1 << 3)
+#define BLOCKBUF_FLAG_HOLE      (1 << 4)
 
 static inline bool bb_test_and_set(struct block_buf *buf, unsigned int flag)
 {

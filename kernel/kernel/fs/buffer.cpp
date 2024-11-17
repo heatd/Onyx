@@ -151,7 +151,7 @@ bool page_has_writeback_bufs(struct page *p)
 struct block_buf *page_add_blockbuf(struct page *page, unsigned int page_off)
 {
     assert(page->flags & PAGE_FLAG_BUFFER);
-    DCHECK(page_locked(page));
+    CHECK_PAGE(page_locked(page), page);
 
     auto buf = (struct block_buf *) kmem_cache_alloc(buffer_cache, GFP_KERNEL);
     if (!buf)
@@ -255,9 +255,6 @@ void page_destroy_block_bufs(struct page *page)
 
 ssize_t bbuffer_readpage(struct page *p, size_t off, struct inode *ino)
 {
-    p->flags |= PAGE_FLAG_BUFFER;
-    p->priv = 0;
-
     auto blkdev = reinterpret_cast<blockdev *>(ino->i_helper);
     DCHECK(blkdev != nullptr);
 
@@ -291,6 +288,9 @@ ssize_t bbuffer_readpage(struct page *p, size_t off, struct inode *ino)
     if (iost < 0)
         return iost;
 
+    if (!page_test_set_buffer(p))
+        goto skip_setup;
+
     for (size_t i = 0; i < nr_blocks; i++)
     {
         struct block_buf *b;
@@ -307,7 +307,10 @@ ssize_t bbuffer_readpage(struct page *p, size_t off, struct inode *ino)
         curr_off += block_size;
     }
 
-    p->flags |= PAGE_FLAG_UPTODATE;
+skip_setup:
+    page_set_uptodate(p);
+    for (struct block_buf *b = (struct block_buf *) p->priv; b; b = b->next)
+        bb_test_and_set(b, BLOCKBUF_FLAG_UPTODATE);
     return PAGE_SIZE;
 }
 
@@ -411,6 +414,168 @@ static ssize_t buffer_directio(struct file *filp, size_t off, iovec_iter *iter, 
     return to_read;
 }
 
+static void buffer_readpages_endio(struct bio_req *bio) NO_THREAD_SAFETY_ANALYSIS
+{
+    for (size_t i = 0; i < bio->nr_vecs; i++)
+    {
+        struct page_iov *iov = &bio->vec[i];
+        DCHECK(page_locked(iov->page));
+        struct block_buf *head = (struct block_buf *) iov->page->priv;
+
+        spin_lock(&head->pagestate_lock);
+        bool uptodate = true;
+
+        for (struct block_buf *b = head; b != nullptr; b = b->next)
+        {
+            if (b->page_off >= iov->page_off &&
+                b->page_off + b->block_size <= iov->page_off + iov->length)
+            {
+                bb_clear_flag(b, BLOCKBUF_FLAG_AREAD);
+                CHECK(bb_test_and_set(b, BLOCKBUF_FLAG_UPTODATE));
+                continue;
+            }
+
+            if (!bb_test_flag(b, BLOCKBUF_FLAG_UPTODATE))
+                uptodate = false;
+        }
+
+        spin_unlock(&head->pagestate_lock);
+
+        if (uptodate)
+        {
+            if ((bio->flags & BIO_STATUS_MASK) == BIO_REQ_DONE)
+                page_test_set_flag(iov->page, PAGE_FLAG_UPTODATE);
+            unlock_page(iov->page);
+        }
+    }
+}
+
+static int buffer_readpages(struct readpages_state *state,
+                            struct inode *ino) NO_THREAD_SAFETY_ANALYSIS
+{
+    blockdev *blkdev = reinterpret_cast<blockdev *>(ino->i_helper);
+    int st;
+    struct page *page;
+    unsigned int nr_ios = 0;
+    auto block_size = blkdev->block_size;
+    u64 nblocks = blkdev->nr_sectors / (block_size / blkdev->sector_size);
+
+    while ((page = readpages_next_page(state)))
+    {
+        const unsigned long pgoff = page->pageoff;
+        nr_ios = 0;
+        auto nr_blocks = PAGE_SIZE / block_size;
+        size_t starting_block_nr = (pgoff << PAGE_SHIFT) / block_size;
+        size_t curr_off = 0;
+
+        if (!page_test_set_flag(page, PAGE_FLAG_BUFFER))
+            goto skip_setup;
+
+        for (size_t i = 0; i < nr_blocks; i++)
+        {
+            struct block_buf *b;
+            if (!(b = page_add_blockbuf(page, curr_off)))
+            {
+                page_destroy_block_bufs(page);
+                st = -ENOMEM;
+                goto out_err;
+            }
+
+            b->block_nr = starting_block_nr + i;
+            if (b->block_nr >= nblocks)
+                bb_test_and_set(b, BLOCKBUF_FLAG_HOLE | BLOCKBUF_FLAG_UPTODATE);
+            b->block_size = block_size;
+            b->dev = blkdev;
+            curr_off += block_size;
+        }
+
+        if (starting_block_nr + nr_blocks <= nblocks)
+        {
+            /* Fast, simple case. Fire off a single BIO for this whole contiguous page. This makes
+             * it so we can fire off larger BIOs for, e.g, NVMe, which then increases the chance of
+             * it getting merged with other bios, etc.
+             */
+            struct block_buf *b = (struct block_buf *) page->priv;
+            struct bio_req *bio = bio_alloc(GFP_NOFS, 1);
+            if (!bio)
+            {
+                st = -ENOMEM;
+                goto out_err;
+            }
+
+            bb_test_and_set(b, BLOCKBUF_FLAG_AREAD);
+
+            bio->sector_number = b->block_nr * (block_size / blkdev->sector_size);
+            bio->flags = BIO_REQ_READ_OP;
+            bio->b_end_io = buffer_readpages_endio;
+            bio_push_pages(bio, page, 0, PAGE_SIZE);
+            st = bio_submit_request(blkdev, bio);
+            bio_put(bio);
+
+            if (st < 0)
+            {
+                bb_clear_flag(b, BLOCKBUF_FLAG_AREAD);
+                goto out_err;
+            }
+
+            nr_ios++;
+            goto end_read;
+        }
+
+    skip_setup:
+        for (struct block_buf *b = (struct block_buf *) page->priv; b != nullptr; b = b->next)
+        {
+            sector_t block = b->block_nr;
+            if (bb_test_flag(b, BLOCKBUF_FLAG_UPTODATE))
+                continue;
+            if (bb_test_flag(b, BLOCKBUF_FLAG_HOLE))
+                continue;
+            if (!bb_test_and_set(b, BLOCKBUF_FLAG_AREAD))
+                continue;
+            CHECK(!bb_test_flag(b, BLOCKBUF_FLAG_UPTODATE));
+
+            struct bio_req *bio = bio_alloc(GFP_NOFS, 1);
+            if (!bio)
+            {
+                bb_clear_flag(b, BLOCKBUF_FLAG_AREAD);
+                st = -ENOMEM;
+                goto out_err;
+            }
+
+            /* Note: We do not need to ref, we hold the lock, no one can throw this page away
+             * while locked (almost like an implicit reference). */
+            bio->sector_number = block * (block_size / blkdev->sector_size);
+            bio->flags = BIO_REQ_READ_OP;
+            bio->b_end_io = buffer_readpages_endio;
+            bio_push_pages(bio, page, b->page_off, b->block_size);
+            st = bio_submit_request(blkdev, bio);
+            bio_put(bio);
+
+            if (st < 0)
+            {
+                bb_clear_flag(b, BLOCKBUF_FLAG_AREAD);
+                goto out_err;
+            }
+
+            nr_ios++;
+        }
+
+    end_read:
+        if (nr_ios == 0)
+            unlock_page(page);
+        page_unref(page);
+    }
+
+    return 0;
+out_err:
+    /* On error, release the page we're holding. We do not unlock it if we submitted any IOs for the
+     * page, the endio page will do it for us. */
+    if (nr_ios == 0)
+        unlock_page(page);
+    page_unref(page);
+    return st;
+}
+
 static int block_prepare_write(struct inode *ino, struct page *page, size_t page_off, size_t offset,
                                size_t len)
 {
@@ -437,6 +602,7 @@ struct file_ops buffer_ops = {
     .writepages = filemap_writepages,
     .fsyncdata = filemap_writepages,
     .directio = buffer_directio,
+    .readpages = buffer_readpages,
 };
 
 struct block_buf *sb_read_block(const struct superblock *sb, unsigned long block)
