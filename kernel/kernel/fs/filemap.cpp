@@ -80,7 +80,7 @@ int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags, struc
         page_promote_referenced(p);
     }
 
-    if (!(flags & (FIND_PAGE_NO_READPAGE | FIND_PAGE_NO_RA)) && ra_state && !S_ISBLK(ino->i_mode))
+    if (!(flags & (FIND_PAGE_NO_READPAGE | FIND_PAGE_NO_RA)) && ra_state)
     {
         rw_lock_read(&ino->i_pages->truncate_lock);
         /* If we found PAGE_FLAG_READAHEAD, kick off more IO */

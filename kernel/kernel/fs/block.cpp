@@ -40,6 +40,11 @@ struct hd_geometry
 
 static int block_reread_parts(struct blockdev *bdev);
 
+u64 bdev_get_size(struct blockdev *bdev)
+{
+    return bdev->nr_sectors * bdev->sector_size;
+}
+
 unsigned int blkdev_ioctl(int request, void *argp, struct file *f)
 {
     auto d = (blockdev *) f->f_ino->i_helper;
@@ -47,7 +52,7 @@ unsigned int blkdev_ioctl(int request, void *argp, struct file *f)
     switch (request)
     {
         case BLKGETSIZE64: {
-            u64 len = d->nr_sectors * d->sector_size;
+            u64 len = bdev_get_size(d);
             return copy_to_user(argp, &len, sizeof(u64));
         }
 
