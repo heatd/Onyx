@@ -47,11 +47,17 @@ static inline int vmo_status_to_errno(vmo_status_t st)
 
 struct page;
 struct vm_object;
+struct file;
+
 struct vm_object_ops
 {
     void (*free_page)(struct vm_object *vmo, struct page *page);
     void (*truncate_partial)(struct vm_object *vmobj, struct page *page, size_t offset, size_t len);
     ssize_t (*writepage)(struct vm_object *vm_obj, struct page *page, size_t off);
+    int (*write_begin)(struct file *file, struct vm_object *vm_obj, off_t offset, size_t len,
+                       struct page **page);
+    int (*write_end)(struct file *file, struct vm_object *vm_obj, off_t offset,
+                     unsigned int written, unsigned int to_write, struct page *page);
 };
 
 #define VMO_FLAG_LOCK_FUTURE_PAGES (1 << 0)

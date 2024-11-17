@@ -96,8 +96,206 @@ struct block_inode
     static unique_ptr<block_inode> create(const struct blockdev *dev, flush::writeback_dev *wbdev);
 };
 
+static void buffer_write_readpages_endio(struct bio_req *bio) NO_THREAD_SAFETY_ANALYSIS
+{
+    for (size_t i = 0; i < bio->nr_vecs; i++)
+    {
+        struct page_iov *iov = &bio->vec[i];
+        DCHECK(page_locked(iov->page));
+        struct block_buf *head = (struct block_buf *) iov->page->priv;
+
+        spin_lock(&head->pagestate_lock);
+        bool uptodate = true;
+
+        for (struct block_buf *b = head; b != nullptr; b = b->next)
+        {
+            if (b->page_off == iov->page_off)
+            {
+                bb_clear_flag(b, BLOCKBUF_FLAG_AREAD);
+                CHECK(bb_test_and_set(b, BLOCKBUF_FLAG_UPTODATE));
+                wake_address(b);
+                continue;
+            }
+
+            if (!bb_test_flag(b, BLOCKBUF_FLAG_UPTODATE))
+                uptodate = false;
+        }
+
+        spin_unlock(&head->pagestate_lock);
+
+        if (uptodate)
+        {
+            if ((bio->flags & BIO_STATUS_MASK) == BIO_REQ_DONE)
+                page_set_uptodate(iov->page);
+        }
+    }
+}
+
+static int block_readpage_write(struct vm_object *vm_obj, off_t offset, size_t len,
+                                struct page *page)
+{
+    struct blockdev *bdev = (struct blockdev *) vm_obj->ino->i_helper;
+    unsigned int page_off = offset - (page->pageoff << PAGE_SHIFT);
+    unsigned int page_len = min(len, PAGE_SIZE - page_off);
+    int st;
+
+    auto nr_blocks = PAGE_SIZE / bdev->block_size;
+    size_t starting_block_nr = (page->pageoff << PAGE_SHIFT) / bdev->block_size;
+    size_t curr_off = 0;
+    auto block_size = bdev->block_size;
+    u64 nblocks = bdev->nr_sectors / (block_size / bdev->sector_size);
+
+    if (!page_test_set_flag(page, PAGE_FLAG_BUFFER))
+        goto skip_setup;
+
+    for (size_t i = 0; i < nr_blocks; i++)
+    {
+        struct block_buf *b;
+        if (!(b = page_add_blockbuf(page, curr_off)))
+        {
+            page_destroy_block_bufs(page);
+            st = -ENOMEM;
+            goto out_err;
+        }
+
+        b->block_nr = starting_block_nr + i;
+        if (b->block_nr >= nblocks)
+        {
+            bb_test_and_set(b, BLOCKBUF_FLAG_HOLE);
+            bb_test_and_set(b, BLOCKBUF_FLAG_UPTODATE);
+        }
+
+        b->block_size = bdev->block_size;
+        b->dev = bdev;
+        curr_off += bdev->block_size;
+    }
+skip_setup:
+
+    for (struct block_buf *buf = (struct block_buf *) page->priv; buf; buf = buf->next)
+    {
+        /* Go through the page, read-in block buffers. If we _fully_ overwrite a block, don't bring
+         * that one in. */
+        if (buf->page_off >= page_off && buf->page_off + buf->block_size <= page_len)
+            continue;
+        sector_t block = buf->block_nr;
+        if (bb_test_flag(buf, BLOCKBUF_FLAG_UPTODATE))
+            continue;
+        if (bb_test_flag(buf, BLOCKBUF_FLAG_HOLE))
+            continue;
+        if (!bb_test_and_set(buf, BLOCKBUF_FLAG_AREAD))
+            continue;
+        CHECK(!bb_test_flag(buf, BLOCKBUF_FLAG_UPTODATE));
+
+        struct bio_req *bio = bio_alloc(GFP_NOFS, 1);
+        if (!bio)
+        {
+            bb_clear_flag(buf, BLOCKBUF_FLAG_AREAD);
+            st = -ENOMEM;
+            goto out_err;
+        }
+
+        /* Note: We do not need to ref, we hold the lock, no one can throw this page away
+         * while locked (almost like an implicit reference). */
+        bio->sector_number = block * (block_size / bdev->sector_size);
+        bio->flags = BIO_REQ_READ_OP;
+        bio->b_end_io = buffer_write_readpages_endio;
+        bio_push_pages(bio, page, buf->page_off, buf->block_size);
+        st = bio_submit_request(bdev, bio);
+        bio_put(bio);
+
+        if (st < 0)
+        {
+            bb_clear_flag(buf, BLOCKBUF_FLAG_AREAD);
+            goto out_err;
+        }
+    }
+
+    for (struct block_buf *buf = (struct block_buf *) page->priv; buf; buf = buf->next)
+    {
+        if (bb_test_flag(buf, BLOCKBUF_FLAG_AREAD))
+            wait_for(
+                buf,
+                [](void *ptr) -> bool {
+                    struct block_buf *b = (struct block_buf *) ptr;
+                    return !bb_test_flag(b, BLOCKBUF_FLAG_AREAD);
+                },
+                0, 0);
+    }
+
+    return 0;
+
+out_err:
+    return st;
+}
+
+static int block_write_begin(struct file *filp, struct vm_object *vm_obj, off_t offset, size_t len,
+                             struct page **ppage)
+{
+    struct page *page;
+    int st = filemap_find_page(filp->f_ino, offset >> PAGE_SHIFT,
+                               FIND_PAGE_ACTIVATE | FIND_PAGE_NO_READPAGE | FIND_PAGE_LOCK, &page,
+                               &filp->f_ra_state);
+    if (st < 0)
+        return st;
+
+    if (!page_test_uptodate(page))
+    {
+        st = block_readpage_write(vm_obj, offset, len, page);
+        if (st < 0)
+            goto err_read_page;
+    }
+
+    *ppage = page;
+    return 0;
+
+err_read_page:
+    unlock_page(page);
+    page_unref(page);
+    return st;
+}
+
+static int __block_write_end(struct file *file, struct vm_object *vm_obj, off_t offset,
+                             unsigned int written, unsigned int to_write, struct page *page)
+{
+    unsigned int page_off = offset - (page->pageoff << PAGE_SHIFT);
+    bool uptodate = true;
+    CHECK(page_test_buffer(page));
+    struct block_buf *head = (struct block_buf *) page->priv;
+    spin_lock(&head->pagestate_lock);
+
+    for (struct block_buf *buf = (struct block_buf *) page->priv; buf; buf = buf->next)
+    {
+        if (buf->page_off <= page_off && buf->page_off + buf->block_size >= offset + written)
+        {
+            /* Fully contained in the write, mark uptodate */
+            bb_test_and_set(buf, BLOCKBUF_FLAG_UPTODATE);
+            wake_address(buf);
+        }
+
+        if (!bb_test_flag(buf, BLOCKBUF_FLAG_UPTODATE))
+            uptodate = false;
+    }
+
+    if (uptodate && !page_test_uptodate(page))
+        page_set_uptodate(page);
+    spin_unlock(&head->pagestate_lock);
+    return 0;
+}
+
+static int block_write_end(struct file *file, struct vm_object *vm_obj, off_t offset,
+                           unsigned int written, unsigned int to_write, struct page *page)
+{
+    __block_write_end(file, vm_obj, offset, written, to_write, page);
+    unlock_page(page);
+    page_unref(page);
+    /* Block devices don't need to set i_size */
+    return 0;
+}
+
 static const struct vm_object_ops block_vm_obj_ops = {
     .free_page = buffer_free_page,
+    .write_begin = block_write_begin,
+    .write_end = block_write_end,
 };
 
 /**
