@@ -26,7 +26,9 @@ int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags, struc
 {
     struct page *p = nullptr;
     int st = 0;
-    vmo_status_t vst = vmo_get(ino->i_pages, pgoff << PAGE_SHIFT, 0, &p);
+    vmo_status_t vst = VMO_STATUS_OK;
+retry:
+    vst = vmo_get(ino->i_pages, pgoff << PAGE_SHIFT, 0, &p);
     if (vst != VMO_STATUS_OK)
     {
         if (vst == VMO_STATUS_BUS_ERROR)
@@ -108,6 +110,14 @@ int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags, struc
         rw_lock_read(&ino->i_pages->truncate_lock);
 
         lock_page(p);
+        if (p->owner != ino->i_pages)
+        {
+            unlock_page(p);
+            page_unref(p);
+            rw_unlock_read(&ino->i_pages->truncate_lock);
+            goto retry;
+        }
+
         if (!page_flag_set(p, PAGE_FLAG_UPTODATE))
         {
             ssize_t st2 = ino->i_fops->readpage(p, pgoff << PAGE_SHIFT, ino);
@@ -126,7 +136,15 @@ int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags, struc
     }
 
     if (flags & FIND_PAGE_LOCK)
+    {
         lock_page(p);
+        if (p->owner != ino->i_pages)
+        {
+            unlock_page(p);
+            page_unref(p);
+            goto retry;
+        }
+    }
 
 out:
     if (st == 0)
@@ -498,7 +516,8 @@ void filemap_clear_dirty(struct page *page) REQUIRES(page)
 {
     /* Clear the dirty flag for IO */
     struct vm_object *obj = page_vmobj(page);
-    __atomic_and_fetch(&page->flags, ~PAGE_FLAG_DIRTY, __ATOMIC_RELEASE);
+    if (!page_test_clear_dirty(page))
+        return;
 
     {
         scoped_lock g{obj->page_lock};
