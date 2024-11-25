@@ -41,43 +41,47 @@ unsigned int parse_perms_from_tar(tar_header_t *entry)
 
 void tar_handle_entry(tar_header_t *entry, onx::stream &str)
 {
-    char *saveptr;
-    char pathbuf[NAME_MAX];
+    char *full_filename;
     if (memcmp(entry->magic, "ustar ", 5))
         panic("Tar entry with invalid magic value");
-    auto len = strnlen(entry->filename, 100);
+    auto filenamelen = strnlen(entry->filename, 100);
+    size_t len;
 
-#if 0
-        cul::string name;
-
-        if (entry->prefix[0])
-        {
-            name = cul::string{entry->prefix, strnlen(entry->prefix, 131)};
-            assert(name);
-        }
-
-        if (!name.append({entry->filename, len}))
-            panic("oom initrd");
-#endif
-    char *filename = (char *) memdup(entry->filename, len + 1);
-    filename[len] = '\0';
-    char *old = filename;
-
-    assert(filename != nullptr);
-    filename = dirname(filename);
-    filename = strtok_r(filename, "/", &saveptr);
-
-    if (*filename != '.' && strlen(filename) != 1)
+    if (entry->prefix[0] != '\0')
     {
-        while (filename)
+        auto prefixlen = strnlen(entry->prefix, 155);
+        full_filename = (char *) malloc(prefixlen + filenamelen + 2); // Additional char for /
+        memcpy(full_filename, entry->prefix, prefixlen);
+        full_filename[prefixlen] = '/';
+        memcpy(full_filename + prefixlen + 1, entry->filename, filenamelen);
+        full_filename[prefixlen + filenamelen + 1] = '\0';
+        len = prefixlen + filenamelen + 1;
+    }
+    else
+    {
+        full_filename = (char *) memdup(entry->filename, filenamelen + 1);
+        full_filename[filenamelen] = '\0';
+        len = filenamelen;
+    }
+
+    // Trim trailing slashes
+    while (len > 0 && full_filename[len - 1] == '/')
+        len--;
+    full_filename[len] = '\0';
+
+    auto last_slash = strrchr(full_filename, '/');
+
+    if (last_slash)
+    {
+        auto slash_ptr = strchr(full_filename, '/');
+        while (slash_ptr != last_slash)
         {
         retry:
-            strlcpy(pathbuf, entry->filename, len + 1);
-            pathbuf[filename + strlen(filename) - old] = '\0';
-            struct file *f = open_vfs(AT_FDCWD, pathbuf);
+            *slash_ptr = '\0';
+            struct file *f = open_vfs(AT_FDCWD, full_filename);
             if (!f)
             {
-                auto ex = mkdir_vfs(pathbuf, 0755, AT_FDCWD);
+                auto ex = mkdir_vfs(full_filename, 0755, AT_FDCWD);
                 if (ex.has_error())
                 {
                     perror("mkdir");
@@ -86,18 +90,16 @@ void tar_handle_entry(tar_header_t *entry, onx::stream &str)
                 dput(ex.value());
                 goto retry;
             }
-
-            filename = strtok_r(nullptr, "/", &saveptr);
+            *slash_ptr = '/';
+            slash_ptr = strchr(slash_ptr + 1, '/');
         }
     }
     /* After creat/opening the directories, create it and populate it */
-    strlcpy(old, entry->filename, len + 1);
-    filename = old;
     unsigned int perms = parse_perms_from_tar(entry);
 
     if (entry->typeflag == TAR_TYPE_FILE)
     {
-        auto ex = creat_vfs(AT_FDCWD, filename, perms);
+        auto ex = creat_vfs(AT_FDCWD, full_filename, perms);
         if (ex.has_error())
             panic("Could not create file from initrd - errno %d", ex.error());
 
@@ -111,13 +113,13 @@ void tar_handle_entry(tar_header_t *entry, onx::stream &str)
     }
     else if (entry->typeflag == TAR_TYPE_DIR)
     {
-        auto dent = mkdir_vfs(filename, perms, AT_FDCWD).unwrap();
+        auto dent = mkdir_vfs(full_filename, perms, AT_FDCWD).unwrap();
         dput(dent);
     }
     else if (entry->typeflag == TAR_TYPE_SYMLNK)
     {
         char *buffer = (char *) entry->linkname;
-        int st = symlink_vfs(filename, buffer, AT_FDCWD);
+        int st = symlink_vfs(full_filename, buffer, AT_FDCWD);
         CHECK(st == 0);
     }
 }
