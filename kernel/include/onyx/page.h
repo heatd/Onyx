@@ -627,6 +627,12 @@ PAGEFLAG_OPS(buffer, BUFFER);
 struct vm_object *page_vmobj(struct page *page);
 unsigned long page_pgoff(struct page *page);
 
+static inline void page_zero_range(struct page *page, unsigned int off, unsigned int len)
+{
+    u8 *ptr = (u8 *) PAGE_TO_VIRT(page);
+    memset(ptr + off, 0, len);
+}
+
 __END_CDECLS
 
 #endif

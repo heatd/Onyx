@@ -800,6 +800,25 @@ void block_buf_tear_down_assoc(struct vm_object *object)
     }
 }
 
+static void bforget(struct block_buf *buf)
+{
+    /* De-dirty the buffer (and page) if possible */
+    struct page *page = buf->this_page;
+    spin_lock(&buf->pagestate_lock);
+    bb_clear_flag(buf, BLOCKBUF_FLAG_DIRTY);
+    bool isdirty = false;
+    for (struct block_buf *b = (struct block_buf *) page->priv; b; b = b->next)
+    {
+        if (bb_test_flag(b, BLOCKBUF_FLAG_DIRTY))
+            isdirty = true;
+    }
+
+    if (!isdirty)
+        page_clear_dirty(page);
+    spin_unlock(&buf->pagestate_lock);
+    block_buf_put(buf);
+}
+
 /**
  * @brief Forget a block_buf's inode
  * This will remove it from the assoc list
@@ -823,6 +842,8 @@ void block_buf_forget_inode(struct block_buf *buf)
         buf->assoc_buffers_obj = nullptr;
         break;
     }
+
+    bforget(buf);
 }
 
 void buffer_free_page(struct vm_object *vmo, struct page *page)

@@ -351,7 +351,7 @@ int ext2_truncate_branch(ext2_block_no block, ext2_block_coords &curr_coords, st
         return EXT2_TRUNCATED_PARTIALLY;
     /* Truncated fully, we can free this block */
     /* Note: we must "forget" the inode block buf */
-    block_buf_forget_inode(buf);
+    block_buf_forget_inode(buf.release());
     sb->free_block(block);
     ino->i_blocks -= sb->block_size >> 9;
     return EXT2_TRUNCATED_FULLY;
