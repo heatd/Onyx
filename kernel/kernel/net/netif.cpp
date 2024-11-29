@@ -110,7 +110,8 @@ void netif_register_loopback_route6(struct netif *netif)
 {
     struct inet6_route route;
 
-    route.mask = IN6ADDR_LOOPBACK_INIT;
+    route.mask.s6_addr32[0] = route.mask.s6_addr32[1] = route.mask.s6_addr32[2] =
+        route.mask.s6_addr32[3] = ~0;
     route.dest = IN6ADDR_LOOPBACK_INIT;
 
     route.gateway = IN6ADDR_ANY_INIT;
@@ -276,19 +277,9 @@ INIT_LEVEL_CORE_PERCPU_CTOR(init_rx_queues);
 
 void netif_signal_rx(netif *nif)
 {
-    unsigned int flags, og_flags;
-
-    do
-    {
-        flags = nif->flags;
-        og_flags = flags;
-
-        flags |= NETIF_HAS_RX_AVAILABLE;
-
-    } while (!__atomic_compare_exchange_n(&nif->flags, &og_flags, flags, false, __ATOMIC_ACQUIRE,
-                                          __ATOMIC_RELAXED));
-
-    if (og_flags & NETIF_HAS_RX_AVAILABLE)
+    unsigned int flags =
+        __atomic_fetch_or(&nif->flags, NETIF_HAS_RX_AVAILABLE | NETIF_SCHEDULED, __ATOMIC_SEQ_CST);
+    if (flags & NETIF_SCHEDULED)
         return;
 
     auto queue = get_per_cpu_ptr(rx_queue);
@@ -319,19 +310,19 @@ void netif_do_rxpoll(netif *nif)
 int netif_do_rx()
 {
     auto queue = get_per_cpu_ptr(rx_queue);
-    DEFINE_LIST(to_rx);
 
+    unsigned long flags = spin_lock_irqsave(&queue->lock);
+    while (!list_is_empty(&queue->to_rx_list))
     {
-        scoped_lock<spinlock, true> g{queue->lock};
-        list_splice(&queue->to_rx_list, &to_rx);
+        struct netif *nif = list_first_entry(&queue->to_rx_list, struct netif, rx_queue_node);
+        list_remove(&nif->rx_queue_node);
+        spin_unlock_irqrestore(&queue->lock, flags);
+        netif_do_rxpoll(nif);
+        flags = spin_lock_irqsave(&queue->lock);
+        atomic_and_relaxed(nif->flags, ~NETIF_SCHEDULED);
     }
 
-    list_for_every_safe (&to_rx)
-    {
-        netif *n = container_of(l, netif, rx_queue_node);
-        list_remove(&n->rx_queue_node);
-        netif_do_rxpoll(n);
-    }
+    spin_unlock_irqrestore(&queue->lock, flags);
 
     return 0;
 }

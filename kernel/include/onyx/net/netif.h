@@ -28,6 +28,7 @@ struct netif;
 #define NETIF_LOOPBACK              (1 << 5)
 #define NETIF_HAS_RX_AVAILABLE      (1 << 6)
 #define NETIF_DOING_RX_POLL         (1 << 7)
+#define NETIF_SCHEDULED             (1 << 8)
 
 struct packetbuf;
 
