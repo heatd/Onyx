@@ -101,7 +101,7 @@ static dentry *d_lookup_internal(dentry *dent, std::string_view name)
     return nullptr;
 }
 
-static dentry *dentry_open_from_cache(dentry *dent, std::string_view name)
+dentry *dentry_open_from_cache(dentry *dent, std::string_view name)
 {
     unsigned int old;
     struct dentry *found;
@@ -561,7 +561,7 @@ static expected<dentry *, int> dentry_create_pending_lookup(const char *name, in
     return dentry_add_to_cache_careful(dent, parent);
 }
 
-static dentry *__dentry_try_to_open(std::string_view name, dentry *dir, bool lock_ino)
+dentry *__dentry_try_to_open(std::string_view name, dentry *dir, bool lock_ino)
 {
     DCHECK(dentry_is_dir(dir));
     if (auto d = dentry_open_from_cache(dir, name); d)

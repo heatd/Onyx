@@ -18,6 +18,7 @@
 #include <onyx/list.h>
 #include <onyx/mm/slab.h>
 #include <onyx/mount.h>
+#include <onyx/namei.h>
 #include <onyx/rculist.h>
 #include <onyx/rcupdate.h>
 #include <onyx/seqlock.h>
@@ -46,6 +47,8 @@ static void mnt_init(struct mount *mnt, unsigned long flags)
     mnt->mnt_flags = flags;
     mnt->mnt_point = mnt->mnt_root = NULL;
     mnt->mnt_sb = NULL;
+    mnt->mnt_parent = NULL;
+    INIT_LIST_HEAD(&mnt->mnt_submounts);
 }
 
 static unsigned int mnt_hashbucket(struct mount *mnt)
@@ -169,21 +172,16 @@ static int mnt_commit(struct mount *mnt, const char *target)
      * flags on a dentry, etc. */
     if (strcmp(target, "/"))
     {
-        struct file *filp = open_vfs(AT_FDCWD, target);
-        if (!filp)
-            return -errno;
-        if (!dentry_is_dir(filp->f_dentry))
-        {
-            fd_put(filp);
-            return -ENOTDIR;
-        }
+        struct path mountpoint;
+        int err;
 
-        mnt->mnt_point = filp->f_dentry;
-        dget(mnt->mnt_point);
-        /* Another hack... */
-        mnt->mnt_root->d_parent = mnt->mnt_point;
-        /* TODO: This isn't quite safe when we get proper mnt putting and umount */
-        fd_put(filp);
+        err = path_openat(AT_FDCWD, target, LOOKUP_MUST_BE_DIR, &mountpoint);
+        if (err < 0)
+            return err;
+
+        /* Path reference gets dilluted into these two members */
+        mnt->mnt_point = mountpoint.dentry;
+        mnt->mnt_parent = mountpoint.mount;
     }
     else
     {
@@ -200,6 +198,9 @@ static int mnt_commit(struct mount *mnt, const char *target)
 
     list_add_tail(&mnt->mnt_mp_node, &mp_hashtable[mnt_mp_hashbucket(mnt)]);
     list_add_tail(&mnt->mnt_node, &mount_hashtable[mnt_hashbucket(mnt)]);
+
+    if (mnt->mnt_parent)
+        list_add_tail(&mnt->mnt_submount_node, &mnt->mnt_parent->mnt_submounts);
 
     /* Ref up for the mount root */
     dget(mnt->mnt_root);
@@ -337,6 +338,12 @@ static bool attempt_disconnect(struct mount *mount)
         struct dentry *mp = mount->mnt_point;
         list_remove(&mount->mnt_mp_node);
         list_remove(&mount->mnt_node);
+        if (mount->mnt_parent)
+        {
+            list_remove(&mount->mnt_submount_node);
+            mnt_put(mount->mnt_parent);
+        }
+
         ok = true;
 
         /* Check if we have nothing mounted at mp anymore. If so, unset DENTRY_FLAG_MOUNTPOINT.
@@ -375,8 +382,6 @@ static int do_umount_path(struct path *path, int flags)
 
     WARN_ON(mount->mnt_root->d_ref != 1);
 
-    /* Undo our fake d_parent... */
-    mount->mnt_root->d_parent = NULL;
     /* Finally, put our root */
     dput(mount->mnt_root);
 
@@ -391,18 +396,21 @@ out_put_path:
 
 int sys_umount2(const char *utarget, int flags)
 {
+    int err = -EINVAL;
+    const char *target;
+
     if (!is_root_user())
         return -EPERM;
-    const char *target = strcpy_from_user(utarget);
+
+    target = strcpy_from_user(utarget);
     if (!target)
         return -errno;
     if (flags & ~UMOUNT_NOFOLLOW)
-        return -EINVAL;
+        goto out;
 
     struct path path;
-    int err =
-        path_openat(AT_FDCWD, target,
-                    LOOKUP_MUST_BE_DIR | (flags & UMOUNT_NOFOLLOW ? LOOKUP_NOFOLLOW : 0), &path);
+    err = path_openat(AT_FDCWD, target,
+                      LOOKUP_MUST_BE_DIR | (flags & UMOUNT_NOFOLLOW ? LOOKUP_NOFOLLOW : 0), &path);
     if (err < 0)
         goto out;
 

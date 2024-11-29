@@ -12,6 +12,7 @@
 #include <onyx/mount.h>
 #include <onyx/namei.h>
 #include <onyx/process.h>
+#include <onyx/seqlock.h>
 #include <onyx/user.h>
 
 #include <uapi/fcntl.h>
@@ -200,6 +201,122 @@ static int dentry_follow_symlink(nameidata &data, dentry *symlink, unsigned int 
 #define NAMEI_NO_FOLLOW_SYM  (1U << 1)
 #define NAMEI_ALLOW_NEGATIVE (1U << 2)
 
+static void follow_mount_up(struct mount *mnt, struct path *out)
+{
+    struct dentry *dentry = mnt->mnt_root, *mountpoint;
+
+    while (mnt->mnt_parent)
+    {
+        mountpoint = mnt->mnt_point;
+        mnt = mnt->mnt_parent;
+        if (mnt->mnt_root != dentry)
+        {
+            out->mount = mnt;
+            out->dentry = mountpoint;
+            return;
+        }
+    }
+
+    /* Should not be hittable, I think... */
+    CHECK(0);
+}
+
+static bool finish_mount_up(struct path *path, unsigned int seq)
+{
+    mnt_get(path->mount);
+    smp_mb();
+
+    if (path->mount->mnt_flags & MNT_DOOMED)
+    {
+        mnt_put(path->mount);
+        goto retry;
+    }
+
+    /* I don't think there's a way this can fail, if we grabbed the mount itself */
+    dget(path->dentry);
+
+    if (read_seqretry(&mount_lock, seq))
+        goto retry;
+
+    return true;
+retry:
+    return false;
+}
+
+static int mount_dotdot(struct mount *mnt, struct path *path)
+{
+    rcu_read_lock();
+
+    for (;;)
+    {
+        unsigned int seq = read_seqbegin(&mount_lock);
+        follow_mount_up(mnt, path);
+
+        /* Commit this follow_up by grabbing a reference to mount and mountpoint */
+        if (finish_mount_up(path, seq))
+            break;
+    }
+
+    rcu_read_unlock();
+    return 0;
+}
+
+static int do_dotdot(nameidata &data, struct path *out)
+{
+    struct path *curr = &data.cur;
+    if (curr->dentry == curr->mount->mnt_root)
+    {
+        /* We're the mount's root? Gotta take things in a different way. */
+        return mount_dotdot(curr->mount, out);
+    }
+
+    struct dentry *dentry = dentry_parent(curr->dentry);
+    if (!dentry)
+    {
+        /* /.. = right where we are */
+        return 0;
+    }
+
+    struct path p = {dentry, curr->mount};
+    mnt_get(curr->mount);
+    *out = p;
+    return 0;
+}
+
+static int __namei_walk_component(std::string_view v, nameidata &data, struct path *out,
+                                  unsigned int flags)
+{
+    if (!v.compare("."))
+    {
+        *out = data.cur;
+        path_get(out);
+        return 0;
+    }
+
+    if (!v.compare(".."))
+        return do_dotdot(data, out);
+
+    struct dentry *dent = dentry_open_from_cache(data.cur.dentry, v);
+
+    if (dent)
+    {
+        if (dent->d_flags & DENTRY_FLAG_PENDING)
+            dent = dentry_wait_for_pending(dent);
+    }
+
+    if (!dent)
+    {
+        dent = __dentry_try_to_open(v, data.cur.dentry, !(flags & DENTRY_LOOKUP_UNLOCKED));
+        if (!dent)
+            return -errno;
+    }
+
+    struct path p = {.dentry = dent, .mount = data.cur.mount};
+    mnt_get(data.cur.mount);
+    *out = p;
+    return 0;
+}
+
 static int namei_walk_component(std::string_view v, nameidata &data, unsigned int flags = 0)
 {
     const bool is_last_name =
@@ -207,9 +324,7 @@ static int namei_walk_component(std::string_view v, nameidata &data, unsigned in
     const bool dont_follow_last = data.lookup_flags & LOOKUP_NOFOLLOW;
     const bool unlocked_lookup = flags & NAMEI_UNLOCKED;
 
-    auto_dentry dwrapper;
-    dentry *new_found;
-
+    struct path path;
     file f;
     f.f_ino = data.cur.dentry->d_inode;
 
@@ -224,42 +339,33 @@ static int namei_walk_component(std::string_view v, nameidata &data, unsigned in
         /* Stop from escaping the chroot */
         return 0;
     }
-    else
-    {
-        dwrapper = dentry_lookup_internal(v, data.cur.dentry,
-                                          unlocked_lookup ? DENTRY_LOOKUP_UNLOCKED : 0);
-        if (!dwrapper)
-        {
-            DCHECK(errno != 0);
-            return -errno;
-        }
+
+    path_init(&path);
+    int err = __namei_walk_component(v, data, &path, unlocked_lookup ? DENTRY_LOOKUP_UNLOCKED : 0);
+    if (err < 0)
+        return err;
 
 #if 0
-        printk("Lookup %s found %p%s\n", v.data(), new_found,
-               d_is_negative(new_found) ? " (negative)" : "");
+    pr_warn("Lookup %s found %p%s\n", v.data(), path.dentry,
+            d_is_negative(path.dentry) ? " (negative)" : "");
 #endif
-    }
 
-    new_found = dwrapper.get_dentry();
-    struct mount *mnt = data.cur.mount;
+    struct mount *mnt = path.mount;
 
-    if (d_is_negative(new_found))
+    if (d_is_negative(path.dentry))
     {
         /* Check if the caller tolerates negative dentries as the lookup result. This only applies
          * for the last name. For !last_name, negative is always ENOENT */
         if (!is_last_name || !(flags & NAMEI_ALLOW_NEGATIVE))
-            return -ENOENT;
+        {
+            err = -ENOENT;
+            goto err_out;
+        }
     }
-    else if (dentry_is_symlink(new_found))
+    else if (dentry_is_symlink(path.dentry))
     {
         if (flags & NAMEI_NO_FOLLOW_SYM)
-        {
-            /* Save parent and location for the caller */
-            struct path p = path{dwrapper.release(), mnt};
-            mnt_get(mnt);
-            data.setcur(p);
-            return 0;
-        }
+            goto out;
         /* POSIX states that paths that end in a trailing slash are required to be the same as
          * /. For example: open("/usr/bin/") == open("/usr/bin/."). Therefore, we have to
          * special case that.
@@ -270,7 +376,10 @@ static int namei_walk_component(std::string_view v, nameidata &data, unsigned in
 
         // printk("Following symlink for path elem %s\n", v.data());
         if (is_last_name && (data.lookup_flags & LOOKUP_FAIL_IF_LINK))
-            return -ELOOP;
+        {
+            err = -ELOOP;
+            goto err_out;
+        }
         else if (is_last_name && !should_follow_symlink)
         {
             // printk("Cannot follow symlink. Trailing slash: %s\n", must_be_dir ? "yes" :
@@ -278,26 +387,31 @@ static int namei_walk_component(std::string_view v, nameidata &data, unsigned in
         }
         else [[likely]]
         {
-            return dentry_follow_symlink(data, new_found);
+            err = dentry_follow_symlink(data, path.dentry);
+            path_put(&path);
+            return err;
         }
     }
-    else if (dentry_is_mountpoint(new_found))
+    else if (dentry_is_mountpoint(path.dentry))
     {
-        struct mount *new_mount = mnt_traverse(new_found);
+        struct mount *new_mount = mnt_traverse(path.dentry);
         if (new_mount)
         {
-            dwrapper = new_mount->mnt_root;
-            dget(dwrapper.get_dentry());
+            struct dentry *d = new_mount->mnt_root;
+            dget(d);
             mnt = new_mount;
-            new_found = dwrapper.get_dentry();
+            data.setcur((struct path){d, mnt});
+            path_put(&path);
+            return 0;
         }
     }
 
-    if (mnt == data.cur.mount)
-        mnt_get(mnt);
-    data.setcur(path{dwrapper.release(), mnt});
-
+out:
+    data.setcur(path);
     return 0;
+err_out:
+    path_put(&path);
+    return err;
 }
 
 /**
