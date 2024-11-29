@@ -171,7 +171,7 @@ BOOT_SECTION static void setup_mmu(PML *page_tables, unsigned long phys_base,
 
 extern "C" void x86_efi_enable_57_mmu(PML *);
 
-static void efi_switch_mmu(PML *page_tables)
+extern "C" void efi_switch_mmu(PML *page_tables)
 {
     auto cr4 = x86_read_cr4();
     // Note: Some people in Tianocore thought it's a brilliant idea to break backwards compatibility
@@ -258,6 +258,4 @@ extern "C" BOOT_SECTION void efi_handoff(EFI_HANDLE image_handle, EFI_SYSTEM_TAB
         __asm__ __volatile__("int3");
 
     __asm__ __volatile__("cli");
-    x86_efi_switch_tables();
-    efi_switch_mmu(page_tables);
 }
