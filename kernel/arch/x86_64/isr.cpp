@@ -223,6 +223,8 @@ void stack_segment_fault(struct registers *ctx)
 }
 
 #ifdef CONFIG_VERBOSE_SEGV
+#undef REQUIRES_SHARED
+#define REQUIRES_SHARED(...)
 vm_area_struct *vm_search(struct mm_address_space *mm, void *addr, size_t length)
     REQUIRES_SHARED(mm->vm_lock);
 
@@ -236,7 +238,7 @@ static void attempt_map_pointer(unsigned long word)
     size_t pos = 0;
     struct mm_address_space *mm = get_current_address_space();
 
-    scoped_mutex g{mm->vm_lock};
+    scoped_rwlock<rw_lock::read> g{mm->vm_lock};
     // Lets try to "symbolize" it
     struct vm_area_struct *vm = vm_search(mm, (void *) word, 1);
     if (vm)
