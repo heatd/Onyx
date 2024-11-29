@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2022 Pedro Falcato
+ * Copyright (c) 2017 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <dhcp.h>
 #include <dirent.h>
+#include <err.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -87,8 +88,8 @@ off_t dhcp_add_option(dhcp_packet_t *pkt, off_t off, unsigned char len, const vo
 off_t dhcp_close_options(dhcp_packet_t *pkt, off_t off)
 {
     /* Add the needed padding */
-    memset(&pkt->options[off], 0, 3);
-    off += 3;
+    // memset(&pkt->options[off], 0, 3);
+    // off += 3;
     pkt->options[off] = DHO_END;
 
     return off + 1;
@@ -101,11 +102,14 @@ bool packet::decode()
     unsigned char *opt = (unsigned char *) &packet_->options;
 
     if (length <= DHCP_FIXED_NON_UDP)
+    {
+        fprintf(stderr, "dhcpcd: Bad packet length %zu, ignoring!\n", length);
         return false;
+    }
 
     if (memcmp(opt, DHCP_OPTIONS_COOKIE, 4) == 1)
     {
-        printf("dhcpcd: Bad cookie\n");
+        fprintf(stderr, "dhcpcd: Bad cookie, ignoring!\n");
         return false;
     }
 
@@ -114,9 +118,12 @@ bool packet::decode()
     opt += 4;
     while (*opt != DHO_END)
     {
-        /* Check of OOB */
+        /* Check for OOB */
         if (opt >= limit)
+        {
+            fprintf(stderr, "dhcpcd: Went out of bounds processing options, ignoring!\n");
             return false;
+        }
 
         unsigned char type = *opt;
         opt++;
@@ -133,22 +140,36 @@ bool packet::decode()
     }
 
     if (!has_message_type)
+    {
+        fprintf(stderr, "dhcpcd: Does not have message type, ignoring!\n");
         return false;
+    }
 
     return true;
 }
 
 void instance::send_discover()
 {
+    const char *vendor_class_identifier = "Onyx dhcpcd (netctld)";
+    char hostname[512];
+    uint16_t max_msg_size = htons(576);
     auto boot_packet = buf;
     memset(boot_packet, 0, sizeof(dhcp_packet_t));
+
+    if (gethostname(hostname, sizeof(hostname) - 1) < 0)
+        err(1, "gethostname");
+
+    for (size_t i = 0; i < strlen(hostname); i++)
+        hostname[i] = tolower(hostname[i]);
+
+    hostname[sizeof(hostname) - 1] = 0;
 
     memcpy(&boot_packet->chaddr, &mac, 6);
     boot_packet->xid = xid;
     boot_packet->hlen = 6;
     boot_packet->htype = HTYPE_ETHER;
     boot_packet->op = BOOTREQUEST;
-    boot_packet->flags = 0;
+    boot_packet->flags = htons(BOOTP_BROADCAST);
 
     off_t off = DHCP_MIN_OPT_OFFSET;
     memcpy(&boot_packet->options, DHCP_OPTIONS_COOKIE, 4);
@@ -156,9 +177,17 @@ void instance::send_discover()
     unsigned char message_type = DHCPDISCOVER;
     off = dhcp_add_option(boot_packet, off, 1, &message_type, sizeof(message_type),
                           DHO_DHCP_MESSAGE_TYPE);
-    unsigned char opts[3] = {DHO_SUBNET_MASK, DHO_ROUTERS, DHO_DOMAIN_NAME_SERVERS};
+    unsigned char opts[] = {DHO_SUBNET_MASK, DHO_ROUTERS,     DHO_DOMAIN_NAME_SERVERS,
+                            DHO_HOST_NAME,   DHO_DOMAIN_NAME, DHO_BROADCAST_ADDRESS,
+                            DHO_NTP_SERVERS};
+    off = dhcp_add_option(boot_packet, off, sizeof(opts), &opts, sizeof(opts),
+                          DHO_DHCP_PARAMETER_REQUEST_LIST);
+    off = dhcp_add_option(boot_packet, off, 2, &max_msg_size, 2, DHO_DHCP_MAX_MESSAGE_SIZE);
+    off = dhcp_add_option(boot_packet, off, strlen(hostname), hostname, strlen(hostname),
+                          DHO_HOST_NAME);
     off =
-        dhcp_add_option(boot_packet, off, 3, &opts, sizeof(opts), DHO_DHCP_PARAMETER_REQUEST_LIST);
+        dhcp_add_option(boot_packet, off, strlen(vendor_class_identifier), vendor_class_identifier,
+                        strlen(vendor_class_identifier), DHO_VENDOR_CLASS_IDENTIFIER);
     off = dhcp_close_options(boot_packet, off);
 
     if (send(sockfd, boot_packet, DHCP_FIXED_NON_UDP + off, 0) < 0)
@@ -237,6 +266,7 @@ std::unique_ptr<packet> instance::get_packets(std::function<bool(packet *)> pred
 
     auto pdata = message_type->option.data();
 
+    printf("dhcpcd: Got message type %x\n", *pdata);
     if (*pdata == DHCPOFFER)
     {
         if (got_dhcp_offer)
@@ -254,6 +284,28 @@ std::unique_ptr<packet> instance::get_packets(std::function<bool(packet *)> pred
     return p;
 }
 
+static bool check_for_dhcpoffer(dhcpcd::packet *data)
+{
+    auto message_type = data->get_option(DHO_DHCP_MESSAGE_TYPE, 1);
+    assert(message_type != nullptr);
+
+    auto pdata = message_type->option.data();
+
+    if (*pdata != DHCPOFFER)
+    {
+        fprintf(stderr, "dhcpcd: Expecting DHCPOFFER, got %x, ignoring\n", *pdata);
+        return false;
+    }
+
+    if (!data->get_option(DHO_ROUTERS, 4))
+    {
+        fprintf(stderr, "dhcpcd: DHCPOFFER does not supply DHO_ROUTERS, ignoring\n");
+        return false;
+    }
+
+    return true;
+}
+
 int instance::setup_netif()
 {
     /* DHCP essentially works like this:
@@ -269,19 +321,7 @@ int instance::setup_netif()
     std::unique_ptr<packet> packet;
 
     /* If for some reason we can't retrieve a packet, the get_packets will throw an exception */
-    while (!(packet = get_packets([](dhcpcd::packet *data) -> bool {
-                 if (!data->get_option(DHO_ROUTERS, 4))
-                     return false;
-
-                 auto message_type = data->get_option(DHO_DHCP_MESSAGE_TYPE, 1);
-
-                 assert(message_type != nullptr);
-
-                 /* Sanitise the option parameters */
-
-                 auto pdata = message_type->option.data();
-                 return *pdata == DHCPOFFER;
-             })))
+    while (!(packet = get_packets(check_for_dhcpoffer)))
     {
     }
 
