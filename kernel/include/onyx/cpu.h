@@ -252,6 +252,7 @@ typedef struct cpu
     bool invariant_tsc;
     bool constant_tsc;
     uint64_t tsc_rate;
+    uint64_t apic_rate;
     int virtualAddressSpace, physicalAddressSpace;
     unsigned long manufacturer;
     /* Add more as needed */
@@ -265,6 +266,9 @@ bool x86_has_usable_tsc(void);
 void x86_set_tsc_rate(uint64_t rate);
 uint64_t x86_get_tsc_rate(void);
 void x86_load_ucode(void);
+
+void x86_set_apic_rate(uint64_t rate);
+uint64_t x86_get_apic_rate(void);
 
 /* Linux kernel-like cpu_relax, does a pause instruction */
 static inline void cpu_relax(void)

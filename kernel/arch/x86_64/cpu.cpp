@@ -92,6 +92,16 @@ uint64_t x86_get_tsc_rate(void)
     return bootcpu_info.tsc_rate;
 }
 
+void x86_set_apic_rate(uint64_t rate)
+{
+    bootcpu_info.apic_rate = rate;
+}
+
+uint64_t x86_get_apic_rate(void)
+{
+    return bootcpu_info.apic_rate;
+}
+
 extern "C" void intel_ucode_load(void);
 
 static void __cpu_identify(void);
@@ -157,14 +167,40 @@ static void __cpu_identify(void)
     if ((bootcpu_info.family == 0xf && bootcpu_info.model > 0x2) ||
         (bootcpu_info.family == 0x6 && bootcpu_info.model >= 0xe))
         bootcpu_info.constant_tsc = true;
-#if 0
-	/* TODO: Add 15h support */
-	if(__get_cpuid(0x15, &eax, &ebx, &ecx, &edx))
-	{
-		INFO("x86cpu", "0x15 supported!\n");
-		halt();
-	}
-#endif
+
+    bootcpu_info.apic_rate = 0;
+    bootcpu_info.tsc_rate = 0;
+    if (__get_cpuid(0x15, &eax, &ebx, &ecx, &edx))
+    {
+        if (ebx == 0 || eax == 0)
+        {
+            pr_info("CPUID 0x15 is useless, reverting to calibration\n");
+        }
+        else if (ecx == 0)
+        {
+            /* Some Intel SoCs don't report crystal clock. Though it can be
+             * highly accurately calculated from CPU base frequency
+             */
+            u32 numerator = ebx;
+            u32 denominator = eax;
+            if (__get_cpuid(0x16, &eax, &ebx, &ecx, &edx))
+            {
+                bootcpu_info.apic_rate = (u64) eax * 1000 * denominator / numerator;
+                bootcpu_info.tsc_rate = (u64) eax * 1000000;
+                pr_info("CPUID reported TSC rate: %lu, apic rate: %lu\n", bootcpu_info.tsc_rate,
+                        bootcpu_info.apic_rate);
+            }
+            else
+                pr_info("CPUID 0x15 is useless and 0x16 is not available\n");
+        }
+        else
+        {
+            bootcpu_info.apic_rate = ecx / 1000;
+            bootcpu_info.tsc_rate = (u64) ecx * ebx / eax;
+            pr_info("CPUID reported TSC rate: %lu, apic rate: %lu\n", bootcpu_info.tsc_rate,
+                    bootcpu_info.apic_rate);
+        }
+    }
 
     cpu_get_sign();
     x86_do_alternatives();
