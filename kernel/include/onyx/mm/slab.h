@@ -117,6 +117,10 @@ void kfree(void *ptr);
 
 void *kcalloc(size_t nr, size_t size, int flags);
 
+void *krealloc(void *ptr, size_t size, int flags);
+
+void *kreallocarray(void *ptr, size_t m, size_t n, int flags);
+
 /**
  * @brief Purge a cache
  * This function goes through every free slab and gives it back to the page allocator.
