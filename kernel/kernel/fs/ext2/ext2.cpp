@@ -206,7 +206,7 @@ int ext2_map_page(struct page *page, size_t off, struct inode *ino)
         if (block == EXT2_ERR_INV_BLOCK)
         {
             // Zero the block, since it's a hole
-            memset((char *) PAGE_TO_VIRT(page) + curr_off, 0, sb->block_size);
+            page_zero_range(page, b->page_off, sb->block_size);
             bb_test_and_set(b, BLOCKBUF_FLAG_UPTODATE);
         }
         else
@@ -236,6 +236,9 @@ ssize_t ext2_readpage(struct page *page, size_t off, struct inode *ino)
     for (struct block_buf *b = (struct block_buf *) page->priv; b != nullptr; b = b->next)
     {
         sector_t block = b->block_nr;
+        if (bb_test_flag(b, BLOCKBUF_FLAG_UPTODATE))
+            continue;
+
         if (block != EXT2_ERR_INV_BLOCK)
         {
             /* TODO: Coalesce reads */
