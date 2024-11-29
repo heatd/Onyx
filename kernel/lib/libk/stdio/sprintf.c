@@ -16,6 +16,8 @@
 #include <onyx/modules.h>
 #include <onyx/types.h>
 
+#include <uapi/netinet.h>
+
 #ifdef DO_STREAMS
 struct stream
 {
@@ -400,6 +402,46 @@ static int dump_buffer(struct stream *stream, void *ptr, struct printf_specifier
     return written;
 }
 
+static void find_v6_zeroes_range(struct in6_addr *addr, int *start, int *end)
+{
+    int best_start = -1, best_end = -1;
+    int curr_start = -1, curr_end = -1;
+    bool in_zeroes = false;
+    for (int i = 0; i < 8; i++)
+    {
+        if (addr->s6_addr16[i] == 0)
+        {
+            if (!in_zeroes)
+                curr_start = i;
+            curr_end = i;
+            in_zeroes = true;
+        }
+        else
+        {
+            /* The use of the symbol "::" MUST be used to its maximum capability (longest sequence
+             * wins). It also MUST NOT be used to compress a single field. [...] the first sequence
+             * of zero bits MUST be shortened (when the length is equal) -- rfc5952, non-verbatim */
+            if (in_zeroes && curr_end - curr_start > 1 &&
+                curr_end - curr_start > best_end - best_start)
+            {
+                best_start = curr_start;
+                best_end = curr_end;
+            }
+
+            in_zeroes = false;
+        }
+    }
+
+    if (in_zeroes && curr_end - curr_start > 1 && curr_end - curr_start > best_end - best_start)
+    {
+        best_start = curr_start;
+        best_end = curr_end;
+    }
+
+    *start = best_start;
+    *end = best_end;
+}
+
 static int print_ipaddr(struct stream *stream, void *ptr, struct printf_specifier *spec,
                         const char **pfmt)
 {
@@ -438,6 +480,60 @@ static int print_ipaddr(struct stream *stream, void *ptr, struct printf_specifie
 
         buf[j] = '\0';
         *pfmt = ++fmt;
+        return printf_do_string(stream, buf, spec->fwidth, spec->precision, spec->flags);
+    }
+    else if (*fmt == '6')
+    {
+        /* IPv6 address printing as per rfc5952 */
+        int compr_start, compr_end;
+        struct in6_addr *addr = ptr;
+        *pfmt = ++fmt;
+        char buf[sizeof("0000:0000:0000:0000:0000:0000:0000:0000")];
+        int j = 0;
+        find_v6_zeroes_range(addr, &compr_start, &compr_end);
+        for (int i = 0; i < 8; i++)
+        {
+            int k = 4;
+            u16 val = ntohs(addr->s6_addr16[i]);
+            char tmp[5];
+
+            if (i >= compr_start && i <= compr_end)
+            {
+                /* Add the extra ':' to indicate a compressed ipv6 addr range */
+                if (i == compr_end)
+                {
+                    buf[j++] = ':';
+                    /* Add another ':' if nothing comes after us */
+                    if (compr_end == 7)
+                        buf[j++] = ':';
+                }
+
+                continue;
+            }
+
+            if (i > 0)
+                buf[j++] = ':';
+
+            /* Leading zeros MUST be suppressed */
+            if (val > 0)
+            {
+                while (val)
+                {
+                    /* rfc5952 demands lowercase hex digits */
+                    tmp[k--] = digits[val % 16];
+                    val /= 16;
+                }
+            }
+            else
+            {
+                tmp[k--] = '0';
+            }
+
+            while (k < 4)
+                buf[j++] = tmp[++k];
+        }
+
+        buf[j] = '\0';
         return printf_do_string(stream, buf, spec->fwidth, spec->precision, spec->flags);
     }
 
