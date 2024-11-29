@@ -60,21 +60,47 @@ static void prepend_dentry(struct rbuf *rbuf, struct dentry *dentry)
     spin_unlock(&dentry->d_lock);
 }
 
+static bool follow_mount_up(struct mount *mnt, struct path *out)
+{
+    struct dentry *dentry = mnt->mnt_root, *mountpoint;
+
+    while (mnt->mnt_parent)
+    {
+        mountpoint = mnt->mnt_point;
+        mnt = mnt->mnt_parent;
+        if (mnt->mnt_root != dentry)
+        {
+            out->mount = mnt;
+            out->dentry = mountpoint;
+            return true;
+        }
+    }
+
+    return false;
+}
+
 static void walk_path(const struct path *path, const struct path *root, struct rbuf *rbuf)
 {
     /* TODO: While d_parent on .. Just Works, we don't need to keep track of the struct mnt. This
      * will need to be changed once that changes (mnt should keep track of mnt_parent).
      **/
     struct dentry *dentry = path->dentry;
+    struct mount *mnt = path->mount;
 
     prepend_char(rbuf, '\0');
     while (dentry != NULL && dentry != root->dentry)
     {
-        if (dentry->d_flags & DENTRY_FLAG_MOUNT_ROOT)
-            goto skip;
+        if (dentry == mnt->mnt_root)
+        {
+            struct path p;
+            if (!follow_mount_up(mnt, &p))
+                break;
+            dentry = p.dentry;
+            mnt = p.mount;
+        }
+
         prepend_dentry(rbuf, dentry);
         prepend_char(rbuf, '/');
-    skip:
         dentry = dentry->d_parent;
     }
 

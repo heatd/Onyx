@@ -295,6 +295,9 @@ bool dentry_does_not_have_parent(dentry *dir, dentry *to_not_have);
 void dentry_do_unlink(dentry *entry);
 void dentry_rename(dentry *dent, const char *name, dentry *parent, dentry *dst);
 void dentry_move(dentry *target, dentry *new_parent);
+dentry *__dentry_try_to_open(std::string_view name, dentry *dir, bool lock_ino);
+dentry *dentry_open_from_cache(dentry *dent, std::string_view name);
+dentry *dentry_wait_for_pending(dentry *dent);
 
 #endif
 

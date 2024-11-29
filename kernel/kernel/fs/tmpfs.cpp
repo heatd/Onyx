@@ -192,10 +192,13 @@ off_t tmpfs_getdirent(struct dirent *buf, off_t off, struct file *file)
     {
         /* .. */
         auto parent = dentry_parent(dent);
-        if (!parent) // We're root, so use ourselves
-            parent = dent;
-        put_dentry_to_dirent(buf, parent, "..");
-        dput(parent);
+        if (parent)
+        {
+            put_dentry_to_dirent(buf, parent, "..");
+            dput(parent);
+        }
+        else
+            put_dentry_to_dirent(buf, dent, "..");
     }
     else
     {
