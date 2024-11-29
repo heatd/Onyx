@@ -1623,10 +1623,10 @@ void *calloc(size_t nr, size_t size)
     return kcalloc(nr, size, GFP_ATOMIC);
 }
 
-void *realloc(void *ptr, size_t size)
+void *krealloc(void *ptr, size_t size, int flags)
 {
     if (!ptr)
-        return malloc(size);
+        return kmalloc(size, flags);
 
     struct slab *old_slab = kmem_pointer_to_slab(ptr);
 
@@ -1642,12 +1642,17 @@ void *realloc(void *ptr, size_t size)
         return ptr;
     }
 
-    void *newbuf = malloc(size);
+    void *newbuf = kmalloc(size, flags);
     if (!newbuf)
         return NULL;
     __memcpy(newbuf, ptr, old_slab->cache->objsize);
     kfree(ptr);
     return newbuf;
+}
+
+void *realloc(void *ptr, size_t size)
+{
+    return krealloc(ptr, size, GFP_ATOMIC);
 }
 
 int posix_memalign(void **pptr, size_t align, size_t len)
@@ -1656,11 +1661,11 @@ int posix_memalign(void **pptr, size_t align, size_t len)
     return -1;
 }
 
-void *reallocarray(void *ptr, size_t m, size_t n)
+void *kreallocarray(void *ptr, size_t m, size_t n, int flags)
 {
     if (array_overflows(m, n))
         return NULL;
-    return realloc(ptr, n * m);
+    return krealloc(ptr, n * m, flags);
 }
 
 #ifdef CONFIG_KASAN
