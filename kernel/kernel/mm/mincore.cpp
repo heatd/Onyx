@@ -9,6 +9,9 @@
 #include <onyx/process.h>
 #include <onyx/vm.h>
 
+#undef REQUIRES_SHARED
+#define REQUIRES_SHARED(...)
+
 // TODO: Export this stuff in some header, and avoid sticking everything into vm.cpp
 vm_area_struct *vm_search(struct mm_address_space *mm, void *addr, size_t length)
     REQUIRES_SHARED(mm->vm_lock);
@@ -17,13 +20,13 @@ static long do_pagemap(struct mm_address_space *as, unsigned long start, unsigne
                        u64 *pagemap)
 {
 
-    scoped_mutex g{as->vm_lock};
+    scoped_rwlock<rw_lock::read> g{as->vm_lock};
     long pfns_processed = 0;
 
     vm_area_struct *vma;
     unsigned long index = start;
     void *entry_;
-    mt_for_each(&as->region_tree, entry_, index, end)
+    mt_for_each (&as->region_tree, entry_, index, end)
     {
         vma = (vm_area_struct *) entry_;
         if (vma->vm_start > end)
