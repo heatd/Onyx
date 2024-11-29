@@ -533,7 +533,6 @@ irqstatus_t apic_timer_irq(struct irq_context *ctx, void *cookie)
     return IRQ_HANDLED;
 }
 
-unsigned long apic_rate = 0;
 unsigned long us_apic_rate = 0;
 
 driver apic_driver = {.name = "apic-timer", .bus_type_node = {&apic_driver}};
@@ -665,10 +664,12 @@ void timer_calibrate()
     calib.duration[2] = 10;
     /* No need to cal*/
     bool calibrate_tsc = x86_get_tsc_rate() == 0;
+    bool calibrate_apic = x86_get_apic_rate() == 0;
 
     for (int i = 0; i < CALIBRATION_TRIALS; i++)
     {
-        apic_calibrate(i);
+        if (calibrate_apic)
+            apic_calibrate(i);
         if (calibrate_tsc)
             tsc_calibrate(i);
     }
@@ -676,19 +677,16 @@ void timer_calibrate()
     unsigned long deltas[3];
 
     for (int i = 0; i < 3; i++)
-    {
         deltas[i] = calib.tsc_calib[i].best_delta;
-    }
 
     if (calibrate_tsc)
         x86_set_tsc_rate(calculate_frequency(deltas, 1000));
 
     for (int i = 0; i < 3; i++)
-    {
         deltas[i] = calib.apic_ticks[i];
-    }
 
-    apic_rate = calculate_frequency(deltas, 1);
+    if (calibrate_apic)
+        x86_set_apic_rate(calculate_frequency(deltas, 1));
 }
 
 void apic_set_oneshot_tsc(hrtime_t deadline)
@@ -756,7 +754,7 @@ void apic_set_oneshot(hrtime_t deadline)
 void apic_timer_set_periodic(hrtime_t period_ns)
 {
     hrtime_t period_ms = period_ns / NS_PER_MS;
-    uint32_t counter = apic_rate * period_ms;
+    uint32_t counter = x86_get_apic_rate() * period_ms;
 
     lapic_write(LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_PERIODIC);
     lapic_write(LAPIC_TIMER_INITCNT, counter);
@@ -784,10 +782,10 @@ void apic_timer_init()
      */
     lapic_write(LAPIC_TIMER_DIV, 3);
 
-    printf("apic: apic timer rate: %lu\n", apic_rate);
-    us_apic_rate = INT_DIV_ROUND_CLOSEST(apic_rate, 1000);
+    printf("apic: apic timer rate: %lu\n", x86_get_apic_rate());
+    us_apic_rate = INT_DIV_ROUND_CLOSEST(x86_get_apic_rate(), 1000);
 
-    fp_32_64_div_32_32(&apic_ticks_per_ns, apic_rate, NS_PER_MS);
+    fp_32_64_div_32_32(&apic_ticks_per_ns, x86_get_apic_rate(), NS_PER_MS);
 
     DISABLE_INTERRUPTS();
 
