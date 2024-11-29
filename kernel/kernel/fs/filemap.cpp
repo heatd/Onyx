@@ -50,7 +50,7 @@ retry:
         }
 
         /* Let's allocate a new page */
-        p = alloc_page(GFP_KERNEL);
+        p = alloc_page(PAGE_ALLOC_NO_ZERO | GFP_KERNEL);
         if (!p)
             return -ENOMEM;
         p->owner = ino->i_pages;
@@ -395,7 +395,7 @@ ssize_t file_write_cache(void *buffer, size_t len, struct inode *ino, size_t off
 }
 
 static int default_write_begin(struct file *filp, struct vm_object *vm_obj, off_t off, size_t len,
-                               struct page **ppage)
+                               struct page **ppage) NO_THREAD_SAFETY_ANALYSIS
 {
     struct page *page = nullptr;
     struct inode *ino = vm_obj->ino;
@@ -426,7 +426,8 @@ static int default_write_begin(struct file *filp, struct vm_object *vm_obj, off_
 }
 
 static int default_write_end(struct file *file, struct vm_object *vm_obj, off_t offset,
-                             unsigned int written, unsigned int to_write, struct page *page)
+                             unsigned int written, unsigned int to_write,
+                             struct page *page) NO_THREAD_SAFETY_ANALYSIS
 {
     struct inode *ino = vm_obj->ino;
     unlock_page(page);
@@ -446,7 +447,8 @@ static int default_write_end(struct file *file, struct vm_object *vm_obj, off_t 
  * @param flags Flags
  * @return Written bytes, or negative error code
  */
-ssize_t filemap_write_iter(struct file *filp, size_t off, iovec_iter *iter, unsigned int flags)
+ssize_t filemap_write_iter(struct file *filp, size_t off, iovec_iter *iter,
+                           unsigned int flags) NO_THREAD_SAFETY_ANALYSIS
 {
     struct inode *ino = filp->f_ino;
     struct vm_object *vm_obj = ino->i_pages;
@@ -697,7 +699,7 @@ static int filemap_mkwrite_private(struct vm_pf_context *ctx,
 
 static int vm_prepare_write(struct inode *inode, struct page *p) REQUIRES(p)
 {
-    DCHECK(page_locked(p));
+    DCHECK_PAGE(page_locked(p), p);
 
     /* Correctness: We set the i_size before truncating pages from the page cache, so this should
      * not race... I think? */
@@ -723,30 +725,32 @@ static int filemap_mkwrite_shared(struct vm_pf_context *ctx,
 
 static int filemap_fault(struct vm_pf_context *ctx) NO_THREAD_SAFETY_ANALYSIS
 {
-    struct vm_area_struct *region = ctx->entry;
+    struct vm_area_struct *vma = ctx->entry;
     struct fault_info *info = ctx->info;
     struct page *page = nullptr;
-    struct inode *ino = region->vm_file->f_ino;
+    struct inode *ino = vma->vm_file->f_ino;
     int st = 0;
-    unsigned long pgoff = (ctx->vpage - region->vm_start) >> PAGE_SHIFT;
-    bool needs_invalidate = false;
+    unsigned long pgoff = (ctx->vpage - vma->vm_start) >> PAGE_SHIFT;
+    pte_t *ptep;
+    pte_t oldpte = ctx->oldpte;
+    struct spinlock *lock;
 
     /* We need to lock the page in case we're mapping it (that is, it's either a read-fault on
      * a private region, or any fault on a MAP_SHARED). */
-    bool locked = (vma_private(region) && !ctx->info->write) || vma_shared(region);
+    bool locked = (vma_private(vma) && !ctx->info->write) || vma_shared(vma);
 
     /* Permission checks have already been handled before .fault() */
 
     /* If a page was present, use that as the CoW source */
-    if (vma_private(region) && ctx->mapping_info & PAGE_PRESENT)
+    if (vma_private(vma) && pte_present(oldpte))
     {
-        page = phys_to_page(MAPPING_INFO_PADDR(ctx->mapping_info));
-        DCHECK(info->write && !(ctx->mapping_info & PAGE_WRITABLE));
+        page = phys_to_page(pte_addr(oldpte));
+        DCHECK(info->write && !pte_write(oldpte));
     }
 
     if (!page)
     {
-        unsigned long fileoff = (region->vm_offset >> PAGE_SHIFT) + pgoff;
+        unsigned long fileoff = (vma->vm_offset >> PAGE_SHIFT) + pgoff;
         if (ino->i_size <= (fileoff << PAGE_SHIFT))
         {
             info->signal = VM_SIGBUS;
@@ -754,24 +758,13 @@ static int filemap_fault(struct vm_pf_context *ctx) NO_THREAD_SAFETY_ANALYSIS
         }
 
         unsigned ffp_flags = FIND_PAGE_ACTIVATE | (locked ? FIND_PAGE_LOCK : 0);
-        st = filemap_find_page(region->vm_file->f_ino, fileoff, ffp_flags, &page,
-                               &region->vm_file->f_ra_state);
+        st = filemap_find_page(vma->vm_file->f_ino, fileoff, ffp_flags, &page,
+                               &vma->vm_file->f_ra_state);
 
         if (st < 0)
             goto err;
     }
 
-#ifdef FILEMAP_PARANOID
-    if (ctx->mapping_info & PAGE_PRESENT)
-    {
-        unsigned long mapped = MAPPING_INFO_PADDR(ctx->mapping_info);
-        unsigned long fetched = (unsigned long) page_to_phys(page);
-        if (mapped != fetched)
-            panic("%s[%d]: filemap: Mapped page %lx != fetched %lx %s\n",
-                  get_current_process()->name.data(), get_current_process()->pid_, mapped, fetched,
-                  amap ? "from amap" : "from filemap");
-    }
-#endif
     if (!info->write)
     {
         /* Write-protect the page */
@@ -779,7 +772,7 @@ static int filemap_fault(struct vm_pf_context *ctx) NO_THREAD_SAFETY_ANALYSIS
     }
     else
     {
-        if (vma_private(region))
+        if (vma_private(vma))
         {
             DCHECK(!locked);
             st = filemap_mkwrite_private(ctx, page);
@@ -791,22 +784,63 @@ static int filemap_fault(struct vm_pf_context *ctx) NO_THREAD_SAFETY_ANALYSIS
         /* We should invalidate the TLB if we had a mapping before. Note: I don't like that
          * we're mapping *over* the page, again. But it is what it is, and currently the code is
          * a little cleaner. */
-        needs_invalidate = ctx->mapping_info & PAGE_PRESENT;
         page = ctx->page;
         DCHECK(page != nullptr);
     }
 
-    if (!vm_map_page(region->vm_mm, ctx->vpage, (u64) page_to_phys(page), ctx->page_rwx,
-                     ctx->entry))
+    if (pgtable_prealloc(vma->vm_mm, ctx->vpage) < 0)
         goto enomem;
 
-    if (needs_invalidate)
-        vm_invalidate_range(ctx->vpage, 1);
+    ptep = ptep_get_locked(vma->vm_mm, ctx->vpage, &lock);
+    if (ptep->pte != oldpte.pte)
+    {
+        /* Have to retry. Either this page is going away, or someone else nicely handled it for us.
+         */
+        goto out_unlock_pte;
+    }
 
-    /* Only unref if this page is not new. When we allocate a new page - because of CoW,
-     * amap_add 'adopts' our reference. This works because amaps are inherently region-specific,
-     * and we have the address_space locked.
-     */
+    if (ctx->page_rwx & VM_WRITE && !pte_none(oldpte) &&
+        pte_addr(oldpte) == (unsigned long) page_to_phys(page))
+    {
+        /* Okay, logic is simple in case we're just toggling the W bit. This can happen for various
+         * reasons, including mkwrite_private deciding we don't need to CoW, or a shared fault. In
+         * this case, we can avoid doing a TLB shootdown. Doing a local TLB invalidation is okay. It
+         * might result in spurious faults for other threads, but it's just way faster than
+         * purposefully doing IPIs.
+         */
+        set_pte(ptep, pte_mkwrite(oldpte));
+        tlbi_upgrade_pte_prots(vma->vm_mm, ctx->vpage);
+    }
+    else
+    {
+        /* New page. Just Map It. Sucks that we're copying this around... */
+        struct page *oldp = NULL;
+        if (!pte_present(oldpte))
+            increment_vm_stat(vma->vm_mm, resident_set_size, PAGE_SIZE);
+
+        page_add_mapcount(page);
+        set_pte(ptep, pte_mkpte((u64) page_to_phys(page),
+                                calc_pgprot((u64) page_to_phys(page), ctx->page_rwx)));
+
+        if (unlikely(pte_present(oldpte) && !pte_special(oldpte)))
+            oldp = phys_to_page(pte_addr(oldpte));
+
+        /* We did our page table thing, now release the lock. We're going to need to IPI and it's
+         * best we do it with no spinlock held.
+         */
+        spin_unlock(lock);
+
+        if (pte_present(oldpte))
+            vm_invalidate_range(ctx->vpage, 1);
+        /* After the IPI we can sub the mapcount - which may involve some freeing here... */
+        if (oldp)
+            page_sub_mapcount(oldp);
+        goto out;
+    }
+
+out_unlock_pte:
+    spin_unlock(lock);
+out:
     if (locked)
         unlock_page(page);
     page_unref(page);
