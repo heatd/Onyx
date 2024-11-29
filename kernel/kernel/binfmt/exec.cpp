@@ -14,6 +14,7 @@
 #include <onyx/exec.h>
 #include <onyx/file.h>
 #include <onyx/kunit.h>
+#include <onyx/mm/slab.h>
 #include <onyx/process.h>
 #include <onyx/random.h>
 #include <onyx/signal.h>
@@ -35,6 +36,9 @@ expected<envarg_res, int> process_copy_envarg(const char **envarg, size_t curren
     const char **b = envarg;
     const char *ptr = nullptr;
     long st;
+    /* TODO: Take into account rlim_stack */
+    unsigned long limit = (8 * DEFAULT_USER_STACK_LEN) / 4;
+    limit = cul::max(limit, (unsigned long) ARG_MAX);
 
     while ((st = get_user64((unsigned long *) b, (unsigned long *) &ptr)) == 0 && ptr != nullptr)
     {
@@ -57,10 +61,10 @@ expected<envarg_res, int> process_copy_envarg(const char **envarg, size_t curren
     size_t buffer_size = (nr_args + 1) * sizeof(void *) + string_size;
 
     // Check if we overflow the ARG_MAX
-    if (current_size + buffer_size > ARG_MAX)
+    if (current_size + buffer_size > limit)
         return unexpected<int>{-E2BIG};
 
-    char *new_ = (char *) zalloc(buffer_size);
+    char *new_ = (char *) kcalloc(buffer_size, 1, GFP_KERNEL);
     if (!new_)
         return unexpected<int>{-ENOMEM};
 
@@ -328,7 +332,7 @@ int flush_old_exec(struct exec_state *state)
     vm_set_aspace(state->new_address_space.get());
 
     curr->address_space = cul::move(state->new_address_space);
-    mutex_init(&curr->address_space->vm_lock);
+    rwlock_init(&curr->address_space->vm_lock);
 
     /* Close O_CLOEXEC files */
     file_do_cloexec(&curr->ctx);
@@ -501,7 +505,7 @@ int sys_execve(const char *p, const char **argv, const char **envp)
     current->flags &= ~PROCESS_FORKED;
 
     struct stack_info si;
-    si.length = DEFAULT_USER_STACK_LEN;
+    si.length = DEFAULT_USER_STACK_LEN * 8;
 
     if (process_alloc_stack(&si) < 0)
         goto error_die_signal;
