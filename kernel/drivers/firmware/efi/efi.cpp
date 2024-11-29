@@ -9,6 +9,7 @@
 
 #include <stdio.h>
 
+#include <onyx/mm/slab.h>
 #include <onyx/process.h>
 #include <onyx/utf8.h>
 #include <onyx/utfstring.h>
@@ -89,7 +90,7 @@ unsigned long efi_memory_desc_flags_to_vm(uint64_t attributes)
  */
 void efi_remap_efi_region(EFI_MEMORY_DESCRIPTOR &desc)
 {
-    pr_info("Remapping [%016lx, %016lx]\n", desc.PhysicalStart,
+    pr_warn("Remapping [%016lx, %016lx]\n", desc.PhysicalStart,
             desc.PhysicalStart + (desc.NumberOfPages << PAGE_SHIFT) - 1);
     bool mapping_over_null = desc.PhysicalStart == 0;
 
@@ -137,6 +138,47 @@ static void efi_print_info()
            st->FirmwareRevision & 0xffff);
 }
 
+static void efi_dump_mem_desc(const EFI_MEMORY_DESCRIPTOR *desc)
+{
+    pr_debug(
+        "Descriptor type %u physical start %lx virtual start %lx nr_pages %lx attributes %08lx\n",
+        desc->Type, desc->PhysicalStart, desc->VirtualStart, desc->NumberOfPages, desc->Attribute);
+}
+
+#define EFI_RESERVED_TYPE               0
+#define EFI_LOADER_CODE                 1
+#define EFI_LOADER_DATA                 2
+#define EFI_BOOT_SERVICES_CODE          3
+#define EFI_BOOT_SERVICES_DATA          4
+#define EFI_RUNTIME_SERVICES_CODE       5
+#define EFI_RUNTIME_SERVICES_DATA       6
+#define EFI_CONVENTIONAL_MEMORY         7
+#define EFI_UNUSABLE_MEMORY             8
+#define EFI_ACPI_RECLAIM_MEMORY         9
+#define EFI_ACPI_MEMORY_NVS             10
+#define EFI_MEMORY_MAPPED_IO            11
+#define EFI_MEMORY_MAPPED_IO_PORT_SPACE 12
+#define EFI_PAL_CODE                    13
+#define EFI_PERSISTENT_MEMORY           14
+#define EFI_UNACCEPTED_MEMORY           15
+#define EFI_MAX_MEMORY_TYPE             16
+
+static bool should_map_efi(const EFI_MEMORY_DESCRIPTOR *desc)
+{
+    if (desc->Attribute & EFI_MEMORY_RUNTIME)
+        return true;
+
+    /* Some runtime services like touching boot services memory on SVAM. Let's map it just for them,
+     * as a hack. */
+    switch (desc->Type)
+    {
+        case EFI_BOOT_SERVICES_CODE:
+        case EFI_BOOT_SERVICES_DATA:
+            return true;
+    }
+
+    return false;
+}
 /**
  * @brief Initializes EFI
  *
@@ -163,12 +205,24 @@ void efi_init(EFI_SYSTEM_TABLE *system_table, EFI_MEMORY_DESCRIPTOR *descriptors
 
     size_t nr_descriptors = mmap_size / descriptor_size;
     EFI_MEMORY_DESCRIPTOR *desc = descriptors;
+    EFI_MEMORY_DESCRIPTOR *map = NULL;
+    size_t nr_maps = 0;
+
     for (size_t i = 0; i < nr_descriptors;
          desc = (EFI_MEMORY_DESCRIPTOR *) ((char *) desc + descriptor_size), i++)
     {
-        if (desc->Attribute & EFI_MEMORY_RUNTIME)
+#ifdef CONFIG_EFI_DUMP_MEMMAP
+        efi_dump_mem_desc(desc);
+#endif
+        if (should_map_efi(desc))
         {
+            nr_maps++;
+            EFI_MEMORY_DESCRIPTOR *newmap =
+                (EFI_MEMORY_DESCRIPTOR *) kreallocarray(map, nr_maps, descriptor_size, GFP_ATOMIC);
+            CHECK(newmap != NULL);
             efi_remap_efi_region(*desc);
+            memcpy(&newmap[nr_maps - 1], desc, descriptor_size);
+            map = newmap;
         }
     }
 
@@ -176,7 +230,7 @@ void efi_init(EFI_SYSTEM_TABLE *system_table, EFI_MEMORY_DESCRIPTOR *descriptors
         efi_guard g;
 
         EFI_STATUS st = g.system_table()->RuntimeServices->SetVirtualAddressMap(
-            mmap_size, descriptor_size, descriptor_version, descriptors);
+            nr_maps, descriptor_size, descriptor_version, map);
         assert(st == EFI_SUCCESS);
     }
 
