@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #pragma once
@@ -12,6 +14,7 @@
 #include <sys/stat.h>
 
 #include <fstream>
+#include <iostream>
 #include <istream>
 #include <system_error>
 
@@ -111,7 +114,14 @@ public:
 
         dhcpcd::create_instance(new_name);
 
-        netctl::v6::configure_if(*this);
+        try
+        {
+            netctl::v6::configure_if(*this);
+        }
+        catch (std::exception& e)
+        {
+            std::cout << "netctl ipv6 address configuration failed: " << e.what() << "\n";
+        }
     }
 
     ~instance()
