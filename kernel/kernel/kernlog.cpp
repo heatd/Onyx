@@ -72,11 +72,15 @@ struct printk_header
 
 struct printk_buf
 {
-    char _log_buf[LOG_BUF_SIZE];
-    size_t log_tail = 0;
-    size_t log_head = 0;
-    unsigned int msg_seq = 0;
+    char _log_buf[LOG_BUF_SIZE]{};
+    size_t log_tail;
+    size_t log_head;
+    unsigned int msg_seq;
     static constexpr size_t logmask = LOG_BUF_SIZE - 1;
+
+    constexpr printk_buf() : log_tail{0}, log_head{0}, msg_seq{0}
+    {
+    }
 
     /* Note: The functions below all require the printk_lock (or some other kind of mutual
      * exclusion) */
@@ -243,7 +247,7 @@ u32 printk_buf::find_and_print(char *buf, size_t *psize, u32 initial_seq, u32 fl
     return seen;
 }
 
-static struct printk_buf printk_buf;
+static constinit struct printk_buf printk_buf;
 static struct spinlock printk_lock;
 #define MAX_LINE 1024
 static char flush_buf[MAX_LINE];
