@@ -111,6 +111,11 @@ public:
     bool is_orphaned_and_has_stopped_jobs(process *ignore) const;
 
     int kill_pgrp(int sig, int flags, siginfo_t *info) const;
+
+    bool is(enum pid_type type)
+    {
+        return !list_is_empty(&member_list[type]);
+    }
 };
 
 static inline pid::auto_pid pid_create(process *leader)

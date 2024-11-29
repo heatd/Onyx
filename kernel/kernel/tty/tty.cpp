@@ -568,6 +568,21 @@ unsigned int do_tty_cnotty(tty *tty)
     return 0;
 }
 
+static unsigned int do_tiocspgrp(struct tty *tty, pid_t pid)
+{
+    struct process *current = get_current_process();
+    if (current->ctty != tty || tty->session != current->session)
+        return -ENOTTY;
+
+    pid::auto_pid p = pid::lookup(pid);
+    if (!p || !p->is(PIDTYPE_PGRP))
+        return -ESRCH;
+    if (!p->is_in_session(tty->session))
+        return -EPERM;
+    tty->foreground_pgrp = pid;
+    return 0;
+}
+
 unsigned int tty_ioctl(int request, void *argp, struct file *dev)
 {
     struct tty *slave_tty;
@@ -671,9 +686,10 @@ unsigned int tty_ioctl(int request, void *argp, struct file *dev)
 
         case TIOCSPGRP: {
             scoped_mutex g{tty->lock};
-            auto pgrp = get_current_process()->process_group;
-            tty->foreground_pgrp = pgrp->get_pid();
-            return 0;
+            pid_t pid;
+            if (copy_from_user(&pid, argp, sizeof(int)))
+                return -EFAULT;
+            return do_tiocspgrp(tty, pid);
         }
 
         case TIOCGPGRP: {
