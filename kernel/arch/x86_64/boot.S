@@ -240,8 +240,6 @@ ENTRY(efi_entry_multiboot2_64)
     cmove 8(%rdi), %rdx
     cmpl $MULTIBOOT_TAG_TYPE_EFI64_IH, (%rdi)
     cmove 8(%rdi), %rcx
-    cmpl $MULTIBOOT_TAG_TYPE_LOAD_BASE_ADDR, (%rdi)
-    cmovel 8(%rdi), %esi
 
     /* Increment the pointer by size (rdi + 4) */
     addl 4(%rdi), %edi
@@ -260,14 +258,26 @@ ENTRY(efi_entry_multiboot2_64)
     push %rdx
 
     mov %rcx, %rdi
-    xchg %rsi, %rdx
-    sub $PHYS_BASE, %rdx
+    lea efi_entry_multiboot2_64(%rip), %rcx
+    movabs $efi_entry_multiboot2_64, %rsi
+    movabs $KERNEL_VIRTUAL_BASE, %rdx
+    sub %rdx, %rsi
+    sub %rsi, %rcx
+    mov %rcx, %rdx
+    lea kernel_phys_offset(%rip), %r9
+    mov %rdx, (%r9)
     lea efi_state(%rip), %rcx
     mov $pml4, %r8
     add %rdx, %r8
-    lea kernel_phys_offset(%rip), %r9
-    mov %rdx, (%r9)
+    mov (%rsp), %rsi
+    push %r8
     call efi_handoff
+
+    pop %rdi
+    pop %r12
+    lea x86_stack_top(%rip), %rsp
+    call efi_switch_mmu
+    call x86_efi_switch_tables
 
     /* We're in pure 64-bit mode, paging enabled, with LA57 if it exists, ints off */
     mov $x86_start, %rax
@@ -275,7 +285,7 @@ ENTRY(efi_entry_multiboot2_64)
     /* First arg = multiboot2 info */
     mov %rbx, %rdi
     /* Second arg = EFI_SYSTEM_TABLE */
-    pop %rsi
+    mov %r12, %rsi
     jmp *%rax
 99:
     hlt
@@ -295,9 +305,6 @@ END(efi_entry_multiboot2_64)
 ENTRY(x86_efi_switch_tables)
     /* We're still running in identity mode */
     lea efi_gdtr(%rip), %rax
-    /* Fixup the gdtr's gdt address */
-    lea efi_gdt_begin(%rip), %rdi
-    mov %rdi, 2(%rax)
     lgdt (%rax)
     
     mov $KERNEL_DS, %ax
