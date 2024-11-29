@@ -31,7 +31,7 @@ CFLAGS:=$(CFLAGS) -MMD -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-
 
 ifneq ($(ONYX_USING_CLANG), yes)
 # TODO: Find suitable alternatives for clang
-CFLAGS:=$(CFLAGS) -Wno-format-truncation -Wshadow-compatible-local
+CFLAGS:=$(CFLAGS) -Wno-format-truncation -Wshadow-compatible-local -Wno-narrowing
 
 # Note: We need to define _GLIBCXX_INCLUDE_NEXT_C_HEADERS so the shenanigans in the
 # compiler (in this case, only GCC)'s stdlib.h C++ wrappers get bypassed. If we let stdlib.h include cstdlib,

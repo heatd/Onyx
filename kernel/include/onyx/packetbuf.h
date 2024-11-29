@@ -30,6 +30,7 @@ struct vm_object;
 struct tcp_packetbuf_info
 {
     u32 seq, seq_len;
+    u8 ack : 1, syn : 1, fin : 1, rst : 1;
 };
 
 struct packetbuf;
@@ -101,7 +102,10 @@ struct packetbuf
     unsigned int zero_copy : 1;
     int domain;
 
-    struct list_head list_node;
+    union {
+        struct list_head list_node;
+        struct bst_node bst_node;
+    };
 
     union {
         struct inet_route route;
@@ -121,6 +125,7 @@ struct packetbuf
           data{}, tail{}, end{}, buffer_start{}, csum_offset{nullptr}, csum_start{nullptr},
           header_length{}, gso_size{}, gso_flags{}, needs_csum{0}, zero_copy{0}, domain{0}
     {
+        route = {};
     }
 
     /**
@@ -375,6 +380,23 @@ static inline void *pbf_put(struct packetbuf *pbf, unsigned int size)
     void *ret = pbf->tail;
     pbf->tail += size;
     assert((unsigned long) pbf->tail <= (unsigned long) pbf->end);
+    return ret;
+}
+
+/**
+ * @brief Get a header, and advance head by size.
+ *
+ * @param pbf Packetbuf
+ * @param size The length of the data.
+ *
+ * @return void* The address of the header.
+ */
+static inline void *pbf_pull(struct packetbuf *pbf, unsigned int size)
+{
+    if (unlikely(size > (pbf->tail - pbf->data)))
+        return NULL;
+    void *ret = pbf->data;
+    pbf->data += size;
     return ret;
 }
 
