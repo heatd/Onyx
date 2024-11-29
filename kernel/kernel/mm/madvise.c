@@ -91,8 +91,8 @@ int sys_madvise(void *addr, size_t len, int advice)
     if (start + len <= start)
         return -EINVAL;
 
-    mutex_lock(&mm->vm_lock);
+    rw_lock_read(&mm->vm_lock);
     ret = do_madvise_walk(mm, start, len, advice);
-    mutex_unlock(&mm->vm_lock);
+    rw_unlock_read(&mm->vm_lock);
     return ret;
 }

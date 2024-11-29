@@ -71,6 +71,14 @@ static bool limits_are_contained(struct vm_area_struct *reg, unsigned long start
                                  unsigned long limit);
 static bool vm_mapping_is_cow(struct vm_area_struct *entry);
 
+/* TODO */
+#undef REQUIRES_SHARED
+#undef REQUIRES
+#undef EXCLUDES
+#define REQUIRES_SHARED(...)
+#define REQUIRES(...)
+#define EXCLUDES(...)
+
 vm_area_struct *vm_search(struct mm_address_space *mm, void *addr, size_t length)
     REQUIRES_SHARED(mm->vm_lock);
 static void vma_pre_adjust(struct vm_area_struct *vma);
@@ -295,8 +303,6 @@ void do_vm_unmap(struct mm_address_space *as, void *range, size_t pages)
     struct vm_area_struct *entry = vm_find_region(as, range);
     assert(entry != nullptr);
 
-    MUST_HOLD_MUTEX(&entry->vm_mm->vm_lock);
-
     vm_mmu_unmap(entry->vm_mm, range, pages, entry);
 }
 
@@ -342,8 +348,6 @@ bool vm_mapping_requires_write_protect(struct vm_area_struct *reg)
 
 static void vma_destroy(struct vm_area_struct *region)
 {
-    MUST_HOLD_MUTEX(&region->vm_mm->vm_lock);
-
     /* First, unref things */
     if (region->vm_file)
     {
@@ -416,7 +420,7 @@ int vm_clone_as(mm_address_space *addr_space, mm_address_space *original)
         original = get_current_address_space();
     if (!original)
         original = &kernel_address_space;
-    scoped_mutex g{original->vm_lock};
+    scoped_rwlock<rw_lock::read> g{original->vm_lock};
     return paging_clone_as(addr_space, original);
 }
 
@@ -512,7 +516,7 @@ int vm_fork_address_space(struct mm_address_space *addr_space) EXCLUDES(addr_spa
     EXCLUDES(get_current_address_space()->vm_lock)
 {
     struct mm_address_space *current_mm = get_current_address_space();
-    scoped_mutex g{current_mm->vm_lock};
+    scoped_rwlock<rw_lock::read> g{current_mm->vm_lock};
 
 #ifdef CONFIG_DEBUG_ADDRESS_SPACE_ACCT
     mmu_verify_address_space_accounting(get_current_address_space());
@@ -553,7 +557,7 @@ int vm_fork_address_space(struct mm_address_space *addr_space) EXCLUDES(addr_spa
 
     assert(addr_space->active_mask.is_empty());
 
-    mutex_init(&addr_space->vm_lock);
+    rwlock_init(&addr_space->vm_lock);
     validate_mm_tree(addr_space);
     return 0;
 }
@@ -569,17 +573,10 @@ void vm_change_perms(void *range, size_t pages, int perms) NO_THREAD_SAFETY_ANAL
 {
     struct mm_address_space *as;
     bool kernel = is_higher_half(range);
-    bool needs_release = false;
-    if (kernel)
-        as = &kernel_address_space;
-    else
-        as = get_current_process()->get_aspace();
+    DCHECK(!kernel);
 
-    if (mutex_owner(&as->vm_lock) != get_current_thread())
-    {
-        needs_release = true;
-        mutex_lock(&as->vm_lock);
-    }
+    as = &kernel_address_space;
+    rw_lock_write(&as->vm_lock);
 
     for (size_t i = 0; i < pages; i++)
     {
@@ -589,9 +586,7 @@ void vm_change_perms(void *range, size_t pages, int perms) NO_THREAD_SAFETY_ANAL
     }
 
     vm_invalidate_range((unsigned long) range, pages);
-
-    if (needs_release)
-        mutex_unlock(&as->vm_lock);
+    rw_unlock_write(&as->vm_lock);
 }
 
 static bool vma_can_merge_into(struct vm_area_struct *vma, size_t size, int vm_flags,
@@ -829,7 +824,7 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
     if (off & (PAGE_SIZE - 1))
         return ERR_PTR(-EINVAL);
 
-    scoped_mutex g{mm->vm_lock};
+    scoped_rwlock<rw_lock::write> g{mm->vm_lock};
 
     /* Calculate the pages needed for the overall size */
     size_t pages = vm_size_to_pages(length);
@@ -1136,7 +1131,7 @@ int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot
     unsigned long limit = addr + size;
     VMA_ITERATOR(vmi, as, addr, limit);
 
-    scoped_mutex g{as->vm_lock};
+    scoped_rwlock<rw_lock::write> g{as->vm_lock};
 
     /* Note: vm_munmap has some vma detaching logic for the simple fact that POSIX does not
      * allow for a partial unmap in case of an error. Whereas this is not the case for mprotect.
@@ -1239,7 +1234,7 @@ uint64_t sys_brk(void *newbrk)
 {
     mm_address_space *as = get_current_address_space();
 
-    scoped_mutex g{as->vm_lock};
+    scoped_rwlock<rw_lock::write> g{as->vm_lock};
 
     if (newbrk == nullptr)
     {
@@ -1458,14 +1453,14 @@ int vm_handle_page_fault(struct fault_info *info)
     if (irq_is_disabled())
         panic("Page fault while IRQs were disabled\n");
 
-    /* Surrender immediately if there's no user address space or the fault was inside vm code */
-    if (!as || mutex_holds_lock(&as->vm_lock))
+    /* Surrender immediately if there's no user address space */
+    if (!as)
     {
         info->signal = VM_SIGSEGV;
         return -1;
     }
 
-    scoped_mutex g{as->vm_lock};
+    scoped_rwlock<rw_lock::read> g{as->vm_lock};
 
     struct vm_area_struct *entry = vm_find_region(as, (void *) info->fault_address);
     if (!entry)
@@ -1554,7 +1549,7 @@ void vm_destroy_addr_space(struct mm_address_space *mm)
     bool free_pgd = true;
 
     /* First, iterate through the maple tree and free/unmap stuff */
-    scoped_mutex g{mm->vm_lock};
+    scoped_rwlock<rw_lock::write> g{mm->vm_lock};
 
     vm_area_struct *entry;
     void *entry_;
@@ -1972,7 +1967,7 @@ int vm_create_address_space(struct mm_address_space *mm)
 
     assert(mm->active_mask.is_empty() == true);
 
-    mutex_init(&mm->vm_lock);
+    rwlock_init(&mm->vm_lock);
     return 0;
 }
 
@@ -2008,8 +2003,6 @@ void *vm_get_fallback_pgd()
 void vm_remove_region(struct mm_address_space *as, struct vm_area_struct *region)
     REQUIRES(as->vm_lock)
 {
-    MUST_HOLD_MUTEX(&as->vm_lock);
-
     void *ret = mtree_erase(&as->region_tree, region->vm_start);
     CHECK(ret == region);
 }
@@ -2019,8 +2012,6 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size) REQUIRES
     unsigned long addr = (unsigned long) __addr & -PAGE_SIZE;
     unsigned long limit = ALIGN_TO(((unsigned long) __addr) + size, PAGE_SIZE);
     struct list_head list = LIST_HEAD_INIT(list);
-
-    MUST_HOLD_MUTEX(&as->vm_lock);
 
     struct vm_area_struct *vma = vm_search(as, (void *) addr, PAGE_SIZE);
     if (!vma)
@@ -2093,7 +2084,7 @@ restore:
  */
 int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 {
-    scoped_mutex g{as->vm_lock};
+    scoped_rwlock<rw_lock::write> g{as->vm_lock};
 
     auto addr = (unsigned long) __addr;
     if (addr < as->start || addr > as->end)
@@ -2165,8 +2156,6 @@ static int __vm_expand_mapping(struct vm_area_struct *region, size_t new_size)
 static int vm_expand_mapping(struct mm_address_space *as, struct vm_area_struct *region,
                              size_t new_size) REQUIRES(as->vm_lock)
 {
-    MUST_HOLD_MUTEX(&as->vm_lock);
-
     if (!vm_can_expand(as, region, new_size))
         return -1;
 
@@ -2241,7 +2230,7 @@ void *sys_mremap(void *old_address, size_t old_size, size_t new_size, int flags,
     bool fixed = flags & MREMAP_FIXED;
     bool wants_create_new_mapping_of_pages = old_size == 0 && may_move;
     void *ret = MAP_FAILED;
-    scoped_mutex g{current->address_space->vm_lock};
+    scoped_rwlock<rw_lock::write> g{current->address_space->vm_lock};
     auto as = current->get_aspace();
 
     /* TODO: Unsure on what to do if new_size > old_size */
@@ -2419,7 +2408,7 @@ int get_phys_pages(void *_addr, unsigned int flags, struct page **pages, size_t 
         return ret;
     }
 
-    scoped_mutex g{as->vm_lock};
+    scoped_rwlock<rw_lock::read> g{as->vm_lock};
 
     size_t pages_gotten = 0;
 
@@ -2512,7 +2501,7 @@ int sys_msync(void *ptr, size_t length, int flags)
         return -EINVAL;
 
     /* Hogging the vm_lock is bad mkay, todo... */
-    scoped_mutex g{as->vm_lock};
+    scoped_rwlock<rw_lock::read> g{as->vm_lock};
 
     struct vm_area_struct *vma = vm_search(as, (void *) addr, length);
 

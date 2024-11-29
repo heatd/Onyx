@@ -1269,7 +1269,7 @@ ssize_t process::query(void *ubuf, ssize_t len, unsigned long what, size_t *howm
 ssize_t process::query_vm_regions(void *ubuf, ssize_t len, unsigned long what, size_t *howmany,
                                   void *arg)
 {
-    scoped_mutex g{address_space->vm_lock};
+    scoped_rwlock<rw_lock::read> g{address_space->vm_lock};
     size_t needed_len = 0;
     char pathbuf[PATH_MAX];
 

@@ -12,7 +12,7 @@
 
 #include <onyx/cpumask.h>
 #include <onyx/maple_tree.h>
-#include <onyx/mutex.h>
+#include <onyx/rwlock.h>
 
 #include <platform/vm.h>
 
@@ -46,7 +46,7 @@ struct mm_address_space
     struct maple_tree region_tree;
     unsigned long start CPP_DFLINIT;
     unsigned long end CPP_DFLINIT;
-    struct mutex vm_lock CPP_DFLINIT;
+    struct rwlock vm_lock CPP_DFLINIT;
 
     /* mmap(2) base */
     void *mmap_base CPP_DFLINIT;
