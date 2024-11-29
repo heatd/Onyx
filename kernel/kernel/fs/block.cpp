@@ -241,7 +241,7 @@ out_err:
 }
 
 static int block_write_begin(struct file *filp, struct vm_object *vm_obj, off_t offset, size_t len,
-                             struct page **ppage)
+                             struct page **ppage) NO_THREAD_SAFETY_ANALYSIS
 {
     struct page *page;
     int st = filemap_find_page(filp->f_ino, offset >> PAGE_SHIFT,
@@ -295,7 +295,8 @@ static int __block_write_end(struct file *file, struct vm_object *vm_obj, off_t 
 }
 
 static int block_write_end(struct file *file, struct vm_object *vm_obj, off_t offset,
-                           unsigned int written, unsigned int to_write, struct page *page)
+                           unsigned int written, unsigned int to_write,
+                           struct page *page) NO_THREAD_SAFETY_ANALYSIS
 {
     __block_write_end(file, vm_obj, offset, written, to_write, page);
     unlock_page(page);
