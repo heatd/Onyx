@@ -212,6 +212,48 @@ void sched_unlock(thread *thread, unsigned long cpu_flags)
 
 PER_CPU_VAR(long runnable_delta) = 0;
 
+extern void sched_idle(void *);
+
+static thread_t *sched_steal_job(unsigned int cpu)
+{
+    for (unsigned int i = 0; i < get_nr_cpus(); i++)
+    {
+        if (i == cpu)
+            continue;
+        if (other_cpu_get(tasks_in_queues, i) <= 1)
+            continue;
+        struct spinlock *sched_lock = get_per_cpu_ptr_any(scheduler_lock, i);
+        thread **thread_queues = (thread **) get_per_cpu_ptr_any(thread_queues_head, i);
+        if (spin_try_lock(sched_lock))
+            continue;
+
+        for (int j = NUM_PRIO - 1; j >= 0; j--)
+        {
+            /* If this queue has a thread, we found a runnable thread! */
+            if (thread_queues[j])
+            {
+                thread_t *ret = thread_queues[j];
+                if (ret->entry == sched_idle)
+                    continue;
+                /* Advance the queue by one */
+                thread_queues[j] = ret->next_prio;
+                if (thread_queues[j])
+                    ret->prev_prio = nullptr;
+                ret->next_prio = nullptr;
+                other_cpu_add(tasks_in_queues, -1, i);
+                add_per_cpu(tasks_in_queues, 1);
+                ret->cpu = cpu;
+                spin_unlock(sched_lock);
+                return ret;
+            }
+        }
+
+        spin_unlock(sched_lock);
+    }
+
+    return nullptr;
+}
+
 thread_t *__sched_find_next(unsigned int cpu)
 {
     thread_t *current_thread = get_current_thread();
@@ -251,6 +293,13 @@ thread_t *__sched_find_next(unsigned int cpu)
         if (thread_queues[i])
         {
             thread_t *ret = thread_queues[i];
+
+            if (ret->entry == sched_idle)
+            {
+                thread_t *stolen = sched_steal_job(cpu);
+                if (stolen)
+                    return stolen;
+            }
 
             /* Advance the queue by one */
             thread_queues[i] = ret->next_prio;
