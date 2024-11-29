@@ -155,21 +155,20 @@ int e1000_pollrx(netif *nif)
 {
     e1000_device *dev = (e1000_device *) nif->priv;
 
+    bool found_one = false;
     uint16_t old_cur = 0;
     while ((dev->rx_descs[dev->rx_cur].status & RSTA_DD))
     {
         auto &rxd = dev->rx_descs[dev->rx_cur];
-
         e1000_process_packet(nif, rxd);
-
         dev->rx_descs[dev->rx_cur].status = 0;
         old_cur = dev->rx_cur;
-
         dev->rx_cur = (dev->rx_cur + 1) % number_rx_desc;
-
-        e1000_write(REG_RXDESCTAIL, old_cur, dev);
+        found_one = true;
     }
 
+    if (found_one)
+        e1000_write(REG_RXDESCTAIL, old_cur, dev);
     return 0;
 }
 
@@ -608,7 +607,7 @@ unsigned int e1000_device::prepare_extended_descs(packetbuf *buf)
         if (!xmited)
         {
             buffer_start_off = (buf->data - (unsigned char *) buf->buffer_start);
-            length -= buffer_start_off;
+            length = buf->tail - buf->data;
             desc.popts = (buf->needs_csum ? POPTS_TXSM : 0);
         }
 
