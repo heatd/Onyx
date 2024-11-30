@@ -85,11 +85,16 @@ uint8_t ps2_send_command_to_device(struct ps2_port *port, uint8_t command, bool 
         ps2_send_command(port->controller, PS2_CMD_WRITE_PORT2_INPUT, false, NULL);
     }
 
-    while (inb(port->controller->command_port) & PS2_STATUS_INPUT_BUFFER_FULL)
-        cpu_relax();
-
     uint64_t t = clocksource_get_time();
     uint64_t future = t + 100 * NS_PER_MS;
+
+    while (inb(port->controller->command_port) & PS2_STATUS_INPUT_BUFFER_FULL)
+    {
+        if (future <= clocksource_get_time())
+            return PS2_CMD_TIMEOUT;
+        cpu_relax();
+    }
+
     outb(port->controller->data_port, command);
 
     if (get_response)
