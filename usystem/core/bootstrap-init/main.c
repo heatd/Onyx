@@ -120,16 +120,13 @@ static void drop_to_rescue_sh()
         return;
     }
 
+    setsid();
+    ioctl(0, TIOCSCTTY, (void *) 1);
     if (tcsetpgrp(0, getpid()) < 0)
-    {
         perror("tcsetpgrp");
-        return;
-    }
 
     if (execl("/bin/dash", "-/bin/dash", NULL) < 0)
-    {
         perror("exec");
-    }
 }
 
 int main(int argc, char **argv)
