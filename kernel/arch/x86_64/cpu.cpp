@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
-
+#define pr_fmt(fmt) "x86: " fmt
 #include <assert.h>
 #include <cpuid.h>
 #include <stdbool.h>
@@ -96,43 +96,25 @@ void __cpu_identify(void)
     uint32_t ebx = 0;
     uint32_t ecx = 0;
     uint32_t edx = 0;
-    if (!__get_cpuid(CPUID_FEATURES, &eax, &ebx, &ecx, &edx))
-    {
-        INFO("x86cpu", "CPUID_FEATURES not supported!\n");
-    }
-    else
+    if (__get_cpuid(CPUID_FEATURES, &eax, &ebx, &ecx, &edx))
         bootcpu_info.caps[0] = edx | ((uint64_t) ecx << 32);
 
     eax = CPUID_FEATURES_EXT;
-    if (!__get_cpuid_count(CPUID_FEATURES_EXT, 0, &eax, &ebx, &ecx, &edx))
-    {
-        INFO("x86cpu", "CPUID_FEATURES_EXT not supported!\n");
-    }
-    else
+    if (__get_cpuid_count(CPUID_FEATURES_EXT, 0, &eax, &ebx, &ecx, &edx))
     {
         bootcpu_info.caps[1] = ebx | ((uint64_t) ecx << 32);
         bootcpu_info.caps[2] = edx;
     }
 
     eax = CPUID_EXTENDED_PROC_INFO;
-    if (!__get_cpuid(CPUID_EXTENDED_PROC_INFO, &eax, &ebx, &ecx, &edx))
-    {
-        INFO("x86cpu", "CPUID_EXTENDED_PROC_INFO not supported!\n");
-    }
-    else
+    if (__get_cpuid(CPUID_EXTENDED_PROC_INFO, &eax, &ebx, &ecx, &edx))
     {
         bootcpu_info.caps[2] |= ((uint64_t) edx) << 32;
         bootcpu_info.caps[3] = ecx;
     }
 
-    if (!__get_cpuid(CPUID_ADVANCED_PM, &eax, &ebx, &ecx, &edx))
-    {
-        INFO("x86cpu", "CPUID_ADVANCED_PM not supported!\n");
-    }
-    else
-    {
+    if (__get_cpuid(CPUID_ADVANCED_PM, &eax, &ebx, &ecx, &edx))
         bootcpu_info.invariant_tsc = (bool) (edx & (1 << 8));
-    }
 
     /* Intel manuals 17.17 Time-Stamp Counter describes this in detail.
      * In short, Pentium M, Pentium 4, some Xeons and some P6's, the TSC increments with
@@ -173,13 +155,9 @@ char *cpu_get_name(void)
     bootcpu_info.manuid[12] = '\0';
 
     if (!strcmp(bootcpu_info.manuid, "GenuineIntel"))
-    {
         bootcpu_info.manufacturer = X86_CPU_MANUFACTURER_INTEL;
-    }
     else if (!strcmp(bootcpu_info.manuid, "AuthenticAMD"))
-    {
         bootcpu_info.manufacturer = X86_CPU_MANUFACTURER_AMD;
-    }
     else
         bootcpu_info.manufacturer = X86_CPU_MANUFACTURER_UNKNOWN;
 
@@ -235,7 +213,7 @@ void cpu_get_sign(void)
     if (family == 15)
         cpu_family = family + extended_family;
 
-    printf("CPUID: %04x:%04x:%04x:%04x\n", cpu_family, cpu_model, stepping, processor_type);
+    pr_info("CPUID: %04x:%04x:%04x:%04x\n", cpu_family, cpu_model, stepping, processor_type);
     bootcpu_info.model = cpu_model;
     bootcpu_info.family = cpu_family;
     bootcpu_info.stepping = stepping;
@@ -243,13 +221,12 @@ void cpu_get_sign(void)
 
 void cpu_identify(void)
 {
-    INFO("cpu", "Detected x86_64 CPU\n");
-    INFO("cpu", "Manufacturer ID: %s\n", cpu_get_name());
+    pr_info("Detected x86_64 %s cpu\n", cpu_get_name());
     if (bootcpu_info.brandstr[0] != '\0')
-        printf("Name: %s\n", bootcpu_info.brandstr);
+        pr_info("Name: %s\n", bootcpu_info.brandstr);
     cpu_get_sign();
-    INFO("cpu", "Stepping %i, Model %i, Family %i\n", bootcpu_info.stepping, bootcpu_info.model,
-         bootcpu_info.family);
+    pr_info("Stepping %i, Model %i, Family %i\n", bootcpu_info.stepping, bootcpu_info.model,
+            bootcpu_info.family);
     __cpu_identify();
 
     x86_do_alternatives();
@@ -267,14 +244,10 @@ void x86_setup_standard_control_registers(void)
     unsigned long cr4 = CR4_DE | CR4_MCE | CR4_PAE | CR4_PGE | CR4_PSE;
 
     if (x86_has_cap(X86_FEATURE_SMAP))
-    {
         cr4 |= CR4_SMAP;
-    }
 
     if (x86_has_cap(X86_FEATURE_SMEP))
-    {
         cr4 |= CR4_SMEP;
-    }
 
     if (x86_has_cap(X86_FEATURE_LA57))
     {
@@ -330,7 +303,7 @@ void x86_init_percpu(void)
         x86_init_percpu_intel();
     }
 
-    printf("cpu#%u tsc: %lu\n", get_cpu_nr(), rdtsc());
+    pr_info("cpu%u tsc: %lu\n", get_cpu_nr(), rdtsc());
 }
 
 void cpu_init_mp(void)
@@ -463,7 +436,7 @@ bool cpu_send_message(unsigned int cpu, unsigned long message, void *arg, bool s
 
 void cpu_kill(int cpu_num)
 {
-    printf("Killing cpu %u\n", cpu_num);
+    pr_info("Killing cpu %u\n", cpu_num);
     cpu_send_message(cpu_num, CPU_KILL, NULL, false);
 }
 
