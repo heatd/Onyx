@@ -8,4 +8,4 @@
 
 #define smp_wmb() __asm__ __volatile__("" ::: "memory")
 #define smp_rmb() __asm__ __volatile__("" ::: "memory")
-#define smp_mb()  __asm__ __volatile__("mfence" ::: "memory")
+#define smp_mb()  __asm__ __volatile__("lock addl $0, -4(%%rsp)" ::: "memory", "cc")
