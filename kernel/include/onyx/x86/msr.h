@@ -63,6 +63,13 @@ static inline uint64_t rdmsr(uint32_t msr)
     return (uint64_t) lo | ((uint64_t) hi << 32);
 }
 
+static inline void clear_msr_mask(uint32_t msr, uint64_t mask)
+{
+    uint64_t val = rdmsr(msr);
+    val &= ~mask;
+    wrmsr(msr, val);
+}
+
 #endif
 
 #endif
