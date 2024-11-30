@@ -84,13 +84,25 @@ uint64_t x86_get_tsc_rate(void)
 
 extern "C" void intel_ucode_load(void);
 
+static void __cpu_identify(void);
+
 void x86_load_ucode(void)
 {
     if (bootcpu_info.manufacturer == X86_CPU_MANUFACTURER_INTEL)
         intel_ucode_load();
+
+    if (get_cpu_nr() == 0)
+    {
+        /* If we're cpu 0, try to reload cpuid bits, since we might be loading ucode a little after
+         * the initial cpu_identify. */
+        __cpu_identify();
+    }
 }
 
-void __cpu_identify(void)
+static char *cpu_get_name(void);
+static void cpu_get_sign(void);
+
+static void __cpu_identify(void)
 {
     uint32_t eax = 0;
     uint32_t ebx = 0;
@@ -134,9 +146,14 @@ void __cpu_identify(void)
 		halt();
 	}
 #endif
+
+    cpu_get_name();
+    cpu_get_sign();
+    x86_do_alternatives();
+    jump_label_init();
 }
 
-char *cpu_get_name(void)
+static char *cpu_get_name(void)
 {
     uint32_t eax = 0;
     uint32_t ebx = 0;
@@ -193,7 +210,7 @@ char *cpu_get_name(void)
     return &bootcpu_info.manuid[0];
 }
 
-void cpu_get_sign(void)
+static void cpu_get_sign(void)
 {
     uint32_t eax, ebx, edx, ecx;
     if (__get_cpuid(CPUID_SIGN, &eax, &ebx, &ecx, &edx) == 0)
@@ -213,24 +230,20 @@ void cpu_get_sign(void)
     if (family == 15)
         cpu_family = family + extended_family;
 
-    pr_info("CPUID: %04x:%04x:%04x:%04x\n", cpu_family, cpu_model, stepping, processor_type);
     bootcpu_info.model = cpu_model;
     bootcpu_info.family = cpu_family;
     bootcpu_info.stepping = stepping;
+    (void) processor_type;
 }
 
 void cpu_identify(void)
 {
-    pr_info("Detected x86_64 %s cpu\n", cpu_get_name());
+    __cpu_identify();
+    pr_info("Detected x86_64 %s cpu\n", bootcpu_info.manuid);
     if (bootcpu_info.brandstr[0] != '\0')
         pr_info("Name: %s\n", bootcpu_info.brandstr);
-    cpu_get_sign();
-    pr_info("Stepping %i, Model %i, Family %i\n", bootcpu_info.stepping, bootcpu_info.model,
-            bootcpu_info.family);
-    __cpu_identify();
-
-    x86_do_alternatives();
-    jump_label_init();
+    pr_info("Family %x, model %x, stepping %x\n", bootcpu_info.family, bootcpu_info.model,
+            bootcpu_info.stepping);
 }
 
 extern "C" void syscall_ENTRY64(void);
