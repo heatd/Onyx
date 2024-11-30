@@ -43,7 +43,7 @@
 
 #include <platform/jump_label.h>
 
-static cpu_t cpu;
+cpu_t bootcpu_info;
 
 static unsigned int booted_cpus = 1;
 extern acpi_table_madt *madt;
@@ -64,22 +64,30 @@ __attribute__((hot)) bool x86_has_cap(int cap)
     /* Get the index in native word sizes(DWORDS in 32-bit systems and QWORDS in 64-bit ones) */
     int q_index = cap / bits_per_long;
     int bit_index = cap % bits_per_long;
-    return cpu.caps[q_index] & (1UL << bit_index);
+    return bootcpu_info.caps[q_index] & (1UL << bit_index);
 }
 
 bool x86_has_usable_tsc(void)
 {
-    return cpu.invariant_tsc || cpu.constant_tsc;
+    return bootcpu_info.invariant_tsc || bootcpu_info.constant_tsc;
 }
 
 void x86_set_tsc_rate(uint64_t rate)
 {
-    cpu.tsc_rate = rate;
+    bootcpu_info.tsc_rate = rate;
 }
 
 uint64_t x86_get_tsc_rate(void)
 {
-    return cpu.tsc_rate;
+    return bootcpu_info.tsc_rate;
+}
+
+extern "C" void intel_ucode_load(void);
+
+void x86_load_ucode(void)
+{
+    if (bootcpu_info.manufacturer == X86_CPU_MANUFACTURER_INTEL)
+        intel_ucode_load();
 }
 
 void __cpu_identify(void)
@@ -93,7 +101,7 @@ void __cpu_identify(void)
         INFO("x86cpu", "CPUID_FEATURES not supported!\n");
     }
     else
-        cpu.caps[0] = edx | ((uint64_t) ecx << 32);
+        bootcpu_info.caps[0] = edx | ((uint64_t) ecx << 32);
 
     eax = CPUID_FEATURES_EXT;
     if (!__get_cpuid_count(CPUID_FEATURES_EXT, 0, &eax, &ebx, &ecx, &edx))
@@ -102,8 +110,8 @@ void __cpu_identify(void)
     }
     else
     {
-        cpu.caps[1] = ebx | ((uint64_t) ecx << 32);
-        cpu.caps[2] = edx;
+        bootcpu_info.caps[1] = ebx | ((uint64_t) ecx << 32);
+        bootcpu_info.caps[2] = edx;
     }
 
     eax = CPUID_EXTENDED_PROC_INFO;
@@ -113,8 +121,8 @@ void __cpu_identify(void)
     }
     else
     {
-        cpu.caps[2] |= ((uint64_t) edx) << 32;
-        cpu.caps[3] = ecx;
+        bootcpu_info.caps[2] |= ((uint64_t) edx) << 32;
+        bootcpu_info.caps[3] = ecx;
     }
 
     if (!__get_cpuid(CPUID_ADVANCED_PM, &eax, &ebx, &ecx, &edx))
@@ -123,7 +131,7 @@ void __cpu_identify(void)
     }
     else
     {
-        cpu.invariant_tsc = (bool) (edx & (1 << 8));
+        bootcpu_info.invariant_tsc = (bool) (edx & (1 << 8));
     }
 
     /* Intel manuals 17.17 Time-Stamp Counter describes this in detail.
@@ -133,8 +141,9 @@ void __cpu_identify(void)
      * family 0x6 & model 0xe, things have been defacto constant, even without the invariant_tsc
      * flag.
      */
-    if ((cpu.family == 0xf && cpu.model > 0x2) || (cpu.family == 0x6 && cpu.model >= 0xe))
-        cpu.constant_tsc = true;
+    if ((bootcpu_info.family == 0xf && bootcpu_info.model > 0x2) ||
+        (bootcpu_info.family == 0x6 && bootcpu_info.model >= 0xe))
+        bootcpu_info.constant_tsc = true;
 #if 0
 	/* TODO: Add 15h support */
 	if(__get_cpuid(0x15, &eax, &ebx, &ecx, &edx))
@@ -158,52 +167,52 @@ char *cpu_get_name(void)
     cpuid[0] = ebx;
     cpuid[1] = edx;
     cpuid[2] = ecx;
-    memcpy(&cpu.manuid, &cpuid, 12);
+    memcpy(&bootcpu_info.manuid, &cpuid, 12);
 
     /* Zero terminate the string */
-    cpu.manuid[12] = '\0';
+    bootcpu_info.manuid[12] = '\0';
 
-    if (!strcmp(cpu.manuid, "GenuineIntel"))
+    if (!strcmp(bootcpu_info.manuid, "GenuineIntel"))
     {
-        cpu.manufacturer = X86_CPU_MANUFACTURER_INTEL;
+        bootcpu_info.manufacturer = X86_CPU_MANUFACTURER_INTEL;
     }
-    else if (!strcmp(cpu.manuid, "AuthenticAMD"))
+    else if (!strcmp(bootcpu_info.manuid, "AuthenticAMD"))
     {
-        cpu.manufacturer = X86_CPU_MANUFACTURER_AMD;
+        bootcpu_info.manufacturer = X86_CPU_MANUFACTURER_AMD;
     }
     else
-        cpu.manufacturer = X86_CPU_MANUFACTURER_UNKNOWN;
+        bootcpu_info.manufacturer = X86_CPU_MANUFACTURER_UNKNOWN;
 
     __get_cpuid(CPUID_MAXFUNCTIONSUPPORTED, &eax, &ebx, &ecx, &edx);
-    cpu.max_function = eax;
-    if (cpu.max_function >= 0x8000004)
+    bootcpu_info.max_function = eax;
+    if (bootcpu_info.max_function >= 0x8000004)
     {
         __get_cpuid(CPUID_BRAND0, &eax, &ebx, &ecx, &edx);
         cpuid[0] = eax;
         cpuid[1] = ebx;
         cpuid[2] = ecx;
         cpuid[3] = edx;
-        memcpy(&cpu.brandstr, &cpuid, 16);
+        memcpy(&bootcpu_info.brandstr, &cpuid, 16);
         __get_cpuid(CPUID_BRAND1, &eax, &ebx, &ecx, &edx);
         cpuid[0] = eax;
         cpuid[1] = ebx;
         cpuid[2] = ecx;
         cpuid[3] = edx;
-        memcpy(&cpu.brandstr[16], &cpuid, 16);
+        memcpy(&bootcpu_info.brandstr[16], &cpuid, 16);
         __get_cpuid(CPUID_BRAND2, &eax, &ebx, &ecx, &edx);
         cpuid[0] = eax;
         cpuid[1] = ebx;
         cpuid[2] = ecx;
         cpuid[3] = edx;
-        memcpy(&cpu.brandstr[32], &cpuid, 16);
-        cpu.brandstr[47] = '\0';
+        memcpy(&bootcpu_info.brandstr[32], &cpuid, 16);
+        bootcpu_info.brandstr[47] = '\0';
         // Get the address space sizes
         __get_cpuid(CPUID_ADDR_SPACE_SIZE, &eax, &ebx, &ecx, &edx);
-        cpu.physicalAddressSpace = eax & 0xFF;
-        cpu.virtualAddressSpace = (eax >> 8) & 0xFF;
+        bootcpu_info.physicalAddressSpace = eax & 0xFF;
+        bootcpu_info.virtualAddressSpace = (eax >> 8) & 0xFF;
     }
 
-    return &cpu.manuid[0];
+    return &bootcpu_info.manuid[0];
 }
 
 void cpu_get_sign(void)
@@ -227,19 +236,20 @@ void cpu_get_sign(void)
         cpu_family = family + extended_family;
 
     printf("CPUID: %04x:%04x:%04x:%04x\n", cpu_family, cpu_model, stepping, processor_type);
-    cpu.model = cpu_model;
-    cpu.family = cpu_family;
-    cpu.stepping = stepping;
+    bootcpu_info.model = cpu_model;
+    bootcpu_info.family = cpu_family;
+    bootcpu_info.stepping = stepping;
 }
 
 void cpu_identify(void)
 {
     INFO("cpu", "Detected x86_64 CPU\n");
     INFO("cpu", "Manufacturer ID: %s\n", cpu_get_name());
-    if (cpu.brandstr[0] != '\0')
-        printf("Name: %s\n", cpu.brandstr);
+    if (bootcpu_info.brandstr[0] != '\0')
+        printf("Name: %s\n", bootcpu_info.brandstr);
     cpu_get_sign();
-    INFO("cpu", "Stepping %i, Model %i, Family %i\n", cpu.stepping, cpu.model, cpu.family);
+    INFO("cpu", "Stepping %i, Model %i, Family %i\n", bootcpu_info.stepping, bootcpu_info.model,
+         bootcpu_info.family);
     __cpu_identify();
 
     x86_do_alternatives();
@@ -315,7 +325,7 @@ void x86_init_percpu(void)
     wrmsr(IA32_MSR_SFMASK,
           EFLAGS_INT_ENABLED | EFLAGS_DIRECTION | EFLAGS_TRAP | EFLAGS_ALIGNMENT_CHECK);
 
-    if (cpu.manufacturer == X86_CPU_MANUFACTURER_INTEL)
+    if (bootcpu_info.manufacturer == X86_CPU_MANUFACTURER_INTEL)
     {
         x86_init_percpu_intel();
     }
@@ -364,6 +374,7 @@ INIT_LEVEL_EARLY_PLATFORM_ENTRY(cpu_init_late);
 
 extern "C" void smpboot_main(unsigned long gs_base, volatile struct smp_header *header)
 {
+    x86_load_ucode();
     lapic_init_per_cpu();
 
     sched_enable_pulse();

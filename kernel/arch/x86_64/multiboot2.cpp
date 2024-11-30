@@ -19,6 +19,7 @@
 #include <onyx/bootmem.h>
 #include <onyx/clock.h>
 #include <onyx/cmdline.h>
+#include <onyx/cpio.h>
 #include <onyx/cpu.h>
 #include <onyx/crypt/sha256.h>
 #include <onyx/debug.h>
@@ -61,7 +62,6 @@
 #include <efi/efi.h>
 #include <uapi/fcntl.h>
 
-static struct multiboot_tag_module *initrd_tag;
 struct multiboot_tag_elf_sections *secs;
 struct multiboot_tag_mmap *mmap_tag;
 struct multiboot_tag_framebuffer *tagfb;
@@ -114,7 +114,11 @@ static inline void *temp_map_mem(unsigned long mem)
         return x86_placement_map(mem);
 }
 
-struct bootmodule initrd;
+#define MAX_INITRD 4
+
+static struct bootmodule initrd[MAX_INITRD];
+static int nr_initrd = 0;
+static int initrd_index = -1;
 
 static size_t mb2_count_mem(void)
 {
@@ -193,6 +197,63 @@ static void x86_very_early_init()
 
 #define MULTIBOOT2_IGNORE_ACPI (1 << 0)
 
+static bool is_cpio(void *mod)
+{
+    return !memcmp(mod, "070701", 6) || !memcmp(mod, "070702", 6);
+}
+
+static bool is_mb2_cpio(unsigned long addr)
+{
+    void *mod = x86_placement_map(addr);
+    return is_cpio(mod);
+}
+
+int find_early_cpio(const char *filename, struct cpio_file *out)
+{
+    for (int i = 0; i < nr_initrd; i++)
+    {
+        struct bootmodule *module = &initrd[i];
+        void *mod = PHYS_TO_VIRT(module->base);
+        if (is_cpio(mod))
+        {
+            int err = find_early_cpio_on(filename, mod, module->size, out);
+            if (!err)
+                return 0;
+        }
+    }
+
+    return -ENOENT;
+}
+
+static void handle_mb2_module(struct multiboot_tag_module *initrd_tag)
+{
+    auto vinitrd_tag = (multiboot_tag_module *) x86_placement_map((unsigned long) initrd_tag);
+    if (nr_initrd == 4)
+        return;
+
+    initrd[nr_initrd].base = vinitrd_tag->mod_start;
+    initrd[nr_initrd].size = vinitrd_tag->mod_end - vinitrd_tag->mod_start;
+    initrd[nr_initrd].next = nullptr;
+    bootmem_reserve(initrd[nr_initrd].base, initrd[nr_initrd].size);
+    nr_initrd++;
+
+    /* Skip cpio archives, which atm are all ucode archives */
+    if (is_mb2_cpio(vinitrd_tag->mod_start))
+    {
+        x86_placement_map((unsigned long) initrd_tag);
+        return;
+    }
+
+    x86_placement_map((unsigned long) initrd_tag);
+
+    if (initrd_index == -1)
+    {
+        set_initrd_address((void *) (uintptr_t) initrd[nr_initrd - 1].base,
+                           initrd[nr_initrd - 1].size);
+        initrd_index = nr_initrd - 1;
+    }
+}
+
 static void multiboot2_parse_tags(uintptr_t addr, unsigned int flags = 0)
 {
     struct multiboot_tag *tag;
@@ -214,7 +275,8 @@ static void multiboot2_parse_tags(uintptr_t addr, unsigned int flags = 0)
                 break;
             }
             case MULTIBOOT_TAG_TYPE_MODULE: {
-                initrd_tag = (struct multiboot_tag_module *) tag;
+                struct multiboot_tag_module *initrd_tag = (struct multiboot_tag_module *) tag;
+                handle_mb2_module(initrd_tag);
                 break;
             }
             case MULTIBOOT_TAG_TYPE_ELF_SECTIONS: {
@@ -259,14 +321,6 @@ static void multiboot2_parse_tags(uintptr_t addr, unsigned int flags = 0)
     bootmem_reserve(addr, (unsigned long) tag - addr);
 
     elf_sections_reserve(secs);
-
-    auto vinitrd_tag = (multiboot_tag_module *) x86_placement_map((unsigned long) initrd_tag);
-    initrd.base = vinitrd_tag->mod_start;
-    initrd.size = vinitrd_tag->mod_end - vinitrd_tag->mod_start;
-    initrd.next = nullptr;
-    bootmem_reserve(initrd.base, initrd.size);
-
-    set_initrd_address((void *) (uintptr_t) initrd.base, initrd.size);
 }
 
 static void x86_late_vm_init()
@@ -304,6 +358,7 @@ extern "C" void efi_entry_mb2(uintptr_t addr, EFI_SYSTEM_TABLE *system_table)
     x86_very_early_init();
 
     multiboot2_parse_tags(addr, MULTIBOOT2_IGNORE_ACPI);
+    x86_load_ucode();
 
     efi_boot_init(system_table);
     x86_late_vm_init();
@@ -325,6 +380,7 @@ extern "C" void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
     x86_very_early_init();
 
     multiboot2_parse_tags(addr);
+    x86_load_ucode();
 
     size_t total_mem = 0;
     unsigned long max_pfn = 0;
@@ -356,5 +412,5 @@ extern "C" void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
 
 void reclaim_initrd()
 {
-    reclaim_pages(initrd.base, initrd.base + initrd.size);
+    reclaim_pages(initrd[initrd_index].base, initrd[initrd_index].base + initrd[initrd_index].size);
 }

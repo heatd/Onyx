@@ -20,6 +20,8 @@
 #include <onyx/tss.h>
 #endif
 
+__BEGIN_CDECLS
+
 #ifdef __x86_64__
 
 #define CPUID_MANUFACTURERID       0x00000000
@@ -256,10 +258,13 @@ typedef struct cpu
     uint64_t caps[8];
 } cpu_t;
 
+extern cpu_t bootcpu_info;
+
 __attribute__((hot)) bool x86_has_cap(int cap);
 bool x86_has_usable_tsc(void);
 void x86_set_tsc_rate(uint64_t rate);
 uint64_t x86_get_tsc_rate(void);
+void x86_load_ucode(void);
 
 /* Linux kernel-like cpu_relax, does a pause instruction */
 static inline void cpu_relax(void)
@@ -332,8 +337,6 @@ struct cpu_message
     volatile bool sent;
     struct list_head node;
 };
-
-__BEGIN_CDECLS
 
 void cpu_identify();
 void cpu_init_late();

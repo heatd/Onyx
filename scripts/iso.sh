@@ -21,6 +21,11 @@ echo "Compressing kernel"
 xz -9 -e -f isodir/boot/vmonyx
 #zstd -15 isodir/boot/vmonyx
 
+if [ "$INTEL_UCODE" != "" ]; then
+    INTEL_UCODE_CMD="module2 /boot/$(basename $INTEL_UCODE)"
+    cp $INTEL_UCODE isodir/boot
+fi
+
 cat >isodir/boot/grub/grub.cfg <<EOF
 set default="0"
 set timeout=5
@@ -36,6 +41,8 @@ menuentry "Onyx" {
     multiboot2 /boot/vmonyx.xz --root=/dev/nvme0n1p1
     echo "Loading the initrd"
     module2 /boot/${INITRD_NAME}
+    ${INTEL_UCODE_CMD}
+    ${AMD_UCODE_CMD}
 
     boot
 }
