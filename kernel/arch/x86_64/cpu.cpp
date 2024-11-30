@@ -108,6 +108,15 @@ static void __cpu_identify(void)
     uint32_t ebx = 0;
     uint32_t ecx = 0;
     uint32_t edx = 0;
+
+    cpu_get_name();
+
+    /* IA32_MISC_ENABLE has a cpuid maxval limiting function. It's really important we clear it
+     * straight away, so we can access all cpuid bits with no problem. This only applies to Intel.
+     */
+    if (bootcpu_info.manufacturer == X86_CPU_MANUFACTURER_INTEL)
+        clear_msr_mask(IA32_MISC_ENABLE, IA32_MISC_ENABLE_LIMIT_CPUID_MAXVAL);
+
     if (__get_cpuid(CPUID_FEATURES, &eax, &ebx, &ecx, &edx))
         bootcpu_info.caps[0] = edx | ((uint64_t) ecx << 32);
 
@@ -147,7 +156,6 @@ static void __cpu_identify(void)
 	}
 #endif
 
-    cpu_get_name();
     cpu_get_sign();
     x86_do_alternatives();
     jump_label_init();
