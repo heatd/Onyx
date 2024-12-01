@@ -230,7 +230,7 @@ void efi_init(EFI_SYSTEM_TABLE *system_table, EFI_MEMORY_DESCRIPTOR *descriptors
         efi_guard g;
 
         EFI_STATUS st = g.system_table()->RuntimeServices->SetVirtualAddressMap(
-            nr_maps, descriptor_size, descriptor_version, map);
+            nr_maps * descriptor_size, descriptor_size, descriptor_version, map);
         assert(st == EFI_SUCCESS);
     }
 
