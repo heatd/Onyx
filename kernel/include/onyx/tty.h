@@ -39,15 +39,19 @@ struct tty_line_disc
     const struct tty_ldisc_ops *ops;
 };
 
+struct tty_ops
+{
+    ssize_t (*write)(const void *buffer, size_t size, struct tty *tty);
+    unsigned int (*ioctl)(int request, void *argp, struct tty *tty);
+};
+
 #define TTY_FLAG_LOCKED_PTY (1 << 0)
 #define TTY_FLAG_MASTER_PTY (1 << 1)
 
 struct tty
 {
     /* Read only members */
-    ssize_t (*read)(void *buffer, size_t size, struct tty *tty);
-    ssize_t (*write)(const void *buffer, size_t size, struct tty *tty);
-    unsigned int (*ioctl)(int request, void *argp, struct tty *tty);
+    const struct tty_ops *ops;
     void *priv;
     uintptr_t tty_num;
     struct tty_line_disc *ldisc;
