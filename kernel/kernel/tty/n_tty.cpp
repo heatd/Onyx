@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2022 Pedro Falcato
+ * Copyright (c) 2020 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -180,7 +180,7 @@ static ssize_t try_process_write(const char *s, size_t len, struct tty *tty)
 write_and_process:
     if (i != 0)
     {
-        return tty->write(buf, i, tty);
+        return tty->ops->write(buf, i, tty);
     }
 
     return i;
@@ -194,7 +194,7 @@ static void n_tty_output_char(char c, struct tty *tty)
             if (TTY_OFLAG(tty, ONLCR))
             {
                 tty->ldisc->column = 0;
-                tty->write("\r\n", 2, tty);
+                tty->ops->write("\r\n", 2, tty);
                 return;
             }
 
@@ -220,7 +220,7 @@ static void n_tty_output_char(char c, struct tty *tty)
             if (TTY_OFLAG(tty, TABDLY) == TAB3)
             {
                 // Convert tabs to spaces
-                tty->write("        ", spaces, tty);
+                tty->ops->write("        ", spaces, tty);
                 return;
             }
 
@@ -229,7 +229,7 @@ static void n_tty_output_char(char c, struct tty *tty)
         }
     }
 
-    tty->write(&c, 1, tty);
+    tty->ops->write(&c, 1, tty);
 }
 
 static ssize_t n_tty_write_out(const char *s, size_t length, struct tty *tty)
@@ -254,7 +254,7 @@ static ssize_t n_tty_write_out(const char *s, size_t length, struct tty *tty)
             }
         }
         else
-            i += tty->write(s + i, length - i, tty);
+            i += tty->ops->write(s + i, length - i, tty);
     }
 
     return i;

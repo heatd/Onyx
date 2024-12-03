@@ -1649,6 +1649,11 @@ unsigned int vterm_ioctl_tty(int request, void *argp, struct tty *tty)
     }
 }
 
+static const struct tty_ops vt_tty_ops = {
+    .write = vterm_write_tty,
+    .ioctl = vterm_ioctl_tty,
+};
+
 void vterm_init(struct tty *tty)
 {
     struct vterm *vt = (vterm *) tty->priv;
@@ -1685,9 +1690,7 @@ void vterm_init(struct tty *tty)
 
     update_cursor(vt);
 
-    tty->read = NULL;
-    tty->write = vterm_write_tty;
-    tty->ioctl = vterm_ioctl_tty;
+    tty->ops = &vt_tty_ops;
 
     vt->tty = tty;
 }

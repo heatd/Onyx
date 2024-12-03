@@ -49,9 +49,14 @@ out:
 
 static unsigned int pty_ioctl(int request, void *argp, struct tty *tty);
 
+static const struct tty_ops pty_ops = {
+    .ioctl = pty_ioctl,
+    .write = pty_write,
+};
+
 static int pty_master_on_open(struct file *filp)
 {
-    struct tty *master = tty_init(NULL, NULL, TTY_INIT_PTY);
+    struct tty *master = tty_init(NULL, NULL, 0);
     struct tty *slave = tty_init(NULL, NULL, TTY_INIT_PTY);
     if (!master || !slave)
         goto out_err;
@@ -61,10 +66,8 @@ static int pty_master_on_open(struct file *filp)
     slave->priv = master;
     slave->flags |= TTY_FLAG_LOCKED_PTY;
     master->flags |= TTY_FLAG_MASTER_PTY;
+    master->ops = slave->ops = &pty_ops;
 
-    master->write = pty_write;
-    master->ioctl = pty_ioctl;
-    slave->write = pty_write;
     slave->tty_num = __atomic_fetch_add(&next_pts, 1, __ATOMIC_RELEASE);
 
     /* The master tty will not have special input/output processing. we want the raw input more or
