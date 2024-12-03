@@ -632,8 +632,8 @@ unsigned int tty_ioctl(int request, void *argp, struct file *dev)
         case TIOCSLCKTRMIOS:
             return 0;
         case TIOCGWINSZ: {
-            if (slave_tty->ioctl)
-                return slave_tty->ioctl(request, argp, slave_tty);
+            if (slave_tty->ops->ioctl)
+                return slave_tty->ops->ioctl(request, argp, slave_tty);
             return user_memset(argp, 0, sizeof(winsize));
         }
         case TIOCSWINSZ: {
@@ -708,8 +708,8 @@ unsigned int tty_ioctl(int request, void *argp, struct file *dev)
         }
 
         default:
-            if (tty->ioctl)
-                return tty->ioctl(request, argp, tty);
+            if (tty->ops->ioctl)
+                return tty->ops->ioctl(request, argp, tty);
             return -EINVAL;
     }
     return -EINVAL;
@@ -914,10 +914,14 @@ ssize_t kernel_console_write(const void *buffer, size_t size, struct tty *tty)
     return size;
 }
 
+static const struct tty_ops console_ops = {
+    .write = kernel_console_write,
+};
+
 static void kernel_console_ctor(struct tty *tty)
 {
     // TODO: Determine the best console we have
-    tty->write = kernel_console_write;
+    tty->ops = &console_ops;
 }
 /**
  * @brief Create a kernel console tty
