@@ -335,8 +335,12 @@ int sys_setgroups(size_t size, const gid_t *ugids)
     if (ugids == nullptr)
     {
         /* Drop the current groups */
-        reinterpret_cast<supp_groups *>(c->groups)->unref();
-        c->groups = nullptr;
+        if (c->groups)
+        {
+            reinterpret_cast<supp_groups *>(c->groups)->unref();
+            c->groups = nullptr;
+        }
+
         return 0;
     }
 
