@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -32,6 +32,7 @@
 PER_CPU_VAR(volatile uint32_t *lapic) = nullptr;
 PER_CPU_VAR(uint32_t lapic_id) = 0;
 static bool x2apic_supported;
+static bool acpi_supports_online_capable;
 
 static void msr_fence()
 {
@@ -284,14 +285,31 @@ static void x86_fixup_lapic_list(u32 current_lapicid)
     {
         printf("x86: We would be cpu#%u, fixing up cpu list...\n", index);
         cul::swap(lapic_ids[0], lapic_ids[index]);
-        cul::swap(lapic_ids[0], lapic_ids[index]);
     }
+}
+
+static bool acpi_processor_may_online(u32 lapic_flags)
+{
+    if (lapic_flags & ACPI_MADT_ENABLED)
+        return true;
+    if (acpi_supports_online_capable && !(lapic_flags & ACPI_MADT_ONLINE_CAPABLE))
+        return false;
+    return true;
+}
+
+static bool ACPI_REV_GREQ(unsigned int maj, unsigned int min)
+{
+    return acpi_gbl_FADT.header.revision > maj ||
+           (acpi_gbl_FADT.header.revision == maj && acpi_gbl_FADT.minor_revision >= min);
 }
 
 static void parse_lapics()
 {
     // Go through the MADT and find local APICs
     CHECK(madt != nullptr);
+    /* ACPI_MADT_ONLINE_CAPABLE is only supported since ACPI 6.3. Not checking the revision number
+     * would cause us to erroneously think all CPUs on older revisions can't be onlined. */
+    acpi_supports_online_capable = ACPI_REV_GREQ(6, 3);
     unsigned int nr_cpus = 0;
     auto first = (acpi_subtable_header *) (madt + 1);
     for (acpi_subtable_header *i = first;
@@ -301,6 +319,11 @@ static void parse_lapics()
         if (i->type == ACPI_MADT_TYPE_LOCAL_APIC)
         {
             acpi_madt_local_apic *la = (acpi_madt_local_apic *) i;
+            /* Ignore LAPICs with id 255 (should show up as an x2APIC) */
+            if (la->id == 0xff)
+                continue;
+            if (!acpi_processor_may_online(la->lapic_flags))
+                continue;
 
             assert(lapic_ids.push_back(la->id) != false);
             nr_cpus++;
@@ -312,9 +335,15 @@ static void parse_lapics()
 
             if (!x86_has_cap(X86_FEATURE_X2APIC))
             {
-                panic("x86/apic: Firmware bug: Found MADT LOCAL_X2APIC entry without CPU x2APIC "
-                      "support\n");
+                pr_warn("x86/apic: Firmware bug: Found MADT LOCAL_X2APIC entry without CPU x2APIC "
+                        "support\n");
+                continue;
             }
+
+            if (la->local_apic_id == 0xffffffff)
+                continue;
+            if (!acpi_processor_may_online(la->lapic_flags))
+                continue;
 
             assert(lapic_ids.push_back(la->local_apic_id) != false);
             nr_cpus++;
