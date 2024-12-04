@@ -201,7 +201,7 @@ int nvme_device::probe()
         return ((nvme_device *) cookie)->handle_irq(ctx);
     };
 
-    if (dev_->enable_msi(handler, this) < 0)
+    if (true /*dev_->enable_msi(handler, this) < 0*/)
     {
         int st = install_irq(dev_->get_intn(), handler, dev_, IRQ_FLAG_REGULAR, this);
         if (st < 0)
