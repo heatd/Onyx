@@ -1,8 +1,11 @@
 /*
- * Copyright (c) 2020, 2021 Pedro Falcato
+ * Copyright (c) 2020 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  */
+
 #include <errno.h>
 
 #include <onyx/compiler.h>
@@ -71,16 +74,14 @@ struct creds *__creds_get_write(struct process *p) NO_THREAD_SAFETY_ANALYSIS
 
 int process_inherit_creds(struct process *new_child, struct process *parent)
 {
-    /* FIXME: Setuid and setgid? */
     struct creds *parentc = &parent->cred;
 
     new_child->cred.egid = parentc->egid;
     new_child->cred.rgid = parentc->rgid;
     new_child->cred.euid = parentc->euid;
     new_child->cred.ruid = parentc->ruid;
-    /* FIXME: Implement sgid and suid */
-    new_child->cred.sgid = new_child->cred.suid = 0;
-
+    new_child->cred.sgid = parentc->sgid;
+    new_child->cred.suid = parentc->suid;
     return 0;
 }
 
