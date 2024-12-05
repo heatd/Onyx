@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2021 Pedro Falcato
+ * Copyright (c) 2021 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 
 #include <sys/resource.h>
@@ -30,10 +32,11 @@ int process::rlimit(int rsrc, struct rlimit *old, const struct rlimit *new_lim, 
     {
         /* Non-root gets some extra checks:
          * 1) Is the new soft limit <= the hard limit?
-         * 2) Is the new hard limit the same as the old hard limit?(non-root can't set hard limits.)
+         * 2) Is the new hard limit the same or lower than the old hard limit? (non-root can't
+         * increase hard limits.)
          */
 
-        if (new_lim->rlim_max != lim.rlim_max)
+        if (new_lim->rlim_max > lim.rlim_max)
             return -EPERM;
 
         if (new_lim->rlim_cur > lim.rlim_max)
