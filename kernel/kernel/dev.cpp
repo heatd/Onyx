@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2022 Pedro Falcato
+ * Copyright (c) 2017 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -248,4 +248,27 @@ void driver_deregister_device(struct driver *driver, struct device *dev)
     scoped_lock g{driver->device_list_lock};
     extrusive_list_remove(&driver->devices, dev);
     dev->driver_ = nullptr;
+}
+
+int dev_printk(struct device *dev, const char *log_lvl, const char *fmt, ...)
+{
+    int err = 0;
+    va_list va;
+
+    va_start(va, fmt);
+    err = printk_loglvl_generic("%s%s %s: ", &va, fmt, log_lvl,
+                                dev->driver_ ? dev->driver_->name : dev->bus->name, dev->name);
+    va_end(va);
+    return err;
+}
+
+int bus_printk(struct device *dev, const char *log_lvl, const char *fmt, ...)
+{
+    int err = 0;
+    va_list va;
+
+    va_start(va, fmt);
+    err = printk_loglvl_generic("%s%s %s: ", &va, fmt, log_lvl, dev->bus->name, dev->name);
+    va_end(va);
+    return err;
 }

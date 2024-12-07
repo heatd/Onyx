@@ -103,6 +103,7 @@ int printf(const char *__restrict, ...);
 
 __attribute__((format(printf, 1, 2)))
 int printk(const char *__restrict, ...);
+int printk_loglvl_generic(const char *format, va_list *va, const char *msg, ...);
 
 #define __KERN_SOH '\x01'
 #define KERN_SOH "\x01"
