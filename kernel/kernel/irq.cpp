@@ -120,6 +120,7 @@ PER_CPU_VAR(bool in_irq) = false;
 void dispatch_irq(unsigned int irq, struct irq_context *context)
 {
     TRACE_EVENT_DURATION(irq_hardirq, irq);
+    bool handled = false;
 
     struct irq_line *line = &irq_lines[irq];
 
@@ -136,13 +137,16 @@ void dispatch_irq(unsigned int irq, struct irq_context *context)
         {
             __atomic_add_fetch(&line->stats.handled_irqs, 1, __ATOMIC_RELAXED);
             __atomic_add_fetch(&h->handled_irqs, 1, __ATOMIC_RELAXED);
-            write_per_cpu(in_irq, false);
-            return;
+            handled = true;
         }
     }
 
-    __atomic_add_fetch(&rogue_irqs, 1, __ATOMIC_RELAXED);
-    __atomic_add_fetch(&line->stats.spurious, 1, __ATOMIC_RELAXED);
+    if (unlikely(!handled))
+    {
+        __atomic_add_fetch(&rogue_irqs, 1, __ATOMIC_RELAXED);
+        __atomic_add_fetch(&line->stats.spurious, 1, __ATOMIC_RELAXED);
+    }
+
     write_per_cpu(in_irq, false);
 }
 
