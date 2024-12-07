@@ -353,14 +353,6 @@ public:
     int identify();
 
     /**
-     * @brief Handle an IRQ
-     *
-     * @param ctx IRQ context (to figure out which MSI vector got triggered)
-     * @return Valid irqstatus_t
-     */
-    irqstatus_t handle_irq(const irq_context *ctx);
-
-    /**
      * @brief Read the controller's capabilities
      *
      * @return Caps
@@ -374,6 +366,8 @@ public:
      * @return IO queue
      */
     static struct io_queue *pick_queue(blockdev *bdev);
+
+    static irqstatus_t nvme_irq(struct irq_context *ctx, void *cookie);
 };
 
 // List of NVMe registers
