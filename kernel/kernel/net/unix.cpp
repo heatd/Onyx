@@ -344,6 +344,7 @@ public:
         INIT_LIST_HEAD(&inbuf_list);
         INIT_LIST_HEAD(&connection_queue);
         sock_ops = &un_ops;
+        peer_nowr = false;
     }
 
     ~un_socket() override;
@@ -703,10 +704,10 @@ short un_socket::poll(void *poll_file, short events)
 
     short revents = 0;
 
-    if (state == UN_CLOSED)
-    {
-        return POLLHUP;
-    }
+    if (state == UN_CLOSED || shutdown_state == SHUTDOWN_RDWR)
+        revents |= POLLHUP;
+    if (shutdown_state & SHUTDOWN_RD || peer_nowr)
+        revents |= POLLIN | POLLRDNORM | POLLRDHUP;
 
     if (state == UN_LISTENING)
     {
@@ -1016,6 +1017,7 @@ ssize_t un_socket::queue_data(const struct msghdr *msg)
         pbuf.release();
     }
 
+    wait_queue_wake_all(&inbuf_wq);
     return len;
 }
 
