@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <onyx/cmdline.h>
 #include <onyx/console.h>
 #include <onyx/irq.h>
 #include <onyx/kunit.h>
@@ -27,6 +28,16 @@
 
 static struct console *cur_con __rcu;
 static struct spinlock cur_con_lock;
+
+static unsigned int min_log_level = __KERN_WARN;
+
+static int verbose_param(const char *s)
+{
+    /* Print all log messages */
+    min_log_level = 7;
+    return 1;
+}
+kernel_param("verbose", verbose_param);
 
 void con_register(struct console *con)
 {
@@ -183,7 +194,7 @@ u32 printk_buf::find_and_print(char *buf, size_t *psize, u32 initial_seq, u32 fl
 
         if (!is_syslog)
         {
-            if (header->log_level > __KERN_WARN)
+            if (header->log_level > min_log_level)
             {
                 /* Skip, but take note of the seq */
                 seen = header->seq + 1;
@@ -371,7 +382,7 @@ extern "C" int vprintf(const char *__restrict__ format, va_list va)
     header->timestamp = clocksource_get_time();
     spin_unlock_irqrestore(&printk_lock, flags);
 
-    if (log_level <= __KERN_WARN)
+    if (log_level <= min_log_level)
         flush_consoles();
     return i;
 }

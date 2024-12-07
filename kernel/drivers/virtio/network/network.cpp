@@ -234,7 +234,7 @@ handle_vq_irq_result network_vdev::driver_handle_vq_irq(unsigned int nr)
 }
 
 static virtio::network_features supported_features[] = {
-    network_features::csum,
+    // network_features::csum,
     /*network_features::guest_csum,
     network_features::guest_tso4,
     network_features::guest_tso6,*/
@@ -292,8 +292,6 @@ bool network_vdev::perform_subsystem_initialization()
         return false;
     }
 
-    finalise_driver_init();
-
     if (!setup_rx())
     {
         set_failure();
@@ -320,6 +318,7 @@ bool network_vdev::perform_subsystem_initialization()
     get_mac(m);
 
     netif_register_if(nif.get_data());
+    finalise_driver_init();
 
     return true;
 }
