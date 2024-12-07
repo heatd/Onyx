@@ -147,13 +147,18 @@ int nvme_device::probe()
 
     if (1U << (12 + NVME_CAP_MPSMIN(caps)) > PAGE_SIZE)
     {
-        printf("nvme: error: NVMe controller doesn't support the host page size\n");
+        dev_err(dev_, "Error: NVMe controller doesn't support the host page size\n");
         return -EINVAL;
     }
 
-    nvme_print_caps(caps);
+    if (int st = pci_alloc_irqs(dev_, 1, get_nr_cpus(), PCI_IRQ_DEFAULT); st < 0)
+    {
+        dev_err(dev_, "Failed to enable IRQs: %d\n", st);
+        return st;
+    }
 
-    printf("nvme version %04x\n", regs_.read32(NVME_REG_VS));
+    nvme_print_caps(caps);
+    dev_info(dev_, "NVMe version %04x\n", regs_.read32(NVME_REG_VS));
 
     const hrtime_t timeout = NVME_CAP_TO(caps) * 500 * NS_PER_MS;
 
@@ -168,13 +173,13 @@ int nvme_device::probe()
             [&]() -> expected<int, int> { return read_status() & NVME_CSTS_RDY; }, timeout);
         st < 0)
     {
-        printf("NVMe controller reset failed with %d\n", st);
+        dev_err(dev_, "NVMe controller reset failed with %d\n", st);
         return st;
     }
 
     if (!init_admin_queue())
     {
-        printf("nvme: Failed to allocate memory\n");
+        dev_err(dev_, "Failed to allocate memory\n");
         return -ENOMEM;
     }
 
@@ -191,25 +196,11 @@ int nvme_device::probe()
             [&]() -> expected<int, int> { return !(read_status() & NVME_CSTS_RDY); }, timeout);
         st < 0)
     {
-        printf("NVMe controller reset failed with %d\n", st);
+        dev_err(dev_, "NVMe controller reset failed with %d\n", st);
         return st;
     }
 
-    printf("Doorbell stride: %u\n", NVME_CAP_DSTRD(caps));
-
-    const auto handler = [](irq_context *ctx, void *cookie) -> irqstatus_t {
-        return ((nvme_device *) cookie)->handle_irq(ctx);
-    };
-
-    if (true /*dev_->enable_msi(handler, this) < 0*/)
-    {
-        int st = install_irq(dev_->get_intn(), handler, dev_, IRQ_FLAG_REGULAR, this);
-        if (st < 0)
-        {
-            printf("nvme: Failed to enable IRQs, status %d\n", st);
-            return st;
-        }
-    }
+    dev_info(dev_, "Doorbell stride: %u\n", NVME_CAP_DSTRD(caps));
 
     if (int st = identify(); st < 0)
         return st;
@@ -267,9 +258,10 @@ void nvme_device::set_queue_properties(blockdev *bdev)
         /* If MDTS is set, use it as the max sectors. It's reported as MPSMIN units */
         const auto caps = regs_.read64(NVME_REG_CAP);
         qp.max_sectors_per_request = 1UL << (ident->MDTS + 12 + NVME_CAP_MPSMIN(caps) - 9);
-        pr_info("nvme%u: Using MDTS (%u) as the request sector hardlimit (%lu MPSMIN pages, %lu "
-                "sectors)\n",
-                device_index_, ident->MDTS, 1UL << ident->MDTS, qp.max_sectors_per_request);
+        dev_info(dev_,
+                 "Using MDTS (%u) as the request sector hardlimit (%lu MPSMIN pages, %lu "
+                 "sectors)\n",
+                 ident->MDTS, 1UL << ident->MDTS, qp.max_sectors_per_request);
     }
 
     qp.request_extra_headroom = sizeof(request_pdu);
@@ -321,7 +313,7 @@ int nvme_device::init_drive(uint32_t nsid, unique_page identify_namespace_data)
 
     if (int st = blkdev_init(d.get()); st < 0)
     {
-        printf("blkdev_init: error %d\n", st);
+        dev_err(dev_, "blkdev_init: error %d\n", st);
         return st;
     }
 
@@ -495,7 +487,7 @@ int nvme_device::cmd_create_io_submission_queue(uint16_t queue, uint64_t queue_a
 
     if (auto status = NVME_CQE_STATUS_CODE(cmd.response.dw3); status != 0)
     {
-        printf("nvme: NVME_ADMIN_OPC_CREATE_IOSQ: Status error %u\n", status);
+        dev_err(dev_, "nvme: NVME_ADMIN_OPC_CREATE_IOSQ: Status error %u\n", status);
         return -EIO;
     }
 
@@ -536,7 +528,7 @@ int nvme_device::cmd_create_io_completion_queue(uint16_t queue, uint64_t queue_a
 
     if (auto status = NVME_CQE_STATUS_CODE(cmd.response.dw3); status != 0)
     {
-        printf("nvme: NVME_ADMIN_OPC_CREATE_IOCQ: Status error %u\n", status);
+        dev_err(dev_, "NVME_ADMIN_OPC_CREATE_IOCQ: Status error %u\n", status);
         return -EIO;
     }
 
@@ -560,14 +552,13 @@ int nvme_device::create_io_queue(uint16_t queue_index)
     if (!q->init(needs_contiguous))
         return -ENOMEM;
 
-    // TODO: Proper MSI and MSI-X multi-vector support
-    const uint16_t interrupt_vector = 0;
+    const uint16_t interrupt_vector = queue_index % pci_get_nr_vectors(dev_);
     if (int st = cmd_create_io_completion_queue(queue_index + 1,
                                                 (uint64_t) page_to_phys(q->get_cq_pages()),
                                                 q->get_cq_queue_size(), interrupt_vector);
         st < 0)
     {
-        printf("nvme%u: create io completion queue: error %d\n", device_index_, st);
+        dev_err(dev_, "create io completion queue: error %d\n", st);
         return st;
     }
 
@@ -576,7 +567,15 @@ int nvme_device::create_io_queue(uint16_t queue_index)
                                                 q->get_sq_queue_size(), queue_index + 1);
         st < 0)
     {
-        printf("nvme%u: create io submission queue: error %d\n", device_index_, st);
+        dev_err(dev_, "create io submission queue: error %d\n", st);
+        return st;
+    }
+
+    if (int st = pci_install_irq(dev_, interrupt_vector, nvme_irq, 0, q.get(), "nvme-cq%hd",
+                                 queue_index);
+        st < 0)
+    {
+        dev_err(dev_, "Error: Failed to install irq: %d\n", st);
         return st;
     }
 
@@ -630,8 +629,7 @@ int nvme_device::init_io_queues()
 
     if (auto status = NVME_CQE_STATUS_CODE(cmd.response.dw3); status != 0)
     {
-        printf("nvme%u: namespace set features (number of queues): Status error %u\n",
-               device_index_, status);
+        dev_err(dev_, "namespace set features (number of queues): Status error %u\n", status);
         return -EIO;
     }
 
@@ -643,13 +641,13 @@ int nvme_device::init_io_queues()
     const uint16_t allocated_queues =
         cul::min(desired_nr_queues, cul::min(allocated_cq, allocated_sq));
 
-    printf("nvme%u: Allocated %u queues\n", device_index_, allocated_queues);
+    dev_info(dev_, "Allocated %u queues\n", allocated_queues);
 
     for (uint16_t i = 0; i < allocated_queues; i++)
     {
         if (int st = create_io_queue(i); st < 0)
         {
-            printf("nvme%u: create_io_queue: error %d\n", device_index_, st);
+            dev_err(dev_, "create_io_queue: error %d\n", st);
             return st;
         }
     }
@@ -689,7 +687,7 @@ int nvme_device::identify_namespace(uint32_t nsid)
 
     if (auto status = NVME_CQE_STATUS_CODE(cmd.response.dw3); status != 0)
     {
-        printf("nvme: namespace identify: Status error %u\n", status);
+        dev_err(dev_, "namespace identify: Status error %u\n", status);
         return -EIO;
     }
 
@@ -827,12 +825,11 @@ bool nvme_device::nvme_queue::handle_cq()
 
             if (auto status = NVME_CQE_STATUS_CODE(cqe->dw3); status != 0)
             {
-                pr_err("nvme%u: error: %s: Status code type %x, error %02x%s\n",
-                       dev_->device_index_, nvme_cmd_to_str(command->cmd.cdw0.opcode),
-                       NVME_CQE_STATUS_SCT(cqe->dw3), status,
-                       NVME_CQE_STATUS_DNR(cqe->dw3) ? ", do not repeat" : "");
-                pr_err("nvme%u: Related SQE dump: %*ph\n", dev_->device_index_,
-                       (int) sizeof(nvmesqe), &command->cmd);
+                dev_err(dev_->dev_, "error: %s: Status code type %x, error %02x%s\n",
+                        nvme_cmd_to_str(command->cmd.cdw0.opcode), NVME_CQE_STATUS_SCT(cqe->dw3),
+                        status, NVME_CQE_STATUS_DNR(cqe->dw3) ? ", do not repeat" : "");
+                dev_err(dev_->dev_, "Related SQE dump: %*ph\n", (int) sizeof(nvmesqe),
+                        &command->cmd);
                 if (NVME_CQE_STATUS_DNR(cqe->dw3))
                     blk_request_dump(command->req, KERN_ERR);
                 command->req->r_flags |= BIO_REQ_EIO;
@@ -896,7 +893,7 @@ int nvme_device::prepare_nvme_request(u8 bio_command, nvmecmd *cmd, struct reque
     int st = setup_prp(breq, ns);
     if (st < 0)
     {
-        printf("nvme: Error setting up PRPs: %d\n", st);
+        dev_err(ns->nvme_dev_->dev_, "Error setting up PRPs: %d\n", st);
         return st;
     }
 
@@ -979,7 +976,7 @@ int nvme_device::nvme_queue::pull_sq()
                                           (nvme_namespace *) req->r_bdev->device_info);
             st < 0)
         {
-            pr_err("nvme: prepare_nvme_request failed with err %d, unpulling sqe\n", st);
+            dev_err(dev_->dev_, "prepare_nvme_request failed with err %d, unpulling sqe\n", st);
             unpull_seq(req);
             break;
         }
@@ -1001,22 +998,10 @@ int nvme_device::nvme_queue::pull_sq()
     return 0;
 }
 
-/**
- * @brief Handle an IRQ
- *
- * @param ctx IRQ context (to figure out which MSI vector got triggered)
- * @return Valid irqstatus_t
- */
-irqstatus_t nvme_device::handle_irq(const irq_context *ctx)
+irqstatus_t nvme_device::nvme_irq(struct irq_context *context, void *cookie)
 {
-    // Handle every queue's possible IRQs
-    bool handled = false;
-    for (auto &q : queues_)
-    {
-        handled |= q->handle_cq();
-    }
-
-    return handled ? IRQ_HANDLED : IRQ_UNHANDLED;
+    nvme_queue *queue = (nvme_queue *) cookie;
+    return queue->handle_cq() ? IRQ_HANDLED : IRQ_UNHANDLED;
 }
 
 /**
@@ -1038,7 +1023,7 @@ bool nvme_device::init_admin_queue()
     // The queue size values are 0's based, so subtract one
     regs_.write32(NVME_REG_AQA, ((queues_[0]->get_cq_queue_size() - 1) << 16) |
                                     (queues_[0]->get_sq_queue_size() - 1));
-    return true;
+    return pci_install_irq(dev_, 0, nvme_irq, 0, queues_[0].get(), "nvme-admin-queue") == 0;
 }
 
 nvme_device::~nvme_device()
@@ -1053,8 +1038,8 @@ nvme_device::~nvme_device()
 int nvme_probe(struct device *_dev)
 {
     pci::pci_device *dev = (pci::pci_device *) _dev;
-    printf("Found NVMe device at %04x:%02x:%02x.%d\n", dev->addr().segment, dev->addr().bus,
-           dev->addr().device, dev->addr().function);
+    pr_info("Found NVMe device at %04x:%02x:%02x.%d\n", dev->addr().segment, dev->addr().bus,
+            dev->addr().device, dev->addr().function);
     unique_ptr<nvme_device> nvmedev = make_unique<nvme_device>(dev);
 
     if (!nvmedev)
