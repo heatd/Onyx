@@ -38,7 +38,6 @@ static void do_arg(const char *start, const char *end)
     char *val_start = NULL;
     const struct cmdline_param *param;
 
-    pr_warn("end %p start %p (str %s)\n", end, start, start);
     if (WARN_ON(end - start >= 128))
         return;
     memcpy(buf, start, end - start);
