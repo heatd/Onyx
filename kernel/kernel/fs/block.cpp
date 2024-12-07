@@ -417,7 +417,7 @@ int bio_submit_request(struct blockdev *dev, struct bio_req *req)
     {
         req = bio_bounce(req, GFP_NOIO);
         if (!req)
-            return NULL;
+            return -ENOMEM;
     }
 
     return dev->submit_request(dev, req);
