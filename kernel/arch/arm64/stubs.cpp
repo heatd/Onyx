@@ -32,7 +32,8 @@ void cpu_kill_other_cpus()
 }
 
 int platform_allocate_msi_interrupts(unsigned int num_vectors, bool addr64,
-                                     struct pci_msi_data *data)
+                                     struct pci_msi_data *data, unsigned int flags,
+                                     unsigned int target_cpu)
 {
     UNIMPLEMENTED;
 }
