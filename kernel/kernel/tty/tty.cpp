@@ -154,6 +154,7 @@ struct tty *tty_init(void *priv, void (*ctor)(struct tty *tty), unsigned int fla
     tty->ldisc = &ntty_disc;
 
     init_wait_queue_head(&tty->read_queue);
+    init_wait_queue_head(&tty->write_queue);
 
     /** Use the ctor to init the tty */
     if (ctor)
@@ -176,25 +177,16 @@ struct tty *tty_init(void *priv, void (*ctor)(struct tty *tty), unsigned int fla
     return tty;
 }
 
-void cpu_kill_other_cpus(void);
-
-void tty_write(const char *data, size_t size, struct tty *tty)
+ssize_t tty_write(const char *data, size_t size, struct tty *tty)
 {
-    if (mutex_owner(&tty->lock) == get_current_thread() && get_current_thread() != NULL)
-    {
-        tty->lock.counter = 0;
-        cpu_kill_other_cpus();
-        halt();
-    }
-
+    ssize_t err = 0;
     mutex_lock(&tty->lock);
-
-    tty->ldisc->ops->write_out(data, size, tty);
+    err = tty->ldisc->ops->write_out(data, size, tty);
 
     // Handle a pending response
     if (tty->response)
     {
-        auto resp = tty->response;
+        char *resp = tty->response;
         // We'll need to release the lock as tty_received_characters internal code locks the tty
         tty->response = nullptr;
         mutex_unlock(&tty->lock);
@@ -202,10 +194,11 @@ void tty_write(const char *data, size_t size, struct tty *tty)
         free(resp);
 
         // Early return as to not double-release the lock
-        return;
+        return err;
     }
 
     mutex_unlock(&tty->lock);
+    return err;
 }
 
 void tty_received_character(struct tty *tty, char c)
@@ -225,14 +218,19 @@ void tty_received_characters(struct tty *tty, char *c)
     rw_unlock_read(&tty->termio_lock);
 }
 
-void tty_received_buf(struct tty *tty, const char *c, size_t len)
+ssize_t tty_received_buf(struct tty *tty, const char *c, size_t len)
 {
+    size_t i;
     rw_lock_read(&tty->termio_lock);
 
-    for (size_t i = 0; i < len; i++)
-        tty->ldisc->ops->receive_input(*c++, tty);
+    for (i = 0; i < len; i++)
+    {
+        if (tty->ldisc->ops->receive_input(*c++, tty) == -ENOSPC)
+            break;
+    }
 
     rw_unlock_read(&tty->termio_lock);
+    return i;
 }
 
 ssize_t __tty_has_input_available(struct tty *tty)
@@ -315,10 +313,8 @@ size_t ttydevfs_write(size_t offset, size_t len, void *ubuffer, struct file *f)
         return -EFAULT;
     }
 
-    tty_write(buffer, len, tty);
-
+    len = tty_write(buffer, len, tty);
     free(buffer);
-
     return len;
 }
 
@@ -328,6 +324,12 @@ size_t strnewlinelen(const char *str, unsigned int _len)
     for (; *str != '\n' && len != 0; ++str, _len--)
         ++len;
     return len + 1;
+}
+
+void tty_finish_read(struct tty *tty)
+{
+    if (tty->ops->finish_read)
+        tty->ops->finish_read(tty);
 }
 
 ssize_t tty_consume_input(void *ubuf, size_t len, size_t buflen, struct tty *tty)
@@ -355,7 +357,7 @@ ssize_t tty_consume_input(void *ubuf, size_t len, size_t buflen, struct tty *tty
     tty->input_buf_pos -= to_remove_from_buf;
     memcpy(tty->input_buf, tty->input_buf + to_remove_from_buf,
            sizeof(tty->input_buf) - to_remove_from_buf);
-
+    tty_finish_read(tty);
     return to_read;
 }
 
@@ -382,7 +384,7 @@ ssize_t tty_consume_input_iter(iovec_iter *iter, size_t buflen, struct tty *tty)
     tty->input_buf_pos -= to_remove_from_buf;
     memcpy(tty->input_buf, tty->input_buf + to_remove_from_buf,
            sizeof(tty->input_buf) - to_remove_from_buf);
-
+    tty_finish_read(tty);
     return copied;
 }
 
@@ -719,7 +721,17 @@ short tty_poll(void *poll_file, short events, struct file *f)
 {
     struct tty *tty = (struct tty *) f->f_ino->i_helper;
 
-    short revents = POLLOUT;
+    short revents = 0;
+
+    if (events & POLLOUT)
+    {
+        mutex_lock(&tty->lock);
+        if (tty_write_room(tty))
+            revents |= POLLOUT;
+        else
+            poll_wait_helper(poll_file, &tty->write_queue);
+        mutex_unlock(&tty->lock);
+    }
 
     if (events & POLLIN)
     {
@@ -965,4 +977,11 @@ int pty_register_slave(struct tty *tty, const struct file_ops *slave_ops)
             return dev;
         })
         .error_or(0);
+}
+
+unsigned int tty_write_room(struct tty *tty)
+{
+    if (tty->ops->write_room)
+        return tty->ops->write_room(tty);
+    return 4096;
 }
