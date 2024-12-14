@@ -279,6 +279,8 @@ bool inode_no_dirty(struct inode *ino, unsigned int flags);
 
 int set_root(struct path *path);
 
+int mknodat_path(int dirfd, const char *path, mode_t mode, dev_t dev, struct path *out);
+
 __END_CDECLS
 
 #endif

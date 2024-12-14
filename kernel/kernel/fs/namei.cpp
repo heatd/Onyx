@@ -1579,3 +1579,90 @@ extern "C" struct file *c_vfs_open(int dirfd, const char *name, unsigned int ope
     auto ex = vfs_open(dirfd, name, open_flags, mode);
     return ex.has_value() ? ex.value() : (struct file *) ERR_PTR(ex.error());
 }
+
+static int namei_create_generic_path(int dirfd, const char *path, mode_t mode, dev_t dev,
+                                     struct path *out, unsigned int extra_lookup_flags = 0)
+{
+    int st;
+    struct lookup_path last_name;
+    struct inode *inode = nullptr;
+    unsigned int lookup_flags = NAMEI_ALLOW_NEGATIVE | extra_lookup_flags;
+    struct path parent;
+
+    st = namei_lookup_parentat(dirfd, path, lookup_flags, &last_name, &parent);
+    if (st < 0)
+        return st;
+
+    /* Ok, we have the directory, lock the inode and fetch the negative dentry */
+    struct dentry *dir = parent.dentry;
+    struct inode *dir_ino = dir->d_inode;
+    inode_lock(dir_ino);
+
+    auto name = get_token_from_path(last_name, false);
+    struct dentry *dent = dentry_lookup_internal(name, dir, DENTRY_LOOKUP_UNLOCKED);
+    if (!dent)
+    {
+        st = -errno;
+        goto unlock_err;
+    }
+
+    if (!d_is_negative(dent))
+    {
+        st = -EEXIST;
+        goto put_unlock_err;
+    }
+
+    if (!inode_can_access(dir_ino, FILE_ACCESS_WRITE))
+    {
+        st = -EACCES;
+        goto put_unlock_err;
+    }
+
+    mode = do_umask(mode);
+    switch (mode & S_IFMT)
+    {
+        case S_IFREG:
+            inode = dir_ino->i_op->creat(dent, mode, dir);
+            break;
+        case S_IFDIR:
+            inode = dir_ino->i_op->mkdir(dent, mode, dir);
+            break;
+        case S_IFBLK:
+        case S_IFCHR:
+        case S_IFSOCK:
+        case S_IFIFO:
+            inode = dir_ino->i_op->mknod(dent, mode, dev, dir);
+            break;
+        default:
+            DCHECK(0);
+    }
+
+    if (!inode)
+    {
+        st = -errno;
+        goto put_unlock_err;
+    }
+
+    d_positiveize(dent, inode);
+
+    inode_unlock(dir_ino);
+    dput(parent.dentry);
+    parent.dentry = dent;
+    *out = parent;
+    /* No need to put the parent path, we've just put the parent dentry, and we reuse the mnt
+     * reference */
+    return 0;
+put_unlock_err:
+    dput(dent);
+unlock_err:
+    inode_unlock(dir_ino);
+    path_put(&parent);
+    return st;
+}
+
+int mknodat_path(int dirfd, const char *path, mode_t mode, dev_t dev, struct path *out)
+{
+    if (mode & S_IFMT & S_IFBAD)
+        return -EINVAL;
+    return namei_create_generic_path(dirfd, path, mode, 0, out);
+}
