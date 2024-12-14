@@ -54,27 +54,26 @@ int ext2_rename(struct dentry *src_parent, struct dentry *src, struct dentry *ds
                 struct dentry *dst);
 
 struct file_ops ext2_ops = {
-    .open = ext2_open,
     .close = ext2_close,
     .getdirent = ext2_getdirent,
     .ioctl = ext2_ioctl,
-    .creat = ext2_creat,
-    .link = ext2_link_fops,
     .symlink = ext2_symlink,
+    .fallocate = ext2_fallocate,
+    .read_iter = filemap_read_iter,
+    .write_iter = filemap_write_iter,
+    .fsyncdata = ext2_fsyncdata,
+};
+
+const struct inode_operations ext2_ino_ops = {
+    .open = ext2_open,
+    .creat = ext2_creat,
+    .rename = ext2_rename,
+    .link = ext2_link_fops,
     .ftruncate = ext2_ftruncate,
     .mkdir = ext2_mkdir,
     .mknod = ext2_mknod,
     .readlink = ext2_readlink,
     .unlink = ext2_unlink,
-    .fallocate = ext2_fallocate,
-    .readpage = ext2_readpage,
-    .prepare_write = ext2_prepare_write,
-    .read_iter = filemap_read_iter,
-    .write_iter = filemap_write_iter,
-    .writepages = filemap_writepages,
-    .fsyncdata = ext2_fsyncdata,
-    .readpages = ext2_readpages,
-    .rename = ext2_rename,
 };
 
 void ext2_delete_inode(struct inode *inode_, uint32_t inum, struct ext2_superblock *fs)
@@ -438,6 +437,10 @@ static const struct vm_object_ops ext2_vm_obj_ops = {
     .free_page = buffer_free_page,
     .truncate_partial = ext2_truncate_partial,
     .writepage = ext2_writepage,
+    .writepages = filemap_writepages,
+    .readpages = ext2_readpages,
+    .readpage = ext2_readpage,
+    .prepare_write = ext2_prepare_write,
 };
 
 struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
@@ -488,6 +491,7 @@ struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
     }
 
     ino->i_fops = &ext2_ops;
+    ino->i_op = &ext2_ino_ops;
 
     if (inode_is_special(ino))
     {
@@ -803,6 +807,7 @@ struct superblock *ext2_mount_partition(struct vfs_mount_info *info)
     block_buf_dirty(sb->sb_bb);
 
     root_inode->i_fops = &ext2_ops;
+    root_inode->i_op = &ext2_ino_ops;
 
     d_positiveize(info->root_dir, root_inode);
     return sb;

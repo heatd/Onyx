@@ -226,15 +226,19 @@ int sysfs_stat(struct stat *buf, struct file *node)
 struct file_ops sysfs_ops = {
     .read = sysfs_read,
     .write = sysfs_write,
-    .open = sysfs_open,
     .getdirent = sysfs_getdirent,
-    .creat = libfs_no_creat,
+};
+
+static const struct inode_operations sysfs_ino_ops = {
+    .open = sysfs_open,
     .stat = sysfs_stat,
+    .creat = libfs_no_creat,
 };
 
 void sysfs_setup_fops(struct inode *ino)
 {
     ino->i_fops = &sysfs_ops;
+    ino->i_op = &sysfs_ino_ops;
 }
 
 void sysfs_release(struct object *obj)

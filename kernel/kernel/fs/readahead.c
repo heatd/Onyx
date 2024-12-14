@@ -86,7 +86,7 @@ static int filemap_do_readahead(struct inode *inode, struct readahead_state *ra_
         return 0;
 
     /* If we *can't* do readahead, do not even start the process */
-    if (!inode->i_fops->readpages)
+    if (!inode->i_pages->ops->readpages)
         return 0;
 
     endpg = (size - 1) >> PAGE_SHIFT;
@@ -141,7 +141,7 @@ static int filemap_do_readahead(struct inode *inode, struct readahead_state *ra_
 
     blk_start_plug(&plug);
     struct readpages_state state = {inode, pgoff, window};
-    st = inode->i_fops->readpages(&state, inode);
+    st = inode->i_pages->ops->readpages(&state, inode);
     readpages_finish(&state);
     if (likely(st == 0))
     {
