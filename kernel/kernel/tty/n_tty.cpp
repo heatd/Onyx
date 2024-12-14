@@ -58,13 +58,13 @@ void n_tty_receive_control_input(struct tty_echo_args *args, char c, struct tty 
         tty->input_buf_pos--;
         args->to_echo = "\b \b";
         args->len = 3;
-        tty->ldisc->column--;
+        tty->column--;
 
         if (TTY_LFLAG(tty, ECHOCTL) && iscntrl(old_char) && should_print_special(old_char))
         {
             args->to_echo = "\b \b\b \b";
             args->len = 6;
-            tty->ldisc->column -= 2;
+            tty->column -= 2;
         }
         else if (old_char == '\t')
         {
@@ -126,6 +126,12 @@ static ssize_t n_tty_receive_input(char c, struct tty *tty)
     if (TTY_IFLAG(tty, ICRNL) && c == '\r')
         c = '\n';
 
+    if (2048 - tty->input_buf_pos == 0)
+    {
+        mutex_unlock(&tty->input_lock);
+        return -ENOSPC;
+    }
+
     if (iscntrl(c) && TTY_LFLAG(tty, ICANON))
         n_tty_receive_control_input(&args, c, tty);
     else
@@ -179,23 +185,24 @@ static ssize_t try_process_write(const char *s, size_t len, struct tty *tty)
 
 write_and_process:
     if (i != 0)
-    {
         return tty->ops->write(buf, i, tty);
-    }
+    else
+        i = -EOPNOTSUPP;
 
     return i;
 }
 
-static void n_tty_output_char(char c, struct tty *tty)
+static size_t n_tty_output_char(char c, struct tty *tty, unsigned int write_room)
 {
     switch (c)
     {
         case '\n': {
             if (TTY_OFLAG(tty, ONLCR))
             {
-                tty->ldisc->column = 0;
-                tty->ops->write("\r\n", 2, tty);
-                return;
+                tty->column = 0;
+                if (write_room < 2)
+                    return 0;
+                return tty->ops->write("\r\n", 2, tty);
             }
 
             break;
@@ -205,56 +212,105 @@ static void n_tty_output_char(char c, struct tty *tty)
             if (TTY_OFLAG(tty, OCRNL))
             {
                 c = '\n';
-                return;
+                break;
             }
 
-            tty->ldisc->column = 0;
-
+            tty->column = 0;
             /* TODO: ONOCR, OLCUC */
             break;
         }
 
         case '\t': {
-            unsigned int spaces = 8 - (tty->ldisc->column & 7);
+            unsigned int spaces = 8 - (tty->column & 7);
 
             if (TTY_OFLAG(tty, TABDLY) == TAB3)
             {
                 // Convert tabs to spaces
-                tty->ops->write("        ", spaces, tty);
-                return;
+                if (write_room < spaces)
+                    return 0;
+                return tty->ops->write("        ", spaces, tty);
             }
 
-            tty->ldisc->column += spaces;
+            tty->column += spaces;
             break; // fallthrough
         }
     }
 
-    tty->ops->write(&c, 1, tty);
+    if (write_room == 0)
+        return 0;
+    return tty->ops->write(&c, 1, tty);
 }
 
-static ssize_t n_tty_write_out(const char *s, size_t length, struct tty *tty)
+static size_t do_opost_write(const char *s, size_t length, struct tty *tty)
 {
     size_t i = 0;
+    unsigned int room;
+
     while (i < length)
     {
-        if (TTY_OFLAG(tty, OPOST))
+#if 0
+        if (signal_is_pending())
+            return i ?: -EINTR;
+#endif
+        ssize_t status = try_process_write(s + i, length - i, tty);
+        if (status <= 0)
         {
-            ssize_t status = try_process_write(s + i, length - i, tty);
-
-            if (status < 0)
+            /* We repurpose EOPNOTSUPP for when we find a special processing char as the first byte
+             * (i.e we wrote nothing), in order to distinguish from "ran out of write space" cases.
+             */
+            if (status == -EOPNOTSUPP)
+                status = 0;
+            else
                 return status;
-            /* Try and send the largest string of characters that don't need output */
-            i += status;
-
-            tty->ldisc->column += status;
-            if (i != length)
-            {
-                n_tty_output_char(*(s + i), tty);
-                i++;
-            }
         }
+
+        /* Try and send the largest string of characters that don't need output processing */
+        i += status;
+
+        tty->column += status;
+        if (i != length)
+        {
+            room = tty_write_room(tty);
+            if (n_tty_output_char(*(s + i), tty, room) == 0)
+                break;
+            i++;
+        }
+    }
+
+    return i;
+}
+
+static ssize_t n_tty_write_out(const char *s, size_t length, struct tty *tty) REQUIRES(tty->lock)
+{
+    size_t i = 0;
+    struct wait_queue_token token;
+    init_wq_token(&token);
+    token.thread = get_current_thread();
+
+    while (i < length)
+    {
+#if 0
+        if (signal_is_pending())
+            return i ?: -EINTR;
+#endif
+        if (TTY_OFLAG(tty, OPOST))
+            i += do_opost_write(s + i, length - i, tty);
         else
             i += tty->ops->write(s + i, length - i, tty);
+
+        if (i == length)
+            break;
+
+        /* XXX A bunch of this needs to be fixed, properly. Thus the printk. */
+        pr_warn("blocking with i %zu length %zu write room %u\n", i, length, tty_write_room(tty));
+        set_current_state(THREAD_INTERRUPTIBLE);
+        wait_queue_add(&tty->write_queue, &token);
+        mutex_unlock(&tty->lock);
+
+        sched_yield();
+
+        mutex_lock(&tty->lock);
+        wait_queue_remove(&tty->write_queue, &token);
     }
 
     return i;

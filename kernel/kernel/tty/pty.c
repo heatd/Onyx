@@ -6,6 +6,8 @@
  * SPDX-License-Identifier: GPL-2.0-only
  */
 
+#include <stdio.h>
+
 #include <onyx/init.h>
 #include <onyx/libfs.h>
 #include <onyx/tty.h>
@@ -18,8 +20,9 @@
 static ssize_t pty_write(const void *buffer, size_t size, struct tty *tty)
 {
     struct tty *slave = tty->priv;
-    tty_received_buf(slave, buffer, size);
-    return size;
+    size = min(tty_write_room(tty), size);
+    ssize_t err = tty_received_buf(slave, buffer, size);
+    return err;
 }
 
 static const struct file_ops pty_slave_ops;
@@ -49,9 +52,29 @@ out:
 
 static unsigned int pty_ioctl(int request, void *argp, struct tty *tty);
 
-static const struct tty_ops pty_ops = {
+static void pty_finish_read(struct tty *tty)
+{
+    struct tty *link = tty->priv;
+    wait_queue_wake_all(&link->write_queue);
+}
+
+static unsigned int pty_write_room(struct tty *tty)
+{
+    struct tty *link = tty->priv;
+    return 2048 - link->input_buf_pos;
+}
+
+static const struct tty_ops master_pty_ops = {
     .ioctl = pty_ioctl,
     .write = pty_write,
+    .write_room = pty_write_room,
+    .finish_read = pty_finish_read,
+};
+
+static const struct tty_ops slave_pty_ops = {
+    .write = pty_write,
+    .write_room = pty_write_room,
+    .finish_read = pty_finish_read,
 };
 
 static int pty_master_on_open(struct file *filp)
@@ -66,7 +89,8 @@ static int pty_master_on_open(struct file *filp)
     slave->priv = master;
     slave->flags |= TTY_FLAG_LOCKED_PTY;
     master->flags |= TTY_FLAG_MASTER_PTY;
-    master->ops = slave->ops = &pty_ops;
+    master->ops = &master_pty_ops;
+    slave->ops = &slave_pty_ops;
 
     slave->tty_num = __atomic_fetch_add(&next_pts, 1, __ATOMIC_RELEASE);
 
@@ -157,16 +181,8 @@ static short pty_poll(void *poll_file, short events, struct file *f)
 /* TODO: It's hacky that we need to define all these file ops. And that we need to redirect the pty
  * master's write and read due to it not having its own inode. Fix the model ASAP. */
 static const struct file_ops pty_master_ops = {
-    .open = libfs_no_open,
     .getdirent = libfs_no_getdirent,
-    .creat = libfs_no_creat,
-    .link = libfs_no_link,
     .symlink = libfs_no_symlink,
-    .ftruncate = libfs_no_ftruncate,
-    .mkdir = libfs_no_mkdir,
-    .mknod = libfs_no_mknod,
-    .readlink = libfs_no_readlink,
-    .unlink = libfs_no_unlink,
     .fallocate = libfs_no_fallocate,
     .on_open = pty_master_on_open,
     .write = ptydevfs_write,
@@ -177,16 +193,8 @@ static const struct file_ops pty_master_ops = {
 };
 
 static const struct file_ops pty_slave_ops = {
-    .open = libfs_no_open,
     .getdirent = libfs_no_getdirent,
-    .creat = libfs_no_creat,
-    .link = libfs_no_link,
     .symlink = libfs_no_symlink,
-    .ftruncate = libfs_no_ftruncate,
-    .mkdir = libfs_no_mkdir,
-    .mknod = libfs_no_mknod,
-    .readlink = libfs_no_readlink,
-    .unlink = libfs_no_unlink,
     .fallocate = libfs_no_fallocate,
     .on_open = pty_slave_on_open,
     .write = ptydevfs_write,
