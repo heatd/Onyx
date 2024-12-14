@@ -1309,3 +1309,28 @@ bool __can_sleep_internal()
         return true;
     return !sched_is_preemption_disabled() && !irq_is_disabled();
 }
+
+int sys_sched_setaffinity(pid_t pid, size_t cpusetsize, const void *cpu_set)
+{
+    /* TODO: Actually implement this, instead of just being here as a placeholder. The blocker here
+     * is partly that pids aren't tids... */
+    return 0;
+}
+
+int sys_sched_getaffinity(pid_t pid, size_t cpusetsize, void *cpu_set)
+{
+    /* TODO: Same as above, this is a placeholder */
+    cpumask online_cpus = smp::get_online_cpumask();
+    if (cpusetsize < sizeof(cpumask))
+        return -EINVAL;
+
+    if (copy_to_user(cpu_set, &online_cpus.mask, sizeof(cpumask)))
+        return -EFAULT;
+    if (cpusetsize > sizeof(cpumask))
+    {
+        if (user_memset((u8 *) cpu_set + sizeof(cpumask), 0, cpusetsize - sizeof(cpumask)))
+            return -EFAULT;
+    }
+
+    return 0;
+}
