@@ -75,35 +75,28 @@ public:
     hybrid_lock socket_lock;
     bool bound;
     bool connected;
-
-    struct semaphore listener_sem;
-    struct spinlock conn_req_list_lock;
-    struct list_head conn_request_list;
-    int nr_pending;
-    int backlog;
+    bool reuse_addr : 1;
+    bool broadcast_allowed : 1;
+    bool proto_needs_work : 1 {0};
+    bool dead : 1 {0};
 
     struct list_head socket_backlog;
 
     unsigned int rx_max_buf;
     unsigned int tx_max_buf;
-
-    bool reuse_addr : 1;
-
-    bool broadcast_allowed : 1;
-    bool proto_needs_work : 1 {0};
+    int backlog;
+    unsigned int shutdown_state;
 
     hrtime_t rcv_timeout;
     hrtime_t snd_timeout;
-    unsigned int shutdown_state;
 
     const struct socket_ops *sock_ops;
 
     /* Define a default constructor here */
     socket()
         : type{}, proto{}, domain{}, flags{}, sock_err{}, socket_lock{}, bound{}, connected{},
-          listener_sem{}, conn_req_list_lock{}, conn_request_list{}, nr_pending{}, backlog{},
-          rx_max_buf{DEFAULT_RX_MAX_BUF}, tx_max_buf{DEFAULT_TX_MAX_BUF}, reuse_addr{false},
-          rcv_timeout{0}, snd_timeout{0}, shutdown_state{}, sock_ops{}
+          reuse_addr{false}, rx_max_buf{DEFAULT_RX_MAX_BUF}, tx_max_buf{DEFAULT_TX_MAX_BUF},
+          shutdown_state{}, rcv_timeout{0}, snd_timeout{0}, sock_ops{}
     {
         INIT_LIST_HEAD(&socket_backlog);
     }
@@ -319,4 +312,20 @@ short cpp_poll(struct socket *sock, void *poll_file, short events)
         .poll = cpp_poll<type>,                     \
     }
 #endif
+
+__BEGIN_CDECLS
+
+int sock_default_listen(struct socket *sock);
+socket *sock_default_accept(struct socket *sock, int flags);
+int sock_default_bind(struct socket *sock, struct sockaddr *addr, socklen_t addrlen);
+int sock_default_connect(struct socket *sock, struct sockaddr *addr, socklen_t addrlen, int flags);
+ssize_t sock_default_sendmsg(struct socket *sock, const struct msghdr *msg, int flags);
+ssize_t sock_default_recvmsg(struct socket *sock, struct msghdr *msg, int flags);
+int sock_default_getsockname(struct socket *sock, struct sockaddr *addr, socklen_t *addrlen);
+int sock_default_getpeername(struct socket *sock, struct sockaddr *addr, socklen_t *addrlen);
+int sock_default_shutdown(struct socket *sock, int how);
+void sock_default_close(struct socket *sock);
+short sock_default_poll(struct socket *sock, void *poll_file, short events);
+__END_CDECLS
+
 #endif

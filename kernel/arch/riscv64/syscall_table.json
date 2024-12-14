@@ -2816,5 +2816,45 @@
         ],
         "return_type": "int",
         "abi": "c"
+    },
+    {
+        "name": "sched_setaffinity",
+        "nr": 161,
+        "nr_args": 3,
+        "args": [
+            [
+                "pid_t",
+                "pid"
+            ],
+            [
+                "size_t",
+                "cpusetsize"
+            ],
+            [
+                "const void *",
+                "cpumask"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "sched_getaffinity",
+        "nr": 162,
+        "nr_args": 3,
+        "args": [
+            [
+                "pid_t",
+                "pid"
+            ],
+            [
+                "size_t",
+                "cpusetsize"
+            ],
+            [
+                "void *",
+                "cpumask"
+            ]
+        ],
+        "return_type": "int"
     }
 ]

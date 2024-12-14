@@ -41,6 +41,57 @@ socket *file_to_socket(auto_file &f)
 }
 
 /* Most of these default values don't make much sense, but we have them as placeholders */
+int sock_default_listen(struct socket *sock)
+{
+    return -EOPNOTSUPP;
+}
+
+socket *sock_default_accept(struct socket *sock, int flags)
+{
+    return errno = EIO, nullptr;
+}
+
+int sock_default_bind(struct socket *sock, struct sockaddr *addr, socklen_t addrlen)
+{
+    return -EIO;
+}
+
+int sock_default_connect(struct socket *sock, struct sockaddr *addr, socklen_t addrlen, int flags)
+{
+    return -EIO;
+}
+
+ssize_t sock_default_sendmsg(struct socket *sock, const struct msghdr *msg, int flags)
+{
+    return -EIO;
+}
+
+ssize_t sock_default_recvmsg(struct socket *sock, struct msghdr *msg, int flags)
+{
+    return -EIO;
+}
+
+int sock_default_getsockname(struct socket *sock, struct sockaddr *addr, socklen_t *addrlen)
+{
+    return -EOPNOTSUPP;
+}
+
+int sock_default_getpeername(struct socket *sock, struct sockaddr *addr, socklen_t *addrlen)
+{
+    return -EOPNOTSUPP;
+}
+
+int sock_default_shutdown(struct socket *sock, int how)
+{
+    sock->shutdown_state = how;
+    return 0;
+}
+
+void sock_default_close(struct socket *sock)
+{
+    sock->unref();
+}
+
 int socket::listen()
 {
     return -EOPNOTSUPP;
@@ -181,6 +232,11 @@ ssize_t socker_read_iter(file *filp, size_t offset, iovec_iter *iter, unsigned i
     msg.msg_namelen = 0;
 
     return s->sock_ops->recvmsg(s, &msg, fd_flags_to_msg_flags(filp));
+}
+
+short sock_default_poll(struct socket *sock, void *poll_file, short events)
+{
+    return 0;
 }
 
 short socket::poll(void *poll_file, short events)
@@ -703,7 +759,6 @@ socket *socket_create(int domain, int type, int protocol)
     socket->type = type;
     socket->domain = domain;
     socket->proto = protocol;
-    INIT_LIST_HEAD(&socket->conn_request_list);
     socket_sanity_check(socket);
 
     return socket;
@@ -714,6 +769,8 @@ void socket_close(struct inode *ino)
     socket *s = static_cast<socket *>(ino->i_helper);
     s->sock_ops->close(s);
 }
+
+static const struct inode_operations socket_ino_ops = {};
 
 struct inode *socket_create_inode(socket *socket)
 {
@@ -726,6 +783,7 @@ struct inode *socket_create_inode(socket *socket)
     inode->i_mode = 0666 | S_IFSOCK;
     inode->i_flags = INODE_FLAG_NO_SEEK;
     inode->i_helper = socket;
+    inode->i_op = &socket_ino_ops;
 
     return inode;
 }
@@ -1081,6 +1139,8 @@ int sys_setsockopt(int sockfd, int level, int optname, const void *uoptval, sock
 
     free(ptr);
 
+    if (st < 0)
+        st = 0;
     return st;
 }
 
@@ -1236,7 +1296,14 @@ ssize_t socket_recvmsg(socket *sock, msghdr *umsg, int flags)
     if (int st = copy_msghdr_from_user(&msg, umsg, g); st < 0)
         return st;
 
+<<<<<<< HEAD
     auto st = sock->sock_ops->recvmsg(sock, &msg, flags);
+||||||| parent of 0763057f (unix: Add SCM_RIGHTS support)
+    auto st = sock->recvmsg(&msg, flags);
+=======
+    socklen_t len = msg.msg_controllen;
+    auto st = sock->recvmsg(&msg, flags);
+>>>>>>> 0763057f (unix: Add SCM_RIGHTS support)
 
     if (st < 0)
         return st;
@@ -1244,6 +1311,7 @@ ssize_t socket_recvmsg(socket *sock, msghdr *umsg, int flags)
     msg.msg_control = g.ucontrol;
     msg.msg_iov = (iovec *) g.uiov;
     msg.msg_name = g.uname;
+    msg.msg_controllen = len - msg.msg_controllen;
 
     if (msg.msg_control)
     {
@@ -1311,10 +1379,6 @@ int sys_getpeername(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
         return -errno;
 
     socket *sock = file_to_socket(f);
-
-    if (!sock->connected)
-        return -ENOTCONN;
-
     int st = sock->sock_ops->getpeername(sock, (sockaddr *) &kaddr, &kaddrlen);
 
     if (st < 0)

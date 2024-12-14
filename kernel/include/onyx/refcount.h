@@ -103,6 +103,20 @@ public:
     {
         return __get_refcount() == 0;
     }
+
+    bool ref_not_zero()
+    {
+        unsigned long refs = __refcount.load(mem_order::relaxed);
+
+        do
+        {
+            if (unlikely(refs == 0))
+                return false;
+        } while (unlikely(!__refcount.compare_exchange_strong(refs, refs + 1, mem_order::acquire,
+                                                              mem_order::relaxed)));
+
+        return true;
+    }
 };
 
 template <typename T>

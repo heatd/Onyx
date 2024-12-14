@@ -30,8 +30,8 @@ void copy_msgname_to_user(struct msghdr *msg, packetbuf *buf, bool isv6, in_port
 struct inet_socket : public socket
 {
     inet_sock_address src_addr;
-    list_head_cpp<inet_socket> bind_table_node;
     inet_sock_address dest_addr;
+    list_head_cpp<inet_socket> bind_table_node;
 
     inet_route route_cache;
 
@@ -45,7 +45,7 @@ struct inet_socket : public socket
     int ttl;
 
     inet_socket()
-        : socket{}, src_addr{}, bind_table_node{this}, dest_addr{}, proto_info{}, proto_domain{},
+        : socket{}, src_addr{}, dest_addr{}, bind_table_node{this}, proto_info{}, proto_domain{},
           ipv4_on_inet6{}, ipv6_only{}, route_cache_valid{}, ttl{INET_DEFAULT_TTL}
     {
         INIT_LIST_HEAD(&rx_packet_list);
@@ -152,6 +152,10 @@ struct inet_socket : public socket
 
 #define call_based_on_inet(func, ...) \
     ((effective_domain() == AF_INET6) ? func<AF_INET6>(__VA_ARGS__) : func<AF_INET>(__VA_ARGS__))
+
+#define call_based_on_inet2(sock, func, ...)                              \
+    ((sock->effective_domain() == AF_INET6) ? func<AF_INET6>(__VA_ARGS__) \
+                                            : func<AF_INET>(__VA_ARGS__))
 
 public:
     static bool validate_sockaddr_len_pair_v4(sockaddr_in *addr, socklen_t len);

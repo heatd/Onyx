@@ -50,39 +50,37 @@ struct file_ops
 {
     __read read;
     __write write;
-    __open open;
     __close close;
     __getdirent getdirent;
     __ioctl ioctl;
-    __creat creat;
-    __stat stat;
-    int (*link)(struct file *target_ino, const char *name, struct dentry *dir);
     __symlink symlink;
     void *(*mmap)(struct vm_area_struct *area, struct file *node);
-    int (*ftruncate)(size_t length, struct file *node);
-    struct inode *(*mkdir)(struct dentry *dentry, mode_t mode, struct dentry *dir);
-    struct inode *(*mknod)(struct dentry *dentry, mode_t mode, dev_t dev, struct dentry *dir);
     int (*on_open)(struct file *node);
     short (*poll)(void *poll_file, short events, struct file *node);
-    char *(*readlink)(struct file *ino);
-    int (*unlink)(const char *name, int flags, struct dentry *dir);
     int (*fallocate)(int mode, off_t offset, off_t len, struct file *node);
-    ssize_t (*readpage)(struct page *page, size_t offset, struct inode *ino);
-    ssize_t (*writepage)(struct page *page, size_t offset, struct inode *ino);
-    int (*prepare_write)(struct inode *ino, struct page *page, size_t page_off, size_t offset,
-                         size_t len);
     int (*fcntl)(struct file *filp, int cmd, unsigned long arg);
     void (*release)(struct file *filp);
     ssize_t (*read_iter)(struct file *filp, size_t offset, struct iovec_iter *iter,
                          unsigned int flags);
     ssize_t (*write_iter)(struct file *filp, size_t offset, struct iovec_iter *iter,
                           unsigned int flags);
-    int (*writepages)(struct inode *ino, struct writepages_info *wpinfo);
     int (*fsyncdata)(struct inode *ino, struct writepages_info *wpinfo);
     ssize_t (*directio)(struct file *file, size_t off, struct iovec_iter *iter, unsigned int flags);
-    int (*readpages)(struct readpages_state *state, struct inode *ino);
+};
+
+struct inode_operations
+{
+    __open open;
+    __stat stat;
+    __creat creat;
     int (*rename)(struct dentry *src_parent, struct dentry *src, struct dentry *dst_dir,
                   struct dentry *dst);
+    int (*link)(struct file *target_ino, const char *name, struct dentry *dir);
+    int (*ftruncate)(size_t length, struct file *node);
+    struct inode *(*mkdir)(struct dentry *dentry, mode_t mode, struct dentry *dir);
+    struct inode *(*mknod)(struct dentry *dentry, mode_t mode, dev_t dev, struct dentry *dir);
+    char *(*readlink)(struct file *ino);
+    int (*unlink)(const char *name, int flags, struct dentry *dir);
 };
 
 /* For directio's flags */
@@ -124,6 +122,7 @@ struct inode
     dev_t i_dev;
     dev_t i_rdev;
     struct superblock *i_sb;
+    const struct inode_operations *i_op;
     struct file_ops *i_fops;
     struct vm_object *i_pages;
     void *i_helper;

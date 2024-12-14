@@ -58,25 +58,18 @@ int loopback_send_packet(packetbuf *buf, netif *nif)
 int loopback_pollrx(netif *nif)
 {
     // We need to hold the lock around list accesses (pqueue).
+    DEFINE_LIST(queue);
     spin_lock(&pqueue_lock);
-    while (!list_is_empty(&pqueue))
+    list_splice_tail_init(&pqueue, &queue);
+    spin_unlock(&pqueue_lock);
+
+    while (!list_is_empty(&queue))
     {
-        auto pbuf = container_of(list_first_element(&pqueue), packetbuf, list_node);
+        auto pbuf = container_of(list_first_element(&queue), packetbuf, list_node);
         list_remove(&pbuf->list_node);
-
-        // Unlock. process_pbuf may want to send buffers, which may want to lock pqueue, so we must
-        // drop this lock while calling netif_process_pbuf.
-
-        spin_unlock(&pqueue_lock);
-
         netif_process_pbuf(nif, pbuf);
         pbuf->unref();
-
-        // Relock for the next run.
-        spin_lock(&pqueue_lock);
     }
-
-    spin_unlock(&pqueue_lock);
 
     return 0;
 }

@@ -28,6 +28,10 @@ unsigned int serial_port::allocate_serial_index()
     return serial_index++;
 }
 
+static const struct tty_ops serial_port_ops = {
+    .write = serial_write_tty,
+};
+
 /**
  * @brief Initialises the serial port
  * and creates the tty.
@@ -41,8 +45,7 @@ bool serial_port::init_tty()
         [](struct tty *tty) {
             serial_port *port = (serial_port *) tty->priv;
             port->set_tty(tty);
-            tty->write = serial_write_tty;
-            tty->ioctl = nullptr;
+            tty->ops = &serial_port_ops;
         },
         0);
 

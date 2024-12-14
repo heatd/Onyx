@@ -31,7 +31,7 @@ static inline void path_put(struct path *p)
         mnt_put(p->mount);
 }
 
-static inline void path_init(struct path *p)
+CONSTEXPR static inline void path_init(struct path *p)
 {
     p->dentry = NULL;
     p->mount = NULL;

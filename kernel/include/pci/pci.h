@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 #ifndef _KERNEL_PCI_H
 #define _KERNEL_PCI_H
@@ -168,6 +170,16 @@ struct pci_id
     void *driver_data;
 };
 
+struct msix_table_entry
+{
+    u32 msg_addr;
+    u32 msg_upper_addr;
+    u32 msg_data;
+    u32 msg_vec_ctl;
+};
+
+#define MSIX_VEC_CTL_MASKED (1 << 0)
+
 class pci_device : public device
 {
 protected:
@@ -192,12 +204,22 @@ protected:
     bool enum_bars();
 
 public:
+    struct msix_table_entry *msix_table;
+    u32 *msix_pba;
+    bool msix_enabled;
+    u32 nr_msix_vectors;
+    u32 *msix_irqs;
+    bool msi_enabled;
+    u32 msi_base;
+    u32 nr_msi_vectors;
+
     pci_device(const char *name, struct bus *b, device *parent, uint16_t did_, uint16_t vid_,
                const device_address &addr)
         : device{name, b, parent}, device_id{did_}, vendor_id{vid_}, address{addr}, pci_class_{},
           sub_class_{}, prog_if_{}, type{}, has_power_management{}, pm_cap_off{},
           supported_power_states{}, current_power_state{}, next{}, pin_to_gsi{},
-          driver_data{}, alloc{}
+          driver_data{}, alloc{}, msix_table{}, msix_pba{}, msix_enabled{false},
+          nr_msix_vectors{0}, msix_irqs{NULL}, msi_enabled{false}, msi_base{}, nr_msi_vectors{}
     {
     }
 
@@ -309,5 +331,23 @@ void write_config(const device_address &addr, uint64_t value, uint16_t off, size
 
 void register_driver(struct driver *driver);
 } // namespace pci
+
+int pci_enable_msix(pci::pci_device *dev, unsigned int min_vecs, unsigned int max_vecs,
+                    unsigned int flags);
+
+int pci_alloc_irqs(pci::pci_device *dev, unsigned int min_vecs, unsigned int max_vecs,
+                   unsigned int flags);
+
+#define PCI_IRQ_INTX (1 << 0)
+#define PCI_IRQ_MSI  (1 << 1)
+#define PCI_IRQ_MSIX (1 << 2)
+
+#define PCI_IRQ_DEFAULT (PCI_IRQ_INTX | PCI_IRQ_MSI | PCI_IRQ_MSIX)
+
+int pci_get_irq(pci::pci_device *dev, unsigned int irq);
+int pci_install_irq(pci::pci_device *dev, unsigned int irq, irq_t handler, unsigned int flags,
+                    void *cookie, const char *name, ...);
+
+int pci_get_nr_vectors(pci::pci_device *dev);
 
 #endif

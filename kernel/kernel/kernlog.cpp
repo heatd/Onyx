@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <onyx/cmdline.h>
 #include <onyx/console.h>
 #include <onyx/irq.h>
 #include <onyx/kunit.h>
@@ -27,6 +28,16 @@
 
 static struct console *cur_con __rcu;
 static struct spinlock cur_con_lock;
+
+static unsigned int min_log_level = __KERN_WARN;
+
+static int verbose_param(const char *s)
+{
+    /* Print all log messages */
+    min_log_level = 7;
+    return 1;
+}
+kernel_param("verbose", verbose_param);
 
 void con_register(struct console *con)
 {
@@ -183,7 +194,7 @@ u32 printk_buf::find_and_print(char *buf, size_t *psize, u32 initial_seq, u32 fl
 
         if (!is_syslog)
         {
-            if (header->log_level > __KERN_WARN)
+            if (header->log_level > min_log_level)
             {
                 /* Skip, but take note of the seq */
                 seen = header->seq + 1;
@@ -371,8 +382,64 @@ extern "C" int vprintf(const char *__restrict__ format, va_list va)
     header->timestamp = clocksource_get_time();
     spin_unlock_irqrestore(&printk_lock, flags);
 
-    if (log_level <= __KERN_WARN)
+    if (log_level <= min_log_level)
         flush_consoles();
+    return i;
+}
+
+int printk_loglvl_generic(const char *format, va_list *va, const char *msg, ...)
+{
+    unsigned long flags = spin_lock_irqsave(&printk_lock);
+    unsigned int loglevel_off = 0;
+    u8 log_level = __KERN_DEFAULT;
+
+    if (format[0] == __KERN_SOH)
+    {
+        /* We have a log level, parse it */
+        log_level = format[1] - '0';
+        format += 2;
+    }
+
+    char buf[3];
+    char buf2[1];
+    va_list vap, vap2, vap3;
+    va_start(vap, msg);
+    va_copy(vap2, *va);
+    va_copy(vap3, vap);
+
+    int i = vsnprintf(buf, 3, format, vap);
+    CHECK(i >= 0);
+    i += vsnprintf(buf2, 1, msg, vap2);
+    CHECK(i >= 0);
+    CHECK(i <= MAX_LINE);
+
+    if (i >= 2 && buf[0] == __KERN_SOH)
+    {
+        /* The format string specifies its log level. Play some funny tricks with the buffer (by
+         * offsetting the vsnprintf buf by 2 back, slightly overwriting a bit of the header). */
+        log_level = buf[1] - '0';
+        loglevel_off = 2;
+        i -= loglevel_off;
+    }
+
+    struct printk_header *header = printk_buf.get_buf(sizeof(struct printk_header) + i + 1);
+    header->log_level = log_level;
+    header->seq = printk_buf.get_seq();
+    DCHECK(header->length >= i + sizeof(struct printk_header));
+    i = vsnprintf(header->data - loglevel_off,
+                  header->length - sizeof(struct printk_header) + loglevel_off, format, vap3);
+    CHECK(i >= 0);
+    i += vsnprintf(header->data - loglevel_off + i,
+                   header->length - sizeof(struct printk_header) - i + loglevel_off, msg, *va);
+    CHECK(i >= 0);
+    /* Only set the timestamp *after we printed* due to loglevel_off overwriting header->timestamp*/
+    header->timestamp = clocksource_get_time();
+    spin_unlock_irqrestore(&printk_lock, flags);
+
+    if (log_level <= min_log_level)
+        flush_consoles();
+    va_end(vap);
+    va_end(vap2);
     return i;
 }
 

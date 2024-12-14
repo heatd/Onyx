@@ -475,17 +475,20 @@ int devfs_open(dentry *dir, const char *name, dentry *dentry);
 static off_t devfs_getdirent(struct dirent *buf, off_t off, struct file *file);
 
 static const struct file_ops devfs_root_ops = {
-    .open = devfs_open,
     .getdirent = devfs_getdirent,
+    .symlink = libfs_no_symlink,
+    .fallocate = libfs_no_fallocate,
+};
+
+static const struct inode_operations devfs_ino_ops = {
+    .open = devfs_open,
     .creat = libfs_no_creat,
     .link = libfs_no_link,
-    .symlink = libfs_no_symlink,
     .ftruncate = libfs_no_ftruncate,
     .mkdir = libfs_no_mkdir,
     .mknod = libfs_no_mknod,
     .readlink = libfs_no_readlink,
     .unlink = libfs_no_unlink,
-    .fallocate = libfs_no_fallocate,
 };
 
 inode *devfs_create_inode(devfs_file *file, struct superblock *sb)
@@ -498,6 +501,7 @@ inode *devfs_create_inode(devfs_file *file, struct superblock *sb)
     inode->i_dev = sb->s_devnr;
     inode->i_rdev = file->dev;
     inode->i_fops = (struct file_ops *) &devfs_root_ops;
+    inode->i_op = &devfs_ino_ops;
     inode->i_mode = file->mode;
     inode->i_helper = file;
     inode->i_sb = sb;

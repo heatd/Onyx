@@ -32,9 +32,10 @@ static void buffer_writepage_end(struct bio_req *req)
     page_end_writeback(page);
 }
 
-ssize_t buffer_writepage(struct page *page, size_t offset, struct inode *ino) REQUIRES(page)
+ssize_t buffer_writepage(struct vm_object *obj, struct page *page, size_t offset) REQUIRES(page)
     RELEASE(page)
 {
+    struct inode *ino = obj->ino;
     auto blkdev = reinterpret_cast<blockdev *>(ino->i_helper);
     DCHECK(blkdev != nullptr);
 
@@ -203,7 +204,7 @@ void block_buf_sync(struct block_buf *buf)
     /* TODO: Only write *this* buffer, instead of the whole page */
     struct page *page = buf->this_page;
     lock_page(page);
-    buffer_writepage(page, page->pageoff << PAGE_SHIFT, buf->dev->b_ino);
+    buffer_writepage(page->owner, page, page->pageoff << PAGE_SHIFT);
     page_wait_writeback(page);
 }
 
@@ -450,8 +451,7 @@ static void buffer_readpages_endio(struct bio_req *bio) NO_THREAD_SAFETY_ANALYSI
     }
 }
 
-static int buffer_readpages(struct readpages_state *state,
-                            struct inode *ino) NO_THREAD_SAFETY_ANALYSIS
+int buffer_readpages(struct readpages_state *state, struct inode *ino) NO_THREAD_SAFETY_ANALYSIS
 {
     blockdev *blkdev = reinterpret_cast<blockdev *>(ino->i_helper);
     int st;
@@ -593,16 +593,11 @@ extern unsigned int blkdev_ioctl(int request, void *argp, struct file *f);
 struct file_ops buffer_ops = {
     .ioctl = blkdev_ioctl,
     .on_open = bdev_on_open,
-    .readpage = bbuffer_readpage,
-    .writepage = buffer_writepage,
-    .prepare_write = block_prepare_write,
     .release = bdev_release,
     .read_iter = filemap_read_iter,
     .write_iter = filemap_write_iter,
-    .writepages = filemap_writepages,
     .fsyncdata = filemap_writepages,
     .directio = buffer_directio,
-    .readpages = buffer_readpages,
 };
 
 struct block_buf *sb_read_block(const struct superblock *sb, unsigned long block)

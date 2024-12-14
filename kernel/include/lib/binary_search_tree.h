@@ -365,6 +365,33 @@ void bst_delete_all_helper(struct bst_root *root, struct bst_node *node);
 
 struct bst_node *bst_min(struct bst_root *root, struct bst_node *node);
  
+static inline void bst_replace_node(struct bst_root *root, struct bst_node *old, struct bst_node *new_)
+{
+    struct bst_node *parent, *child;
+    /* First adjust children, then parent, then parent's child */
+    for (int i = 0; i < 2; i++)
+    {
+        child = old->child[i];
+        if (child)
+            child->parent = new_;
+        new_->child[i] = child;
+    }
+
+    parent = old->parent;
+    new_->parent = parent;
+
+    if (parent)
+        parent->child[parent->child[1] == old] = new_;
+    else
+        root->root = new_;
+    new_->rank = old->rank;
+}
+
+static inline bool bst_root_empty(struct bst_root *root)
+{
+    return !root->root;
+}
+
 #ifdef __cplusplus
 }
 #endif

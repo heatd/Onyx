@@ -915,6 +915,9 @@ failure:
 struct page *alloc_pages(unsigned int order, unsigned long flags)
 {
     auto &node = main_node;
+    if (WARN_ON(order > PAGEALLOC_NR_ORDERS))
+        return NULL;
+
     return node.alloc_order(order, flags);
 }
 

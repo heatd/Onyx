@@ -78,22 +78,24 @@ unsigned long irq_handler(struct registers *regs)
 }
 
 int platform_allocate_msi_interrupts(unsigned int num_vectors, bool addr64,
-                                     struct pci_msi_data *data)
+                                     struct pci_msi_data *data, unsigned int flags,
+                                     unsigned int target_cpu)
 {
-    /* TODO: Balance IRQs between processors, since it's not ok to assume
-     * the current CPU, since then, IRQs become unbalanced
-     *
-     * TODO: Magenta hardcodes some of this stuff. Is it dangerous that things
-     * are hardcoded like that?
-     */
+    u16 target_lapic;
     int vecs = x86_allocate_vectors(num_vectors);
     if (vecs < 0)
         return -1;
     /* See section 10.11.1 of the intel software developer manuals */
-    uint32_t address = PCI_MSI_BASE_ADDRESS;
-    address |= (cpu2lapicid(get_cpu_nr())) << PCI_MSI_APIC_ID_SHIFT;
+    target_lapic = cpu2lapicid(target_cpu);
 
-    printf("x86/msi: Routing %u vectors to cpu%u\n", num_vectors, get_cpu_nr());
+    /* We can only target lapics over 255 with an IOMMU, and we don't have support for that yet.
+     * Shame. */
+    if (WARN_ON_ONCE(target_lapic > 255))
+        return -EIO;
+    uint32_t address = PCI_MSI_BASE_ADDRESS;
+    address |= (u32) target_lapic << PCI_MSI_APIC_ID_SHIFT;
+
+    printf("x86/msi: Routing %u vectors to cpu%u\n", num_vectors, target_cpu);
 
     /* See section 10.11.2 of the intel software developer manuals */
     uint32_t data_val = vecs;

@@ -602,7 +602,7 @@ dentry *__dentry_try_to_open(std::string_view name, dentry *dir, bool lock_ino)
     if (lock_ino)
         inode_lock_shared(pino);
 
-    int st = dir->d_inode->i_fops->open(dir, _name, dent);
+    int st = dir->d_inode->i_op->open(dir, _name, dent);
 
     if (lock_ino)
         inode_unlock_shared(pino);

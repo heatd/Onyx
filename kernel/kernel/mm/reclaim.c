@@ -214,7 +214,6 @@ static enum pageout_result pageout(struct reclaim_data *data, struct page *page,
     if (st < 0)
         pr_warn("pageout %p off %lx callback %pS = %zd\n", page, page->pageoff, obj->ops->writepage,
                 st);
-    DCHECK_PAGE(!page_locked(page), page);
     return PAGE_WRITTEN;
 }
 

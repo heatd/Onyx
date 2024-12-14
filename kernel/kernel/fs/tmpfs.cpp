@@ -164,7 +164,7 @@ ssize_t tmpfs_readpage(struct page *page, size_t offset, struct inode *ino)
     return PAGE_SIZE;
 }
 
-ssize_t tmpfs_writepage(struct page *page, size_t offset, struct inode *ino) REQUIRES(page)
+ssize_t tmpfs_writepage(struct vm_object *obj, struct page *page, size_t offset) REQUIRES(page)
     RELEASE(page)
 {
     unlock_page(page);
@@ -263,30 +263,30 @@ int tmpfs_ftruncate(size_t len, file *f)
 const struct file_ops tmpfs_fops = {
     .read = nullptr,
     .write = nullptr,
-    .open = tmpfs_open,
     .close = tmpfs_close,
     .getdirent = tmpfs_getdirent,
     .ioctl = nullptr,
-    .creat = tmpfs_creat,
-    .stat = nullptr,
-    .link = tmpfs_link,
     .symlink = tmpfs_symlink,
     .mmap = nullptr,
-    .ftruncate = tmpfs_ftruncate,
-    .mkdir = tmpfs_mkdir,
-    .mknod = tmpfs_mknod,
     .on_open = nullptr,
     .poll = nullptr,
-    .readlink = tmpfs_readlink,
-    .unlink = tmpfs_unlink,
     .fallocate = nullptr,
-    .readpage = tmpfs_readpage,
-    .writepage = tmpfs_writepage,
-    .prepare_write = tmpfs_prepare_write,
     .read_iter = filemap_read_iter,
     .write_iter = filemap_write_iter,
     .fsyncdata = filemap_writepages,
+};
+
+const struct inode_operations tmpfs_ino_ops = {
+    .open = tmpfs_open,
+    .stat = nullptr,
+    .creat = tmpfs_creat,
     .rename = tmpfs_rename,
+    .link = tmpfs_link,
+    .ftruncate = tmpfs_ftruncate,
+    .mkdir = tmpfs_mkdir,
+    .mknod = tmpfs_mknod,
+    .readlink = tmpfs_readlink,
+    .unlink = tmpfs_unlink,
 };
 
 static void tmpfs_free_page(struct vm_object *vmo, struct page *page)
@@ -298,6 +298,9 @@ static void tmpfs_free_page(struct vm_object *vmo, struct page *page)
 
 const static vm_object_ops tmpfs_vmops = {
     .free_page = tmpfs_free_page,
+    .writepage = tmpfs_writepage,
+    .readpage = tmpfs_readpage,
+    .prepare_write = tmpfs_prepare_write,
 };
 
 /**
@@ -321,6 +324,7 @@ tmpfs_inode *tmpfs_superblock::alloc_inode(mode_t mode, dev_t rdev)
     }
 
     ino->i_fops = (file_ops *) tmpfs_ops_;
+    ino->i_op = &tmpfs_ino_ops;
 
     ino->i_nlink = 0;
     if (ino->i_pages)

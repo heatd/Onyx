@@ -10,6 +10,7 @@
 #include <uapi/netinet.h>
 #include <uapi/socket.h>
 
+#ifdef __cplusplus
 constexpr bool operator==(const in_addr& lhs, const in_addr& rhs)
 {
     return lhs.s_addr == rhs.s_addr;
@@ -37,6 +38,11 @@ constexpr bool operator!=(const in6_addr& lhs, const in6_addr& rhs)
     return !(lhs == rhs);
 }
 
+#endif
+
+// clang-format off
+#define CPP_DFLINIT {}
+// clang-format on
 struct inet_sock_address
 {
     /* We keep two addresses here because I'd rather waste 4 bytes per inet socket than
@@ -44,11 +50,12 @@ struct inet_sock_address
      * TL;DR we avoid the union here because union type punning is outlawed in C++ and we
      * might trigger that.
      */
-    in_addr in4;
-    in6_addr in6;
+    struct in_addr in4;
+    struct in6_addr in6;
     in_port_t port;
-    uint32_t v6_scope_id{0};
+    uint32_t v6_scope_id CPP_DFLINIT;
 
+#ifdef __cplusplus
     constexpr inet_sock_address() : in4{}, in6{}, port{}
     {
     }
@@ -97,8 +104,10 @@ struct inet_sock_address
         else
             return in6 == in6addr_any;
     }
+#endif
 };
 
+#ifdef __cplusplus
 template <typename AddressType>
 struct inet_domain_type
 {
@@ -119,5 +128,7 @@ struct inet_domain_type<in6_addr>
 
 template <typename AddressType>
 inline constexpr int inet_domain_type_v = inet_domain_type<AddressType>::domain;
+
+#endif
 
 #endif

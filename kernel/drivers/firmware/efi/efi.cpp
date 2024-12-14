@@ -208,6 +208,9 @@ void efi_init(EFI_SYSTEM_TABLE *system_table, EFI_MEMORY_DESCRIPTOR *descriptors
     EFI_MEMORY_DESCRIPTOR *map = NULL;
     size_t nr_maps = 0;
 
+#define efi_mmap_ptr(base, idx, desc_size) \
+    ((EFI_MEMORY_DESCRIPTOR *) (((u8 *) (base)) + (idx) * (desc_size)))
+
     for (size_t i = 0; i < nr_descriptors;
          desc = (EFI_MEMORY_DESCRIPTOR *) ((char *) desc + descriptor_size), i++)
     {
@@ -221,7 +224,7 @@ void efi_init(EFI_SYSTEM_TABLE *system_table, EFI_MEMORY_DESCRIPTOR *descriptors
                 (EFI_MEMORY_DESCRIPTOR *) kreallocarray(map, nr_maps, descriptor_size, GFP_ATOMIC);
             CHECK(newmap != NULL);
             efi_remap_efi_region(*desc);
-            memcpy(&newmap[nr_maps - 1], desc, descriptor_size);
+            memcpy(efi_mmap_ptr(newmap, nr_maps - 1, descriptor_size), desc, descriptor_size);
             map = newmap;
         }
     }

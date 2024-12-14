@@ -64,7 +64,6 @@ bool pbf_allocate_space(struct packetbuf *pbf, size_t length)
 
     for (size_t i = 0; i < nr_pages; i++)
     {
-        page_ref(pages);
         pbf->page_vec[i].page = pages;
 
         if (i == 0)
@@ -312,7 +311,7 @@ ssize_t packetbuf::copy_iter(iovec_iter &iter, unsigned int flags)
         {
             if (!copied)
                 copied = -EFAULT;
-            break;
+            return copied;
         }
 
         datap += to_copy;
@@ -348,7 +347,7 @@ ssize_t packetbuf::copy_iter(iovec_iter &iter, unsigned int flags)
 
             // We reached the end
             if (!page_vec[last_vec].page)
-                break;
+                goto out;
 
             // Empty iov
             if (current_iov_len == 0)
@@ -387,6 +386,7 @@ ssize_t packetbuf::copy_iter(iovec_iter &iter, unsigned int flags)
         }
     }
 
+out:
     return copied;
 }
 

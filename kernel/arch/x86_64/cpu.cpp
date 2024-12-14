@@ -15,6 +15,7 @@
 #include <x86intrin.h>
 
 #include <onyx/acpi.h>
+#include <onyx/cmdline.h>
 #include <onyx/code_patch.h>
 #include <onyx/compiler.h>
 #include <onyx/cpu.h>
@@ -54,9 +55,18 @@ const int bits_per_long = sizeof(unsigned long) * 8;
 
 struct x86_platform_info x86_platform = {};
 
+static bool msi_forceoff = false;
+
+static int nomsi_param(const char *s)
+{
+    msi_forceoff = true;
+    return 1;
+}
+kernel_param("nomsi", nomsi_param);
+
 bool platform_has_msi()
 {
-    return x86_platform.has_msi;
+    return !msi_forceoff && x86_platform.has_msi;
 }
 
 __attribute__((hot)) bool x86_has_cap(int cap)

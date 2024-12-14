@@ -83,6 +83,29 @@ void set_initrd_address(void *initrd_address, size_t length)
 
 int sys_execve(const char *p, const char **argv, const char **envp);
 
+static const char *init_prog;
+
+static int init_param(const char *val)
+{
+    init_prog = strdup(val);
+    return 1;
+}
+kernel_param("init", init_param);
+
+static int try_exec_for(const char *init_path, const char **argv, const char **envp)
+{
+    argv[0] = init_path;
+    int st = sys_execve(init_path, argv, envp);
+
+    if (st < 0)
+    {
+        /* Aww, it didn't work out */
+        thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
+    }
+
+    return 0;
+}
+
 int find_and_exec_init(const char **argv, const char **envp)
 {
     struct process *proc = process_create("kernel", nullptr, nullptr);
@@ -119,19 +142,13 @@ int find_and_exec_init(const char **argv, const char **envp)
 #endif
     proc->ctx.cwd = get_filesystem_root();
 
+    if (init_prog)
+        try_exec_for(init_prog, argv, envp);
+
     const char *init_paths[] = {"/sbin/init", "/bin/init", "/bin/sh"};
 
     for (auto init_path : init_paths)
-    {
-        argv[0] = init_path;
-        int st = sys_execve(init_path, argv, envp);
-
-        if (st < 0)
-        {
-            /* Aww, it didn't work out */
-            thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
-        }
-    }
+        try_exec_for(init_path, argv, envp);
 
     return -1;
 }
@@ -203,7 +220,7 @@ void fs_init()
 
 extern "C" void kernel_main(void)
 {
-    cmdline::init();
+    cmdline_init();
     do_init_level(INIT_LEVEL_VERY_EARLY_CORE);
 
     do_init_level(INIT_LEVEL_VERY_EARLY_PLATFORM);
@@ -237,6 +254,16 @@ extern "C" void kernel_main(void)
     sched_transition_to_idle();
 }
 
+static const char *root_dev;
+
+static int root_arg(const char *str)
+{
+    root_dev = strdup(str);
+    return 1;
+}
+
+kernel_param("root", root_arg);
+
 extern "C" bool kcsan_enabled;
 
 void kernel_multitasking(void *arg)
@@ -263,7 +290,8 @@ void kernel_multitasking(void *arg)
     vm_sysfs_init();
 
     /* Pass the root partition to init */
-    auto root = cul::string(cmdline::get_root());
+    auto root = cul::string("--root=");
+    root.append(root_dev);
     if (!root)
         panic("out of memory in early boot");
     const char *args[] = {(char *) "", root.c_str(), nullptr};

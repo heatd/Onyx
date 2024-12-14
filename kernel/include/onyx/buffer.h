@@ -161,6 +161,17 @@ void buffer_free_page(struct vm_object *vmo, struct page *page);
 
 struct block_buf *bdev_read_block(struct blockdev *bdev, unsigned long block);
 
+struct readpages_state;
+struct writepages_info;
+struct inode;
+
+ssize_t buffer_writepage(struct vm_object *obj, struct page *page, size_t offset) REQUIRES(page)
+    RELEASE(page);
+
+ssize_t bbuffer_readpage(struct page *p, size_t off, struct inode *ino);
+
+int buffer_readpages(struct readpages_state *state, struct inode *ino);
+
 __END_CDECLS
 
 #ifdef __cplusplus

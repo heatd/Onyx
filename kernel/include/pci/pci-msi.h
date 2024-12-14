@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2021 Pedro Falcato
+ * Copyright (c) 2017 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -25,6 +25,17 @@
 #define PCI_MSI_8_VECTORS  0x0003
 #define PCI_MSI_16_VECTORS 0x0004
 #define PCI_MSI_32_VECTORS 0x0005
+
+#define PCI_MSIX_MSG_CTRL_OFF             2
+#define PCI_MSIX_MSG_CTRL_MSIX_EN         (1 << 15)
+#define PCI_MSIX_MSG_CTRL_FUNCTION_MASK   (1 << 14)
+#define PCI_MSIX_MSG_CTRL_TABLE_SIZE(val) (((val) &0x7ff) + 1)
+
+#define PCI_MSIX_TABLE_OFF 4
+#define PCI_MSIX_PBA_OFF   8
+
+#define PCI_MSIX_BIR_MASK 7
+#define PCI_MSIX_OFF_MASK 0xfffffff8
 
 struct pci_msi_data
 {
