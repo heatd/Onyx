@@ -1173,7 +1173,12 @@ int sys_rt_sigtimedwait(const sigset_t *set, siginfo_t *info, const struct times
 
     /* Find a pending signal */
     int signum = signal_find(thread);
-    assert(signum > 0);
+    if (signum < 0)
+    {
+        /* Signal is "pending" but no bit set? We must be doing some signal group thing, return */
+        st = -EINTR;
+        goto out;
+    }
 
     /* If it's not a member of set, error out with EINTR(it will be handled on syscall return). */
     if (!sigismember(&kset, signum))
