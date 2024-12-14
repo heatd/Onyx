@@ -1873,9 +1873,7 @@ void utimensat_vfs(inode *ino, timespec ktimes[2])
     for (unsigned int i = 0; i < 2; i++)
     {
         if (ktimes[i].tv_nsec == UTIME_NOW)
-        {
-            hrtime_to_timespec(clocksource_get_time(), &ktimes[i]);
-        }
+            clock_gettime_kernel(CLOCK_REALTIME, &ktimes[i]);
         else if (ktimes[i].tv_nsec == UTIME_OMIT)
             continue;
 

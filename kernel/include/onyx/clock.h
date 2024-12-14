@@ -12,12 +12,12 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <uapi/time.h>
 
 #include <onyx/compiler.h>
 #include <onyx/limits.h>
 
 #include <fixed_point/fixed_point.h>
+#include <uapi/time.h>
 
 #define US_PER_SEC 1000000UL
 #define NS_PER_SEC 1000000000UL
