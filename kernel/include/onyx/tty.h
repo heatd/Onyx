@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 #ifndef _ONYX_TTY_H
 #define _ONYX_TTY_H
@@ -35,7 +37,6 @@ struct tty_ldisc_ops
 struct tty_line_disc
 {
     int ldisc;
-    unsigned int column; // Column for n_tty tab deletion purposes
     const struct tty_ldisc_ops *ops;
 };
 
@@ -43,6 +44,8 @@ struct tty_ops
 {
     ssize_t (*write)(const void *buffer, size_t size, struct tty *tty);
     unsigned int (*ioctl)(int request, void *argp, struct tty *tty);
+    unsigned int (*write_room)(struct tty *tty);
+    void (*finish_read)(struct tty *tty);
 };
 
 #define TTY_FLAG_LOCKED_PTY (1 << 0)
@@ -67,6 +70,8 @@ struct tty
     unsigned int input_flags;
     bool line_ready;
     struct wait_queue read_queue;
+    struct wait_queue write_queue;
+    unsigned int column; // Column for n_tty tab deletion purposes
     struct mutex input_lock;
     char input_buf[2048];
     unsigned int input_buf_pos;
@@ -91,10 +96,7 @@ struct tty
 __BEGIN_CDECLS
 
 void tty_putchar(char c);
-void tty_write(const char *data, size_t size, struct tty *tty);
-void tty_write_string(const char *data, struct tty *tty);
-void tty_write_kernel(const char *data, size_t size);
-void tty_write_string_kernel(const char *data);
+ssize_t tty_write(const char *data, size_t size, struct tty *tty);
 void tty_set_color(int color);
 void tty_swap_framebuffers();
 
@@ -132,7 +134,7 @@ void tty_send_response(struct tty *tty, const char *str);
  */
 void console_init();
 
-void tty_received_buf(struct tty *tty, const char *c, size_t len);
+ssize_t tty_received_buf(struct tty *tty, const char *c, size_t len);
 
 /**
  * @brief Create the pty master device
@@ -165,6 +167,9 @@ short tty_poll(void *poll_file, short events, struct file *f);
  * @param tty TTY to clear
  */
 void process_clear_tty(struct tty *tty);
+
+unsigned int tty_write_room(struct tty *tty);
+void tty_finish_read(struct tty *tty);
 
 __END_CDECLS
 
