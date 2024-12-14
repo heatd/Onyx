@@ -43,7 +43,7 @@ retry:
     {
         if (flags & FIND_PAGE_NO_CREATE) [[unlikely]]
             return -ENOENT;
-        if (!ino->i_fops->readpage) [[unlikely]]
+        if (!ino->i_pages->ops->readpage) [[unlikely]]
         {
             /* If there's no way to bring it up to date, ENOENT */
             return -ENOENT;
@@ -106,7 +106,7 @@ retry:
      */
     if (!(flags & FIND_PAGE_NO_READPAGE) && !page_flag_set(p, PAGE_FLAG_UPTODATE))
     {
-        DCHECK(ino->i_fops->readpage != nullptr);
+        DCHECK(ino->i_pages->ops->readpage != nullptr);
         rw_lock_read(&ino->i_pages->truncate_lock);
 
         lock_page(p);
@@ -120,7 +120,7 @@ retry:
 
         if (!page_flag_set(p, PAGE_FLAG_UPTODATE))
         {
-            ssize_t st2 = ino->i_fops->readpage(p, pgoff << PAGE_SHIFT, ino);
+            ssize_t st2 = ino->i_pages->ops->readpage(p, pgoff << PAGE_SHIFT, ino);
 
             /* In case of errors, propagate... */
             if (st2 < 0)
@@ -351,7 +351,8 @@ ssize_t file_write_cache_unlocked(void *buffer, size_t len, struct inode *ino, s
 
         lock_page(page);
 
-        if (st = ino->i_fops->prepare_write(ino, page, aligned_off, cache_off, amount); st < 0)
+        if (st = ino->i_pages->ops->prepare_write(ino, page, aligned_off, cache_off, amount);
+            st < 0)
         {
             unlock_page(page);
             page_unpin(page);
@@ -414,7 +415,7 @@ static int default_write_begin(struct file *filp, struct vm_object *vm_obj, off_
 
     lock_page(page);
 
-    if (st = ino->i_fops->prepare_write(ino, page, aligned_off, cache_off, rest); st < 0)
+    if (st = ino->i_pages->ops->prepare_write(ino, page, aligned_off, cache_off, rest); st < 0)
     {
         unlock_page(page);
         page_unpin(page);
@@ -619,9 +620,7 @@ int filemap_writepages(struct inode *inode,
 
         ssize_t st = -EIO;
 
-        if (inode->i_fops->writepage)
-            st = inode->i_fops->writepage(page, pageoff << PAGE_SHIFT, inode);
-        else if (inode->i_pages->ops->writepage)
+        if (inode->i_pages->ops->writepage)
             st = inode->i_pages->ops->writepage(inode->i_pages, page, pageoff << PAGE_SHIFT);
         else
         {
@@ -710,7 +709,7 @@ static int vm_prepare_write(struct inode *inode, struct page *p) REQUIRES(p)
     if (offset + PAGE_SIZE > i_size)
         len = i_size - offset;
 
-    int st = inode->i_fops->prepare_write(inode, p, offset, 0, len);
+    int st = inode->i_pages->ops->prepare_write(inode, p, offset, 0, len);
     filemap_mark_dirty(p, p->pageoff);
     return st;
 }

@@ -307,8 +307,12 @@ static int block_write_end(struct file *file, struct vm_object *vm_obj, off_t of
 
 static const struct vm_object_ops block_vm_obj_ops = {
     .free_page = buffer_free_page,
+    .writepage = buffer_writepage,
     .write_begin = block_write_begin,
     .write_end = block_write_end,
+    .writepages = filemap_writepages,
+    .readpages = buffer_readpages,
+    .readpage = bbuffer_readpage,
 };
 
 /**
@@ -351,6 +355,9 @@ __init static void bdev_setup_fs()
 
 extern struct file_ops buffer_ops;
 
+/* Complete noop */
+static const struct inode_operations buffer_ino_ops = {};
+
 int blkdev_init(struct blockdev *blk)
 {
     blk->block_size = blk->sector_size;
@@ -382,6 +389,7 @@ int blkdev_init(struct blockdev *blk)
     }
 
     ino->b_inode.i_fops = &buffer_ops;
+    ino->b_inode.i_op = &buffer_ino_ops;
     ino->b_inode.i_helper = (void *) blk;
     blk->b_ino = (struct inode *) ino.release();
 
