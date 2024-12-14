@@ -600,7 +600,7 @@ static int do_creat(dentry *dir, struct inode *inode, struct dentry *dentry, mod
     DCHECK(d_is_negative(dentry));
 
     struct inode *new_inode =
-        inode->i_fops->creat(dentry, do_umask((int) (mode & ~S_IFMT) | S_IFREG), dir);
+        inode->i_op->creat(dentry, do_umask((int) (mode & ~S_IFMT) | S_IFREG), dir);
 
     if (!new_inode)
         return -errno;
@@ -980,16 +980,16 @@ static expected<struct dentry *, int> namei_create_generic(int dirfd, const char
     switch (mode & S_IFMT)
     {
         case S_IFREG:
-            inode = dir_ino->i_fops->creat(dent, mode, dir);
+            inode = dir_ino->i_op->creat(dent, mode, dir);
             break;
         case S_IFDIR:
-            inode = dir_ino->i_fops->mkdir(dent, mode, dir);
+            inode = dir_ino->i_op->mkdir(dent, mode, dir);
             break;
         case S_IFBLK:
         case S_IFCHR:
         case S_IFSOCK:
         case S_IFIFO:
-            inode = dir_ino->i_fops->mknod(dent, mode, dev, dir);
+            inode = dir_ino->i_op->mknod(dent, mode, dev, dir);
             break;
         default:
             DCHECK(0);
@@ -1142,7 +1142,7 @@ int link_vfs(struct file *target, int dirfd, const char *newpath)
         goto put_unlock_err;
     }
 
-    st = dir_ino->i_fops->link(target, dent->d_name, dir);
+    st = dir_ino->i_op->link(target, dent->d_name, dir);
 
     if (st < 0)
     {
@@ -1272,7 +1272,7 @@ int unlink_vfs(const char *path, int flags, int dirfd)
 
     rw_lock_write(&inode->i_rwlock);
     /* Do the actual fs unlink */
-    st = inode->i_fops->unlink(_name, flags, dentry);
+    st = inode->i_op->unlink(_name, flags, dentry);
 
     if (st < 0)
     {
@@ -1357,7 +1357,7 @@ static int fallback_rename(struct dentry *old_parent, struct dentry *old, struct
     {
         /* Unlink the name on disk first */
         /* Note that i_fops->unlink() checks if the directory is empty, if it is one. */
-        st = dir->d_inode->i_fops->unlink(dest->d_name, AT_REMOVEDIR, dir);
+        st = dir->d_inode->i_op->unlink(dest->d_name, AT_REMOVEDIR, dir);
     }
 
     if (st < 0)
@@ -1368,14 +1368,14 @@ static int fallback_rename(struct dentry *old_parent, struct dentry *old, struct
     f.f_path = path{old};
 
     /* Now link the name on disk */
-    st = dir->d_inode->i_fops->link(&f, dest->d_name, dir);
+    st = dir->d_inode->i_op->link(&f, dest->d_name, dir);
 
     /* rename allows us to move a non-empty dir. Because of that we
      * pass a special flag (UNLINK_VFS_DONT_TEST_EMPTY) to the fs, that allows us to do
      * that.
      */
-    st = old_parent->d_inode->i_fops->unlink(old->d_name, AT_REMOVEDIR | UNLINK_VFS_DONT_TEST_EMPTY,
-                                             old_parent);
+    st = old_parent->d_inode->i_op->unlink(old->d_name, AT_REMOVEDIR | UNLINK_VFS_DONT_TEST_EMPTY,
+                                           old_parent);
 
     return 0;
 }
@@ -1478,8 +1478,8 @@ int do_renameat(struct dentry *dir, struct lookup_path &last, struct dentry *old
      * bookkeeping, which can't fail.
      */
     int st = 0;
-    if (old->d_inode->i_fops->rename)
-        st = old->d_inode->i_fops->rename(old_parent, old, dir, dest);
+    if (old->d_inode->i_op->rename)
+        st = old->d_inode->i_op->rename(old_parent, old, dir, dest);
     else
         st = fallback_rename(old_parent, old, dir, dest);
 

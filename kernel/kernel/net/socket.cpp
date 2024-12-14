@@ -770,6 +770,8 @@ void socket_close(struct inode *ino)
     s->sock_ops->close(s);
 }
 
+static const struct inode_operations socket_ino_ops = {};
+
 struct inode *socket_create_inode(socket *socket)
 {
     struct inode *inode = inode_create(false);
@@ -781,6 +783,7 @@ struct inode *socket_create_inode(socket *socket)
     inode->i_mode = 0666 | S_IFSOCK;
     inode->i_flags = INODE_FLAG_NO_SEEK;
     inode->i_helper = socket;
+    inode->i_op = &socket_ino_ops;
 
     return inode;
 }

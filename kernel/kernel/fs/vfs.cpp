@@ -87,58 +87,6 @@ uint32_t crc32_calculate(uint8_t *ptr, size_t len);
 
 #endif
 
-/* This function trims the part of the page that wasn't read in(because the segment of
- * the file is smaller than PAGE_SIZE).
- */
-static void zero_rest_of_page(struct page *page, size_t to_read)
-{
-    unsigned char *buf = (unsigned char *) PAGE_TO_VIRT(page) + to_read;
-
-    size_t to_zero = PAGE_SIZE - to_read;
-
-    memset(buf, 0, to_zero);
-}
-
-vmo_status_t vmo_inode_commit(struct vm_object *vmo, size_t off, struct page **ppage)
-{
-    struct inode *i = vmo->ino;
-    CHECK(0);
-
-    struct page *page = alloc_page(PAGE_ALLOC_NO_ZERO);
-    if (!page)
-        return VMO_STATUS_OUT_OF_MEM;
-
-    page->flags |= PAGE_FLAG_BUFFER;
-    page->priv = 0;
-
-    size_t to_read = i->i_size - off < PAGE_SIZE ? i->i_size - off : PAGE_SIZE;
-
-    assert(to_read <= PAGE_SIZE);
-
-    unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
-
-    assert(i->i_fops->readpage != nullptr);
-    ssize_t read = i->i_fops->readpage(page, off, i);
-
-    thread_change_addr_limit(old);
-
-    if (read < (ssize_t) to_read)
-    {
-#if 0
-        printk("Error file read %lx bytes out of %lx, off %lx\n", read, to_read, off);
-        perror("file");
-#endif
-        free_page(page);
-        return VMO_STATUS_BUS_ERROR;
-    }
-
-    zero_rest_of_page(page, to_read);
-
-    *ppage = page;
-
-    return VMO_STATUS_OK;
-}
-
 static const struct vm_object_ops noop_inode_vmobj_ops = {};
 
 int inode_create_vmo(struct inode *ino)
@@ -393,9 +341,9 @@ char *readlink_vfs(struct file *file)
     if (!S_ISLNK(file->f_ino->i_mode))
         return errno = EINVAL, nullptr;
 
-    if (file->f_ino->i_fops->readlink)
+    if (file->f_ino->i_op->readlink)
     {
-        char *p = file->f_ino->i_fops->readlink(file);
+        char *p = file->f_ino->i_op->readlink(file);
         if (p != nullptr)
             inode_update_atime(file->f_ino);
 
@@ -581,8 +529,8 @@ int default_stat(struct stat *buf, struct file *f)
 
 int stat_vfs(struct stat *buf, struct file *node)
 {
-    if (node->f_ino->i_fops->stat != nullptr)
-        return node->f_ino->i_fops->stat(buf, node);
+    if (node->f_ino->i_op->stat != nullptr)
+        return node->f_ino->i_op->stat(buf, node);
     else
     {
         return default_stat(buf, node);
@@ -675,8 +623,8 @@ int ftruncate_vfs(off_t length, struct file *vnode)
     rw_lock_write(&vnode->f_ino->i_rwlock);
 
     int st = 0;
-    if (vnode->f_ino->i_fops->ftruncate != nullptr)
-        st = vnode->f_ino->i_fops->ftruncate(length, vnode);
+    if (vnode->f_ino->i_op->ftruncate != nullptr)
+        st = vnode->f_ino->i_op->ftruncate(length, vnode);
     else
     {
         st = default_ftruncate(length, vnode);
@@ -734,6 +682,8 @@ int fallocate_vfs(int mode, off_t offset, off_t len, struct file *file)
     return -EINVAL;
 }
 
+static const struct inode_operations noop_ino_ops = {};
+
 int inode_init(struct inode *inode, bool is_cached)
 {
     /* Note: (void *) to shut up GCC's -Wclass-memaccess */
@@ -750,6 +700,8 @@ int inode_init(struct inode *inode, bool is_cached)
 
     spinlock_init(&inode->i_lock);
     rwlock_init(&inode->i_rwlock);
+    inode->i_op = &noop_ino_ops;
+
     return 0;
 }
 
