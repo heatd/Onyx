@@ -845,6 +845,7 @@ off_t ext2_getdirent(struct dirent *buf, off_t off, struct file *f)
     ext2_dir_entry_t entry;
     ssize_t read;
 
+retry:
     unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 
     /* Read a dir entry from the offset */
@@ -858,9 +859,12 @@ off_t ext2_getdirent(struct dirent *buf, off_t off, struct file *f)
     if (read == 0)
         return 0;
 
-    /* If we reached the end of the directory list, return 0 */
+    /* Should ignore this entry, increment off and retry */
     if (!entry.inode)
-        return 0;
+    {
+        off += entry.rec_len;
+        goto retry;
+    }
 
     memcpy(buf->d_name, entry.name, entry.name_len);
     buf->d_name[entry.name_len] = '\0';
