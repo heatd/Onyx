@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 - 2023 Pedro Falcato
+ * Copyright (c) 2022 - 2024 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -54,7 +54,7 @@ struct un_name
 {
     bool is_fs_sock_;
     union {
-        dentry *dentry_;
+        struct path path_;
         cul::string anon_path_;
     };
 
@@ -62,8 +62,9 @@ struct un_name
      * @brief Construct an empty un_name
      *
      */
-    constexpr un_name() : is_fs_sock_{true}, dentry_{}
+    constexpr un_name() : is_fs_sock_{true}
     {
+        path_init(&path_);
     }
 
     /**
@@ -86,8 +87,8 @@ struct un_name
         n.is_fs_sock_ = is_fs_sock_;
         if (is_fs_sock_)
         {
-            n.dentry_ = dentry_;
-            dget(dentry_);
+            n.path_ = path_;
+            path_get(&n.path_);
         }
         else
         {
@@ -103,9 +104,9 @@ struct un_name
     {
         if (is_fs_sock_)
         {
-            if (dentry_)
-                dput(dentry_);
-            dentry_ = nullptr;
+            if (!path_is_null(&path_))
+                path_put(&path_);
+            path_init(&path_);
         }
         else
         {
@@ -122,8 +123,8 @@ struct un_name
 
         if (is_fs_sock_)
         {
-            dentry_ = rhs.dentry_;
-            rhs.dentry_ = nullptr;
+            path_ = rhs.path_;
+            path_init(&rhs.path_);
         }
         else
         {
@@ -142,8 +143,8 @@ struct un_name
 
         if (is_fs_sock_)
         {
-            dentry_ = rhs.dentry_;
-            rhs.dentry_ = nullptr;
+            path_ = rhs.path_;
+            path_init(&rhs.path_);
         }
         else
         {
@@ -160,8 +161,8 @@ struct un_name
     {
         if (is_fs_sock_)
         {
-            if (dentry_)
-                dput(dentry_);
+            if (!path_is_null(&path_))
+                path_put(&path_);
         }
         else
             anon_path_.~basic_string();
@@ -171,7 +172,7 @@ struct un_name
     {
         if (is_fs_sock_)
         {
-            return fnv_hash(&dentry_->d_inode, sizeof(inode *));
+            return fnv_hash(&path_.dentry->d_inode, sizeof(inode *));
         }
         else
         {
@@ -186,14 +187,14 @@ struct un_name
         if (is_anon() && rhs.is_anon())
             return true;
         if (is_fs_sock_)
-            return rhs.dentry_->d_inode == dentry_->d_inode;
+            return path_is_equal(&path_, &rhs.path_);
         else
             return rhs.anon_path_ == anon_path_;
     }
 
     bool is_anon() const
     {
-        return is_fs_sock_ && dentry_ == nullptr;
+        return is_fs_sock_ && path_is_null(&path_);
     }
 };
 
@@ -544,20 +545,19 @@ int un_socket::do_anon_bind(cul::string anon_address)
  */
 int un_socket::do_fs_bind(cul::string path)
 {
+    struct path path_;
     const auto perms = 0777 & ~get_current_process()->ctx.umask;
-    auto ex = mknod_vfs(path.c_str(), perms | S_IFSOCK, 0, AT_FDCWD);
+    int err = mknodat_path(AT_FDCWD, path.c_str(), perms | S_IFSOCK, 0, &path_);
 
-    if (ex.has_error())
+    if (err < 0)
     {
-        int st = ex.error();
-
-        if (st == -EEXIST)
-            st = -EADDRINUSE;
-        return st;
+        if (err == -EEXIST)
+            err = -EADDRINUSE;
+        return err;
     }
 
     src_addr_.is_fs_sock_ = true;
-    src_addr_.dentry_ = ex.value();
+    src_addr_.path_ = path_;
 
     // Note: We don't need to check for existance of a socket with the same inode, as we have
     // just created it. The filesystem serves as a kind of a socket table there.
@@ -565,9 +565,9 @@ int un_socket::do_fs_bind(cul::string path)
     // Failure seems very unlikely.
     if (!un_sock_table.add_socket(this, 0))
     {
-        dput(ex.value());
+        path_put(&path_);
         unlink_vfs(path.c_str(), 0, AT_FDCWD);
-        src_addr_.dentry_ = nullptr;
+        path_init(&src_addr_.path_);
         return -ENOMEM;
     }
 
@@ -681,18 +681,22 @@ expected<un_name, int> sockaddr_to_un(sockaddr *addr, socklen_t addrlen)
     }
     else
     {
+        struct path path_;
         name.is_fs_sock_ = true;
         cul::string p{path, path_len};
         if (!p)
             return unexpected{-ENOMEM};
 
-        auto_file f = open_vfs(AT_FDCWD, p.c_str());
-        if (!f)
-            return unexpected{-errno};
-        if (!S_ISSOCK(f.get_file()->f_ino->i_mode))
+        int err = path_openat(AT_FDCWD, p.c_str(), 0, &path_);
+        if (err < 0)
+            return unexpected{err};
+        if (!S_ISSOCK(path_.dentry->d_inode->i_mode))
+        {
+            path_put(&path_);
             return unexpected{-ECONNREFUSED};
-        name.dentry_ = f.get_file()->f_dentry;
-        dget(name.dentry_);
+        }
+
+        name.path_ = path_;
     }
 
     return cul::move(name);
@@ -1216,13 +1220,7 @@ int un_get_name(sockaddr_un *addr, socklen_t *addrlen, const un_name &name)
     }
     else if (name.is_fs_sock_)
     {
-        /* TODO: Fix this path garbage. It will work for now, but unix sockets need to keep struct
-         * path's, not dentries.
-         **/
-        struct path path;
-        path_init(&path);
-        path.dentry = name.dentry_;
-        char *p = d_path(&path, pathbuf, PATH_MAX);
+        char *p = d_path(&name.path_, pathbuf, PATH_MAX);
         if (IS_ERR(p))
             return PTR_ERR(p);
         size_t copied = strlcpy(addr->sun_path, p, sizeof(addr->sun_path));
