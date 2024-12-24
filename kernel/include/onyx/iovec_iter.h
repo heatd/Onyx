@@ -13,6 +13,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <onyx/compiler.h>
 #include <onyx/types.h>
 
 enum iovec_type
@@ -24,7 +25,6 @@ enum iovec_type
 #ifdef __cplusplus
 
 #include <onyx/assert.h>
-#include <onyx/compiler.h>
 
 #include <onyx/slice.hpp>
 #include <onyx/utility.hpp>
@@ -85,6 +85,8 @@ struct iovec_iter;
 
 #endif
 
+__BEGIN_CDECLS
+
 static inline ssize_t iovec_count_length(struct iovec *vec, unsigned int n)
 {
     ssize_t length = 0;
@@ -131,5 +133,7 @@ ssize_t copy_to_iter(struct iovec_iter *iter, const void *buf, size_t len);
  * @return True if aligned, else false
  */
 bool iovec_is_aligned(struct iovec_iter *iter, unsigned long alignment);
+
+__END_CDECLS
 
 #endif
