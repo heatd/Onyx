@@ -515,9 +515,9 @@ int ext2_link(struct inode *target, const char *name, struct inode *dir)
     return 0;
 }
 
-int ext2_link_fops(struct file *_target, const char *name, struct dentry *_dir)
+int ext2_link_fops(struct dentry *old_dentry, struct dentry *new_dentry)
 {
-    return ext2_link(_target->f_ino, name, _dir->d_inode);
+    return ext2_link(old_dentry->d_inode, new_dentry->d_name, new_dentry->d_parent->d_inode);
 }
 
 struct inode *ext2_load_inode_from_disk(uint32_t inum, struct ext2_superblock *fs)

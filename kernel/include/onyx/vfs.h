@@ -96,7 +96,7 @@ int getdents_vfs(unsigned int count, putdir_t putdir, struct dirent *dirp, off_t
 
 int ioctl_vfs(int request, char *argp, struct file *file);
 
-int stat_vfs(struct stat *buf, struct file *node);
+int stat_vfs(struct stat *buf, const struct path *path);
 
 int ftruncate_vfs(off_t length, struct file *vnode);
 

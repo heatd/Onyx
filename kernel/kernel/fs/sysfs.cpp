@@ -210,19 +210,6 @@ off_t sysfs_getdirent(struct dirent *buf, off_t off, struct file *_file)
     return off + 1;
 }
 
-int sysfs_stat(struct stat *buf, struct file *node)
-{
-    memset(buf, 0, sizeof(struct stat));
-
-    struct sysfs_object *file = (struct sysfs_object *) node->f_ino->i_inode;
-    buf->st_mode = file->perms;
-
-    buf->st_ino = node->f_ino->i_inode;
-    buf->st_dev = node->f_ino->i_dev;
-
-    return 0;
-}
-
 struct file_ops sysfs_ops = {
     .read = sysfs_read,
     .write = sysfs_write,
@@ -231,7 +218,6 @@ struct file_ops sysfs_ops = {
 
 static const struct inode_operations sysfs_ino_ops = {
     .open = sysfs_open,
-    .stat = sysfs_stat,
     .creat = libfs_no_creat,
 };
 

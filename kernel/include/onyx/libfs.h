@@ -12,12 +12,16 @@
 #include <errno.h>
 #include <stdlib.h>
 
+#include <onyx/compiler.h>
 #include <onyx/types.h>
+#include <onyx/vfs.h>
 
 struct inode;
 struct dentry;
 struct file;
 struct dirent;
+
+__BEGIN_CDECLS
 
 static inline int libfs_no_open(struct dentry *dir, const char *name, struct dentry *dentry)
 {
@@ -55,7 +59,7 @@ static inline struct inode *libfs_no_mknod(struct dentry *dentry, mode_t mode, d
     return NULL;
 }
 
-static inline int libfs_no_link(struct file *target_ino, const char *name, struct dentry *dir)
+static inline int libfs_no_link(struct dentry *old_dentry, struct dentry *new_dentry)
 {
     return -EROFS;
 }
@@ -80,5 +84,12 @@ static inline int libfs_no_unlink(const char *name, int flags, struct dentry *di
 {
     return -EROFS;
 }
+
+off_t libfs_put_dots(struct dirent *buf, off_t off, struct dentry *dent);
+void put_dir(const char *name, off_t off, ino_t ino, unsigned int dtype, struct dirent *buf);
+
+int default_stat(struct stat *buf, const struct path *path);
+
+__END_CDECLS
 
 #endif

@@ -19,6 +19,7 @@
 #include <onyx/dev.h>
 #include <onyx/file.h>
 #include <onyx/fnv.h>
+#include <onyx/libfs.h>
 #include <onyx/limits.h>
 #include <onyx/log.h>
 #include <onyx/mm/flush.h>
@@ -505,9 +506,9 @@ int getdents_vfs(unsigned int count, putdir_t putdir, struct dirent *dirp, off_t
     return pos;
 }
 
-int default_stat(struct stat *buf, struct file *f)
+int default_stat(struct stat *buf, const struct path *path)
 {
-    struct inode *ino = f->f_ino;
+    struct inode *ino = path->dentry->d_inode;
 
     buf->st_atime = ino->i_atime;
     buf->st_ctime = ino->i_ctime;
@@ -527,14 +528,13 @@ int default_stat(struct stat *buf, struct file *f)
     return 0;
 }
 
-int stat_vfs(struct stat *buf, struct file *node)
+int stat_vfs(struct stat *buf, const struct path *path)
 {
-    if (node->f_ino->i_op->stat != nullptr)
-        return node->f_ino->i_op->stat(buf, node);
+    struct inode *ino = path->dentry->d_inode;
+    if (ino->i_op->stat)
+        return ino->i_op->stat(buf, path);
     else
-    {
-        return default_stat(buf, node);
-    }
+        return default_stat(buf, path);
 }
 
 short default_poll(void *poll_table, short events, struct file *node);
