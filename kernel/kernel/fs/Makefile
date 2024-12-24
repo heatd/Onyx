@@ -1,6 +1,6 @@
 fs-y:= anon_inode.o block.o dentry.o dev.o file.o null.o partition.o pipe.o poll.o pseudo.o \
 	superblock.o sysfs.o tmpfs.o vfs.o zero.o buffer.o inode.o namei.o filemap.o writeback.o readahead.o \
-	flock.o mount.o d_path.o
+	flock.o mount.o d_path.o libfs.o
 
 include kernel/fs/ext2/Makefile
 include kernel/fs/block/Makefile
