@@ -79,22 +79,30 @@ static bool follow_mount_up(struct mount *mnt, struct path *out)
     return false;
 }
 
-static void walk_path(const struct path *path, const struct path *root, struct rbuf *rbuf)
+enum walk_path_result
 {
-    /* TODO: While d_parent on .. Just Works, we don't need to keep track of the struct mnt. This
-     * will need to be changed once that changes (mnt should keep track of mnt_parent).
-     **/
+    WALK_PATH_OK = 0,
+    WALK_PATH_OUT_OF_ROOT,
+};
+
+static enum walk_path_result walk_path(const struct path *path, const struct path *root,
+                                       struct rbuf *rbuf)
+{
     struct dentry *dentry = path->dentry;
     struct mount *mnt = path->mount;
+    enum walk_path_result ret = WALK_PATH_OK;
 
     prepend_char(rbuf, '\0');
     while (dentry != NULL && dentry != root->dentry)
     {
-        if (dentry == mnt->mnt_root)
+        while (dentry == mnt->mnt_root)
         {
             struct path p;
             if (!follow_mount_up(mnt, &p))
+            {
+                ret = WALK_PATH_OUT_OF_ROOT;
                 break;
+            }
             dentry = p.dentry;
             mnt = p.mount;
         }
@@ -106,13 +114,17 @@ static void walk_path(const struct path *path, const struct path *root, struct r
 
     if (*rbuf->buf != '/')
         prepend_char(rbuf, '/');
+    return ret;
 }
 
+#define D_PATH_NO_ESCAPE_ROOT (1 << 0)
+
 static char *__d_path(const struct path *path, const struct path *root, char *buf,
-                      unsigned int buflen)
+                      unsigned int buflen, unsigned int flags)
 {
     struct rbuf rbuf0 = {buf + buflen, buflen}, rbuf1;
     unsigned int seq = 0, m_seq = 0;
+    enum walk_path_result res;
     rcu_read_lock();
 
 retry_mnt:
@@ -121,7 +133,7 @@ retry_mnt:
 retry:
     read_seqbegin_or_lock(&rename_lock, &seq);
     rbuf1 = rbuf0;
-    walk_path(path, root, &rbuf1);
+    res = walk_path(path, root, &rbuf1);
 
     if (read_seqretry(&rename_lock, seq))
     {
@@ -139,13 +151,34 @@ retry:
 
     done_seqretry(&mount_lock, m_seq);
     rcu_read_unlock();
+
+    if (res == WALK_PATH_OUT_OF_ROOT && (flags & D_PATH_NO_ESCAPE_ROOT))
+        return NULL;
     return rbuf_path(&rbuf1);
 }
 
 char *d_path(const struct path *path, char *buf, unsigned int buflen)
 {
     struct path root = get_filesystem_root();
-    char *ret = __d_path(path, &root, buf, buflen);
+    char *ret = __d_path(path, &root, buf, buflen, 0);
     path_put(&root);
+    return ret;
+}
+
+char *d_path_under_root(const struct path *path, const struct path *root, char *buf,
+                        unsigned int buflen)
+{
+    char *ret;
+    struct path root2;
+    if (!root)
+    {
+        root2 = get_filesystem_root();
+        root = &root2;
+    }
+
+    ret = __d_path(path, root, buf, buflen, D_PATH_NO_ESCAPE_ROOT);
+
+    if (root == &root2)
+        path_put(&root2);
     return ret;
 }
