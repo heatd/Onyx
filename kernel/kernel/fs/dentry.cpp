@@ -101,6 +101,24 @@ static dentry *d_lookup_internal(dentry *dent, std::string_view name)
     return nullptr;
 }
 
+static void d_invalidate(struct dentry *dentry)
+{
+    spin_lock(&dentry->d_lock);
+    if (dentry->d_flags & DENTRY_FLAG_HASHED)
+        dentry_remove_from_cache(dentry, dentry->d_parent);
+    spin_unlock(&dentry->d_lock);
+
+    if (d_is_negative(dentry))
+    {
+        /* If negative, just drop */
+        return;
+    }
+
+    /* Drop all sorts of droppable dentries if this is a directory */
+    /* TODO: Mounts? */
+    dentry_shrink_subtree(dentry);
+}
+
 dentry *dentry_open_from_cache(dentry *dent, std::string_view name)
 {
     unsigned int old;
@@ -121,10 +139,7 @@ dentry *dentry_open_from_cache(dentry *dent, std::string_view name)
     {
         if (!d_revalidate(found, 0))
         {
-            dput(found);
-            /* TODO: HACK! This is not safe nor correct! We'll do it this way, temporarily,
-             * because of devfs and block device rescanning! */
-            dentry_remove_from_cache(found, found->d_parent);
+            d_invalidate(found);
             dput(found);
             return nullptr;
         }
