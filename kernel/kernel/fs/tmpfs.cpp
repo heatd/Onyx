@@ -48,8 +48,9 @@ struct inode *tmpfs_creat(struct dentry *dentry, int mode, struct dentry *dir)
     return inode;
 }
 
-int tmpfs_link(struct file *target_ino, const char *name, struct dentry *dir)
+static int tmpfs_link(struct dentry *old_dentry, struct dentry *new_dentry)
 {
+    dget(new_dentry);
     return 0;
 }
 
@@ -101,22 +102,32 @@ char *tmpfs_readlink(struct file *f)
 
 int tmpfs_unlink(const char *name, int flags, struct dentry *dir)
 {
+    int err;
     auto child = dentry_lookup_internal(name, dir, 0);
     assert(child != nullptr);
 
     if (S_ISDIR(child->d_inode->i_mode))
     {
         if (!(flags & AT_REMOVEDIR))
-            return -EISDIR;
+        {
+            err = -EISDIR;
+            goto out;
+        }
+
         if (!(flags & UNLINK_VFS_DONT_TEST_EMPTY) && !dentry_is_empty(child))
-            return -ENOTEMPTY;
+        {
+            err = -ENOTEMPTY;
+            goto out;
+        }
     }
 
     /* One ref for its tmpfs existence, one ref for dentry_lookup_internal */
-    DCHECK(READ_ONCE(child->d_ref) >= 2);
+    CHECK(READ_ONCE(child->d_ref) >= 2);
     dput(child);
+    err = 0;
+out:
     dput(child);
-    return 0;
+    return err;
 }
 
 static int tmpfs_rename(struct dentry *src_parent, struct dentry *src, struct dentry *dst_dir,

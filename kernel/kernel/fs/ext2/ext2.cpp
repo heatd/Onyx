@@ -39,7 +39,7 @@ char *ext2_readlink(struct file *ino);
 void ext2_close(struct inode *ino);
 struct inode *ext2_mknod(struct dentry *dentry, mode_t mode, dev_t dev, struct dentry *dir);
 struct inode *ext2_mkdir(struct dentry *dentry, mode_t mode, struct dentry *dir);
-int ext2_link_fops(struct file *target, const char *name, struct dentry *dir);
+int ext2_link_fops(struct dentry *old_dentry, struct dentry *new_dentry);
 int ext2_fallocate(int mode, off_t off, off_t len, struct file *f);
 int ext2_ftruncate(size_t len, struct file *f);
 ssize_t ext2_readpage(struct page *page, size_t off, struct inode *ino);

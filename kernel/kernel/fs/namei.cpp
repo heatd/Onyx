@@ -1142,7 +1142,7 @@ int link_vfs(struct file *target, int dirfd, const char *newpath)
         goto put_unlock_err;
     }
 
-    st = dir_ino->i_op->link(target, dent->d_name, dir);
+    st = dir_ino->i_op->link(target->f_dentry, dent);
 
     if (st < 0)
     {
@@ -1349,37 +1349,6 @@ int sys_symlink(const char *target, const char *linkpath)
     return sys_symlinkat(target, AT_FDCWD, linkpath);
 }
 
-static int fallback_rename(struct dentry *old_parent, struct dentry *old, struct dentry *dir,
-                           struct dentry *dest)
-{
-    int st = 0;
-    if (!d_is_negative(dest))
-    {
-        /* Unlink the name on disk first */
-        /* Note that i_fops->unlink() checks if the directory is empty, if it is one. */
-        st = dir->d_inode->i_op->unlink(dest->d_name, AT_REMOVEDIR, dir);
-    }
-
-    if (st < 0)
-        return st;
-
-    struct file f;
-    f.f_ino = old->d_inode;
-    f.f_path = path{old};
-
-    /* Now link the name on disk */
-    st = dir->d_inode->i_op->link(&f, dest->d_name, dir);
-
-    /* rename allows us to move a non-empty dir. Because of that we
-     * pass a special flag (UNLINK_VFS_DONT_TEST_EMPTY) to the fs, that allows us to do
-     * that.
-     */
-    st = old_parent->d_inode->i_op->unlink(old->d_name, AT_REMOVEDIR | UNLINK_VFS_DONT_TEST_EMPTY,
-                                           old_parent);
-
-    return 0;
-}
-
 int do_renameat(struct dentry *dir, struct lookup_path &last, struct dentry *old)
 {
     std::string_view name = get_token_from_path(last, false);
@@ -1481,7 +1450,7 @@ int do_renameat(struct dentry *dir, struct lookup_path &last, struct dentry *old
     if (old->d_inode->i_op->rename)
         st = old->d_inode->i_op->rename(old_parent, old, dir, dest);
     else
-        st = fallback_rename(old_parent, old, dir, dest);
+        st = -EOPNOTSUPP;
 
     if (st < 0)
     {

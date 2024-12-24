@@ -1449,6 +1449,7 @@ int sys_fstatat(int dirfd, const char *upathname, struct stat *ubuf, int flags)
     if (auto ex = s.from_user(upathname); ex.has_error())
         return ex.error();
 
+    struct path path;
     struct stat buf = {};
     int st = 0;
 
@@ -1458,21 +1459,18 @@ int sys_fstatat(int dirfd, const char *upathname, struct stat *ubuf, int flags)
     unsigned int open_flags = 0;
     if (flags & AT_SYMLINK_NOFOLLOW)
         open_flags |= LOOKUP_NOFOLLOW;
+    st = path_openat(dirfd, s.data(), open_flags, &path);
+    if (st)
+        return st;
 
-    auto_file f2 = open_vfs_with_flags(dirfd, s.data(), open_flags);
-    if (!f2)
-        return -errno;
-
-    st = stat_vfs(&buf, f2.get_file());
-
+    st = stat_vfs(&buf, &path);
     if (st == 0)
     {
         if (copy_to_user(ubuf, &buf, sizeof(buf)) < 0)
-        {
             st = -EFAULT;
-        }
     }
 
+    path_put(&path);
     return st;
 }
 
@@ -1492,7 +1490,7 @@ int sys_fstat(int fd, struct stat *ubuf)
     auto_file f;
     if (int st = f.from_fd(fd); st < 0)
         return st;
-    if (int st = stat_vfs(&buf, f.get_file()); st < 0)
+    if (int st = stat_vfs(&buf, &f.get_file()->f_path); st < 0)
         return st;
     return copy_to_user(ubuf, &buf, sizeof(buf));
 }

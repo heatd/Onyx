@@ -89,6 +89,10 @@ struct dentry *dentry_create(const char *name, struct inode *inode, struct dentr
 #endif
 );
 char *d_path(const struct path *path, char *buf, unsigned int buflen);
+char *d_path_under_root(const struct path *path, const struct path *root, char *buf,
+                        unsigned int buflen);
+struct dentry *dentry_parent(struct dentry *dir);
+bool dentry_is_empty(struct dentry *dir);
 
 extern seqlock_t rename_lock;
 
@@ -158,8 +162,6 @@ using dentry_lookup_flags_t = uint16_t;
 dentry *dentry_lookup_internal(std::string_view v, dentry *dir, dentry_lookup_flags_t flags = 0);
 
 void dentry_destroy(dentry *d);
-dentry *dentry_parent(dentry *dir);
-bool dentry_is_empty(dentry *dir);
 
 class auto_dentry
 {
