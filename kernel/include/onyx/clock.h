@@ -24,6 +24,8 @@
 #define NS_PER_MS  1000000UL
 #define NS_PER_US  1000UL
 
+__BEGIN_CDECLS
+
 struct wallclock_source
 {
     const char *clock_source;
@@ -113,6 +115,8 @@ static inline hrtime_t timeval_to_hrtime(const struct timeval *v)
 
     return res;
 }
+
+__END_CDECLS
 
 // TODO: Needed because arch/x86_64/__vdso.c
 #ifdef __cplusplus
