@@ -191,11 +191,20 @@ unsigned long sched_lock(thread *thread)
     /* 2nd - Lock the thread */
 
     assert(thread->cpu < percpu_get_nr_bases());
-    spinlock *l = get_per_cpu_ptr_any(scheduler_lock, thread->cpu);
+    unsigned long cpu_flags, _;
 
-    unsigned long cpu_flags = spin_lock_irqsave(l);
-    unsigned long _ = spin_lock_irqsave(&thread->lock);
-    (void) _;
+    for (;;)
+    {
+        unsigned int cpu = READ_ONCE(thread->cpu);
+        struct spinlock *l = get_per_cpu_ptr_any(scheduler_lock, cpu);
+        cpu_flags = spin_lock_irqsave(l);
+        _ = spin_lock_irqsave(&thread->lock);
+        if (thread->cpu == cpu)
+            break;
+        (void) _;
+        spin_unlock_irqrestore(&thread->lock, CPU_FLAGS_NO_IRQ);
+        spin_unlock_irqrestore(l, cpu_flags);
+    }
 
     return cpu_flags;
 }
