@@ -268,12 +268,22 @@ int calculate_key(int *uaddr, int flags, futex_key &out_key)
     return 0;
 }
 
+static int get_user32_nofault(unsigned int *uaddr, unsigned int *val)
+{
+    int err;
+    pagefault_disable();
+    err = get_user32(uaddr, val);
+    pagefault_enable();
+    return err;
+}
+
 int wait(int *uaddr, int val, int flags, const struct timespec *utimespec)
 {
     bool has_timeout = false;
     struct timespec ts
     {
     };
+    unsigned int curr_val = 0;
     hrtime_t timeout = 0;
     int st = 0;
 
@@ -296,11 +306,10 @@ int wait(int *uaddr, int val, int flags, const struct timespec *utimespec)
 
     futex_queue queue{key};
 
-#if 0
-	auto hash = __futex_hash(key);
-	auto index = futex_hashtable.get_hashtable_index(hash);
-	printk("wuaddr %p index %lu\n", uaddr, index);
-#endif
+    /* Fault it in, if possible. If we EFAULT here, we know it's a bad address */
+fault_in:
+    if (get_user32((unsigned int *) uaddr, &curr_val) < 0)
+        return -EFAULT;
     /* After making a queue entry for this thread and this key,
      * we're going to atomically calculate a hash index and lock that hash index,
      * then check for the value(and if doesn't match, return -EAGAIN), and finally, sleep.
@@ -309,12 +318,11 @@ int wait(int *uaddr, int val, int flags, const struct timespec *utimespec)
     auto list_head = futex_hashtable.get_hashtable(hash_index);
     auto lock = &futex_hashtable_locks[hash_index];
 
-    unsigned int curr_val = 0;
-
-    if (get_user32((unsigned int *) uaddr, &curr_val) < 0)
+    if (get_user32_nofault((unsigned int *) uaddr, &curr_val) < 0)
     {
-        st = -EFAULT;
-        goto out;
+        /* We faulted here? go back up and try to fault it in */
+        spin_unlock(lock);
+        goto fault_in;
     }
 
     if (curr_val != (unsigned int) val)
