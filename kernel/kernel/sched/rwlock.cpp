@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2023 Pedro Falcato
+ * Copyright (c) 2017 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -371,6 +371,85 @@ void rw_unlock_write(rwlock *lock)
         rwlock_wake(lock);
 }
 
+extern "C"
+{
+
+__always_inline bool rwslock_try_read_fast(struct rwslock *lock)
+{
+    unsigned long word = READ_ONCE(lock->lock);
+    if (unlikely(word & RDWR_LOCK_WRITE || word == RDWR_MAX_COUNTER))
+        return false;
+    return __atomic_compare_exchange_n(&lock->lock, &word, word + 1, false, __ATOMIC_ACQUIRE,
+                                       __ATOMIC_RELAXED);
+}
+
+__noinline static void __read_lock_slow(struct rwslock *lock)
+{
+    unsigned long l;
+    unsigned long to_insert;
+
+    l = READ_ONCE(lock->lock);
+    do
+    {
+        while (l & RDWR_LOCK_WRITE || l == RDWR_MAX_COUNTER)
+        {
+            cpu_relax();
+            l = READ_ONCE(lock->lock);
+        }
+
+        to_insert = l + 1;
+    } while (!__atomic_compare_exchange_n(&lock->lock, &l, to_insert, false, __ATOMIC_ACQUIRE,
+                                          __ATOMIC_RELAXED));
+}
+
+void __read_lock(struct rwslock *lock) NO_THREAD_SAFETY_ANALYSIS
+{
+    if (unlikely(!rwslock_try_read_fast(lock)))
+        __read_lock_slow(lock);
+}
+
+void __read_unlock(struct rwslock *lock) RELEASE_SHARED(lock) NO_THREAD_SAFETY_ANALYSIS
+{
+    __atomic_sub_fetch(&lock->lock, 1, __ATOMIC_RELEASE);
+}
+
+__noinline static void __write_lock_slow(struct rwslock *lock)
+{
+    unsigned long expected = 0;
+    const unsigned long write_value = RDWR_LOCK_WRITE | get_cpu_nr();
+
+    expected = READ_ONCE(lock->lock);
+    do
+    {
+        while (expected != 0)
+        {
+            cpu_relax();
+            expected = READ_ONCE(lock->lock);
+        }
+    } while (!__atomic_compare_exchange_n(&lock->lock, &expected, write_value, false,
+                                          __ATOMIC_ACQUIRE, __ATOMIC_RELAXED));
+}
+
+__always_inline bool rwslock_try_write_fast(struct rwslock *lock)
+{
+    unsigned long expected = 0;
+    const unsigned long write_value = RDWR_LOCK_WRITE | get_cpu_nr();
+    return __atomic_compare_exchange_n(&lock->lock, &expected, write_value, false, __ATOMIC_ACQUIRE,
+                                       __ATOMIC_RELAXED);
+}
+
+void __write_lock(struct rwslock *lock) ACQUIRE(lock) NO_THREAD_SAFETY_ANALYSIS
+{
+    if (unlikely(!rwslock_try_write_fast(lock)))
+        __write_lock_slow(lock);
+}
+
+void __write_unlock(struct rwslock *lock) RELEASE(lock) NO_THREAD_SAFETY_ANALYSIS
+{
+    __atomic_store_n(&lock->lock, 0, __ATOMIC_RELEASE);
+}
+}
+
 int rwslock::try_read()
 {
     sched_disable_preempt();
@@ -409,51 +488,22 @@ int rwslock::try_write()
 
 void rwslock::lock_read() NO_THREAD_SAFETY_ANALYSIS
 {
-    sched_disable_preempt();
-    unsigned long l;
-    unsigned long to_insert;
-
-    do
-    {
-        l = __atomic_load_n(&lock, __ATOMIC_RELAXED);
-        while (l & RDWR_LOCK_WRITE || l == RDWR_MAX_COUNTER)
-        {
-            cpu_relax();
-            l = __atomic_load_n(&lock, __ATOMIC_RELAXED);
-        }
-
-        to_insert = l + 1;
-    } while (!__atomic_compare_exchange_n(&lock, &l, to_insert, false, __ATOMIC_ACQUIRE,
-                                          __ATOMIC_RELAXED));
+    read_lock(this);
 }
 
 void rwslock::lock_write() NO_THREAD_SAFETY_ANALYSIS
 {
-    sched_disable_preempt();
-    unsigned long expected = 0;
-    const unsigned long write_value = RDWR_LOCK_WRITE | get_cpu_nr();
-    while (!__atomic_compare_exchange_n(&lock, &expected, write_value, false, __ATOMIC_ACQUIRE,
-                                        __ATOMIC_RELAXED))
-    {
-        do
-        {
-            cpu_relax();
-        } while ((expected = __atomic_load_n(&lock, __ATOMIC_RELAXED)) != 0);
-
-        expected = 0;
-    }
+    write_lock(this);
 }
 
 void rwslock::unlock_read() NO_THREAD_SAFETY_ANALYSIS
 {
-    __atomic_sub_fetch(&lock, 1, __ATOMIC_RELEASE);
-    sched_enable_preempt();
+    read_unlock(this);
 }
 
 void rwslock::unlock_write() NO_THREAD_SAFETY_ANALYSIS
 {
-    __atomic_store_n(&lock, 0, __ATOMIC_RELEASE);
-    sched_enable_preempt();
+    write_unlock(this);
 }
 
 #ifdef CONFIG_KTEST_RWLOCK

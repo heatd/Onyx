@@ -2347,7 +2347,8 @@
                 "pgid"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "getpgid",
@@ -2359,7 +2360,8 @@
                 "pid"
             ]
         ],
-        "return_type": "pid_t"
+        "return_type": "pid_t",
+        "abi": "c"
     },
     {
         "name": "dup3",
@@ -2558,7 +2560,8 @@
         "nr": 144,
         "nr_args": 0,
         "args": [],
-        "return_type": "pid_t"
+        "return_type": "pid_t",
+        "abi": "c"
     },
     {
         "name": "getsid",
@@ -2570,7 +2573,8 @@
                 "pid"
             ]
         ],
-        "return_type": "pid_t"
+        "return_type": "pid_t",
+        "abi": "c"
     },
     {
         "name": "msync",

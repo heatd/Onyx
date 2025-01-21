@@ -284,8 +284,8 @@ static inline void *extrusive_list_get_element(struct extrusive_list_head *list,
     }
     else
     {
-        struct extrusive_list_head *current = (struct extrusive_list_head *) *saveptr;
-        struct extrusive_list_head *next = current->next;
+        struct extrusive_list_head *curr = (struct extrusive_list_head *) *saveptr;
+        struct extrusive_list_head *next = curr->next;
         *saveptr = next;
         if (!next)
             return NULL;

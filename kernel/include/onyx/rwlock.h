@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2023 Pedro Falcato
+ * Copyright (c) 2017 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -70,15 +70,15 @@ static inline void rwlock_init(struct rwlock *lock)
 
 __END_CDECLS
 
-#ifdef __cplusplus
-
-struct CAPABILITY("rwslock") rwslock
+typedef struct CAPABILITY("rwslock") rwslock
 {
-private:
-    unsigned long lock{0};
+    unsigned long lock;
 
-public:
-    constexpr rwslock() = default;
+#ifdef __cplusplus
+    constexpr rwslock()
+    {
+        lock = 0;
+    }
 
     void lock_read() ACQUIRE_SHARED(this);
     void lock_write() ACQUIRE(this);
@@ -88,7 +88,48 @@ public:
 
     int try_read() TRY_ACQUIRE_SHARED(0, this);
     int try_write() TRY_ACQUIRE(0, this);
-};
+#endif
+} rwslock_t;
+
+CONSTEXPR static inline void rwslock_init(struct rwslock *rwl)
+{
+    rwl->lock = 0;
+}
+
+__BEGIN_CDECLS
+
+void __read_lock(struct rwslock *lock) ACQUIRE_SHARED(lock);
+void __read_unlock(struct rwslock *lock) RELEASE_SHARED(lock);
+void __write_lock(struct rwslock *lock) ACQUIRE(lock);
+void __write_unlock(struct rwslock *lock) RELEASE(lock);
+
+static inline void read_lock(struct rwslock *lock) ACQUIRE_SHARED(lock)
+{
+    sched_disable_preempt();
+    __read_lock(lock);
+}
+
+static inline void read_unlock(struct rwslock *lock) RELEASE_SHARED(lock)
+{
+    __read_unlock(lock);
+    sched_enable_preempt();
+}
+
+static inline void write_lock(struct rwslock *lock) ACQUIRE(lock)
+{
+    sched_disable_preempt();
+    __write_lock(lock);
+}
+
+static inline void write_unlock(struct rwslock *lock) RELEASE(lock)
+{
+    __write_unlock(lock);
+    sched_enable_preempt();
+}
+
+__END_CDECLS
+
+#ifdef __cplusplus
 
 #define RWSLOCK rwslock
 
@@ -207,7 +248,7 @@ public:
 };
 
 #else
-#define RWSLOCK unsigned long
+#define RWSLOCK struct rwslock
 #endif
 
 #endif

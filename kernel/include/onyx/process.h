@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -50,8 +50,10 @@ struct proc_event_sub;
 struct tty;
 struct pid;
 
+__BEGIN_CDECLS
 static void process_get(struct process *process);
 static void process_put(struct process *process);
+__END_CDECLS
 
 #define PROCESS_FORKED (1 << 0)
 #define PROCESS_SECURE (1 << 1)
@@ -153,25 +155,16 @@ struct process
 
     struct itimer timers[ITIMER_COUNT] CPP_DFLINIT;
 
-#ifdef __cplusplus
-    pid::auto_pid pid_struct{};
-#else
     struct pid *pid_struct;
-#endif
 
     struct spinlock pgrp_lock CPP_DFLINIT;
     LIST_HEAD_CPP(process) pgrp_node;
-#ifdef __cplusplus
-    pid::auto_pid process_group{};
-#else
+
     struct pid *process_group;
-#endif
+
     LIST_HEAD_CPP(process) session_node;
-#ifdef __cplusplus
-    pid::auto_pid session{};
-#else
+
     struct pid *session;
-#endif
 
     struct rlimit rlimits[RLIM_NLIMITS + 1] CPP_DFLINIT;
     RWSLOCK rlimit_lock CPP_DFLINIT;
@@ -179,6 +172,8 @@ struct process
     struct tty *ctty CPP_DFLINIT;
 
     struct vfork_completion *vfork_compl CPP_DFLINIT;
+    /* There might be a nicer place to put this? */
+    struct rcu_head rcu_head;
 
 #ifdef __cplusplus
     process();
@@ -284,6 +279,8 @@ private:
 #endif
 };
 
+__BEGIN_CDECLS
+
 struct thread *process_create_main_thread(struct process *proc, thread_callback_t callback,
                                           void *sp);
 
@@ -328,6 +325,10 @@ __attribute__((pure)) static inline struct process *get_current_process()
     return (thread == NULL) ? NULL : (struct process *) thread->owner;
 }
 
+#ifdef DEFINE_CURRENT
+#define current get_current_process()
+#endif
+
 static inline mode_t get_current_umask()
 {
     if (unlikely(!get_current_process()))
@@ -346,6 +347,10 @@ static inline mode_t do_umask(mode_t mode)
  * @return The number of active processes
  */
 pid_t process_get_active_processes();
+
+extern rwslock_t tasklist_lock;
+
+__END_CDECLS
 
 #ifdef __cplusplus
 

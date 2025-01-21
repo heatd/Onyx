@@ -206,4 +206,20 @@ static inline struct cpumask cpumask_all_but_one(unsigned long cpu)
     return c;
 }
 
+static inline void cpumask_set_atomic(struct cpumask* mask, unsigned long cpu)
+{
+    unsigned long long_idx = cpu / LONG_SIZE_BITS;
+    unsigned long bit_idx = cpu % LONG_SIZE_BITS;
+
+    __atomic_or_fetch(&mask->mask[long_idx], (1UL << bit_idx), __ATOMIC_RELAXED);
+}
+
+static inline void cpumask_unset_atomic(struct cpumask* mask, unsigned long cpu)
+{
+    unsigned long long_idx = cpu / LONG_SIZE_BITS;
+    unsigned long bit_idx = cpu % LONG_SIZE_BITS;
+
+    __atomic_and_fetch(&mask->mask[long_idx], ~(1UL << bit_idx), __ATOMIC_RELAXED);
+}
+
 #endif

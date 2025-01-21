@@ -50,6 +50,8 @@ process *first_process = nullptr;
 static process *process_tail = nullptr;
 static spinlock process_list_lock;
 
+rwslock_t tasklist_lock;
+
 [[noreturn]] void process_exit(unsigned int exit_code);
 void process_end(process *process);
 
@@ -124,15 +126,18 @@ process::process() : pgrp_node{this}, session_node{this}
     sub_queue = nullptr;
     nr_acks = nr_subs = 0;
     interp_base = image_base = nullptr;
+    process_group = session = NULL;
 }
 
 process::~process()
 {
     // We might have died before assigning the process group
     if (process_group) [[likely]]
-        process_group->remove_process(this, PIDTYPE_PGRP);
+        pid_remove_process(process_group, this, PIDTYPE_PGRP);
     if (session) [[likely]]
-        session->remove_process(this, PIDTYPE_SID);
+        pid_remove_process(session, this, PIDTYPE_SID);
+    if (pid_struct)
+        put_pid(pid_struct);
     active_processes--;
 }
 
@@ -167,12 +172,7 @@ bool process::set_cmdline(const std::string_view &path)
 process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *parent)
 {
     /* FIXME: Failure here kinda sucks and is probably super leaky */
-    if (unlikely(!process_ids))
-    {
-        process_ids = idm_add("pid", 1, UINTMAX_MAX);
-        assert(process_ids != nullptr);
-    }
-
+    struct pid *newpid, *pgrp, *session;
     unique_ptr<process> p{(struct process *) kmalloc(sizeof(struct process), GFP_KERNEL)};
     if (!p)
         return errno = ENOMEM, nullptr;
@@ -180,10 +180,7 @@ process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *p
     new (p.get()) process;
     auto proc = p.get();
 
-    /* TODO: idm_get_id doesn't wrap? POSIX COMPLIANCE */
     proc->refcount = 1;
-    proc->pid_ = idm_get_id(process_ids);
-    assert(proc->pid_ != (pid_t) -1);
 
     if (!proc->set_cmdline(cmd_line))
         return errno = ENOMEM, nullptr;
@@ -192,10 +189,10 @@ process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *p
 
     itimer_init(proc);
 
-    proc->pid_struct = pid_create(proc);
-
-    if (!proc->pid_struct)
-        return errno = ENOMEM, nullptr;
+    /* XXX leak */
+    newpid = pid_alloc(proc);
+    if (IS_ERR(newpid))
+        return errno = PTR_ERR(newpid), nullptr;
 
     proc->ctx.root = get_filesystem_root();
 
@@ -243,22 +240,16 @@ process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *p
         process_append_children(parent, proc);
 
         proc->parent = parent;
-
-        parent->process_group->inherit(proc, PIDTYPE_PGRP);
+        pgrp = parent->process_group;
+        session = parent->session;
         proc->flags = parent->flags;
-
         proc->inherit_limits(parent);
-
-        parent->session->inherit(proc, PIDTYPE_SID);
-
         // Inherit the controlling terminal
         proc->ctty = parent->ctty;
     }
     else
     {
-        proc->pid_struct->add_process(proc, PIDTYPE_PGRP);
-        proc->pid_struct->add_process(proc, PIDTYPE_SID);
-
+        session = pgrp = newpid;
         proc->init_default_limits();
         auto ex = mm_address_space::create();
         if (ex.has_error())
@@ -266,9 +257,17 @@ process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *p
         proc->address_space = ex.value();
     }
 
-    process_append_to_global_list(proc);
-
     INIT_LIST_HEAD(&proc->thread_list);
+
+    write_lock(&tasklist_lock);
+    process_append_to_global_list(proc);
+    pid_add_process(pgrp, proc, PIDTYPE_PGRP);
+    pid_add_process(session, proc, PIDTYPE_SID);
+
+    proc->process_group = pgrp;
+    proc->session = session;
+
+    write_unlock(&tasklist_lock);
 
     return p.release();
 }
@@ -339,7 +338,7 @@ static void for_every_child(process *proc, Callable cb)
 pid_t process_get_pgid(process *p)
 {
     scoped_lock g{p->pgrp_lock};
-    return p->process_group->get_pid();
+    return pid_nr(p->process_group);
 }
 
 #define WAIT_INFO_MATCHING_ANY (1 << 0)
@@ -837,11 +836,17 @@ void process_wait_for_dead_threads(process *process)
 
 void process_end(process *process)
 {
-    process_remove_from_list(process);
     process_wait_for_dead_threads(process);
+
+    write_lock(&tasklist_lock);
+    process_remove_from_list(process);
     path_put(&process->ctx.cwd);
     path_put(&process->ctx.root);
-    delete process;
+    process->~process();
+
+    write_unlock(&tasklist_lock);
+
+    kfree_rcu(process, rcu_head);
 }
 
 void kill_orphaned_pgrp(process *proc)
@@ -850,10 +855,10 @@ void kill_orphaned_pgrp(process *proc)
 
     auto pgrp = proc->process_group;
 
-    if (pgrp->is_orphaned_and_has_stopped_jobs(proc))
+    if (pid_is_orphaned_and_has_stopped_jobs(pgrp, proc))
     {
-        pgrp->kill_pgrp(SIGHUP, 0, nullptr);
-        pgrp->kill_pgrp(SIGCONT, 0, nullptr);
+        pid_kill_pgrp(pgrp, SIGHUP, 0, nullptr);
+        pid_kill_pgrp(pgrp, SIGCONT, 0, nullptr);
     }
 }
 
@@ -940,14 +945,13 @@ void process_kill_other_threads(void)
         current->vfork_compl = nullptr;
     }
 
+    write_lock(&tasklist_lock);
+
     process_reparent_children(current);
 
     for (proc_event_sub *s = current->sub_queue; s; s = s->next)
-    {
         s->valid_sub = false;
-    }
 
-    /* TODO: This is broken, we need a ref... */
     struct process *parent = READ_ONCE(current->parent);
 
     siginfo_t info = {};
@@ -987,6 +991,7 @@ void process_kill_other_threads(void)
     current_thread->flags = THREAD_IS_DYING;
     current_thread->status = THREAD_DEAD;
 
+    write_unlock(&tasklist_lock);
     sched_yield();
 
     while (true)

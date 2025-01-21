@@ -722,25 +722,18 @@ int signal_send_all(int signal, int flags, siginfo_t *info)
     return i.signals_sent != 0 ? 0 : -EPERM;
 }
 
-pid::auto_pid process_get_pgrp(process *p)
-{
-    scoped_lock g{p->pgrp_lock};
-    auto pg = p->process_group;
-    CHECK(pg.get() != nullptr);
-    pg->ref();
-    return pg;
-}
-
 int signal_kill_pg(int sig, int flags, siginfo_t *info, pid_t pid)
 {
     bool own = pid == 0;
+    int err = -ESRCH;
+    struct pid *pidp;
 
-    pid::auto_pid pgrp_res = own ? process_get_pgrp(get_current_process()) : pid::lookup(-pid);
-
-    if (!pgrp_res)
-        return -ESRCH;
-
-    return pgrp_res->kill_pgrp(sig, flags, info);
+    read_lock(&tasklist_lock);
+    pidp = own ? get_current_process()->process_group : pid_lookup(-pid);
+    if (pidp)
+        err = pid_kill_pgrp(pidp, sig, flags, info);
+    read_unlock(&tasklist_lock);
+    return err;
 }
 
 int sys_kill(pid_t pid, int sig)

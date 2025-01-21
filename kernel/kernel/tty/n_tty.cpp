@@ -7,6 +7,7 @@
  */
 #include <ctype.h>
 
+#include <onyx/process.h>
 #include <onyx/tty.h>
 
 #include <uapi/ioctls.h>
@@ -38,6 +39,14 @@ struct tty_echo_args
 static inline bool should_print_special(char c)
 {
     return c != '\t' && c != '\n' && c != '\021' && c != '\023' && c != '\x7f' && c != '\04';
+}
+
+static void tty_kill_fg(struct tty *tty, int sig, unsigned int flags, siginfo_t *info)
+{
+    read_lock(&tasklist_lock);
+    if (tty->pgrp)
+        pid_kill_pgrp(tty->pgrp, sig, flags, info);
+    read_unlock(&tasklist_lock);
 }
 
 void n_tty_receive_control_input(struct tty_echo_args *args, char c, struct tty *tty)
@@ -76,22 +85,13 @@ void n_tty_receive_control_input(struct tty_echo_args *args, char c, struct tty 
     }
 
     if (c == TTY_CC(tty, VINTR))
-    {
-        if (tty->foreground_pgrp)
-            signal_kill_pg(SIGINT, 0, nullptr, -tty->foreground_pgrp);
-    }
+        tty_kill_fg(tty, SIGINT, 0, nullptr);
 
     if (c == TTY_CC(tty, VSUSP))
-    {
-        if (tty->foreground_pgrp)
-            signal_kill_pg(SIGTSTP, 0, nullptr, -tty->foreground_pgrp);
-    }
+        tty_kill_fg(tty, SIGTSTP, 0, nullptr);
 
     if (c == TTY_CC(tty, VQUIT))
-    {
-        if (tty->foreground_pgrp)
-            signal_kill_pg(SIGQUIT, 0, nullptr, -tty->foreground_pgrp);
-    }
+        tty_kill_fg(tty, SIGQUIT, 0, nullptr);
 
     if (TTY_LFLAG(tty, ECHOCTL) && should_print_special(c))
     {
