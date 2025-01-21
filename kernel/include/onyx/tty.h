@@ -79,12 +79,8 @@ struct tty
 
     char *response;
 
-    pid_t foreground_pgrp;
-#ifdef __cplusplus
-    pid::auto_pid session;
-#else
+    struct pid *pgrp;
     struct pid *session;
-#endif
 };
 
 #define TTY_OFLAG(tty, flag) ((tty)->term_io.c_oflag & flag)

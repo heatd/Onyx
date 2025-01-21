@@ -56,4 +56,9 @@ static inline void list_remove_rcu(struct list_head *node)
     for (pos = list_entry_rcu((head)->next, __typeof__(*pos), member); &pos->member != (head); \
          pos = list_entry_rcu(pos->member.next, __typeof__(*pos), member))
 
+static inline bool list_is_empty_rcu(const struct list_head *head)
+{
+    return READ_ONCE(head->next) == head;
+}
+
 #endif
