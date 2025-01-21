@@ -191,7 +191,7 @@ static int tcp_parse_synack_options(struct tcp_synack_options *opts, struct pack
 
     while (options_len)
     {
-        u8 *data;
+        u8 *data = NULL;
         u16 *data16;
         u8 *opt = (u8 *) pbf_pull(pbf, 1);
         if (!opt)
@@ -210,12 +210,14 @@ static int tcp_parse_synack_options(struct tcp_synack_options *opts, struct pack
         if (!pbf_pull(pbf, 1))
             return TCP_DROP_BAD_PACKET;
         opt_len = opt[1] - 2;
-        if (!opt_len)
-            continue;
-        data = (u8 *) pbf_pull(pbf, opt_len);
-        if (!data)
-            return TCP_DROP_BAD_PACKET;
-        options_len -= opt_len;
+        if (opt_len)
+        {
+            data = (u8 *) pbf_pull(pbf, opt_len);
+            if (!data)
+                return TCP_DROP_BAD_PACKET;
+            options_len -= opt_len;
+        }
+
         switch (*opt)
         {
             case TCP_OPTION_WINDOW_SCALE:
@@ -334,6 +336,12 @@ static void tcp_ack_timeout(struct clockevent *ev)
     sock->socket_lock.unlock_bh();
 }
 
+static void tcp_sched_ack(struct tcp_socket *sock)
+{
+    sock->delack_pending = 1;
+    sock->proto_needs_work = true;
+}
+
 static void tcp_send_ack_data(struct tcp_socket *sock, struct packetbuf *pbf)
 {
     /*
@@ -354,8 +362,8 @@ static void tcp_send_ack_data(struct tcp_socket *sock, struct packetbuf *pbf)
         tcp_send_ack(sock);
         return;
     }
-    sock->delack_pending = 1;
-    sock->proto_needs_work = true;
+
+    tcp_sched_ack(sock);
 }
 
 static inline bool seqs_overlap(u32 seq0, u32 seq0_end, u32 seq1, u32 seq1_end)
@@ -545,6 +553,9 @@ static int tcp_queue_data(struct tcp_socket *sock, struct packetbuf *pbf)
     int err = 0;
     if (unlikely(sock->rcv_next != pbf->tpi.seq))
     {
+        /* Schedule a duplicate ack since we're missing a packet. tcp_do_out_of_order will take care
+         * of any sacking. */
+        tcp_sched_ack(sock);
         err = tcp_do_out_of_order(sock, pbf);
         if (err)
             return err;
