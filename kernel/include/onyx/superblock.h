@@ -23,6 +23,7 @@ struct file;
 struct bio_req;
 struct blockdev;
 struct mount;
+struct fs_mount;
 
 #define SB_FLAG_NODIRTY   (1 << 0)
 #define SB_FLAG_IN_MEMORY (1 << 1)
@@ -48,6 +49,7 @@ struct superblock
         struct shrinker s_shrinker;
         struct rcu_head s_rcu;
     };
+    struct fs_mount *s_type;
 };
 
 __BEGIN_CDECLS

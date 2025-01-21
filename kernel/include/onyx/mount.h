@@ -23,6 +23,7 @@ struct mount
     struct superblock *mnt_sb;
     struct dentry *mnt_point;
     struct mount *mnt_parent;
+    const char *mnt_devname;
     unsigned int mnt_flags;
     /* TODO: percpu */
     unsigned long mnt_count;
@@ -32,6 +33,7 @@ struct mount
     struct list_head mnt_node;
     struct list_head mnt_submounts;
     struct list_head mnt_submount_node;
+    struct list_head mnt_namespace_node;
 };
 
 static inline void mnt_get(struct mount *mnt)

@@ -45,6 +45,17 @@ struct dentry_operations
     int (*d_revalidate)(struct dentry *, unsigned int flags);
 };
 
+struct dcache_str
+{
+    const char *str;
+    u32 len;
+};
+
+static inline struct dcache_str dcstr_from_cstr(const char *name)
+{
+    return (struct dcache_str){.str = name, .len = (u32) strlen(name)};
+}
+
 #define D_REF_LOCKED (1UL << 63)
 
 struct dentry
@@ -148,6 +159,8 @@ void dentry_shrink_subtree(struct dentry *dentry);
  * @param dentry Root dentry
  */
 void dentry_unref_subtree(struct dentry *dentry);
+
+struct dentry *d_lookup(struct dentry *parent, const struct dcache_str *name);
 
 __END_CDECLS
 

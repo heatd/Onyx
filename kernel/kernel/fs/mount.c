@@ -19,8 +19,10 @@
 #include <onyx/mm/slab.h>
 #include <onyx/mount.h>
 #include <onyx/namei.h>
+#include <onyx/proc.h>
 #include <onyx/rculist.h>
 #include <onyx/rcupdate.h>
+#include <onyx/seq_file.h>
 #include <onyx/seqlock.h>
 #include <onyx/user.h>
 #include <onyx/vfs.h>
@@ -38,6 +40,7 @@ static inline struct blockdev *blkdev_get_dev(struct file *f)
 
 static struct list_head mount_hashtable[MT_HASH_SIZE];
 static struct list_head mp_hashtable[MT_HASH_SIZE];
+static DEFINE_LIST(mount_list);
 
 seqlock_t mount_lock;
 
@@ -198,6 +201,7 @@ static int mnt_commit(struct mount *mnt, const char *target)
 
     list_add_tail(&mnt->mnt_mp_node, &mp_hashtable[mnt_mp_hashbucket(mnt)]);
     list_add_tail(&mnt->mnt_node, &mount_hashtable[mnt_hashbucket(mnt)]);
+    list_add_tail(&mnt->mnt_namespace_node, &mount_list);
 
     if (mnt->mnt_parent)
         list_add_tail(&mnt->mnt_submount_node, &mnt->mnt_parent->mnt_submounts);
@@ -251,6 +255,8 @@ int do_mount(const char *source, const char *target, const char *fstype, unsigne
 
     bdev = NULL;
     mnt->mnt_root = root_dentry;
+    mnt->mnt_sb->s_type = fs;
+    mnt->mnt_devname = source;
     root_dentry = NULL;
     if (!check_created_mnt(mnt))
     {
@@ -306,9 +312,9 @@ int sys_mount(const char *usource, const char *utarget, const char *ufilesystemt
     }
 
     ret = do_mount(source, target, filesystemtype, mountflags, data);
+    if (ret == 0)
+        source = NULL;
 out:
-    if (source)
-        free((void *) source);
     if (target)
         free((void *) target);
     if (filesystemtype)
@@ -338,6 +344,7 @@ static bool attempt_disconnect(struct mount *mount)
         struct dentry *mp = mount->mnt_point;
         list_remove(&mount->mnt_mp_node);
         list_remove(&mount->mnt_node);
+        list_remove(&mount->mnt_namespace_node);
         if (mount->mnt_parent)
         {
             list_remove(&mount->mnt_submount_node);
@@ -420,6 +427,57 @@ out:
     return err;
 }
 
+static void *mounts_seq_start(struct seq_file *m, off_t *off)
+{
+    write_seqlock(&mount_lock);
+    return seq_list_start(&mount_list, *off);
+}
+
+static void *mounts_seq_next(struct seq_file *m, void *ptr, off_t *off)
+{
+    return seq_list_next(ptr, &mount_list, off);
+}
+
+static int mounts_seq_show(struct seq_file *m, void *ptr)
+{
+    struct mount *mnt = list_entry(ptr, struct mount, mnt_namespace_node);
+    struct path p = {.dentry = mnt->mnt_root, .mount = mnt};
+    int err;
+
+    seq_printf(m, "%s ", mnt->mnt_devname);
+    err = seq_d_path_under_root(m, &p, NULL);
+    if (err)
+        return err;
+    seq_printf(m, " %s ", mnt->mnt_sb->s_type->name);
+    /* TODO: Actually do proper flags */
+    seq_printf(m, "rw,relatime 0 0");
+    seq_putc(m, '\n');
+    return 0;
+}
+
+static void mounts_seq_stop(struct seq_file *m, void *ptr)
+{
+    write_sequnlock(&mount_lock);
+}
+
+static const struct seq_operations mounts_seq_ops = {
+    .start = mounts_seq_start,
+    .next = mounts_seq_next,
+    .show = mounts_seq_show,
+    .stop = mounts_seq_stop,
+};
+
+static int mounts_open(struct file *filp)
+{
+    return seq_open(filp, &mounts_seq_ops);
+}
+
+static const struct proc_file_ops mounts_proc_ops = {
+    .open = mounts_open,
+    .release = seq_release,
+    .read_iter = seq_read_iter,
+};
+
 static __init void mount_init(void)
 {
     for (int i = 0; i < MT_HASH_SIZE; i++)
@@ -427,4 +485,6 @@ static __init void mount_init(void)
         INIT_LIST_HEAD(&mount_hashtable[i]);
         INIT_LIST_HEAD(&mp_hashtable[i]);
     }
+
+    procfs_add_entry("mounts", 0444, NULL, &mounts_proc_ops);
 }
