@@ -1533,6 +1533,7 @@ int path_openat(int dirfd, const char *name, unsigned int flags, struct path *pa
 {
     nameidata namedata{std::string_view{name, strlen(name)}};
     namedata.lookup_flags = flags;
+    namedata.dirfd = dirfd;
 
     int err = namei_lookup(namedata);
     if (err < 0)
