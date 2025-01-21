@@ -14,8 +14,10 @@
 #include <onyx/modules.h>
 #include <onyx/page.h>
 #include <onyx/perf_probe.h>
+#include <onyx/proc.h>
 #include <onyx/rcupdate.h>
 #include <onyx/rwlock.h>
+#include <onyx/seq_file.h>
 #include <onyx/stackdepot.h>
 #include <onyx/vm.h>
 
@@ -1825,4 +1827,106 @@ void kmem_print_stats()
         spin_unlock(&cache->lock);
     }
     mutex_unlock(&cache_list_lock);
+}
+
+static void print_slabinfo_header(struct seq_file *m)
+{
+    /*
+     * Output format version, so at least we can change it
+     * without _too_ many complaints.
+     */
+    seq_puts(m, "slabinfo - version: 2.1\n");
+    seq_puts(m, "# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab>");
+    seq_puts(m, " : tunables <limit> <batchcount> <sharedfactor>");
+    seq_puts(m, " : slabdata <active_slabs> <num_slabs> <sharedavail>");
+    seq_putc(m, '\n');
+}
+
+struct slabinfo
+{
+    unsigned long active_objs, num_objs, active_slabs, num_slabs, shared_avail;
+    unsigned int objects_per_slab;
+    int cache_order;
+    unsigned int limit, batchcount, shared;
+};
+
+static void get_slabinfo(struct slab_cache *s, struct slabinfo *si)
+{
+    size_t slab_size = kmem_calc_slab_size(s);
+    unsigned int order = pages2order(slab_size >> PAGE_SHIFT);
+    slab_size = 1UL << (order + PAGE_SHIFT);
+
+    memset(si, 0, sizeof(*si));
+    for (unsigned int i = 0; i < get_nr_cpus(); i++)
+    {
+        struct slab_cache_percpu_context *pcpu = &s->pcpu[i];
+        si->active_objs += pcpu->active_objs;
+    }
+
+    si->active_slabs = s->nfullslabs + s->npartialslabs;
+    si->num_slabs = si->active_slabs + s->nfreeslabs;
+    si->batchcount = s->mag_limit / 2;
+    si->cache_order = order;
+    si->objects_per_slab = slab_size / (s->objsize + s->redzone);
+    si->num_objs = si->num_slabs * si->objects_per_slab;
+}
+
+static void print_slabinfo(struct seq_file *m, struct slab_cache *s)
+{
+    struct slabinfo sinfo;
+    get_slabinfo(s, &sinfo);
+    seq_printf(m, "%-17s %6lu %6lu %6lu %4u %4d", s->name, sinfo.active_objs, sinfo.num_objs,
+               s->objsize, sinfo.objects_per_slab, (1 << sinfo.cache_order));
+
+    seq_printf(m, " : tunables %4u %4u %4u", sinfo.limit, sinfo.batchcount, sinfo.shared);
+    seq_printf(m, " : slabdata %6lu %6lu %6lu", sinfo.active_slabs, sinfo.num_slabs,
+               sinfo.shared_avail);
+    seq_putc(m, '\n');
+}
+
+static void *slabinfo_start(struct seq_file *m, off_t *pos) ACQUIRE(cache_list_lock)
+{
+    mutex_lock(&cache_list_lock);
+    return seq_list_start_head(&cache_list, *pos);
+}
+
+static void slabinfo_stop(struct seq_file *m, void *v) RELEASE(cache_list_lock)
+{
+    mutex_unlock(&cache_list_lock);
+}
+
+static void *slabinfo_next(struct seq_file *m, void *v, off_t *pos)
+{
+    return seq_list_next(v, &cache_list, pos);
+}
+
+static int slabinfo_show(struct seq_file *m, void *v)
+{
+    if (v == &cache_list)
+        print_slabinfo_header(m);
+    else
+        print_slabinfo(m, list_entry(v, struct slab_cache, cache_list_node));
+    return 0;
+}
+
+static struct seq_operations slabinfo_seq_ops = {
+    .start = slabinfo_start,
+    .next = slabinfo_next,
+    .show = slabinfo_show,
+    .stop = slabinfo_stop,
+};
+
+static int slabinfo_open(struct file *filp)
+{
+    return seq_open(filp, &slabinfo_seq_ops);
+}
+
+const struct proc_file_ops slabinfo_ops = {
+    .open = slabinfo_open,
+    .read_iter = seq_read_iter,
+};
+
+static __init void kmem_init_slabinfo(void)
+{
+    procfs_add_entry("slabinfo", S_IFREG | 0400, NULL, &slabinfo_ops);
 }
