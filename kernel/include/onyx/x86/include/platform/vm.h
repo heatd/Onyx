@@ -9,6 +9,7 @@
 #ifndef _ONYX_X86_VM_H
 #define _ONYX_X86_VM_H
 
+#include <onyx/compiler.h>
 #include <onyx/types.h>
 
 struct arch_mm_address_space
@@ -28,6 +29,8 @@ void __native_tlb_invalidate_all();
 
 void x86_remap_top_pgd_to_top_pgd(unsigned long source, unsigned long dest);
 
+__BEGIN_CDECLS
+
 /**
  * @brief Interpret mmap's hint and flags in an architecture-dependent way
  *
@@ -38,4 +41,6 @@ void x86_remap_top_pgd_to_top_pgd(unsigned long source, unsigned long dest);
 u64 arch_vm_interpret_mmap_hint_flags(void *hint, int flags);
 
 bool arch_vm_validate_mmap_region(unsigned long start, unsigned long size, u64 flags);
+
+__END_CDECLS
 #endif

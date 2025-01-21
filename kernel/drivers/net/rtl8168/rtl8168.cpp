@@ -15,6 +15,7 @@
 #include <onyx/driver.h>
 #include <onyx/net/ethernet.h>
 #include <onyx/net/netif.h>
+#include <onyx/refcount.h>
 #include <onyx/wait_queue.h>
 
 #include <pci/pci.h>

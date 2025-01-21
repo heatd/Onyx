@@ -180,7 +180,8 @@
                 "offset"
             ]
         ],
-        "return_type": "void *"
+        "return_type": "void *",
+        "abi": "c"
     },
     {
         "name": "munmap",
@@ -196,7 +197,8 @@
                 "length"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "mprotect",
@@ -216,7 +218,8 @@
                 "prot"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "mount",
@@ -277,7 +280,8 @@
                 "addr"
             ]
         ],
-        "return_type": "uint64_t"
+        "return_type": "uint64_t",
+        "abi": "c"
     },
     {
         "name": "kill",
@@ -608,7 +612,8 @@
                 "new_address"
             ]
         ],
-        "return_type": "void *"
+        "return_type": "void *",
+        "abi": "c"
     },
     {
         "name": "sigreturn",
@@ -847,7 +852,8 @@
                 "memstat"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "chdir",
@@ -2594,7 +2600,8 @@
                 "flags"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "statfs",

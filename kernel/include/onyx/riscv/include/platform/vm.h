@@ -9,8 +9,8 @@
 #ifndef _ONYX_RISCV_PLATFORM_VM_H
 #define _ONYX_RISCV_PLATFORM_VM_H
 
+#include <onyx/compiler.h>
 #include <onyx/types.h>
-
 struct arch_mm_address_space
 {
     void *top_pt;
@@ -20,6 +20,8 @@ struct arch_mm_address_space
 #define vm_set_pgd(arch_mmu, new_pgd) (arch_mmu)->top_pt = new_pgd
 
 void __native_tlb_invalidate_all(void);
+
+__BEGIN_CDECLS
 
 /**
  * @brief Interpret mmap's hint and flags in an architecture-dependent way
@@ -37,5 +39,7 @@ static inline bool arch_vm_validate_mmap_region(unsigned long start, unsigned lo
 {
     return true;
 }
+
+__END_CDECLS
 
 #endif

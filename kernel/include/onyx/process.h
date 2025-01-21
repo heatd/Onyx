@@ -99,11 +99,7 @@ struct process
     struct list_head thread_list;
     struct spinlock thread_list_lock;
 
-#ifdef __cplusplus
-    ref_guard<mm_address_space> address_space{};
-#else
     struct mm_address_space *address_space;
-#endif
 
     /* IO Context of the process */
     struct ioctx ctx;
@@ -238,7 +234,7 @@ struct process
 
     mm_address_space *get_aspace() const
     {
-        return address_space.get();
+        return address_space;
     }
 
     void set_secure()
@@ -350,6 +346,12 @@ pid_t process_get_active_processes();
 
 extern rwslock_t tasklist_lock;
 
+static inline struct mm_address_space *get_current_address_space(void)
+{
+    struct thread *t = get_current_thread();
+    return t ? t->aspace : &kernel_address_space;
+}
+
 __END_CDECLS
 
 #ifdef __cplusplus
@@ -394,12 +396,6 @@ void process_for_every_thread(process *p, Callable cb)
 
 struct process *process_create(const std::string_view &cmd_line, struct ioctx *ctx,
                                struct process *parent);
-
-static inline mm_address_space *get_current_address_space()
-{
-    thread *t = get_current_thread();
-    return t ? t->get_aspace() : &kernel_address_space;
-}
 
 /**
  * @brief Copy environ/arguments from userspace to the kernel

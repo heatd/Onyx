@@ -11,7 +11,9 @@
 #include <onyx/process.h>
 #include <onyx/thread.h>
 
+__BEGIN_CDECLS
 void arch_vm_init(void);
+__END_CDECLS
 
 #ifdef __cplusplus
 

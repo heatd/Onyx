@@ -76,14 +76,16 @@ typedef struct thread
 
     struct thread_cputime_info cputime_info;
     struct mm_address_space *aspace;
+    struct mm_address_space *active_mm;
 
     /* Used by the block subsystem to plug up incoming requests */
     struct blk_plug *plug;
 
     struct registers *regs;
+    unsigned int pagefault_disabled;
 
 #ifdef CONFIG_KCOV
-    struct kcov_data *kcov_data{nullptr};
+    struct kcov_data *kcov_data;
 #endif
 #ifdef CONFIG_KCSAN
     struct kcsan_ctx kcsan_ctx;
@@ -111,6 +113,11 @@ typedef struct thread
 #ifdef CONFIG_KCSAN
         kcsan_stack_depth = 0;
 #endif
+#ifdef CONFIG_KCOV
+        kcov_data = NULL;
+#endif
+        active_mm = NULL;
+        pagefault_disabled = 0;
     }
 
     /**
@@ -246,6 +253,18 @@ void sched_transition_to_idle(void);
 static inline void sched_sleep_ms(unsigned long ms)
 {
     sched_sleep(ms * NS_PER_MS);
+}
+
+static inline void pagefault_disable(void)
+{
+    struct thread *curr = get_current_thread();
+    curr->pagefault_disabled++;
+}
+
+static inline void pagefault_enable(void)
+{
+    struct thread *curr = get_current_thread();
+    curr->pagefault_disabled--;
 }
 
 /**

@@ -12,6 +12,8 @@
 #include <onyx/smp.h>
 #include <onyx/x86/control_regs.h>
 
+#include <onyx/atomic.hpp>
+
 namespace code_patch
 {
 

@@ -451,11 +451,12 @@ void riscv_invalidate_tlb(void *context)
     auto addr = info->addr;
     auto pages = info->pages;
     auto addr_space = info->mm;
+    struct mm_address_space *mm;
 
     auto curr_thread = get_current_thread();
+    mm = curr_thread->active_mm ?: curr_thread->aspace;
 
-    if (is_higher_half(addr) ||
-        (curr_thread->owner && curr_thread->owner->get_aspace() == addr_space))
+    if (is_higher_half(addr) || mm == addr_space)
     {
         paging_invalidate((void *) addr, pages);
         add_per_cpu(tlb_nr_invals, 1);

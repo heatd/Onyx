@@ -251,10 +251,10 @@ process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *p
     {
         session = pgrp = newpid;
         proc->init_default_limits();
-        auto ex = mm_address_space::create();
-        if (ex.has_error())
-            return errno = -ex.error(), nullptr;
-        proc->address_space = ex.value();
+        auto ex = mm_create();
+        if (IS_ERR(ex))
+            return errno = PTR_ERR(ex), nullptr;
+        proc->address_space = ex;
     }
 
     INIT_LIST_HEAD(&proc->thread_list);
@@ -663,10 +663,10 @@ pid_t sys_fork_internal(syscall_frame *ctx, unsigned int flags)
     }
     else
     {
-        auto ex = mm_address_space::fork();
-        if (ex.has_error())
-            return ex.error();
-        child->address_space = ex.value();
+        auto ex = mm_fork();
+        if (IS_ERR(ex))
+            return PTR_ERR(ex);
+        child->address_space = ex;
     }
 
     process_get(child);
@@ -783,8 +783,8 @@ void process_destroy_aspace()
 {
     process *current = get_current_process();
     vm_set_aspace(&kernel_address_space);
-    kernel_address_space.ref();
-    current->address_space = ref_guard<mm_address_space>{&kernel_address_space};
+    mmput(current->address_space);
+    current->address_space = &kernel_address_space;
 }
 
 void process_remove_from_list(process *proc)

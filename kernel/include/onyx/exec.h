@@ -10,8 +10,13 @@
 
 struct exec_state
 {
-    ref_guard<mm_address_space> new_address_space{};
+    mm_address_space *new_address_space{};
     bool flushed{false};
+    ~exec_state()
+    {
+        if (new_address_space)
+            mmput(new_address_space);
+    }
 };
 
 int exec_state_create(struct exec_state *state);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -18,11 +18,10 @@
 #include <onyx/copy.h>
 #include <onyx/cpu.h>
 #include <onyx/dentry.h>
-#include <onyx/dev.h>
 #include <onyx/err.h>
 #include <onyx/file.h>
 #include <onyx/filemap.h>
-#include <onyx/gen/trace_vm.h>
+// #include <onyx/gen/trace_vm.h>
 #include <onyx/log.h>
 #include <onyx/mm/kasan.h>
 #include <onyx/mm/shmem.h>
@@ -51,12 +50,9 @@
 #include <uapi/fcntl.h>
 #include <uapi/memstat.h>
 
-bool is_initialized = false;
 static bool enable_aslr = true;
 
 uintptr_t high_half = arch_high_half;
-uintptr_t low_half_max = arch_low_half_max;
-uintptr_t low_half_min = arch_low_half_min;
 
 /* These addresses are either absolute, or offsets, depending on the architecture.
  * The corresponding arch/ code is responsible for patching these up using
@@ -64,7 +60,7 @@ uintptr_t low_half_min = arch_low_half_min;
  */
 uintptr_t vmalloc_space = arch_vmalloc_off;
 
-extern "C" void kmalloc_init();
+void kmalloc_init();
 void vm_remove_region(struct mm_address_space *as, struct vm_area_struct *region);
 int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size);
 static bool limits_are_contained(struct vm_area_struct *reg, unsigned long start,
@@ -79,7 +75,7 @@ static bool vm_mapping_is_cow(struct vm_area_struct *entry);
 #define REQUIRES(...)
 #define EXCLUDES(...)
 
-vm_area_struct *vm_search(struct mm_address_space *mm, void *addr, size_t length)
+struct vm_area_struct *vm_search(struct mm_address_space *mm, void *addr, size_t length)
     REQUIRES_SHARED(mm->vm_lock);
 static void vma_pre_adjust(struct vm_area_struct *vma);
 
@@ -96,7 +92,7 @@ __always_inline struct vm_area_struct *vm_find_region(struct mm_address_space *a
     return vm_search(as, addr, 2);
 }
 
-bool vm_test_vs_rlimit(const mm_address_space *as, ssize_t diff)
+bool vm_test_vs_rlimit(const struct mm_address_space *as, ssize_t diff)
 {
     /* The kernel doesn't have resource limits */
     if (as == &kernel_address_space)
@@ -104,20 +100,30 @@ bool vm_test_vs_rlimit(const mm_address_space *as, ssize_t diff)
     /* Decreasing the resource usage doesn't respect limits */
     if (diff < 0)
         return true;
+    return true;
+    /* XXX */
+#if 0
     return get_current_process()->get_rlimit(RLIMIT_AS).rlim_cur >=
            as->virtual_memory_size + (size_t) diff;
+#endif
 }
 
-constinit struct mm_address_space kernel_address_space = {};
-static struct page *vm_zero_page = nullptr;
-static struct slab_cache *vm_area_struct_cache = nullptr;
+struct mm_address_space kernel_address_space = {
+    .page_table_lock = __SPIN_LOCK_UNLOCKED(kernel_address_space.page_table_lock),
+    .region_tree = MTREE_INIT(region_tree, MT_FLAGS_ALLOC_RANGE | MT_FLAGS_LOCK_EXTERN),
+    .mm_count = REFCOUNT_INIT(2),
+    .mm_users = REFCOUNT_INIT(2),
+};
 
-static inline vm_area_struct *vma_alloc()
+static struct page *vm_zero_page = NULL;
+static struct slab_cache *vm_area_struct_cache = NULL;
+
+static inline struct vm_area_struct *vma_alloc(void)
 {
-    return (vm_area_struct *) kmem_cache_alloc(vm_area_struct_cache, GFP_KERNEL);
+    return kmem_cache_alloc(vm_area_struct_cache, GFP_KERNEL);
 }
 
-static inline void vma_free(vm_area_struct *region)
+static inline void vma_free(struct vm_area_struct *region)
 {
     kmem_cache_free(vm_area_struct_cache, (void *) region);
 }
@@ -139,6 +145,7 @@ static inline void vmi_destroy(struct vma_iterator *vmi)
     mas_destroy(&vmi->mas);
 }
 
+#define CONFIG_DEBUG_MM_MMAP 1
 #ifdef CONFIG_DEBUG_MM_MMAP
 static void validate_mm_tree(struct mm_address_space *mm)
 {
@@ -161,14 +168,14 @@ static void validate_mm_tree(struct mm_address_space *mm)
             counting_sss += vma->vm_end - vma->vm_start;
     }
 
-    if (0 && counting_vss != mm->virtual_memory_size)
+    if (counting_vss != mm->virtual_memory_size)
     {
         pr_err("mm: mm %p has wrong vss (%lx vs %lx bytes)\n", mm, counting_vss,
                mm->virtual_memory_size);
         goto print_tree;
     }
 
-    if (0 && counting_sss != mm->shared_set_size)
+    if (counting_sss != mm->shared_set_size)
     {
         pr_err("mm: mm %p has wrong shared set size (%lx vs %lx bytes)\n", mm, counting_sss,
                mm->shared_set_size);
@@ -191,6 +198,7 @@ print_tree:
     }
 
     pr_err("mm: dump done.\n");
+    __WARN();
     vmi_destroy(&vmi);
 }
 
@@ -236,9 +244,6 @@ void vm_addr_init()
 {
     kernel_address_space.start = VM_HIGHER_HALF;
     kernel_address_space.end = UINTPTR_MAX;
-
-    // Permanent reference
-    kernel_address_space.ref();
 }
 
 static inline bool is_higher_half(void *address)
@@ -262,7 +267,7 @@ void vm_init()
     bootmem_reserve(limits.start_phys, limits.end_phys - limits.start_phys);
 }
 
-extern "C" void maple_tree_init();
+void maple_tree_init();
 
 /**
  * @brief Initialises the architecture independent parts of the VM subsystem.
@@ -271,11 +276,11 @@ extern "C" void maple_tree_init();
 void vm_late_init()
 {
     /* TODO: This should be arch specific stuff, move this to arch/ */
-    const auto vmalloc_noaslr = vmalloc_space;
+    const unsigned long vmalloc_noaslr = vmalloc_space;
     vmalloc_space = vm_randomize_address(vmalloc_space, VMALLOC_ASLR_BITS);
 
     // Initialize vmalloc first. This will feed the rest of the allocators.
-    const auto vmalloc_len = VM_VMALLOC_SIZE - (vmalloc_space - vmalloc_noaslr);
+    const unsigned long vmalloc_len = VM_VMALLOC_SIZE - (vmalloc_space - vmalloc_noaslr);
 
     vmalloc_init(vmalloc_space, vmalloc_len);
     // Now initialize slabs for kmalloc
@@ -284,7 +289,7 @@ void vm_late_init()
 
     maple_tree_init();
     vm_area_struct_cache =
-        kmem_cache_create("vm_area_struct", sizeof(vm_area_struct), 0, 0, nullptr);
+        kmem_cache_create("vm_area_struct", sizeof(struct vm_area_struct), 0, 0, NULL);
 
     if (!vm_area_struct_cache)
         panic("vm: early boot oom");
@@ -292,16 +297,14 @@ void vm_late_init()
     vm_addr_init();
 
     vm_zero_page = alloc_page(0);
-    assert(vm_zero_page != nullptr);
-
-    is_initialized = true;
+    assert(vm_zero_page != NULL);
 }
 
 void do_vm_unmap(struct mm_address_space *as, void *range, size_t pages)
     REQUIRES_SHARED(as->vm_lock)
 {
     struct vm_area_struct *entry = vm_find_region(as, range);
-    assert(entry != nullptr);
+    assert(entry != NULL);
 
     vm_mmu_unmap(entry->vm_mm, range, pages, entry);
 }
@@ -324,7 +327,7 @@ bool vm_mapping_requires_wb(struct vm_area_struct *reg)
 
 bool vm_mapping_is_anon(struct vm_area_struct *reg)
 {
-    return reg->vm_file == nullptr;
+    return reg->vm_file == NULL;
 }
 
 /**
@@ -337,7 +340,7 @@ void vm_make_anon(struct vm_area_struct *reg)
     if (reg->vm_file)
     {
         fd_put(reg->vm_file);
-        reg->vm_file = nullptr;
+        reg->vm_file = NULL;
     }
 }
 
@@ -389,14 +392,14 @@ static unsigned long vm_get_base_address(uint64_t flags, uint32_t type)
     }
 }
 
-vm_area_struct *vm_search(struct mm_address_space *mm, void *addr, size_t length)
+struct vm_area_struct *vm_search(struct mm_address_space *mm, void *addr, size_t length)
     REQUIRES_SHARED(mm->vm_lock)
 {
     unsigned long index = (unsigned long) addr;
     void *entry = mt_find(&mm->region_tree, &index, index + length - 1);
     struct vm_area_struct *vma = (struct vm_area_struct *) entry;
     if (vma && vma->vm_start > (unsigned long) addr)
-        return nullptr;
+        return NULL;
     return vma;
 }
 
@@ -405,23 +408,25 @@ static struct vm_area_struct *__vm_create_region_at(struct mm_address_space *mm,
     REQUIRES(mm->vm_lock)
 {
     /* TODO: remove once sys_mremap gets improved and tested */
-    return nullptr;
+    return NULL;
 }
 
 /**
- * @brief Creats a new address space.
+ * @brief Creates a new address space.
  *
  * @param addr_space A pointer to the new address space.
  * @return 0 on success, negative on error.
  */
-int vm_clone_as(mm_address_space *addr_space, mm_address_space *original)
+int vm_clone_as(struct mm_address_space *addr_space, struct mm_address_space *original)
 {
     if (!original)
         original = get_current_address_space();
     if (!original)
         original = &kernel_address_space;
-    scoped_rwlock<rw_lock::read> g{original->vm_lock};
-    return paging_clone_as(addr_space, original);
+    rw_lock_read(&original->vm_lock);
+    int err = paging_clone_as(addr_space, original);
+    rw_unlock_read(&original->vm_lock);
+    return err;
 }
 
 #define DEBUG_FORK_VM 0
@@ -479,7 +484,7 @@ static bool fork_vm_area_struct(struct vm_area_struct *region, struct mm_address
     return true;
 }
 
-static void addr_space_delete(vm_area_struct *region) NO_THREAD_SAFETY_ANALYSIS
+static void addr_space_delete(struct vm_area_struct *region) NO_THREAD_SAFETY_ANALYSIS
 {
     // NO_THREAD_SAFETY_ANALYSIS = we can do this without holding the lock, as tear_down_addr_space
     // is called in fork paths.
@@ -494,12 +499,12 @@ static void tear_down_addr_space(struct mm_address_space *addr_space)
      * Note: We free the tree first in order to free any forked pages.
      * If we didn't we would leak some memory.
      */
-    vm_area_struct *entry;
+    struct vm_area_struct *entry;
     void *entry_;
     unsigned long index = 0;
     mt_for_each (&addr_space->region_tree, entry_, index, -1UL)
     {
-        entry = (vm_area_struct *) entry_;
+        entry = (struct vm_area_struct *) entry_;
         addr_space_delete(entry);
     }
 
@@ -516,28 +521,33 @@ int vm_fork_address_space(struct mm_address_space *addr_space) EXCLUDES(addr_spa
     EXCLUDES(get_current_address_space()->vm_lock)
 {
     struct mm_address_space *current_mm = get_current_address_space();
-    scoped_rwlock<rw_lock::read> g{current_mm->vm_lock};
+    int err = 0;
+    rw_lock_read(&current_mm->vm_lock);
 
 #ifdef CONFIG_DEBUG_ADDRESS_SPACE_ACCT
     mmu_verify_address_space_accounting(get_current_address_space());
 #endif
 
     if (paging_clone_as(addr_space, current_mm) < 0)
-        return -ENOMEM;
+    {
+        err = -ENOMEM;
+        goto out;
+    }
 
     addr_space->resident_set_size = 0;
     addr_space->virtual_memory_size = current_mm->virtual_memory_size;
 
-    vm_area_struct *entry;
+    struct vm_area_struct *entry;
     void *entry_;
     unsigned long index = 0;
     mt_for_each (&current_mm->region_tree, entry_, index, -1UL)
     {
-        entry = (vm_area_struct *) entry_;
+        entry = (struct vm_area_struct *) entry_;
         if (!fork_vm_area_struct(entry, addr_space))
         {
             tear_down_addr_space(addr_space);
-            return -1;
+            err = -ENOMEM;
+            goto out;
         }
     }
 
@@ -555,11 +565,11 @@ int vm_fork_address_space(struct mm_address_space *addr_space) EXCLUDES(addr_spa
     mmu_verify_address_space_accounting(addr_space);
 #endif
 
-    assert(addr_space->active_mask.is_empty());
-
     rwlock_init(&addr_space->vm_lock);
     validate_mm_tree(addr_space);
-    return 0;
+    rw_unlock_read(&current_mm->vm_lock);
+out:
+    return err;
 }
 
 /**
@@ -660,16 +670,16 @@ static struct vm_area_struct *vma_merge_around(struct vma_iterator *vmi, unsigne
                                                struct file *file, off_t off)
     REQUIRES(vmi->mm->vm_lock)
 {
-    struct vm_area_struct *prev, *next, *ret = nullptr;
+    struct vm_area_struct *prev, *next, *ret = NULL;
     size_t new_size = vmi->end - vmi->index + 1;
 
     prev = (struct vm_area_struct *) mas_prev(&vmi->mas, vmi->index - 1);
     next = (struct vm_area_struct *) mas_next(&vmi->mas, vmi->end + 1);
 
     if (prev && !vma_can_merge_into(prev, new_size, vm_flags, file, off, true))
-        prev = nullptr;
+        prev = NULL;
     if (next && !vma_can_merge_into(next, new_size, vm_flags, file, off, false))
-        next = nullptr;
+        next = NULL;
 
     if (prev && next && can_merge_anon_vmas(prev->anon_vma, next->anon_vma))
     {
@@ -678,7 +688,7 @@ static struct vm_area_struct *vma_merge_around(struct vma_iterator *vmi, unsigne
         DCHECK(prev->vm_end == vmi->index && next->vm_start == vmi->end + 1);
         mas_set_range(&vmi->mas, prev->vm_start, next->vm_end - 1);
         if (mas_store_gfp(&vmi->mas, prev, GFP_KERNEL) != 0)
-            return nullptr;
+            return NULL;
 
         vma_pre_merge(prev, next);
         prev->vm_end = next->vm_end;
@@ -699,7 +709,7 @@ static struct vm_area_struct *vma_merge_around(struct vma_iterator *vmi, unsigne
         DCHECK(prev->vm_end == vmi->index);
         mas_set_range(&vmi->mas, prev->vm_start, vmi->end);
         if (mas_store_gfp(&vmi->mas, prev, GFP_KERNEL) != 0)
-            return nullptr;
+            return NULL;
         vma_pre_adjust(prev);
         prev->vm_end = vmi->end + 1;
         vma_post_adjust(prev);
@@ -711,7 +721,7 @@ static struct vm_area_struct *vma_merge_around(struct vma_iterator *vmi, unsigne
         DCHECK(next->vm_start == vmi->end + 1);
         mas_set_range(&vmi->mas, vmi->index, next->vm_end - 1);
         if (mas_store_gfp(&vmi->mas, next, GFP_KERNEL) != 0)
-            return nullptr;
+            return NULL;
         vma_pre_adjust(next);
         if (file)
             next->vm_offset -= (next->vm_start - vmi->index);
@@ -734,7 +744,7 @@ static struct vm_area_struct *vma_create(struct vma_iterator *vmi, unsigned int 
 {
     int err = -ENOMEM;
     size_t size = vmi->end - vmi->index + 1;
-    struct vm_area_struct *vma = nullptr;
+    struct vm_area_struct *vma = NULL;
     if (!vm_test_vs_rlimit(vmi->mm, size))
         goto out_error;
 
@@ -780,7 +790,7 @@ static struct vm_area_struct *vma_create(struct vma_iterator *vmi, unsigned int 
         }
     }
 
-    if (vma_setup_backing(vma, size >> PAGE_SHIFT, file != nullptr) < 0)
+    if (vma_setup_backing(vma, size >> PAGE_SHIFT, file != NULL) < 0)
         goto unmap_vma;
 
 out:
@@ -796,7 +806,7 @@ unmap_vma:
 free_vma:
     vma_free(vma);
 out_error:
-    return (struct vm_area_struct *) ERR_PTR(err);
+    return ERR_PTR(err);
 }
 
 /**
@@ -814,7 +824,7 @@ out_error:
  */
 void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file, off_t off)
 {
-    struct vm_area_struct *vma = nullptr;
+    struct vm_area_struct *vma = NULL;
     unsigned long virt = (unsigned long) addr;
     u64 extra_flags = 0;
 
@@ -823,8 +833,6 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
     /* We don't like this offset. */
     if (off & (PAGE_SIZE - 1))
         return ERR_PTR(-EINVAL);
-
-    scoped_rwlock<rw_lock::write> g{mm->vm_lock};
 
     /* Calculate the pages needed for the overall size */
     size_t pages = vm_size_to_pages(length);
@@ -839,19 +847,20 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
         vm_prot |= VM_SHARED;
 
     /* Sanitize the address and length */
-    const auto aligned_len = pages << PAGE_SHIFT;
+    const unsigned long aligned_len = pages << PAGE_SHIFT;
 
+    rw_lock_write(&mm->vm_lock);
     if (aligned_len > arch_low_half_max)
-        return ERR_PTR(-ENOMEM);
+        goto enomem;
 
     if (is_higher_half(addr) || virt & (PAGE_SIZE - 1) || virt > arch_low_half_max - aligned_len ||
         virt + aligned_len < arch_low_half_min)
     {
         if (flags & MAP_FIXED)
-            return ERR_PTR(-ENOMEM);
+            goto enomem;
         else
         {
-            addr = nullptr;
+            addr = NULL;
             virt = 0;
         }
     }
@@ -868,40 +877,44 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
     else
     {
         if (vm_alloc_address(&vmi, VM_ADDRESS_USER | extra_flags, aligned_len, VM_TYPE_REGULAR) < 0)
-            return ERR_PTR(-ENOMEM);
+            goto enomem;
         virt = vmi.index;
     }
 
     if (!vm_test_vs_rlimit(mm, vmi.end - vmi.index + 1))
-        return ERR_PTR(-ENOMEM);
+        goto enomem;
 
     vma = vma_merge_around(&vmi, vm_prot, file, off);
     if (vma)
-        goto out;
+        goto out_vmi;
 
     /* vma_merge_around may touch around the vmi, reset the state */
     mas_set_range(&vmi.mas, vmi.index, vmi.end);
 
     if (flags & MAP_ANONYMOUS)
-        file = nullptr;
+        file = NULL;
 
     vma = vma_create(&vmi, vm_prot, file, off);
-    vmi_destroy(&vmi);
     if (IS_ERR(vma))
-        return (void *) vma;
+        virt = (unsigned long) vma;
 
-out:
+out_vmi:
     vmi_destroy(&vmi);
+out:
     validate_mm_tree(mm);
+    rw_unlock_write(&mm->vm_lock);
     return (void *) virt;
+enomem:
+    virt = -ENOMEM;
+    goto out;
 }
 
 void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off)
 {
     int error = 0;
 
-    struct file *file = nullptr;
-    void *ret = nullptr;
+    struct file *file = NULL;
+    void *ret = NULL;
     bool is_file_mapping = !(flags & MAP_ANONYMOUS);
 
     /* Ok, start the basic input sanitation for user-space inputs */
@@ -962,10 +975,8 @@ int sys_munmap(void *addr, size_t length)
     if ((unsigned long) addr & (PAGE_SIZE - 1))
         return -EINVAL;
 
-    struct mm_address_space *mm = get_current_process()->get_aspace();
-
+    struct mm_address_space *mm = get_current_address_space();
     int ret = vm_munmap(mm, addr, pages << PAGE_SHIFT);
-
     return ret;
 }
 
@@ -1023,14 +1034,14 @@ static struct vm_area_struct *vm_split_region(struct mm_address_space *as,
     size_t region_off = addr - vma->vm_start;
     struct vm_area_struct *newr = vma_alloc();
     if (!newr)
-        return nullptr;
+        return NULL;
 
     /* Reset the mas range to the new sub-region */
     __mas_set_range(&vmi->mas, below ? vma->vm_start : addr, (below ? addr : vma->vm_end) - 1);
     if (mas_preallocate(&vmi->mas, newr, GFP_KERNEL) == -ENOMEM)
     {
         vma_free(newr);
-        return nullptr;
+        return NULL;
     }
 
     memset(newr, 0, sizeof(*newr));
@@ -1059,7 +1070,7 @@ static struct vm_area_struct *vm_split_region(struct mm_address_space *as,
 
     mas_store_prealloc(&vmi->mas, newr);
     DCHECK(vmi->mas.index == newr->vm_start);
-    validate_mm_tree(as);
+    // validate_mm_tree(as);
     return newr;
 }
 
@@ -1105,7 +1116,7 @@ static struct vm_area_struct *vma_prepare_modify(struct vma_iterator *vmi,
     {
         vma = vm_split_region(vmi->mm, vma, start, false, vmi);
         if (!vma)
-            return nullptr;
+            return NULL;
     }
 
     if (end < vma->vm_end)
@@ -1131,7 +1142,7 @@ int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot
     unsigned long limit = addr + size;
     VMA_ITERATOR(vmi, as, addr, limit);
 
-    scoped_rwlock<rw_lock::write> g{as->vm_lock};
+    rw_lock_write(&as->vm_lock);
 
     /* Note: vm_munmap has some vma detaching logic for the simple fact that POSIX does not
      * allow for a partial unmap in case of an error. Whereas this is not the case for mprotect.
@@ -1141,10 +1152,8 @@ int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot
     if (!vma)
         goto out;
 
-    void *entry_;
-    mas_for_each(&vmi.mas, entry_, vmi.end)
+    mas_for_each(&vmi.mas, vma, vmi.end)
     {
-        vma = (vm_area_struct *) entry_;
         if (vma->vm_start >= limit)
             break;
         vma = vma_prepare_modify(&vmi, vma, addr, limit);
@@ -1181,6 +1190,7 @@ int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot
 out:
     vmi_destroy(&vmi);
     validate_mm_tree(as);
+    rw_unlock_write(&as->vm_lock);
     return err;
 }
 
@@ -1207,14 +1217,12 @@ int sys_mprotect(void *addr, size_t len, int prot)
 
     len = pages << PAGE_SHIFT; /* Align len on a page boundary */
 
-    struct process *p = get_current_process();
-
-    return vm_mprotect(p->address_space.get(), addr, len, vm_prot);
+    return vm_mprotect(get_current_address_space(), addr, len, vm_prot);
 }
 
 static int vm_expand_brk(struct mm_address_space *as, size_t nr_pages) REQUIRES(as->vm_lock);
 
-__always_inline int do_inc_brk(mm_address_space *as, void *oldbrk, void *newbrk)
+__always_inline int do_inc_brk(struct mm_address_space *as, void *oldbrk, void *newbrk)
     REQUIRES(as->vm_lock)
 {
     void *oldpage = page_align_up(oldbrk);
@@ -1223,23 +1231,21 @@ __always_inline int do_inc_brk(mm_address_space *as, void *oldbrk, void *newbrk)
     size_t pages = ((uintptr_t) newpage - (uintptr_t) oldpage) / PAGE_SIZE;
 
     if (pages > 0)
-    {
         return vm_expand_brk(as, pages);
-    }
-
     return 0;
 }
 
 uint64_t sys_brk(void *newbrk)
 {
-    mm_address_space *as = get_current_address_space();
+    unsigned long ret;
+    struct mm_address_space *as = get_current_address_space();
 
-    scoped_rwlock<rw_lock::write> g{as->vm_lock};
+    rw_lock_write(&as->vm_lock);
 
-    if (newbrk == nullptr)
+    if (newbrk == NULL)
     {
-        uint64_t ret = (uint64_t) as->brk;
-        return ret;
+        ret = (unsigned long) as->brk;
+        goto out;
     }
 
     void *old_brk = as->brk;
@@ -1255,13 +1261,16 @@ uint64_t sys_brk(void *newbrk)
         /* Increment the program brk */
         if (do_inc_brk(as, old_brk, newbrk) < 0)
         {
-            return -ENOMEM;
+            ret = -ENOMEM;
+            goto out;
         }
 
         as->brk = newbrk;
     }
 
-    uint64_t ret = (uint64_t) as->brk;
+    ret = (unsigned long) as->brk;
+out:
+    rw_unlock_write(&as->vm_lock);
     return ret;
 }
 
@@ -1289,7 +1298,7 @@ static bool vm_print(struct vm_area_struct *region)
  */
 void vm_print_umap()
 {
-    vm_for_every_region(*get_current_address_space(), vm_print);
+    // vm_for_every_region(*get_current_address_space(), vm_print);
     printk("brk: %p\n", get_current_address_space()->brk);
 }
 
@@ -1323,8 +1332,8 @@ void *__map_pages_to_vaddr(struct mm_address_space *as, void *virt, void *phys, 
     for (uintptr_t virt = (uintptr_t) ptr, _phys = (uintptr_t) phys, i = 0; i < pages;
          virt += PAGE_SIZE, _phys += PAGE_SIZE, ++i)
     {
-        if (!vm_map_page(as, virt, _phys, flags, nullptr))
-            return nullptr;
+        if (!vm_map_page(as, virt, _phys, flags, NULL))
+            return NULL;
     }
 
     if (!(flags & VM_NOFLUSH))
@@ -1355,7 +1364,7 @@ static int vm_pf_get_page_from_vmo(struct vm_pf_context *ctx)
     struct vm_area_struct *entry = ctx->entry;
     struct inode *ino = entry->vm_file->f_ino;
     size_t vmo_off = (ctx->vpage - entry->vm_start) + entry->vm_offset;
-    DCHECK(entry->vm_file != nullptr);
+    DCHECK(entry->vm_file != NULL);
 
     /* SIGBUS! */
     if (vmo_off >= ino->i_size)
@@ -1367,7 +1376,7 @@ static int vm_pf_get_page_from_vmo(struct vm_pf_context *ctx)
 
 static int find_page_err_to_signal(int st)
 {
-    if (st == 0) [[unlikely]]
+    if (unlikely(st == 0))
         return 0;
 
     switch (st)
@@ -1399,17 +1408,19 @@ static bool vm_fault_was_spurious(struct fault_info *info, struct vm_pf_context 
 
 static int __vm_handle_pf(struct vm_area_struct *entry, struct fault_info *info)
 {
+#if 0
     const pid_t pid = get_current_process()->pid_;
     const u64 addr = info->fault_address;
     const u8 fault_read = info->read;
-    const u8 fault_write = info->write;
     const u8 fault_exec = info->exec;
     TRACE_EVENT_DURATION(vm_page_fault, addr, pid, fault_read, fault_write, fault_exec);
+#endif
+    const u8 fault_write = info->write;
     struct vm_pf_context context;
     context.entry = entry;
     context.info = info;
     context.vpage = info->fault_address & -PAGE_SIZE;
-    context.page = nullptr;
+    context.page = NULL;
     context.page_rwx = entry->vm_flags;
     context.oldpte = pte_get(entry->vm_mm, context.vpage);
     context.mapping_info = get_mapping_info((void *) context.vpage);
@@ -1448,6 +1459,12 @@ int vm_handle_page_fault(struct fault_info *info)
     struct mm_address_space *as =
         use_kernel_as ? &kernel_address_space : get_current_address_space();
 
+    if (get_current_thread()->pagefault_disabled)
+    {
+        info->signal = VM_SIGSEGV;
+        return -1;
+    }
+
     if (sched_is_preemption_disabled())
         panic("Page fault while preemption was disabled\n");
     if (irq_is_disabled())
@@ -1460,7 +1477,7 @@ int vm_handle_page_fault(struct fault_info *info)
         return -1;
     }
 
-    scoped_rwlock<rw_lock::read> g{as->vm_lock};
+    rw_lock_read(&as->vm_lock);
 
     struct vm_area_struct *entry = vm_find_region(as, (void *) info->fault_address);
     if (!entry)
@@ -1478,7 +1495,7 @@ int vm_handle_page_fault(struct fault_info *info)
             else
                 str = "read";
             printk("Page fault at %lx, %s, ip %lx, process name %s\n", info->fault_address, str,
-                   info->ip, current ? current->cmd_line.c_str() : "(kernel)");
+                   info->ip, current ? current->comm : "(kernel)");
 #if 0
             vm_print_umap();
             panic("pid %ld page fault", current->pid_);
@@ -1486,30 +1503,31 @@ int vm_handle_page_fault(struct fault_info *info)
         }
 
         info->signal = VM_SIGSEGV;
-        return -1;
+        goto err;
     }
 
     info->error_info = VM_BAD_PERMISSIONS;
 
     if (info->write && !(entry->vm_flags & VM_WRITE))
-        return -1;
+        goto err;
     if (info->exec && !(entry->vm_flags & VM_EXEC))
-        return -1;
+        goto err;
     if (info->user && !(entry->vm_flags & VM_USER))
-        return -1;
+        goto err;
     if (info->read && !(entry->vm_flags & VM_READ))
-        return -1;
+        goto err;
 
     info->error_info = 0;
-
     __sync_add_and_fetch(&as->page_faults, 1);
-
     int ret = __vm_handle_pf(entry, info);
-
+    rw_unlock_read(&as->vm_lock);
     return ret;
+err:
+    rw_unlock_read(&as->vm_lock);
+    return -1;
 }
 
-static void vm_destroy_area(vm_area_struct *region)
+static void vm_destroy_area(struct vm_area_struct *region)
 {
     vm_mmu_unmap(region->vm_mm, (void *) region->vm_start, vma_pages(region), region);
 
@@ -1525,7 +1543,7 @@ static void kick_mm_remote(void *ctx)
 {
     struct mm_address_space *mm = (struct mm_address_space *) ctx;
     (void) mm;
-    struct mm_address_space *newmm = get_current_thread()->get_aspace();
+    struct mm_address_space *newmm = get_current_thread()->aspace;
     if (!newmm)
         newmm = &kernel_address_space;
     /* TODO: We have no way of knowing if we're on a mm */
@@ -1536,7 +1554,7 @@ static void kick_mm_remote(void *ctx)
 static void kick_mm(struct mm_address_space *mm)
 {
     /* TODO: Ugh, broadcast */
-    smp::sync_call(kick_mm_remote, mm, cpumask::all_but_one(get_cpu_nr()));
+    // smp_sync_call(kick_mm_remote, mm, cpumask::all_but_one(get_cpu_nr()));
 }
 
 /**
@@ -1546,47 +1564,26 @@ static void kick_mm(struct mm_address_space *mm)
  */
 void vm_destroy_addr_space(struct mm_address_space *mm)
 {
-    bool free_pgd = true;
-
     /* First, iterate through the maple tree and free/unmap stuff */
-    scoped_rwlock<rw_lock::write> g{mm->vm_lock};
+    rw_lock_write(&mm->vm_lock);
 
-    vm_area_struct *entry;
-    void *entry_;
+    struct vm_area_struct *entry;
     unsigned long index = 0;
-    mt_for_each (&mm->region_tree, entry_, index, -1UL)
-    {
-        entry = (vm_area_struct *) entry_;
+    mt_for_each (&mm->region_tree, entry, index, -1UL)
         vm_destroy_area(entry);
-    }
 
     mtree_destroy(&mm->region_tree);
     assert(mm->resident_set_size == 0);
     assert(mm->shared_set_size == 0);
-    assert(mm->virtual_memory_size == 0);
-    assert(mm->page_tables_size == PAGE_SIZE);
-
-    /* We're going to swap our address space to init's, and free our own */
-    /* Note that we use mm explicitly, but switch to current->address_space explicitly.
-     * This is because vm_destroy_addr_space is called when we need to destroy
-     * an exec state (i.e an execve failure).
-     */
-    void *own_addrspace = vm_get_pgd(&mm->arch_mmu);
-
-    if (own_addrspace == vm_get_fallback_pgd())
+    if (WARN_ON(mm->virtual_memory_size > 0))
     {
-        /* If init is deciding to exec without forking, don't free the fallback pgd! */
-        free_pgd = false;
+        pr_warn("mm: Bad VSZ accounting %lx (%ld)\n", mm->virtual_memory_size,
+                mm->virtual_memory_size);
     }
 
-    struct arch_mm_address_space old_arch_mmu;
-    vm_set_pgd(&old_arch_mmu, own_addrspace);
+    assert(mm->page_tables_size == PAGE_SIZE);
 
-    g.unlock();
-    kick_mm(mm);
-
-    if (free_pgd)
-        vm_free_arch_mmu(&old_arch_mmu);
+    rw_unlock_write(&mm->vm_lock);
 }
 
 /**
@@ -1734,8 +1731,10 @@ ssize_t evict_write(void *buf, size_t size, off_t off)
     if (copy_from_user(&c, buf, 1) < 0)
         return -EFAULT;
 
+#if 0
     if (c == '2' || c == '3')
         dentry_trim_caches();
+#endif
 
     if (c == '1' || c == '3')
         inode_trim_cache();
@@ -1772,7 +1771,7 @@ void vm_sysfs_init(void)
     evict_obj.write = evict_write;
     evict_obj.perms = 0644 | S_IFREG;
 
-    sysfs_add(&vm_obj, nullptr);
+    sysfs_add(&vm_obj, NULL);
 }
 
 char *strcpy_from_user(const char *uptr)
@@ -1781,19 +1780,19 @@ char *strcpy_from_user(const char *uptr)
     if (len < 0)
     {
         errno = EFAULT;
-        return nullptr;
+        return NULL;
     }
 
     char *buf = (char *) malloc(len + 1);
     if (!buf)
-        return nullptr;
+        return NULL;
     buf[len] = '\0';
 
     if (copy_from_user(buf, uptr, len) < 0)
     {
         free(buf);
         errno = EFAULT;
-        return nullptr;
+        return NULL;
     }
 
     return buf;
@@ -1851,7 +1850,7 @@ void vm_do_fatal_page_fault(struct fault_info *info)
         struct process *current = get_current_process();
         printf("%s at %016lx at ip %lx in process %u(%s)\n",
                info->signal == SIGSEGV ? "SEGV" : "SIGBUS", info->fault_address, info->ip,
-               current->get_pid(), current->cmd_line.c_str());
+               current->pid_, current->comm);
         printf("Error info: %x on %c%c%c\n", info->error_info, info->read ? 'r' : '-',
                info->write ? 'w' : '-', info->exec ? 'x' : '-');
         printf("Program base: %p\n", current->interp_base);
@@ -1903,7 +1902,7 @@ int vma_setup_backing(struct vm_area_struct *region, size_t pages, bool is_file_
     {
         struct inode *ino = region->vm_file->f_ino;
 
-        assert(ino->i_pages != nullptr);
+        assert(ino->i_pages != NULL);
         vmo_ref(ino->i_pages);
         vmo = ino->i_pages;
         region->vm_ops = &file_vmops;
@@ -1911,14 +1910,14 @@ int vma_setup_backing(struct vm_area_struct *region, size_t pages, bool is_file_
     else
     {
         /* Anonymous, private memory uses amaps now */
-        vmo = nullptr;
+        vmo = NULL;
         region->vm_ops = &anon_vmops;
     }
 
     if (vmo)
     {
         vmo_assign_mapping(vmo, region);
-        assert(region->vm_obj == nullptr);
+        assert(region->vm_obj == NULL);
         region->vm_obj = vmo;
     }
 
@@ -1933,7 +1932,7 @@ int vma_setup_backing(struct vm_area_struct *region, size_t pages, bool is_file_
  */
 bool is_file_backed(struct vm_area_struct *region)
 {
-    return region->vm_file != nullptr;
+    return region->vm_file != NULL;
 }
 
 /**
@@ -1947,7 +1946,7 @@ bool is_file_backed(struct vm_area_struct *region)
 void *map_page_list(struct page *pl, size_t size, uint64_t prot)
     EXCLUDES(kernel_address_space.vm_lock)
 {
-    return nullptr;
+    return NULL;
 }
 
 /**
@@ -1965,7 +1964,7 @@ int vm_create_address_space(struct mm_address_space *mm)
     mm->shared_set_size = 0;
     mm->virtual_memory_size = 0;
 
-    assert(mm->active_mask.is_empty() == true);
+    // assert(mm->active_mask.is_empty() == true);
 
     rwlock_init(&mm->vm_lock);
     return 0;
@@ -1980,7 +1979,7 @@ int vm_create_address_space(struct mm_address_space *mm)
 int vm_create_brk(struct mm_address_space *mm)
 {
     mm->brk = vm_mmap(vm_gen_brk_base(), 1 << PAGE_SHIFT, PROT_WRITE,
-                      MAP_PRIVATE | MAP_FIXED | MAP_ANON, nullptr, 0);
+                      MAP_PRIVATE | MAP_FIXED | MAP_ANON, NULL, 0);
 
     if (IS_ERR(mm->brk))
         return PTR_ERR(mm->brk);
@@ -2023,10 +2022,8 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size) REQUIRES
 
     VMA_ITERATOR(vmi, as, addr, limit);
 
-    void *entry_;
-    mas_for_each(&vmi.mas, entry_, vmi.end)
+    mas_for_each(&vmi.mas, vma, vmi.end)
     {
-        vma = (vm_area_struct *) entry_;
         if (vma->vm_start >= limit)
             break;
         vma = vma_prepare_modify(&vmi, vma, addr, limit);
@@ -2084,9 +2081,7 @@ restore:
  */
 int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 {
-    scoped_rwlock<rw_lock::write> g{as->vm_lock};
-
-    auto addr = (unsigned long) __addr;
+    unsigned long addr = (unsigned long) __addr;
     if (addr < as->start || addr > as->end)
         return -EINVAL;
     if (size == 0)
@@ -2094,7 +2089,10 @@ int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
     if (addr & (PAGE_SIZE - 1))
         return -EINVAL;
 
-    return __vm_munmap(as, __addr, size);
+    rw_lock_write(&as->vm_lock);
+    int err = __vm_munmap(as, __addr, size);
+    rw_unlock_write(&as->vm_lock);
+    return err;
 }
 
 #if CONFIG_TRACK_TLB_DELTA
@@ -2165,7 +2163,7 @@ static int vm_expand_mapping(struct mm_address_space *as, struct vm_area_struct 
 static int vm_expand_brk(struct mm_address_space *as, size_t nr_pages) REQUIRES(as->vm_lock)
 {
     struct vm_area_struct *brk_region = vm_find_region(as, as->brk);
-    assert(brk_region != nullptr);
+    assert(brk_region != NULL);
     size_t new_size = (vma_pages(brk_region) + nr_pages) << PAGE_SHIFT;
 
     return vm_expand_mapping(as, brk_region, new_size);
@@ -2225,13 +2223,11 @@ void *sys_mremap(void *old_address, size_t old_size, size_t new_size, int flags,
     // TODO: This is broken.
     return (void *) -ENOSYS;
     /* Check http://man7.org/linux/man-pages/man2/mremap.2.html for documentation */
-    struct process *current = get_current_process();
     bool may_move = flags & MREMAP_MAYMOVE;
     bool fixed = flags & MREMAP_FIXED;
     bool wants_create_new_mapping_of_pages = old_size == 0 && may_move;
     void *ret = MAP_FAILED;
-    scoped_rwlock<rw_lock::write> g{current->address_space->vm_lock};
-    auto as = current->get_aspace();
+    struct mm_address_space *as = get_current_address_space();
 
     /* TODO: Unsure on what to do if new_size > old_size */
 
@@ -2393,12 +2389,11 @@ static int __get_phys_pages(struct vm_area_struct *region, unsigned long addr, u
  */
 int get_phys_pages(void *_addr, unsigned int flags, struct page **pages, size_t nr_pgs)
 {
-    bool is_user = flags & GPP_USER;
     int ret = GPP_ACCESS_OK;
     bool had_shared_pages = false;
     size_t number_of_pages = nr_pgs;
 
-    struct mm_address_space *as = is_user ? get_current_address_space() : &kernel_address_space;
+    struct mm_address_space *mm = get_current_address_space();
 
     unsigned long addr = (unsigned long) _addr;
 
@@ -2408,13 +2403,12 @@ int get_phys_pages(void *_addr, unsigned int flags, struct page **pages, size_t 
         return ret;
     }
 
-    scoped_rwlock<rw_lock::read> g{as->vm_lock};
-
+    rw_lock_read(&mm->vm_lock);
     size_t pages_gotten = 0;
 
     while (nr_pgs)
     {
-        struct vm_area_struct *reg = vm_find_region(as, (void *) addr);
+        struct vm_area_struct *reg = vm_find_region(mm, (void *) addr);
 
         if (!reg)
         {
@@ -2461,7 +2455,7 @@ int get_phys_pages(void *_addr, unsigned int flags, struct page **pages, size_t 
 out:
     if (ret & GPP_ACCESS_OK && had_shared_pages)
         ret |= GPP_ACCESS_SHARED;
-
+    rw_unlock_read(&mm->vm_lock);
     return ret;
 }
 
@@ -2501,7 +2495,7 @@ int sys_msync(void *ptr, size_t length, int flags)
         return -EINVAL;
 
     /* Hogging the vm_lock is bad mkay, todo... */
-    scoped_rwlock<rw_lock::read> g{as->vm_lock};
+    rw_lock_read(&as->vm_lock);
 
     struct vm_area_struct *vma = vm_search(as, (void *) addr, length);
 
@@ -2509,25 +2503,22 @@ int sys_msync(void *ptr, size_t length, int flags)
     {
         /* Check if start <= addr */
         if (vma->vm_start > addr)
-            return -ENOMEM;
+            goto enomem;
         /* The first vma may have a gap wrt the addr, so readjust it */
         addr = vma->vm_start;
     }
     else
-        return -ENOMEM;
+        goto enomem;
 
     VMA_ITERATOR(vmi, as, addr, limit);
-    void *entry_;
-    mas_for_each(&vmi.mas, entry_, vmi.end)
+    mas_for_each(&vmi.mas, vma, vmi.end)
     {
-        vma = (vm_area_struct *) entry_;
-
         /* We must watch out for gaps in the address space and -ENOMEM there */
         if (vma->vm_start != addr)
             break;
         if (vma->vm_start > limit || vma->vm_end < addr)
             break;
-        unsigned long to_sync = cul::min(length, vma->vm_end - addr);
+        unsigned long to_sync = min(length, vma->vm_end - addr);
         struct file *filp = vma->vm_file;
 
         if (flags & MS_SYNC && filp && vma_shared(vma))
@@ -2552,7 +2543,20 @@ int sys_msync(void *ptr, size_t length, int flags)
     }
 
     vmi_destroy(&vmi);
+enomem:
+    rw_unlock_read(&as->vm_lock);
     return st;
+}
+
+static inline void mm_init(struct mm_address_space *mm)
+{
+    memset(mm, 0, sizeof(*mm));
+    mm->mm_count = REFCOUNT_INIT(1);
+    mm->mm_users = REFCOUNT_INIT(1);
+    rwlock_init(&mm->vm_lock);
+    mm->region_tree = (struct maple_tree) MTREE_INIT(mm->region_tree,
+                                                     MT_FLAGS_ALLOC_RANGE | MT_FLAGS_LOCK_EXTERN);
+    spin_lock_init(&mm->page_table_lock);
 }
 
 /**
@@ -2560,18 +2564,21 @@ int sys_msync(void *ptr, size_t length, int flags)
  *
  * @return Ref guard to a mm_address_space, or a negative status code
  */
-expected<ref_guard<mm_address_space>, int> mm_address_space::create()
+struct mm_address_space *mm_create(void)
 {
-    ref_guard<mm_address_space> as = make_refc<mm_address_space>();
-    if (!as)
-        return unexpected<int>{-ENOENT};
+    struct mm_address_space *mm = (struct mm_address_space *) kmalloc(sizeof(*mm), GFP_KERNEL);
+    if (!mm)
+        return ERR_PTR(-ENOMEM);
 
-    spinlock_init(&as->page_table_lock);
-
-    int st = vm_clone_as(as.get());
+    mm_init(mm);
+    int st = vm_clone_as(mm, get_current_address_space());
     if (st < 0)
-        return unexpected<int>{st};
-    return as;
+    {
+        kfree(mm);
+        return ERR_PTR(-ENOMEM);
+    }
+
+    return mm;
 }
 
 /**
@@ -2579,19 +2586,21 @@ expected<ref_guard<mm_address_space>, int> mm_address_space::create()
  *
  * @return Ref guard to a mm_address_space, or a negative status code
  */
-expected<ref_guard<mm_address_space>, int> mm_address_space::fork()
+struct mm_address_space *mm_fork(void)
 {
-    TRACE_EVENT_DURATION(vm_fork_mm);
-    ref_guard<mm_address_space> as = make_refc<mm_address_space>();
-    if (!as)
-        return unexpected<int>{-ENOENT};
+    // TRACE_EVENT_DURATION(vm_fork_mm);
+    struct mm_address_space *mm = (struct mm_address_space *) kmalloc(sizeof(*mm), GFP_KERNEL);
+    if (!mm)
+        return (void *) ERR_PTR(-ENOMEM);
 
-    spinlock_init(&as->page_table_lock);
-
-    int st = vm_fork_address_space(as.get());
+    mm_init(mm);
+    int st = vm_fork_address_space(mm);
     if (st < 0)
-        return unexpected<int>{st};
-    return as;
+    {
+        return ERR_PTR(st);
+    }
+
+    return mm;
 }
 
 /**
@@ -2600,12 +2609,12 @@ expected<ref_guard<mm_address_space>, int> mm_address_space::fork()
  * @param aspace Address space to load
  * @param cpu CPU we're on
  */
-void vm_load_aspace(mm_address_space *aspace, unsigned int cpu)
+void vm_load_aspace(struct mm_address_space *aspace, unsigned int cpu)
 {
     vm_load_arch_mmu(&aspace->arch_mmu);
-    if (cpu == -1U) [[unlikely]]
+    if (unlikely(cpu == -1U))
         cpu = get_cpu_nr();
-    aspace->active_mask.set_cpu_atomic(cpu);
+    cpumask_set_atomic(&aspace->active_mask, cpu);
 }
 
 /**
@@ -2614,14 +2623,14 @@ void vm_load_aspace(mm_address_space *aspace, unsigned int cpu)
  * @param aspace Address space to set and load
  * @return The old address space
  */
-mm_address_space *vm_set_aspace(mm_address_space *aspace)
+struct mm_address_space *vm_set_aspace(struct mm_address_space *aspace)
 {
-    mm_address_space *ret = &kernel_address_space;
-    auto thread = get_current_thread();
+    struct mm_address_space *ret = &kernel_address_space;
+    struct thread *thread = get_current_thread();
     if (thread)
     {
-        ret = thread->get_aspace();
-        thread->set_aspace(aspace);
+        ret = thread->aspace;
+        thread->aspace = aspace;
     }
 
     vm_load_aspace(aspace, -1);
@@ -2629,13 +2638,21 @@ mm_address_space *vm_set_aspace(mm_address_space *aspace)
     return ret;
 }
 
-/**
- * @brief Destroys the mm_address_space object
- *
- */
-mm_address_space::~mm_address_space()
+void __mmdrop(struct mm_address_space *mm)
 {
-    vm_destroy_addr_space(this);
+    /* Last drop, mm has no users and no lazy users, free the last bits and goodbye. */
+    CHECK(refcount_read(&mm->mm_users) == 0);
+    if (vm_get_fallback_pgd() != vm_get_pgd(&mm->arch_mmu))
+        vm_free_arch_mmu(&mm->arch_mmu);
+    kfree(mm);
+}
+
+void __mmput(struct mm_address_space *mm)
+{
+    /* mm has no users, clear out the address space and put the implicit ref. The pgd is not freed
+     * and the kernel page tables will be unharmed. */
+    vm_destroy_addr_space(mm);
+    mmdrop(mm);
 }
 
 unsigned long get_mapping_info(void *addr)
