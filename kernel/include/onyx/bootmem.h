@@ -12,7 +12,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <onyx/compiler.h>
+
 #define BOOTMEM_FLAG_LOW_MEM (1 << 0)
+
+__BEGIN_CDECLS
 
 void *alloc_boot_page(size_t nr_pgs, long flags);
 
@@ -20,5 +24,6 @@ void bootmem_reserve(unsigned long start, size_t size);
 void bootmem_add_range(unsigned long start, size_t size);
 
 void for_every_phys_region(void (*callback)(unsigned long start, size_t size));
+__END_CDECLS
 
 #endif

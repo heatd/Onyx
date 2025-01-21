@@ -13,7 +13,7 @@
 #define REQUIRES_SHARED(...)
 
 // TODO: Export this stuff in some header, and avoid sticking everything into vm.cpp
-vm_area_struct *vm_search(struct mm_address_space *mm, void *addr, size_t length)
+extern "C" vm_area_struct *vm_search(struct mm_address_space *mm, void *addr, size_t length)
     REQUIRES_SHARED(mm->vm_lock);
 
 static long do_pagemap(struct mm_address_space *as, unsigned long start, unsigned long end,

@@ -225,7 +225,7 @@ void stack_segment_fault(struct registers *ctx)
 #ifdef CONFIG_VERBOSE_SEGV
 #undef REQUIRES_SHARED
 #define REQUIRES_SHARED(...)
-vm_area_struct *vm_search(struct mm_address_space *mm, void *addr, size_t length)
+extern "C" vm_area_struct *vm_search(struct mm_address_space *mm, void *addr, size_t length)
     REQUIRES_SHARED(mm->vm_lock);
 
 #define dumpprint printk

@@ -22,6 +22,7 @@
 #include <onyx/panic.h>
 #include <onyx/poll.h>
 #include <onyx/process.h>
+#include <onyx/refcount.h>
 #include <onyx/scoped_lock.h>
 #include <onyx/spinlock.h>
 #include <onyx/types.h>

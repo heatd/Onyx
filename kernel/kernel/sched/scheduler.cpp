@@ -419,8 +419,9 @@ void sched_decrease_quantum(clockevent *ev)
     ev->deadline = clocksource_get_time() + NS_PER_MS;
 }
 
-void sched_load_thread(thread *thread, unsigned int cpu)
+void sched_load_thread(struct thread *prev, thread *thread, unsigned int cpu)
 {
+    struct mm_address_space *mm = prev->active_mm ?: prev->aspace;
     write_per_cpu(current_thread, thread);
 
     errno = thread->errno_val;
@@ -428,7 +429,30 @@ void sched_load_thread(thread *thread, unsigned int cpu)
     native::arch_load_thread(thread, cpu);
 
     if (thread->owner)
+    {
+        /* Clear ourselves from the mm mask and drop the active_mm, if we had one */
+        cpumask_unset_atomic(&mm->active_mask, cpu);
+
         native::arch_load_process(thread->owner, thread, cpu);
+
+        if (prev->active_mm)
+        {
+            mmdrop(mm);
+            prev->active_mm = NULL;
+        }
+    }
+    else
+    {
+        /* Skip switching mm's by keeping this one active */
+        if (thread != prev)
+        {
+            CHECK(thread->active_mm == NULL);
+            thread->active_mm = mm;
+            mmgrab(mm);
+            if (prev->active_mm)
+                prev->active_mm = NULL;
+        }
+    }
 
     write_per_cpu(sched_quantum, SCHED_QUANTUM);
 
@@ -441,10 +465,11 @@ extern "C" void asan_unpoison_stack_shadow_ctxswitch(struct registers *regs);
 
 NO_ASAN void sched_load_finish(thread *prev_thread, thread *next_thread)
 {
+    CHECK(irq_is_disabled());
 #ifdef CONFIG_KASAN
     asan_unpoison_stack_shadow_ctxswitch((struct registers *) prev_thread->kernel_stack);
 #endif
-    sched_load_thread(next_thread, get_cpu_nr());
+    sched_load_thread(prev_thread, next_thread, get_cpu_nr());
 
     rcu_do_quiesc();
 
@@ -461,6 +486,7 @@ NO_ASAN void sched_load_finish(thread *prev_thread, thread *next_thread)
             prev_thread->flags &= ~THREAD_IS_DYING;
     }
 
+    CHECK(irq_is_disabled());
     native::arch_context_switch(prev_thread, next_thread);
 }
 
@@ -519,11 +545,6 @@ extern "C" void *sched_schedule(void *last_stack)
 
     if (source_thread != curr_thread)
     {
-        if (source_thread->owner)
-        {
-            source_thread->get_aspace()->active_mask.remove_cpu_atomic(get_cpu_nr());
-        }
-
         trace_sched_slice_end();
         trace_sched_slice_begin(curr_thread->id, curr_thread->owner ? curr_thread->owner->pid_ : 0,
                                 curr_thread->owner ? curr_thread->owner->comm : NULL);

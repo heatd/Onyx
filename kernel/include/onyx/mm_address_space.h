@@ -12,14 +12,12 @@
 
 #include <onyx/cpumask.h>
 #include <onyx/maple_tree.h>
+#include <onyx/ref.h>
 #include <onyx/rwlock.h>
 
 #include <platform/vm.h>
 
 #ifdef __cplusplus
-#include <onyx/refcount.h>
-
-#include <onyx/expected.hpp>
 // clang-format off
 #define CPP_DFLINIT {}
 // clang-format on
@@ -34,40 +32,35 @@
  *
  */
 struct mm_address_space
-#ifdef __cplusplus
-    : public refcountable
-#endif
 {
-#ifndef __cplusplus
-    void *__vtable;
-    unsigned long refc;
-#endif
+    refcount_t mm_count;
+    refcount_t mm_users;
     /* Virtual address space WAVL tree */
     struct maple_tree region_tree;
-    unsigned long start CPP_DFLINIT;
-    unsigned long end CPP_DFLINIT;
-    struct rwlock vm_lock CPP_DFLINIT;
+    unsigned long start;
+    unsigned long end;
+    struct rwlock vm_lock;
 
     /* mmap(2) base */
-    void *mmap_base CPP_DFLINIT;
+    void *mmap_base;
 
     /* Process' brk */
-    void *brk CPP_DFLINIT;
+    void *brk;
 
-    size_t virtual_memory_size CPP_DFLINIT;
-    size_t resident_set_size CPP_DFLINIT;
-    size_t shared_set_size CPP_DFLINIT;
-    size_t page_faults CPP_DFLINIT;
-    size_t page_tables_size CPP_DFLINIT;
+    size_t virtual_memory_size;
+    size_t resident_set_size;
+    size_t shared_set_size;
+    size_t page_faults;
+    size_t page_tables_size;
 
-    struct arch_mm_address_space arch_mmu CPP_DFLINIT;
+    struct arch_mm_address_space arch_mmu;
 
     // The active mask keeps track of where the address space is running.
     // This serves as an optimisation when doing a TLB shootdown, as it lets us
     // limit the shootdowns to CPUs where the address space is active instead of every CPU.
-    struct cpumask active_mask CPP_DFLINIT;
+    struct cpumask active_mask;
 
-    struct spinlock page_table_lock CPP_DFLINIT;
+    struct spinlock page_table_lock;
 
 #ifdef __cplusplus
     mm_address_space &operator=(mm_address_space &&as)
@@ -85,36 +78,42 @@ struct mm_address_space
         active_mask = cul::move(as.active_mask);
         return *this;
     }
-
-    constexpr mm_address_space()
-    {
-        spinlock_init(&page_table_lock);
-        region_tree = MTREE_INIT(region_tree, MT_FLAGS_ALLOC_RANGE | MT_FLAGS_LOCK_EXTERN);
-    }
-
-    /**
-     * @brief Creates a new standalone address space
-     *
-     * @return Ref guard to a mm_address_space, or a negative status code
-     */
-    static expected<ref_guard<mm_address_space>, int> create();
-
-    /**
-     * @brief Creates a new standalone address space by forking
-     *
-     * @return Ref guard to a mm_address_space, or a negative status code
-     */
-    static expected<ref_guard<mm_address_space>, int> fork();
-
-    /**
-     * @brief Destroys the mm_address_space object
-     *
-     */
-    ~mm_address_space() override;
 #endif
 };
 
 #define increment_vm_stat(as, name, amount) __sync_add_and_fetch(&as->name, amount)
 #define decrement_vm_stat(as, name, amount) __sync_sub_and_fetch(&as->name, amount)
+
+__BEGIN_CDECLS
+
+struct mm_address_space *mm_create(void);
+struct mm_address_space *mm_fork(void);
+
+static inline void mmget(struct mm_address_space *mm)
+{
+    refcount_inc(&mm->mm_users);
+}
+
+static inline void mmgrab(struct mm_address_space *mm)
+{
+    refcount_inc(&mm->mm_count);
+}
+
+void __mmdrop(struct mm_address_space *mm);
+void __mmput(struct mm_address_space *mm);
+
+static inline void mmdrop(struct mm_address_space *mm)
+{
+    if (refcount_dec_and_test(&mm->mm_count))
+        __mmdrop(mm);
+}
+
+static inline void mmput(struct mm_address_space *mm)
+{
+    if (refcount_dec_and_test(&mm->mm_users))
+        __mmput(mm);
+}
+
+__END_CDECLS
 
 #endif

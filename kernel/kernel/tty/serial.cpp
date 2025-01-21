@@ -9,6 +9,8 @@
 #include <onyx/dpc.h>
 #include <onyx/serial.h>
 
+#include <onyx/atomic.hpp>
+
 static ssize_t serial_write_tty(const void *buffer, size_t size, struct tty *tty)
 {
     serial_port *port = (serial_port *) tty->priv;

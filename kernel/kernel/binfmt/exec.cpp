@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2024 Pedro Falcato
+ * Copyright (c) 2020 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include <onyx/binfmt.h>
+#include <onyx/err.h>
 #include <onyx/exec.h>
 #include <onyx/file.h>
 #include <onyx/kunit.h>
@@ -325,19 +326,21 @@ int flush_old_exec(struct exec_state *state)
         return 0;
 
     struct process *curr = get_current_process();
+    struct mm_address_space *mm = curr->address_space;
     int st = 0;
 
     process_kill_other_threads();
 
-    vm_set_aspace(state->new_address_space.get());
-
+    vm_set_aspace(state->new_address_space);
     curr->address_space = cul::move(state->new_address_space);
+    if (mm != &kernel_address_space)
+        mmput(mm);
     rwlock_init(&curr->address_space->vm_lock);
 
     /* Close O_CLOEXEC files */
     file_do_cloexec(&curr->ctx);
 
-    st = vm_create_brk(curr->address_space.get());
+    st = vm_create_brk(curr->address_space);
 
     if (st == 0)
     {
@@ -545,17 +548,14 @@ error:;
 
 int exec_state_create(struct exec_state *state)
 {
-    auto ex = mm_address_space::create();
-    if (ex.has_error())
-        return ex.error();
+    auto ex = mm_create();
+    if (IS_ERR(ex))
+        return PTR_ERR(ex);
 
-    state->new_address_space = ex.value();
-
+    state->new_address_space = ex;
     /* Swap address spaces. Good thing we saved argv and envp before */
-    if (vm_create_address_space(state->new_address_space.get()) < 0)
-    {
+    if (vm_create_address_space(state->new_address_space) < 0)
         return -ENOMEM;
-    }
 
     return 0;
 }

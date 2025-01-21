@@ -9,6 +9,7 @@
 
 #include <stdio.h>
 
+#include <onyx/err.h>
 #include <onyx/mm/slab.h>
 #include <onyx/process.h>
 #include <onyx/utf8.h>
@@ -17,7 +18,7 @@
 
 #include <efi/efi.h>
 
-static ref_guard<mm_address_space> efi_aspace;
+static mm_address_space *efi_aspace;
 
 namespace efi::internal
 {
@@ -37,7 +38,7 @@ class efi_guard
 public:
     efi_guard()
     {
-        old_aspace = vm_set_aspace(efi_aspace.get());
+        old_aspace = vm_set_aspace(efi_aspace);
     }
 
     EFI_SYSTEM_TABLE *system_table() const
@@ -96,8 +97,8 @@ void efi_remap_efi_region(EFI_MEMORY_DESCRIPTOR &desc)
 
     auto flags = efi_memory_desc_flags_to_vm(desc.Attribute);
     auto ptr =
-        __map_pages_to_vaddr(efi_aspace.get(), (void *) desc.PhysicalStart,
-                             (void *) desc.PhysicalStart, desc.NumberOfPages << PAGE_SHIFT, flags);
+        __map_pages_to_vaddr(efi_aspace, (void *) desc.PhysicalStart, (void *) desc.PhysicalStart,
+                             desc.NumberOfPages << PAGE_SHIFT, flags);
     desc.VirtualStart = desc.PhysicalStart;
     if (!ptr && !mapping_over_null)
         panic("Failed to map EFI region [%016lx, %016lx] attributes %016lx\n", desc.PhysicalStart,
@@ -115,7 +116,7 @@ void efi_remap_efi_region(EFI_MEMORY_DESCRIPTOR &desc)
  */
 void efi_quirk_map_zero_region()
 {
-    __map_pages_to_vaddr(efi_aspace.get(), nullptr, nullptr, PAGE_SIZE, VM_READ | VM_NOFLUSH);
+    __map_pages_to_vaddr(efi_aspace, nullptr, nullptr, PAGE_SIZE, VM_READ | VM_NOFLUSH);
 }
 
 /**
@@ -140,7 +141,7 @@ static void efi_print_info()
 
 static void efi_dump_mem_desc(const EFI_MEMORY_DESCRIPTOR *desc)
 {
-    pr_debug(
+    pr_warn(
         "Descriptor type %u physical start %lx virtual start %lx nr_pages %lx attributes %08lx\n",
         desc->Type, desc->PhysicalStart, desc->VirtualStart, desc->NumberOfPages, desc->Attribute);
 }
@@ -198,7 +199,8 @@ void efi_init(EFI_SYSTEM_TABLE *system_table, EFI_MEMORY_DESCRIPTOR *descriptors
     efi_set_enabled();
 
     efi::internal::system_table = system_table;
-    efi_aspace = mm_address_space::create().unwrap();
+    efi_aspace = mm_create();
+    CHECK(!IS_ERR(efi_aspace));
     // EFI firmware out in the wild frequently "accidentally" touch NULL,
     // such that we need to map NULL
     efi_quirk_map_zero_region();

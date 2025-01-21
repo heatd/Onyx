@@ -11,8 +11,11 @@
 
 #include <stddef.h>
 
+#include <onyx/compiler.h>
+
 struct file;
 
+__BEGIN_CDECLS
 /**
  * @brief Create a new shmem file
  *
@@ -20,5 +23,7 @@ struct file;
  * @return Opened struct file, or NULL
  */
 struct file *anon_get_shmem(size_t len);
+
+__END_CDECLS
 
 #endif

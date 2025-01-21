@@ -16,6 +16,7 @@
 #include <onyx/mm/vm_object.h>
 #include <onyx/new.h>
 #include <onyx/packetbuf.h>
+#include <onyx/refcount.h>
 
 #include <onyx/memory.hpp>
 

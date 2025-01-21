@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: GPL-2.0-only
  */
 
+#include <onyx/arch.h>
 #include <onyx/irq.h>
 #include <onyx/ktrace.h>
 #include <onyx/panic.h>
