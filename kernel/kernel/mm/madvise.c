@@ -47,7 +47,7 @@ static int do_madvise_vma(struct vm_area_struct *vma, unsigned long start, unsig
 static int do_madvise_walk(struct mm_address_space *mm, unsigned long start, size_t len, int advice)
 {
     unsigned long limit = start + len;
-    unsigned long last_vma_end = start;
+    unsigned long last_vma_end = -1;
     int ret = -ENOMEM;
     struct vm_area_struct *vma;
 
@@ -59,7 +59,7 @@ static int do_madvise_walk(struct mm_address_space *mm, unsigned long start, siz
         if (vma->vm_start >= limit)
             break;
 
-        if (vma->vm_start != last_vma_end)
+        if (last_vma_end != -1UL && vma->vm_start != last_vma_end)
         {
             ret = -ENOMEM;
             break;
