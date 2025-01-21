@@ -1292,3 +1292,23 @@ enum lru_walk_ret shrink_dcache_lru_one(struct lru_list *lru, struct list_head *
     shrink_res->to_shrink_objs--;
     return LRU_WALK_REMOVED;
 }
+
+struct dentry *d_lookup(struct dentry *parent, const struct dcache_str *name)
+{
+    struct dentry *found;
+    unsigned int old;
+
+    found = NULL;
+    rcu_read_lock();
+
+    do
+    {
+        old = read_seqbegin(&rename_lock);
+        found = d_lookup_internal(parent, std::string_view{name->str, name->len});
+        if (found)
+            break;
+    } while (read_seqretry(&rename_lock, old));
+
+    rcu_read_unlock();
+    return found;
+}

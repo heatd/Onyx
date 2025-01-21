@@ -16,6 +16,8 @@
 #include <onyx/gpt.h>
 #include <onyx/log.h>
 #include <onyx/mbr.h>
+#include <onyx/proc.h>
+#include <onyx/seq_file.h>
 
 static list_head fs_mount_list = LIST_HEAD_INIT(fs_mount_list);
 static spinlock fs_mount_list_lock;
@@ -327,4 +329,52 @@ void partition_setup_disk(struct blockdev *dev)
 {
     if (partition_setup_disk_gpt(dev) < 0)
         partition_setup_disk_mbr(dev);
+}
+
+static void *filesystem_start(struct seq_file *m, off_t *pos)
+{
+    spin_lock(&fs_mount_list_lock);
+    return seq_list_start(&fs_mount_list, *pos);
+}
+
+static void filesystem_stop(struct seq_file *m, void *v)
+{
+    spin_unlock(&fs_mount_list_lock);
+}
+
+static void *filesystem_next(struct seq_file *m, void *v, off_t *pos)
+{
+    return seq_list_next(v, &fs_mount_list, pos);
+}
+
+int filesystem_show(struct seq_file *m, void *v)
+{
+    fs_mount *mount = container_of(v, fs_mount, list_node);
+    if (mount->flags & FS_MOUNT_PSEUDO_FS)
+        seq_printf(m, "nodev");
+    seq_printf(m, "\t%s\n", mount->name);
+    return 0;
+}
+
+static struct seq_operations filesystem_seq_ops = {
+    .start = filesystem_start,
+    .stop = filesystem_stop,
+    .next = filesystem_next,
+    .show = filesystem_show,
+};
+
+static int filesystems_open(struct file *filp)
+{
+    return seq_open(filp, &filesystem_seq_ops);
+}
+
+const static struct proc_file_ops filesystems_proc_ops = {
+    .open = filesystems_open,
+    .release = seq_release,
+    .read_iter = seq_read_iter,
+};
+
+static __init void partition_setup_proc(void)
+{
+    procfs_add_entry("filesystems", 0444, NULL, &filesystems_proc_ops);
 }
