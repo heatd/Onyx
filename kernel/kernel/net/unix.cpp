@@ -1262,7 +1262,7 @@ static int unix_put_cmsg(struct unix_pbf_info *pbf, struct msghdr *msg)
             fd_array[i] = fd;
         }
 
-        int err = put_cmsg(msg, SOL_SOCKET, SCM_RIGHTS, fd_array, nfds);
+        int err = put_cmsg(msg, SOL_SOCKET, SCM_RIGHTS, fd_array, nfds * sizeof(int));
         if (err < 0)
             return err;
     }
