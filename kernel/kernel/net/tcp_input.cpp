@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2024 Pedro Falcato
+ * Copyright (c) 2020 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -795,6 +795,7 @@ static int tcp_input_conn(struct tcp_connreq *conn, struct packetbuf *pbf)
 
     sock->dest_addr = conn->tc_dst;
     sock->src_addr = conn->tc_src;
+    pr_warn("src %pI4 dst %pI4\n", &sock->src_addr.in4, &sock->dest_addr.in4);
     sock->ipv4_on_inet6 = on_ipv4_mode;
     sock->route_cache = cul::move(conn->tc_route);
     sock->route_cache_valid = 1;
@@ -869,11 +870,12 @@ static int tcp_input_conn(struct tcp_connreq *conn, struct packetbuf *pbf)
     }
     else
     {
+        conn->tc_sock = NULL;
         list_remove(&conn->tc_list_node);
         kfree_rcu(conn, tc_rcu_head);
         /* We can double up this conn_queue as a list node, because sock->conn_queue will never be
          * in a LISTEN state */
-        list_add_tail(&sock->conn_queue, &parent->conn_queue);
+        list_add_tail(&sock->conn_queue, &parent->accept_queue);
         wait_queue_wake_all(&parent->rx_wq);
     }
 

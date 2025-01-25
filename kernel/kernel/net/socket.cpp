@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 - 2022 Pedro Falcato
+ * Copyright (c) 2018 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -1014,7 +1014,7 @@ int socket::getsockopt_socket_level(int optname, void *optval, socklen_t *optlen
         }
 
         case SO_SNDBUF: {
-            return put_option(tx_max_buf, optval, optlen);
+            return put_option(sk_sndbuf, optval, optlen);
         }
 
         case SO_REUSEADDR: {
@@ -1042,7 +1042,7 @@ int socket::setsockopt_socket_level(int optname, const void *optval, socklen_t o
             if (ex.has_error())
                 return ex.error();
 
-            rx_max_buf = ex.value();
+            rx_max_buf = ex.value() * 2;
             return 0;
         }
 
@@ -1052,7 +1052,8 @@ int socket::setsockopt_socket_level(int optname, const void *optval, socklen_t o
             if (ex.has_error())
                 return ex.error();
 
-            tx_max_buf = ex.value();
+            sk_sndbuf = ex.value() * 2;
+            sndbuf_locked = true;
             return 0;
         }
 

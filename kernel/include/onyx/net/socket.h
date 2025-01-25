@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 - 2022 Pedro Falcato
+ * Copyright (c) 2018 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -17,6 +17,7 @@
 #include <onyx/iovec_iter.h>
 #include <onyx/net/netif.h>
 #include <onyx/object.h>
+#include <onyx/page_frag.h>
 #include <onyx/refcount.h>
 #include <onyx/semaphore.h>
 #include <onyx/vector.h>
@@ -56,6 +57,7 @@ struct socket_ops
     void (*close)(struct socket *);
     void (*handle_backlog)(struct socket *);
     short (*poll)(struct socket *, void *poll_file, short events);
+    void (*write_space)(struct socket *);
 };
 
 struct socket : public refcountable
@@ -79,11 +81,13 @@ public:
     bool broadcast_allowed : 1;
     bool proto_needs_work : 1 {0};
     bool dead : 1 {0};
+    bool sndbuf_locked : 1 {0};
 
     struct list_head socket_backlog;
 
     unsigned int rx_max_buf;
-    unsigned int tx_max_buf;
+    unsigned int sk_sndbuf;
+    unsigned sk_send_queued;
     int backlog;
     unsigned int shutdown_state;
 
@@ -92,17 +96,23 @@ public:
 
     const struct socket_ops *sock_ops;
 
+    /* Socket page frag info - used for allocating wmem */
+    struct page_frag_info sock_pfi;
+
     /* Define a default constructor here */
     socket()
         : type{}, proto{}, domain{}, flags{}, sock_err{}, socket_lock{}, bound{}, connected{},
-          reuse_addr{false}, rx_max_buf{DEFAULT_RX_MAX_BUF}, tx_max_buf{DEFAULT_TX_MAX_BUF},
+          reuse_addr{false}, rx_max_buf{DEFAULT_RX_MAX_BUF}, sk_sndbuf{DEFAULT_TX_MAX_BUF},
           shutdown_state{}, rcv_timeout{0}, snd_timeout{0}, sock_ops{}
     {
         INIT_LIST_HEAD(&socket_backlog);
+        pfi_init(&sock_pfi);
+        sk_send_queued = 0;
     }
 
     virtual ~socket()
     {
+        pfi_destroy(&sock_pfi);
     }
 
     short poll(void *poll_file, short events);
@@ -326,6 +336,55 @@ int sock_default_getpeername(struct socket *sock, struct sockaddr *addr, socklen
 int sock_default_shutdown(struct socket *sock, int how);
 void sock_default_close(struct socket *sock);
 short sock_default_poll(struct socket *sock, void *poll_file, short events);
+
+static inline bool sock_may_write(struct socket *sock)
+{
+    return READ_ONCE(sock->sk_send_queued) < READ_ONCE(sock->sk_sndbuf);
+}
+
+static inline int sock_write_space(struct socket *sock)
+{
+    return READ_ONCE(sock->sk_sndbuf) - READ_ONCE(sock->sk_send_queued);
+}
+
+static inline bool sock_charge_snd_bytes(struct socket *sock, unsigned int bytes)
+{
+    unsigned int queued = READ_ONCE(sock->sk_send_queued), new_space, expected;
+    do
+    {
+        expected = queued;
+        new_space = queued + bytes;
+        if (new_space > sock->sk_sndbuf)
+            return false;
+        queued = cmpxchg_relaxed(&sock->sk_send_queued, expected, new_space);
+    } while (queued != expected);
+    return true;
+}
+
+static inline bool sock_charge_pbf(struct socket *sock, struct packetbuf *pbf)
+{
+    return sock_charge_snd_bytes(sock, pbf->total_len);
+}
+
+static inline void sock_discharge_snd_bytes(struct socket *sock, unsigned int bytes)
+{
+    unsigned int queued = READ_ONCE(sock->sk_send_queued), new_space, expected;
+    do
+    {
+        expected = queued;
+        new_space = queued - bytes;
+        WARN_ON(queued < new_space);
+        queued = cmpxchg_relaxed(&sock->sk_send_queued, expected, new_space);
+    } while (queued != expected);
+
+    sock->sock_ops->write_space(sock);
+}
+
+static inline void sock_discharge_pbf(struct socket *sock, struct packetbuf *pbf)
+{
+    sock_discharge_snd_bytes(sock, pbf->total_len);
+}
+
 __END_CDECLS
 
 #endif

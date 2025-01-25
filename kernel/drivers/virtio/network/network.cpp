@@ -30,7 +30,7 @@ struct page_frag_res
     size_t off;
 };
 
-extern "C" struct page_frag_res page_frag_alloc(struct page_frag_alloc_info *inf, size_t size);
+extern "C" struct page_frag_res page_frag_alloc2(struct page_frag_alloc_info *inf, size_t size);
 
 namespace virtio
 {
@@ -149,7 +149,7 @@ bool network_vdev::setup_rx()
 
     for (unsigned int i = 0; i < qsize; i++)
     {
-        auto [page, off] = page_frag_alloc(&alloc_info, rx_buf_size);
+        auto [page, off] = page_frag_alloc2(&alloc_info, rx_buf_size);
 
         virtio_allocation_info info;
 

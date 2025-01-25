@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2024 Pedro Falcato
+ * Copyright (c) 2020 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -19,8 +19,20 @@ socket_table tcp_table;
 
 const inet_proto tcp_proto{"tcp", &tcp_table};
 
-u16 tcpv4_calculate_checksum(const tcp_header *header, u16 packet_length, uint32_t srcip, u32 dstip,
-                             bool calc_data)
+static inline inetsum_t tcp_data_csum(inetsum_t r, struct packetbuf *pbf)
+{
+    for (u8 i = 1; i < pbf->nr_vecs; i++)
+    {
+        struct page_iov *iov = &pbf->page_vec[i];
+        u8 *ptr = ((u8 *) PAGE_TO_VIRT(iov->page)) + iov->page_off;
+        r = __ipsum_unfolded(ptr, iov->length, r);
+    }
+
+    return r;
+}
+
+u16 tcpv4_calculate_checksum(const tcp_header *header, u16 packet_length, struct packetbuf *pbf,
+                             uint32_t srcip, u32 dstip, bool calc_data)
 {
     u32 proto = ((packet_length + IPPROTO_TCP) << 8);
     u16 buf[2];
@@ -31,13 +43,16 @@ u16 tcpv4_calculate_checksum(const tcp_header *header, u16 packet_length, uint32
     r = __ipsum_unfolded(buf, sizeof(buf), r);
 
     if (calc_data)
-        r = __ipsum_unfolded(header, packet_length, r);
+    {
+        r = __ipsum_unfolded(header, pbf->tail - pbf->data, r);
+        r = tcp_data_csum(r, pbf);
+    }
 
     return ipsum_fold(r);
 }
 
-u16 tcpv6_calculate_checksum(const tcp_header *header, u16 packet_length, const in6_addr &srcip,
-                             const in6_addr &dstip, bool calc_data)
+u16 tcpv6_calculate_checksum(const tcp_header *header, u16 packet_length, struct packetbuf *pbf,
+                             const in6_addr &srcip, const in6_addr &dstip, bool calc_data)
 {
     u32 proto = htonl(IPPROTO_TCP);
     u32 pseudo_len = htonl(packet_length);
@@ -49,7 +64,10 @@ u16 tcpv6_calculate_checksum(const tcp_header *header, u16 packet_length, const 
     assert(header->checksum == 0);
 
     if (calc_data)
-        r = __ipsum_unfolded(header, packet_length, r);
+    {
+        r = __ipsum_unfolded(header, pbf->tail - pbf->data, r);
+        r = tcp_data_csum(r, pbf);
+    }
 
     return ipsum_fold(r);
 }
@@ -69,14 +87,15 @@ u16 tcpv6_calculate_checksum(const tcp_header *header, u16 packet_length, const 
  * @return uint16_t The internet checksum
  */
 template <int domain>
-uint16_t tcp_calculate_checksum(const tcp_header *header, uint16_t len, const inet_route::addr &src,
-                                const inet_route::addr &dest, bool do_rest_of_packet = true)
+uint16_t tcp_calculate_checksum(const tcp_header *header, uint16_t len, struct packetbuf *pbf,
+                                const inet_route::addr &src, const inet_route::addr &dest,
+                                bool do_rest_of_packet = true)
 {
     uint16_t result = 0;
     if constexpr (domain == AF_INET6)
-        result = tcpv6_calculate_checksum(header, len, src.in6, dest.in6, do_rest_of_packet);
+        result = tcpv6_calculate_checksum(header, len, pbf, src.in6, dest.in6, do_rest_of_packet);
     else
-        result = tcpv4_calculate_checksum(header, len, src.in4.s_addr, dest.in4.s_addr,
+        result = tcpv4_calculate_checksum(header, len, pbf, src.in4.s_addr, dest.in4.s_addr,
                                           do_rest_of_packet);
 
     // Checksum offloading needs an unfolded checksum
@@ -110,7 +129,10 @@ static void tcp_init_sock(struct tcp_socket *sock)
     sock->sack_needs_send = 0;
     sock->nr_sacks = 0;
     INIT_LIST_HEAD(&sock->conn_queue);
+    INIT_LIST_HEAD(&sock->accept_queue);
     sock->connqueue_len = 0;
+    /* Default the send window to 4MiB */
+    sock->sk_sndbuf = 0x400000;
 }
 
 static __init void tcp_init()
@@ -202,6 +224,12 @@ static int tcp_sendpbuf(struct tcp_socket *sock, struct packetbuf *pbf)
         header_length += tcp_push_options(sock, pbf);
     }
 
+#if 0
+    pr_warn("segment len %u\n", segment_len);
+    for (int i = 0; i < 3; i++)
+        pr_warn("vec[%d]: page %p off %u len %u\n", i, pbf->page_vec[i].page,
+                pbf->page_vec[i].page_off, pbf->page_vec[i].length);
+#endif
     hdr = (struct tcp_header *) pbf_push_header(pbf, sizeof(struct tcp_header));
     memset(hdr, 0, sizeof(struct tcp_header));
     if (pbf->tpi.ack)
@@ -230,7 +258,7 @@ static int tcp_sendpbuf(struct tcp_socket *sock, struct packetbuf *pbf)
     }
 
     hdr->checksum = call_based_on_inet2(
-        sock, tcp_calculate_checksum, hdr, static_cast<uint16_t>(header_length + segment_len),
+        sock, tcp_calculate_checksum, hdr, static_cast<uint16_t>(header_length + segment_len), pbf,
         sock->route_cache.src_addr, sock->route_cache.dst_addr, need_csum);
 
     iflow flow{sock->route_cache, IPPROTO_TCP, sock->effective_domain() == AF_INET6};
@@ -305,7 +333,7 @@ static void tcp_prepare_nondata_header(struct tcp_socket *sock, struct packetbuf
     }
 
     hdr->checksum =
-        call_based_on_inet2(sock, tcp_calculate_checksum, hdr, header_len,
+        call_based_on_inet2(sock, tcp_calculate_checksum, hdr, header_len, pbf,
                             sock->route_cache.src_addr, sock->route_cache.dst_addr, need_csum);
 }
 
@@ -631,7 +659,7 @@ short tcp_poll(struct socket *sock_, void *poll_file, short events)
     {
         if (events & POLLIN)
         {
-            if (!list_is_empty(&sock->conn_queue))
+            if (!list_is_empty(&sock->accept_queue))
                 avail_events |= POLLIN;
             else
                 poll_wait_helper(poll_file, &sock->rx_wq);
@@ -651,7 +679,7 @@ short tcp_poll(struct socket *sock_, void *poll_file, short events)
 
     if (events & POLLOUT)
     {
-        if (!(sock->shutdown_state & SHUTDOWN_WR))
+        if (!(sock->shutdown_state & SHUTDOWN_WR) && sock_may_write(sock))
             avail_events |= POLLOUT;
     }
 
@@ -688,100 +716,174 @@ static void tcp_prepare_segment(struct tcp_socket *sock, struct packetbuf *pbf)
     }
 }
 
-static int tcp_write_alloc(struct tcp_socket *sock, const iovec *vec, size_t vec_len, size_t mss,
-                           size_t skip_first);
+static int tcp_write_alloc(struct tcp_socket *sock);
 
-static int tcp_append_write(struct tcp_socket *sock, const struct iovec *vec, size_t vec_len,
-                            size_t mss)
+static bool tcp_attempt_merge(struct packetbuf *pbf, struct page_frag *pf)
 {
-    size_t read_in_vec = 0;
-    packetbuf *pbf = NULL;
-    unsigned int packet_len = 0;
+    struct page_iov *iov = &pbf->page_vec[pbf->nr_vecs - 1];
 
-    if (list_is_empty(&sock->output_queue))
-        goto alloc_append;
-
-    pbf = list_last_entry(&sock->output_queue, struct packetbuf, list_node);
-    if (!vec_len)
-        return 0;
-
-    while ((packet_len = pbf_length(pbf)) < mss)
+    /* Okay, we have the last page_iov. Check if we can merge it, if not, check if we can append the
+     * page frag. */
+    if (likely(iov->page == pf->page && iov->page_off + iov->length == pf->offset))
     {
-        /* OOOH, we've got some room, let's expand! */
-        const uint8_t *ubuf = (uint8_t *) vec->iov_base + read_in_vec;
-        auto len = vec->iov_len - read_in_vec;
-        unsigned int to_expand = cul::clamp(len, mss - packet_len);
-        ssize_t st = pbf->expand_buffer(ubuf, to_expand);
-
-        if (st < 0)
-            return -ENOBUFS;
-
-        pbf->tpi.seq_len += to_expand;
-        read_in_vec += st;
-        if (read_in_vec == vec->iov_len)
+        iov->length += pf->len;
+        /* We already hold a ref, so drop the new one */
+        page_unref(pf->page);
+        /* And adjust the pbf data area if required */
+        if (pbf->nr_vecs == 1)
         {
-            vec++;
-            read_in_vec = 0;
-            vec_len--;
+            pbf->tail += pf->len;
+            pbf->end += pf->len;
         }
-
-        /* Good, we're finished. */
-        if (!vec_len)
-            return 0;
+        return true;
     }
 
-alloc_append:
-    return tcp_write_alloc(sock, vec, vec_len, mss, read_in_vec);
+    /* TODO: We can't use the last page_iov for legacy reasons */
+    if (unlikely(pbf->nr_vecs >= PBF_PAGE_IOVS - 1))
+        return false;
+    pbf->nr_vecs++;
+    iov++;
+    iov->page = pf->page;
+    iov->page_off = pf->offset;
+    iov->length = pf->len;
+    return true;
 }
 
-static int tcp_write_alloc(struct tcp_socket *sock, const iovec *vec, size_t vec_len, size_t mss,
-                           size_t skip_first)
+static u8 *ptr_from_frag(struct page_frag *pf)
 {
-    size_t added_from_vec = 0;
-    size_t vec_nr = 0;
-    while (vec_len)
+    return ((u8 *) PAGE_TO_VIRT(pf->page)) + pf->offset;
+}
+
+static int tcp_append_to_segment(struct tcp_socket *tp, struct packetbuf *pbf,
+                                 struct iovec_iter *iter)
+{
+    struct iovec iov;
+    unsigned int len, to_add;
+    struct page_frag pf;
+    int err;
+
+    int write_space = sock_write_space(tp);
+    if (write_space <= 0)
+        return -EWOULDBLOCK;
+
+    len = pbf_length(pbf);
+
+    while (len < tp->mss)
     {
-        struct packetbuf *pbf = pbf_alloc(GFP_KERNEL);
-        if (!pbf)
+        if (iter->empty())
+            break;
+        if (write_space == 0)
+            break;
+
+        iov = iter->curiovec();
+        to_add = min((unsigned int) iov.iov_len, (unsigned int) write_space);
+        to_add = min(to_add, tp->mss - len);
+        to_add = min(to_add, (unsigned int) PAGE_SIZE);
+
+        err = page_frag_alloc(&tp->sock_pfi, to_add, GFP_KERNEL, &pf);
+        if (err)
             return -ENOBUFS;
 
-        size_t iov_len = vec->iov_len;
-        if (vec_nr == 0)
+        /* Note: We cannot copy_from_iter because we don't yet know if this fragment will be valid
+         */
+        if (copy_from_user(ptr_from_frag(&pf), iov.iov_base, to_add) < 0)
         {
-            // We might be creating a new packet from a partial iov that already filled
-            // some other packet in the list.
-
-            iov_len -= skip_first;
+            page_unref(pf.page);
+            return -EFAULT;
         }
 
-        unsigned long max_payload = cul::clamp(iov_len - added_from_vec, mss);
-        unsigned long to_alloc = max_payload + PACKET_MAX_HEAD_LENGTH;
-
-        auto ubuf = (const uint8_t *) vec->iov_base + added_from_vec;
-
-        if (!pbf_allocate_space(pbf, to_alloc))
+        if (WARN_ON(!sock_charge_snd_bytes(tp, to_add)))
         {
-            pbf_free(pbf);
-            return -ENOBUFS;
+            /* This should not happen, since the send buf cannot suddenly shrink while we hold
+             * the socket lock. */
+            page_unref(pf.page);
+            break;
         }
 
-        pbf_reserve_headers(pbf, PACKET_MAX_HEAD_LENGTH);
-        auto st = pbf_expand_buffer(pbf, ubuf, max_payload);
-
-        tcp_prepare_segment(sock, pbf);
-        assert((size_t) st == max_payload);
-        added_from_vec += max_payload;
-        list_add_tail(&pbf->list_node, &sock->output_queue);
-
-        if (added_from_vec == iov_len)
+        if (unlikely(!tcp_attempt_merge(pbf, &pf)))
         {
-            added_from_vec = 0;
-            vec_len--;
-            vec++;
-            vec_nr++;
+            page_unref(pf.page);
+            sock_discharge_snd_bytes(tp, to_add);
+            break;
         }
+
+        pbf->total_len += pf.len;
+        len += pf.len;
+        write_space -= len;
+        pbf->tpi.seq_len += pf.len;
+        tp->snd_next += pf.len;
+        iter->advance(to_add);
     }
 
+    return iter->empty() ? 0 : -ENOSPC;
+}
+
+static int tcp_append_write(struct tcp_socket *sock, struct iovec_iter *iter, size_t mss, int flags)
+{
+    struct packetbuf *pbf = NULL;
+    int old_space;
+    int err;
+
+    while (!iter->empty())
+    {
+        if (!sock_may_write(sock))
+            goto wait_for_space;
+        if (list_is_empty(&sock->output_queue))
+            goto alloc_segment;
+
+        pbf = list_last_entry(&sock->output_queue, struct packetbuf, list_node);
+
+        err = tcp_append_to_segment(sock, pbf, iter);
+        if (err == -EWOULDBLOCK)
+            goto wait_for_space;
+        if (err != -ENOSPC)
+            return err;
+
+    alloc_segment:
+        err = tcp_write_alloc(sock);
+        if (err == -EWOULDBLOCK)
+            goto wait_for_space;
+        if (err)
+            return err;
+        continue;
+    wait_for_space:
+        if (flags & MSG_DONTWAIT)
+            return -EWOULDBLOCK;
+        /* Try to output */
+        tcp_output(sock);
+        old_space = sock_write_space(sock);
+        err = wait_for_event_socklocked_interruptible_2(&sock->rx_wq,
+                                                        sock_write_space(sock) > old_space, sock);
+        if (err == -EINTR)
+            return err;
+    }
+
+    return 0;
+}
+
+static void tcp_pbf_dtor(struct packetbuf *pbf)
+{
+    sock_discharge_pbf(pbf->sock, pbf);
+}
+
+static int tcp_write_alloc(struct tcp_socket *sock)
+{
+    struct packetbuf *pbf = pbf_alloc_sk(GFP_KERNEL, sock, MAX_TCP_HEADER_LENGTH);
+    if (!pbf)
+        return -ENOBUFS;
+
+    if (!sock_charge_pbf(sock, pbf))
+    {
+        /* Failed to charge write space, stop. */
+        pbf_free(pbf);
+        return -EAGAIN;
+    }
+
+    pbf->dtor = tcp_pbf_dtor;
+
+    pbf_reserve_headers(pbf, MAX_TCP_HEADER_LENGTH);
+    tcp_prepare_segment(sock, pbf);
+    list_add_tail(&pbf->list_node, &sock->output_queue);
     return 0;
 }
 
@@ -812,13 +914,14 @@ ssize_t tcp_sendmsg(struct socket *sock_, const msghdr *msg, int flags)
     if (len < 0)
         return len;
 
-    err = tcp_append_write(sock, msg->msg_iov, msg->msg_iovlen, sock->mss);
+    iovec_iter iter{{msg->msg_iov, (size_t) msg->msg_iovlen}, (size_t) len, IOVEC_USER};
+    err = tcp_append_write(sock, &iter, sock->mss, flags);
     if (err < 0)
-        return err;
+        return len - iter.bytes ?: err;
 
     err = tcp_output(sock);
     if (err < 0)
-        return err;
+        return len ?: err;
 
     return len;
 }
@@ -1037,6 +1140,8 @@ void tcp_destroy_sock(struct tcp_socket *sock)
 
     bst_for_every_entry_delete(&sock->out_of_order_tree, pbf, struct packetbuf, bst_node)
         pbf_put_ref(pbf);
+
+    WARN_ON(sock->sk_send_queued > 0);
     sock->unref();
 }
 
@@ -1113,15 +1218,17 @@ struct socket *tcp_accept(struct socket *sock_, int flags)
     int err;
 
     sock->socket_lock.lock();
-    err = wait_for_event_socklocked_interruptible_2(&sock->rx_wq, !list_is_empty(&sock->conn_queue),
-                                                    sock);
+    CHECK(sock->state == TCP_STATE_LISTEN);
+    err = wait_for_event_socklocked_interruptible_2(&sock->rx_wq,
+                                                    !list_is_empty(&sock->accept_queue), sock);
     if (err)
     {
         sock->socket_lock.unlock();
         return NULL;
     }
 
-    new_sock = list_first_entry(&sock->conn_queue, struct tcp_socket, conn_queue);
+    CHECK(!list_is_empty(&sock->accept_queue));
+    new_sock = list_first_entry(&sock->accept_queue, struct tcp_socket, conn_queue);
     list_remove(&new_sock->conn_queue);
     sock->socket_lock.unlock();
     return new_sock;
@@ -1130,6 +1237,13 @@ struct socket *tcp_accept(struct socket *sock_, int flags)
 static int tcp_getsockopt(struct socket *, int level, int optname, void *optval, socklen_t *optlen);
 static int tcp_setsockopt(struct socket *, int level, int optname, const void *optval,
                           socklen_t optlen);
+
+static void tcp_write_space(struct socket *sock)
+{
+    struct tcp_socket *tp = TCP_SOCK(sock);
+    /* This looks... overeager to wake up? */
+    wait_queue_wake_all(&tp->rx_wq);
+}
 
 const struct socket_ops tcp_ops = {
     .destroy = cpp_destroy<tcp_socket>,
@@ -1147,13 +1261,14 @@ const struct socket_ops tcp_ops = {
     .close = tcp_close,
     .handle_backlog = tcp_handle_backlog,
     .poll = tcp_poll,
+    .write_space = tcp_write_space,
 };
 
 struct socket *tcp_create_socket(int type)
 {
     struct tcp_socket *sock = (struct tcp_socket *) kmem_cache_alloc(tcp_cache, GFP_ATOMIC);
-    /* Most init is done on the ctor's side, we do tcp-specific init here... What's really important
-     * is that the core socket is TYPESAFE_BY_RCU. */
+    /* Most init is done on the ctor's side, we do tcp-specific init here... What's really
+     * important is that the core socket is TYPESAFE_BY_RCU. */
     if (sock)
     {
         new (sock) tcp_socket;
@@ -1240,9 +1355,9 @@ int tcp_send_synack(struct tcp_connreq *conn)
               (TCP_FLAG_SYN | TCP_FLAG_ACK));
 
     hdr->checksum = conn->tc_domain == AF_INET
-                        ? tcpv4_calculate_checksum(hdr, header_len, route->dst_addr.in4.s_addr,
+                        ? tcpv4_calculate_checksum(hdr, header_len, pbf, route->dst_addr.in4.s_addr,
                                                    route->src_addr.in4.s_addr, true)
-                        : tcpv6_calculate_checksum(hdr, header_len, route->dst_addr.in6,
+                        : tcpv6_calculate_checksum(hdr, header_len, pbf, route->dst_addr.in6,
                                                    route->src_addr.in6, true);
     iflow flow{*route, IPPROTO_TCP, conn->tc_domain == AF_INET6};
     if (conn->tc_domain == AF_INET)
@@ -1310,11 +1425,11 @@ void __tcp_send_rst(struct packetbuf *pbf, u32 seq, u32 ack_nr, int ack)
 
     hdr->checksum =
         pbf->domain == AF_INET
-            ? tcpv4_calculate_checksum(hdr, sizeof(struct tcp_header),
+            ? tcpv4_calculate_checksum(hdr, sizeof(struct tcp_header), rst_pbf,
                                        other_route->dst_addr.in4.s_addr,
                                        other_route->src_addr.in4.s_addr, true)
-            : tcpv6_calculate_checksum(hdr, sizeof(struct tcp_header), other_route->dst_addr.in6,
-                                       other_route->src_addr.in6, true);
+            : tcpv6_calculate_checksum(hdr, sizeof(struct tcp_header), rst_pbf,
+                                       other_route->dst_addr.in6, other_route->src_addr.in6, true);
     iflow flow{ex.value(), IPPROTO_TCP, pbf->domain == AF_INET6};
     if (pbf->domain == AF_INET)
         ip::v4::send_packet(flow, rst_pbf);
