@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 
 #include <onyx/net/icmp.h>
@@ -153,26 +155,27 @@ void inet_socket::copy_addr_to_sockaddr(const inet_sock_address &addr, sockaddr 
 
     if (domain == AF_INET)
     {
-        sockaddr_in addr;
-        addr.sin_family = effective_domain();
-        addr.sin_port = src_addr.port;
-        memset(addr.sin_zero, 0, sizeof(addr.sin_zero));
+        sockaddr_in sk_addr;
+        sk_addr.sin_family = effective_domain();
+        sk_addr.sin_port = addr.port;
+        sk_addr.sin_addr.s_addr = addr.in4.s_addr;
+        memset(sk_addr.sin_zero, 0, sizeof(sk_addr.sin_zero));
 
         // Note that memcpy is the only valid way to tell the compiler that we're not violating
         // any aliasing rules
-        memcpy(dst_addr, &addr, sizeof(addr));
-        *len = sizeof(addr);
+        memcpy(dst_addr, &sk_addr, sizeof(sk_addr));
+        *len = sizeof(sk_addr);
     }
     else if (domain == AF_INET6)
     {
-        sockaddr_in6 addr;
-        addr.sin6_family = effective_domain();
-        addr.sin6_port = src_addr.port;
-        addr.sin6_addr = src_addr.in6;
-        addr.sin6_flowinfo = 0; // TODO: Why do we not keep flowinfo?
-        addr.sin6_scope_id = src_addr.v6_scope_id;
+        sockaddr_in6 sk_addr;
+        sk_addr.sin6_family = effective_domain();
+        sk_addr.sin6_port = addr.port;
+        sk_addr.sin6_addr = addr.in6;
+        sk_addr.sin6_flowinfo = 0; // TODO: Why do we not keep flowinfo?
+        sk_addr.sin6_scope_id = src_addr.v6_scope_id;
 
-        memcpy(dst_addr, &addr, sizeof(addr));
-        *len = sizeof(addr);
+        memcpy(dst_addr, &sk_addr, sizeof(sk_addr));
+        *len = sizeof(sk_addr);
     }
 }
