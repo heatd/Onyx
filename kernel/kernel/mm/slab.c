@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 - 2024 Pedro Falcato
+ * Copyright (c) 2022 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -457,11 +457,17 @@ struct slab *kmem_pointer_to_slab(void *mem)
  */
 struct slab *kmem_pointer_to_slab_maybe(void *mem)
 {
-    unsigned long info = get_mapping_info(mem);
-    if (unlikely(!(info & PAGE_PRESENT)))
-        return NULL;
+    unsigned long phys;
+    if ((unsigned long) mem >= PHYS_BASE && (unsigned long) mem < PHYS_BASE_LIMIT)
+        phys = (unsigned long) mem - PHYS_BASE;
+    else
+    {
+        unsigned long info = get_mapping_info(mem);
+        if (unlikely(!(info & PAGE_PRESENT)))
+            return NULL;
+        phys = MAPPING_INFO_PADDR(info);
+    }
 
-    unsigned long phys = MAPPING_INFO_PADDR(info);
     struct page *page = phys_to_page(phys);
 
     struct slab *s = (struct slab *) page->priv;
