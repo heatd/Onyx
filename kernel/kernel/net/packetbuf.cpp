@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2024 Pedro Falcato
+ * Copyright (c) 2020 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -14,6 +14,7 @@
 #include <onyx/kunit.h>
 #include <onyx/mm/slab.h>
 #include <onyx/mm/vm_object.h>
+#include <onyx/net/socket.h>
 #include <onyx/new.h>
 #include <onyx/packetbuf.h>
 #include <onyx/refcount.h>
@@ -81,6 +82,7 @@ bool pbf_allocate_space(struct packetbuf *pbf, size_t length)
     pbf->net_header = pbf->transport_header = nullptr;
     pbf->data = pbf->tail = (unsigned char *) pbf->buffer_start;
     pbf->end = (unsigned char *) pbf->buffer_start + PAGE_SIZE;
+    pbf->nr_vecs = nr_pages;
 
     return true;
 }
@@ -139,6 +141,8 @@ void *packetbuf::put(unsigned int size)
  */
 packetbuf::~packetbuf()
 {
+    if (dtor)
+        dtor(this);
     for (auto &v : page_vec)
     {
         if (v.page)
@@ -177,6 +181,7 @@ packetbuf *packetbuf_clone(packetbuf *original)
     buf->domain = original->domain;
     buf->route = original->route;
     buf->tpi = original->tpi;
+    buf->nr_vecs = original->nr_vecs;
 
     return buf.release();
 }
@@ -403,6 +408,37 @@ struct packetbuf *pbf_alloc(gfp_t gfp)
     if (!pbf)
         return nullptr;
     new (pbf) struct packetbuf;
+    return pbf;
+}
+
+struct packetbuf *pbf_alloc_sk(gfp_t gfp, struct socket *sock, unsigned int len)
+{
+    struct page_frag f;
+    struct packetbuf *pbf;
+
+    pbf = pbf_alloc(gfp);
+    if (!pbf)
+        return NULL;
+
+    len = ALIGN_TO(len, 4);
+    if (page_frag_alloc(&sock->sock_pfi, len, gfp, &f) < 0)
+    {
+        pbf_free(pbf);
+        return NULL;
+    }
+
+    pbf->page_vec[0].page = f.page;
+    pbf->page_vec[0].page_off = f.offset;
+    pbf->page_vec[0].length = f.len;
+
+    pbf->buffer_start = (char *) PAGE_TO_VIRT(f.page) + f.offset;
+    pbf->net_header = pbf->transport_header = NULL;
+    pbf->data = pbf->tail = (unsigned char *) pbf->buffer_start;
+    pbf->end = (unsigned char *) pbf->buffer_start + f.len;
+    pbf->sock = sock;
+    pbf->total_len = sizeof(struct packetbuf) + f.len;
+    pbf->nr_vecs = 1;
+
     return pbf;
 }
 

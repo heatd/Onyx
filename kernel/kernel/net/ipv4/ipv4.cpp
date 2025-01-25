@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -431,7 +431,7 @@ int handle_packet(netif *nif, packetbuf *buf)
     buf->data += iphdr_len;
 
     /* Adjust tail to point at the end of the ipv4 packet */
-    buf->tail = (unsigned char *) header + ntohs(header->total_len);
+    buf->tail = cul::min(buf->end, (unsigned char *) header + ntohs(header->total_len));
 
     inet_route route;
     route.dst_addr.in4.s_addr = header->dest_ip;

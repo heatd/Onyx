@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2024 Pedro Falcato
+ * Copyright (c) 2020 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -97,10 +97,12 @@ struct packetbuf
     uint16_t gso_size;
 
     uint8_t gso_flags;
+    u8 nr_vecs;
 
     unsigned int needs_csum : 1;
     unsigned int zero_copy : 1;
     int domain;
+    unsigned int total_len;
 
 /* The next bytes are always available for protocols. */
 #define PACKETBUF_PROTO_SPACE 64
@@ -119,6 +121,9 @@ struct packetbuf
         struct tcp_packetbuf_info tpi;
     };
 
+    struct socket *sock;
+    void (*dtor)(struct packetbuf *pbf);
+
 #ifdef __cplusplus
     /**
      * @brief Construct a new default packetbuf object.
@@ -130,6 +135,9 @@ struct packetbuf
           header_length{}, gso_size{}, gso_flags{}, needs_csum{0}, zero_copy{0}, domain{0}
     {
         route = {};
+        sock = NULL;
+        dtor = NULL;
+        nr_vecs = 0;
     }
 
     /**
@@ -439,6 +447,7 @@ static inline void pbf_put_ref(struct packetbuf *pbf)
 typedef unsigned int gfp_t;
 
 struct packetbuf *pbf_alloc(gfp_t gfp);
+struct packetbuf *pbf_alloc_sk(gfp_t gfp, struct socket *sock, unsigned int len);
 
 __END_CDECLS
 

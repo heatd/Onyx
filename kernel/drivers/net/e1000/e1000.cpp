@@ -290,7 +290,7 @@ struct page_frag_res
 
 /* TODO: Put this in an actual header */
 
-extern "C" struct page_frag_res page_frag_alloc(struct page_frag_alloc_info *inf, size_t size)
+extern "C" struct page_frag_res page_frag_alloc2(struct page_frag_alloc_info *inf, size_t size)
 {
     assert(size <= PAGE_SIZE);
 
@@ -352,7 +352,7 @@ int e1000_init_rx(struct e1000_device *dev)
 
     for (unsigned int i = 0; i < number_rx_desc; i++)
     {
-        struct page_frag_res res = page_frag_alloc(&alloc_info, rx_buffer_size);
+        struct page_frag_res res = page_frag_alloc2(&alloc_info, rx_buffer_size);
         /* How can this even happen? Keep this here though, as a sanity check */
         if (!res.page)
             panic("OOM allocating rx buffers");

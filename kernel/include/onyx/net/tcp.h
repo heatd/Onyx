@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2024 Pedro Falcato
+ * Copyright (c) 2020 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -207,6 +207,7 @@ struct tcp_socket : public inet_socket
     unsigned int nr_sacks;
     int mss_for_ack;
 
+    struct list_head accept_queue;
     struct list_head conn_queue;
     int connqueue_len;
 };
