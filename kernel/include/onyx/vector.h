@@ -131,6 +131,10 @@ public:
     bool alloc_buf(size_t size)
     {
         auto old_log = log;
+
+        if (size == 0)
+            return true;
+
         auto _log = ilog2(size);
         if (size & ((1 << _log) - 1))
             _log++;
