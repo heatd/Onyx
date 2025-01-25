@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 - 2024 Pedro Falcato
+ * Copyright (c) 2022 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -150,8 +150,8 @@ static const char *type_check_kinds[] = {"load of",
 
 void ubsan_report_start(const ubsan_source_location *location, const char *description)
 {
-    printk("===================================UBSAN error===================================\n");
-    printk("ubsan: %s in %s:%d:%d\n", description, location->filename, location->line,
+    pr_err("===================================UBSAN error===================================\n");
+    pr_err("ubsan: %s in %s:%d:%d\n", description, location->filename, location->line,
            location->column);
 }
 
@@ -184,7 +184,7 @@ static void ubsan_report_end()
 {
     if (!die_on_every_ubsan)
         WARN_ON(1);
-    printk("=================================================================================\n");
+    pr_err("=================================================================================\n");
     if (die_on_every_ubsan) [[unlikely]]
         ubsan_abort();
 }
@@ -192,7 +192,7 @@ static void ubsan_report_end()
 static void do_ubsan_type_mismatch_nullptr(const ubsan_type_mismatch_data *data, size_t ptr)
 {
     ubsan_report_start(&data->location, "Null pointer dereference");
-    printk("%s null pointer of type %s\n", type_check_kinds[data->type_check_kind],
+    pr_err("%s null pointer of type %s\n", type_check_kinds[data->type_check_kind],
            data->type->typename_);
     ubsan_report_end();
 }
@@ -200,7 +200,7 @@ static void do_ubsan_type_mismatch_nullptr(const ubsan_type_mismatch_data *data,
 static void do_ubsan_type_mismatch_unaligned(const ubsan_type_mismatch_data *data, size_t ptr)
 {
     ubsan_report_start(&data->location, "Unaligned access");
-    printk("%s unaligned pointer %p of type %s (alignment %zu)\n",
+    pr_err("%s unaligned pointer %p of type %s (alignment %zu)\n",
            type_check_kinds[data->type_check_kind], (void *) ptr, data->type->typename_,
            data->alignment);
     ubsan_report_end();
@@ -209,7 +209,7 @@ static void do_ubsan_type_mismatch_unaligned(const ubsan_type_mismatch_data *dat
 static void do_ubsan_type_mismatch_objsize(const ubsan_type_mismatch_data *data, size_t ptr)
 {
     ubsan_report_start(&data->location, "Insufficient object size");
-    printk("%s address %p with insuficient space for type %s\n",
+    pr_err("%s address %p with insuficient space for type %s\n",
            type_check_kinds[data->type_check_kind], (void *) ptr, data->type->typename_);
     ubsan_report_end();
 }
@@ -262,7 +262,7 @@ struct ubsan_ptr_overflow_data
 USED void __ubsan_handle_pointer_overflow(ubsan_ptr_overflow_data *data, size_t Base, size_t Result)
 {
     ubsan_report_start(&data->location, "ptr overflow");
-    printk("ptr operation overflowed %p to %p\n", (void *) Base, (void *) Result);
+    pr_err("ptr operation overflowed %p to %p\n", (void *) Base, (void *) Result);
     ubsan_report_end();
 }
 
@@ -301,10 +301,10 @@ USED void __ubsan_handle_invalid_builtin(ubsan_invalid_builtin_data *data)
         case BCK_CTZ_ZERO:
             builtin_func = "ctz()";
         clz_ctz:
-            printk("Passed 0 to %s\n", builtin_func);
+            pr_err("Passed 0 to %s\n", builtin_func);
             break;
         default:
-            printk("Invalid builtin error (Kind %u)\n", data->kind);
+            pr_err("Invalid builtin error (Kind %u)\n", data->kind);
             break;
     }
 
@@ -334,7 +334,7 @@ static void ubsan_handle_integer_overflow(const ubsan_overflow_data *data, size_
 
     ubsan_report_start(&data->location, "Integer overflow");
 
-    printk("%s integer overflow: %s %s %s can't be represented in type %s",
+    pr_err("%s integer overflow: %s %s %s can't be represented in type %s",
            signed_ ? "signed" : "unsigned", lhs_v.to_string().c_str(), op,
            rhs_v.to_string().c_str(), data->type->typename_);
     ubsan_report_end();
@@ -360,7 +360,7 @@ USED void __ubsan_handle_negate_overflow(ubsan_overflow_data *data, size_t value
 {
     val v{value, data->type};
     ubsan_report_start(&data->location, "Negation overflow");
-    printk("Negation of %s cannot be represented in type %s\n", v.to_string().c_str(),
+    pr_err("Negation of %s cannot be represented in type %s\n", v.to_string().c_str(),
            data->type->typename_);
     ubsan_report_end();
 }
@@ -379,13 +379,13 @@ USED void __ubsan_handle_divrem_overflow(ubsan_overflow_data *data, size_t lhs, 
 
     if (ubsan_type_is_signed_int(data->type) && (ssize_t) rhs == -1)
     {
-        printk("division of %s by -1 cannot be represented in type %s\n", lhsv.to_string().c_str(),
+        pr_err("division of %s by -1 cannot be represented in type %s\n", lhsv.to_string().c_str(),
                data->type->typename_);
     }
     else
     {
         assert(ubsan_type_is_int(data->type));
-        printk("division of %s by zero\n", lhsv.to_string().c_str());
+        pr_err("division of %s by zero\n", lhsv.to_string().c_str());
     }
 
     ubsan_report_end();
@@ -413,23 +413,23 @@ void ubsan_handle_shift_out_of_bounds(const ubsan_shift_oob_data *data, ssize_t 
 
     if (ubsan_type_is_signed_int(rhs_t) && rhs < 0)
     {
-        printk("shift exponent %zd is negative\n", rhs);
+        pr_err("shift exponent %zd is negative\n", rhs);
     }
     else if ((size_t) rhs >= ubsan_type_get_int_width(lhs_t))
     {
-        printk("shift exponent %zu is too large for %zu-bit type %s\n", rhs,
+        pr_err("shift exponent %zu is too large for %zu-bit type %s\n", rhs,
                ubsan_type_get_int_width(lhs_t), lhs_t->typename_);
     }
     else
     {
         if (ubsan_type_is_signed_int(lhs_t) && lhs < 0)
         {
-            printk("left shift of negative type %s\n", lhs_t->typename_);
+            pr_err("left shift of negative type %s\n", lhs_t->typename_);
         }
         else
         {
             val v{(size_t) lhs, lhs_t};
-            printk("left shift of %s by %zu places cannot be represented in type %s\n",
+            pr_err("left shift of %s by %zu places cannot be represented in type %s\n",
                    v.to_string().c_str(), (size_t) rhs, lhs_t->typename_);
         }
     }
@@ -460,7 +460,7 @@ static void ubsan_handle_out_of_bounds(const ubsan_out_of_bounds_data *data, siz
 {
     val v{lhs, data->index_type};
     ubsan_report_start(&data->location, "out of bounds");
-    printk("index %s out of range for type %s (%zx)\n", v.to_string().c_str(),
+    pr_err("index %s out of range for type %s (%zx)\n", v.to_string().c_str(),
            data->array_type->typename_, lhs);
     ubsan_report_end();
 }
@@ -498,7 +498,7 @@ struct ubsan_nonnull_arg_data
 USED void __ubsan_handle_nonnull_arg(struct ubsan_nonnull_arg_data *data)
 {
     ubsan_report_start(&data->location, "nonnull-argument");
-    printk("null pointer passed as argument %d, specified non-null\n", data->arg_index);
+    pr_err("null pointer passed as argument %d, specified non-null\n", data->arg_index);
     ubsan_report_end();
 }
 
@@ -517,7 +517,7 @@ struct ubsan_nonnull_return_data
 USED void __ubsan_handle_nonnull_return(ubsan_nonnull_return_data *data)
 {
     ubsan_report_start(&data->location, "nonnull return");
-    printk("Returning a null pointer from function declared to never return null\n");
+    pr_err("Returning a null pointer from function declared to never return null\n");
     ubsan_report_end();
 }
 
@@ -547,7 +547,7 @@ USED void __ubsan_handle_load_invalid_value(ubsan_invalid_value_data *data, size
 {
     val v{value, data->type};
     ubsan_report_start(&data->location, "load invalid value");
-    printk("load of value %s, which is not a valid value for type %s\n", v.to_string().c_str(),
+    pr_err("load of value %s, which is not a valid value for type %s\n", v.to_string().c_str(),
            data->type->typename_);
     ubsan_report_end();
 }
@@ -567,7 +567,7 @@ struct ubsan_vla_bound_data
 USED void __ubsan_handle_vla_bound_not_positive(ubsan_vla_bound_data *data, ssize_t val)
 {
     ubsan_report_start(&data->location, "vla bound not positive");
-    printk("vla bound not positive (%zd)\n", val);
+    pr_err("vla bound not positive (%zd)\n", val);
     ubsan_report_end();
 }
 
