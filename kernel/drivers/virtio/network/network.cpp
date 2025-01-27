@@ -175,27 +175,24 @@ bool network_vdev::setup_rx()
 
 void network_vdev::process_packet(unsigned long paddr, unsigned long len)
 {
+    struct packetbuf *pbf;
     auto packet_base = PHYS_TO_VIRT(paddr);
-    auto pckt = make_refc<packetbuf>();
-    if (!pckt)
-        return;
-
     auto real_len = len - sizeof(virtio_net_hdr);
     auto header = (virtio_net_hdr *) packet_base;
 
-    if (!pckt->allocate_space(real_len))
+    pbf = pbf_alloc_rx(GFP_ATOMIC, real_len);
+    if (!pbf)
         return;
 
     if (header->flags & VIRTIO_NET_HDR_F_NEEDS_CSUM)
-    {
-        pckt->needs_csum = 1;
-    }
+        pbf->needs_csum = 1;
 
-    void *p = pckt->put(real_len);
+    void *p = pbf->put(real_len);
 
     memcpy(p, header + 1, real_len);
 
-    netif_process_pbuf(nif.get(), pckt.get());
+    netif_process_pbuf(nif.get(), pbf);
+    pbf_put_ref(pbf);
 }
 
 void network_vdev::handle_used_buffer(const virtq_used_elem &elem, virtq *vq)

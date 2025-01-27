@@ -288,11 +288,11 @@ static int tcp_input_syn_sent(struct tcp_socket *sock, struct packetbuf *pbf)
         {
             /* Remote host does not support window scaling, use the traditional defaults. */
             sock->rcv_wnd_shift = 0;
-            sock->rcv_wnd = UINT16_MAX;
         }
 
         /* ACK is cromulent, and this is a SYN-ACK. Good. */
         sock->rcv_next = hdr->sequence_number + 1;
+        sock->rcv_wup = sock->rcv_next;
         tcp_ack(sock, pbf, hdr);
         /* Window size on SYN and SYN ACK segments is never scaled. */
         sock->snd_wnd = ntohs(hdr->window_size);
@@ -548,9 +548,25 @@ static void tcp_attempt_ooo_queue(struct tcp_socket *sock)
     }
 }
 
+static void tcp_rmem_pbf_dtor(struct packetbuf *pbf)
+{
+    sock_discharge_rmem_pbf(pbf->sock, pbf);
+}
+
 static int tcp_queue_data(struct tcp_socket *sock, struct packetbuf *pbf)
 {
     int err = 0;
+
+    if (!sock_charge_rmem_pbf(sock, pbf))
+    {
+        /* No memory :( */
+        return TCP_DROP_NO_RMEM;
+    }
+
+    /* From now on, the dtor will take care of discharging the pbf */
+    pbf->sock = sock;
+    pbf->dtor = tcp_rmem_pbf_dtor;
+
     if (unlikely(sock->rcv_next != pbf->tpi.seq))
     {
         /* Schedule a duplicate ack since we're missing a packet. tcp_do_out_of_order will take care
@@ -595,7 +611,7 @@ static int tcp_sequence(const struct tcp_socket *sock, u32 seq, u32 end_seq)
     if (before(end_seq, sock->rcv_next))
         return TCP_DROP_UNCROMULENT1;
 
-    if (after(seq, sock->rcv_next + sock->rcv_wnd))
+    if (after(seq, sock->rcv_next + tcp_receive_window(sock)))
         return TCP_DROP_UNCROMULENT2;
 
     return 0;
@@ -767,7 +783,7 @@ static int tcp_input_conn(struct tcp_connreq *conn, struct packetbuf *pbf)
 
     sock->rcv_mss = conn->tc_domain == AF_INET ? 536 : 1220;
     sock->send_mss = conn->tc_our_mss;
-    sock->rcv_next = conn->tc_rcv_nxt;
+    sock->rcv_next = sock->rcv_wup = conn->tc_rcv_nxt;
     sock->snd_una = conn->tc_iss;
     sock->snd_next = sock->snd_una + 1;
     if (conn->tc_opts.has_mss)
@@ -776,6 +792,7 @@ static int tcp_input_conn(struct tcp_connreq *conn, struct packetbuf *pbf)
     {
         sock->snd_wnd = (u32) ntohs(hdr->window_size) << conn->tc_opts.snd_wnd_shift;
         sock->snd_wnd_shift = conn->tc_opts.snd_wnd_shift;
+        /* TODO: Fix all of this */
         sock->rcv_wnd = 0xffff * 128;
         sock->rcv_wnd_shift = conn->tc_opts.snd_wnd_shift;
     }
@@ -795,7 +812,6 @@ static int tcp_input_conn(struct tcp_connreq *conn, struct packetbuf *pbf)
 
     sock->dest_addr = conn->tc_dst;
     sock->src_addr = conn->tc_src;
-    pr_warn("src %pI4 dst %pI4\n", &sock->src_addr.in4, &sock->dest_addr.in4);
     sock->ipv4_on_inet6 = on_ipv4_mode;
     sock->route_cache = cul::move(conn->tc_route);
     sock->route_cache_valid = 1;

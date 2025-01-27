@@ -131,8 +131,9 @@ static void tcp_init_sock(struct tcp_socket *sock)
     INIT_LIST_HEAD(&sock->conn_queue);
     INIT_LIST_HEAD(&sock->accept_queue);
     sock->connqueue_len = 0;
-    /* Default the send window to 4MiB */
+    /* Default the send buf to 4MiB, and the rcv buf to 16MiB */
     sock->sk_sndbuf = 0x400000;
+    sock->sk_rcvbuf = 0x1000000;
 }
 
 static __init void tcp_init()
@@ -170,6 +171,13 @@ static bool tcp_nagle_can_send(struct tcp_socket *sock, struct packetbuf *buf, u
            list_is_empty(&sock->on_wire_queue);
 }
 
+static u8 tcp_calculate_win_scale(u32 win)
+{
+    /* We should pick the smallest window scale that allows us to express the given window size (in
+     * order to maximize window granularity) */
+    return (ilog2(win - 1) + 1) - 15;
+}
+
 static size_t tcp_push_options(struct tcp_socket *sock, struct packetbuf *pbf)
 {
     auto inet_hdr_len = sock->effective_domain() == AF_INET ? sizeof(ip_header) : sizeof(ip6hdr);
@@ -189,9 +197,9 @@ static size_t tcp_push_options(struct tcp_socket *sock, struct packetbuf *pbf)
     u8 *scale_opt = (u8 *) pbf_push_header(pbf, 3);
     scale_opt[0] = TCP_OPTION_WINDOW_SCALE;
     scale_opt[1] = 3;
-    scale_opt[2] = 8;
+    scale_opt[2] = tcp_calculate_win_scale(sock->rcv_wnd);
     options_len += 3;
-    sock->rcv_wnd_shift = 8;
+    sock->rcv_wnd_shift = scale_opt[2];
 
     u8 *sack_opt = (u8 *) pbf_push_header(pbf, 2);
     sack_opt[0] = TCP_OPTION_SACK_PERMITTED;
@@ -209,12 +217,43 @@ static size_t tcp_push_options(struct tcp_socket *sock, struct packetbuf *pbf)
     return options_len;
 }
 
+static u32 tcp_select_initial_win(struct tcp_socket *tp)
+{
+    return tp->sk_rcvbuf - READ_ONCE(tp->sk_rmem);
+}
+
+static u32 tcp_select_win(struct tcp_socket *tp)
+{
+    return tp->sk_rcvbuf - READ_ONCE(tp->sk_rmem);
+}
+
+static u16 tcp_select_wsize(struct tcp_socket *tp)
+{
+    u32 old_win, new_win;
+
+    new_win = tcp_select_win(tp);
+    old_win = tcp_receive_window(tp);
+    if (new_win < old_win)
+    {
+        /* The window can't shrink. So if the new window is smaller than the old one, clamp it to
+         * the old one. It is what it is. */
+        new_win = old_win;
+    }
+
+    tp->rcv_wup = tp->rcv_next;
+    tp->rcv_wnd = new_win;
+    if (unlikely(tp->rcv_wnd_shift == 0 && tp->rcv_wnd > UINT16_MAX))
+        return UINT16_MAX;
+    return tp->rcv_wnd >> tp->rcv_wnd_shift;
+}
+
 static int tcp_sendpbuf(struct tcp_socket *sock, struct packetbuf *pbf)
 {
     int err;
     struct tcp_header *hdr;
     unsigned int segment_len = pbf_length(pbf);
     size_t header_length = sizeof(struct tcp_header);
+    u16 winsize;
     u8 flags = 0;
 
     DCHECK(pbf->transport_header == NULL);
@@ -240,13 +279,23 @@ static int tcp_sendpbuf(struct tcp_socket *sock, struct packetbuf *pbf)
         flags |= TCP_FLAG_SYN;
     if (pbf->tpi.rst)
         flags |= TCP_FLAG_RST;
+    winsize = tcp_select_wsize(sock);
     hdr->ack_number = htonl(sock->rcv_next);
     hdr->sequence_number = htonl(pbf->tpi.seq);
     hdr->data_offset_and_flags =
         htons(TCP_MAKE_DATA_OFF(tcp_header_length_to_data_off(header_length)) | flags);
     hdr->dest_port = sock->dest_addr.port;
     hdr->source_port = sock->src_addr.port;
-    hdr->window_size = htons(sock->rcv_wnd >> sock->rcv_wnd_shift);
+    hdr->window_size = htons(winsize);
+
+    if (unlikely(pbf->tpi.syn))
+    {
+        /* The window scale does not apply for the initial SYN, so be careful with that. Truncate it
+         * temporarily to UINT16_MAX if we need to, else pass the calculated rcv_wnd */
+        if (sock->rcv_wnd_shift > 0)
+            hdr->window_size = sock->rcv_wnd > UINT16_MAX ? UINT16_MAX : htons(sock->rcv_wnd);
+    }
+
     bool need_csum = true;
 
     if (sock->can_offload_csum(sock->route_cache.nif, pbf))
@@ -319,7 +368,7 @@ static void tcp_prepare_nondata_header(struct tcp_socket *sock, struct packetbuf
     hdr->sequence_number = htonl(seq);
     hdr->dest_port = sock->dest_addr.port;
     hdr->source_port = sock->src_addr.port;
-    hdr->window_size = htons(sock->rcv_wnd >> sock->rcv_wnd_shift);
+    hdr->window_size = htons(tcp_select_wsize(sock));
     hdr->data_offset_and_flags =
         htons(TCP_MAKE_DATA_OFF(tcp_header_length_to_data_off(header_len)) | flags);
     bool need_csum = true;
@@ -510,7 +559,7 @@ int tcp_start_connection(struct tcp_socket *sock, int flags)
 
     sock->route_cache_valid = 1;
     sock->snd_wnd = UINT16_MAX;
-    sock->rcv_wnd = UINT16_MAX * 256;
+    sock->rcv_wnd = tcp_select_initial_win(sock);
 
     struct packetbuf *pbf = pbf_alloc(GFP_KERNEL);
     if (!pbf)
@@ -960,6 +1009,14 @@ out_err:
     return (struct packetbuf *) ERR_PTR(st);
 }
 
+static void tcp_update_rmem_window(struct tcp_socket *tp, size_t bytes_read)
+{
+    u32 old_win = tcp_receive_window(tp);
+    u32 new_win = tcp_select_win(tp);
+    if (new_win >= 2 * old_win && new_win > 0)
+        tcp_send_ack(tp);
+}
+
 static ssize_t tcp_recvmsg(struct socket *sock_, msghdr *msg, int flags)
 {
     size_t bytes_read = 0;
@@ -1018,8 +1075,13 @@ static ssize_t tcp_recvmsg(struct socket *sock_, msghdr *msg, int flags)
         bytes_read += read;
     }
 
-    msg->msg_controllen = 0;
+    if (bytes_read > 0 && !(flags & MSG_PEEK))
+    {
+        /* pbfs freed, communicate the new window if required */
+        tcp_update_rmem_window(sock, bytes_read);
+    }
 
+    msg->msg_controllen = 0;
     return bytes_read;
 }
 
@@ -1141,7 +1203,15 @@ void tcp_destroy_sock(struct tcp_socket *sock)
     bst_for_every_entry_delete(&sock->out_of_order_tree, pbf, struct packetbuf, bst_node)
         pbf_put_ref(pbf);
 
+    list_for_each_entry_safe (pbf, next, &sock->read_queue, list_node)
+    {
+        list_remove(&pbf->list_node);
+        pbf_free(pbf);
+    }
+
     WARN_ON(sock->sk_send_queued > 0);
+    if (WARN_ON(sock->sk_rmem > 0))
+        pr_warn("tcp: socket with leftover sk_rmem %u\n", sock->sk_rmem);
     sock->unref();
 }
 
