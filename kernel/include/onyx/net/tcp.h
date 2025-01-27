@@ -179,6 +179,8 @@ struct tcp_socket : public inet_socket
     u32 snd_next;
     /* First unseen sequence number */
     u32 rcv_next;
+    /* rcv_next at the time of the last window update */
+    u32 rcv_wup;
 
     /* Segment sequence number used for last window update */
     u32 snd_wl1;
@@ -240,6 +242,7 @@ enum tcp_drop_reason
     TCP_DROP_OUT_OF_ORDER,
     TCP_DROP_OOO_DUP,
     TCP_DROP_RST_ON_LISTEN,
+    TCP_DROP_NO_RMEM,
 };
 
 static inline bool tcp_state_is_fl(struct tcp_socket *sock, int flags)
@@ -284,5 +287,13 @@ void __tcp_send_rst(struct packetbuf *pbf, u32 seq, u32 ack_nr, int ack);
 void tcp_send_rst(struct tcp_socket *sock, struct packetbuf *pbf);
 void tcp_done_error(struct tcp_socket *sock, int err);
 void tcp_time_wait(struct tcp_socket *sock);
+
+static inline u32 tcp_receive_window(const struct tcp_socket *tp)
+{
+    s32 win = tp->rcv_wup + tp->rcv_wnd - tp->rcv_next;
+    if (win < 0)
+        win = 0;
+    return win;
+}
 
 #endif

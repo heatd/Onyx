@@ -12,6 +12,7 @@
 
 #include <onyx/compiler.h>
 #include <onyx/kunit.h>
+#include <onyx/local_lock.h>
 #include <onyx/mm/slab.h>
 #include <onyx/mm/vm_object.h>
 #include <onyx/net/socket.h>
@@ -182,6 +183,7 @@ packetbuf *packetbuf_clone(packetbuf *original)
     buf->route = original->route;
     buf->tpi = original->tpi;
     buf->nr_vecs = original->nr_vecs;
+    buf->total_len = original->total_len;
 
     return buf.release();
 }
@@ -436,6 +438,51 @@ struct packetbuf *pbf_alloc_sk(gfp_t gfp, struct socket *sock, unsigned int len)
     pbf->data = pbf->tail = (unsigned char *) pbf->buffer_start;
     pbf->end = (unsigned char *) pbf->buffer_start + f.len;
     pbf->sock = sock;
+    pbf->total_len = sizeof(struct packetbuf) + f.len;
+    pbf->nr_vecs = 1;
+
+    return pbf;
+}
+
+struct pbf_pcpu_rx_data
+{
+    struct page_frag_info pfi;
+};
+
+static PER_CPU_VAR(struct pbf_pcpu_rx_data pcpu_rx_data);
+static struct local_lock pcpu_rx_lock;
+
+struct packetbuf *pbf_alloc_rx(gfp_t gfp, unsigned int len)
+{
+    struct page_frag f;
+    struct packetbuf *pbf;
+    struct pbf_pcpu_rx_data *rx;
+
+    pbf = pbf_alloc(gfp);
+    if (!pbf)
+        return NULL;
+
+    local_lock(&pcpu_rx_lock);
+    rx = get_per_cpu_ptr(pcpu_rx_data);
+
+    len = ALIGN_TO(len, 4);
+    if (page_frag_alloc(&rx->pfi, len, gfp, &f) < 0)
+    {
+        pbf_free(pbf);
+        local_unlock(&pcpu_rx_lock);
+        return NULL;
+    }
+
+    local_unlock(&pcpu_rx_lock);
+
+    pbf->page_vec[0].page = f.page;
+    pbf->page_vec[0].page_off = f.offset;
+    pbf->page_vec[0].length = f.len;
+
+    pbf->buffer_start = (char *) PAGE_TO_VIRT(f.page) + f.offset;
+    pbf->net_header = pbf->transport_header = NULL;
+    pbf->data = pbf->tail = (unsigned char *) pbf->buffer_start;
+    pbf->end = (unsigned char *) pbf->buffer_start + f.len;
     pbf->total_len = sizeof(struct packetbuf) + f.len;
     pbf->nr_vecs = 1;
 

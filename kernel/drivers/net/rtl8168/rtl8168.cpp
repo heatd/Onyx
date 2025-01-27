@@ -437,9 +437,8 @@ int rtl8168_device::send_packet(packetbuf *buf)
 
 static int process_packet(netif *nif, rtl8168_rx_desc &desc)
 {
-    auto pckt = make_refc<packetbuf>();
-    if (!pckt)
-        return -ENOMEM;
+    struct packetbuf *pbf;
+    int err;
 
     unsigned int len = desc.status & RTL8168_RX_LENGTH_MASK;
     auto addr = ((uint64_t) desc.buffer_addr_high << 32) | desc.buffer_addr_low;
@@ -449,16 +448,18 @@ static int process_packet(netif *nif, rtl8168_rx_desc &desc)
     printk("Eth: %04x\n", ntohs(eth->ethertype));
     printk("Packet length %u\n", len);
 
-    if (!pckt->allocate_space(len))
+    pbf = pbf_alloc_rx(GFP_ATOMIC, len);
+    if (!pbf)
         return -ENOMEM;
+    pbf->needs_csum = 1;
 
-    pckt->needs_csum = 1;
-
-    void *p = pckt->put(len);
+    void *p = pbf->put(len);
 
     memcpy(p, PHYS_TO_VIRT(addr), len);
 
-    return netif_process_pbuf(nif, pckt.get());
+    err = netif_process_pbuf(nif, pbf);
+    pbf_put_ref(pbf);
+    return err;
 }
 
 /**

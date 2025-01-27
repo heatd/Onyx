@@ -129,26 +129,23 @@ static void e1000_init_busmastering(struct e1000_device *dev)
 
 int e1000_process_packet(netif *nif, e1000_rx_desc &desc)
 {
+    struct packetbuf *pbf;
+    int err;
     if (desc.errors != 0)
         return -EIO;
 
-    auto pckt = make_refc<packetbuf>();
-    if (!pckt)
-        return -ENOMEM;
-
-    if (!pckt->allocate_space(desc.length))
+    pbf = pbf_alloc_rx(GFP_ATOMIC, desc.length);
+    if (!pbf)
         return -ENOMEM;
 
     if (desc.status & (RSTA_IXSM))
-    {
-        pckt->needs_csum = 1;
-    }
+        pbf->needs_csum = 1;
 
-    void *p = pckt->put(desc.length);
-
+    void *p = pbf_put(pbf, desc.length);
     memcpy(p, PHYS_TO_VIRT(desc.addr), desc.length);
-
-    return netif_process_pbuf(nif, pckt.get());
+    err = netif_process_pbuf(nif, pbf);
+    pbf_put_ref(pbf);
+    return err;
 }
 
 int e1000_pollrx(netif *nif)

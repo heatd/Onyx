@@ -82,12 +82,14 @@ public:
     bool proto_needs_work : 1 {0};
     bool dead : 1 {0};
     bool sndbuf_locked : 1 {0};
+    bool rcvbuf_locked : 1 {0};
 
     struct list_head socket_backlog;
 
-    unsigned int rx_max_buf;
+    unsigned int sk_rcvbuf;
     unsigned int sk_sndbuf;
     unsigned sk_send_queued;
+    unsigned sk_rmem;
     int backlog;
     unsigned int shutdown_state;
 
@@ -102,12 +104,13 @@ public:
     /* Define a default constructor here */
     socket()
         : type{}, proto{}, domain{}, flags{}, sock_err{}, socket_lock{}, bound{}, connected{},
-          reuse_addr{false}, rx_max_buf{DEFAULT_RX_MAX_BUF}, sk_sndbuf{DEFAULT_TX_MAX_BUF},
+          reuse_addr{false}, sk_rcvbuf{DEFAULT_RX_MAX_BUF}, sk_sndbuf{DEFAULT_TX_MAX_BUF},
           shutdown_state{}, rcv_timeout{0}, snd_timeout{0}, sock_ops{}
     {
         INIT_LIST_HEAD(&socket_backlog);
         pfi_init(&sock_pfi);
         sk_send_queued = 0;
+        sk_rmem = 0;
     }
 
     virtual ~socket()
@@ -383,6 +386,44 @@ static inline void sock_discharge_snd_bytes(struct socket *sock, unsigned int by
 static inline void sock_discharge_pbf(struct socket *sock, struct packetbuf *pbf)
 {
     sock_discharge_snd_bytes(sock, pbf->total_len);
+}
+
+static inline bool sock_charge_rmem_bytes(struct socket *sock, unsigned int bytes)
+{
+    unsigned int queued = READ_ONCE(sock->sk_rmem), new_space, expected;
+    do
+    {
+        expected = queued;
+        new_space = queued + bytes;
+        if (new_space > sock->sk_sndbuf)
+            return false;
+        queued = cmpxchg_relaxed(&sock->sk_rmem, expected, new_space);
+    } while (queued != expected);
+    return true;
+}
+
+static inline bool sock_charge_rmem_pbf(struct socket *sock, struct packetbuf *pbf)
+{
+    return sock_charge_rmem_bytes(sock, pbf->total_len);
+}
+
+static inline void sock_discharge_rmem_bytes(struct socket *sock, unsigned int bytes)
+{
+    unsigned int queued = READ_ONCE(sock->sk_rmem), new_space, expected;
+    do
+    {
+        expected = queued;
+        new_space = queued - bytes;
+        WARN_ON(queued < new_space);
+        queued = cmpxchg_relaxed(&sock->sk_rmem, expected, new_space);
+    } while (queued != expected);
+
+    sock->sock_ops->write_space(sock);
+}
+
+static inline void sock_discharge_rmem_pbf(struct socket *sock, struct packetbuf *pbf)
+{
+    sock_discharge_rmem_bytes(sock, pbf->total_len);
 }
 
 __END_CDECLS

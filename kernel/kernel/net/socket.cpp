@@ -1010,7 +1010,7 @@ int socket::getsockopt_socket_level(int optname, void *optval, socklen_t *optlen
         }
 
         case SO_RCVBUF: {
-            return put_option(rx_max_buf, optval, optlen);
+            return put_option(sk_rcvbuf, optval, optlen);
         }
 
         case SO_SNDBUF: {
@@ -1042,7 +1042,10 @@ int socket::setsockopt_socket_level(int optname, const void *optval, socklen_t o
             if (ex.has_error())
                 return ex.error();
 
-            rx_max_buf = ex.value() * 2;
+            sk_rcvbuf = ex.value() * 2;
+            if (sk_rcvbuf < 2048)
+                sk_rcvbuf = 2048;
+            rcvbuf_locked = true;
             return 0;
         }
 
@@ -1053,6 +1056,8 @@ int socket::setsockopt_socket_level(int optname, const void *optval, socklen_t o
                 return ex.error();
 
             sk_sndbuf = ex.value() * 2;
+            if (sk_sndbuf < 2048)
+                sk_sndbuf = 2048;
             sndbuf_locked = true;
             return 0;
         }
