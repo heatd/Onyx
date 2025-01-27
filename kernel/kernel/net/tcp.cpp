@@ -171,7 +171,7 @@ static bool tcp_nagle_can_send(struct tcp_socket *sock, struct packetbuf *buf, u
            list_is_empty(&sock->on_wire_queue);
 }
 
-static u8 tcp_calculate_win_scale(u32 win)
+u8 tcp_calculate_win_scale(u32 win)
 {
     /* We should pick the smallest window scale that allows us to express the given window size (in
      * order to maximize window granularity) */
@@ -217,7 +217,7 @@ static size_t tcp_push_options(struct tcp_socket *sock, struct packetbuf *pbf)
     return options_len;
 }
 
-static u32 tcp_select_initial_win(struct tcp_socket *tp)
+u32 tcp_select_initial_win(struct tcp_socket *tp)
 {
     return tp->sk_rcvbuf - READ_ONCE(tp->sk_rmem);
 }
