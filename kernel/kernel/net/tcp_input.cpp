@@ -781,20 +781,25 @@ static int tcp_input_conn(struct tcp_connreq *conn, struct packetbuf *pbf)
     if (!sock)
         return -ENOMEM;
 
+    parent = conn->tc_sock;
     sock->rcv_mss = conn->tc_domain == AF_INET ? 536 : 1220;
     sock->send_mss = conn->tc_our_mss;
     sock->rcv_next = sock->rcv_wup = conn->tc_rcv_nxt;
     sock->snd_una = conn->tc_iss;
     sock->snd_next = sock->snd_una + 1;
+    sock->sk_rcvbuf = parent->sk_rcvbuf;
+    sock->sk_sndbuf = parent->sk_sndbuf;
+    sock->rcvbuf_locked = parent->rcvbuf_locked;
+    sock->sndbuf_locked = parent->sndbuf_locked;
+
     if (conn->tc_opts.has_mss)
         sock->rcv_mss = conn->tc_opts.mss;
     if (conn->tc_opts.has_window_scale)
     {
         sock->snd_wnd = (u32) ntohs(hdr->window_size) << conn->tc_opts.snd_wnd_shift;
         sock->snd_wnd_shift = conn->tc_opts.snd_wnd_shift;
-        /* TODO: Fix all of this */
-        sock->rcv_wnd = 0xffff * 128;
-        sock->rcv_wnd_shift = conn->tc_opts.snd_wnd_shift;
+        sock->rcv_wnd = tcp_select_initial_win(sock);
+        sock->rcv_wnd_shift = tcp_calculate_win_scale(sock->rcv_wnd);
     }
     else
     {
@@ -802,7 +807,6 @@ static int tcp_input_conn(struct tcp_connreq *conn, struct packetbuf *pbf)
         sock->snd_wnd = ntohs(hdr->window_size);
         sock->snd_wnd_shift = 0;
         sock->rcv_wnd_shift = 0;
-        sock->rcv_wnd = UINT16_MAX;
     }
 
     if (conn->tc_opts.sacking)

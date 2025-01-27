@@ -296,4 +296,7 @@ static inline u32 tcp_receive_window(const struct tcp_socket *tp)
     return win;
 }
 
+u32 tcp_select_initial_win(struct tcp_socket *tp);
+u8 tcp_calculate_win_scale(u32 win);
+
 #endif
