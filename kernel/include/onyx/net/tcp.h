@@ -299,4 +299,14 @@ static inline u32 tcp_receive_window(const struct tcp_socket *tp)
 u32 tcp_select_initial_win(struct tcp_socket *tp);
 u8 tcp_calculate_win_scale(u32 win);
 
+static inline u32 tcp_wnd_end(struct tcp_socket *tp)
+{
+    return tp->snd_una + tp->snd_wnd;
+}
+
+static inline u32 tcp_pbf_end_seq(struct packetbuf *pbf)
+{
+    return pbf->tpi.seq + pbf->tpi.seq_len - pbf->tpi.fin;
+}
+
 #endif
