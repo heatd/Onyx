@@ -167,8 +167,7 @@ static bool tcp_nagle_can_send(struct tcp_socket *sock, struct packetbuf *buf, u
 {
     // Note: pending_out_packets contains the packets that await an ACK (retransmission is done on
     // this list)
-    return (sock->snd_wnd >= sock->mss && buflen == sock->mss) ||
-           list_is_empty(&sock->on_wire_queue);
+    return buflen == sock->mss || list_is_empty(&sock->on_wire_queue);
 }
 
 u8 tcp_calculate_win_scale(u32 win)
@@ -499,6 +498,12 @@ void tcp_stop_retransmit(struct tcp_socket *sock)
     sock->retrans_pending = 0;
 }
 
+static bool tcp_snd_wnd_check(struct tcp_socket *tp, struct packetbuf *pbf)
+{
+    u32 end = tcp_pbf_end_seq(pbf);
+    return !after(end, tcp_wnd_end(tp));
+}
+
 #define TCP_OUTPUT_NO_OUTPUT 1
 
 int tcp_output(struct tcp_socket *sock)
@@ -509,7 +514,7 @@ int tcp_output(struct tcp_socket *sock)
     {
         unsigned int len = pbf_length(pbf);
         // Need to stop: the window doesn't allow us to send data
-        if (len > 0 && sock->snd_wnd < len)
+        if (len > 0 && !tcp_snd_wnd_check(sock, pbf))
             break;
 
         // If we're on nagle and nagle doesn't allow us to send, stop sending

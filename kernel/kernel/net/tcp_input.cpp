@@ -105,7 +105,7 @@ static int tcp_ack(struct tcp_socket *sock, struct packetbuf *pbuf, struct tcp_h
 {
     u32 ack = tcphdr->ack_number;
     u32 seq = pbuf->tpi.seq;
-    u32 old_win;
+    bool attempt_output = false;
 
     /* If the segment acks something not yet sent, send an ACK */
     if (after(ack, sock->snd_next))
@@ -123,11 +123,9 @@ static int tcp_ack(struct tcp_socket *sock, struct packetbuf *pbuf, struct tcp_h
         {
             sock->snd_wl1 = seq;
             sock->snd_wl2 = ack;
-            old_win = sock->snd_wnd;
             sock->snd_wnd = (u32) ntohs(tcphdr->window_size) << sock->snd_wnd_shift;
             /* Attempt to transmit if the new window may allow for it */
-            if (old_win < sock->snd_wnd && !list_is_empty(&sock->output_queue))
-                tcp_output(sock);
+            attempt_output = sock->snd_wnd > 0 && !list_is_empty(&sock->output_queue);
         }
     }
 
@@ -175,6 +173,8 @@ static int tcp_ack(struct tcp_socket *sock, struct packetbuf *pbuf, struct tcp_h
     if (list_is_empty(&sock->on_wire_queue))
         tcp_stop_retransmit(sock);
 
+    if (attempt_output)
+        tcp_output(sock);
     return 0;
 }
 
