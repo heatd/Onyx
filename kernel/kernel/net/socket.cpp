@@ -14,6 +14,7 @@
 #include <onyx/net/netkernel.h>
 #include <onyx/net/socket.h>
 #include <onyx/poll.h>
+#include <onyx/process.h>
 #include <onyx/scoped_lock.h>
 #include <onyx/utils.h>
 
@@ -1499,4 +1500,11 @@ int socket::setsockopt(int level, int optname, const void *optval, socklen_t opt
     if (level != SOL_SOCKET)
         return -ENOPROTOOPT;
     return setsockopt_socket_level(optname, optval, optlen);
+}
+
+int sock_stream_error(struct socket *sock, int err, int flags)
+{
+    if (err == -EPIPE && !(flags & MSG_NOSIGNAL))
+        kernel_raise_signal(SIGPIPE, get_current_process(), 0, NULL);
+    return err;
 }

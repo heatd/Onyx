@@ -426,6 +426,8 @@ static inline void sock_discharge_rmem_pbf(struct socket *sock, struct packetbuf
     sock_discharge_rmem_bytes(sock, pbf->total_len);
 }
 
+int sock_stream_error(struct socket *sock, int err, int flags);
+
 __END_CDECLS
 
 #endif
