@@ -951,16 +951,20 @@ ssize_t tcp_sendmsg(struct socket *sock_, const msghdr *msg, int flags)
     scoped_hybrid_lock g{sock->socket_lock, sock};
 
     if (sock->has_sock_err())
-        return sock->consume_sock_err();
+        return sock_stream_error(sock, sock->consume_sock_err(), flags);
 
-    if (!tcp_state_is_fl(sock, TCPF_STATE_CLOSE_WAIT | TCPF_STATE_ESTABLISHED))
+    if (sock->shutdown_state & SHUTDOWN_WR ||
+        !tcp_state_is_fl(sock, TCPF_STATE_CLOSE_WAIT | TCPF_STATE_ESTABLISHED))
     {
-        err = -ENOTCONN;
+        err = -EPIPE;
         if (sock->state == TCP_STATE_SYN_SENT)
+        {
             err = tcp_wait_conn(sock);
-        if (!err && sock->state != TCP_STATE_ESTABLISHED)
-            err = -ENOTCONN;
-        return err;
+            if (!err && sock->state != TCP_STATE_ESTABLISHED)
+                err = -ENOTCONN;
+        }
+
+        return sock_stream_error(sock, err, flags);
     }
 
     auto len = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
