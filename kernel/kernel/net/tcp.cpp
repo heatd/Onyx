@@ -500,7 +500,8 @@ void tcp_stop_retransmit(struct tcp_socket *sock)
 
 static bool tcp_snd_wnd_check(struct tcp_socket *tp, struct packetbuf *pbf)
 {
-    u32 end = tcp_pbf_end_seq(pbf);
+    CHECK(pbf->tpi.seq == 0);
+    u32 end = tp->snd_next + tcp_pbf_end_seq(pbf);
     return !after(end, tcp_wnd_end(tp));
 }
 
@@ -520,6 +521,10 @@ int tcp_output(struct tcp_socket *sock)
         // If we're on nagle and nagle doesn't allow us to send, stop sending
         if (sock->nagle_enabled && !tcp_nagle_can_send(sock, pbf, len))
             break;
+
+        /* We're outputting this segment - assign snd_next and bump it */
+        pbf->tpi.seq = sock->snd_next;
+        sock->snd_next += pbf->tpi.seq_len;
 
         struct packetbuf *clone = packetbuf_clone(pbf);
         if (!clone)
@@ -758,16 +763,12 @@ static void tcp_prepare_segment(struct tcp_socket *sock, struct packetbuf *pbf)
     unsigned int flags = TCP_FLAG_ACK;
     pbf_init_tcp(pbf);
     auto segment_len = pbf_length(pbf);
-    pbf->tpi.seq = sock->snd_next;
+    pbf->tpi.seq = 0;
     pbf->tpi.seq_len = segment_len;
     pbf->tpi.ack = 1;
-    sock->snd_next += segment_len;
 
     if (flags & TCP_FLAG_FIN)
-    {
         pbf->tpi.seq_len++;
-        sock->snd_next++;
-    }
 }
 
 static int tcp_write_alloc(struct tcp_socket *sock);
@@ -865,7 +866,6 @@ static int tcp_append_to_segment(struct tcp_socket *tp, struct packetbuf *pbf,
         len += pf.len;
         write_space -= len;
         pbf->tpi.seq_len += pf.len;
-        tp->snd_next += pf.len;
         iter->advance(to_add);
     }
 
@@ -1110,7 +1110,7 @@ static int tcp_send_fin(struct tcp_socket *sock)
 
     pbf_reserve_headers(pbf, MAX_TCP_HEADER_LENGTH);
     pbf_init_tcp(pbf);
-    pbf->tpi.seq = sock->snd_next++;
+    pbf->tpi.seq = 0;
     pbf->tpi.seq_len = 1;
     pbf->tpi.ack = pbf->tpi.fin = 1;
     tcp_queue_packet(sock, pbf);
