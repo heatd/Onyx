@@ -305,7 +305,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, ubuntu-20.04]
+        os: [ubuntu-22.04]
         target_arch: [x86_64, riscv64, arm64]
         toolchain: [gnu]
         include:
