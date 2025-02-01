@@ -56,7 +56,7 @@ struct clocksource
 
 struct clock_time
 {
-    time_t epoch;
+    struct timespec time;
     hrtime_t measurement_timestamp;
 };
 
@@ -65,7 +65,7 @@ void register_clock_source(struct clocksource *clk);
 struct clocksource *get_main_clock(void);
 hrtime_t clock_delta_calc(hrtime_t start, hrtime_t end);
 hrtime_t clock_get_time(struct clocksource *c);
-void time_set(clockid_t clock, struct clock_time *val);
+void time_set(clockid_t clock, struct timespec *ts);
 int clock_gettime_kernel(clockid_t clk_id, struct timespec *tp);
 struct clock_time *get_raw_clock_time(clockid_t clkid);
 time_t clock_get_posix_time(void);

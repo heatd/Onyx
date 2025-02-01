@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -61,10 +61,8 @@ static void sample_wallclock()
         return;
 
     auto now = main_wallclock->get_posix_time();
-    struct clock_time time;
-    time.epoch = now;
-    time.measurement_timestamp = clocksource_get_time();
-    time_set(CLOCK_REALTIME, &time);
+    struct timespec ts = {.tv_sec = now};
+    time_set(CLOCK_REALTIME, &ts);
 }
 
 void register_clock_source(struct clocksource *clk)
@@ -116,22 +114,29 @@ time_t sys_time(time_t *s)
 {
     if (s)
     {
-        time_t posix = clocks[CLOCK_REALTIME].epoch;
+        time_t posix = clocks[CLOCK_REALTIME].time.tv_sec;
         if (copy_to_user(s, &posix, sizeof(time_t)) < 0)
             return -EFAULT;
     }
-    return clocks[CLOCK_REALTIME].epoch;
+    return clocks[CLOCK_REALTIME].time.tv_sec;
 }
 
 int clock_gettime_kernel(clockid_t clk_id, struct timespec *tp)
 {
+    struct clock_time *clk = &clocks[clk_id];
     switch (clk_id)
     {
         case CLOCK_REALTIME: {
             const hrtime_t now = clocksource_get_time();
-            const auto delta = now - clocks[clk_id].measurement_timestamp;
-            const auto epoch_ns = clocks[clk_id].epoch * NS_PER_SEC + delta;
-            hrtime_to_timespec(epoch_ns, tp);
+            const hrtime_t delta = now - clocks[clk_id].measurement_timestamp;
+            tp->tv_sec = clk->time.tv_sec + delta / NS_PER_SEC;
+            tp->tv_nsec = clk->time.tv_nsec + delta % NS_PER_SEC;
+            if (tp->tv_nsec >= (s64) NS_PER_SEC)
+            {
+                tp->tv_sec++;
+                tp->tv_nsec %= NS_PER_SEC;
+            }
+
             break;
         }
 
@@ -204,18 +209,49 @@ int sys_clock_gettime(clockid_t clk_id, struct timespec *tp)
     return 0;
 }
 
+extern "C" int sys_clock_settime(clockid_t clk_id, struct timespec *utp)
+{
+    struct timespec tp;
+
+    if (!is_root_user())
+        return -EPERM;
+
+    if (copy_from_user(&tp, utp, sizeof(tp)) < 0)
+        return -EFAULT;
+
+    /* Filter out bad clocks */
+    if (clk_id >= NR_CLOCKS || clk_id < 0)
+        return -EINVAL;
+
+    /* And filter out unsettable clocks */
+    switch (clk_id)
+    {
+        case CLOCK_MONOTONIC:
+        case CLOCK_MONOTONIC_RAW:
+        case CLOCK_MONOTONIC_COARSE:
+        case CLOCK_BOOTTIME:
+        case CLOCK_BOOTTIME_ALARM:
+        case CLOCK_THREAD_CPUTIME_ID:
+        case CLOCK_PROCESS_CPUTIME_ID:
+        case CLOCK_REALTIME_COARSE:
+        case CLOCK_REALTIME_ALARM:
+            return -EINVAL;
+    }
+
+    time_set(clk_id, &tp);
+    return 0;
+}
+
 uint64_t clock_delta_calc(uint64_t start, uint64_t end)
 {
     return end - start;
 }
 
-void time_set(clockid_t clock, struct clock_time *val)
+void time_set(clockid_t clock, struct timespec *ts)
 {
-    if (clocks[clock].epoch == val->epoch)
-        return;
-
-    clocks[clock] = *val;
-    vdso_update_time(clock, val);
+    struct clock_time time = {*ts, clocksource_get_time()};
+    clocks[clock] = time;
+    vdso_update_time(clock, &time);
 }
 
 struct clock_time *get_raw_clock_time(clockid_t clkid)

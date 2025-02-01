@@ -24,7 +24,7 @@ struct vdso_time
 
 struct vdso_clock_time
 {
-    time_t epoch;
+    struct timespec time;
     hrtime_t tick;
 };
 
