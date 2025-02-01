@@ -2884,5 +2884,22 @@
         ],
         "return_type": "int",
         "abi": "c"
+    },
+    {
+        "name": "clock_getres",
+        "nr": 164,
+        "nr_args": 2,
+        "args": [
+            [
+                "clockid_t",
+                "clk_id"
+            ],
+            [
+                "struct timespec *",
+                "tp"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
     }
 ]
