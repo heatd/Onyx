@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2021 Pedro Falcato
+ * Copyright (c) 2017 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -79,22 +79,23 @@ int __vdso_clock_gettime(clockid_t clk_id, struct timespec *tp)
         }
     }
 
-    hrtime_t epoch_ns = clk->epoch * NS_PER_SEC;
+    hrtime_t elapsed_ns = tsc_elapsed_ns(clk->tick, rdtsc());
+    tp->tv_sec = clk->time.tv_sec + elapsed_ns / NS_PER_SEC;
+    tp->tv_nsec = clk->time.tv_nsec + elapsed_ns % NS_PER_SEC;
+    if (tp->tv_nsec >= NS_PER_SEC)
+    {
+        tp->tv_sec++;
+        tp->tv_nsec %= NS_PER_SEC;
+    }
 
-    uint64_t end = rdtsc();
-    epoch_ns += tsc_elapsed_ns(clk->tick, end);
-
-    hrtime_to_timespec(epoch_ns, tp);
     return 0;
 }
 
 time_t __vdso_sys_time(time_t *s)
 {
-    time_t posix = clock_realtime.epoch;
+    time_t posix = clock_realtime.time.tv_sec;
     if (s)
-    {
         *s = posix;
-    }
     return posix;
 }
 

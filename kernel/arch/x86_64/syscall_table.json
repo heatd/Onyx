@@ -2911,5 +2911,22 @@
             ]
         ],
         "return_type": "int"
+    },
+    {
+        "name": "clock_settime",
+        "nr": 163,
+        "nr_args": 2,
+        "args": [
+            [
+                "clockid_t",
+                "clk_id"
+            ],
+            [
+                "struct timespec *",
+                "tp"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
     }
 ]

@@ -118,10 +118,8 @@ irqstatus_t rtc_irq(struct irq_context *ctx, void *cookie)
 
     if (irq_reason & RTC_STATUS_B_UEI)
     {
-        struct clock_time clk;
-        clk.epoch = get_posix_time();
-        clk.measurement_timestamp = clocksource_get_time();
-        time_set(CLOCK_REALTIME, &clk);
+        struct timespec ts = {.tv_sec = get_posix_time()};
+        time_set(CLOCK_REALTIME, &ts);
     }
 
     rtc_eoi();
@@ -170,10 +168,8 @@ int rtc_probe(struct device *device)
     if (binary_mode_enabled)
         INFO("rtc", "binary mode enabled\n");
 
-    struct clock_time clk;
-    clk.epoch = get_posix_time();
-    clk.measurement_timestamp = clocksource_get_time();
-    time_set(CLOCK_REALTIME, &clk);
+    struct timespec ts = {.tv_sec = get_posix_time()};
+    time_set(CLOCK_REALTIME, &ts);
 
     register_wallclock_source(&rtc_clock);
 

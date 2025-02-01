@@ -498,17 +498,20 @@ static uint64_t boot_ticks = 0;
 
 void apic_update_clock_monotonic()
 {
-    struct clock_time time;
-    time.epoch = boot_ticks / 1000;
+    time_t epoch = boot_ticks / 1000;
+    time_t nsec = 0;
 
     /* It's actually possible that no clocksource exists this early on */
     struct clocksource *source = get_main_clock();
     if (source)
     {
-        time.epoch = source->get_ns() / NS_PER_SEC;
+        nsec = source->get_ns();
+        epoch = nsec / NS_PER_SEC;
+        nsec %= NS_PER_SEC;
     }
 
-    time_set(CLOCK_MONOTONIC, &time);
+    struct timespec ts = {.tv_sec = epoch, .tv_nsec = nsec};
+    time_set(CLOCK_MONOTONIC, &ts);
 }
 
 void apic_set_oneshot(hrtime_t deadline);

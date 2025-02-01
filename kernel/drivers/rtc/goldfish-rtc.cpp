@@ -46,10 +46,8 @@ int goldfish_rtc_dev::init()
     if (!range_.init(rsrc_))
         return -ENOMEM;
 
-    struct clock_time clk;
-    clk.epoch = get_time();
-    clk.measurement_timestamp = clocksource_get_time();
-    time_set(CLOCK_REALTIME, &clk);
+    struct timespec ts = {.tv_sec = get_time()};
+    time_set(CLOCK_REALTIME, &ts);
     return 0;
 }
 

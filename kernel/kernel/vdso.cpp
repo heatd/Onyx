@@ -218,12 +218,11 @@ int vdso::update_time(clockid_t id, struct clock_time *time)
 
     /* If we didn't find the symbol/the clock isn't in the vdso, return an error */
     if (!t)
-        return errno = EINVAL, -1;
+        return -EINVAL;
 
     /* FIXME: Probably something like a seqlock would be good for this (like pvclock does) */
-    t->epoch = time->epoch;
+    *t = *time;
     t->measurement_timestamp = get_main_clock()->get_ticks();
-
     return 0;
 }
 
