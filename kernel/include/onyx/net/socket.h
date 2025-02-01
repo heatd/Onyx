@@ -417,8 +417,6 @@ static inline void sock_discharge_rmem_bytes(struct socket *sock, unsigned int b
         WARN_ON(queued < new_space);
         queued = cmpxchg_relaxed(&sock->sk_rmem, expected, new_space);
     } while (queued != expected);
-
-    sock->sock_ops->write_space(sock);
 }
 
 static inline void sock_discharge_rmem_pbf(struct socket *sock, struct packetbuf *pbf)
