@@ -242,6 +242,20 @@ extern "C" int sys_clock_settime(clockid_t clk_id, struct timespec *utp)
     return 0;
 }
 
+extern "C" int sys_clock_getres(clockid_t clk_id, struct timespec *utp)
+{
+    /* XXX this is not super correct, and doesn't work with future work on COARSE timers */
+    struct timespec tp = {.tv_sec = 0, .tv_nsec = 1};
+
+    /* Filter out bad clocks */
+    if (clk_id >= NR_CLOCKS || clk_id < 0)
+        return -EINVAL;
+
+    if (copy_to_user(utp, &tp, sizeof(tp)) < 0)
+        return -EFAULT;
+    return 0;
+}
+
 uint64_t clock_delta_calc(uint64_t start, uint64_t end)
 {
     return end - start;
