@@ -783,8 +783,19 @@ void inet_socket::unbind()
     proto_fam->unbind(this);
 }
 
+static void inet_rx_dtor(struct packetbuf *pbf)
+{
+    sock_discharge_rmem_pbf(pbf->sock, pbf);
+}
+
 void inet_socket::append_inet_rx_pbuf(packetbuf *buf)
 {
+    /* Make sure we charge rmem and add a dtor */
+    if (!sock_charge_rmem_pbf(this, buf))
+        return;
+    buf->sock = this;
+    buf->dtor = inet_rx_dtor;
+
     buf->ref();
 
     list_add_tail(&buf->list_node, &rx_packet_list);
