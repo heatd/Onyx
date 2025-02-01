@@ -107,20 +107,6 @@ uint16_t udp_calculate_checksum(struct udphdr *header, const inet_route::addr &s
     }
 }
 
-expected<ref_guard<packetbuf>, int> udp_create_pbuf(size_t payload_size, size_t headers_len)
-{
-    auto b = make_refc<packetbuf>();
-    if (!b)
-        return unexpected{-ENOMEM};
-
-    if (!b->allocate_space(payload_size + headers_len + sizeof(udphdr) + PACKET_MAX_HEAD_LENGTH))
-        return unexpected{-ENOMEM};
-
-    b->reserve_headers(headers_len + sizeof(udphdr) + PACKET_MAX_HEAD_LENGTH);
-
-    return b;
-}
-
 int udp_socket::bind(sockaddr *addr, socklen_t len)
 {
     auto fam = get_proto_fam();
@@ -184,17 +170,18 @@ void udp_prepare_headers(packetbuf *buf, in_port_t sport, in_port_t dport, size_
     udp_header->checksum = 0;
 }
 
-int udp_put_data(packetbuf *buf, const msghdr *msg, size_t length)
+static int udp_put_data(struct packetbuf *buf, struct iovec_iter *iter)
 {
-    unsigned char *ptr = (unsigned char *) buf->put((unsigned int) length);
+    unsigned char *ptr = (unsigned char *) buf->put((unsigned int) iter->bytes);
 
-    for (int i = 0; i < msg->msg_iovlen; i++)
+    while (!iter->empty())
     {
-        const auto &vec = msg->msg_iov[i];
+        const auto vec = iter->curiovec();
         if (copy_from_user(ptr, vec.iov_base, vec.iov_len) < 0)
             return -EFAULT;
 
         ptr += vec.iov_len;
+        iter->advance(vec.iov_len);
     }
 
     return 0;
@@ -252,6 +239,7 @@ ssize_t udp_socket::udp_sendmsg(const msghdr *msg, int flags, const inet_sock_ad
     if (payload_size > UINT16_MAX)
         return -EMSGSIZE;
 
+    iovec_iter iter{{msg->msg_iov, (size_t) msg->msg_iovlen}, (size_t) payload_size, IOVEC_USER};
     inet_route route;
 
     constexpr auto our_domain = inet_domain_type_v<AddrType>;
@@ -314,23 +302,33 @@ ssize_t udp_socket::udp_sendmsg(const msghdr *msg, int flags, const inet_sock_ad
      */
     if (!will_append) [[likely]]
     {
-        auto pbf_st = udp_create_pbuf(payload_size, inet_header_size(our_domain));
+        struct packetbuf *pbf;
 
-        if (pbf_st.has_error())
-            return pbf_st.error();
+        /* XXX: UDP is currently simplified a lot because pbf_alloc_sk allocates a single fragment,
+         * thus we can do away with only using the data area instead of carefully and painfully
+         * handling fragments.
+         */
+        pbf =
+            pbf_alloc_sk(GFP_KERNEL, this, payload_size + sizeof(udphdr) + PACKET_MAX_HEAD_LENGTH);
+        if (!pbf)
+            return -ENOBUFS;
+        pbf_reserve_headers(pbf, sizeof(udphdr) + PACKET_MAX_HEAD_LENGTH);
 
-        auto buf = pbf_st.value();
-
-        udp_prepare_headers(buf.get(), src_addr.port, dst.port, payload_size);
-
-        if (udp_put_data(buf.get(), msg, payload_size) < 0)
+        udp_prepare_headers(pbf, src_addr.port, dst.port, payload_size);
+        if (udp_put_data(pbf, &iter) < 0)
+        {
+            pbf_free(pbf);
             return -EFAULT;
+        }
 
-        udp_do_csum<our_domain>(buf.get(), route);
-
-        if (int st = udp_do_send<our_domain>(buf.get(), route); st < 0)
+        udp_do_csum<our_domain>(pbf, route);
+        if (int st = udp_do_send<our_domain>(pbf, route); st < 0)
+        {
+            pbf_free(pbf);
             return st;
+        }
 
+        pbf_put_ref(pbf);
         return payload_size;
     }
 
