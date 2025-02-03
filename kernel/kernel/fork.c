@@ -108,11 +108,16 @@ static int dup_fs(struct process *child)
 static int dup_sighand(struct process *child)
 {
     int i;
+    struct sighand_struct *sig = kmalloc(sizeof(*sig), GFP_KERNEL);
+    if (!sig)
+        return -ENOMEM;
 
-    spin_lock(&current->signal_lock);
+    sighand_init(sig);
+    child->sighand = sig;
+    spin_lock(&current->sighand->signal_lock);
     for (i = 0; i < _NSIG; i++)
-        child->sigtable[i] = current->sigtable[i];
-    spin_unlock(&current->signal_lock);
+        child->sighand->sigtable[i] = current->sighand->sigtable[i];
+    spin_unlock(&current->sighand->signal_lock);
     return 0;
 }
 
@@ -180,7 +185,10 @@ static pid_t kernel_clone(struct clone_args *args)
         goto err_put_files;
 
     if (flags & CLONE_SIGHAND)
-        WARN_ON(1);
+    {
+        child->sighand = current->sighand;
+        refcount_inc(&child->sighand->refs);
+    }
     else
         err = dup_sighand(child);
 
@@ -191,6 +199,8 @@ static pid_t kernel_clone(struct clone_args *args)
         WARN_ON(1);
     else
         err = dup_signal(child);
+    if (err < 0)
+        goto err_put_sighand;
 
     if (flags & CLONE_VM)
     {
@@ -263,6 +273,8 @@ static pid_t kernel_clone(struct clone_args *args)
 err_put_mm:
     mmput(child->address_space);
 err_put_signal:
+err_put_sighand:
+    exit_sighand(child);
 err_put_fs:
     exit_fs(child);
 err_put_files:

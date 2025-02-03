@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -114,8 +114,6 @@ process::process() : pgrp_node{this}, session_node{this}
     spinlock_init(&thread_list_lock);
     pid_ = 0;
     vdso = nullptr;
-    memset(sigtable, 0, sizeof(sigtable));
-    spinlock_init(&signal_lock);
     signal_group_flags = 0;
     exit_code = 0;
     personality = 0;
@@ -227,6 +225,11 @@ process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *p
     proc->fs->umask = S_IWOTH | S_IWGRP;
     proc->fs->cwd = proc->fs->root;
     path_get(&proc->fs->cwd);
+
+    proc->sighand = (struct sighand_struct *) kmalloc(sizeof(*proc->sighand), GFP_KERNEL);
+    CHECK(proc->sighand);
+    sighand_init(proc->sighand);
+    memset(proc->sighand->sigtable, 0, sizeof(proc->sighand->sigtable));
 
     session = pgrp = newpid;
     proc->init_default_limits();
@@ -439,7 +442,7 @@ bool process_wait_exit(process *child, wait_info &winfo)
     if (!(child->signal_group_flags & SIGNAL_GROUP_EXIT))
         return false;
 
-    scoped_lock g{child->signal_lock};
+    scoped_lock g{child->sighand->signal_lock};
 
     if (!(child->signal_group_flags & SIGNAL_GROUP_EXIT))
         return false;
@@ -470,7 +473,7 @@ bool process_wait_stop(process *child, wait_info &winfo)
     if (!(child->signal_group_flags & SIGNAL_GROUP_STOPPED))
         return false;
 
-    scoped_lock g{child->signal_lock};
+    scoped_lock g{child->sighand->signal_lock};
 
     if (!(child->signal_group_flags & SIGNAL_GROUP_STOPPED))
         return false;
@@ -504,7 +507,7 @@ bool process_wait_cont(process *child, wait_info &winfo)
     if (!(child->signal_group_flags & SIGNAL_GROUP_CONT))
         return false;
 
-    scoped_lock g{child->signal_lock};
+    scoped_lock g{child->sighand->signal_lock};
 
     if (!(child->signal_group_flags & SIGNAL_GROUP_CONT))
         return false;
@@ -726,6 +729,9 @@ void process_wait_for_dead_threads(process *process)
 void process_end(process *process)
 {
     process_wait_for_dead_threads(process);
+    /* For now, we have to exit_sighand here, because we need the signal lock in wait4. This is a
+     * little weird. */
+    exit_sighand(process);
     write_lock(&tasklist_lock);
     process_remove_from_list(process);
     process->~process();
@@ -807,6 +813,13 @@ void exit_fs(struct process *p)
         path_put(&fs->cwd);
         kfree(fs);
     }
+}
+
+void exit_sighand(struct process *p)
+{
+    struct sighand_struct *s = p->sighand;
+    if (refcount_dec_and_test(&s->refs))
+        kfree(s);
 }
 
 [[noreturn]] void process_exit(unsigned int exit_code)

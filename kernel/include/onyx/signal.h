@@ -12,6 +12,7 @@
 #include <stdbool.h>
 
 #include <onyx/list.h>
+#include <onyx/ref.h>
 #include <onyx/spinlock.h>
 
 #include <uapi/signal.h>
@@ -113,6 +114,20 @@ static inline bool signal_is_standard(int sig)
 #define THREAD_SIGNAL_STOPPING        (1 << 0)
 #define THREAD_SIGNAL_EXITING         (1 << 1)
 #define THREAD_SIGNAL_ORIGINAL_SIGSET (1 << 2)
+
+struct sighand_struct
+{
+    refcount_t refs;
+    struct spinlock signal_lock;
+    struct k_sigaction sigtable[_NSIG];
+};
+
+/* Note: sigtable not initialized */
+static inline void sighand_init(struct sighand_struct *s)
+{
+    s->refs = REFCOUNT_INIT(1);
+    spin_lock_init(&s->signal_lock);
+}
 
 struct process;
 
