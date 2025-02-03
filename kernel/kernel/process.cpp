@@ -106,7 +106,6 @@ process::process() : pgrp_node{this}, session_node{this}
 {
     init_wait_queue_head(&this->wait_child_event);
     mutex_init(&condvar_mutex);
-    spinlock_init(&ctx.fdlock);
     active_processes++;
     refcount = 0;
     flags = 0;
@@ -182,6 +181,12 @@ struct process *process_alloc(void)
     return proc.release();
 }
 
+static void ioctx_init(struct ioctx *ctx)
+{
+    memset(ctx, 0, sizeof(*ctx));
+    ctx->refs = REFCOUNT_INIT(1);
+}
+
 process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *parent)
 {
     /* FIXME: Failure here kinda sucks and is probably super leaky */
@@ -207,68 +212,28 @@ process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *p
     if (IS_ERR(newpid))
         return errno = PTR_ERR(newpid), nullptr;
 
-    proc->ctx.root = get_filesystem_root();
+    proc->ctx = (struct ioctx *) kmalloc(sizeof(struct ioctx), GFP_KERNEL);
+    if (!proc->ctx)
+        return errno = ENOMEM, nullptr;
+    ioctx_init(proc->ctx);
+    proc->fs = (struct fsctx *) kmalloc(sizeof(struct fsctx), GFP_KERNEL);
+    CHECK(proc->fs);
+    fsctx_init(proc->fs);
+    proc->fs->root = get_filesystem_root();
 
-    if (ctx)
-    {
-        spin_lock(&ctx->cwd_lock);
-        path_get(&ctx->cwd);
-        proc->ctx.cwd = ctx->cwd;
-        spin_unlock(&ctx->cwd_lock);
+    if (allocate_file_descriptor_table(proc) < 0)
+        return nullptr;
 
-        if (copy_file_descriptors(proc, ctx) < 0)
-            return nullptr;
-        proc->ctx.umask = READ_ONCE(ctx->umask);
-    }
-    else
-    {
-        if (allocate_file_descriptor_table(proc) < 0)
-            return nullptr;
+    proc->fs->umask = S_IWOTH | S_IWGRP;
+    proc->fs->cwd = proc->fs->root;
+    path_get(&proc->fs->cwd);
 
-        proc->ctx.umask = S_IWOTH | S_IWGRP;
-    }
-
-    if (parent)
-    {
-        /* Inherit the parent process' properties */
-        proc->personality = parent->personality;
-        proc->vdso = parent->vdso;
-        process_inherit_creds(proc, parent);
-
-        proc->image_base = parent->image_base;
-        proc->interp_base = parent->interp_base;
-        /* Inherit the signal handlers of the process and the
-         * signal mask of the current thread
-         */
-
-        {
-            scoped_lock g{proc->signal_lock};
-            memcpy(&proc->sigtable, &parent->sigtable, sizeof(k_sigaction) * _NSIG);
-        }
-
-        /* Note that the signal mask is inherited at thread creation */
-
-        /* Note that pending signals are zero'd, as per POSIX */
-
-        process_append_children(parent, proc);
-
-        proc->parent = parent;
-        pgrp = parent->process_group;
-        session = parent->session;
-        proc->flags = parent->flags;
-        proc->inherit_limits(parent);
-        // Inherit the controlling terminal
-        proc->ctty = parent->ctty;
-    }
-    else
-    {
-        session = pgrp = newpid;
-        proc->init_default_limits();
-        auto ex = mm_create();
-        if (IS_ERR(ex))
-            return errno = PTR_ERR(ex), nullptr;
-        proc->address_space = ex;
-    }
+    session = pgrp = newpid;
+    proc->init_default_limits();
+    auto ex = mm_create();
+    if (IS_ERR(ex))
+        return errno = PTR_ERR(ex), nullptr;
+    proc->address_space = ex;
 
     INIT_LIST_HEAD(&proc->thread_list);
 
@@ -761,11 +726,8 @@ void process_wait_for_dead_threads(process *process)
 void process_end(process *process)
 {
     process_wait_for_dead_threads(process);
-
     write_lock(&tasklist_lock);
     process_remove_from_list(process);
-    path_put(&process->ctx.cwd);
-    path_put(&process->ctx.root);
     process->~process();
 
     write_unlock(&tasklist_lock);
@@ -836,6 +798,17 @@ void process_kill_other_threads(void)
         cpu_relax();
 }
 
+void exit_fs(struct process *p)
+{
+    struct fsctx *fs = p->fs;
+    if (refcount_dec_and_test(&fs->refs))
+    {
+        path_put(&fs->root);
+        path_put(&fs->cwd);
+        kfree(fs);
+    }
+}
+
 [[noreturn]] void process_exit(unsigned int exit_code)
 {
     auto current_thread = get_current_thread();
@@ -857,7 +830,8 @@ void process_kill_other_threads(void)
 
     process_kill_other_threads();
 
-    process_destroy_file_descriptors(current);
+    exit_files(current);
+    exit_fs(current);
 
     /* We destroy the address space after fds because some close() routines may require address
      * space access */

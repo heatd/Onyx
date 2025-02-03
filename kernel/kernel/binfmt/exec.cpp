@@ -338,7 +338,7 @@ int flush_old_exec(struct exec_state *state)
     rwlock_init(&curr->address_space->vm_lock);
 
     /* Close O_CLOEXEC files */
-    file_do_cloexec(&curr->ctx);
+    file_do_cloexec(curr->ctx);
 
     st = vm_create_brk(curr->address_space);
 

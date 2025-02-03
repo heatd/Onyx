@@ -50,7 +50,7 @@ void fdtable_free(struct fd_table *table);
 
 static struct path get_current_directory()
 {
-    struct ioctx *ctx = &get_current_process()->ctx;
+    struct fsctx *ctx = get_current_process()->fs;
     struct path p;
     spin_lock(&ctx->cwd_lock);
     p = ctx->cwd;
@@ -169,7 +169,7 @@ bool fd_is_cloexec(int fd, struct fd_table *ctx)
 
 struct file *__get_file_description_unlocked(int fd, struct process *p)
 {
-    struct ioctx *ctx = &p->ctx;
+    struct ioctx *ctx = p->ctx;
 
     while (true)
     {
@@ -276,14 +276,14 @@ __always_inline auto_fd __fdget(int fd, u8 extra_flags)
 {
     struct process *p = get_current_process();
 
-    /* This is safe. nr_threads cannot increment from 1 as long as we're here (we are the only
+    /* This is safe. refs cannot increment from 1 as long as we're here (we are the only
      * thread).
      */
-    if (p->nr_threads > 1 || extra_flags & FDGET_SHARED)
+    struct ioctx *ctx = p->ctx;
+    if (refcount_read(&ctx->refs) > 1 || p->nr_threads > 1 || extra_flags & FDGET_SHARED)
         return auto_fd{__get_file_description(fd, p), extra_flags | FDGET_SHARED};
 
     /* Cheap single threaded array access */
-    struct ioctx *ctx = &p->ctx;
     struct fd_table *table = rcu_dereference(ctx->table);
     if (!validate_fd_number(fd, table))
         return errno = EBADF, auto_fd{nullptr, false};
@@ -314,7 +314,7 @@ auto_fd fdget_seek(int fd)
 expected<file *, int> __file_close_unlocked(int fd, struct process *p)
 {
     // printk("pid %d close %d\n", get_current_process()->pid, fd);
-    struct ioctx *ctx = &p->ctx;
+    struct ioctx *ctx = p->ctx;
     struct fd_table *table = ctx->table;
 
     if (!validate_fd_number(fd, table))
@@ -339,7 +339,7 @@ void filp_close(struct file *filp)
 
 int __file_close(int fd, struct process *p)
 {
-    struct ioctx *ctx = &p->ctx;
+    struct ioctx *ctx = p->ctx;
 
     spin_lock(&ctx->fdlock);
 
@@ -434,7 +434,7 @@ int copy_file_descriptors(struct process *process, struct ioctx *ctx)
     }
 
     spin_unlock(&ctx->fdlock);
-    rcu_assign_pointer(process->ctx.table, table);
+    rcu_assign_pointer(process->ctx->table, table);
     return 0;
 }
 
@@ -465,7 +465,7 @@ int allocate_file_descriptor_table(struct process *process)
         return -1;
     }
 
-    rcu_assign_pointer(process->ctx.table, table);
+    rcu_assign_pointer(process->ctx->table, table);
 
     return 0;
 }
@@ -487,7 +487,7 @@ static void defer_free_fd_table_rcu(fd_table *table_)
 static int enlarge_fdtable(struct process *process, unsigned int new_size)
 {
     int err = -ENOMEM;
-    struct fd_table *oldt = process->ctx.table;
+    struct fd_table *oldt = process->ctx->table;
     unsigned int old_nr_fds = oldt->file_desc_entries;
     struct fd_table *table = nullptr;
     struct file **ftable = nullptr;
@@ -499,7 +499,7 @@ static int enlarge_fdtable(struct process *process, unsigned int new_size)
         return -EMFILE;
 
     /* Can't allocate with the fdlock held... */
-    spin_unlock(&process->ctx.fdlock);
+    spin_unlock(&process->ctx->fdlock);
 
     table = fdtable_alloc();
     if (!table)
@@ -512,15 +512,15 @@ static int enlarge_fdtable(struct process *process, unsigned int new_size)
     if (!ftable || !cloexec_fds || !open_fds)
         goto error;
 
-    spin_lock(&process->ctx.fdlock);
-    if (process->ctx.table != oldt)
+    spin_lock(&process->ctx->fdlock);
+    if (process->ctx->table != oldt)
     {
         /* Someone changed the fd table while we were gone, retry */
         err = -EAGAIN;
         goto error_nolock;
     }
 
-    DCHECK(process->ctx.table->file_desc_entries == old_nr_fds);
+    DCHECK(process->ctx->table->file_desc_entries == old_nr_fds);
     /* Note that we use old_nr_fds for these copies specifically as to not go
      * out of bounds.
      */
@@ -533,13 +533,13 @@ static int enlarge_fdtable(struct process *process, unsigned int new_size)
     rcu_assign_pointer(table->cloexec_fds, cloexec_fds);
     rcu_assign_pointer(table->open_fds, open_fds);
 
-    rcu_assign_pointer(process->ctx.table, table);
+    rcu_assign_pointer(process->ctx->table, table);
     defer_free_fd_table_rcu(oldt);
 
     return 0;
 
 error:
-    spin_lock(&process->ctx.fdlock);
+    spin_lock(&process->ctx->fdlock);
 error_nolock:
     if (table)
         fdtable_free(table);
@@ -550,9 +550,8 @@ error_nolock:
     return err;
 }
 
-void process_destroy_file_descriptors(process *process)
+static void close_all_fds(struct ioctx *ctx)
 {
-    ioctx *ctx = &process->ctx;
     fd_table *table = ctx->table;
     file **ftable = table->file_desc;
 
@@ -568,6 +567,16 @@ void process_destroy_file_descriptors(process *process)
     defer_free_fd_table_rcu(table);
 }
 
+void exit_files(struct process *process)
+{
+    struct ioctx *ctx = process->ctx;
+    if (refcount_dec_and_test(&ctx->refs))
+    {
+        close_all_fds(ctx);
+        kfree(ctx);
+    }
+}
+
 int alloc_fd(int fdbase)
 {
     auto current = get_current_process();
@@ -576,7 +585,7 @@ int alloc_fd(int fdbase)
         (unsigned int) fdbase >= current->get_rlimit(RLIMIT_NOFILE).rlim_cur)
         return -EBADF;
 
-    struct ioctx *ioctx = &current->ctx;
+    struct ioctx *ioctx = current->ctx;
     scoped_lock g{ioctx->fdlock};
 
     unsigned long starting_long = fdbase / FDS_PER_LONG;
@@ -874,7 +883,7 @@ int sys_close(int fd)
 int sys_dup(int fd)
 {
     int st = 0;
-    struct ioctx *ioctx = &get_current_process()->ctx;
+    struct ioctx *ioctx = get_current_process()->ctx;
 
     struct file *f = get_file_description(fd);
     if (!f)
@@ -906,7 +915,7 @@ int sys_dup23_internal(int oldfd, int newfd, int dupflags, unsigned int flags)
 {
     // printk("pid %d oldfd %d newfd %d\n", get_current_process()->pid, oldfd, newfd);
     struct process *current = get_current_process();
-    struct ioctx *ioctx = &current->ctx;
+    struct ioctx *ioctx = current->ctx;
     struct fd_table *table;
 
     if (newfd < 0 || oldfd < 0)
@@ -1268,7 +1277,7 @@ static int do_dupfd(struct file *f, int fdbase, bool cloexec)
         return new_fd;
     }
 
-    struct ioctx *ioctx = &get_current_process()->ctx;
+    struct ioctx *ioctx = get_current_process()->ctx;
     ioctx->table->file_desc[new_fd] = f;
 
     fd_get(f);
@@ -1383,7 +1392,7 @@ static int fcntl_adv_lock(int fd, int cmd, struct flock *arg)
 
 int sys_fcntl(int fd, int cmd, unsigned long arg)
 {
-    struct ioctx *ctx = &get_current_process()->ctx;
+    struct ioctx *ctx = get_current_process()->ctx;
 
     int ret = 0;
     switch (cmd)
@@ -1503,7 +1512,7 @@ int sys_chdir(const char *upath)
 
     int st = 0;
     struct process *current;
-    struct ioctx *ctx;
+    struct fsctx *ctx;
     struct path newdir, old;
     st = path_openat(AT_FDCWD, path, LOOKUP_MUST_BE_DIR, &newdir);
     if (st < 0)
@@ -1518,7 +1527,7 @@ int sys_chdir(const char *upath)
     }
 
     current = get_current_process();
-    ctx = &current->ctx;
+    ctx = current->fs;
 
     spin_lock(&ctx->cwd_lock);
     old = ctx->cwd;
@@ -1559,10 +1568,10 @@ int sys_fchdir(int fildes)
     }
 
     struct process *current;
-    struct ioctx *ctx;
+    struct fsctx *ctx;
 
     current = get_current_process();
-    ctx = &current->ctx;
+    ctx = current->fs;
 
     spin_lock(&ctx->cwd_lock);
     old = ctx->cwd;
@@ -1668,7 +1677,7 @@ void file_do_cloexec(struct ioctx *ctx)
 int open_with_vnode(struct file *node, int flags)
 {
     /* This function does all the open() work, open(2) and openat(2) use this */
-    struct ioctx *ioctx = &get_current_process()->ctx;
+    struct ioctx *ioctx = get_current_process()->ctx;
 
     int fd_num = -1;
     /* Allocate a file descriptor and a file description for the file */
@@ -1816,9 +1825,10 @@ ssize_t sys_readlink(const char *pathname, char *buf, size_t bufsiz)
 mode_t sys_umask(mode_t mask)
 {
     struct process *current = get_current_process();
-    mode_t old = current->ctx.umask;
-    current->ctx.umask = mask & 0777;
-
+    spin_lock(&current->fs->cwd_lock);
+    mode_t old = current->fs->umask;
+    WRITE_ONCE(current->fs->umask, mask & 0777);
+    spin_unlock(&current->fs->cwd_lock);
     return old;
 }
 
