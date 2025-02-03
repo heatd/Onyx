@@ -115,8 +115,7 @@ struct process
     void *vdso;
 
     /* Signal information */
-    struct spinlock signal_lock;
-    struct k_sigaction sigtable[_NSIG];
+    struct sighand_struct *sighand;
     unsigned int signal_group_flags;
     struct wait_queue wait_child_event;
     unsigned int exit_code;
@@ -359,6 +358,7 @@ void process_append_children(struct process *parent, struct process *children);
 void process_append_to_global_list(struct process *p);
 
 void exit_fs(struct process *p);
+void exit_sighand(struct process *p);
 __END_CDECLS
 
 #ifdef __cplusplus
