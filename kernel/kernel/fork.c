@@ -62,21 +62,46 @@ void process_copy_current_sigmask(struct thread *dest)
     memcpy(&dest->sinfo.sigmask, &get_current_thread()->sinfo.sigmask, sizeof(sigset_t));
 }
 
+static void ioctx_init(struct ioctx *ctx)
+{
+    memset(ctx, 0, sizeof(*ctx));
+    ctx->refs = REFCOUNT_INIT(1);
+}
+
 static int dup_files(struct process *child)
 {
-    return copy_file_descriptors(child, &current->ctx);
+    int err;
+    struct ioctx *ctx = kmalloc(sizeof(struct ioctx), GFP_KERNEL);
+    if (!ctx)
+        return -ENOMEM;
+
+    ioctx_init(ctx);
+    child->ctx = ctx;
+    err = copy_file_descriptors(child, current->ctx);
+    if (err)
+    {
+        kfree(ctx);
+        return err;
+    }
+
+    return 0;
 }
 
 static int dup_fs(struct process *child)
 {
-    struct ioctx *ctx = &current->ctx;
-    spin_lock(&ctx->cwd_lock);
-    path_get(&ctx->cwd);
-    path_get(&ctx->root);
-    child->ctx.cwd = ctx->cwd;
-    child->ctx.root = ctx->root;
-    child->ctx.umask = READ_ONCE(ctx->umask);
-    spin_unlock(&ctx->cwd_lock);
+    struct fsctx *fs = kmalloc(sizeof(*fs), GFP_KERNEL);
+    if (!fs)
+        return -ENOMEM;
+
+    fsctx_init(fs);
+    child->fs = fs;
+    spin_lock(&current->fs->cwd_lock);
+    path_get(&current->fs->cwd);
+    path_get(&current->fs->root);
+    child->fs->cwd = current->fs->cwd;
+    child->fs->root = current->fs->root;
+    child->fs->umask = READ_ONCE(current->fs->umask);
+    spin_unlock(&current->fs->cwd_lock);
     return 0;
 }
 
@@ -135,14 +160,20 @@ static pid_t kernel_clone(struct clone_args *args)
 
     err = 0;
     if (flags & CLONE_FILES)
-        WARN_ON(1);
+    {
+        refcount_inc(&current->ctx->refs);
+        child->ctx = current->ctx;
+    }
     else
         err = dup_files(child);
     if (err < 0)
         goto err_put_pid;
 
     if (flags & CLONE_FS)
-        WARN_ON(1);
+    {
+        refcount_inc(&current->fs->refs);
+        child->fs = current->fs;
+    }
     else
         err = dup_fs(child);
     if (err < 0)
@@ -233,8 +264,9 @@ err_put_mm:
     mmput(child->address_space);
 err_put_signal:
 err_put_fs:
+    exit_fs(child);
 err_put_files:
-    panic("todo");
+    exit_files(child);
 err_put_pid:
     put_pid(child->pid_struct);
 free_proc:

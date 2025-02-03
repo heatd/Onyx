@@ -555,7 +555,7 @@ int un_socket::do_anon_bind(cul::string anon_address)
 int un_socket::do_fs_bind(cul::string path)
 {
     struct path path_;
-    const auto perms = 0777 & ~get_current_process()->ctx.umask;
+    const auto perms = 0777 & ~get_current_umask();
     int err = mknodat_path(AT_FDCWD, path.c_str(), perms | S_IFSOCK, 0, &path_);
 
     if (err < 0)

@@ -140,7 +140,7 @@ int find_and_exec_init(const char **argv, const char **envp)
 		fd_put(streams);
 	}
 #endif
-    proc->ctx.cwd = get_filesystem_root();
+    proc->fs->cwd = get_filesystem_root();
 
     if (init_prog)
         try_exec_for(init_prog, argv, envp);
