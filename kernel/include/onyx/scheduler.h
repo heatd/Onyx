@@ -61,7 +61,6 @@ typedef struct thread
     unsigned int cpu;
     struct thread *next;
     struct thread *prev_prio, *next_prio;
-    struct thread *prev_wait, *next_wait;
     unsigned char *fpu_area;
     struct thread *sem_prev;
     struct thread *sem_next;
@@ -70,7 +69,6 @@ typedef struct thread
     struct signal_info sinfo;
     struct list_head thread_list_head;
     unsigned long addr_limit;
-    struct list_head wait_list_head;
     /* Clear child tid address - It's set by sys_set_tid_address or by sys_clone itself
      * and it's used to futex_wake any threads blocked by join.
      */
@@ -103,10 +101,10 @@ typedef struct thread
 
 #ifdef __cplusplus
     thread()
-        : refcount{}, canary{}, kernel_stack{}, kernel_stack_top{}, owner{}, entry{}, flags{}, id{},
-          status{}, priority{}, cpu{}, next{}, prev_prio{}, next_prio{}, prev_wait{}, next_wait{},
-          fpu_area{}, sem_prev{}, sem_next{}, lock{}, errno_val{}, thread_list_head{}, addr_limit{},
-          wait_list_head{}, ctid{}, cputime_info{}, aspace{}, plug{}
+        : refcount{}, canary{}, kernel_stack{},
+          kernel_stack_top{}, owner{}, entry{}, flags{}, id{}, status{}, priority{}, cpu{}, next{},
+          prev_prio{}, next_prio{}, fpu_area{}, sem_prev{}, sem_next{}, lock{}, errno_val{},
+          thread_list_head{}, addr_limit{}, ctid{}, cputime_info{}, aspace{}, plug{}
 #ifdef __x86_64__
           ,
           fs{}, gs{}
