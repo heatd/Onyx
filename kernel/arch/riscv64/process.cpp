@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 - 2023 Pedro Falcato
+ * Copyright (c) 2022 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -12,14 +12,22 @@
 #include <onyx/scheduler.h>
 #include <onyx/thread.h>
 
-struct thread *process_fork_thread(thread_t *src, struct process *dest, struct syscall_frame *ctx)
+#include <uapi/clone.h>
+
+struct thread *process_fork_thread(thread_t *src, struct process *dest, unsigned int flags,
+                                   unsigned long stack, unsigned long tls)
 {
+    struct syscall_frame *ctx = task_curr_syscall_frame();
     registers_t regs;
 
     /* Setup the registers on the stack */
     memcpy(&regs, &ctx->regs, sizeof(regs));
     regs.a0 = 0;   // fork returns 0
     regs.epc += 4; // Skip the "ecall"
+    if (stack != 0)
+        regs.sp = stack;
+    if (flags & CLONE_SETTLS)
+        regs.tp = tls;
 
     thread_t *thread = sched_spawn_thread(&regs, 0, src->tp);
     if (!thread)

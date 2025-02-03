@@ -148,7 +148,8 @@
                 "ctx"
             ]
         ],
-        "return_type": "pid_t"
+        "return_type": "pid_t",
+        "abi": "c"
     },
     {
         "name": "mmap",
@@ -2701,7 +2702,8 @@
                 "ctx"
             ]
         ],
-        "return_type": "pid_t"
+        "return_type": "pid_t",
+        "abi": "c"
     },
     {
         "name": "pipe2",

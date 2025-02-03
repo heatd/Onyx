@@ -1,3 +1,4 @@
 config RISCV
     def_bool y
     select DEVICE_TREE
+    select CLONE_BACKWARDS
