@@ -29,7 +29,7 @@ struct thread *process_fork_thread(thread_t *src, struct process *dest, unsigned
     if (flags & CLONE_SETTLS)
         regs.tp = tls;
 
-    thread_t *thread = sched_spawn_thread(&regs, 0, (flags & CLONE_SETTLS) ? tls : src->tp);
+    thread_t *thread = sched_spawn_thread(&regs, 0, src->tp);
     if (!thread)
         return nullptr;
 
