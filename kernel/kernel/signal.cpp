@@ -1,8 +1,11 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  */
+
 #include <errno.h>
 #include <stdio.h>
 
@@ -262,7 +265,7 @@ bool deliver_signal(int signum, struct sigpending *pending, struct registers *re
     struct thread *thread = get_current_thread();
     struct process *process = thread->owner;
 
-    struct k_sigaction *k_sigaction = &process->sigtable[signum];
+    struct k_sigaction *k_sigaction = &process->sighand->sigtable[signum];
     void (*handler)(int) = k_sigaction->sa_handler;
     bool defer_user = false;
 
@@ -331,7 +334,7 @@ void handle_signal(struct registers *regs)
 
     struct process *process = thread->owner;
 
-    scoped_lock g{process->signal_lock};
+    scoped_lock g{process->sighand->signal_lock};
 
     scoped_lock g2{thread->sinfo.lock};
 
@@ -438,7 +441,7 @@ void do_signal_force_unblock(int signal, struct thread *thread)
 
     struct process *process = thread->owner;
 
-    process->sigtable[signal].sa_handler = SIG_DFL;
+    process->sighand->sigtable[signal].sa_handler = SIG_DFL;
     sigdelset(&thread->sinfo.sigmask, signal);
 }
 
@@ -476,8 +479,8 @@ static bool is_default_ignored(int signal)
 
 static bool is_signal_ignored(struct process *process, int signal)
 {
-    return process->sigtable[signal].sa_handler == SIG_IGN ||
-           (process->sigtable[signal].sa_handler == SIG_DFL && is_default_ignored(signal));
+    return process->sighand->sigtable[signal].sa_handler == SIG_IGN ||
+           (process->sighand->sigtable[signal].sa_handler == SIG_DFL && is_default_ignored(signal));
 }
 
 bool signal_may_wake(int signum)
@@ -532,7 +535,7 @@ void signal_do_special_behaviour(int signal, struct thread *thread)
             notify_process_stop_cont(proc, SIGCONT);
         }
     }
-    else if (signal_is_stopping(signal) && proc->sigtable[signal].sa_handler == SIG_DFL)
+    else if (signal_is_stopping(signal) && proc->sighand->sigtable[signal].sa_handler == SIG_DFL)
     {
         signal_unqueue(SIGCONT, thread);
     }
@@ -576,7 +579,7 @@ int kernel_tkill(int signal, struct thread *thread, unsigned int flags, siginfo_
     if (may_kill(signal, process, info) < 0)
         return -EPERM;
 
-    scoped_lock g{process->signal_lock};
+    scoped_lock g{process->sighand->signal_lock};
     scoped_lock g2{thread->sinfo.lock};
 
     signal_do_special_behaviour(signal, thread);
@@ -825,18 +828,18 @@ int sys_sigaction(int signum, const struct k_sigaction *act, struct k_sigaction 
 
     {
         /* Lock the signal table */
-        scoped_lock g{proc->signal_lock};
+        scoped_lock g{proc->sighand->signal_lock};
 
         /* If old_act, save the old action */
         if (oldact)
         {
-            memcpy(&old, &proc->sigtable[signum], sizeof(struct k_sigaction));
+            memcpy(&old, &proc->sighand->sigtable[signum], sizeof(struct k_sigaction));
         }
 
         if (act)
         {
             /* If act, set the new action */
-            memcpy(&proc->sigtable[signum], &news, sizeof(news));
+            memcpy(&proc->sighand->sigtable[signum], &news, sizeof(news));
         }
     }
 
@@ -1072,7 +1075,7 @@ void signal_do_execve(struct process *proc)
     /* Clear the non-ignored signal disposition */
     for (int i = 0; i < NSIG; i++)
     {
-        struct k_sigaction *sa = &proc->sigtable[i];
+        struct k_sigaction *sa = &proc->sighand->sigtable[i];
         if (sa->sa_handler != SIG_IGN)
             sa->sa_handler = NULL;
 
@@ -1161,7 +1164,7 @@ int sys_rt_sigtimedwait(const sigset_t *set, siginfo_t *info, const struct times
     if (res == -ETIMEDOUT)
         return -EAGAIN;
 
-    spin_lock(&process->signal_lock);
+    spin_lock(&process->sighand->signal_lock);
     spin_lock(&thread->sinfo.lock);
 
     /* Find a pending signal */
@@ -1198,7 +1201,7 @@ int sys_rt_sigtimedwait(const sigset_t *set, siginfo_t *info, const struct times
 
 out:
     spin_unlock(&thread->sinfo.lock);
-    spin_unlock(&process->signal_lock);
+    spin_unlock(&process->sighand->signal_lock);
 
     return st;
 }
