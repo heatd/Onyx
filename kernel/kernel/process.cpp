@@ -169,6 +169,19 @@ bool process::set_cmdline(const std::string_view &path)
     return true;
 }
 
+struct process *process_alloc(void)
+{
+    unique_ptr<process> proc{(struct process *) kmalloc(sizeof(struct process), GFP_KERNEL)};
+    if (!proc)
+        return (struct process *) ERR_PTR(-ENOMEM);
+    new (proc.get()) process;
+
+    proc->refcount = 1;
+    creds_init(&proc->cred);
+    itimer_init(proc.get());
+    return proc.release();
+}
+
 process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *parent)
 {
     /* FIXME: Failure here kinda sucks and is probably super leaky */
@@ -625,95 +638,6 @@ pid_t sys_wait4(pid_t pid, int *wstatus, int options, rusage *usage)
     return w.pid;
 }
 
-void process_copy_current_sigmask(thread *dest)
-{
-    memcpy(&dest->sinfo.sigmask, &get_current_thread()->sinfo.sigmask, sizeof(sigset_t));
-}
-
-#define FORK_SHARE_MM (1 << 0)
-#define FORK_VFORK    (1 << 1)
-
-pid_t sys_fork_internal(syscall_frame *ctx, unsigned int flags)
-{
-    process *proc;
-    process *child;
-    thread_t *to_be_forked;
-
-    proc = (process *) get_current_process();
-    to_be_forked = get_current_thread();
-    /* Create a new process */
-
-    {
-        // We need to lock here to protect against concurrent changes
-        scoped_mutex g{proc->name_lock};
-
-        child = process_create(proc->cmd_line, &proc->ctx, proc);
-
-        if (!child)
-            return -ENOMEM;
-    }
-
-    child->flags |= PROCESS_FORKED;
-
-    /* Fork the vmm data and the address space */
-    if (flags & FORK_SHARE_MM)
-    {
-        child->address_space = proc->address_space;
-        trace_vm_share_mm();
-    }
-    else
-    {
-        auto ex = mm_fork();
-        if (IS_ERR(ex))
-            return PTR_ERR(ex);
-        child->address_space = ex;
-    }
-
-    process_get(child);
-
-    /* Fork and create the new thread */
-    thread *new_thread = process_fork_thread(to_be_forked, child, ctx);
-
-    if (!new_thread)
-    {
-        panic("TODO: Add process destruction here.\n");
-    }
-
-    process_copy_current_sigmask(new_thread);
-
-    vfork_completion vfork_cmpl;
-    if (flags & FORK_VFORK)
-    {
-        child->vfork_compl = &vfork_cmpl;
-    }
-
-    sched_start_thread(new_thread);
-
-    if (flags & FORK_VFORK)
-    {
-        // We wait for the vforked child to do its thing, and then we wait until its safe to exit
-        // i.e the child has finished waking up waiters.
-        vfork_cmpl.wait();
-
-        vfork_cmpl.wait_to_exit();
-    }
-
-    // Return the pid to the caller
-    auto pid = child->get_pid();
-    process_put(child);
-    return pid;
-}
-
-pid_t sys_fork(syscall_frame *ctx)
-{
-    return sys_fork_internal(ctx, 0);
-}
-
-pid_t sys_vfork(syscall_frame *ctx)
-{
-    return sys_fork_internal(ctx, FORK_SHARE_MM | FORK_VFORK);
-}
-
 #define W_STOPPING         0x7f
 #define W_CORE_DUMPED      (1 << 7)
 #define W_SIG(sig)         (signum)
@@ -941,7 +865,7 @@ void process_kill_other_threads(void)
 
     if (current->vfork_compl)
     {
-        current->vfork_compl->wake();
+        vfork_compl_wake(current->vfork_compl);
         current->vfork_compl = nullptr;
     }
 

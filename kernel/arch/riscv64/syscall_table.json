@@ -148,7 +148,8 @@
                 "ctx"
             ]
         ],
-        "return_type": "pid_t"
+        "return_type": "pid_t",
+        "abi": "c"
     },
     {
         "name": "mmap",
@@ -2657,7 +2658,8 @@
                     "ctx"
                 ]
             ],
-            "return_type": "pid_t"
+            "return_type": "pid_t",
+            "abi": "c"
     },
     {
         "name": "pipe2",
@@ -2897,6 +2899,35 @@
             [
                 "struct timespec *",
                 "tp"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "newclone",
+        "nr": 165,
+        "nr_args": 5,
+        "args": [
+            [
+                "unsigned long",
+                "clone_flags"
+            ],
+            [
+                "unsigned long",
+                "newsp"
+            ],
+            [
+                "int *",
+                "parent_tidptr"
+            ],
+            [
+                "int *",
+                "child_tidptr"
+            ],
+            [
+                "unsigned long",
+                "tls"
             ]
         ],
         "return_type": "int",

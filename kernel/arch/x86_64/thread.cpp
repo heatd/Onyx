@@ -141,7 +141,7 @@ int sys_arch_prctl(int code, unsigned long *addr)
     return 0;
 }
 
-constexpr bool adding_guard_page = true;
+constexpr bool adding_guard_page = false;
 
 extern "C" void thread_finish_destruction(void *___thread)
 {
