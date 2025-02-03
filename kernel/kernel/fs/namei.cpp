@@ -1517,7 +1517,7 @@ int sys_chroot(const char *upath)
     if (err < 0)
         return err;
     current = get_current_process();
-    struct ioctx *ctx = &current->ctx;
+    struct fsctx *ctx = current->fs;
 
     spin_lock(&ctx->cwd_lock);
     /* We drop the ref *after* the lock is dropped */

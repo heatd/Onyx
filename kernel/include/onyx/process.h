@@ -102,7 +102,8 @@ struct process
     struct mm_address_space *address_space;
 
     /* IO Context of the process */
-    struct ioctx ctx;
+    struct ioctx *ctx;
+    struct fsctx *fs;
 
     /* Process ID */
     pid_t pid_;
@@ -330,7 +331,7 @@ static inline mode_t get_current_umask()
 {
     if (unlikely(!get_current_process()))
         return 0;
-    return get_current_process()->ctx.umask;
+    return get_current_process()->fs->umask;
 }
 
 static inline mode_t do_umask(mode_t mode)
@@ -356,6 +357,8 @@ static inline struct mm_address_space *get_current_address_space(void)
 struct process *process_alloc(void);
 void process_append_children(struct process *parent, struct process *children);
 void process_append_to_global_list(struct process *p);
+
+void exit_fs(struct process *p);
 __END_CDECLS
 
 #ifdef __cplusplus

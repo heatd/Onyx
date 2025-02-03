@@ -12,6 +12,7 @@
 #include <onyx/mutex.h>
 #include <onyx/path.h>
 #include <onyx/rcupdate.h>
+#include <onyx/ref.h>
 #include <onyx/types.h>
 #include <onyx/vfs.h>
 
@@ -37,13 +38,28 @@ struct fd_table
 
 struct ioctx
 {
+    refcount_t refs;
     /* Current working directory */
-    struct spinlock cwd_lock CPP_DFLINIT;
-    struct spinlock fdlock CPP_DFLINIT;
-    struct fd_table __rcu *table CPP_DFLINIT;
-    struct path root CPP_DFLINIT;
-    struct path cwd CPP_DFLINIT;
-    mode_t umask CPP_DFLINIT;
+    struct spinlock fdlock;
+    struct fd_table __rcu *table;
 };
+
+struct fsctx
+{
+    refcount_t refs;
+    struct spinlock cwd_lock;
+    struct path root;
+    struct path cwd;
+    mode_t umask;
+};
+
+static inline void fsctx_init(struct fsctx *fs)
+{
+    fs->refs = REFCOUNT_INIT(1);
+    spinlock_init(&fs->cwd_lock);
+    path_init(&fs->root);
+    path_init(&fs->cwd);
+    fs->umask = 0;
+}
 
 #endif
