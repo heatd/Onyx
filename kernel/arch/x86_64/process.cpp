@@ -12,6 +12,8 @@
 #include <onyx/scheduler.h>
 #include <onyx/thread.h>
 
+#include <uapi/clone.h>
+
 struct thread *process_create_thread(struct process *proc, thread_callback_t callback,
                                      uint32_t flags)
 {
@@ -31,12 +33,16 @@ struct thread *process_create_thread(struct process *proc, thread_callback_t cal
     return thread;
 }
 
-struct thread *process_fork_thread(thread_t *src, struct process *dest, struct syscall_frame *ctx)
+struct thread *process_fork_thread(thread_t *src, struct process *dest, unsigned int flags,
+                                   unsigned long stack, unsigned long tls)
 {
+    struct syscall_frame *ctx = task_curr_syscall_frame();
     registers_t regs;
     unsigned long rsp, rflags, ip;
 
-    rsp = ctx->user_sp;
+    rsp = stack;
+    if (stack == 0)
+        rsp = ctx->user_sp;
     rflags = ctx->rflags;
     ip = ctx->rip;
 
@@ -63,6 +69,9 @@ struct thread *process_fork_thread(thread_t *src, struct process *dest, struct s
     thread_t *thread = sched_spawn_thread(&regs, 0, src->fs);
     if (!thread)
         return nullptr;
+
+    if (flags & CLONE_SETTLS)
+        thread->fs = (void *) tls;
 
     save_fpu(thread->fpu_area);
 

@@ -281,7 +281,8 @@ struct thread *process_create_main_thread(struct process *proc, thread_callback_
                                           void *sp);
 
 struct process *get_process_from_pid(pid_t pid);
-struct thread *process_fork_thread(thread_t *src, struct process *dest, struct syscall_frame *ctx);
+struct thread *process_fork_thread(thread_t *src, struct process *dest, unsigned int flags,
+                                   unsigned long stack, unsigned long tls);
 void process_destroy_aspace();
 int process_attach(struct process *tracer, struct process *tracee);
 struct process *process_find_tracee(struct process *tracer, pid_t pid);
@@ -352,6 +353,9 @@ static inline struct mm_address_space *get_current_address_space(void)
     return t ? t->aspace : &kernel_address_space;
 }
 
+struct process *process_alloc(void);
+void process_append_children(struct process *parent, struct process *children);
+void process_append_to_global_list(struct process *p);
 __END_CDECLS
 
 #ifdef __cplusplus

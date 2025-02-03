@@ -479,7 +479,7 @@ int sys_execve(const char *p, const char **argv, const char **envp)
         // Wake up waiters stuck on vfork
         if (current->vfork_compl)
         {
-            current->vfork_compl->wake();
+            vfork_compl_wake(current->vfork_compl);
             current->vfork_compl = nullptr;
         }
     }

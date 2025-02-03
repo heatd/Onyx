@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -22,6 +22,8 @@
 #include <onyx/preempt.h>
 #include <onyx/signal.h>
 #include <onyx/spinlock.h>
+
+#include <platform/syscall.h>
 
 #define NUM_PRIO 40
 
@@ -265,6 +267,12 @@ static inline void pagefault_enable(void)
 {
     struct thread *curr = get_current_thread();
     curr->pagefault_disabled--;
+}
+
+static inline struct syscall_frame *task_curr_syscall_frame(void)
+{
+    struct thread *curr = get_current_thread();
+    return ((struct syscall_frame *) curr->kernel_stack_top) - 1;
 }
 
 /**
