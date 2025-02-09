@@ -1724,7 +1724,7 @@ void kmem_cache_print_slab_info_kasan(void *mem, struct slab *slab)
 
     // Walk through the slab and find this object's starting redzone
     const size_t nr_objects = slab->nobjects;
-    u8 *ptr = (u8 *) slab->start;
+    u8 *ptr = cache->flags & KMEM_CACHE_VMALLOC ? (u8 *) slab->start : PAGE_TO_VIRT(slab->pages);
 
     struct kasan_slab_obj_info *info = NULL;
     for (size_t i = 0; i < nr_objects; i++, ptr += cache->objsize + cache->redzone)
