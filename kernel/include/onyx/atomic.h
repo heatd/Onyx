@@ -34,4 +34,25 @@
         __old;                                                                                    \
     })
 
+#ifndef smp_store_mb
+#define smp_store_mb(var, value) \
+    do                           \
+    {                            \
+        WRITE_ONCE(var, value);  \
+        smp_mb();                \
+    } while (0)
+#endif
+
+#ifndef smp_mb__before_atomic
+#define smp_mb__before_atomic() smp_mb()
+#endif
+
+#ifndef smp_mb__after_atomic
+#define smp_mb__after_atomic() smp_mb()
+#endif
+
+#ifndef smp_mb__after_spinlock
+#define smp_mb__after_spinlock() smp_mb()
+#endif
+
 #endif
