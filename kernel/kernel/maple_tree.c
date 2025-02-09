@@ -787,9 +787,6 @@ __always_inline bool mt_locked(const struct maple_tree *mt)
     return mt_external_lock(mt) ? mt_lock_is_held(mt) : lockdep_is_held(&mt->ma_lock);
 }
 
-#define rcu_dereference_check(p, locked)     rcu_dereference(p)
-#define rcu_dereference_protected(p, locked) rcu_dereference(p)
-
 __always_inline void *mt_slot(const struct maple_tree *mt, void __rcu **slots, unsigned char offset)
 {
     return rcu_dereference_check(slots[offset], mt_locked(mt));
