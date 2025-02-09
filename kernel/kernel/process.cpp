@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -106,7 +106,6 @@ process::process() : pgrp_node{this}, session_node{this}
 {
     init_wait_queue_head(&this->wait_child_event);
     mutex_init(&condvar_mutex);
-    spinlock_init(&ctx.fdlock);
     active_processes++;
     refcount = 0;
     flags = 0;
@@ -115,8 +114,6 @@ process::process() : pgrp_node{this}, session_node{this}
     spinlock_init(&thread_list_lock);
     pid_ = 0;
     vdso = nullptr;
-    memset(sigtable, 0, sizeof(sigtable));
-    spinlock_init(&signal_lock);
     signal_group_flags = 0;
     exit_code = 0;
     personality = 0;
@@ -169,6 +166,25 @@ bool process::set_cmdline(const std::string_view &path)
     return true;
 }
 
+struct process *process_alloc(void)
+{
+    unique_ptr<process> proc{(struct process *) kmalloc(sizeof(struct process), GFP_KERNEL)};
+    if (!proc)
+        return (struct process *) ERR_PTR(-ENOMEM);
+    new (proc.get()) process;
+
+    proc->refcount = 1;
+    creds_init(&proc->cred);
+    itimer_init(proc.get());
+    return proc.release();
+}
+
+static void ioctx_init(struct ioctx *ctx)
+{
+    memset(ctx, 0, sizeof(*ctx));
+    ctx->refs = REFCOUNT_INIT(1);
+}
+
 process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *parent)
 {
     /* FIXME: Failure here kinda sucks and is probably super leaky */
@@ -194,68 +210,33 @@ process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *p
     if (IS_ERR(newpid))
         return errno = PTR_ERR(newpid), nullptr;
 
-    proc->ctx.root = get_filesystem_root();
+    proc->ctx = (struct ioctx *) kmalloc(sizeof(struct ioctx), GFP_KERNEL);
+    if (!proc->ctx)
+        return errno = ENOMEM, nullptr;
+    ioctx_init(proc->ctx);
+    proc->fs = (struct fsctx *) kmalloc(sizeof(struct fsctx), GFP_KERNEL);
+    CHECK(proc->fs);
+    fsctx_init(proc->fs);
+    proc->fs->root = get_filesystem_root();
 
-    if (ctx)
-    {
-        spin_lock(&ctx->cwd_lock);
-        path_get(&ctx->cwd);
-        proc->ctx.cwd = ctx->cwd;
-        spin_unlock(&ctx->cwd_lock);
+    if (allocate_file_descriptor_table(proc) < 0)
+        return nullptr;
 
-        if (copy_file_descriptors(proc, ctx) < 0)
-            return nullptr;
-        proc->ctx.umask = READ_ONCE(ctx->umask);
-    }
-    else
-    {
-        if (allocate_file_descriptor_table(proc) < 0)
-            return nullptr;
+    proc->fs->umask = S_IWOTH | S_IWGRP;
+    proc->fs->cwd = proc->fs->root;
+    path_get(&proc->fs->cwd);
 
-        proc->ctx.umask = S_IWOTH | S_IWGRP;
-    }
+    proc->sighand = (struct sighand_struct *) kmalloc(sizeof(*proc->sighand), GFP_KERNEL);
+    CHECK(proc->sighand);
+    sighand_init(proc->sighand);
+    memset(proc->sighand->sigtable, 0, sizeof(proc->sighand->sigtable));
 
-    if (parent)
-    {
-        /* Inherit the parent process' properties */
-        proc->personality = parent->personality;
-        proc->vdso = parent->vdso;
-        process_inherit_creds(proc, parent);
-
-        proc->image_base = parent->image_base;
-        proc->interp_base = parent->interp_base;
-        /* Inherit the signal handlers of the process and the
-         * signal mask of the current thread
-         */
-
-        {
-            scoped_lock g{proc->signal_lock};
-            memcpy(&proc->sigtable, &parent->sigtable, sizeof(k_sigaction) * _NSIG);
-        }
-
-        /* Note that the signal mask is inherited at thread creation */
-
-        /* Note that pending signals are zero'd, as per POSIX */
-
-        process_append_children(parent, proc);
-
-        proc->parent = parent;
-        pgrp = parent->process_group;
-        session = parent->session;
-        proc->flags = parent->flags;
-        proc->inherit_limits(parent);
-        // Inherit the controlling terminal
-        proc->ctty = parent->ctty;
-    }
-    else
-    {
-        session = pgrp = newpid;
-        proc->init_default_limits();
-        auto ex = mm_create();
-        if (IS_ERR(ex))
-            return errno = PTR_ERR(ex), nullptr;
-        proc->address_space = ex;
-    }
+    session = pgrp = newpid;
+    proc->init_default_limits();
+    auto ex = mm_create();
+    if (IS_ERR(ex))
+        return errno = PTR_ERR(ex), nullptr;
+    proc->address_space = ex;
 
     INIT_LIST_HEAD(&proc->thread_list);
 
@@ -461,7 +442,7 @@ bool process_wait_exit(process *child, wait_info &winfo)
     if (!(child->signal_group_flags & SIGNAL_GROUP_EXIT))
         return false;
 
-    scoped_lock g{child->signal_lock};
+    scoped_lock g{child->sighand->signal_lock};
 
     if (!(child->signal_group_flags & SIGNAL_GROUP_EXIT))
         return false;
@@ -492,7 +473,7 @@ bool process_wait_stop(process *child, wait_info &winfo)
     if (!(child->signal_group_flags & SIGNAL_GROUP_STOPPED))
         return false;
 
-    scoped_lock g{child->signal_lock};
+    scoped_lock g{child->sighand->signal_lock};
 
     if (!(child->signal_group_flags & SIGNAL_GROUP_STOPPED))
         return false;
@@ -526,7 +507,7 @@ bool process_wait_cont(process *child, wait_info &winfo)
     if (!(child->signal_group_flags & SIGNAL_GROUP_CONT))
         return false;
 
-    scoped_lock g{child->signal_lock};
+    scoped_lock g{child->sighand->signal_lock};
 
     if (!(child->signal_group_flags & SIGNAL_GROUP_CONT))
         return false;
@@ -623,95 +604,6 @@ pid_t sys_wait4(pid_t pid, int *wstatus, int options, rusage *usage)
     }
 
     return w.pid;
-}
-
-void process_copy_current_sigmask(thread *dest)
-{
-    memcpy(&dest->sinfo.sigmask, &get_current_thread()->sinfo.sigmask, sizeof(sigset_t));
-}
-
-#define FORK_SHARE_MM (1 << 0)
-#define FORK_VFORK    (1 << 1)
-
-pid_t sys_fork_internal(syscall_frame *ctx, unsigned int flags)
-{
-    process *proc;
-    process *child;
-    thread_t *to_be_forked;
-
-    proc = (process *) get_current_process();
-    to_be_forked = get_current_thread();
-    /* Create a new process */
-
-    {
-        // We need to lock here to protect against concurrent changes
-        scoped_mutex g{proc->name_lock};
-
-        child = process_create(proc->cmd_line, &proc->ctx, proc);
-
-        if (!child)
-            return -ENOMEM;
-    }
-
-    child->flags |= PROCESS_FORKED;
-
-    /* Fork the vmm data and the address space */
-    if (flags & FORK_SHARE_MM)
-    {
-        child->address_space = proc->address_space;
-        trace_vm_share_mm();
-    }
-    else
-    {
-        auto ex = mm_fork();
-        if (IS_ERR(ex))
-            return PTR_ERR(ex);
-        child->address_space = ex;
-    }
-
-    process_get(child);
-
-    /* Fork and create the new thread */
-    thread *new_thread = process_fork_thread(to_be_forked, child, ctx);
-
-    if (!new_thread)
-    {
-        panic("TODO: Add process destruction here.\n");
-    }
-
-    process_copy_current_sigmask(new_thread);
-
-    vfork_completion vfork_cmpl;
-    if (flags & FORK_VFORK)
-    {
-        child->vfork_compl = &vfork_cmpl;
-    }
-
-    sched_start_thread(new_thread);
-
-    if (flags & FORK_VFORK)
-    {
-        // We wait for the vforked child to do its thing, and then we wait until its safe to exit
-        // i.e the child has finished waking up waiters.
-        vfork_cmpl.wait();
-
-        vfork_cmpl.wait_to_exit();
-    }
-
-    // Return the pid to the caller
-    auto pid = child->get_pid();
-    process_put(child);
-    return pid;
-}
-
-pid_t sys_fork(syscall_frame *ctx)
-{
-    return sys_fork_internal(ctx, 0);
-}
-
-pid_t sys_vfork(syscall_frame *ctx)
-{
-    return sys_fork_internal(ctx, FORK_SHARE_MM | FORK_VFORK);
 }
 
 #define W_STOPPING         0x7f
@@ -837,11 +729,11 @@ void process_wait_for_dead_threads(process *process)
 void process_end(process *process)
 {
     process_wait_for_dead_threads(process);
-
+    /* For now, we have to exit_sighand here, because we need the signal lock in wait4. This is a
+     * little weird. */
+    exit_sighand(process);
     write_lock(&tasklist_lock);
     process_remove_from_list(process);
-    path_put(&process->ctx.cwd);
-    path_put(&process->ctx.root);
     process->~process();
 
     write_unlock(&tasklist_lock);
@@ -912,6 +804,24 @@ void process_kill_other_threads(void)
         cpu_relax();
 }
 
+void exit_fs(struct process *p)
+{
+    struct fsctx *fs = p->fs;
+    if (refcount_dec_and_test(&fs->refs))
+    {
+        path_put(&fs->root);
+        path_put(&fs->cwd);
+        kfree(fs);
+    }
+}
+
+void exit_sighand(struct process *p)
+{
+    struct sighand_struct *s = p->sighand;
+    if (refcount_dec_and_test(&s->refs))
+        kfree(s);
+}
+
 [[noreturn]] void process_exit(unsigned int exit_code)
 {
     auto current_thread = get_current_thread();
@@ -933,7 +843,8 @@ void process_kill_other_threads(void)
 
     process_kill_other_threads();
 
-    process_destroy_file_descriptors(current);
+    exit_files(current);
+    exit_fs(current);
 
     /* We destroy the address space after fds because some close() routines may require address
      * space access */
@@ -941,7 +852,7 @@ void process_kill_other_threads(void)
 
     if (current->vfork_compl)
     {
-        current->vfork_compl->wake();
+        vfork_compl_wake(current->vfork_compl);
         current->vfork_compl = nullptr;
     }
 

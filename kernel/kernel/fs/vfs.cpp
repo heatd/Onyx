@@ -58,7 +58,7 @@ int set_root(struct path *path)
     if (get_current_process())
     {
         /* eww eww eww eww eww eww eww*/
-        get_current_process()->ctx.root = boot_root;
+        get_current_process()->fs->root = boot_root;
         path_get(&boot_root);
     }
 
@@ -75,11 +75,11 @@ struct path get_filesystem_root()
         return boot_root;
     }
 
-    spin_lock(&p->ctx.cwd_lock);
-    DCHECK(!path_is_null(&p->ctx.root));
-    struct path root = p->ctx.root;
+    spin_lock(&p->fs->cwd_lock);
+    DCHECK(!path_is_null(&p->fs->root));
+    struct path root = p->fs->root;
     path_get(&root);
-    spin_unlock(&p->ctx.cwd_lock);
+    spin_unlock(&p->fs->cwd_lock);
     return root;
 }
 

@@ -102,7 +102,8 @@ struct process
     struct mm_address_space *address_space;
 
     /* IO Context of the process */
-    struct ioctx ctx;
+    struct ioctx *ctx;
+    struct fsctx *fs;
 
     /* Process ID */
     pid_t pid_;
@@ -114,8 +115,7 @@ struct process
     void *vdso;
 
     /* Signal information */
-    struct spinlock signal_lock;
-    struct k_sigaction sigtable[_NSIG];
+    struct sighand_struct *sighand;
     unsigned int signal_group_flags;
     struct wait_queue wait_child_event;
     unsigned int exit_code;
@@ -281,7 +281,8 @@ struct thread *process_create_main_thread(struct process *proc, thread_callback_
                                           void *sp);
 
 struct process *get_process_from_pid(pid_t pid);
-struct thread *process_fork_thread(thread_t *src, struct process *dest, struct syscall_frame *ctx);
+struct thread *process_fork_thread(thread_t *src, struct process *dest, unsigned int flags,
+                                   unsigned long stack, unsigned long tls);
 void process_destroy_aspace();
 int process_attach(struct process *tracer, struct process *tracee);
 struct process *process_find_tracee(struct process *tracer, pid_t pid);
@@ -329,7 +330,7 @@ static inline mode_t get_current_umask()
 {
     if (unlikely(!get_current_process()))
         return 0;
-    return get_current_process()->ctx.umask;
+    return get_current_process()->fs->umask;
 }
 
 static inline mode_t do_umask(mode_t mode)
@@ -352,6 +353,12 @@ static inline struct mm_address_space *get_current_address_space(void)
     return t ? t->aspace : &kernel_address_space;
 }
 
+struct process *process_alloc(void);
+void process_append_children(struct process *parent, struct process *children);
+void process_append_to_global_list(struct process *p);
+
+void exit_fs(struct process *p);
+void exit_sighand(struct process *p);
 __END_CDECLS
 
 #ifdef __cplusplus

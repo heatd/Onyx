@@ -46,7 +46,7 @@ void file_free(struct file *file);
 int allocate_file_descriptor_table(struct process *process);
 int copy_file_descriptors(struct process *process, struct ioctx *ctx);
 int get_dirfd(int dirfd, struct path *cwd);
-void process_destroy_file_descriptors(struct process *process);
+void exit_files(struct process *process);
 
 #define OPEN_FLAGS_ACCESS_MODE(flags) (flags & 0x3)
 

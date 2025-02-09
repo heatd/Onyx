@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 - 2024 Pedro Falcato
+ * Copyright (c) 2023 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 license.
  *
  * SPDX-License-Identifier: GPL-2.0-only
@@ -9,6 +9,7 @@
 
 #include <stddef.h>
 
+#include <onyx/atomic.h>
 #include <onyx/preempt.h>
 
 #define rcu_read_lock()   sched_disable_preempt()
@@ -55,12 +56,10 @@ void rcu_work();
 
 __END_CDECLS
 
-#define rcu_dereference(ptr) __atomic_load_n(&(ptr), __ATOMIC_RELAXED)
-
-#define rcu_assign_pointer(ptr, val)             \
-    ({                                           \
-        __atomic_thread_fence(__ATOMIC_RELEASE); \
-        (ptr) = (val);                           \
+#define rcu_assign_pointer(ptr, val) \
+    ({                               \
+        smp_wmb();                   \
+        (ptr) = (val);               \
     })
 
 #ifdef __cplusplus
@@ -85,6 +84,31 @@ public:
 };
 #endif
 
+#ifdef __CHECKER__
+#define __rcu               __attribute__((noderef, address_space(100)))
+#define __force             __attribute__((force))
+#define __rcu_forcecast(p)  ((__typeof__(*(p)) *__force) p)
+/* Check for __rcu in sparse by casting the pointer to an __rcu one, and then comparing. Comparing
+ * will trigger an address-space mismatch warning if p is not __rcu */
+#define rcu_check_sparse(p) ((void) (((__typeof__(*(p)) __rcu *__force) p) == p))
+#else
 #define __rcu
+#define __rcu_forcecast(p) (p)
+#define rcu_check_sparse(ptr)
+#endif
+
+#define rcu_dereference(ptr)                                        \
+    ({                                                              \
+        rcu_check_sparse(ptr);                                      \
+        __rcu_forcecast(__atomic_load_n(&(ptr), __ATOMIC_RELAXED)); \
+    })
+
+#define rcu_dereference_protected(p, c) \
+    ({                                  \
+        rcu_check_sparse(p);            \
+        __rcu_forcecast(p);             \
+    })
+
+#define rcu_dereference_check(ptr, c) rcu_dereference(ptr)
 
 #endif

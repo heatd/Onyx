@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -22,6 +22,8 @@
 #include <onyx/preempt.h>
 #include <onyx/signal.h>
 #include <onyx/spinlock.h>
+
+#include <platform/syscall.h>
 
 #define NUM_PRIO 40
 
@@ -59,7 +61,6 @@ typedef struct thread
     unsigned int cpu;
     struct thread *next;
     struct thread *prev_prio, *next_prio;
-    struct thread *prev_wait, *next_wait;
     unsigned char *fpu_area;
     struct thread *sem_prev;
     struct thread *sem_next;
@@ -68,7 +69,6 @@ typedef struct thread
     struct signal_info sinfo;
     struct list_head thread_list_head;
     unsigned long addr_limit;
-    struct list_head wait_list_head;
     /* Clear child tid address - It's set by sys_set_tid_address or by sys_clone itself
      * and it's used to futex_wake any threads blocked by join.
      */
@@ -101,10 +101,10 @@ typedef struct thread
 
 #ifdef __cplusplus
     thread()
-        : refcount{}, canary{}, kernel_stack{}, kernel_stack_top{}, owner{}, entry{}, flags{}, id{},
-          status{}, priority{}, cpu{}, next{}, prev_prio{}, next_prio{}, prev_wait{}, next_wait{},
-          fpu_area{}, sem_prev{}, sem_next{}, lock{}, errno_val{}, thread_list_head{}, addr_limit{},
-          wait_list_head{}, ctid{}, cputime_info{}, aspace{}, plug{}
+        : refcount{}, canary{}, kernel_stack{},
+          kernel_stack_top{}, owner{}, entry{}, flags{}, id{}, status{}, priority{}, cpu{}, next{},
+          prev_prio{}, next_prio{}, fpu_area{}, sem_prev{}, sem_next{}, lock{}, errno_val{},
+          thread_list_head{}, addr_limit{}, ctid{}, cputime_info{}, aspace{}, plug{}
 #ifdef __x86_64__
           ,
           fs{}, gs{}
@@ -224,12 +224,14 @@ static inline void sched_should_resched(void)
         t->flags |= THREAD_NEEDS_RESCHED;
 }
 
-#define set_current_state(state)                                 \
-    do                                                           \
-    {                                                            \
-        struct thread *__t = get_current_thread();               \
-        assert(__t != NULL);                                     \
-        __atomic_store_n(&__t->status, state, __ATOMIC_RELEASE); \
+#define set_current_state(state)                                                                \
+    do                                                                                          \
+    {                                                                                           \
+        struct thread *__t = get_current_thread();                                              \
+        assert(__t != NULL);                                                                    \
+        /* This little implicit full memory barrier pairs with a bunch of places (including the \
+         * scheduler, and wakeup spots) */                                                      \
+        smp_store_mb(&__t->status, state);                                                      \
     } while (0);
 
 static inline void thread_get(struct thread *thread)
@@ -265,6 +267,12 @@ static inline void pagefault_enable(void)
 {
     struct thread *curr = get_current_thread();
     curr->pagefault_disabled--;
+}
+
+static inline struct syscall_frame *task_curr_syscall_frame(void)
+{
+    struct thread *curr = get_current_thread();
+    return ((struct syscall_frame *) curr->kernel_stack_top) - 1;
 }
 
 /**
