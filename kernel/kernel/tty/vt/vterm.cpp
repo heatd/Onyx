@@ -1711,7 +1711,13 @@ static int vterm_write_con(const char *buffer, size_t size, unsigned int flags,
         }
 
         if (flags & CONSOLE_WRITE_PANIC)
+        {
             vt->in_escape = false;
+            if (vt->cursor_y >= vt->rows)
+                vt->cursor_y = vt->rows - 1;
+            if (vt->cursor_x >= vt->columns)
+                vt->cursor_x = 0;
+        }
     }
     else
         mutex_lock(&vt->vt_lock);
