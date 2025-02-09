@@ -27,12 +27,12 @@ static inline void __list_add_rcu(struct list_head *_new, struct list_head *prev
 
 static inline void list_add_rcu(struct list_head *_new, struct list_head *head)
 {
-    __list_add(_new, head, head->next);
+    __list_add_rcu(_new, head, head->next);
 }
 
 static inline void list_add_tail_rcu(struct list_head *_new, struct list_head *head)
 {
-    __list_add(_new, head->prev, head);
+    __list_add_rcu(_new, head->prev, head);
 }
 
 static inline void list_remove_rcu(struct list_head *node)
