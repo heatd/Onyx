@@ -224,12 +224,14 @@ static inline void sched_should_resched(void)
         t->flags |= THREAD_NEEDS_RESCHED;
 }
 
-#define set_current_state(state)                                 \
-    do                                                           \
-    {                                                            \
-        struct thread *__t = get_current_thread();               \
-        assert(__t != NULL);                                     \
-        __atomic_store_n(&__t->status, state, __ATOMIC_RELEASE); \
+#define set_current_state(state)                                                                \
+    do                                                                                          \
+    {                                                                                           \
+        struct thread *__t = get_current_thread();                                              \
+        assert(__t != NULL);                                                                    \
+        /* This little implicit full memory barrier pairs with a bunch of places (including the \
+         * scheduler, and wakeup spots) */                                                      \
+        smp_store_mb(&__t->status, state);                                                      \
     } while (0);
 
 static inline void thread_get(struct thread *thread)
