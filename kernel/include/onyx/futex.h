@@ -28,6 +28,8 @@
 #define FUTEX_CLOCK_REALTIME 256
 #define FUTEX_OP_MASK        ~(FUTEX_PRIVATE_FLAG | FUTEX_CLOCK_REALTIME)
 
+__BEGIN_CDECLS
 int futex_wake(int *uaddr, int nr_waiters);
+__END_CDECLS
 
 #endif
