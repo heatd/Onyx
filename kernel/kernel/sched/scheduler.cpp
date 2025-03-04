@@ -136,7 +136,8 @@ bool _dump_thread(const void *key, void *_thread, void *of)
 
     // FIXME: Fix all instances of cmd_line.c_str() with a race-condition safe way
     if (thread->owner)
-        dump_printk("User space thread - owner %s\n", thread->owner->cmd_line.c_str());
+        dump_printk("User space thread - owner %s (pid %d, task %p)\n",
+                    thread->owner->cmd_line.c_str(), thread->owner->pid_, thread->owner);
 
     dump_printk("Thread status: %s\n", thread_strings[thread->status]);
     if (thread->status == THREAD_INTERRUPTIBLE || thread->status == THREAD_UNINTERRUPTIBLE)
@@ -858,9 +859,9 @@ void set_current_thread(thread_t *t)
 
 pid_t sys_set_tid_address(pid_t *tidptr)
 {
-    thread *t = get_current_thread();
-    t->ctid = tidptr;
-    return t->id;
+    struct process *curr = get_current_process();
+    curr->ctid = tidptr;
+    return curr->pid_;
 }
 
 int sys_nanosleep(const timespec *req, timespec *rem)
@@ -905,14 +906,7 @@ void thread_destroy(struct thread *thread)
     if (thread->owner)
     {
         auto proc = thread->owner;
-
         proc->remove_thread(thread);
-
-        if (!(thread->sinfo.flags & THREAD_SIGNAL_EXITING))
-        {
-            /* Don't bother re-routing signals if we're exiting */
-            thread->sinfo.reroute_signals(proc);
-        }
     }
 
     /* Remove the thread from the queue */
@@ -1294,9 +1288,7 @@ void __sched_kill_other(thread *thread, unsigned int cpu)
 
 pid_t sys_gettid()
 {
-    thread *current = get_current_thread();
-    /* TODO: Should we emulate actual linux behavior? */
-    return current->id;
+    return get_current_process()->pid_;
 }
 
 void sched_transition_to_idle()

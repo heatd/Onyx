@@ -88,17 +88,6 @@ struct sigpending
     siginfo_t *info;
     int signum;
     struct list_head list_node;
-
-#ifdef __cplusplus
-    constexpr sigpending() : info{nullptr}, signum{}, list_node{}
-    {
-    }
-
-    ~sigpending()
-    {
-        delete info;
-    }
-#endif
 };
 
 static inline bool signal_is_realtime(int sig)
@@ -111,9 +100,8 @@ static inline bool signal_is_standard(int sig)
     return !signal_is_realtime(sig);
 }
 
-#define THREAD_SIGNAL_STOPPING        (1 << 0)
-#define THREAD_SIGNAL_EXITING         (1 << 1)
-#define THREAD_SIGNAL_ORIGINAL_SIGSET (1 << 2)
+#define THREAD_SIGNAL_STOPPING (1 << 0)
+#define THREAD_SIGNAL_EXITING  (1 << 1)
 
 struct sighand_struct
 {
@@ -131,176 +119,28 @@ static inline void sighand_init(struct sighand_struct *s)
 
 struct process;
 
-struct signal_info
+struct sigqueue
 {
-    /* Signal mask */
-    sigset_t sigmask;
-
-    struct spinlock lock;
-
-    /* Pending signal set */
-    sigset_t pending_set;
-
+    /* Note: pending, pending_head are protected by sighand->signal_lock */
+    sigset_t pending;
     struct list_head pending_head;
-
-    unsigned short flags;
-
-    unsigned long times_interrupted;
-    bool signal_pending;
-
-    /* No need for a lock here since any possible changes
-     * to this variable happen in kernel mode, in this exact thread.
-     */
-    stack_t altstack;
-
-    // Used by pselect, ppoll, sigsuspend
-    sigset_t original_sigset;
-
-#ifdef __cplusplus
-
-private:
-    bool is_signal_pending_internal() const
-    {
-        const sigset_t &set = pending_set;
-        const sigset_t &blocked_set = sigmask;
-        sigset_t temp = blocked_set;
-        signotset(&temp);
-        sigset_t s;
-        sigandset(&s, &set, &temp);
-
-        return !sigisemptyset(&s);
-    }
-
-public:
-    sigset_t get_mask()
-    {
-        scoped_lock g{lock};
-        return sigmask;
-    }
-
-    sigset_t get_pending_set()
-    {
-        scoped_lock g{lock};
-        return pending_set;
-    }
-
-    sigset_t get_effective_pending()
-    {
-        scoped_lock g{lock};
-        auto set = get_pending_set();
-        auto blocked_set = get_mask();
-        sigandset(&set, &set, &blocked_set);
-
-        return set;
-    }
-
-    sigset_t __add_blocked(const sigset_t *blocked, bool update_pending = true)
-    {
-        auto old = sigmask;
-        sigorset(&sigmask, &sigmask, blocked);
-        sigdelset(&sigmask, SIGKILL);
-        sigdelset(&sigmask, SIGSTOP);
-
-        if (update_pending)
-            __update_pending();
-        return old;
-    }
-
-    sigset_t add_blocked(const sigset_t *blocked, bool update_pending = true)
-    {
-        scoped_lock g{lock};
-        return __add_blocked(blocked, update_pending);
-    }
-
-    sigset_t set_blocked(const sigset_t *blocked, bool update_pending = true)
-    {
-        scoped_lock g{lock};
-        auto old = sigmask;
-        memcpy(&sigmask, blocked, sizeof(sigset_t));
-        sigdelset(&sigmask, SIGKILL);
-        sigdelset(&sigmask, SIGSTOP);
-
-        if (update_pending)
-            __update_pending();
-        return old;
-    }
-
-    sigset_t unblock(sigset_t &mask, bool update_pending = true)
-    {
-        scoped_lock g{lock};
-        auto old = sigmask;
-        signotset(&mask);
-        sigandset(&sigmask, &sigmask, &mask);
-
-        if (update_pending)
-            __update_pending();
-        return old;
-    }
-
-    void __update_pending()
-    {
-        MUST_HOLD_LOCK(&lock);
-
-        signal_pending = flags != 0 || is_signal_pending_internal();
-    }
-
-    void update_pending()
-    {
-        scoped_lock g{lock};
-        __update_pending();
-    }
-
-    void reroute_signals(process *p);
-
-    bool add_pending(struct sigpending *pend)
-    {
-        scoped_lock g{lock};
-
-        if (signal_is_standard(pend->signum) && sigismember(&pending_set, pend->signum))
-            return false;
-
-        list_add(&pend->list_node, &pending_head);
-
-        sigaddset(&pending_set, pend->signum);
-
-        if (!sigismember(&sigmask, pend->signum))
-            signal_pending = true;
-
-        return true;
-    }
-
-    bool try_to_route(struct sigpending *pend)
-    {
-        scoped_lock g{lock};
-
-        if (sigismember(&sigmask, pend->signum))
-            return false;
-
-        if (signal_is_standard(pend->signum) && sigismember(&pending_set, pend->signum))
-            return false;
-
-        list_add(&pend->list_node, &pending_head);
-        sigaddset(&pending_set, pend->signum);
-        signal_pending = true;
-
-        return true;
-    }
-
-    constexpr signal_info()
-        : sigmask{}, lock{}, pending_set{}, pending_head{}, flags{}, times_interrupted{},
-          signal_pending{}, altstack{}
-    {
-        INIT_LIST_HEAD(&pending_head);
-        altstack.ss_flags = SS_DISABLE;
-    }
-
-    ~signal_info();
-#endif
 };
 
+static inline void sigqueue_init(struct sigqueue *queue)
+{
+    queue->pending = (sigset_t){};
+    INIT_LIST_HEAD(&queue->pending_head);
+}
+
 #define SIGNAL_GROUP_STOPPED (1 << 0)
+/* SIGNAL_GROUP_PENDING is set when there's a CONT status to reap (since we last looked at this
+ * process in wait4). */
 #define SIGNAL_GROUP_CONT    (1 << 1)
 #define SIGNAL_GROUP_EXIT    (1 << 2)
+
+/* We set CONT_PENDING if we're pending the parent notification on SIGCONT. It is set when sending
+ * SIGCONT. */
+#define SIGNAL_GROUP_CONT_PENDING (1 << 3)
 
 struct process;
 struct thread;
@@ -314,7 +154,6 @@ void handle_signal(struct registers *regs);
 #define SIGNAL_IN_BROADCAST (1 << 1)
 
 int kernel_raise_signal(int sig, struct process *process, unsigned int flags, siginfo_t *info);
-int kernel_tkill(int signal, struct thread *thread, unsigned int flags, siginfo_t *info);
 int signal_kill_pg(int sig, int flags, siginfo_t *info, pid_t pid);
 void signal_context_init(struct thread *new_thread);
 void signal_do_execve(struct process *proc);
@@ -324,6 +163,67 @@ static inline bool signal_is_stopping(int sig)
 {
     return sig == SIGSTOP || sig == SIGTSTP || sig == SIGTTIN || sig == SIGTTOU;
 }
+
+static inline void sigaltstack_init(stack_t *stack)
+{
+    stack->ss_size = 0;
+    stack->ss_sp = NULL;
+    stack->ss_flags = SS_DISABLE;
+}
+
+int raise_sig_thr(int sig, struct process *task, unsigned int flags, siginfo_t *info);
+int raise_sig_curthr(int sig, unsigned int flags, siginfo_t *info);
+
+/**
+ * @brief Low-level helper for signal-related code (do not use, probably)
+ * Sets TF_SIGPENDING and tries to wake it up, if possible.
+ *
+ * @param task Task (thread) to wake up
+ * @param signal Signal number
+ */
+void signal_interrupt_task(struct process *task, int signal);
+
+/* The two following helpers implement saved sigmask semantics for Onyx. System calls that take
+ * sigmasks are supposed to use signal_setmask_and_save at the start, and signal_restore_sigmask if
+ * not interrupted by a signal. If interrupted by a signal, the signal handling code will save the
+ * sigmask on the stack, which will be transparently restored by sigreturn. */
+
+/**
+ * @brief Set the mask and store the old one for saving later
+ * To be used by syscalls that need such semantics (ppoll, pselect, sigsuspend, etc)
+ *
+ * @param mask New sigmask
+ */
+void signal_setmask_and_save(const sigset_t *mask);
+
+/**
+ * @brief Restore the saved sigmask
+ * To be used by syscalls that need such semantics (ppoll, pselect, sigsuspend, etc)
+ *
+ */
+void signal_restore_sigmask(void);
+
+void signal_setmask(const sigset_t *mask);
+
+/**
+ * @brief Notify this task's parent that we're exiting
+ * We have to be careful and check if we need to, e.g, autoreap. write_lock needs to be held when
+ * calling.
+ *
+ * @param exit_code Exit code to notify with
+ * @retval true If task should be autoreaped (thus no signal was sent, nor did we wake anyone up)
+ */
+bool parent_notify(unsigned int exit_code);
+
+/**
+ * @brief Notify this task's parent that we're stopping/continuing
+ * We have to be careful and check if we need to, e.g, not send anything. tasklist read_lock needs
+ * to be held when calling.
+ *
+ * @param exit_code Stop code to notify with
+ * @retval true If task was woken up
+ */
+bool notify_process_stop_cont(struct process *task, unsigned int exit_code);
 
 __END_CDECLS
 

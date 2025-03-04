@@ -1,10 +1,11 @@
 /*
- * Copyright (c) 2019 - 2021 Pedro Falcato
+ * Copyright (c) 2019 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
+#define DEFINE_CURRENT
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -37,21 +38,16 @@ int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigactio
 {
     int sig = pend->signum;
     struct thread *curr = get_current_thread();
-    struct signal_info *sinfo = &curr->sinfo;
     unsigned long sp = regs->rsp - REDZONE_OFFSET;
-
+    stack_t *altstack = &current->altstack;
     /* Note that we handle the redzone preservation up here, because when running on an altstack
      * we don't need to do that.
      */
-    if (k_sigaction->sa_flags & SA_ONSTACK && !(sinfo->altstack.ss_flags & SS_DISABLE))
+    if (k_sigaction->sa_flags & SA_ONSTACK && !(current->altstack.ss_flags & SS_DISABLE))
     {
-        sp = (unsigned long) sinfo->altstack.ss_sp + sinfo->altstack.ss_size;
-        if (sinfo->altstack.ss_flags & SS_AUTODISARM)
-        {
-            sinfo->altstack.ss_sp = nullptr;
-            sinfo->altstack.ss_size = 0;
-            sinfo->altstack.ss_flags = SS_DISABLE;
-        }
+        sp = (unsigned long) altstack->ss_sp + altstack->ss_size;
+        if (altstack->ss_flags & SS_AUTODISARM)
+            sigaltstack_init(altstack);
     }
 
     size_t fpu_size = fpu_get_save_size();
@@ -121,9 +117,9 @@ int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigactio
         return -EFAULT;
 
     /* We're saving the sigmask, that will then be restored */
-    auto mask = curr->sinfo.flags & THREAD_SIGNAL_ORIGINAL_SIGSET ? &curr->sinfo.original_sigset
-                                                                  : &curr->sinfo.sigmask;
-    curr->sinfo.flags &= ~THREAD_SIGNAL_ORIGINAL_SIGSET;
+    auto mask =
+        test_task_flag(current, TF_RESTORE_SIGMASK) ? &current->original_sigset : &current->sigmask;
+    clear_task_flag(current, TF_RESTORE_SIGMASK);
     if (copy_to_user(&sframe->uc.uc_sigmask, mask, sizeof(sigset_t)) < 0)
         return -EFAULT;
 
@@ -245,8 +241,7 @@ void sys_sigreturn(syscall_frame *sysframe)
     if (copy_from_user(&set, &sframe->uc.uc_sigmask, sizeof(set)) < 0)
         return;
 
-    curr->sinfo.set_blocked(&set);
-
+    signal_setmask(&set);
     context_tracking_exit_kernel();
     __sigret_return(regs);
 

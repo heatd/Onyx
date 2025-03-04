@@ -124,8 +124,7 @@ int find_and_exec_init(const char **argv, const char **envp)
     current_thread->owner = proc;
     sched_transition_to_user_thread(current_thread);
 
-    process_add_thread(proc, current_thread);
-
+    proc->thr = current_thread;
     // TODO: Should we open some sort of logging device (akin to /dev/console) by default?
 #if 0
 	/* Setup standard file descriptors (STDIN(0), STDOUT(1), STDERR(2)) */

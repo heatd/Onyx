@@ -329,7 +329,9 @@ int flush_old_exec(struct exec_state *state)
     struct mm_address_space *mm = curr->address_space;
     int st = 0;
 
-    process_kill_other_threads();
+    st = zap_threads_exec();
+    if (st < 0)
+        return st;
 
     vm_set_aspace(state->new_address_space);
     curr->address_space = cul::move(state->new_address_space);
@@ -341,11 +343,8 @@ int flush_old_exec(struct exec_state *state)
     file_do_cloexec(curr->ctx);
 
     st = vm_create_brk(curr->address_space);
-
     if (st == 0)
-    {
         state->flushed = true;
-    }
 
     curr->interp_base = nullptr;
     curr->image_base = nullptr;

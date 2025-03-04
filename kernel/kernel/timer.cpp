@@ -164,7 +164,7 @@ void itimer_init(struct process *p)
     int timer_whichs[3] = {ITIMER_REAL, ITIMER_VIRTUAL, ITIMER_PROF};
     int i = 0;
 
-    for (auto &it : p->timers)
+    for (auto &it : p->sig->timers)
     {
         it.p = p;
         it.which = timer_whichs[i++];
@@ -193,7 +193,7 @@ int sys_getitimer(int which, struct itimerval *curr_value)
 
     struct process *current = get_current_process();
 
-    auto &timer = current->timers[which];
+    auto &timer = current->sig->timers[which];
 
     scoped_lock guard{timer.lock};
 
@@ -278,6 +278,11 @@ int itimer::disarm()
     return 0;
 }
 
+void itimer_disarm(struct itimer *it)
+{
+    it->disarm();
+}
+
 int sys_setitimer(int which, const struct itimerval *new_value, struct itimerval *old_value)
 {
     if (!valid_itimer_which(which))
@@ -307,7 +312,7 @@ int sys_setitimer(int which, const struct itimerval *new_value, struct itimerval
 
     struct process *current = get_current_process();
 
-    auto &timer = current->timers[which];
+    auto &timer = current->sig->timers[which];
 
     if (!initial_ns)
         st = timer.disarm();

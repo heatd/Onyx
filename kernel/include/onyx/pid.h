@@ -16,6 +16,7 @@
 #include <onyx/rculist.h>
 #include <onyx/rcupdate.h>
 #include <onyx/ref.h>
+#include <onyx/rwlock.h>
 #include <onyx/spinlock.h>
 #include <onyx/types.h>
 
@@ -29,7 +30,9 @@ enum pid_type
 {
     PIDTYPE_PGRP = 0,
     PIDTYPE_SID,
-    PIDTYPE_MAX
+    PIDTYPE_MAX,
+    PIDTYPE_PID,
+    PIDTYPE_TGID,
 };
 
 struct process;
@@ -70,8 +73,6 @@ bool pgrp_is_in_session(struct pid *pid, struct pid *session);
 
 void pid_destroy(struct pid *pid);
 
-void _Z11stack_tracev(void);
-
 static inline void get_pid(struct pid *pid)
 {
     refcount_inc(&pid->refcount);
@@ -107,6 +108,20 @@ static inline pid_t pid_nr(struct pid *pid)
     return pid->pid_;
 }
 
+void pid_remove_pid(struct pid *pid, struct process *proc);
+struct process *get_process_from_pid_noref(pid_t pid);
+
+/* forward decl to avoid depending on onyx/process.h */
+extern struct rwslock tasklist_lock;
+/**
+ * @brief Exchange pids between us and the leader
+ * Used in execve.
+ *
+ * @param leader Old thread group leader
+ * @param new_leader New thread group leader
+ */
+void exchange_leader_pids(struct process *leader, struct process *new_leader)
+    REQUIRES(tasklist_lock);
 __END_CDECLS
 
 #endif

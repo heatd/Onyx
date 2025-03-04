@@ -56,12 +56,6 @@ void rcu_work();
 
 __END_CDECLS
 
-#define rcu_assign_pointer(ptr, val) \
-    ({                               \
-        smp_wmb();                   \
-        (ptr) = (val);               \
-    })
-
 #ifdef __cplusplus
 
 #include <onyx/utility.hpp>
@@ -88,6 +82,7 @@ public:
 #define __rcu               __attribute__((noderef, address_space(100)))
 #define __force             __attribute__((force))
 #define __rcu_forcecast(p)  ((__typeof__(*(p)) *__force) p)
+#define __rcu_cast_to(p)    ((__typeof__(*(p)) __rcu *) p)
 /* Check for __rcu in sparse by casting the pointer to an __rcu one, and then comparing. Comparing
  * will trigger an address-space mismatch warning if p is not __rcu */
 #define rcu_check_sparse(p) ((void) (((__typeof__(*(p)) __rcu *__force) p) == p))
@@ -95,6 +90,7 @@ public:
 #define __rcu
 #define __rcu_forcecast(p) (p)
 #define rcu_check_sparse(ptr)
+#define __rcu_cast_to(p) (p)
 #endif
 
 #define rcu_dereference(ptr)                                        \
@@ -110,5 +106,14 @@ public:
     })
 
 #define rcu_dereference_check(ptr, c) rcu_dereference(ptr)
+
+#define RCU_INITIALIZER(v) (__rcu_cast_to(v))
+
+#define rcu_assign_pointer(ptr, val)             \
+    ({                                           \
+        rcu_check_sparse(ptr);                   \
+        smp_wmb();                               \
+        WRITE_ONCE((ptr), RCU_INITIALIZER(val)); \
+    })
 
 #endif

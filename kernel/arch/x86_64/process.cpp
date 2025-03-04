@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2021 Pedro Falcato
+ * Copyright (c) 2020 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -14,23 +14,20 @@
 
 #include <uapi/clone.h>
 
-struct thread *process_create_thread(struct process *proc, thread_callback_t callback,
-                                     uint32_t flags)
+namespace x86::internal
 {
-    thread_t *thread = sched_create_thread(callback, flags, nullptr);
+void thread_setup_stack(thread *thread, bool is_user, registers_t *regs);
+}
 
-    if (!thread)
-        return nullptr;
+extern "C" void ret_from_fork_asm(void);
 
-    spin_lock(&proc->thread_list_lock);
-
-    list_add_tail(&thread->thread_list_head, &proc->thread_list);
-
-    spin_unlock(&proc->thread_list_lock);
-
-    thread->owner = proc;
-
-    return thread;
+extern "C" void ret_from_fork(void)
+{
+    /* We take care of everything that needs to be done post-fork on the child process (that we
+     * couldn't really do beforehand) */
+    struct process *current = get_current_process();
+    if (current->set_tid)
+        copy_to_user(current->set_tid, &current->pid_, sizeof(pid_t));
 }
 
 struct thread *process_fork_thread(thread_t *src, struct process *dest, unsigned int flags,
@@ -73,15 +70,14 @@ struct thread *process_fork_thread(thread_t *src, struct process *dest, unsigned
     if (flags & CLONE_SETTLS)
         thread->fs = (void *) tls;
 
+    regs.rip = (unsigned long) &ret_from_fork_asm;
+    x86::internal::thread_setup_stack(thread, false, &regs);
+
     save_fpu(thread->fpu_area);
 
     thread->owner = dest;
     thread->set_aspace(dest->get_aspace());
-
-    list_add_tail(&thread->thread_list_head, &dest->thread_list);
-
-    dest->nr_threads = 1;
-
+    dest->thr = thread;
     return thread;
 }
 
@@ -97,85 +93,7 @@ int process_alloc_stack(struct stack_info *info)
     return 0;
 }
 
-struct thread *process_create_main_thread(struct process *proc, thread_callback_t callback,
-                                          void *sp)
-{
-    registers_t regs = {};
-    regs.rsp = reinterpret_cast<unsigned long>(sp);
-    regs.rip = reinterpret_cast<unsigned long>(callback);
-    regs.rflags = default_rflags;
-
-    auto t = sched_spawn_thread(&regs, 0, nullptr);
-    if (!t)
-        return nullptr;
-
-    t->owner = proc;
-
-    /* No need to lock here because the thread isn't even alive yet. */
-    list_add_tail(&t->thread_list_head, &proc->thread_list);
-
-    proc->nr_threads = 1;
-
-    return t;
-}
-
-#define CLONE_FORK        (1 << 0)
-#define CLONE_SPAWNTHREAD (1 << 1)
-long valid_flags = CLONE_FORK | CLONE_SPAWNTHREAD;
-
-struct tid_out
-{
-    /* TID is placed here */
-    pid_t *ptid;
-    /* This location is zero'd when the thread exits */
-    pid_t *ctid;
-};
-
-/* Hmmm, I don't think this is 100% correct but it's good enough */
-static void inherit_signal_flags(thread *newt)
-{
-    auto current_thread = get_current_thread();
-
-    scoped_lock g{current_thread->sinfo.lock};
-    scoped_lock g2{newt->sinfo.lock};
-
-    newt->sinfo.flags |= current_thread->sinfo.flags;
-    newt->sinfo.__update_pending();
-}
-
 int sys_clone(void *fn, void *child_stack, int flags, void *arg, struct tid_out *out, void *tls)
 {
-    struct tid_out ktid_out;
-    if (copy_from_user(&ktid_out, out, sizeof(ktid_out)) < 0)
-        return -EFAULT;
-
-    if (flags & ~valid_flags)
-        return -EINVAL;
-    if (flags & CLONE_FORK)
-        return -EINVAL; /* TODO: Add CLONE_FORK */
-    thread_callback_t start = (thread_callback_t) fn;
-
-    registers_t regs = {};
-    regs.rsp = (unsigned long) child_stack;
-    regs.rflags = default_rflags;
-    regs.rip = (unsigned long) start;
-    regs.rdi = (unsigned long) arg;
-
-    thread_t *thread = sched_spawn_thread(&regs, 0, tls);
-    if (!thread)
-        return -errno;
-
-    if (copy_to_user(ktid_out.ptid, &thread->id, sizeof(pid_t)) < 0)
-    {
-        thread_destroy(thread);
-        return -errno;
-    }
-
-    thread->ctid = ktid_out.ctid;
-
-    process_add_thread(get_current_process(), thread);
-    inherit_signal_flags(thread);
-    sched_start_thread(thread);
-
-    return 0;
+    return -ENOSYS;
 }

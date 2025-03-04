@@ -192,6 +192,11 @@ ENTRY(x86_scheduler_exit)
     jmp 2b
 END(x86_scheduler_exit)
 
+ENTRY(ret_from_fork_asm)
+    call ret_from_fork
+    jmp x86_scheduler_exit
+END(ret_from_fork_asm)
+
 .pushsection .text.x86_entry
 
 /* Everything past this point is permanently mapped */

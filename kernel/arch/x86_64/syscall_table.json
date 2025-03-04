@@ -127,7 +127,7 @@
         "return_type": "off_t"
     },
     {
-        "name": "exit",
+        "name": "exit_group",
         "nr": 8,
         "nr_args": 1,
         "args": [
@@ -136,7 +136,8 @@
                 "status"
             ]
         ],
-        "return_type": "void"
+        "return_type": "void",
+        "abi": "c"
     },
     {
         "name": "fork",
@@ -298,7 +299,8 @@
                 "sig"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "getppid",
@@ -329,7 +331,8 @@
                 "rusage"
             ]
         ],
-        "return_type": "pid_t"
+        "return_type": "pid_t",
+        "abi": "c"
     },
     {
         "name": "time",
@@ -845,7 +848,8 @@
                 "oldact"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "pipe",
@@ -1023,7 +1027,7 @@
         "return_type": "int"
     },
     {
-        "name": "exit_thread",
+        "name": "exit",
         "nr": 64,
         "nr_args": 1,
         "args": [
@@ -1032,7 +1036,8 @@
                 "value"
             ]
         ],
-        "return_type": "void"
+        "return_type": "void",
+        "abi": "c"
     },
     {
         "name": "sigprocmask",
@@ -1056,7 +1061,8 @@
                 "sigset_size"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "sigsuspend",
@@ -1068,14 +1074,16 @@
                 "set"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "pause",
         "nr": 67,
         "nr_args": 0,
         "args": [],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "futex",
@@ -1279,7 +1287,8 @@
                 "usage"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "ptrace",
@@ -2030,7 +2039,8 @@
                 "info"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "rt_tgsigqueueinfo",
@@ -2054,7 +2064,8 @@
                 "info"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "tkill",
@@ -2070,7 +2081,8 @@
                 "sig"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "tgkill",
@@ -2090,7 +2102,8 @@
                 "sig"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "rt_sigpending",
@@ -2106,7 +2119,8 @@
                 "sigsetlen"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "rt_sigtimedwait",
@@ -2130,7 +2144,8 @@
                 "sigsetlen"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "setsockopt",
@@ -2246,7 +2261,8 @@
                 "frame"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "setitimer",
@@ -2943,6 +2959,35 @@
             [
                 "struct timespec *",
                 "tp"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "newclone",
+        "nr": 165,
+        "nr_args": 5,
+        "args": [
+            [
+                "unsigned long",
+                "clone_flags"
+            ],
+            [
+                "unsigned long",
+                "newsp"
+            ],
+            [
+                "int *",
+                "parent_tidptr"
+            ],
+            [
+                "int *",
+                "child_tidptr"
+            ],
+            [
+                "unsigned long",
+                "tls"
             ]
         ],
         "return_type": "int",

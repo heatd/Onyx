@@ -1868,7 +1868,7 @@ void vm_do_fatal_page_fault(struct fault_info *info)
         }
 
         sinfo.si_addr = (void *) info->fault_address;
-        kernel_tkill(info->signal, get_current_thread(), SIGNAL_FORCE, &sinfo);
+        raise_sig_curthr(info->signal, SIGNAL_FORCE, &sinfo);
     }
     else
     {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2024 Pedro Falcato
+ * Copyright (c) 2020 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -63,7 +63,7 @@ struct pid *pid_lookup(pid_t pid)
     mas_lock(&mas);
     p = mas_find(&mas, pid + 1);
     mas_unlock(&mas);
-    if (unlikely(p->pid_ != pid))
+    if (unlikely(!p || p->pid_ != pid))
         return NULL;
     return p;
 }
@@ -75,7 +75,7 @@ struct pid *pid_lookup_ref(pid_t pid)
     mas_lock(&mas);
     p = mas_find(&mas, pid + 1);
     mas_unlock(&mas);
-    if (unlikely(p->pid_ != pid))
+    if (unlikely(!p || p->pid_ != pid))
         return NULL;
     if (unlikely(!refcount_inc_not_zero(&p->refcount)))
         return NULL;
@@ -91,7 +91,7 @@ bool pgrp_is_in_session(struct pid *pid, struct pid *session)
         return false;
 
     proc = list_first_entry(&pid->member_list[PIDTYPE_PGRP], struct process, pgrp_node);
-    return proc->session == session;
+    return proc->sig->session == session;
 }
 
 void pid_destroy(struct pid *pid)
@@ -109,7 +109,7 @@ static bool pid_empty(struct pid *pid)
             return false;
     }
 
-    return true;
+    return pid->proc == NULL;
 }
 
 static void free_pid(struct pid *pid)
@@ -140,6 +140,18 @@ void pid_remove_process(struct pid *pid, struct process *proc, enum pid_type typ
         free_pid(pid);
 }
 
+void pid_remove_pid(struct pid *pid, struct process *proc)
+{
+    /* Remove the PID-level association */
+    spin_lock(&pid->lock);
+    CHECK(proc == pid->proc);
+    pid->proc = NULL;
+    spin_unlock(&pid->lock);
+
+    if (pid_empty(pid))
+        free_pid(pid);
+}
+
 void pid_add_process(struct pid *pid, struct process *proc, enum pid_type type)
 {
     spin_lock(&pid->lock);
@@ -161,14 +173,15 @@ void pid_add_process(struct pid *pid, struct process *proc, enum pid_type type)
 
 int sys_setpgid(pid_t pid, pid_t pgid)
 {
-    struct process *target;
+    struct process *target, *parent;
     struct pid *pgrp, *old_pgrp;
+    struct pid *session;
     int err;
 
     pgrp = NULL;
     /* If pid == 0, pid = our pid; if pgid == 0, pgid = pid */
     if (!pid)
-        pid = current->pid_;
+        pid = task_tgid(current);
 
     if (!pgid)
         pgid = pid;
@@ -176,24 +189,26 @@ int sys_setpgid(pid_t pid, pid_t pgid)
     if (pid < 0 || pgid < 0)
         return -EINVAL;
 
+    write_lock(&tasklist_lock);
     target = get_process_from_pid(pid);
 
     /* Error out if the process doesn't exist, isn't us or isn't our child. */
-    if (!target || (target != current && target->parent != current))
+    if (!target || (target != current && task_parent_locked(target) != current))
     {
         if (target)
             process_put(target);
+        write_unlock(&tasklist_lock);
         return -ESRCH;
     }
 
+    parent = task_parent_locked(target);
+
     /* Can't do setpgid for a child that has exec'd (the only way that flag is cleared). */
-    if (target->parent == current && !(target->flags & PROCESS_FORKED))
+    if (parent == current && !(target->flags & PROCESS_FORKED))
     {
         err = -EACCES;
-        goto err1;
+        goto err;
     }
-
-    write_lock(&tasklist_lock);
 
     pgrp = pid_lookup(pgid);
     if (!pgrp)
@@ -203,24 +218,25 @@ int sys_setpgid(pid_t pid, pid_t pgid)
     }
 
     err = -EPERM;
-    if (target->session != current->session)
+    session = task_session_locked(target);
+    if (task_session_locked(current) != session)
         goto err;
 
-    if (pgrp != target->process_group)
+    old_pgrp = task_pgrp_locked(target);
+    if (pgrp != old_pgrp)
     {
         /* If session leader, oh no! */
-        if (target->session == target->pid_struct)
+        if (task_is_session_leader(target))
             goto err;
 
-        if (pgid != pid && !pgrp_is_in_session(pgrp, target->session))
+        if (pgid != pid && !pgrp_is_in_session(pgrp, session))
             goto err;
 
-        old_pgrp = target->process_group;
         if (old_pgrp)
             pid_remove_process(old_pgrp, target, PIDTYPE_PGRP);
 
         pid_add_process(pgrp, target, PIDTYPE_PGRP);
-        target->process_group = pgrp;
+        rcu_assign_pointer(target->sig->process_group, pgrp);
     }
 
     write_unlock(&tasklist_lock);
@@ -228,7 +244,6 @@ int sys_setpgid(pid_t pid, pid_t pgid)
     return 0;
 err:
     write_unlock(&tasklist_lock);
-err1:
     process_put(target);
     return err;
 }
@@ -249,46 +264,59 @@ pid_t sys_getpgid(pid_t pid)
         return -ESRCH;
 
     rcu_read_lock();
-    pid = rcu_dereference(target->process_group)->pid_;
+    pid = pid_nr(task_pgrp(target));
     rcu_read_unlock();
     return pid;
 }
 
 pid_t sys_setsid(void)
 {
-    if (current->process_group == current->pid_struct)
+    pid_t pid;
+    struct pid *pgrp, *session;
+    struct pid *tgid;
+    struct process *leader;
+    write_lock(&tasklist_lock);
+
+    pgrp = task_pgrp_locked(current);
+    session = task_session_locked(current);
+    tgid = task_tgid_locked(current);
+    leader = rcu_dereference_protected(current->sig->tg_leader, lockdep_tasklist_lock_held_write());
+    if (pgrp == tgid)
     {
         // Oops, we're process group leader, can't call setsid
+        write_unlock(&tasklist_lock);
         return -EPERM;
     }
 
     // Lets make ourselves process group leaders
-    pid_remove_process(current->process_group, current, PIDTYPE_PGRP);
-    current->process_group = current->pid_struct;
-    pid_add_process(current->process_group, current, PIDTYPE_PGRP);
+    pid_remove_process(pgrp, leader, PIDTYPE_PGRP);
+    rcu_assign_pointer(current->sig->process_group, tgid);
+    pid_add_process(tgid, leader, PIDTYPE_PGRP);
 
     // and create a session on our pid
-    pid_remove_process(current->session, current, PIDTYPE_SID);
-    current->session = current->pid_struct;
-    pid_add_process(current->session, current, PIDTYPE_SID);
+    pid_remove_process(session, leader, PIDTYPE_SID);
+    rcu_assign_pointer(current->sig->session, tgid);
+    pid_add_process(tgid, leader, PIDTYPE_SID);
 
     // Initially, we won't have a controlling terminal
-    current->ctty = NULL;
-    return pid_nr(current->session);
+    current->sig->ctty = NULL;
+    pid = pid_nr(tgid);
+    write_unlock(&tasklist_lock);
+    return pid;
 }
 
 pid_t sys_getsid(pid_t pid)
 {
     struct process *proc;
     if (!pid)
-        pid = current->pid_;
+        pid = task_tgid(current);
 
     proc = get_process_from_pid(pid);
     if (!proc)
         return -ESRCH;
 
     rcu_read_lock();
-    pid = pid_nr(proc->session);
+    pid = pid_nr(task_session(proc));
     rcu_read_unlock();
     process_put(proc);
     return pid;
@@ -319,24 +347,54 @@ bool pid_is_orphaned_and_has_stopped_jobs(struct pid *pgrp, struct process *igno
     // either itself a member of the group or is not a member of the group's session."
 
     bool has_stopped = false;
-    struct process *proc;
+    struct process *proc, *parent;
 
     pgrp_for_every_member(pgrp, proc, PIDTYPE_PGRP)
     {
         if (proc == ignore)
             continue;
 
-        if (proc->signal_group_flags & SIGNAL_GROUP_STOPPED)
+        if (proc->sig->signal_group_flags & SIGNAL_GROUP_STOPPED)
             has_stopped = true;
 
         // Ignore init, since it has no parent
         if (!proc->parent)
             continue;
 
+        parent = task_parent_locked(proc);
         /* Not orphan */
-        if (proc->parent->process_group != pgrp || proc->parent->session == ignore->session)
+        if (task_pgrp_locked(parent) != pgrp ||
+            task_session_locked(parent) == task_session_locked(ignore))
             return false;
     }
 
     return has_stopped;
+}
+
+/**
+ * @brief Exchange pids between us and the leader
+ * Used in execve.
+ *
+ * @param leader Old thread group leader
+ * @param new_leader New thread group leader
+ */
+void exchange_leader_pids(struct process *leader, struct process *new_leader)
+    REQUIRES(tasklist_lock)
+{
+    /* tasklist_lock held in write mode */
+    struct pid *pgrp = task_pgrp_locked(leader);
+    struct pid *sid = task_session_locked(leader);
+    struct pid *pid1 = task_pid_locked(leader);
+    struct pid *pid2 = task_pid_locked(new_leader);
+
+    list_remove_rcu(&leader->pgrp_node.__lh);
+    list_remove_rcu(&leader->session_node.__lh);
+    list_add_tail_rcu(&new_leader->pgrp_node.__lh, &pgrp->member_list[PIDTYPE_PGRP]);
+    list_add_tail_rcu(&new_leader->session_node.__lh, &sid->member_list[PIDTYPE_SID]);
+    rcu_assign_pointer(new_leader->pid_struct, pid1);
+    rcu_assign_pointer(leader->pid_struct, pid2);
+    leader->pid_ = pid_nr(pid2);
+    new_leader->pid_ = pid_nr(pid1);
+    rcu_assign_pointer(pid2->proc, leader);
+    rcu_assign_pointer(pid1->proc, new_leader);
 }

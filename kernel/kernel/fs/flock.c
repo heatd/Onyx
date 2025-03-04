@@ -1,10 +1,11 @@
 /*
- * Copyright (c) 2024 Pedro Falcato
+ * Copyright (c) 2024 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
+#define DEFINE_CURRENT
 #include <onyx/compiler.h>
 #include <onyx/file.h>
 #include <onyx/flock.h>
@@ -203,7 +204,7 @@ static int flock_fill_in(int cmd, struct file *filp, struct flock *fl, struct fl
         pl->flags |= FLOCK_POSIX_OFD;
     }
     else
-        pl->owner.pid = get_current_process()->pid_;
+        pl->owner.pid = task_tgid(current);
 
     switch (fl->l_whence)
     {
@@ -290,7 +291,7 @@ static int flock_getlock_posix(int cmd, struct file *filp, struct flock *arg)
     spin_lock(&info->lock);
 
     struct flock_posix_lock *lock;
-    list_for_each_entry(lock, &info->posix_locks, list_node)
+    list_for_each_entry (lock, &info->posix_locks, list_node)
     {
         /* If these locks conflict and overlap, we found our boy. They do not conflict if two locks
          * are read-mode, or locked by us. */
@@ -325,7 +326,7 @@ static int ___flock_setlock_posix(struct file *filp, struct flock_posix_lock *pl
     bool pass2 = false;
 
     /* Go through the list and find conflits. If it's our lock, we can change it. */
-    list_for_each_entry(lock, &info->posix_locks, list_node)
+    list_for_each_entry (lock, &info->posix_locks, list_node)
     {
         if (flock_locks_conflict(pl, lock))
             return -EAGAIN;
@@ -354,7 +355,7 @@ static int ___flock_setlock_posix(struct file *filp, struct flock_posix_lock *pl
     if (pass2)
     {
         /* Make a second pass through the lock list and change the locks we need to */
-        list_for_each_entry_safe(lock, next, &info->posix_locks, list_node)
+        list_for_each_entry_safe (lock, next, &info->posix_locks, list_node)
         {
             if (!flock_locks_overlap(pl, lock) || !flock_locks_same_owner(pl, lock))
                 continue;
@@ -536,7 +537,7 @@ void flock_remove_ofd(struct file *filp)
 
     spin_lock(&info->lock);
 
-    list_for_each_entry_safe(lock, next, &info->posix_locks, list_node)
+    list_for_each_entry_safe (lock, next, &info->posix_locks, list_node)
     {
         if (lock->flags & FLOCK_POSIX_OFD && lock->owner.filp == filp)
         {
@@ -561,9 +562,9 @@ void flock_remove_posix(struct file *filp)
 
     spin_lock(&info->lock);
 
-    list_for_each_entry_safe(lock, next, &info->posix_locks, list_node)
+    list_for_each_entry_safe (lock, next, &info->posix_locks, list_node)
     {
-        if (!(lock->flags & FLOCK_POSIX_OFD) && lock->owner.pid == get_current_process()->pid_)
+        if (!(lock->flags & FLOCK_POSIX_OFD) && lock->owner.pid == task_tgid(current))
         {
             list_remove(&lock->list_node);
             kfree(lock);

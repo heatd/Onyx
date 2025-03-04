@@ -66,7 +66,6 @@ typedef struct thread
     struct thread *sem_next;
     struct spinlock lock;
     int errno_val;
-    struct signal_info sinfo;
     struct list_head thread_list_head;
     unsigned long addr_limit;
     /* Clear child tid address - It's set by sys_set_tid_address or by sys_clone itself
