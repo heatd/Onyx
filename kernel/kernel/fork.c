@@ -57,9 +57,9 @@ struct clone_args
     unsigned long stack;
 };
 
-void process_copy_current_sigmask(struct thread *dest)
+void process_copy_current_sigmask(struct process *dest)
 {
-    memcpy(&dest->sinfo.sigmask, &get_current_thread()->sinfo.sigmask, sizeof(sigset_t));
+    memcpy(&dest->sigmask, &current->sigmask, sizeof(sigset_t));
 }
 
 static void ioctx_init(struct ioctx *ctx)
@@ -124,18 +124,55 @@ static int dup_sighand(struct process *child)
 static int dup_signal(struct process *child)
 {
     int i;
-    /* Note: We don't dupe pgrp, session and pgrp here, because we don't hold the tasklist_lock */
-    write_lock(&current->rlimit_lock);
-    for (i = 0; i < RLIM_NLIMITS + 1; i++)
-        child->rlimits[i] = current->rlimits[i];
-    write_unlock(&current->rlimit_lock);
+    struct signal_struct *curr = current->sig;
+    struct signal_struct *sig = kmalloc(sizeof(*sig), GFP_KERNEL);
+    if (!sig)
+        return -ENOMEM;
 
+    sig->refs = REFCOUNT_INIT(1);
+    sig->ctty = curr->ctty;
+    sig->nr_threads = 1;
+    sig->tgid = child->pid_struct;
+    INIT_LIST_HEAD(&sig->thread_list);
+    list_add_tail_rcu(&child->thread_list_node.__lh, &sig->thread_list);
+    rwslock_init(&sig->rlimit_lock);
+    sig->signal_group_flags = 0;
+    sig->tg_leader = child;
+    sig->group_notify_task = NULL;
+    sig->group_notify_pending = 0;
+    child->sig = sig;
+    spin_lock_init(&sig->pgrp_lock);
+    init_wait_queue_head(&sig->wait_child_event);
+    sigqueue_init(&sig->shared_signals);
+
+    /* Note: We don't dupe pgrp, session and pgrp here, because we don't hold the tasklist_lock */
+    read_lock(&curr->rlimit_lock);
+    for (i = 0; i < RLIM_NLIMITS + 1; i++)
+        sig->rlimits[i] = curr->rlimits[i];
+    read_unlock(&curr->rlimit_lock);
+
+    itimer_init(child);
     child->flags = current->flags;
     return 0;
 }
 
+static void free_signal(struct process *child)
+{
+    /* We need this special function to partially destroy the signal_struct, instead of exit_signal
+     * which does not handle partially constructed signal_struct's properly.
+     */
+    struct signal_struct *sig = child->sig;
+    kfree(sig);
+}
+
+static void process_append_children(struct process *parent, struct process *children)
+{
+    list_add_tail(&children->sibbling_node, &parent->children_head);
+}
+
 static pid_t kernel_clone(struct clone_args *args)
 {
+    pid_t pid;
     struct process *child;
     int err;
     thread_t *to_be_forked;
@@ -196,7 +233,11 @@ static pid_t kernel_clone(struct clone_args *args)
         goto err_put_fs;
 
     if (flags & CLONE_THREAD)
-        WARN_ON(1);
+    {
+        child->sig = current->sig;
+        refcount_inc(&child->sig->refs);
+        /* More CLONE_THREAD handling done below, under the proper locks */
+    }
     else
         err = dup_signal(child);
     if (err < 0)
@@ -214,13 +255,23 @@ static pid_t kernel_clone(struct clone_args *args)
             goto err_put_signal;
     }
 
-    INIT_LIST_HEAD(&child->thread_list);
+    if (flags & CLONE_PARENT_SETTID)
+    {
+        err = copy_to_user(args->parent_tid, &child->pid_, sizeof(pid_t));
+        if (err)
+            goto err_put_mm;
+    }
 
     /* Fork and create the new thread */
     struct thread *new_thread =
         process_fork_thread(to_be_forked, child, flags, args->stack, args->tls);
     if (!new_thread)
         goto err_put_mm;
+
+    if (flags & CLONE_CHILD_CLEARTID)
+        child->ctid = args->child_tid;
+    if (flags & CLONE_CHILD_SETTID)
+        child->set_tid = args->child_tid;
 
     /* Inherit the parent process' properties */
     child->personality = current->personality;
@@ -234,28 +285,61 @@ static pid_t kernel_clone(struct clone_args *args)
     /* Note that pending signals are zero'd, as per POSIX */
 
     write_lock(&tasklist_lock);
+    spin_lock(&child->sighand->signal_lock);
 
-    process_append_children(current, child);
+    if (flags & (CLONE_THREAD | CLONE_PARENT))
+    {
+        /* Our parent (if CLONE_THREAD or CLONE_PARENT) is the current's parent. Regular UNIX
+         * process parentage doesn't apply here. */
+        child->parent = current->parent;
+    }
+    else
+        child->parent = current;
 
-    child->parent = current;
-    child->process_group = current->process_group;
-    child->session = current->session;
-    // Inherit the controlling terminal
-    child->ctty = current->ctty;
+    process_append_children(child->parent, child);
     process_append_to_global_list(child);
-    pid_add_process(child->process_group, child, PIDTYPE_PGRP);
-    pid_add_process(child->session, child, PIDTYPE_SID);
 
+    if (flags & CLONE_THREAD)
+    {
+        /* Add ourselves to the list of threads */
+        list_add_tail_rcu(&child->thread_list_node.__lh, &child->sig->thread_list);
+        child->sig->nr_threads++;
+    }
+    else
+    {
+        struct pid *pgrp, *session;
+
+        pgrp = task_pgrp_locked(current);
+        session = task_session_locked(current);
+        rcu_assign_pointer(child->sig->process_group, pgrp);
+        rcu_assign_pointer(child->sig->session, session);
+        // Inherit the controlling terminal
+        child->sig->ctty = current->sig->ctty;
+        pid_add_process(pgrp, child, PIDTYPE_PGRP);
+        pid_add_process(session, child, PIDTYPE_SID);
+    }
+
+    spin_unlock(&child->sighand->signal_lock);
     write_unlock(&tasklist_lock);
 
-    child->flags |= PROCESS_FORKED;
-    process_get(child);
-    process_copy_current_sigmask(new_thread);
+    set_task_flag(child, PROCESS_FORKED);
+    pid = child->pid_;
+    process_copy_current_sigmask(child);
+
+    /* If not sharing the same VM *concurrently* (vfork is ok), copy altstack */
+    if ((flags & (CLONE_VFORK | CLONE_VM)) != CLONE_VM)
+        child->altstack = current->altstack;
+    else
+        sigaltstack_init(&child->altstack);
+    sigqueue_init(&child->sigqueue);
 
     struct vfork_completion vfork_cmpl;
+    vfork_compl_init(&vfork_cmpl);
     if (flags & CLONE_VFORK)
         child->vfork_compl = &vfork_cmpl;
 
+    /* Note: sched_start_thread already provides the necessary memory ordering wrt vfork or anything
+     * else */
     sched_start_thread(new_thread);
 
     if (flags & CLONE_VFORK)
@@ -266,13 +350,11 @@ static pid_t kernel_clone(struct clone_args *args)
         vfork_compl_wait_to_exit(&vfork_cmpl);
     }
 
-    // Return the pid to the caller
-    pid_t pid = child->pid_;
-    process_put(child);
     return pid;
 err_put_mm:
     mmput(child->address_space);
 err_put_signal:
+    free_signal(child);
 err_put_sighand:
     exit_sighand(child);
 err_put_fs:

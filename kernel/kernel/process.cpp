@@ -46,48 +46,19 @@
 
 ids *process_ids = nullptr;
 
-process *first_process = nullptr;
-static process *process_tail = nullptr;
+struct process *first_process = nullptr;
+DEFINE_LIST(tasklist);
 static spinlock process_list_lock;
 
 rwslock_t tasklist_lock;
 
 [[noreturn]] void process_exit(unsigned int exit_code);
-void process_end(process *process);
 
-void process_append_children(process *parent, process *children)
+void process_append_to_global_list(struct process *p) REQUIRES(tasklist_lock)
 {
-    scoped_lock g{parent->children_lock};
-
-    process **pp = &parent->children;
-    process *p = nullptr;
-
-    while (*pp)
-    {
-        p = *pp;
-        pp = &p->next_sibbling;
-    }
-
-    *pp = children;
-
-    children->prev_sibbling = p;
-}
-
-void process_append_to_global_list(process *p)
-{
-    scoped_lock g{process_list_lock};
-
-    if (process_tail)
-    {
-        process_tail->next = p;
-        process_tail = p;
-    }
-    else
-    {
-        first_process = process_tail = p;
-    }
-
-    p->next = nullptr;
+    list_add_tail_rcu(&p->tasklist_node, &tasklist);
+    if (!first_process)
+        first_process = p;
 }
 
 atomic<pid_t> active_processes = 0;
@@ -102,19 +73,22 @@ pid_t process_get_active_processes()
     return active_processes;
 }
 
-process::process() : pgrp_node{this}, session_node{this}
+static void task_init_signals(struct process *task)
 {
-    init_wait_queue_head(&this->wait_child_event);
+    /* Init per-thread signal information */
+    task->sigmask = task->original_sigset = {};
+    sigaltstack_init(&task->altstack);
+    sigqueue_init(&task->sigqueue);
+}
+
+process::process() : pgrp_node{this}, session_node{this}, thread_list_node{this}
+{
     mutex_init(&condvar_mutex);
     active_processes++;
-    refcount = 0;
     flags = 0;
-    next = nullptr;
-    nr_threads = 0;
-    spinlock_init(&thread_list_lock);
+    thr = NULL;
     pid_ = 0;
     vdso = nullptr;
-    signal_group_flags = 0;
     exit_code = 0;
     personality = 0;
     parent = nullptr;
@@ -123,16 +97,13 @@ process::process() : pgrp_node{this}, session_node{this}
     sub_queue = nullptr;
     nr_acks = nr_subs = 0;
     interp_base = image_base = nullptr;
-    process_group = session = NULL;
+    INIT_LIST_HEAD(&children_head);
+    ctid = NULL;
+    task_init_signals(this);
 }
 
 process::~process()
 {
-    // We might have died before assigning the process group
-    if (process_group) [[likely]]
-        pid_remove_process(process_group, this, PIDTYPE_PGRP);
-    if (session) [[likely]]
-        pid_remove_process(session, this, PIDTYPE_SID);
     if (pid_struct)
         put_pid(pid_struct);
     active_processes--;
@@ -173,9 +144,10 @@ struct process *process_alloc(void)
         return (struct process *) ERR_PTR(-ENOMEM);
     new (proc.get()) process;
 
-    proc->refcount = 1;
+    proc->refcount = REFCOUNT_INIT(1);
     creds_init(&proc->cred);
-    itimer_init(proc.get());
+    if (!proc->set_cmdline(get_current_process()->cmd_line.c_str()))
+        return (struct process *) ERR_PTR(-ENOMEM);
     return proc.release();
 }
 
@@ -196,14 +168,12 @@ process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *p
     new (p.get()) process;
     auto proc = p.get();
 
-    proc->refcount = 1;
+    proc->refcount = REFCOUNT_INIT(1);
 
     if (!proc->set_cmdline(cmd_line))
         return errno = ENOMEM, nullptr;
 
     creds_init(&proc->cred);
-
-    itimer_init(proc);
 
     /* XXX leak */
     newpid = pid_alloc(proc);
@@ -218,6 +188,25 @@ process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *p
     CHECK(proc->fs);
     fsctx_init(proc->fs);
     proc->fs->root = get_filesystem_root();
+    proc->sig = (struct signal_struct *) kmalloc(sizeof(struct signal_struct), GFP_KERNEL);
+    CHECK(proc->sig);
+
+    proc->sig->refs = REFCOUNT_INIT(1);
+    proc->sig->ctty = NULL;
+    proc->sig->nr_threads = 1;
+    proc->sig->group_notify_task = NULL;
+    proc->sig->group_notify_pending = 0;
+    INIT_LIST_HEAD(&proc->sig->thread_list);
+    rwslock_init(&proc->sig->rlimit_lock);
+    proc->sig->signal_group_flags = 0;
+    proc->sig->tg_leader = proc;
+    proc->sig->tgid = newpid;
+    sigqueue_init(&proc->sig->shared_signals);
+    list_add_tail_rcu(&proc->thread_list_node, &proc->sig->thread_list);
+    init_wait_queue_head(&proc->sig->wait_child_event);
+    spinlock_init(&proc->sig->pgrp_lock);
+
+    itimer_init(proc);
 
     if (allocate_file_descriptor_table(proc) < 0)
         return nullptr;
@@ -238,36 +227,54 @@ process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *p
         return errno = PTR_ERR(ex), nullptr;
     proc->address_space = ex;
 
-    INIT_LIST_HEAD(&proc->thread_list);
-
+    proc->thr = NULL;
     write_lock(&tasklist_lock);
     process_append_to_global_list(proc);
     pid_add_process(pgrp, proc, PIDTYPE_PGRP);
     pid_add_process(session, proc, PIDTYPE_SID);
 
-    proc->process_group = pgrp;
-    proc->session = session;
+    rcu_assign_pointer(proc->sig->process_group, pgrp);
+    rcu_assign_pointer(proc->sig->session, session);
 
     write_unlock(&tasklist_lock);
 
     return p.release();
 }
 
-process *get_process_from_pid(pid_t pid)
+struct process *get_process_from_pid(pid_t pid)
 {
-    /* TODO: Maybe storing processes in a tree would be a good idea? */
-    scoped_lock g{process_list_lock};
+    struct pid *p;
+    struct process *task = NULL;
 
-    for (process *p = first_process; p != nullptr; p = p->next)
+    rcu_read_lock();
+
+    /* TODO: we're not using rcu pid lookup (in mtree) */
+    p = pid_lookup(pid);
+    if (p)
     {
-        if (p->get_pid() == pid)
-        {
-            process_get(p);
-            return p;
-        }
+        task = rcu_dereference(p->proc);
+        if (task && !process_get_unless_dead(task))
+            task = NULL;
     }
 
-    return nullptr;
+    rcu_read_unlock();
+    return task;
+}
+
+struct process *get_process_from_pid_noref(pid_t pid)
+{
+    struct pid *p;
+    struct process *task = NULL;
+
+    rcu_read_lock();
+
+    /* TODO: we're not using rcu pid lookup (in mtree) */
+    p = pid_lookup(pid);
+    if (p)
+        task = rcu_dereference(p->proc);
+
+    rcu_read_unlock();
+    return task;
 }
 
 void unlock_process_list(void)
@@ -283,385 +290,24 @@ pid_t sys_getppid()
         return 0;
 }
 
-bool process_found_children(pid_t pid, process *proc)
-{
-    scoped_lock g{proc->children_lock};
-
-    if (proc->children)
-    {
-        /* if we have children, return true */
-        return true;
-    }
-
-    for (process *p = proc->children; p != nullptr; p = p->next_sibbling)
-    {
-        if (p->get_pid() == pid)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-void process_remove_from_list(process *process);
-
 template <typename Callable>
 static void for_every_child(process *proc, Callable cb)
 {
-    for (process *p = proc->children; p != nullptr; p = p->next_sibbling)
-    {
+    struct process *p;
+    list_for_each_entry (p, &proc->children_head, sibbling_node)
         if (cb(p) == false)
             break;
-    }
 }
 
 pid_t process_get_pgid(process *p)
 {
-    scoped_lock g{p->pgrp_lock};
-    return pid_nr(p->process_group);
-}
-
-#define WAIT_INFO_MATCHING_ANY (1 << 0)
-#define WAIT_INFO_MATCH_PGID   (1 << 1)
-
-struct wait_info
-{
-    int wstatus;
-    rusage usage;
-    pid_t pid;
-    int status;
-    unsigned int flags;
-    unsigned int options;
-
-    wait_info(pid_t pid, unsigned int options)
-        : wstatus{}, usage{}, pid{pid}, status{-ECHILD}, flags{}, options{options}
-    {
-        /* pid = -1: matches any process;
-         * pid < 0: matches processes with pgid = -pid;
-         * pid = 0: matches processes with pgid = process' pgid.
-         * pid > 0: matches processes with pid = pid.
-         */
-        if (pid == -1)
-        {
-            flags |= WAIT_INFO_MATCHING_ANY;
-        }
-        else if (pid < 0)
-        {
-            flags |= WAIT_INFO_MATCH_PGID;
-            this->pid = -pid;
-        }
-        else if (pid == 0)
-        {
-            auto current = get_current_process();
-
-            this->pid = process_get_pgid(current);
-
-            flags |= WAIT_INFO_MATCH_PGID;
-        }
-
-        /* WEXITED is always implied for wait4 */
-        this->options |= WEXITED;
-    }
-
-    bool reap_wait() const
-    {
-        return !(options & WNOWAIT);
-    }
-};
-
-bool wait_matches_process(const wait_info &info, process *proc)
-{
-    if (info.flags & WAIT_INFO_MATCHING_ANY)
-        return true;
-
-    if (info.flags & WAIT_INFO_MATCH_PGID && process_get_pgid(proc) == info.pid)
-        return true;
-
-    if (info.pid == proc->get_pid())
-        return true;
-
-    return false;
-}
-
-int do_getrusage(int who, rusage *usage, process *proc)
-{
-    memset(usage, 0, sizeof(rusage));
-    hrtime_t utime = 0;
-    hrtime_t stime = 0;
-
-    switch (who)
-    {
-        case RUSAGE_BOTH:
-        case RUSAGE_CHILDREN:
-            utime = proc->children_utime;
-            stime = proc->children_stime;
-
-            if (who == RUSAGE_CHILDREN)
-                break;
-
-            [[fallthrough]];
-        case RUSAGE_SELF:
-            utime += proc->user_time;
-            stime += proc->system_time;
-            break;
-
-        default:
-            return -EINVAL;
-    }
-
-    hrtime_to_timeval(utime, &usage->ru_utime);
-    hrtime_to_timeval(stime, &usage->ru_stime);
-    return 0;
-}
-
-int sys_getrusage(int who, rusage *user_usage)
-{
-    /* do_getrusage understands this flag but it isn't supposed to be exposed */
-    if (who == RUSAGE_BOTH)
-        return -EINVAL;
-
-    rusage kusage;
-    int st = 0;
-    if ((st = do_getrusage(who, &kusage, get_current_process())) < 0)
-        return st;
-
-    return copy_to_user(user_usage, &kusage, sizeof(rusage));
-}
-
-void process_accumulate_rusage(process *child, const rusage &usage)
-{
-    auto us = get_current_process();
-
-    __atomic_add_fetch(&us->children_stime, timeval_to_hrtime(&usage.ru_stime), __ATOMIC_RELAXED);
-    __atomic_add_fetch(&us->children_utime, timeval_to_hrtime(&usage.ru_utime), __ATOMIC_RELAXED);
-}
-
-bool process_wait_exit(process *child, wait_info &winfo)
-{
-    if (!(child->signal_group_flags & SIGNAL_GROUP_EXIT))
-        return false;
-
-    scoped_lock g{child->sighand->signal_lock};
-
-    if (!(child->signal_group_flags & SIGNAL_GROUP_EXIT))
-        return false;
-
-    if (!(winfo.options & WEXITED))
-        return false;
-
-    do_getrusage(RUSAGE_BOTH, &winfo.usage, child);
-
-    winfo.pid = child->get_pid();
-    winfo.wstatus = child->exit_code;
-
-    if (winfo.reap_wait())
-    {
-        auto current = get_current_process();
-        process_accumulate_rusage(child, winfo.usage);
-        spin_unlock(&current->children_lock);
-        g.unlock();
-        process_put(child);
-        spin_lock(&current->children_lock);
-    }
-
-    return true;
-}
-
-bool process_wait_stop(process *child, wait_info &winfo)
-{
-    if (!(child->signal_group_flags & SIGNAL_GROUP_STOPPED))
-        return false;
-
-    scoped_lock g{child->sighand->signal_lock};
-
-    if (!(child->signal_group_flags & SIGNAL_GROUP_STOPPED))
-        return false;
-
-    if (child->signal_group_flags & SIGNAL_GROUP_EXIT)
-        return false;
-
-    if (!(winfo.options & WSTOPPED))
-        return false;
-
-    /* We use exit_code = 0 to know it has been reaped */
-    if (!child->exit_code)
-        return false;
-
-    do_getrusage(RUSAGE_BOTH, &winfo.usage, child);
-
-    winfo.pid = child->get_pid();
-
-    winfo.wstatus = child->exit_code;
-
-    if (winfo.reap_wait())
-    {
-        child->exit_code = 0;
-    }
-
-    return true;
-}
-
-bool process_wait_cont(process *child, wait_info &winfo)
-{
-    if (!(child->signal_group_flags & SIGNAL_GROUP_CONT))
-        return false;
-
-    scoped_lock g{child->sighand->signal_lock};
-
-    if (!(child->signal_group_flags & SIGNAL_GROUP_CONT))
-        return false;
-
-    if (child->signal_group_flags & SIGNAL_GROUP_EXIT)
-        return false;
-
-    if (!(winfo.options & WCONTINUED))
-        return false;
-
-    do_getrusage(RUSAGE_BOTH, &winfo.usage, child);
-
-    winfo.pid = child->get_pid();
-
-    winfo.wstatus = child->exit_code;
-
-    if (winfo.reap_wait())
-    {
-        child->signal_group_flags &= ~SIGNAL_GROUP_CONT;
-    }
-
-    return true;
-}
-
-#define WINFO_STATUS_OK     1
-#define WINFO_STATUS_NOHANG 2
-
-bool wait_handle_processes(process *proc, wait_info &winfo)
-{
-    winfo.status = -ECHILD;
-    for_every_child(proc, [&](process *child) -> bool {
-        if (!wait_matches_process(winfo, child))
-            return true;
-
-        winfo.status = 0;
-
-        if (!process_wait_exit(child, winfo) && !process_wait_stop(child, winfo) &&
-            !process_wait_cont(child, winfo))
-        {
-            return true;
-        }
-
-        winfo.status = WINFO_STATUS_OK;
-
-        /* We'll want to stop iterating after waiting for a child */
-        return false;
-    });
-
-    if (winfo.status != WINFO_STATUS_OK && winfo.options & WNOHANG)
-        winfo.status = WINFO_STATUS_NOHANG;
-
-#if 0
-	printk("winfo status: %d\n", winfo.status);
-#endif
-
-    return winfo.status != 0;
-}
-
-#define VALID_WAIT4_OPTIONS (WNOHANG | WUNTRACED | WSTOPPED | WEXITED | WCONTINUED | WNOWAIT)
-
-pid_t sys_wait4(pid_t pid, int *wstatus, int options, rusage *usage)
-{
-    auto current = get_current_process();
-
-    if (options & ~VALID_WAIT4_OPTIONS)
-        return -EINVAL;
-
-    wait_info w{pid, (unsigned int) options};
-    spin_lock(&current->children_lock);
-
-    int st = wait_for_event_locked_interruptible(
-        &current->wait_child_event, wait_handle_processes(current, w), &current->children_lock);
-
-    spin_unlock(&current->children_lock);
-
-#if 0
-    printk("st %d w.status %d\n", st, w.status);
-#endif
-
-    if (st < 0)
-        return st;
-
-    if (w.status != WINFO_STATUS_OK)
-        return w.status == WINFO_STATUS_NOHANG ? 0 : w.status;
-
-#if 0
-	printk("w.wstatus: %d\n", w.wstatus);
-#endif
-
-    if ((wstatus && copy_to_user(wstatus, &w.wstatus, sizeof(int)) < 0) ||
-        (usage && copy_to_user(usage, &w.usage, sizeof(rusage)) < 0))
-    {
-        return -EFAULT;
-    }
-
-    return w.pid;
-}
-
-#define W_STOPPING         0x7f
-#define W_CORE_DUMPED      (1 << 7)
-#define W_SIG(sig)         (signum)
-#define W_STOPPED_SIG(sig) (W_STOPPING | (sig << 8))
-#define W_CONTINUED        0xffff
-#define W_EXIT_CODE(code)  ((code & 0xff) << 8)
-
-/* Wait status layout:
- * For exits: bits 0-7: MBZ;
- *            bits 8-15: Exit code & 0xff
- * For signal stops: bits 0-7: 0x7f
- *                   bits 8-15: Stopping signal
- * For signal conts: bits 0-15: 0xffff
- * For signal termination: bits 0-6: Signal number
- *                         bit 7: Set on core dumps
- * Any range of bits that's not specified here *must be zero*.
- */
-int make_wait4_wstatus(int signum, bool core_dumped, int exit_code)
-{
-    int wstatus = core_dumped ? W_CORE_DUMPED : 0;
-
-    if (signum == 0)
-    {
-        wstatus |= W_EXIT_CODE(exit_code);
-    }
-    else
-    {
-        if (signal_is_stopping(signum))
-        {
-            wstatus |= W_STOPPED_SIG(signum);
-        }
-        else if (signum == SIGCONT)
-        {
-            wstatus |= W_CONTINUED;
-        }
-        else
-            wstatus |= signum;
-    }
-
-    return wstatus;
-}
-
-[[noreturn]] void process_exit_from_signal(int signum)
-{
-    process_exit(make_wait4_wstatus(signum, false, 0));
-}
-
-void sys_exit(int status)
-{
-    status &= 0xff;
-    process_exit(make_wait4_wstatus(0, false, status));
+    scoped_lock g{p->sig->pgrp_lock};
+    return pid_nr(task_pgrp(p));
 }
 
 pid_t sys_getpid()
 {
-    return get_current_process()->get_pid();
+    return get_current_process()->sig->tg_leader->get_pid();
 }
 
 int sys_personality(unsigned long val)
@@ -669,244 +315,6 @@ int sys_personality(unsigned long val)
     // TODO: Use this syscall for something. This might be potentially very useful
     get_current_process()->personality = val;
     return 0;
-}
-
-void process_destroy_aspace()
-{
-    process *current = get_current_process();
-    vm_set_aspace(&kernel_address_space);
-    mmput(current->address_space);
-    current->address_space = &kernel_address_space;
-}
-
-void process_remove_from_list(process *proc)
-{
-    {
-        scoped_lock g{process_list_lock};
-        /* TODO: Make the list a doubly-linked one, so we're able to tear it down more easily */
-        if (first_process == proc)
-        {
-            first_process = first_process->next;
-            if (process_tail == proc)
-                process_tail = first_process;
-        }
-        else
-        {
-            process *p;
-            for (p = first_process; p->next != proc && p->next; p = p->next)
-                ;
-
-            assert(p->next != nullptr);
-
-            p->next = proc->next;
-
-            if (process_tail == proc)
-                process_tail = p;
-        }
-    }
-
-    /* Remove from the sibblings list */
-
-    scoped_lock g{proc->parent->children_lock};
-
-    if (proc->prev_sibbling)
-        proc->prev_sibbling->next_sibbling = proc->next_sibbling;
-    else
-        proc->parent->children = proc->next_sibbling;
-
-    if (proc->next_sibbling)
-        proc->next_sibbling->prev_sibbling = proc->prev_sibbling;
-}
-
-void process_wait_for_dead_threads(process *process)
-{
-    while (process->nr_threads)
-    {
-        cpu_relax();
-    }
-}
-
-void process_end(process *process)
-{
-    process_wait_for_dead_threads(process);
-    /* For now, we have to exit_sighand here, because we need the signal lock in wait4. This is a
-     * little weird. */
-    exit_sighand(process);
-    write_lock(&tasklist_lock);
-    process_remove_from_list(process);
-    process->~process();
-
-    write_unlock(&tasklist_lock);
-
-    kfree_rcu(process, rcu_head);
-}
-
-void kill_orphaned_pgrp(process *proc)
-{
-    scoped_lock g{proc->pgrp_lock};
-
-    auto pgrp = proc->process_group;
-
-    if (pid_is_orphaned_and_has_stopped_jobs(pgrp, proc))
-    {
-        pid_kill_pgrp(pgrp, SIGHUP, 0, nullptr);
-        pid_kill_pgrp(pgrp, SIGCONT, 0, nullptr);
-    }
-}
-
-void process_reparent_children(process *proc)
-{
-    scoped_lock g{proc->children_lock};
-
-    /* In POSIX, reparented children get to be children of PID 1 */
-    process *new_parent = first_process;
-
-    // I think this is enough? I'm not sure though, Linux does it again on reparenting.
-    kill_orphaned_pgrp(proc);
-
-    if (!proc->children)
-    {
-        return;
-    }
-
-    for (process *c = proc->children; c != nullptr; c = c->next_sibbling)
-        c->parent = new_parent;
-
-    process_append_children(new_parent, proc->children);
-}
-
-void process_kill_other_threads(void)
-{
-    process *current = get_current_process();
-    thread *current_thread = get_current_thread();
-
-    process_for_every_thread(current, [&](thread *t) -> bool {
-        if (t == current_thread)
-            return true;
-
-        scoped_lock g{t->sinfo.lock};
-
-        t->sinfo.flags |= THREAD_SIGNAL_EXITING;
-        t->sinfo.signal_pending = true;
-
-        /* If it's in an interruptible sleep, very good. Else, it's either
-         * in an uninterruptible sleep or it was stopped but got woken up by SIGKILL code before us.
-         * It's impossible for a process to otherwise exit without every thread already
-         * being SIGCONT'd.
-         */
-        if (t->status == THREAD_INTERRUPTIBLE)
-            thread_wake_up(t);
-
-        return true;
-    });
-
-    while (current->nr_threads != 1)
-        cpu_relax();
-}
-
-void exit_fs(struct process *p)
-{
-    struct fsctx *fs = p->fs;
-    if (refcount_dec_and_test(&fs->refs))
-    {
-        path_put(&fs->root);
-        path_put(&fs->cwd);
-        kfree(fs);
-    }
-}
-
-void exit_sighand(struct process *p)
-{
-    struct sighand_struct *s = p->sighand;
-    if (refcount_dec_and_test(&s->refs))
-        kfree(s);
-}
-
-[[noreturn]] void process_exit(unsigned int exit_code)
-{
-    auto current_thread = get_current_thread();
-    process *current = get_current_process();
-
-    if (current->get_pid() == 1)
-    {
-        printk("Panic: %s exited with exit code %u!\n", current->cmd_line.c_str(), exit_code);
-        irq_enable();
-        for (;;)
-            sched_sleep_ms(10000);
-    }
-
-    for (auto &timer : current->timers)
-        timer.disarm();
-
-    if (current->is_session_leader_unlocked() && current->ctty)
-        process_clear_tty(current->ctty);
-
-    process_kill_other_threads();
-
-    exit_files(current);
-    exit_fs(current);
-
-    /* We destroy the address space after fds because some close() routines may require address
-     * space access */
-    process_destroy_aspace();
-
-    if (current->vfork_compl)
-    {
-        vfork_compl_wake(current->vfork_compl);
-        current->vfork_compl = nullptr;
-    }
-
-    write_lock(&tasklist_lock);
-
-    process_reparent_children(current);
-
-    for (proc_event_sub *s = current->sub_queue; s; s = s->next)
-        s->valid_sub = false;
-
-    struct process *parent = READ_ONCE(current->parent);
-
-    siginfo_t info = {};
-
-    info.si_signo = SIGCHLD;
-    info.si_pid = current->get_pid();
-    info.si_uid = current->cred.ruid;
-    info.si_stime = current->system_time / NS_PER_MS;
-    info.si_utime = current->user_time / NS_PER_MS;
-
-    if (WIFEXITED(exit_code))
-    {
-        info.si_code = CLD_EXITED;
-        info.si_status = WEXITSTATUS(exit_code);
-    }
-    else if (WIFSIGNALED(exit_code))
-    {
-        info.si_code = CLD_KILLED;
-        info.si_status = WTERMSIG(exit_code);
-    }
-
-    {
-        current->remove_thread(current_thread);
-        current_thread->owner = nullptr;
-        spin_lock(&current->parent->children_lock);
-        current->exit_code = exit_code;
-
-        /* Finally, wake up any possible concerned parents */
-        wait_queue_wake_all(&current->parent->wait_child_event);
-        current->signal_group_flags |= SIGNAL_GROUP_EXIT;
-        spin_unlock(&current->parent->children_lock);
-    }
-
-    kernel_raise_signal(SIGCHLD, parent, 0, &info);
-
-    /* Set this in this order exactly */
-    current_thread->flags = THREAD_IS_DYING;
-    current_thread->status = THREAD_DEAD;
-
-    write_unlock(&tasklist_lock);
-    sched_yield();
-
-    while (true)
-        ;
 }
 
 int process_attach(process *tracer, process *tracee)
@@ -918,36 +326,6 @@ int process_attach(process *tracer, process *tracee)
 process *process_find_tracee(process *tracer, pid_t pid)
 {
     return nullptr;
-}
-
-void process_add_thread(process *proc, thread_t *thread)
-{
-    scoped_lock g{proc->thread_list_lock};
-
-    list_add_tail(&thread->thread_list_head, &proc->thread_list);
-
-    proc->nr_threads++;
-}
-
-void sys_exit_thread(int value)
-{
-    /* Okay, so the libc called us. That means we can start destroying the thread */
-    /* NOTE: I'm not really sure if musl destroyed the user stack and fs,
-     * and if we should anything to free them */
-
-    thread *thread = get_current_thread();
-    if (thread->ctid)
-    {
-        pid_t to_write = 0;
-        if (copy_to_user(thread->ctid, &to_write, sizeof(to_write)) < 0)
-            goto skip;
-        futex_wake((int *) thread->ctid, INT_MAX);
-    }
-skip:
-    /* Destroy the thread */
-    thread_exit();
-    /* aaaaand we'll never return back to user-space, so just hang on */
-    sched_yield();
 }
 
 void process_increment_stats(bool is_kernel)
@@ -964,73 +342,20 @@ void process_increment_stats(bool is_kernel)
 
 void for_every_process(process_visit_function_t func, void *ctx)
 {
-    scoped_lock g{process_list_lock};
+    struct process *task;
 
-    auto p = first_process;
-
-    while (p != nullptr)
+    read_lock(&tasklist_lock);
+    list_for_each_entry_rcu (task, &tasklist, tasklist_node)
     {
-        if (!func(p, ctx))
-            return;
-
-        p = p->next;
+        if (!func(task, ctx))
+            break;
     }
+    read_unlock(&tasklist_lock);
 }
 
-void notify_process_stop_cont(process *proc, int signum)
+void process_dtor(struct process *p)
 {
-    auto parent = proc->parent;
-
-    /* init might get a SIGSTOP? idk */
-    if (!parent)
-        return;
-
-    auto code = make_wait4_wstatus(signum, false, 0);
-
-    proc->exit_code = code;
-
-    wait_queue_wake_all(&parent->wait_child_event);
-
-    siginfo_t info = {};
-    info.si_code = signal_is_stopping(signum) ? CLD_STOPPED : CLD_CONTINUED;
-    info.si_signo = SIGCHLD;
-    info.si_pid = proc->get_pid();
-    info.si_uid = proc->cred.ruid;
-    info.si_stime = proc->system_time / NS_PER_MS;
-    info.si_utime = proc->user_time / NS_PER_MS;
-    info.si_status = signum;
-
-    kernel_raise_signal(SIGCHLD, parent, 0, &info);
-}
-
-bool process::route_signal(struct sigpending *pend)
-{
-    scoped_lock g{thread_list_lock};
-    bool done = false;
-
-    /* Oh no, we're not going to be able to route this! */
-    if (nr_threads == 0)
-        return false;
-
-    process_for_every_thread_unlocked(this, [&](thread *t) -> bool {
-        auto &sinfo = t->sinfo;
-
-        if (sinfo.try_to_route(pend))
-        {
-            done = true;
-            return false;
-        }
-
-        return true;
-    });
-
-    auto first_elem = list_first_element(&thread_list);
-
-    assert(first_elem != nullptr);
-
-    auto first_t = container_of(first_elem, struct thread, thread_list_head);
-
-    return first_t->sinfo.add_pending(pend);
+    p->~process();
 }
 
 namespace onx

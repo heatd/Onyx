@@ -14,6 +14,22 @@
 
 #include <uapi/clone.h>
 
+namespace riscv::internal
+{
+void thread_setup_stack(thread *thread, bool is_user, const registers_t *regs);
+} // namespace riscv::internal
+
+extern "C" void ret_from_fork_asm(void);
+
+extern "C" void ret_from_fork(void)
+{
+    /* We take care of everything that needs to be done post-fork on the child process (that we
+     * couldn't really do beforehand) */
+    struct process *current = get_current_process();
+    if (current->set_tid)
+        copy_to_user(current->set_tid, &current->pid_, sizeof(pid_t));
+}
+
 struct thread *process_fork_thread(thread_t *src, struct process *dest, unsigned int flags,
                                    unsigned long stack, unsigned long tls)
 {
@@ -33,40 +49,19 @@ struct thread *process_fork_thread(thread_t *src, struct process *dest, unsigned
     if (!thread)
         return nullptr;
 
+    regs.epc = (unsigned long) &ret_from_fork_asm;
+    riscv::internal::thread_setup_stack(thread, false, &regs);
     save_fpu(thread->fpu_area);
 
     thread->owner = dest;
     thread->set_aspace(dest->get_aspace());
-
-    list_add_tail(&thread->thread_list_head, &dest->thread_list);
-
-    dest->nr_threads = 1;
-
+    dest->thr = thread;
     return thread;
 }
 
-#define CLONE_FORK        (1 << 0)
-#define CLONE_SPAWNTHREAD (1 << 1)
-long valid_flags = CLONE_FORK | CLONE_SPAWNTHREAD;
-
-struct tid_out
+int sys_clone(void *fn, void *child_stack, int flags, void *arg, struct tid_out *out, void *tls)
 {
-    /* TID is placed here */
-    pid_t *ptid;
-    /* This location is zero'd when the thread exits */
-    pid_t *ctid;
-};
-
-/* Hmmm, I don't think this is 100% correct but it's good enough */
-static void inherit_signal_flags(thread *newt)
-{
-    auto current_thread = get_current_thread();
-
-    scoped_lock g{current_thread->sinfo.lock};
-    scoped_lock g2{newt->sinfo.lock};
-
-    newt->sinfo.flags |= current_thread->sinfo.flags;
-    newt->sinfo.__update_pending();
+    return -ENOSYS;
 }
 
 int sys_clone(void *fn, void *child_stack, int flags, void *arg, struct tid_out *out, void *tls)

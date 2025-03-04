@@ -13,9 +13,9 @@
 
 int process::rlimit(int rsrc, struct rlimit *old, const struct rlimit *new_lim, unsigned int flags)
 {
-    scoped_rwslock<rw_lock::write> g{rlimit_lock};
+    scoped_rwslock<rw_lock::write> g{sig->rlimit_lock};
 
-    auto &lim = rlimits[rsrc];
+    auto &lim = sig->rlimits[rsrc];
 
     if (old)
     {
@@ -52,21 +52,21 @@ int process::rlimit(int rsrc, struct rlimit *old, const struct rlimit *new_lim, 
 
 struct rlimit process::get_rlimit(int rsrc)
 {
-    scoped_rwslock<rw_lock::read> g{rlimit_lock};
+    scoped_rwslock<rw_lock::read> g{sig->rlimit_lock};
 
-    return rlimits[rsrc];
+    return sig->rlimits[rsrc];
 }
 
 void process::init_default_limits()
 {
-    for (auto &l : rlimits)
+    for (auto &l : sig->rlimits)
     {
         l.rlim_cur = RLIM_INFINITY;
         l.rlim_max = RLIM_INFINITY;
     }
 
-    rlimits[RLIMIT_NOFILE].rlim_cur = 1024;
-    rlimits[RLIMIT_NOFILE].rlim_max = 4096;
+    sig->rlimits[RLIMIT_NOFILE].rlim_cur = 1024;
+    sig->rlimits[RLIMIT_NOFILE].rlim_max = 4096;
 }
 
 constexpr int nlimits = 16;
@@ -75,7 +75,7 @@ void process::inherit_limits(process *parent)
 {
     for (int i = 0; i < nlimits; i++)
     {
-        rlimits[i] = parent->rlimits[i];
+        sig->rlimits[i] = parent->sig->rlimits[i];
     }
 }
 

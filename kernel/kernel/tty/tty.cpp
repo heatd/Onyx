@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -463,8 +463,8 @@ void tty_clear_session(tty *tty)
 {
     tty->session->for_every_member(
         [](process *proc) -> void {
-            scoped_lock g{proc->pgrp_lock};
-            proc->ctty = nullptr;
+            scoped_lock g{proc->sig->pgrp_lock};
+            proc->sig->ctty = nullptr;
         },
         PIDTYPE_SID);
     put_pid(tty->session);
@@ -475,17 +475,18 @@ void tty_clear_session(tty *tty)
 
 void tty_set_ctty_unlocked(tty *tty)
 {
+    /* tasklist_lock held */
     auto current = get_current_process();
 
     if (tty->session)
         put_pid(tty->session);
     if (tty->pgrp)
         put_pid(tty->pgrp);
-    tty->session = current->session;
-    tty->pgrp = current->process_group;
+    tty->session = task_session_locked(current);
+    tty->pgrp = task_pgrp_locked(current);
     get_pid(tty->pgrp);
     get_pid(tty->session);
-    current->ctty = tty;
+    current->sig->ctty = tty;
 }
 
 unsigned int do_tty_csctty(tty *tty, int force)
@@ -504,7 +505,7 @@ unsigned int do_tty_csctty(tty *tty, int force)
         goto out;
 
     // ...and not have a controlling terminal
-    if (current->ctty)
+    if (current->sig->ctty)
         goto out;
 
     if (tty->session)
@@ -531,20 +532,13 @@ dev_t ctty_dev = 0;
 
 void process_clear_tty(tty *tty)
 {
-    struct process *current = get_current_process();
-
-    DCHECK(tty->session == current->session);
-
-    read_lock(&tasklist_lock);
     // Get the tty's foreground pgrp and send SIGHUP + SIGCONT
     pid_kill_pgrp(tty->pgrp, SIGHUP, 0, NULL);
     pid_kill_pgrp(tty->pgrp, SIGCONT, 0, NULL);
 
     // Clear the associated session, foreground pgrp data and the controlling ttys of the whole
     // session.
-    spin_unlock(&current->pgrp_lock);
     tty_clear_session(tty);
-    read_unlock(&tasklist_lock);
 }
 
 unsigned int do_tty_cnotty(tty *tty)
@@ -552,26 +546,22 @@ unsigned int do_tty_cnotty(tty *tty)
     scoped_mutex g{tty->lock};
     int err = -ENOTTY;
     auto current = get_current_process();
-    /* XXX Fucking weird locking, man. Completely busted, probably */
-    spin_lock(&current->pgrp_lock);
 
     // Nothing to do if we're not the ctty of the current process
-    if (tty != current->ctty)
-        goto out;
+    if (tty != current->sig->ctty)
+        return err;
 
     read_lock(&tasklist_lock);
 
     // If we're not the session leader, we just clear our own ctty
     // and return. Easy.
     if (!current->is_session_leader_unlocked())
-        current->ctty = NULL;
+        current->sig->ctty = NULL;
     else
         process_clear_tty(tty);
 
     err = 0;
     read_unlock(&tasklist_lock);
-out:
-    spin_unlock(&current->pgrp_lock);
     return err;
 }
 
@@ -580,7 +570,7 @@ static unsigned int do_tiocspgrp(struct tty *tty, pid_t pid)
     int err;
     struct pid *pgrp, *old;
     struct process *current = get_current_process();
-    if (current->ctty != tty || tty->session != current->session)
+    if (current->sig->ctty != tty || tty->session != current->sig->session)
         return -ENOTTY;
 
     rcu_read_lock();
@@ -719,6 +709,9 @@ unsigned int tty_ioctl(int request, void *argp, struct file *dev)
 
         case TIOCGPGRP: {
             scoped_mutex g{tty->lock};
+            if (get_current_process()->sig->ctty != tty)
+                return -ENOTTY;
+            CHECK(tty->pgrp);
             pid_t pid = pid_nr(tty->pgrp);
             return copy_to_user(argp, &pid, sizeof(pid_t));
         }
@@ -780,15 +773,16 @@ short tty_poll(void *poll_file, short events, struct file *f)
 int ttyopen_try_to_set_ctty(tty *tty)
 {
     auto current = get_current_process();
-    scoped_lock g{current->pgrp_lock};
 
-    if (current->is_session_leader_unlocked() && !current->ctty && !tty->session)
+    read_lock(&tasklist_lock);
+    if (current->is_session_leader_unlocked() && !current->sig->ctty && !tty->session)
     {
         // If we're a session leader without a tty, and this tty has no session
         // set our ctty to this one
         tty_set_ctty_unlocked(tty);
     }
 
+    read_unlock(&tasklist_lock);
     return 0;
 }
 
@@ -843,9 +837,9 @@ const file_ops ctty_fops = {.on_open = ctty_open};
 int ctty_open(file *f)
 {
     auto current_process = get_current_process();
-    scoped_lock g{current_process->pgrp_lock};
+    scoped_lock g{current_process->sig->pgrp_lock};
 
-    if (!current_process->ctty)
+    if (!current_process->sig->ctty)
     {
         return -EIO;
     }
@@ -860,7 +854,7 @@ int ctty_open(file *f)
         return -ENOMEM;
 
     new_inode->i_dev = f->f_ino->i_dev;
-    new_inode->i_helper = current_process->ctty;
+    new_inode->i_helper = current_process->sig->ctty;
     new_inode->i_fops = (file_ops *) &tty_fops;
 
     inode_unref(f->f_ino);

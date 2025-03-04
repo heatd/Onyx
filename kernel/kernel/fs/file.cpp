@@ -280,7 +280,7 @@ __always_inline auto_fd __fdget(int fd, u8 extra_flags)
      * thread).
      */
     struct ioctx *ctx = p->ctx;
-    if (refcount_read(&ctx->refs) > 1 || p->nr_threads > 1 || extra_flags & FDGET_SHARED)
+    if (refcount_read(&ctx->refs) > 1 || extra_flags & FDGET_SHARED)
         return auto_fd{__get_file_description(fd, p), extra_flags | FDGET_SHARED};
 
     /* Cheap single threaded array access */

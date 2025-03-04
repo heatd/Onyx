@@ -108,18 +108,14 @@ public:
     {
         if (!sigmask_valid)
             return;
-        auto thread = get_current_thread();
-        thread->sinfo.original_sigset = thread->sinfo.set_blocked(&temp_sigmask);
-        thread->sinfo.flags |= THREAD_SIGNAL_ORIGINAL_SIGSET;
+        signal_setmask_and_save(&temp_sigmask);
     }
 
     ~auto_signal_mask()
     {
         if (!sigmask_valid || disable_)
             return;
-        auto thread = get_current_thread();
-        thread->sinfo.set_blocked(&thread->sinfo.original_sigset);
-        thread->sinfo.flags &= ~THREAD_SIGNAL_ORIGINAL_SIGSET;
+        signal_restore_sigmask();
     }
 
     void disable()

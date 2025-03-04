@@ -32,6 +32,11 @@ struct itimer
 };
 
 struct process;
-void itimer_init(struct process *p);
 
+__BEGIN_CDECLS
+
+void itimer_init(struct process *p);
+void itimer_disarm(struct itimer *it);
+
+__END_CDECLS
 #endif

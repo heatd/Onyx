@@ -25,6 +25,7 @@
 #include <onyx/x86/isr.h>
 #include <onyx/x86/ktrace.h>
 #include <onyx/x86/mce.h>
+#include <onyx/x86/msr.h>
 
 /* TODO: Move scope_guard somewhere else */
 #include <onyx/trace/trace_base.h>
@@ -94,12 +95,36 @@ void div0_exception(struct registers *ctx)
         panic("Divide by zero exception");
     }
 
-    struct thread *current = get_current_thread();
     siginfo_t info = {};
     info.si_code = SI_KERNEL;
 
-    kernel_tkill(SIGFPE, current, SIGNAL_FORCE, &info);
+    raise_sig_curthr(SIGFPE, SIGNAL_FORCE, &info);
 }
+
+#define MSR_IA32_DEBUGCTLMSR      0x000001d9
+#define MSR_IA32_LASTBRANCHFROMIP 0x000001db
+#define MSR_IA32_LASTBRANCHTOIP   0x000001dc
+#define MSR_IA32_LASTINTFROMIP    0x000001dd
+#define MSR_IA32_LASTINTTOIP      0x000001de
+
+#define MSR_IA32_PASID       0x00000d93
+#define MSR_IA32_PASID_VALID BIT_ULL(31)
+
+/* DEBUGCTLMSR bits (others vary by model): */
+#define DEBUGCTLMSR_LBR_BIT               0 /* last branch recording */
+#define DEBUGCTLMSR_LBR                   (1UL << DEBUGCTLMSR_LBR_BIT)
+#define DEBUGCTLMSR_BTF_SHIFT             1
+#define DEBUGCTLMSR_BTF                   (1UL << 1) /* single-step on branches */
+#define DEBUGCTLMSR_BUS_LOCK_DETECT       (1UL << 2)
+#define DEBUGCTLMSR_TR                    (1UL << 6)
+#define DEBUGCTLMSR_BTS                   (1UL << 7)
+#define DEBUGCTLMSR_BTINT                 (1UL << 8)
+#define DEBUGCTLMSR_BTS_OFF_OS            (1UL << 9)
+#define DEBUGCTLMSR_BTS_OFF_USR           (1UL << 10)
+#define DEBUGCTLMSR_FREEZE_LBRS_ON_PMI    (1UL << 11)
+#define DEBUGCTLMSR_FREEZE_PERFMON_ON_PMI (1UL << 12)
+#define DEBUGCTLMSR_FREEZE_IN_SMM_BIT     14
+#define DEBUGCTLMSR_FREEZE_IN_SMM         (1UL << DEBUGCTLMSR_FREEZE_IN_SMM_BIT)
 
 void debug_trap(struct registers *ctx)
 {
@@ -110,12 +135,13 @@ void debug_trap(struct registers *ctx)
         panic("Debug trap");
     }
 
-    struct thread *current = get_current_thread();
-
+    pr_info("%d trap at %lx\n", get_current_process()->pid_, ctx->rip);
+    wrmsr(MSR_IA32_DEBUGCTLMSR, DEBUGCTLMSR_LBR | DEBUGCTLMSR_BTF);
+    return;
     siginfo_t info = {};
     info.si_code = SI_KERNEL;
 
-    kernel_tkill(SIGTRAP, current, SIGNAL_FORCE, &info);
+    raise_sig_curthr(SIGTRAP, SIGNAL_FORCE, &info);
 }
 
 void nmi_exception(struct registers *ctx)
@@ -133,12 +159,10 @@ void overflow_trap(struct registers *ctx)
         panic("Overflow trap");
     }
 
-    struct thread *current = get_current_thread();
-
     siginfo_t info = {};
     info.si_code = SEGV_BNDERR;
 
-    kernel_tkill(SIGSEGV, current, SIGNAL_FORCE, &info);
+    raise_sig_curthr(SIGSEGV, SIGNAL_FORCE, &info);
 }
 
 void boundrange_exception(struct registers *ctx)
@@ -149,12 +173,10 @@ void boundrange_exception(struct registers *ctx)
         panic("Bound range trap");
     }
 
-    struct thread *current = get_current_thread();
-
     siginfo_t info = {};
     info.si_code = SI_KERNEL;
 
-    kernel_tkill(SIGILL, current, SIGNAL_FORCE, &info);
+    raise_sig_curthr(SIGILL, SIGNAL_FORCE, &info);
 }
 
 bool handle_bug(struct registers *ctx);
@@ -168,12 +190,10 @@ void invalid_opcode_exception(struct registers *ctx)
         panic("Invalid instruction exception");
     }
 
-    struct thread *current = get_current_thread();
-
     siginfo_t info = {};
     info.si_code = SI_KERNEL;
 
-    kernel_tkill(SIGILL, current, SIGNAL_FORCE, &info);
+    raise_sig_curthr(SIGILL, SIGNAL_FORCE, &info);
 }
 
 void device_not_avail_excp(struct registers *ctx)
@@ -187,12 +207,10 @@ void device_not_avail_excp(struct registers *ctx)
         panic("FPU exception");
     }
 
-    struct thread *current = get_current_thread();
-
     siginfo_t info = {};
     info.si_code = SI_KERNEL;
 
-    kernel_tkill(SIGFPE, current, SIGNAL_FORCE, &info);
+    raise_sig_curthr(SIGFPE, SIGNAL_FORCE, &info);
 }
 void __double_fault(struct registers *ctx)
 {
@@ -214,12 +232,10 @@ void stack_segment_fault(struct registers *ctx)
         panic("Stack segment fault");
     }
 
-    struct thread *current = get_current_thread();
-
     siginfo_t info = {};
     info.si_code = SEGV_BNDERR;
 
-    kernel_tkill(SIGSEGV, current, SIGNAL_FORCE, &info);
+    raise_sig_curthr(SIGSEGV, SIGNAL_FORCE, &info);
 }
 
 #ifdef CONFIG_VERBOSE_SEGV
@@ -335,7 +351,7 @@ void general_protection_fault(struct registers *ctx)
 
     dumpstack(ctx->rip, (const void *) ctx->rsp);
 
-    kernel_tkill(SIGSEGV, current, SIGNAL_FORCE, &info);
+    raise_sig_curthr(SIGSEGV, SIGNAL_FORCE, &info);
 }
 
 void stack_trace_user(uintptr_t *stack);
@@ -405,12 +421,10 @@ void x87_fpu_exception(struct registers *ctx)
         panic("FPU exception");
     }
 
-    struct thread *current = get_current_thread();
-
     siginfo_t info = {};
     info.si_code = SI_KERNEL;
 
-    kernel_tkill(SIGFPE, current, SIGNAL_FORCE, &info);
+    raise_sig_curthr(SIGFPE, SIGNAL_FORCE, &info);
 }
 
 void alignment_check_excp(struct registers *ctx)
@@ -421,12 +435,10 @@ void alignment_check_excp(struct registers *ctx)
         panic("Alignment check exception");
     }
 
-    struct thread *current = get_current_thread();
-
     siginfo_t info = {};
     info.si_code = SEGV_ACCERR;
 
-    kernel_tkill(SIGSEGV, current, SIGNAL_FORCE, &info);
+    raise_sig_curthr(SIGSEGV, SIGNAL_FORCE, &info);
 }
 
 void simd_fpu_exception(struct registers *ctx)
@@ -440,12 +452,10 @@ void simd_fpu_exception(struct registers *ctx)
         panic("FPU exception");
     }
 
-    struct thread *current = get_current_thread();
-
     siginfo_t info = {};
     info.si_code = SI_KERNEL;
 
-    kernel_tkill(SIGFPE, current, SIGNAL_FORCE, &info);
+    raise_sig_curthr(SIGFPE, SIGNAL_FORCE, &info);
 }
 
 void virtualization_exception(struct registers *ctx)
@@ -456,12 +466,10 @@ void virtualization_exception(struct registers *ctx)
         panic("Virtualization exception");
     }
 
-    struct thread *current = get_current_thread();
-
     siginfo_t info = {};
     info.si_code = SI_KERNEL;
 
-    kernel_tkill(SIGSEGV, current, SIGNAL_FORCE, &info);
+    raise_sig_curthr(SIGSEGV, SIGNAL_FORCE, &info);
 }
 
 void security_exception(struct registers *ctx)
@@ -472,12 +480,10 @@ void security_exception(struct registers *ctx)
         panic("Security exception");
     }
 
-    struct thread *current = get_current_thread();
-
     siginfo_t info = {};
     info.si_code = SI_KERNEL;
 
-    kernel_tkill(SIGSEGV, current, SIGNAL_FORCE, &info);
+    raise_sig_curthr(SIGSEGV, SIGNAL_FORCE, &info);
 }
 
 #ifdef CONFIG_KTRACE
@@ -510,12 +516,10 @@ void breakpoint_exception(struct registers *ctx)
         panic("Breakpoint exception");
     }
 
-    struct thread *current = get_current_thread();
-
     siginfo_t info = {};
     info.si_code = SI_KERNEL;
-
-    kernel_tkill(SIGTRAP, current, SIGNAL_FORCE, &info);
+    dumpstack(ctx->rip, (const void *) ctx->rsp);
+    raise_sig_curthr(SIGTRAP, SIGNAL_FORCE, &info);
 }
 
 void invalid_tss_exception(struct registers *ctx)
@@ -532,12 +536,10 @@ void segment_not_present_excp(struct registers *ctx)
         panic("Segment not present exception");
     }
 
-    struct thread *current = get_current_thread();
-
     siginfo_t info = {};
     info.si_code = SI_KERNEL;
 
-    kernel_tkill(SIGSEGV, current, SIGNAL_FORCE, &info);
+    raise_sig_curthr(SIGSEGV, SIGNAL_FORCE, &info);
 }
 
 void machine_check(struct registers *ctx)

@@ -97,7 +97,7 @@ static void instruction_address_misaligned(registers_t *ctx)
     info.si_code = BUS_ADRALN;
     info.si_addr = (void *) ctx->tval;
 
-    kernel_tkill(SIGBUS, get_current_thread(), SIGNAL_FORCE, &info);
+    raise_sig_curthr(SIGBUS, SIGNAL_FORCE, &info);
 }
 
 static void instruction_access_fault(registers_t *ctx)
@@ -106,7 +106,7 @@ static void instruction_access_fault(registers_t *ctx)
     info.si_code = BUS_ADRERR;
     info.si_addr = (void *) ctx->tval;
 
-    kernel_tkill(SIGBUS, get_current_thread(), SIGNAL_FORCE, &info);
+    raise_sig_curthr(SIGBUS, SIGNAL_FORCE, &info);
 }
 
 static void illegal_instruction(registers_t *ctx)
@@ -115,7 +115,7 @@ static void illegal_instruction(registers_t *ctx)
     info.si_code = ILL_ILLOPC;
     info.si_addr = (void *) ctx->tval;
 
-    kernel_tkill(SIGILL, get_current_thread(), SIGNAL_FORCE, &info);
+    raise_sig_curthr(SIGILL, SIGNAL_FORCE, &info);
 }
 
 static void breakpoint_trap(registers_t *ctx)
@@ -123,7 +123,7 @@ static void breakpoint_trap(registers_t *ctx)
     siginfo_t info = {};
     info.si_code = TRAP_BRKPT;
 
-    kernel_tkill(SIGTRAP, get_current_thread(), SIGNAL_FORCE, &info);
+    raise_sig_curthr(SIGTRAP, SIGNAL_FORCE, &info);
 }
 
 static void load_address_misaligned(registers_t *ctx)
@@ -132,7 +132,7 @@ static void load_address_misaligned(registers_t *ctx)
     info.si_code = BUS_ADRALN;
     info.si_addr = (void *) ctx->tval;
 
-    kernel_tkill(SIGBUS, get_current_thread(), SIGNAL_FORCE, &info);
+    raise_sig_curthr(SIGBUS, SIGNAL_FORCE, &info);
 }
 
 static void load_access_fault(registers_t *ctx)
@@ -141,7 +141,7 @@ static void load_access_fault(registers_t *ctx)
     info.si_code = BUS_ADRERR;
     info.si_addr = (void *) ctx->tval;
 
-    kernel_tkill(SIGBUS, get_current_thread(), SIGNAL_FORCE, &info);
+    raise_sig_curthr(SIGBUS, SIGNAL_FORCE, &info);
 }
 
 static void store_address_misaligned(registers_t *ctx)
@@ -150,7 +150,7 @@ static void store_address_misaligned(registers_t *ctx)
     info.si_code = BUS_ADRALN;
     info.si_addr = (void *) ctx->tval;
 
-    kernel_tkill(SIGBUS, get_current_thread(), SIGNAL_FORCE, &info);
+    raise_sig_curthr(SIGBUS, SIGNAL_FORCE, &info);
 }
 
 static void store_access_fault(registers_t *ctx)
@@ -159,7 +159,7 @@ static void store_access_fault(registers_t *ctx)
     info.si_code = BUS_ADRERR;
     info.si_addr = (void *) ctx->tval;
 
-    kernel_tkill(SIGBUS, get_current_thread(), SIGNAL_FORCE, &info);
+    raise_sig_curthr(SIGBUS, SIGNAL_FORCE, &info);
 }
 
 #define PF_R (1 << 0)

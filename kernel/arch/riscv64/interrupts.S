@@ -277,3 +277,10 @@ return_from_execve:
     xor x1, x1, x1
 
     sret
+
+.global ret_from_fork_asm
+.type ret_from_fork_asm, @function
+ret_from_fork_asm:
+    call ret_from_fork
+    RISCV_RESTORE_CONTEXT
+    sret
