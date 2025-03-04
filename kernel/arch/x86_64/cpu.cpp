@@ -331,7 +331,7 @@ void x86_setup_standard_control_registers(void)
 void x86_init_percpu_intel(void)
 {
     uint64_t misc_enable = rdmsr(IA32_MISC_ENABLE);
-    misc_enable &= ~IA32_MISC_ENABLE_XD_BIT_DISABLE;
+    misc_enable &= ~(IA32_MISC_ENABLE_XD_BIT_DISABLE | IA32_MISC_ENABLE_LIMIT_CPUID_MAXVAL);
 
     if (x86_has_cap(X86_FEATURE_ERMS))
         misc_enable |= IA32_MISC_ENABLE_FAST_STRINGS_ENABLE;
