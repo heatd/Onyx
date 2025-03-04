@@ -52,9 +52,11 @@ SECTIONS
 		PROVIDE_HIDDEN(__end_kparam = .);
 		*(.rodata*)
 		*(.gnu.linkonce.r*)
+		. = ALIGN(8);
 		_driver_init_start = .;
 		*(.driver.init*)
 		_driver_init_end = .;
+		. = ALIGN(8);
 		_ehtable_start = .;
 		*(.ehtable*)
 		_ehtable_end = .;

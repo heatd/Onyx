@@ -6,13 +6,13 @@
 
 #include <onyx/exceptions.h>
 
-extern "C" struct exception_table_data _ehtable_start;
-extern "C" struct exception_table_data _ehtable_end;
+extern "C" struct exception_table_data _ehtable_start[];
+extern "C" struct exception_table_data _ehtable_end[];
 
 unsigned long exceptions_get_fixup(unsigned long ip)
 {
-    struct exception_table_data *d = (struct exception_table_data *) &_ehtable_start;
-    struct exception_table_data *end = (struct exception_table_data *) &_ehtable_end;
+    struct exception_table_data *d = (struct exception_table_data *) _ehtable_start;
+    struct exception_table_data *end = (struct exception_table_data *) _ehtable_end;
 
     while (d != end)
     {
