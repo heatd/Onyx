@@ -76,7 +76,7 @@ void idt_init(void)
     x86_reserve_vector(0, isr0);
     x86_reserve_vector(1, isr1);
     x86_reserve_vector(2, isr2);
-    x86_reserve_vector(3, isr3);
+    idt_set_system_gate(3, (unsigned long) isr3, 0x8, 0x8e);
     x86_reserve_vector(4, isr4);
     x86_reserve_vector(5, isr5);
     x86_reserve_vector(6, isr6);
