@@ -7,7 +7,7 @@
 #define _KERNEL_DRIVER_H
 
 #define DRIVER_INIT(x) \
-    __attribute__((section(".driver.init"), used, aligned(1))) static int (*__module_init)(void) = x
+    __attribute__((section(".driver.init"), used)) static int (*__module_init)(void) = x
 
 #include <onyx/module.h>
 
