@@ -964,7 +964,8 @@ ssize_t tcp_sendmsg(struct socket *sock_, const msghdr *msg, int flags)
                 err = -ENOTCONN;
         }
 
-        return sock_stream_error(sock, err, flags);
+        if (err)
+            return sock_stream_error(sock, err, flags);
     }
 
     auto len = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
