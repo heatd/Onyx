@@ -1438,3 +1438,21 @@ bool notify_process_stop_cont(struct process *task, unsigned int exit_code)
     spin_unlock(&sighand->signal_lock);
     return sig > 0;
 }
+
+int pid_kill_pgrp(struct pid *pid, int sig, int flags, siginfo_t *info)
+{
+    int signals_sent = 0;
+    struct process *proc;
+
+    pgrp_for_every_member(pid, proc, PIDTYPE_PGRP)
+    {
+        if (may_kill(sig, proc, info) < 0)
+            continue;
+        if (send_signal_to_task(sig, proc, 0, info, PIDTYPE_TGID) < 0)
+            break;
+
+        signals_sent++;
+    }
+
+    return signals_sent != 0 ? 0 : -EPERM;
+}
