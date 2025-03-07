@@ -222,7 +222,7 @@ int page_wait_bit(struct page *p, unsigned int bit, bool interruptible) NO_THREA
     {
         if (interruptible && signal_is_pending())
         {
-            st = -EINTR;
+            st = -ERESTARTSYS;
             break;
         }
 

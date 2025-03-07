@@ -777,7 +777,7 @@ expected<un_socket *, int> un_socket::connect_to(un_socket *client)
     if (st < 0)
     {
         list_remove(&r.list_node);
-        return unexpected<int>{-EINTR};
+        return unexpected<int>{-ERESTARTSYS};
     }
 
     if (r.dead)

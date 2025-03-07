@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -7,7 +7,6 @@
  */
 
 #include <assert.h>
-#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,6 +19,7 @@
 #include <onyx/timer.h>
 
 #include <drivers/rtc.h>
+#include <uapi/errno.h>
 
 const size_t max_entropy = PAGE_SIZE * 4;
 static char entropy_buffer[PAGE_SIZE * 4] = {};
@@ -95,7 +95,7 @@ size_t random_get_entropy(size_t size, void *buffer)
     while (to_read)
     {
         if (signal_is_pending())
-            return -EINTR;
+            return -ERESTARTSYS;
 
         if (current_entropy)
         {
@@ -118,7 +118,7 @@ size_t urandom_get_entropy(size_t size, void *buffer)
     while (to_read)
     {
         if (signal_is_pending())
-            return -EINTR;
+            return -ERESTARTSYS;
         if (current_entropy)
         {
             size_t r = current_entropy > to_read ? to_read : current_entropy;

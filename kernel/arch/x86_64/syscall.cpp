@@ -22,6 +22,9 @@ typedef long (*syscall_callback_t)(unsigned long rdi, unsigned long rsi, unsigne
 
 extern syscall_callback_t syscall_table_64[];
 
+
+extern "C" void handle_signal(struct registers *regs);
+
 extern "C" long do_syscall64(struct syscall_frame *frame)
 {
     context_tracking_enter_kernel();
@@ -62,5 +65,8 @@ extern "C" long do_syscall64(struct syscall_frame *frame)
         write_per_cpu(preemption_counter, 0);
     }
 
+    frame->rax = ret;
+    if (signal_is_pending())
+        handle_signal((struct registers *) frame);
     return ret;
 }

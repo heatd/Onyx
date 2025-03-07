@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -369,7 +369,7 @@ expected<packetbuf *, int> icmp_socket::get_datagram(int flags)
 
     do
     {
-        if (st == -EINTR)
+        if (st == -ERESTARTSYS)
             return unexpected<int>{st};
 
         buf = get_rx_head();

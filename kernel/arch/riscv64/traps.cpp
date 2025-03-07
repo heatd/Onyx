@@ -317,6 +317,8 @@ void riscv_handle_interrupt(registers_t *regs, unsigned long cause)
     irq_restore(flags);
 }
 
+void handle_signal(struct registers *regs);
+
 extern "C" unsigned long riscv_handle_trap(registers_t *regs)
 {
     context_tracking_enter_kernel();

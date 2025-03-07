@@ -369,7 +369,7 @@ expected<packetbuf *, int> icmp6_socket::get_datagram(int flags)
 
     do
     {
-        if (st == -EINTR)
+        if (st == -ERESTARTSYS)
             return unexpected<int>{st};
 
         buf = get_rx_head();

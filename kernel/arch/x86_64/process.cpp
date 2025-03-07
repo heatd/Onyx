@@ -39,7 +39,7 @@ struct thread *process_fork_thread(thread_t *src, struct process *dest, unsigned
 
     rsp = stack;
     if (stack == 0)
-        rsp = ctx->user_sp;
+        rsp = ctx->rsp;
     rflags = ctx->rflags;
     ip = ctx->rip;
 

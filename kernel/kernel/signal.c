@@ -70,13 +70,33 @@ static inline bool sigmaskinset(sigset_t *set, sigmask_t mask)
     return set->__bits[0] & mask;
 }
 
+static inline void sigandsetmask(sigset_t *set, sigmask_t mask)
+{
+    set->__bits[0] &= mask;
+}
+
 #define SIGNAL_STOP_MASK (SIGMASK(SIGSTOP) | SIGMASK(SIGTSTP) | SIGMASK(SIGTTIN) | SIGMASK(SIGTTOU))
 #define SIGNAL_IGN_MASK                                                                           \
     (SIGMASK(SIGCHLD) | SIGMASK(SIGCONT) | SIGMASK(SIGURG) | SIGMASK(SIGWINCH) | SIGMASK(SIGIO) | \
      SIGMASK(SIGPWR))
 
-#define sig_stop(sig)   siginmask(SIGNAL_STOP_MASK, sig)
-#define sig_ignore(sig) siginmak(SIGNAL_IGN_MASK, sig)
+#define SIG_KILL_MASK                                                                             \
+    (SIGMASK(SIGHUP) | SIGMASK(SIGINT) | SIGMASK(SIGKILL) | SIGMASK(SIGUSR1) | SIGMASK(SIGUSR2) | \
+     SIGMASK(SIGPIPE) | SIGMASK(SIGALRM) | SIGMASK(SIGTERM) | SIGMASK(SIGSTKFLT) |                \
+     SIGMASK(SIGVTALRM) | SIGMASK(SIGPROF))
+
+#define SIG_CORE_MASK                                                                             \
+    (SIGMASK(SIGQUIT) | SIGMASK(SIGILL) | SIGMASK(SIGTRAP) | SIGMASK(SIGABRT) | SIGMASK(SIGBUS) | \
+     SIGMASK(SIGFPE) | SIGMASK(SIGSEGV) | SIGMASK(SIGXCPU) | SIGMASK(SIGXFSZ) | SIGMASK(SIGSYS))
+
+#define SIG_SYNCHRONOUS_MASK                                                                     \
+    (SIGMASK(SIGILL) | SIGMASK(SIGTRAP) | SIGMASK(SIGBUS) | SIGMASK(SIGFPE) | SIGMASK(SIGSEGV) | \
+     SIGMASK(SIGSYS))
+
+#define sig_stop(sig)     siginmask(SIGNAL_STOP_MASK, sig)
+#define sig_ignore(sig)   siginmask(SIGNAL_IGN_MASK, sig)
+#define sig_kill(sig)     (siginmask(SIG_KILL_MASK, sig) || (sig) >= KERNEL_SIGRTMIN)
+#define sig_coredump(sig) siginmask(SIG_CORE_MASK, sig)
 
 /* This table only handles non-realtime signals (so, from signo 1 to 31, inclusive) */
 sighandler_t dfl_signal_handlers[] = {signal_default_term,
@@ -194,7 +214,8 @@ static void recalc_sigpending(void)
         set_task_flag(current, TF_SIGPENDING);
 }
 
-#define SIGNAL_QUERY_POP (1 << 0)
+#define SIGNAL_QUERY_POP          (1 << 0)
+#define SIGNAL_PREFER_SYNCHRONOUS (1 << 1)
 
 static struct sigpending *__signal_query_pending(int signum, unsigned int flags,
                                                  struct sigqueue *info)
@@ -238,6 +259,14 @@ static struct sigpending *__signal_dequeue(unsigned int flags, struct sigqueue *
     sigset_t mask = current->sigmask;
     signotset(&mask);
     sigandset(&pending, &pending, &mask);
+
+    if (flags & SIGNAL_PREFER_SYNCHRONOUS)
+    {
+        /* Prefer a group of signals usually generated for synchronous exceptions (defined above) */
+        if (sigmaskinset(&pending, SIG_SYNCHRONOUS_MASK))
+            sigandsetmask(&pending, SIG_SYNCHRONOUS_MASK);
+    }
+
     sig = sigffs(&pending);
     if (sig == -1)
     {
@@ -262,84 +291,36 @@ static struct sigpending *signal_dequeue(unsigned int flags)
     return pend;
 }
 
-bool deliver_signal(int signum, struct sigpending *pending, struct registers *regs);
-
-/* Returns negative if deliver_signal shouldn't execute the rest of the code, and should return
- * immediately */
-int force_sigsegv(struct sigpending *pending, struct registers *regs)
+void force_sigsegv(int sig)
 {
-    int signum = pending->signum;
+    int flags = 0;
+    siginfo_t info = {};
+    if (sig == SIGSEGV)
+        flags |= SIGNAL_FORCE;
 
-    pending->info->si_code = SI_KERNEL;
-    pending->info->si_signo = SIGSEGV;
-    pending->info->si_addr = NULL;
+    info.si_code = SI_KERNEL;
+    info.si_signo = SIGSEGV;
 
-    /* If we were trying to deliver SEGV; just do the default signal */
-    if (signum == SIGSEGV)
-    {
-        do_default_signal(signum, pending);
-    }
-    else
-    {
-        /* Else, try to deliver a SIGSEGV */
-        deliver_signal(SIGSEGV, pending, regs);
-        /* Explicitly return here in order not to execute the rest of the code */
-        return -1;
-    }
-
-    return 0;
+    read_lock(&tasklist_lock);
+    send_signal_to_task(sig, current, flags, &info, PIDTYPE_PID);
+    read_unlock(&tasklist_lock);
 }
 
-bool signal_uncatcheable(int signum)
+void signal_end_delivery(struct arch_siginfo *sinfo)
 {
-    return signal_is_stopping(signum) || signum == SIGKILL;
-}
-
-bool deliver_signal(int signum, struct sigpending *pending, struct registers *regs)
-{
-    struct thread *thread = get_current_thread();
-    struct process *process = thread->owner;
-
-    struct k_sigaction *k_sigaction = &process->sighand->sigtable[signum];
-    void (*handler)(int) = k_sigaction->sa_handler;
-    bool defer_user = false;
-
-    /* TODO: Handle SA_RESTART */
-    if (handler != SIG_DFL && !signal_uncatcheable(signum))
-    {
-        defer_user = true;
-        if (signal_setup_context(pending, k_sigaction, regs) < 0)
-        {
-            if (force_sigsegv(pending, regs) < 0)
-                return true;
-        }
-    }
-    else
-    {
-        /* XXX Default signal running setmask has to be wrong */
-        do_default_signal(signum, pending);
-    }
-
-    if (k_sigaction->sa_flags & SA_RESETHAND)
-    {
-        /* If so, we need to reset the handler to SIG_DFL and clear SA_SIGINFO */
-        k_sigaction->sa_handler = SIG_DFL;
-        k_sigaction->sa_flags &= ~SA_SIGINFO;
-    }
-
+    /* Set the proper signal mask as the last (arch-independent) step in signal delivery */
     sigset_t new_blocked = current->sigmask;
     sigset_t sigm;
-    memcpy(&sigm, &k_sigaction->sa_mask, sizeof(sigm));
+    memcpy(&sigm, &sinfo->action.sa_mask, sizeof(sigm));
     sigorset(&new_blocked, &new_blocked, &sigm);
 
-    if (!(k_sigaction->sa_flags & SA_NODEFER))
+    if (!(sinfo->action.sa_flags & SA_NODEFER))
     {
         /* POSIX specifies that the signal needs to be blocked while being handled */
-        sigaddset(&new_blocked, signum);
+        sigaddset(&new_blocked, sinfo->signum);
     }
 
     signal_setmask(&new_blocked);
-    return defer_user;
 }
 
 static void do_signal_stop(int signo)
@@ -395,19 +376,17 @@ static void do_sigcont_notify(void)
     sig->signal_group_flags |= SIGNAL_GROUP_CONT;
 }
 
-void handle_signal(struct registers *regs)
+static void free_sigpending(struct sigpending *pend)
+{
+    kfree(pend->info);
+    kfree(pend);
+}
+
+bool find_signal(struct arch_siginfo *sinfo)
 {
     struct sigpending *pending;
-
-    /* We can't do signals while in kernel space */
-    if (in_kernel_space_regs(regs))
-        return;
-
-    context_tracking_enter_kernel();
-
-    if (irq_is_disabled())
-        irq_enable();
-
+    struct k_sigaction *ksa;
+    int sig;
     spin_lock(&current->sighand->signal_lock);
 
     /* This infinite loop should speed things up by letting us handle things
@@ -436,33 +415,63 @@ void handle_signal(struct registers *regs)
             continue;
         }
 
-        pending = signal_dequeue(SIGNAL_QUERY_POP);
-        /* Ok. signal stop? Lets do a stop */
-        /* XXX this code could use a good refactor. */
-        if (pending && current->sighand->sigtable[pending->signum].sa_handler == SIG_DFL &&
-            sig_stop(pending->signum))
+        pending = signal_dequeue(SIGNAL_QUERY_POP | SIGNAL_PREFER_SYNCHRONOUS);
+        if (!pending)
         {
-            int sig = pending->signum;
-            kfree(pending->info);
-            kfree(pending);
-            do_signal_stop(sig);
-            /* pending freed, sighand unlocked. loop again */
+            spin_unlock(&current->sighand->signal_lock);
+            break;
+        }
+
+        ksa = &current->sighand->sigtable[pending->signum];
+
+        /* Handle basic signal dispositions. */
+        if (ksa->sa_handler == SIG_IGN)
+        {
+            free_sigpending(pending);
             continue;
         }
-        // We need to unlock and relock the process and thread signal locks due to
-        // copy_to/from_user, which may sleep
-        spin_unlock(&current->sighand->signal_lock);
-        if (!pending)
-            break;
+        if (ksa->sa_handler != SIG_DFL)
+        {
+            /* arch-specific code will want to handle this signal disposition, save information and
+             * break. */
+            sinfo->action = *ksa;
+            sinfo->signum = pending->signum;
+            if (ksa->sa_flags & SA_RESETHAND)
+            {
+                /* If so, we need to reset the handler to SIG_DFL and clear SA_SIGINFO */
+                ksa->sa_handler = SIG_DFL;
+                ksa->sa_flags &= ~SA_SIGINFO;
+            }
 
-        bool defer = deliver_signal(pending->signum, pending, regs);
-        if (defer)
-            break;
+            memcpy(&sinfo->info, pending->info, sizeof(siginfo_t));
+            free_sigpending(pending);
+            spin_unlock(&current->sighand->signal_lock);
+            return true;
+        }
 
-        spin_lock(&current->sighand->signal_lock);
+        /* Default signal dispositions... We can already discard siginfo at least */
+        sig = pending->signum;
+        free_sigpending(pending);
+        if (sig_stop(sig))
+        {
+            do_signal_stop(sig);
+            /* pending freed, sighand locked. loop again */
+            continue;
+        }
+        else if (sig_ignore(sig))
+            continue;
+        else if (sig_kill(sig) || sig_coredump(sig))
+        {
+            spin_unlock(&current->sighand->signal_lock);
+            process_exit_from_signal(sig);
+            UNREACHABLE();
+        }
+
+        WARN_ON(1);
+        UNREACHABLE();
     }
 
-    context_tracking_exit_kernel();
+    return false;
 }
 
 int kernel_raise_signal(int sig, struct process *process, unsigned int flags, siginfo_t *info)
@@ -480,8 +489,10 @@ static void do_signal_force_unblock(int signal, struct process *task)
     /* Do it like Linux, and restore the handler to SIG_DFL,
      * and unmask the thread
      */
+    struct k_sigaction *ksa = &task->sighand->sigtable[signal];
 
-    task->sighand->sigtable[signal].sa_handler = SIG_DFL;
+    ksa->sa_handler = SIG_DFL;
+    ksa->sa_flags |= SA_IMMUTABLE;
     sigdelset(&task->sigmask, signal);
 }
 
@@ -514,7 +525,7 @@ out:
 
 static bool is_default_ignored(int signal)
 {
-    return dfl_signal_handlers[signal] == signal_default_ignore;
+    return sig_ignore(signal);
 }
 
 static bool is_signal_ignored(struct process *process, int signal)
@@ -540,8 +551,7 @@ static void __signal_drop_sigs(sigmask_t sigs, struct sigqueue *queue)
         if (siginmask(sigs, pend->signum))
         {
             list_remove(&pend->list_node);
-            kfree(pend->info);
-            kfree(pend);
+            free_sigpending(pend);
         }
     }
 
@@ -1008,8 +1018,7 @@ int sys_sigsuspend(const sigset_t *uset)
         sched_yield();
     }
 
-    /* XXX restart if no handler present */
-    return -EINTR;
+    return -ERESTARTNOHAND;
 }
 
 int sys_pause(void)
@@ -1019,7 +1028,7 @@ int sys_pause(void)
 
     wait_for_event_interruptible(&wq, false);
 
-    return -EINTR;
+    return -ERESTARTNOHAND;
 }
 
 #define TGKILL_CHECK_PID (1 << 0)
@@ -1276,7 +1285,7 @@ bool executing_in_altstack(const struct syscall_frame *frm, const stack_t *stack
     /* TODO: This depends on whether the stack grows downwards or upwards. This logic covers the
      * first case. */
 #ifdef __x86_64__
-    unsigned long sp = frm->user_sp;
+    unsigned long sp = frm->rsp;
 #elif defined(__riscv)
     unsigned long sp = frm->regs.sp;
 #elif defined(__aarch64__)

@@ -146,7 +146,11 @@ int sys_flock(int fd, int op) NO_THREAD_SAFETY_ANALYSIS
      * fd in this case (so multiple processes can't grab the same lock
      * and cause a race). */
     if ((err = mutex_lock_interruptible(&filp->f_seeklock)) != 0)
+    {
+        err = -ERESTARTSYS;
         goto out_put;
+    }
+
     err = do_flock(filp, op);
     mutex_unlock(&filp->f_seeklock);
 out_put:
