@@ -322,24 +322,6 @@ pid_t sys_getsid(pid_t pid)
     return pid;
 }
 
-int pid_kill_pgrp(struct pid *pid, int sig, int flags, siginfo_t *info)
-{
-    int signals_sent = 0;
-    struct process *proc;
-
-    pgrp_for_every_member(pid, proc, PIDTYPE_PGRP)
-    {
-        if (may_kill(sig, proc, info) < 0)
-            continue;
-        if (kernel_raise_signal(sig, proc, 0, info) < 0)
-            break;
-
-        signals_sent++;
-    }
-
-    return signals_sent != 0 ? 0 : -EPERM;
-}
-
 bool pid_is_orphaned_and_has_stopped_jobs(struct pid *pgrp, struct process *ignore)
 {
     // Definition of orphaned process group:
