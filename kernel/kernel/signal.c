@@ -26,28 +26,6 @@
 static int send_signal_to_task(int signal, struct process *task, unsigned int flags,
                                siginfo_t *info, enum pid_type type);
 
-void signal_default_term(int signum)
-{
-    process_exit_from_signal(signum);
-}
-
-void signal_default_core(int signum)
-{
-    /* TODO: Generate a core dump */
-    signal_default_term(signum);
-}
-
-void signal_default_ignore(int signum)
-{
-    (void) signum;
-}
-
-void signal_do_stop(int signum)
-{
-    /* TODO: Redo SIGSTOP */
-    WARN_ON(1);
-}
-
 /* Wide-enough type to contain all signals. In theory we have sigset_t, but this type is nicer to
  * work with */
 typedef unsigned long sigmask_t;
@@ -98,40 +76,6 @@ static inline void sigandsetmask(sigset_t *set, sigmask_t mask)
 #define sig_kill(sig)     (siginmask(SIG_KILL_MASK, sig) || (sig) >= KERNEL_SIGRTMIN)
 #define sig_coredump(sig) siginmask(SIG_CORE_MASK, sig)
 
-/* This table only handles non-realtime signals (so, from signo 1 to 31, inclusive) */
-sighandler_t dfl_signal_handlers[] = {signal_default_term,
-                                      /*[SIGHUP] = */ signal_default_term,
-                                      /*[SIGINT] = */ signal_default_term,
-                                      /*[SIGQUIT] = */ signal_default_core,
-                                      /*[SIGILL] = */ signal_default_core,
-                                      /*[SIGTRAP] = */ signal_default_core,
-                                      /*[SIGABRT] =*/signal_default_core,
-                                      /*[SIGBUS] =*/signal_default_core,
-                                      /*[SIGFPE] =*/signal_default_core,
-                                      /*[SIGKILL] =*/signal_default_term,
-                                      /*[SIGUSR1] =*/signal_default_term,
-                                      /*[SIGSEGV] =*/signal_default_core,
-                                      /*[SIGUSR2] =*/signal_default_term,
-                                      /*[SIGPIPE] =*/signal_default_term,
-                                      /*[SIGALRM] =*/signal_default_term,
-                                      /*[SIGTERM] =*/signal_default_term,
-                                      /*[SIGSTKFLT] =*/signal_default_term,
-                                      /*[SIGCHLD] =*/signal_default_ignore,
-                                      /*[SIGCONT] =*/signal_default_ignore,
-                                      /*[SIGSTOP] =*/signal_do_stop,
-                                      /*[SIGTSTP] =*/signal_do_stop,
-                                      /*[SIGTTIN] =*/signal_do_stop,
-                                      /*[SIGTTOU] =*/signal_do_stop,
-                                      /*[SIGURG] =*/signal_default_ignore,
-                                      /*[SIGXCPU] =*/signal_default_core,
-                                      /*[SIGXFSZ] =*/signal_default_core,
-                                      /*[SIGVTALRM] =*/signal_default_term,
-                                      /*[SIGPROF] =*/signal_default_term,
-                                      /*[SIGWINCH] =*/signal_default_ignore,
-                                      /*[SIGIO] =*/signal_default_ignore,
-                                      /*[SIGPWR] =*/signal_default_ignore,
-                                      /*[SIGSYS] =*/signal_default_core};
-
 #define SST_SIZE (_NSIG / 8 / sizeof(long))
 void signotset(sigset_t *set)
 {
@@ -149,26 +93,6 @@ bool signal_is_unblockable(int signum)
     }
 
     return false;
-}
-
-void do_default_signal(int signum, struct sigpending *pend)
-{
-    /* For realtime signals (which we don't include in the dfl_signal_handlers), the default action
-     * is to terminate the process.
-     */
-    bool is_term = signal_is_realtime(signum) ||
-                   dfl_signal_handlers[signum] == signal_default_term ||
-                   dfl_signal_handlers[signum] == signal_default_core;
-
-    if (likely(!is_term))
-    {
-        dfl_signal_handlers[signum](signum);
-        return;
-    }
-
-    dfl_signal_handlers[signum](signum);
-
-    __builtin_unreachable();
 }
 
 static sigset_t task_pending_sigs(void)
