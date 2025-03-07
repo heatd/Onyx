@@ -1533,24 +1533,6 @@ static void vm_destroy_area(struct vm_area_struct *region)
     vma_destroy(region);
 }
 
-static void kick_mm_remote(void *ctx)
-{
-    struct mm_address_space *mm = (struct mm_address_space *) ctx;
-    (void) mm;
-    struct mm_address_space *newmm = get_current_thread()->aspace;
-    if (!newmm)
-        newmm = &kernel_address_space;
-    /* TODO: We have no way of knowing if we're on a mm */
-    if (!get_current_thread()->owner)
-        vm_set_aspace(newmm);
-}
-
-static void kick_mm(struct mm_address_space *mm)
-{
-    /* TODO: Ugh, broadcast */
-    // smp_sync_call(kick_mm_remote, mm, cpumask::all_but_one(get_cpu_nr()));
-}
-
 /**
  * @brief Destroys an address space.
  *
