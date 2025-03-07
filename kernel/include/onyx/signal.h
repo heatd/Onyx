@@ -90,6 +90,13 @@ struct sigpending
     struct list_head list_node;
 };
 
+struct arch_siginfo
+{
+    siginfo_t info;
+    int signum;
+    struct k_sigaction action;
+};
+
 static inline bool signal_is_realtime(int sig)
 {
     return sig >= KERNEL_SIGRTMIN;
@@ -146,9 +153,8 @@ struct process;
 struct thread;
 
 bool signal_is_pending(void);
-int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigaction,
-                         struct registers *regs);
-void handle_signal(struct registers *regs);
+bool find_signal(struct arch_siginfo *sinfo);
+void signal_end_delivery(struct arch_siginfo *sinfo);
 
 #define SIGNAL_FORCE        (1 << 0)
 #define SIGNAL_IN_BROADCAST (1 << 1)
@@ -170,6 +176,9 @@ static inline void sigaltstack_init(stack_t *stack)
     stack->ss_sp = NULL;
     stack->ss_flags = SS_DISABLE;
 }
+
+struct syscall_frame;
+bool executing_in_altstack(const struct syscall_frame *frm, const stack_t *stack);
 
 int raise_sig_thr(int sig, struct process *task, unsigned int flags, siginfo_t *info);
 int raise_sig_curthr(int sig, unsigned int flags, siginfo_t *info);
@@ -224,6 +233,8 @@ bool parent_notify(unsigned int exit_code);
  * @retval true If task was woken up
  */
 bool notify_process_stop_cont(struct process *task, unsigned int exit_code);
+
+void force_sigsegv(int sig);
 
 /* Used when forcing signals, such that no one racing with us can change this signal while another
  * thread is trying to catch a fault */

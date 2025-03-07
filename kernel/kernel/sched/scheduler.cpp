@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -887,8 +887,8 @@ int sys_nanosleep(const timespec *req, timespec *rem)
             return -EFAULT;
     }
 
-    if (rem && signal_is_pending())
-        return -EINTR;
+    if (signal_is_pending())
+        return -ERESTARTSYS;
 
     return 0;
 }

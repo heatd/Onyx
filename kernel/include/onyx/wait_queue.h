@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2023 Pedro Falcato
+ * Copyright (c) 2019 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -9,7 +9,6 @@
 #ifndef _ONYX_WAIT_QUEUE_H
 #define _ONYX_WAIT_QUEUE_H
 
-#include <errno.h>
 #include <stdbool.h>
 #include <string.h>
 
@@ -17,6 +16,8 @@
 #include <onyx/scheduler.h>
 #include <onyx/spinlock.h>
 #include <onyx/task_switching.h>
+
+#include <uapi/errno.h>
 
 #define WQ_TOKEN_EXCLUSIVE  (1u << 0)
 #define WQ_TOKEN_NO_DEQUEUE (1u << 1)
@@ -135,7 +136,7 @@ bool signal_is_pending();
                 break;                                                \
             if (state == THREAD_INTERRUPTIBLE && signal_is_pending()) \
             {                                                         \
-                __ret = -EINTR;                                       \
+                __ret = -ERESTARTSYS;                                 \
                 goto __out;                                           \
             }                                                         \
             cmd;                                                      \
@@ -166,7 +167,7 @@ bool signal_is_pending();
                 goto __out;                                             \
             if (state == THREAD_INTERRUPTIBLE && signal_is_pending())   \
             {                                                           \
-                __ret = -EINTR;                                         \
+                __ret = -ERESTARTSYS;                                   \
                 goto __out;                                             \
             }                                                           \
             cmd;                                                        \

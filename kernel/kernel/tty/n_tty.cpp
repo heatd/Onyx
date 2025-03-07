@@ -250,7 +250,7 @@ static size_t do_opost_write(const char *s, size_t length, struct tty *tty)
     {
 #if 0
         if (signal_is_pending())
-            return i ?: -EINTR;
+            return i ?: -ERESTARTSYS;
 #endif
         ssize_t status = try_process_write(s + i, length - i, tty);
         if (status <= 0)
@@ -291,7 +291,7 @@ static ssize_t n_tty_write_out(const char *s, size_t length, struct tty *tty) RE
     {
 #if 0
         if (signal_is_pending())
-            return i ?: -EINTR;
+            return i ?: -ERESTARTSYS;
 #endif
         if (TTY_OFLAG(tty, OPOST))
             i += do_opost_write(s + i, length - i, tty);

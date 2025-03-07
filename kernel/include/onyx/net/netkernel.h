@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2022 Pedro Falcato
+ * Copyright (c) 2020 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -80,7 +80,7 @@ public:
 
         do
         {
-            if (st == -EINTR)
+            if (st == -ERESTARTSYS)
                 return unexpected<int>{st};
 
             buf = get_rx_head();

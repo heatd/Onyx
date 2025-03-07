@@ -123,7 +123,11 @@ typedef struct registers
 
     unsigned long epc;
     unsigned long cause;
-    unsigned long tval;
+    union {
+        /* tval when inside a trap, orig_a0 when in a syscall */
+        unsigned long tval;
+        unsigned long orig_a0;
+    };
     unsigned long status;
 } registers_t;
 

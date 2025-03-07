@@ -229,7 +229,7 @@ int sys_ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *utimeout,
         if (nr_nonzero_revents == 0 && signal_is_pending())
         {
             mask_guard.disable();
-            nr_nonzero_revents = -EINTR;
+            nr_nonzero_revents = -ERESTARTNOHAND;
             break;
         }
 
@@ -439,7 +439,7 @@ int sys_pselect(int nfds, fd_set *ureadfds, fd_set *uwritefds, fd_set *uexceptfd
         else if (res == sleep_result::signal)
         {
             mask_guard.disable();
-            return -EINTR;
+            return -ERESTARTNOHAND;
         }
     }
 

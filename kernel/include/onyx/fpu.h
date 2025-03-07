@@ -12,6 +12,10 @@
 #include <stdbool.h>
 #include <sys/user.h>
 
+#include <onyx/compiler.h>
+
+__BEGIN_CDECLS
+
 void setup_fpu_area(unsigned char *address);
 void save_fpu(void *address);
 void restore_fpu(void *address);
@@ -39,5 +43,7 @@ void *fpu_allocate_state();
  * @param state Pointer to state
  */
 void fpu_free_state(void *state);
+
+__END_CDECLS
 
 #endif

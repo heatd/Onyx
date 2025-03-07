@@ -908,7 +908,7 @@ static int tcp_append_write(struct tcp_socket *sock, struct iovec_iter *iter, si
         old_space = sock_write_space(sock);
         err = wait_for_event_socklocked_interruptible_2(&sock->rx_wq,
                                                         sock_write_space(sock) > old_space, sock);
-        if (err == -EINTR)
+        if (err == -ERESTARTSYS)
             return err;
     }
 
@@ -992,7 +992,7 @@ static struct packetbuf *tcp_get_segment(struct tcp_socket *sock, int flags)
 
     for (;;)
     {
-        if (st == -EINTR)
+        if (st == -ERESTARTSYS)
             goto out_err;
 
         if (!list_is_empty(&sock->read_queue))

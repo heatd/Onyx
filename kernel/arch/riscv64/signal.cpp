@@ -5,8 +5,10 @@
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
+#define DEFINE_CURRENT
 #include <errno.h>
 
+#include <onyx/process.h>
 #include <onyx/riscv/signal.h>
 #include <onyx/signal.h>
 #include <onyx/thread.h>
@@ -14,24 +16,26 @@
 
 #include <uapi/signal.h>
 
-int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigaction,
+int signal_setup_context(int sig, siginfo_t *siginfo, struct k_sigaction *k_sigaction,
                          struct registers *regs)
 {
-    int sig = pend->signum;
     struct thread *curr = get_current_thread();
-    struct signal_info *sinfo = &curr->sinfo;
     unsigned long sp = regs->sp;
-
-    if (k_sigaction->sa_flags & SA_ONSTACK && !(sinfo->altstack.ss_flags & SS_DISABLE))
+    stack_t *altstack = &current->altstack;
+    /* Note that we handle the redzone preservation up here, because when running on an altstack
+     * we don't need to do that.
+     */
+    if (k_sigaction->sa_flags & SA_ONSTACK)
     {
-        sp = (unsigned long) sinfo->altstack.ss_sp + sinfo->altstack.ss_size;
-        if (sinfo->altstack.ss_flags & SS_AUTODISARM)
+        if (!(altstack->ss_flags & SS_DISABLE) &&
+            !executing_in_altstack((struct syscall_frame *) regs, altstack))
         {
-            sinfo->altstack.ss_sp = nullptr;
-            sinfo->altstack.ss_size = 0;
-            sinfo->altstack.ss_flags = SS_DISABLE;
+            sp = (unsigned long) altstack->ss_sp + altstack->ss_size;
+            if (altstack->ss_flags & SS_AUTODISARM)
+                sigaltstack_init(altstack);
         }
     }
+
     size_t fpu_size = fpu_get_save_size();
     /* Start setting the register state for the register switch */
     /* Note that we're saving the old ones */
@@ -47,7 +51,7 @@ int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigactio
 
     if (k_sigaction->sa_flags & SA_SIGINFO)
     {
-        if (copy_to_user(&sframe->sinfo, pend->info, sizeof(siginfo_t)) < 0)
+        if (copy_to_user(&sframe->sinfo, siginfo, sizeof(siginfo_t)) < 0)
             return -EFAULT;
     }
 
@@ -60,9 +64,9 @@ int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigactio
         return -EFAULT;
 
     /* We're saving the sigmask, that will then be restored */
-    auto mask = curr->sinfo.flags & THREAD_SIGNAL_ORIGINAL_SIGSET ? &curr->sinfo.original_sigset
-                                                                  : &curr->sinfo.sigmask;
-    curr->sinfo.flags &= ~THREAD_SIGNAL_ORIGINAL_SIGSET;
+    sigset_t *mask =
+        test_task_flag(current, TF_RESTORE_SIGMASK) ? &current->original_sigset : &current->sigmask;
+    clear_task_flag(current, TF_RESTORE_SIGMASK);
     if (copy_to_user(&sframe->uc.uc_sigmask, mask, sizeof(sigset_t)) < 0)
         return -EFAULT;
 
@@ -112,19 +116,97 @@ unsigned long sys_sigreturn(registers *frame)
         return -EFAULT;
 
     irq_disable();
-
     memcpy(curr->fpu_area, &fpstate, fpu_get_save_size());
-
     restore_fpu(curr->fpu_area);
-
     irq_enable();
 
-    curr->sinfo.set_blocked(&set);
-
+    signal_setmask(&set);
     /* Finally, restore the GPRs */
     frame->epc =
         state[0] - 4; /* We de-offset the epc so the trap return code does that again for us */
     memcpy(frame->gpr, &state[1], sizeof(unsigned long) * 31);
 
     return frame->a0;
+}
+
+static bool in_syscall(struct registers *regs)
+{
+    bool is_exception = !(regs->cause & RISCV_SCAUSE_INTERRUPT);
+    unsigned long cause = regs->cause & ~RISCV_SCAUSE_INTERRUPT;
+    return is_exception && cause == 8;
+}
+
+static void deliver_signal(struct arch_siginfo *sinfo, struct registers *regs)
+{
+    struct k_sigaction *ksa = &sinfo->action;
+    if (in_syscall(regs))
+    {
+        /* Only restart ERESTARTSYS (if SA_RESTART) and ERESTARTNOINTR. ERESTART_RESTARTBLOCK is
+         * only supposed to be used for SIGSTOP help, and ERESTARTNOHAND never restarts if there is
+         * a handler we're dispatching to (poll, pause, sigsuspend, etc) */
+        switch (regs->a0)
+        {
+            case -ERESTARTSYS:
+                if (!(ksa->sa_flags & SA_RESTART))
+                {
+                    regs->a0 = -EINTR;
+                    break;
+                }
+                /* fallthrough */
+            case -ERESTARTNOINTR:
+                regs->a0 = regs->orig_a0;
+                regs->epc -= 4;
+                break;
+
+            case -ERESTART_RESTARTBLOCK:
+            case -ERESTARTNOHAND:
+                regs->a0 = -EINTR;
+                break;
+        }
+    }
+
+    if (signal_setup_context(sinfo->signum, &sinfo->info, ksa, regs) < 0)
+    {
+        signal_restore_sigmask();
+        force_sigsegv(sinfo->signum);
+        return;
+    }
+
+    signal_end_delivery(sinfo);
+}
+
+void handle_signal(struct registers *regs)
+{
+    struct arch_siginfo sinfo;
+    /* We can't do signals while in kernel space */
+    if (in_kernel_space_regs(regs))
+        return;
+
+    if (irq_is_disabled())
+        irq_enable();
+
+    if (find_signal(&sinfo))
+    {
+        deliver_signal(&sinfo, regs);
+        return;
+    }
+
+    /* We didn't find a signal, and we're in a syscall. Restart ERESTARTSYS, ERESTARTNOHAND,
+     * ERESTARTNOINTR and ERESTART_RESTARTBLOCK */
+    if (in_syscall(regs))
+    {
+        switch (regs->a0)
+        {
+            case -ERESTARTNOHAND:
+            case -ERESTARTNOINTR:
+            case -ERESTARTSYS: {
+                regs->a0 = regs->orig_a0;
+                regs->epc -= 4;
+                break;
+            }
+                /* TODO: ERESTART_RESTARTBLOCK */
+        }
+    }
+
+    signal_restore_sigmask();
 }

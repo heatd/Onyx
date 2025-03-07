@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2023 Pedro Falcato
+ * Copyright (c) 2017 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -526,9 +526,9 @@ ssize_t pipe::read_iter(iovec_iter *iter, unsigned int flags)
             }
 
             if (wait_for_event_mutex_interruptible(&read_queue, can_read_or_eof(), &pipe_lock) ==
-                -EINTR)
+                -ERESTARTSYS)
             {
-                ret = ret ?: -EINTR;
+                ret = ret ?: -ERESTARTSYS;
                 break;
             }
 
@@ -627,10 +627,10 @@ ssize_t pipe::write_iter(iovec_iter *iter, int flags)
 
             if (wait_for_event_mutex_interruptible(
                     &write_queue, may_write(is_atomic_write, iter->bytes) || reader_count == 0,
-                    &pipe_lock) == -EINTR)
+                    &pipe_lock) == -ERESTARTSYS)
             {
                 if (!ret)
-                    ret = -EINTR;
+                    ret = -ERESTARTSYS;
                 break;
             }
 
@@ -964,7 +964,7 @@ int pipe::open_named(struct file *filp)
 
     if (st < 0)
     {
-        // Remove ourselves from the count if EINTR
+        // Remove ourselves from the count if we got a signal
         if (filp->f_flags & O_WRONLY)
             writer_count--;
         else

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -550,22 +550,6 @@ ENTRY(platform_yield)
     RET
     .cfi_endproc
 END(platform_yield)
-
-ENTRY(__sigret_return)
-    cli
-
-    mov %rdi, %rsp
-    
-    swapgs
-
-    pop %rcx
-    mov %cx, %ds
-    mov %cx, %es
-    popaq
-
-    add $REGISTERS_UNUSED_OFF, %rsp
-    iretq
-END(__sigret_return)
 
 ENTRY(apic_spurious_irq)
     iretq

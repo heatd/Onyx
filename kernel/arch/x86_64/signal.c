@@ -13,7 +13,9 @@
 #include <onyx/cpu.h>
 #include <onyx/panic.h>
 #include <onyx/process.h>
+#include <onyx/registers.h>
 #include <onyx/signal.h>
+#include <onyx/user.h>
 #include <onyx/vm.h>
 #include <onyx/x86/eflags.h>
 #include <onyx/x86/segments.h>
@@ -33,21 +35,30 @@
         __asm__ __volatile__("mov %%" reg ", %%rax; mov %%rax, %0" : "=r"(seg)::"rax"); \
         seg;                                                                            \
     })
-int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigaction,
-                         struct registers *regs)
+
+static bool in_syscall(struct registers *regs)
 {
-    int sig = pend->signum;
+    return regs->int_err_code == -1UL;
+}
+
+static int signal_setup_context(int sig, siginfo_t *info, struct k_sigaction *k_sigaction,
+                                struct registers *regs)
+{
     struct thread *curr = get_current_thread();
     unsigned long sp = regs->rsp - REDZONE_OFFSET;
     stack_t *altstack = &current->altstack;
     /* Note that we handle the redzone preservation up here, because when running on an altstack
      * we don't need to do that.
      */
-    if (k_sigaction->sa_flags & SA_ONSTACK && !(current->altstack.ss_flags & SS_DISABLE))
+    if (k_sigaction->sa_flags & SA_ONSTACK)
     {
-        sp = (unsigned long) altstack->ss_sp + altstack->ss_size;
-        if (altstack->ss_flags & SS_AUTODISARM)
-            sigaltstack_init(altstack);
+        if (!(altstack->ss_flags & SS_DISABLE) &&
+            !executing_in_altstack((struct syscall_frame *) regs, altstack))
+        {
+            sp = (unsigned long) altstack->ss_sp + altstack->ss_size;
+            if (altstack->ss_flags & SS_AUTODISARM)
+                sigaltstack_init(altstack);
+        }
     }
 
     size_t fpu_size = fpu_get_save_size();
@@ -67,7 +78,7 @@ int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigactio
 
     if (k_sigaction->sa_flags & SA_SIGINFO)
     {
-        if (copy_to_user(&sframe->sinfo, pend->info, sizeof(siginfo_t)) < 0)
+        if (copy_to_user(&sframe->sinfo, info, sizeof(siginfo_t)) < 0)
             return -EFAULT;
     }
 
@@ -117,7 +128,7 @@ int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigactio
         return -EFAULT;
 
     /* We're saving the sigmask, that will then be restored */
-    auto mask =
+    sigset_t *mask =
         test_task_flag(current, TF_RESTORE_SIGMASK) ? &current->original_sigset : &current->sigmask;
     clear_task_flag(current, TF_RESTORE_SIGMASK);
     if (copy_to_user(&sframe->uc.uc_sigmask, mask, sizeof(sigset_t)) < 0)
@@ -152,125 +163,221 @@ int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigactio
     return 0;
 }
 
-extern "C" __attribute__((noreturn)) void __sigret_return(struct registers *regs);
+static int fault_in_range(u8 *start, size_t len)
+{
+    u8 *end = page_align_up(start + len);
+    unsigned long addr = (unsigned long) start;
+    u8 *ptr;
+    unsigned int dummy;
+    int err;
 
-void sys_sigreturn(syscall_frame *sysframe)
+    /* Page align our buffer */
+    if (addr & (PAGE_SIZE - 1))
+    {
+        err = get_user32((unsigned int *) (addr & -4), &dummy);
+        if (err < 0)
+            return err;
+        start = page_align_up(start);
+    }
+
+    for (ptr = start; ptr < end; ptr += PAGE_SIZE)
+    {
+        err = get_user32((unsigned int *) ptr, &dummy);
+        if (err < 0)
+            return err;
+    }
+
+    return err;
+}
+
+static int restore_fpu_sigframe(void *fpregs)
+{
+    struct thread *curr = get_current_thread();
+    size_t fpu_size = fpu_get_save_size();
+    int err;
+
+    /* We need to disable interrupts (and faulting) here to avoid corruption of the fpu state */
+    for (;;)
+    {
+        irq_disable();
+        pagefault_disable();
+        if (copy_from_user(curr->fpu_area, fpregs, fpu_size) < 0)
+        {
+            /* Copying failed. Enable faulting again and try to copy it in. It's okay that fpu_area
+             * has bad FPU state, we'll never load from it anyway. */
+            pagefault_enable();
+            irq_enable();
+            err = fault_in_range(fpregs, fpu_size);
+            if (err < 0)
+                return err;
+        }
+        else
+            break;
+    }
+
+    restore_fpu(curr->fpu_area);
+    pagefault_enable();
+    irq_enable();
+    return 0;
+}
+
+unsigned long sys_sigreturn(struct syscall_frame *sysframe)
 {
     /* Switch the registers again */
-    struct registers rbuf;
-    struct registers *regs = &rbuf;
-    struct sigframe *sframe = (struct sigframe *) (sysframe->user_sp - 8);
+    struct registers *regs = (struct registers *) sysframe;
+    struct sigframe *sframe = (struct sigframe *) (sysframe->rsp - 8);
+    void *fpregs;
 
     /* Set-up the ucontext */
     if (copy_from_user(&regs->rax, &sframe->uc.uc_mcontext.gregs[REG_RAX], sizeof(unsigned long)) <
         0)
-        return;
+        goto fault;
     if (copy_from_user(&regs->rbx, &sframe->uc.uc_mcontext.gregs[REG_RBX], sizeof(unsigned long)) <
         0)
-        return;
+        goto fault;
     if (copy_from_user(&regs->rcx, &sframe->uc.uc_mcontext.gregs[REG_RCX], sizeof(unsigned long)) <
         0)
-        return;
+        goto fault;
     if (copy_from_user(&regs->rdx, &sframe->uc.uc_mcontext.gregs[REG_RDX], sizeof(unsigned long)) <
         0)
-        return;
+        goto fault;
     if (copy_from_user(&regs->rdi, &sframe->uc.uc_mcontext.gregs[REG_RDI], sizeof(unsigned long)) <
         0)
-        return;
+        goto fault;
     if (copy_from_user(&regs->rsi, &sframe->uc.uc_mcontext.gregs[REG_RSI], sizeof(unsigned long)) <
         0)
-        return;
+        goto fault;
     if (copy_from_user(&regs->rbp, &sframe->uc.uc_mcontext.gregs[REG_RBP], sizeof(unsigned long)) <
         0)
-        return;
+        goto fault;
     if (copy_from_user(&regs->rsp, &sframe->uc.uc_mcontext.gregs[REG_RSP], sizeof(unsigned long)) <
         0)
-        return;
+        goto fault;
     if (copy_from_user(&regs->r8, &sframe->uc.uc_mcontext.gregs[REG_R8], sizeof(unsigned long)) < 0)
-        return;
+        goto fault;
     if (copy_from_user(&regs->r9, &sframe->uc.uc_mcontext.gregs[REG_R9], sizeof(unsigned long)) < 0)
-        return;
+        goto fault;
     if (copy_from_user(&regs->r10, &sframe->uc.uc_mcontext.gregs[REG_R10], sizeof(unsigned long)) <
         0)
-        return;
+        goto fault;
     if (copy_from_user(&regs->r11, &sframe->uc.uc_mcontext.gregs[REG_R11], sizeof(unsigned long)) <
         0)
-        return;
+        goto fault;
     if (copy_from_user(&regs->r12, &sframe->uc.uc_mcontext.gregs[REG_R12], sizeof(unsigned long)) <
         0)
-        return;
+        goto fault;
     if (copy_from_user(&regs->r13, &sframe->uc.uc_mcontext.gregs[REG_R13], sizeof(unsigned long)) <
         0)
-        return;
+        goto fault;
     if (copy_from_user(&regs->r14, &sframe->uc.uc_mcontext.gregs[REG_R14], sizeof(unsigned long)) <
         0)
-        return;
+        goto fault;
     if (copy_from_user(&regs->r15, &sframe->uc.uc_mcontext.gregs[REG_R15], sizeof(unsigned long)) <
         0)
-        return;
+        goto fault;
     if (copy_from_user(&regs->rflags, &sframe->uc.uc_mcontext.gregs[REG_EFL],
                        sizeof(unsigned long)) < 0)
-        return;
+        goto fault;
     if (copy_from_user(&regs->rip, &sframe->uc.uc_mcontext.gregs[REG_RIP], sizeof(unsigned long)) <
         0)
-        return;
+        goto fault;
 
     /* Force ss, ds and cs so there isn't a privilege exploit */
     regs->ss = regs->ds = USER_DS;
     regs->cs = USER_CS;
+    /* We are _not_ inside a system call */
+    regs->int_err_code = -1UL;
     /* Also, force interrupts, as we're returning to userspace  */
     regs->rflags |= EFLAGS_INT_ENABLED;
 
-    struct thread *curr = get_current_thread();
-    void *fpregs;
-
     if (copy_from_user(&fpregs, &sframe->uc.uc_mcontext.fpregs, sizeof(void *)) < 0)
-        return;
+        goto fault;
 
-    /* We need to disable interrupts here to avoid corruption of the fpu state */
-    DISABLE_INTERRUPTS();
-    if (copy_from_user(curr->fpu_area, fpregs, fpu_get_save_size()) < 0)
-        return;
-
-    restore_fpu(curr->fpu_area);
-
-    ENABLE_INTERRUPTS();
-
+    if (restore_fpu_sigframe(fpregs))
+        goto fault;
     /* Restore the old sigmask */
     sigset_t set;
     if (copy_from_user(&set, &sframe->uc.uc_sigmask, sizeof(set)) < 0)
-        return;
+        goto fault;
 
     signal_setmask(&set);
-    context_tracking_exit_kernel();
-    __sigret_return(regs);
-
-    __builtin_unreachable();
+    return regs->rax;
+fault:
+    force_sigsegv(0);
+    return 0;
 }
 
-extern "C" void do_signal_syscall(uint64_t syscall_ret, struct syscall_frame *syscall_ctx,
-                                  struct registers *regs)
+static void deliver_signal(struct arch_siginfo *sinfo, struct registers *regs)
 {
-    regs->cs = USER_CS;
-    regs->ds = regs->ss = syscall_ctx->ds;
-    regs->r8 = syscall_ctx->r8;
-    regs->r9 = syscall_ctx->r9;
-    regs->r10 = syscall_ctx->r10;
-    regs->r11 = 0;
-    regs->r12 = syscall_ctx->r12;
-    regs->r13 = syscall_ctx->r13;
-    regs->r14 = syscall_ctx->r14;
-    regs->r15 = syscall_ctx->r15;
-    regs->rax = syscall_ret;
-    regs->rbx = syscall_ctx->rbx;
-    regs->rcx = 0;
-    regs->rip = syscall_ctx->rip;
-    regs->rflags = syscall_ctx->rflags;
-    regs->rbp = syscall_ctx->rbp;
-    regs->rdx = syscall_ctx->rdx;
-    regs->rdi = syscall_ctx->rdi;
-    regs->rsi = syscall_ctx->rsi;
-    regs->rsp = syscall_ctx->user_sp;
+    struct k_sigaction *ksa = &sinfo->action;
+    if (in_syscall(regs))
+    {
+        /* Only restart ERESTARTSYS (if SA_RESTART) and ERESTARTNOINTR. ERESTART_RESTARTBLOCK is
+         * only supposed to be used for SIGSTOP help, and ERESTARTNOHAND never restarts if there is
+         * a handler we're dispatching to (poll, pause, sigsuspend, etc) */
+        switch (regs->rax)
+        {
+            case -ERESTARTSYS:
+                if (!(ksa->sa_flags & SA_RESTART))
+                {
+                    regs->rax = -EINTR;
+                    break;
+                }
+                /* fallthrough */
+            case -ERESTARTNOINTR:
+                regs->rax = regs->int_no;
+                regs->rip -= 2;
+                break;
 
-    handle_signal(regs);
+            case -ERESTART_RESTARTBLOCK:
+            case -ERESTARTNOHAND:
+                regs->rax = -EINTR;
+                break;
+        }
+    }
+
+    if (signal_setup_context(sinfo->signum, &sinfo->info, ksa, regs) < 0)
+    {
+        signal_restore_sigmask();
+        force_sigsegv(sinfo->signum);
+        return;
+    }
+
+    signal_end_delivery(sinfo);
+}
+
+void handle_signal(struct registers *regs)
+{
+    struct arch_siginfo sinfo;
+    /* We can't do signals while in kernel space */
+    if (in_kernel_space_regs(regs))
+        return;
+
+    if (irq_is_disabled())
+        irq_enable();
+
+    if (find_signal(&sinfo))
+    {
+        deliver_signal(&sinfo, regs);
+        return;
+    }
+
+    /* We didn't find a signal, and we're in a syscall. Restart ERESTARTSYS, ERESTARTNOHAND,
+     * ERESTARTNOINTR and ERESTART_RESTARTBLOCK */
+    if (in_syscall(regs))
+    {
+        switch (regs->rax)
+        {
+            case -ERESTARTNOHAND:
+            case -ERESTARTNOINTR:
+            case -ERESTARTSYS: {
+                regs->rax = regs->int_no;
+                regs->rip -= 2;
+                break;
+            }
+                /* TODO: ERESTART_RESTARTBLOCK */
+        }
+    }
+
+    signal_restore_sigmask();
 }

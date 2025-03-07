@@ -629,7 +629,8 @@
                 "frame"
             ]
         ],
-        "return_type": "void"
+        "return_type": "unsigned long",
+        "abi": "c"
     },
     {
         "name": "insmod",

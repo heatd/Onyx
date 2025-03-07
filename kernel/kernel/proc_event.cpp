@@ -239,7 +239,7 @@ void proc_event_enter_syscall(struct syscall_frame *regs, uintptr_t rax)
         s->event_buf.e_un.syscall.rax = rax;
         s->event_buf.e_un.syscall.r8 = regs->r8;
         s->event_buf.e_un.syscall.r9 = regs->r9;
-        s->event_buf.e_un.syscall.rsp = (unsigned long) regs->user_sp;
+        s->event_buf.e_un.syscall.rsp = (unsigned long) regs->rsp;
         s->event_buf.e_un.syscall.rbx = regs->rbx;
         s->event_buf.e_un.syscall.rbp = regs->rbp;
         s->event_buf.e_un.syscall.rcx = regs->r10;
