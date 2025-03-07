@@ -5,7 +5,7 @@
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
-
+#define DEFINE_CURRENT
 #include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
@@ -100,12 +100,7 @@ bool vm_test_vs_rlimit(const struct mm_address_space *as, ssize_t diff)
     /* Decreasing the resource usage doesn't respect limits */
     if (diff < 0)
         return true;
-    return true;
-    /* XXX */
-#if 0
-    return get_current_process()->get_rlimit(RLIMIT_AS).rlim_cur >=
-           as->virtual_memory_size + (size_t) diff;
-#endif
+    return rlim_get_cur(RLIMIT_AS) >= as->virtual_memory_size + (size_t) diff;
 }
 
 struct mm_address_space kernel_address_space = {
@@ -1485,7 +1480,6 @@ int vm_handle_page_fault(struct fault_info *info)
         struct thread *ct = get_current_thread();
         if (ct && info->user)
         {
-            struct process *current = get_current_process();
             printk("Curr thread: %p\n", ct);
             const char *str;
             if (info->write)
@@ -1847,7 +1841,6 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 
     if (is_user_mode)
     {
-        struct process *current = get_current_process();
         printf("%s at %016lx at ip %lx in process %u(%s)\n",
                info->signal == SIGSEGV ? "SEGV" : "SIGBUS", info->fault_address, info->ip,
                current->pid_, current->comm);
