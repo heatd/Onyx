@@ -550,6 +550,12 @@ extern struct list_head tasklist;
 /* I took this idea from linux :P */
 #define RUSAGE_BOTH -2
 
+static inline rlim_t rlim_get_cur(unsigned int rlimit)
+{
+    struct process *cur = get_current_process();
+    return READ_ONCE(cur->sig->rlimits[rlimit].rlim_cur);
+}
+
 __END_CDECLS
 
 #ifdef __cplusplus
