@@ -611,6 +611,7 @@ static void exit_signal(struct process *task)
 {
     struct signal_struct *sig = task->sig;
     struct sighand_struct *sighand = task->sighand;
+    struct tty *tty = NULL;
 
     /* Note: if we as the group leader are exiting, this means the whole thread group is going away.
      * wait4() (and autoreap) never reaps thread group leaders if it means there are still other
@@ -623,7 +624,12 @@ static void exit_signal(struct process *task)
     if (group_leader)
     {
         if (task_is_session_leader(task) && sig->ctty)
-            process_clear_tty(sig->ctty);
+        {
+            /* We'll clear out the tty later, without signal_lock */
+            tty = sig->ctty;
+            sig->ctty = NULL;
+        }
+
         for (int i = 0; i < ITIMER_COUNT; i++)
             itimer_disarm(&sig->timers[i]);
     }
@@ -641,6 +647,9 @@ static void exit_signal(struct process *task)
     sig->nr_threads--;
     spin_unlock(&sighand->signal_lock);
     exit_sighand(task);
+
+    if (tty)
+        process_clear_tty(tty);
 
     if (group_leader)
         CHECK(sig->nr_threads == 0);
