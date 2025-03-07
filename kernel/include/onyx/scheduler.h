@@ -230,7 +230,7 @@ static inline void sched_should_resched(void)
         assert(__t != NULL);                                                                    \
         /* This little implicit full memory barrier pairs with a bunch of places (including the \
          * scheduler, and wakeup spots) */                                                      \
-        smp_store_mb(&__t->status, state);                                                      \
+        smp_store_mb(__t->status, state);                                                       \
     } while (0);
 
 static inline void thread_get(struct thread *thread)
