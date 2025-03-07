@@ -19,7 +19,7 @@
 
 /* x86 atomic ops imply a full memory barrier. xchg is implicitly an atomic op (with an implicit
  * LOCK prefix too). This is more efficient than doing WRITE_ONCE + smp_mb. */
-#define smp_store_mb(ptr, val) __x86_xchg(ptr, val)
+#define smp_store_mb(member, val) __x86_xchg(&member, val)
 
 /* every smp_mb around atomics (including spinlock, which involved atomics itself) can be elided */
 /* clang-format off */
