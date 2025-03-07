@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -224,6 +224,10 @@ bool parent_notify(unsigned int exit_code);
  * @retval true If task was woken up
  */
 bool notify_process_stop_cont(struct process *task, unsigned int exit_code);
+
+/* Used when forcing signals, such that no one racing with us can change this signal while another
+ * thread is trying to catch a fault */
+#define SA_IMMUTABLE 0x00800000
 
 __END_CDECLS
 

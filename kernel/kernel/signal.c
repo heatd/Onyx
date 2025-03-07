@@ -854,22 +854,36 @@ int sys_sigaction(int signum, const struct k_sigaction *act, struct k_sigaction 
         }
     }
 
+    /* Lock the signal table */
+    spin_lock(&current->sighand->signal_lock);
+
+    /* If old_act, save the old action */
+    if (oldact)
+        memcpy(&old, &current->sighand->sigtable[signum], sizeof(struct k_sigaction));
+
+    if (act)
     {
-        /* Lock the signal table */
-        spin_lock(&current->sighand->signal_lock);
-
-        /* If old_act, save the old action */
-        if (oldact)
-            memcpy(&old, &current->sighand->sigtable[signum], sizeof(struct k_sigaction));
-
-        if (act)
+        /* Don't let anyone set a signal handler that was marked immutable */
+        if (old.sa_flags & SA_IMMUTABLE)
         {
-            /* If act, set the new action */
-            memcpy(&current->sighand->sigtable[signum], &news, sizeof(news));
+            st = -EINVAL;
+            goto skip;
         }
 
-        spin_unlock(&current->sighand->signal_lock);
+        /* If act, set the new action */
+        memcpy(&current->sighand->sigtable[signum], &news, sizeof(news));
+
+        if (is_signal_ignored(current, signum))
+        {
+            /* POSIX specifies that we should drop all pending signals if setting a disposition
+             * (thru SIG_IGN or SIG_DFL with default ignored) to ignore. */
+            sigmask_t mask = SIGMASK(signum);
+            signal_drop_sigs(mask, current);
+        }
     }
+
+skip:
+    spin_unlock(&current->sighand->signal_lock);
 
     if (oldact && copy_to_user(oldact, &old, sizeof(struct k_sigaction)) < 0)
         return -EFAULT;
