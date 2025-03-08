@@ -39,8 +39,12 @@ struct binfmt_args
 
 #define BINFMT_SIGNATURE_LENGTH 100
 
+__BEGIN_CDECLS
+
 void *bin_do_interp(struct binfmt_args *args);
 void *load_binary(struct binfmt_args *);
 int install_binfmt(struct binfmt *);
+
+__END_CDECLS
 
 #endif

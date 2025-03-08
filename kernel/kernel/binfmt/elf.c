@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2024 Pedro Falcato
+ * Copyright (c) 2017 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -12,7 +12,8 @@
 #include <onyx/binfmt.h>
 #include <onyx/err.h>
 #include <onyx/exec.h>
-#include <onyx/kunit.h>
+// #include <onyx/kunit.h>
+#include <onyx/coredump.h>
 #include <onyx/process.h>
 #include <onyx/vfs.h>
 #include <onyx/vm.h>
@@ -21,20 +22,20 @@
 
 #if (__SIZE_WIDTH__ == 64 && !defined(ELF_COMPAT))
 
-using elf_ehdr = Elf64_Ehdr;
-using elf_phdr = Elf64_Phdr;
-using elf_half = Elf64_Half;
-using elf_dyn = Elf64_Dyn;
+typedef Elf64_Ehdr elf_ehdr;
+typedef Elf64_Phdr elf_phdr;
+typedef Elf64_Half elf_half;
+typedef Elf64_Dyn elf_dyn;
 #define ELF_BITS 64
 
 #define ELFCLASS ELFCLASS64
 
 #elif (__SIZE_WIDTH__ == 32 || defined(ELF_COMPAT))
 
-using elf_ehdr = Elf32_Ehdr;
-using elf_phdr = Elf32_Phdr;
-using elf_half = Elf32_Half;
-using elf_dyn = Elf32_Dyn;
+typedef Elf32_Ehdr elf_ehdr;
+typedef Elf32_Phdr elf_phdr;
+typedef Elf32_Half elf_half;
+typedef Elf32_Dyn elf_dyn;
 
 #define ELFCLASS ELFCLASS32
 #define ELF_BITS 32
@@ -48,11 +49,6 @@ using elf_dyn = Elf32_Dyn;
 #endif
 
 #endif
-
-#define ELF_NAMESPACE __PASTE(elf, ELF_BITS)
-
-namespace ELF_NAMESPACE
-{
 
 static bool elf_is_valid(elf_ehdr *header)
 {
@@ -74,7 +70,7 @@ static bool elf_is_valid(elf_ehdr *header)
     return true;
 }
 
-size_t elf_calculate_map_size(elf_phdr *phdrs, size_t num)
+static size_t elf_calculate_map_size(elf_phdr *phdrs, size_t num)
 {
     size_t first_load = -1, last_load = -1;
     for (size_t i = 0; i < num; i++)
@@ -108,7 +104,7 @@ static unsigned long elf_load_address(elf_phdr *phdrs, elf_half phnum)
     return 0;
 }
 
-bool elf_phdrs_valid(const elf_phdr *phdrs, size_t nr_phdrs)
+static bool elf_phdrs_valid(const elf_phdr *phdrs, size_t nr_phdrs)
 {
     long last = -1;
 
@@ -125,9 +121,7 @@ bool elf_phdrs_valid(const elf_phdr *phdrs, size_t nr_phdrs)
         // ELF PT_LOAD segments must be ordered by rising vaddr
         // This also deals with overlap
         if (last != -1 && (unsigned long) last > phdrs->p_vaddr)
-        {
             return false;
-        }
 
         // p_memsz >= p_filesz
         if (phdrs->p_memsz < phdrs->p_filesz)
@@ -146,19 +140,19 @@ static void *elf_load(struct binfmt_args *args, elf_ehdr *header)
     struct process *current = get_current_process();
 
     if (header->e_phentsize != sizeof(elf_phdr))
-        return errno = ENOEXEC, nullptr;
+        return errno = ENOEXEC, NULL;
 
     size_t program_headers_size;
 
     if (__builtin_mul_overflow(header->e_phnum, header->e_phentsize, &program_headers_size))
-        return errno = ENOEXEC, nullptr;
+        return errno = ENOEXEC, NULL;
 
     struct file *fd = args->file;
-    void *base = nullptr;
-    elf_dyn *dyn = nullptr;
-    elf_phdr *uphdrs = nullptr;
+    void *base = NULL;
+    elf_dyn *dyn = NULL;
+    elf_phdr *uphdrs = NULL;
     size_t needed_size = 0;
-    void *load_address = nullptr;
+    void *load_address = NULL;
 
     int st = 0;
 
@@ -201,8 +195,8 @@ static void *elf_load(struct binfmt_args *args, elf_ehdr *header)
     // to allocate any space on the address space, therefore we don't need to mmap it.
     if (header->e_type == ET_DYN)
     {
-        base = vm_mmap(nullptr, vm_size_to_pages(needed_size) << PAGE_SHIFT, PROT_NONE,
-                       MAP_ANONYMOUS | MAP_PRIVATE, nullptr, 0);
+        base = vm_mmap(NULL, vm_size_to_pages(needed_size) << PAGE_SHIFT, PROT_NONE,
+                       MAP_ANONYMOUS | MAP_PRIVATE, NULL, 0);
         if (IS_ERR(base))
         {
             errno = PTR_ERR(base);
@@ -230,7 +224,7 @@ static void *elf_load(struct binfmt_args *args, elf_ehdr *header)
                 goto error2;
             }
 
-            /* We allocate one more byte for the nullptr byte so we don't get buffer overflow'd */
+            /* We allocate one more byte for the NULL byte so we don't get buffer overflow'd */
             args->interp_path = (char *) malloc(phdrs[i].p_filesz + 1);
             if (!args->interp_path)
             {
@@ -240,12 +234,12 @@ static void *elf_load(struct binfmt_args *args, elf_ehdr *header)
 
             args->interp_path[phdrs[i].p_filesz] = '\0';
 
-            auto len =
+            ssize_t len =
                 read_vfs(phdrs[i].p_offset, phdrs[i].p_filesz, args->interp_path, args->file);
             if (len < 0 || (size_t) len != phdrs[i].p_filesz)
             {
                 free(args->interp_path);
-                args->interp_path = nullptr;
+                args->interp_path = NULL;
                 errno = ENOEXEC;
                 goto error2;
             }
@@ -323,7 +317,7 @@ static void *elf_load(struct binfmt_args *args, elf_ehdr *header)
                         zero_pages++;
 
                     res = vm_mmap(zero_pages_base, zero_pages << PAGE_SHIFT, prot,
-                                  MAP_PRIVATE | MAP_FIXED | MAP_ANON, nullptr, 0);
+                                  MAP_PRIVATE | MAP_FIXED | MAP_ANON, NULL, 0);
                     if (IS_ERR(res))
                     {
                         errno = PTR_ERR(res);
@@ -345,7 +339,7 @@ static void *elf_load(struct binfmt_args *args, elf_ehdr *header)
 
     load_address = (void *) elf_load_address(phdrs, header->e_phnum);
     free(phdrs);
-    phdrs = nullptr;
+    phdrs = NULL;
 
     if (!load_address)
     {
@@ -372,7 +366,7 @@ static void *elf_load(struct binfmt_args *args, elf_ehdr *header)
         current->info.program_entry = (void *) (unsigned long) header->e_entry;
         // printk("phdrs: %p\n", current->info.phdr);
         if (apply_sugid_permissions(fd))
-            current->set_secure();
+            set_task_flag(current, PROCESS_SECURE);
     }
     else
     {
@@ -388,41 +382,20 @@ error2:
 error1:
     free(phdrs);
 error0:
-    return nullptr;
+    return NULL;
 }
 
-void *elf64_load(struct binfmt_args *args, elf_ehdr *header)
-{
-    if (!elf_is_valid(header))
-        return errno = ENOEXEC, nullptr;
-
-    switch (header->e_type)
-    {
-        case ET_DYN:
-        case ET_EXEC:
-            return elf_load(args, header);
-        default:
-            return errno = ENOEXEC, nullptr;
-    }
-}
-
-void *elf_load_binfmt(struct binfmt_args *args)
+static void *elf_load_binfmt(struct binfmt_args *args)
 {
     bool is_interp = args->needs_interp;
+    ssize_t st;
+    elf_ehdr header;
+    if ((st = read_vfs(0, sizeof(elf_ehdr), &header, args->file)) < 0)
+        return errno = -st, NULL;
 
-    unique_ptr<elf_ehdr> header = make_unique<elf_ehdr>();
-    if (!header)
-        return errno = EINVAL, nullptr;
-
-    if (ssize_t st = read_vfs(0, sizeof(elf_ehdr), header.get(), args->file); st < 0)
-    {
-        return errno = -st, nullptr;
-    }
-
-    void *entry = elf_load(args, header.get());
-
+    void *entry = elf_load(args, &header);
     if (!entry)
-        return nullptr;
+        return NULL;
 
     if (args->needs_interp && !is_interp)
         entry = bin_do_interp(args);
@@ -430,25 +403,24 @@ void *elf_load_binfmt(struct binfmt_args *args)
     return entry;
 }
 
-bool elf_is_valid_exec(uint8_t *file)
+static bool elf_is_valid_exec(uint8_t *file)
 {
     return elf_is_valid((elf_ehdr *) file);
 }
 
-struct binfmt elf_binfmt = {.signature = (unsigned char *) "\x7f"
-                                                           "ELF",
-                            .size_signature = 4,
-                            .is_valid_exec = elf_is_valid_exec,
-                            .callback = elf_load_binfmt,
-                            .next = nullptr};
+static struct binfmt elf_binfmt = {.signature = (unsigned char *) "\x7f"
+                                                                  "ELF",
+                                   .size_signature = 4,
+                                   .is_valid_exec = elf_is_valid_exec,
+                                   .callback = elf_load_binfmt,
+                                   .next = NULL};
 
-__init void __elf_init()
+__init static void __elf_init()
 {
     install_binfmt(&elf_binfmt);
 }
 
-} // namespace ELF_NAMESPACE
-
+#ifdef __cplusplus
 #ifdef CONFIG_KUNIT
 
 #ifndef ELF_COMPAT
@@ -518,4 +490,5 @@ TEST(elfldr, test_no_gap_regression)
 
 #endif
 
+#endif
 #endif
