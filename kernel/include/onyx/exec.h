@@ -8,6 +8,7 @@
 
 #include <onyx/vm.h>
 
+#ifdef __cplusplus
 struct exec_state
 {
     mm_address_space *new_address_space{};
@@ -18,11 +19,13 @@ struct exec_state
             mmput(new_address_space);
     }
 };
+#else
+struct exec_state;
+#endif
 
+__BEGIN_CDECLS
 int exec_state_create(struct exec_state *state);
-
 int flush_old_exec(struct exec_state *state);
-
 bool file_is_executable(struct file *exec_file);
-
+__END_CDECLS
 #endif

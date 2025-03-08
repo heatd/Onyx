@@ -7,4 +7,4 @@
  */
 
 #define ELF_COMPAT 1
-#include "elf.cpp"
+#include "elf.c"
