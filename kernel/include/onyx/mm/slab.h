@@ -94,7 +94,7 @@ struct slab_cache *kmem_cache_create(const char *name, size_t size, size_t align
  * @param flags Allocation flags
  * @return Allocated object, or nullptr in OOM situations.
  */
-void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags);
+void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags) __malloc;
 
 /**
  * @brief Free a pointer to an object in a slab cache
@@ -105,7 +105,7 @@ void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags);
  */
 void kmem_cache_free(struct slab_cache *cache, void *ptr);
 
-void *kmalloc(size_t size, int flags);
+void *kmalloc(size_t size, int flags) __malloc;
 
 /**
  * @brief Free a pointer to an object in a slab
@@ -190,6 +190,9 @@ size_t kmem_cache_alloc_bulk(struct slab_cache *cache, unsigned int gfp_flags, s
  */
 void kmem_cache_free_bulk(struct slab_cache *cache, size_t size, void **ptrs);
 
+void kvfree(void *ptr);
+void *kvmalloc(size_t size, unsigned int flags) __malloc_with_free(kvfree, 1);
+void *kvcalloc(size_t nr, size_t size, unsigned int flags) __malloc_with_free(kvfree, 1);
 __END_CDECLS
 
 #endif

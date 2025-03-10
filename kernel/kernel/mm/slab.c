@@ -1676,6 +1676,36 @@ void *kreallocarray(void *ptr, size_t m, size_t n, int flags)
     return krealloc(ptr, n * m, flags);
 }
 
+void kvfree(void *ptr)
+{
+    if (is_vmalloc_addr(ptr))
+        vfree(ptr);
+    else
+        kfree(ptr);
+}
+
+void *kvmalloc(size_t size, unsigned int flags)
+{
+    void *ptr;
+
+    ptr = kmalloc(size, __GFP_NOWARN | flags);
+    if (likely(ptr))
+        return ptr;
+    return vmalloc(vm_size_to_pages(size), VM_TYPE_REGULAR, VM_WRITE | VM_READ, flags);
+}
+
+void *kvcalloc(size_t nr, size_t size, unsigned int flags)
+{
+    void *ptr;
+    if (array_overflows(nr, size))
+        return NULL;
+
+    ptr = kvmalloc(nr * size, flags);
+    if (likely(ptr) && !is_vmalloc_addr(ptr))
+        memset(ptr, 0, nr * size);
+    return ptr;
+}
+
 #ifdef CONFIG_KASAN
 
 void kmem_free_kasan(void *ptr)

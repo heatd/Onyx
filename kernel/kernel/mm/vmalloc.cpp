@@ -426,3 +426,9 @@ struct page *vmalloc_to_pages(void *ptr)
 
     return reg->backing_pgs;
 }
+
+bool is_vmalloc_addr(void *ptr)
+{
+    unsigned long addr = (unsigned long) ptr;
+    return addr >= vmalloc_tree.start && addr < vmalloc_tree.start + vmalloc_tree.length;
+}

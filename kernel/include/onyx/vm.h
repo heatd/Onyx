@@ -252,6 +252,8 @@ void *vmalloc(size_t pages, int type, int perms, unsigned int gfp_flags);
  */
 void vfree(void *ptr);
 
+bool is_vmalloc_addr(void *ptr);
+
 /**
  * @brief Handles a page fault.
  *
