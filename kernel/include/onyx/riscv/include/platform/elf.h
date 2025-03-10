@@ -8,7 +8,10 @@
 #ifndef ONYX_RISCV_INCLUDE_PLATFORM_ELF_H
 #define ONYX_RISCV_INCLUDE_PLATFORM_ELF_H
 
+#include <onyx/compiler.h>
 #include <onyx/elf.h>
+
+#include <uapi/user.h>
 
 #define EM_CURRENT EM_RISCV
 
@@ -17,5 +20,9 @@ static inline int arch_elf_do_rela(unsigned long addr, const Elf64_Rela *rela, u
 {
     return -1;
 }
+
+__BEGIN_CDECLS
+void core_fill_regs(elf_gregset_t *set, struct process *thread);
+__END_CDECLS
 
 #endif

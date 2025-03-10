@@ -8,7 +8,8 @@
 #define _PROC_EVENT_H_
 
 #include <onyx/types.h>
-#include <sys/user.h>
+
+#include <uapi/user.h>
 #define PROC_EVENT_LISTEN_SYSCALLS (1 << 0)
 
 #define PROCEVENT_ACK 0

@@ -8,7 +8,10 @@
 #ifndef ONYX_X86_INCLUDE_PLATFORM_ELF_H
 #define ONYX_X86_INCLUDE_PLATFORM_ELF_H
 
+#include <onyx/cpu.h>
 #include <onyx/elf.h>
+
+#include <uapi/user.h>
 
 #define EM_CURRENT EM_X86_64
 
@@ -45,4 +48,9 @@ static inline int arch_elf_do_rela(unsigned long addr, const Elf64_Rela *rela, u
     return 0;
 }
 
+#define ELF_HWCAP (bootcpu_info.caps[0])
+
+__BEGIN_CDECLS
+void core_fill_regs(elf_gregset_t *set, struct process *thread);
+__END_CDECLS
 #endif

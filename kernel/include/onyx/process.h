@@ -523,6 +523,11 @@ static inline pid_t task_tgid(struct process *task)
     return pid;
 }
 
+static inline struct registers *task_regs(struct process *proc)
+{
+    return ((struct registers *) proc->thr->kernel_stack_top) - 1;
+}
+
 static inline struct mm_address_space *get_current_address_space(void)
 {
     struct thread *t = get_current_thread();

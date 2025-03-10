@@ -2837,4 +2837,6 @@ struct elf_info
     void *program_entry;
 };
 
+#include <platform/elf.h>
+
 #endif

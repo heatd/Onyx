@@ -8,13 +8,14 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/user.h>
 
 #include <onyx/fpu.h>
 #include <onyx/mm/slab.h>
 #include <onyx/static_key.h>
 #include <onyx/x86/avx.h>
 #include <onyx/x86/control_regs.h>
+
+#include <uapi/user.h>
 
 DEFINE_STATIC_KEY_FALSE(avx_supported);
 

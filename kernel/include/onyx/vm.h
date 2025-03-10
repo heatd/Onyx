@@ -670,6 +670,7 @@ public:
 #define GPP_READ  (1 << 0)
 #define GPP_WRITE (1 << 1)
 #define GPP_USER  (1 << 2)
+#define GPP_DUMP  (1 << 3)
 
 // GPP_ACCESS flags documentation
 
