@@ -20,6 +20,7 @@
 #include <onyx/list.h>
 #include <onyx/percpu.h>
 #include <onyx/preempt.h>
+#include <onyx/rcupdate.h>
 #include <onyx/signal.h>
 #include <onyx/spinlock.h>
 
@@ -66,7 +67,7 @@ typedef struct thread
     struct thread *sem_next;
     struct spinlock lock;
     int errno_val;
-    struct list_head thread_list_head;
+    struct rcu_head rcu_head;
     unsigned long addr_limit;
     /* Clear child tid address - It's set by sys_set_tid_address or by sys_clone itself
      * and it's used to futex_wake any threads blocked by join.
@@ -100,10 +101,9 @@ typedef struct thread
 
 #ifdef __cplusplus
     thread()
-        : refcount{}, canary{}, kernel_stack{},
-          kernel_stack_top{}, owner{}, entry{}, flags{}, id{}, status{}, priority{}, cpu{}, next{},
-          prev_prio{}, next_prio{}, fpu_area{}, sem_prev{}, sem_next{}, lock{}, errno_val{},
-          thread_list_head{}, addr_limit{}, ctid{}, cputime_info{}, aspace{}, plug{}
+        : refcount{}, canary{}, kernel_stack{}, kernel_stack_top{}, owner{}, entry{}, flags{}, id{},
+          status{}, priority{}, cpu{}, next{}, prev_prio{}, next_prio{}, fpu_area{}, sem_prev{},
+          sem_next{}, lock{}, errno_val{}, addr_limit{}, ctid{}, cputime_info{}, aspace{}, plug{}
 #ifdef __x86_64__
           ,
           fs{}, gs{}
