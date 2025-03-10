@@ -172,4 +172,11 @@ inline void write_once(const Type& t, Type val)
 #define __deprecated
 #endif
 
+#define __malloc __attribute__((__malloc__))
+#ifndef __clang__
+#define __malloc_with_free(func, index) __attribute__((__malloc__, __malloc__(func, index)))
+#else
+#define __malloc_with_free(func, index) __malloc
+#endif
+
 #endif /* COMPILER_H */
