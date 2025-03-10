@@ -50,6 +50,8 @@
 #include <uapi/fcntl.h>
 #include <uapi/memstat.h>
 
+#include "vma_internal.h"
+
 static bool enable_aslr = true;
 
 uintptr_t high_half = arch_high_half;
@@ -123,24 +125,6 @@ static inline void vma_free(struct vm_area_struct *region)
     kmem_cache_free(vm_area_struct_cache, (void *) region);
 }
 
-struct vma_iterator
-{
-    unsigned long index;
-    unsigned long end;
-    struct mm_address_space *mm;
-    struct ma_state mas;
-};
-
-#define VMA_ITERATOR(name, mm, index, end)           \
-    struct vma_iterator name = {index, (end) -1, mm, \
-                                MA_STATE_INIT(&(mm)->region_tree, index, (end) -1)}
-
-static inline void vmi_destroy(struct vma_iterator *vmi)
-{
-    mas_destroy(&vmi->mas);
-}
-
-#define CONFIG_DEBUG_MM_MMAP 1
 #ifdef CONFIG_DEBUG_MM_MMAP
 static void validate_mm_tree(struct mm_address_space *mm)
 {
@@ -562,8 +546,8 @@ int vm_fork_address_space(struct mm_address_space *addr_space) EXCLUDES(addr_spa
 
     rwlock_init(&addr_space->vm_lock);
     validate_mm_tree(addr_space);
-    rw_unlock_read(&current_mm->vm_lock);
 out:
+    rw_unlock_read(&current_mm->vm_lock);
     return err;
 }
 
@@ -1103,9 +1087,9 @@ void vm_do_mmu_mprotect(struct mm_address_space *as, void *address, size_t nr_pg
 }
 #endif
 
-static struct vm_area_struct *vma_prepare_modify(struct vma_iterator *vmi,
-                                                 struct vm_area_struct *vma, unsigned long start,
-                                                 unsigned long end) REQUIRES(vmi->mm->vm_lock)
+struct vm_area_struct *vma_prepare_modify(struct vma_iterator *vmi, struct vm_area_struct *vma,
+                                          unsigned long start, unsigned long end)
+    REQUIRES(vmi->mm->vm_lock)
 {
     if (start > vma->vm_start)
     {
@@ -2196,6 +2180,7 @@ static bool limits_are_contained(struct vm_area_struct *reg, unsigned long start
 void *sys_mremap(void *old_address, size_t old_size, size_t new_size, int flags, void *new_address)
 {
     // TODO: This is broken.
+    WARN_ON_ONCE(1);
     return (void *) -ENOSYS;
     /* Check http://man7.org/linux/man-pages/man2/mremap.2.html for documentation */
     bool may_move = flags & MREMAP_MAYMOVE;

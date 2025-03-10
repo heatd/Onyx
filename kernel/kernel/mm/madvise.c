@@ -15,9 +15,18 @@
 
 #include <uapi/mman.h>
 
+#include "vma_internal.h"
+
 static bool madvise_needs_write(int advice)
 {
-    return true;
+    switch (advice)
+    {
+        case MADV_DONTDUMP:
+        case MADV_DODUMP:
+            return true;
+        default:
+            return false;
+    }
 }
 
 static bool madvise_valid_advice(int advice)
@@ -25,23 +34,37 @@ static bool madvise_valid_advice(int advice)
     switch (advice)
     {
         case MADV_DONTNEED:
+        case MADV_DONTDUMP:
+        case MADV_DODUMP:
             return true;
     }
 
     return false;
 }
 
-static int do_madvise_vma(struct vm_area_struct *vma, unsigned long start, unsigned long end,
-                          int advice)
+static int do_madvise_vma(struct vma_iterator *vmi, struct vm_area_struct *vma, unsigned long start,
+                          unsigned long end, int advice)
 {
+    int new_vm_flags = vma->vm_flags;
     switch (advice)
     {
         case MADV_DONTNEED:
             return zap_page_range(start, end, vma);
+        case MADV_DONTDUMP:
+            new_vm_flags |= VM_DONTDUMP;
+            break;
+        case MADV_DODUMP:
+            new_vm_flags &= ~VM_DONTDUMP;
+            break;
+        default:
+            UNREACHABLE();
     }
 
-    WARN_ON(1);
-    return -ENOSYS;
+    vma = vma_prepare_modify(vmi, vma, start, end);
+    if (!vma)
+        return -ENOMEM;
+    vma->vm_flags = new_vm_flags;
+    return 0;
 }
 
 static int do_madvise_walk(struct mm_address_space *mm, unsigned long start, size_t len, int advice)
@@ -50,10 +73,9 @@ static int do_madvise_walk(struct mm_address_space *mm, unsigned long start, siz
     unsigned long last_vma_end = -1;
     int ret = -ENOMEM;
     struct vm_area_struct *vma;
+    VMA_ITERATOR(vmi, mm, start, limit);
 
-    MA_STATE(mas, &mm->region_tree, start, limit - 1);
-
-    mas_for_each(&mas, vma, limit - 1)
+    mas_for_each(&vmi.mas, vma, vmi.end)
     {
         /* Break if we see a gap between VMAs, or if this vma is beyond limit */
         if (vma->vm_start >= limit)
@@ -65,7 +87,7 @@ static int do_madvise_walk(struct mm_address_space *mm, unsigned long start, siz
             break;
         }
 
-        ret = do_madvise_vma(vma, max(vma->vm_start, start), min(limit, vma->vm_end), advice);
+        ret = do_madvise_vma(&vmi, vma, max(vma->vm_start, start), min(limit, vma->vm_end), advice);
         if (ret)
             break;
         last_vma_end = vma->vm_end;
@@ -91,8 +113,16 @@ int sys_madvise(void *addr, size_t len, int advice)
     if (start + len <= start)
         return -EINVAL;
 
-    rw_lock_read(&mm->vm_lock);
+    if (madvise_needs_write(advice))
+        rw_lock_write(&mm->vm_lock);
+    else
+        rw_lock_read(&mm->vm_lock);
+
     ret = do_madvise_walk(mm, start, len, advice);
-    rw_unlock_read(&mm->vm_lock);
+
+    if (madvise_needs_write(advice))
+        rw_unlock_write(&mm->vm_lock);
+    else
+        rw_unlock_read(&mm->vm_lock);
     return ret;
 }
