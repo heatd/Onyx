@@ -93,7 +93,7 @@ void thread_setup_stack(thread *thread, bool is_user, registers_t *regs)
     thread->kernel_stack = stack;
 }
 
-void kernel_thread_start(void *arg)
+__attribute__((no_sanitize_thread)) void kernel_thread_start(void *arg)
 {
     auto thread = get_current_thread();
 
@@ -143,9 +143,9 @@ int sys_arch_prctl(int code, unsigned long *addr)
 
 constexpr bool adding_guard_page = false;
 
-extern "C" void thread_finish_destruction(void *___thread)
+extern "C" void thread_finish_destruction(struct rcu_head *head)
 {
-    thread *thread = static_cast<thread_t *>(___thread);
+    thread *thread = container_of(head, struct thread, rcu_head);
 
 #if 1
     /* Destroy the kernel stack */

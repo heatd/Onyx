@@ -893,7 +893,7 @@ int sys_nanosleep(const timespec *req, timespec *rem)
     return 0;
 }
 
-extern "C" void thread_finish_destruction(void *);
+extern "C" void thread_finish_destruction(struct rcu_head *);
 
 void thread_destroy(struct thread *thread)
 {
@@ -911,12 +911,7 @@ void thread_destroy(struct thread *thread)
 
     /* Remove the thread from the queue */
     sched_remove_thread(thread);
-
-    /* Schedule further thread destruction */
-    dpc_work w;
-    w.context = thread;
-    w.funcptr = thread_finish_destruction;
-    dpc_schedule_work(&w, DPC_PRIORITY_MEDIUM);
+    call_rcu(&thread->rcu_head, thread_finish_destruction);
 }
 
 void thread_exit()

@@ -59,9 +59,9 @@ void kernel_thread_start(void *arg)
 
 } // namespace riscv
 
-extern "C" void thread_finish_destruction(void *___thread)
+extern "C" void thread_finish_destruction(struct rcu_head *head)
 {
-    thread *thread = static_cast<thread_t *>(___thread);
+    thread *thread = container_of(head, struct thread, rcu_head);
 
 #if 1
     /* Destroy the kernel stack */
