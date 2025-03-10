@@ -5,7 +5,8 @@
  */
 
 #include <stdint.h>
-#include <sys/user.h>
+
+#include <uapi/user.h>
 
 typedef long ptrace_word_t;
 

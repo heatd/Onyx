@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/ptrace.h>
-#include <sys/user.h>
+#include <uapi/user.h>
 
 #include <onyx/process.h>
 #include <onyx/ptrace.h>

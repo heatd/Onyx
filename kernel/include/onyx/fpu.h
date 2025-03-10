@@ -10,15 +10,17 @@
 #define _ONYX_FPU_H
 
 #include <stdbool.h>
-#include <sys/user.h>
 
 #include <onyx/compiler.h>
+
+#include <uapi/user.h>
 
 __BEGIN_CDECLS
 
 void setup_fpu_area(unsigned char *address);
 void save_fpu(void *address);
 void restore_fpu(void *address);
+struct user_fpregs_struct;
 void fpu_ptrace_getfpregs(void *fpregs, struct user_fpregs_struct *regs);
 void fpu_init(void);
 size_t fpu_get_save_size(void);

@@ -5,7 +5,7 @@
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
-
+#define DEFINE_CURRENT
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
@@ -23,6 +23,8 @@
 #include <onyx/vdso.h>
 #include <onyx/vector.h>
 #include <onyx/vfork_completion.h>
+
+#include <platform/elf.h>
 
 void exec_state_destroy(struct exec_state *state);
 
@@ -178,103 +180,62 @@ static int put_user64(uint64_t *uptr, uint64_t val)
 
 void *process_setup_auxv(void *buffer, char *strings_space, struct process *process)
 {
+    struct mm_address_space *mm = process->address_space;
+    void *user_auxv = (void *) buffer;
+    unsigned char *scratch_space = (unsigned char *) strings_space;
+    u8 *execfn;
+    unsigned int i = 0;
+    char s[16];
+    u8 *random;
     process->vdso = vdso_map();
     /* Setup the auxv at the stack bottom */
-    Elf64_auxv_t *auxv = (Elf64_auxv_t *) buffer;
-    unsigned char *scratch_space = (unsigned char *) strings_space;
-    for (int i = 0; i < 38; i++)
-    {
-        uint64_t type;
-        uint64_t val = 0;
 
-        if (i != 0)
-            type = i;
-        else
-            type = 0xffff;
-        if (i == 37)
-            type = 0;
+#define PUT_AUXV(type, val)         \
+    ({                              \
+        mm->saved_auxv[i++] = type; \
+        mm->saved_auxv[i++] = val;  \
+    })
 
-        switch (i)
-        {
-            case AT_SECURE:
-                val = (bool) (process->flags & PROCESS_SECURE);
-                break;
-            case AT_PAGESZ:
-                val = PAGE_SIZE;
-                break;
-            /* We're able to not grab cred because we're inside execve,
-             * there's no race condition */
-            case AT_UID:
-                val = process->cred.ruid;
-                break;
-            case AT_GID:
-                val = process->cred.rgid;
-                break;
-            case AT_EUID:
-                val = process->cred.euid;
-                break;
-            case AT_EGID:
-                val = process->cred.egid;
-                break;
-            case AT_RANDOM:;
-                {
-                    char s[16];
-                    get_entropy((char *) s, 16);
+    random = scratch_space;
+    get_entropy((char *) s, 16);
 
-                    if (copy_to_user(scratch_space, s, 16) < 0)
-                        return nullptr;
+    if (copy_to_user(random, s, 16) < 0)
+        return nullptr;
+    scratch_space += 16;
 
-                    val = (uint64_t) scratch_space;
-                    scratch_space += 16;
-                }
-                break;
-            case AT_BASE:
-                val = (uintptr_t) process->interp_base;
-                break;
-            case AT_PHENT:
-                val = process->info.phent;
-                break;
-            case AT_PHNUM:
-                val = process->info.phnum;
-                break;
-            case AT_PHDR:
-                val = process->info.phdr;
-                break;
-            case AT_EXECFN:
+    execfn = scratch_space;
+    size_t len = process->cmd_line.length() + 1;
+    // This should be safe since we're the only thread running, no race conditions I
+    // would say.
+    // TODO: Unless we ever add a way to set it from another process?
+    if (copy_to_user((char *) execfn, process->cmd_line.c_str(), len) < 0)
+        return nullptr;
+    scratch_space += len;
 
-            {
-                val = (uintptr_t) scratch_space;
-                // This should be safe since we're the only thread running, no race conditions I
-                // would say.
-                // TODO: Unless we ever add a way to set it from another process?
-                size_t len = process->cmd_line.length() + 1;
-                if (copy_to_user((char *) scratch_space, process->cmd_line.c_str(), len) < 0)
-                    return nullptr;
+    PUT_AUXV(AT_SECURE, (bool) (process->flags & PROCESS_SECURE));
+    PUT_AUXV(AT_PAGESZ, PAGE_SIZE);
+    PUT_AUXV(AT_UID, process->cred.ruid);
+    PUT_AUXV(AT_GID, process->cred.rgid);
+    PUT_AUXV(AT_EUID, process->cred.ruid);
+    PUT_AUXV(AT_EGID, process->cred.rgid);
+    PUT_AUXV(AT_RANDOM, (unsigned long) random);
+    PUT_AUXV(AT_BASE, (unsigned long) process->interp_base);
+    PUT_AUXV(AT_PHENT, process->info.phent);
+    PUT_AUXV(AT_PHNUM, process->info.phnum);
+    PUT_AUXV(AT_PHDR, process->info.phdr);
+    PUT_AUXV(AT_EXECFN, (unsigned long) execfn);
+    PUT_AUXV(AT_SYSINFO_EHDR, (unsigned long) process->vdso);
+    PUT_AUXV(AT_FLAGS, 0);
+    PUT_AUXV(AT_ENTRY, (unsigned long) process->info.program_entry);
+    PUT_AUXV(AT_CLKTCK, 1000);
+#ifdef ELF_HWCAP
+    PUT_AUXV(AT_HWCAP, ELF_HWCAP);
+#endif
+    PUT_AUXV(AT_NULL, 0);
 
-                scratch_space += len;
-            }
-            break;
-            case AT_SYSINFO_EHDR:
-                val = (uintptr_t) process->vdso;
-                break;
-            case AT_FLAGS: {
-                break;
-            }
-
-            case AT_ENTRY: {
-                val = (unsigned long) process->info.program_entry;
-                break;
-            }
-        }
-
-        if (put_user64(&auxv[i].a_type, type) < 0)
-            return nullptr;
-
-        if (put_user64(&auxv[i].a_un.a_val, val) < 0)
-            return nullptr;
-    }
-
-    return auxv;
+    if (copy_to_user(user_auxv, mm->saved_auxv, i * sizeof(unsigned long)) < 0)
+        return nullptr;
+    return user_auxv;
 }
 
 int process_put_entry_info(struct stack_info *info, char **argv, char **envp)
@@ -304,8 +265,10 @@ int process_put_entry_info(struct stack_info *info, char **argv, char **envp)
 
     // printk("argv at %p\n", pointers_base);
     pointers_base = (char **) ((char *) pointers_base + sizeof(long));
+    current->address_space->arg_start = (unsigned long) strings_space;
     if (process_put_strings(&pointers_base, &strings_space, argv) < 0)
         return -EFAULT;
+    current->address_space->arg_end = (unsigned long) strings_space;
 
     // printk("envp at %p\n", pointers_base);
     if (process_put_strings(&pointers_base, &strings_space, envp) < 0)
@@ -389,7 +352,6 @@ int sys_execve(const char *p, const char **argv, const char **envp)
     binfmt_args args{};
     envarg_res er;
     expected<envarg_res, int> ex;
-    struct process *current = get_current_process();
 
     char *path = strcpy_from_user(p);
     if (!path)

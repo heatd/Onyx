@@ -539,6 +539,9 @@ int vm_fork_address_space(struct mm_address_space *addr_space) EXCLUDES(addr_spa
     addr_space->brk = current_mm->brk;
     addr_space->start = current_mm->start;
     addr_space->end = current_mm->end;
+    addr_space->arg_start = current_mm->arg_start;
+    addr_space->arg_end = current_mm->arg_end;
+    memcpy(addr_space->saved_auxv, current_mm->saved_auxv, sizeof(current_mm->saved_auxv));
 
 #ifdef CONFIG_DEBUG_ADDRESS_SPACE_ACCT
     mmu_verify_address_space_accounting(addr_space);
@@ -2305,32 +2308,82 @@ static int gpp_try_to_fault_in(unsigned long addr, struct vm_area_struct *entry,
     return GPP_ACCESS_OK;
 }
 
+static struct page *page_from_pte(pte_t *pte, struct vm_area_struct *vma, unsigned int flags,
+                                  struct spinlock *lock)
+{
+    struct page *page = NULL;
+    unsigned long addr;
+
+    if (pte_none(*pte))
+    {
+        /* We should fault the page in, except if this is part of a coredump process; in that case
+         * we want to skip writing out and faulting in anon zero pages to disk. */
+        if (flags & GPP_DUMP && vm_mapping_is_anon(vma))
+        {
+            page = ERR_PTR(-ENODATA);
+            goto nopage;
+        }
+    }
+
+    if (!pte_present(*pte))
+        goto nopage;
+
+    /* coredumps want protnone pages - so pass them with no problem */
+    if (pte_protnone(*pte) && (flags & GPP_READ) && !(flags & GPP_DUMP))
+        goto nopage;
+
+    if (flags & GPP_WRITE && !pte_write(*pte))
+        goto nopage;
+
+    addr = pte_addr(*pte);
+    page = phys_to_page(addr);
+
+    if (unlikely(flags & GPP_DUMP && page == vm_zero_page))
+        page = ERR_PTR(-ENODATA);
+    else
+        page_ref(page);
+nopage:
+    spin_unlock(lock);
+    return page;
+}
+
 static int __get_phys_pages(struct vm_area_struct *region, unsigned long addr, unsigned int flags,
                             struct page **pages, size_t nr_pgs)
 {
-    unsigned long page_rwx_mask = (flags & GPP_READ ? PAGE_PRESENT : 0) |
-                                  (flags & GPP_WRITE ? PAGE_WRITABLE : 0) |
-                                  (flags & GPP_USER ? PAGE_USER : 0);
+    struct spinlock *lock;
+    pte_t *pte;
+    struct page *page;
+    int st;
 
     for (size_t i = 0; i < nr_pgs; i++, addr += PAGE_SIZE)
     {
     retry:;
-        unsigned long mapping_info = get_mapping_info((void *) addr);
+        /* TODO: Walking this properly (and this logic being a callback) would be better */
+        pte = ptep_get_locked(region->vm_mm, addr, &lock);
+        if (!pte)
+            goto fault_in;
 
-        if ((mapping_info & page_rwx_mask) != page_rwx_mask)
+        page = page_from_pte(pte, region, flags, lock);
+        if (IS_ERR(page))
         {
-            int st = gpp_try_to_fault_in(addr, region, flags);
-
-            if (!(st & GPP_ACCESS_OK))
-                return st;
-            goto retry;
+            /* Ok, we're coredumping and found pages we were going to fault in as zero, or were
+             * already zero. Skip these. */
+            WARN_ON(!(flags & GPP_DUMP));
+            WARN_ON(PTR_ERR(page) != -ENODATA);
+            pages[i] = NULL;
+            continue;
         }
-
-        unsigned long paddr = MAPPING_INFO_PADDR(mapping_info);
-
-        struct page *page = phys_to_page(paddr);
+        else if (page == NULL)
+            goto fault_in;
 
         pages[i] = page;
+        continue;
+    fault_in:
+        st = gpp_try_to_fault_in(addr, region, flags);
+        /* TODO: Recovery path is funky and we're not cleaning up pages properly */
+        if (!(st & GPP_ACCESS_OK))
+            return st;
+        goto retry;
     }
 
     return GPP_ACCESS_OK;
@@ -2351,8 +2404,6 @@ int get_phys_pages(void *_addr, unsigned int flags, struct page **pages, size_t 
 {
     int ret = GPP_ACCESS_OK;
     bool had_shared_pages = false;
-    size_t number_of_pages = nr_pgs;
-
     struct mm_address_space *mm = get_current_address_space();
 
     unsigned long addr = (unsigned long) _addr;
@@ -2384,7 +2435,7 @@ int get_phys_pages(void *_addr, unsigned int flags, struct page **pages, size_t 
                                 (flags & GPP_WRITE ? VM_WRITE : 0) |
                                 (flags & GPP_USER ? VM_USER : 0);
 
-        if ((reg->vm_flags & rwx_mask) != rwx_mask)
+        if ((reg->vm_flags & rwx_mask) != rwx_mask && !(flags & GPP_DUMP))
         {
             ret = GPP_ACCESS_FAULT;
             goto out;
@@ -2406,11 +2457,6 @@ int get_phys_pages(void *_addr, unsigned int flags, struct page **pages, size_t 
         pages_gotten += resolved_pgs;
         addr += nr_pgs << PAGE_SHIFT;
     }
-
-    /* Now that we're done, we're pinning the pages we just got */
-
-    for (size_t i = 0; i < number_of_pages; i++)
-        page_pin(pages[i]);
 
 out:
     if (ret & GPP_ACCESS_OK && had_shared_pages)

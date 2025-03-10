@@ -8,6 +8,7 @@
 
 #include <string.h>
 
+#include <onyx/elf.h>
 #include <onyx/process.h>
 #include <onyx/scheduler.h>
 #include <onyx/thread.h>
@@ -64,40 +65,10 @@ int sys_clone(void *fn, void *child_stack, int flags, void *arg, struct tid_out 
     return -ENOSYS;
 }
 
-int sys_clone(void *fn, void *child_stack, int flags, void *arg, struct tid_out *out, void *tls)
+void core_fill_regs(elf_gregset_t *set, struct process *thread)
 {
-    struct tid_out ktid_out;
-    if (copy_from_user(&ktid_out, out, sizeof(ktid_out)) < 0)
-        return -EFAULT;
-
-    if (flags & ~valid_flags)
-        return -EINVAL;
-    if (flags & CLONE_FORK)
-        return -EINVAL; /* TODO: Add CLONE_FORK */
-    thread_callback_t start = (thread_callback_t) fn;
-
-    registers_t regs = {};
-    regs.sp = (unsigned long) child_stack;
-    regs.status = RISCV_SSTATUS_SPIE;
-    regs.epc = (unsigned long) start;
-    regs.a0 = (unsigned long) arg;
-    regs.tp = (unsigned long) tls;
-
-    thread_t *thread = sched_spawn_thread(&regs, 0, tls);
-    if (!thread)
-        return -errno;
-
-    if (copy_to_user(ktid_out.ptid, &thread->id, sizeof(pid_t)) < 0)
-    {
-        thread_destroy(thread);
-        return -errno;
-    }
-
-    thread->ctid = ktid_out.ctid;
-
-    process_add_thread(get_current_process(), thread);
-    inherit_signal_flags(thread);
-    sched_start_thread(thread);
-
-    return 0;
+    /* thread is alive and suspended (or is us. either way, task_regs will work ) */
+    struct registers *regs = task_regs(thread);
+    memcpy(&set->ra, &regs->gpr, sizeof(regs->gpr));
+    set->pc = regs->epc;
 }

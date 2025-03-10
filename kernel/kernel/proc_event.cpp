@@ -10,7 +10,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/user.h>
 
 #include <onyx/dentry.h>
 #include <onyx/file.h>
@@ -21,6 +20,7 @@
 #include <onyx/vfs.h>
 
 #include <uapi/fcntl.h>
+#include <uapi/user.h>
 
 static void __append_to_list(struct proc_event_sub *s, struct process *p)
 {

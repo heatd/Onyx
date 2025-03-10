@@ -25,6 +25,8 @@
 #define CPP_DFLINIT
 #endif
 
+#define AT_SAVED_AUXV_LEN 20
+
 /**
  * @brief An mm_address_space represents an address space inside the kernel and stores
  * all kinds of relevant data on it, like the owner process, a tree of vm_area_structs, locks
@@ -52,6 +54,11 @@ struct mm_address_space
     size_t shared_set_size;
     size_t page_faults;
     size_t page_tables_size;
+
+    unsigned long arg_start;
+    unsigned long arg_end;
+
+    unsigned long saved_auxv[AT_SAVED_AUXV_LEN * 2];
 
     struct arch_mm_address_space arch_mmu;
 

@@ -6,7 +6,7 @@ extern "C" {
 
 #include <sys/time.h>
 #include <onyx/types.h>
-#include <sys/user.h>
+#include <uapi/user.h>
 
 struct elf_siginfo {
 	int si_signo;

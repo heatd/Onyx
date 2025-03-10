@@ -11,6 +11,7 @@
 #include <stdio.h>
 
 #include <onyx/clock.h>
+#include <onyx/coredump.h>
 #include <onyx/cpu.h>
 #include <onyx/mm/slab.h>
 #include <onyx/panic.h>
@@ -375,6 +376,12 @@ bool find_signal(struct arch_siginfo *sinfo)
 
         /* Default signal dispositions... We can already discard siginfo at least */
         sig = pending->signum;
+        if (sig_coredump(sig))
+        {
+            /* We need the siginfo for coredumping as well */
+            memcpy(&sinfo->info, pending->info, sizeof(siginfo_t));
+        }
+
         free_sigpending(pending);
         if (sig_stop(sig))
         {
@@ -387,6 +394,8 @@ bool find_signal(struct arch_siginfo *sinfo)
         else if (sig_kill(sig) || sig_coredump(sig))
         {
             spin_unlock(&current->sighand->signal_lock);
+            if (sig_coredump(sig))
+                do_coredump(sig, &sinfo->info);
             process_exit_from_signal(sig);
             UNREACHABLE();
         }
