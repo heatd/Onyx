@@ -98,6 +98,7 @@ void pid_destroy(struct pid *pid)
 {
     for (int i = 0; i < PIDTYPE_MAX; i++)
         DCHECK(list_is_empty(&pid->member_list[i]));
+    DCHECK(pid->proc == NULL);
     kfree_rcu(pid, rcu);
 }
 
@@ -120,6 +121,7 @@ static void free_pid(struct pid *pid)
 
 void pid_remove_process(struct pid *pid, struct process *proc, enum pid_type type)
 {
+    bool empty;
     spin_lock(&pid->lock);
 
     switch (type)
@@ -134,21 +136,24 @@ void pid_remove_process(struct pid *pid, struct process *proc, enum pid_type typ
             UNREACHABLE();
     }
 
+    empty = pid_empty(pid);
     spin_unlock(&pid->lock);
 
-    if (pid_empty(pid))
+    if (empty)
         free_pid(pid);
 }
 
 void pid_remove_pid(struct pid *pid, struct process *proc)
 {
     /* Remove the PID-level association */
+    bool empty;
     spin_lock(&pid->lock);
     CHECK(proc == pid->proc);
     pid->proc = NULL;
+    empty = pid_empty(pid);
     spin_unlock(&pid->lock);
 
-    if (pid_empty(pid))
+    if (empty)
         free_pid(pid);
 }
 
