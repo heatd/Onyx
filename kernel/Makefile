@@ -19,6 +19,7 @@ EXEC_PREFIX?=$(PREFIX)
 BOOTDIR?=$(EXEC_PREFIX)/boot
 INCLUDEDIR?=$(PREFIX)/usr/include
 LIBDIR?=$(EXEC_PREFIX)/usr/lib
+SPARSE?=sparse
 
 KERNEL_TAGS?=
 
@@ -328,6 +329,9 @@ kernel/ssp.o: kernel/ssp.cpp $(GENERATED_HEADERS)
 #	$(CLANG_TIDY) $< $(CLANG_TIDY_ARGS)
 #endif
 	@$(CC) -c $< -o $@ -std=c11 $(CFLAGS) $(CPPFLAGS) $(C_ONLY_CFLAGS) -Wno-error=deprecated-declarations
+ifeq ($(C), 1)
+	-$(SPARSE) -D__onyx__ -nostdinc -isystem lib/libk/include -std=c11 $(CFLAGS) $(CPPFLAGS) $(C_ONLY_CFLAGS) -Wno-error=deprecated-declarations $<
+endif
 
 %.o: %.S $(GENERATED_HEADERS)
 	@echo [AS] $<
