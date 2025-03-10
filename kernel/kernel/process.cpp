@@ -104,8 +104,6 @@ process::process() : pgrp_node{this}, session_node{this}, thread_list_node{this}
 
 process::~process()
 {
-    if (pid_struct)
-        put_pid(pid_struct);
     active_processes--;
 }
 
