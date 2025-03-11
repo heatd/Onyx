@@ -910,7 +910,6 @@ static int namei_lookup_parentat(int dirfd, const char *name, unsigned int flags
         return st;
 
     DCHECK(!path_is_null(&namedata.cur));
-    DCHECK(namedata.paths[namedata.pdepth].token_type != fs_token_type::LAST_NAME_IN_PATH);
     *outn = namedata.paths[namedata.pdepth];
     *parent = namedata.getcur();
     return 0;
