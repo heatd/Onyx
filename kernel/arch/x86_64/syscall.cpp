@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 - 2021 Pedro Falcato
+ * Copyright (c) 2018 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -22,8 +22,28 @@ typedef long (*syscall_callback_t)(unsigned long rdi, unsigned long rsi, unsigne
 
 extern syscall_callback_t syscall_table_64[];
 
-
 extern "C" void handle_signal(struct registers *regs);
+
+__always_inline bool should_sysret(struct registers *regs)
+{
+    /* We can't use sysret on a number of occasions. Most of these would be triggered by ptrace or
+     * sigreturn messing about. */
+
+    /* If rcx != rip or regs->r11, the normal sysret path will not restore registers correctly
+     * (we'll corrupt rcx and/or r11) */
+    if (regs->rcx != regs->rip || regs->r11 != regs->rflags)
+        return false;
+
+    if (regs->cs != USER_CS || regs->ss != USER_DS)
+        return false;
+
+    /* Intel CPUs stumble with sysret to non-canonical addresses. They'll give us a kernel-side #GP
+     * with a user stack, which is not what we want */
+    if (regs->rip >= VM_USER_ADDR_LIMIT)
+        return false;
+    /* Note: Linux rejects sysret if EFLAGS.TF or RF here */
+    return true;
+}
 
 extern "C" long do_syscall64(struct syscall_frame *frame)
 {
@@ -68,5 +88,5 @@ extern "C" long do_syscall64(struct syscall_frame *frame)
     frame->rax = ret;
     if (signal_is_pending())
         handle_signal((struct registers *) frame);
-    return ret;
+    return likely(should_sysret((struct registers *) frame));
 }
