@@ -71,6 +71,12 @@ patch_package() {
 	true
 }
 
+replace_gnuconfig() {
+	for i in $(find . -name config.guess -o -name config.sub); do
+		cp ~/Onyx/buildpkg/"$(basename $i)" "$i"
+	done
+}
+
 . PKGBUILD
 
 if [ ! -f "${1}/PKGBUILD.stamp" ]; then
