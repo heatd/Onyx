@@ -98,7 +98,7 @@ struct kcsan_ctx
 
     /* List of scoped accesses; likely to be empty. */
     struct list_head scoped_accesses;
-#define CONFIG_KCSAN_WEAK_MEMORY 1
+#define CONFIG_KCSAN_WEAK_MEMORY 0
 #ifdef CONFIG_KCSAN_WEAK_MEMORY
     /*
      * Scoped access for modeling access reordering to detect missing memory

@@ -219,7 +219,7 @@ __always_inline struct kcsan_ctx *get_ctx(void)
 	 * In interrupts, use raw_cpu_ptr to avoid unnecessary checks, that would
 	 * also result in calls that generate warnings in uaccess regions.
 	 */
-	return is_in_interrupt() && get_current_thread() ? &get_current_thread()->kcsan_ctx : get_per_cpu_ptr(kcsan_cpu_ctx);
+	return (!is_in_interrupt() && get_current_thread()) ? &get_current_thread()->kcsan_ctx : get_per_cpu_ptr(kcsan_cpu_ctx);
 }
 
 __always_inline void
@@ -231,7 +231,7 @@ static noinline void kcsan_check_scoped_accesses(void)
 	struct kcsan_ctx *ctx = get_ctx();
 	struct kcsan_scoped_access *scoped_access;
 
-	if (1 || ctx->disable_scoped)
+	if (1 || !READ_ONCE(kcsan_enabled) || ctx->disable_scoped)
 		return;
 
 	ctx->disable_scoped++;
@@ -258,7 +258,7 @@ is_atomic(struct kcsan_ctx *ctx, const volatile void *ptr, size_t size, int type
 	if (type & KCSAN_ACCESS_ASSERT)
 		return false;
 
-	if (/*IS_ENABLED(CONFIG_KCSAN_ASSUME_PLAIN_WRITES_ATOMIC)*/ 0 &&
+	if (/*IS_ENABLED(CONFIG_KCSAN_ASSUME_PLAIN_WRITES_ATOMIC)*/ 1 &&
 	    (type & KCSAN_ACCESS_WRITE) && size <= sizeof(long) &&
 	    !(type & KCSAN_ACCESS_COMPOUND) && IS_ALIGNED((unsigned long)ptr, size))
 		return true; /* Assume aligned writes up to word size are atomic. */
@@ -833,7 +833,7 @@ void __init kcsan_init(void)
 	 * WRITE_ONCE without memory barrier is sufficient.
 	 */
 	if (kcsan_early_enable) {
-		kcsan_enabled = true;
+		WRITE_ONCE(kcsan_enabled, true);
 	}
 
 #if 0
