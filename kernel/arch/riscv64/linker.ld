@@ -164,11 +164,6 @@ SECTIONS
 		*vdso_helper.o(*.vdso)
 	} : vdso
 
-	.riscv.attributes : AT(ADDR(.riscv.attributes) - VIRT_BASE)
-	{
-		*(.riscv.attributes)
-	}
-
 	. = ALIGN(0x1000);
 	_vdso_sect_end = .;
 	kernel_end = .;
@@ -180,6 +175,7 @@ SECTIONS
 	{
 		*(.got*)
 		*(.plt*)
+		*(.riscv.attributes)
 	}
 }
 
