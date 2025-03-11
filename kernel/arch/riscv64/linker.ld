@@ -9,7 +9,7 @@
 ENTRY(entry_point)
 
 VIRT_BASE = 0xffffffff00000000;
-PHYS_BASE = 0x80080000;
+PHYS_BASE = 0x80200000;
 
 SECTIONS
 {
