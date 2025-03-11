@@ -164,7 +164,7 @@ static int perf_probe_ucopy(void *ubuf)
 
     for (unsigned int i = 0; i < get_nr_cpus(); i++)
     {
-        vfree(fg[i].fge, vm_size_to_pages(sizeof(flame_graph_entry) * FLAME_GRAPH_NENTRIES));
+        vfree(fg[i].fge);
     }
 
     free(fg);

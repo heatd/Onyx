@@ -56,7 +56,7 @@ protected:
 
     void free(size_t pages)
     {
-        vfree(vmalloc_segment, pages);
+        vfree(vmalloc_segment);
     }
 
     memory_pool_segment_vm() : vmalloc_segment{}

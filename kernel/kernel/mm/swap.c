@@ -218,10 +218,9 @@ static void swap_area_destroy_early(struct swap_area *sa)
     mtree_destroy(&sa->extents_tree);
 
     if (sa->block_groups)
-        vfree(sa->block_groups,
-              vm_size_to_pages(sa->nr_block_groups * sizeof(struct swap_block_group)));
+        vfree(sa->block_groups);
     if (sa->swap_map)
-        vfree(sa->swap_map, vm_size_to_pages(sa->nr_pages));
+        vfree(sa->swap_map);
 
     if (sa->file)
         fd_put(sa->file);

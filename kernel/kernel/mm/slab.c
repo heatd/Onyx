@@ -1309,7 +1309,7 @@ static void __kmem_cache_free_slab(struct slab *slab)
     if (likely(!(cache->flags & KMEM_CACHE_VMALLOC)))
         free_pages(slab->pages);
     else
-        vfree(slab->start, slab->size >> PAGE_SHIFT);
+        vfree(slab->start);
 }
 
 static void kmem_cache_typesafe_free(struct rcu_head *head)

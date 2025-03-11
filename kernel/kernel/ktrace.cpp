@@ -402,7 +402,7 @@ size_t ktrace_buf_read(size_t offset, size_t len, void *buffer, struct file *fil
         &s, cpumask::one(cpunr));
 
     s.len = copy_to_user(buffer, ptr, s.len) < 0 ? -EFAULT : s.len;
-    vfree(ptr, vm_size_to_pages(len));
+    vfree(ptr);
     return s.len;
 }
 

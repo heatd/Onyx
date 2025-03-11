@@ -171,7 +171,7 @@ int kcov_init_trace(unsigned long nr_elems, struct file *f)
     return 0;
 err:
     if (buffer)
-        vfree(buffer, vm_size_to_pages(size));
+        vfree(buffer);
     if (vmo)
         vmo_destroy(vmo);
     return st;
@@ -240,7 +240,7 @@ int kcov_open(struct file *file)
 void kcov_free(struct kcov_data *data)
 {
     if (data->buffer)
-        vfree(data->buffer, vm_size_to_pages((data->nr_elements + 1) * sizeof(unsigned long)));
+        vfree(data->buffer);
     if (data->vmo)
         vmo_unref(data->vmo);
 

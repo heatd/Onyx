@@ -249,9 +249,8 @@ void *vmalloc(size_t pages, int type, int perms, unsigned int gfp_flags);
  * @brief Frees a region of memory previously allocated by vmalloc.
  *
  * @param ptr A pointer to the allocation.
- * @param pages The number of pages it consists in.
  */
-void vfree(void *ptr, size_t pages);
+void vfree(void *ptr);
 
 /**
  * @brief Handles a page fault.

@@ -279,7 +279,7 @@ static struct vmalloc_region *vfind(void *ptr)
  * @param pages The number of pages it consists in.
  * @param is_mmiounmap Skip certain checks
  */
-static void __vfree(void *ptr, size_t pages, bool is_mmiounmap)
+static void __vfree(void *ptr, bool is_mmiounmap)
 {
     scoped_lock g{vmalloc_tree.lock};
     if ((unsigned long) ptr & (PAGE_SIZE - 1))
@@ -296,12 +296,6 @@ static void __vfree(void *ptr, size_t pages, bool is_mmiounmap)
     {
         panic("vfree: Pointer %p does not point to start of vmalloc allocation %lx\n", ptr,
               reg->addr);
-    }
-
-    if (reg->pages != pages)
-    {
-        panic("vfree: Given length %lx does not match with vmalloc allocation length %lx\n",
-              pages << PAGE_SHIFT, reg->pages << PAGE_SHIFT);
     }
 
 #ifdef CONFIG_KASAN
@@ -328,9 +322,9 @@ static void __vfree(void *ptr, size_t pages, bool is_mmiounmap)
  * @param ptr A pointer to the allocation.
  * @param pages The number of pages it consists in.
  */
-void vfree(void *ptr, size_t pages)
+void vfree(void *ptr)
 {
-    return __vfree(ptr, pages, false);
+    return __vfree(ptr, false);
 }
 
 /**
@@ -400,7 +394,7 @@ void *mmiomap(void *phys, size_t size, size_t flags)
  */
 void mmiounmap(void *virt, size_t size)
 {
-    __vfree(virt, vm_size_to_pages(size), true);
+    __vfree(virt, true);
 }
 
 /**
