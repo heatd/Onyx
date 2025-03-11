@@ -9,7 +9,12 @@
 
 #include <onyx/types.h>
 
+#ifdef __is_onyx_kernel
 #include <uapi/user.h>
+#else
+#include <sys/user.h>
+#endif
+
 #define PROC_EVENT_LISTEN_SYSCALLS (1 << 0)
 
 #define PROCEVENT_ACK 0
