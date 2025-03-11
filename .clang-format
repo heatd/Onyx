@@ -16,7 +16,7 @@ DerivePointerAlignment: true
 PointerAlignment: Right
 ColumnLimit: 100
 ForEachMacros: ['list_for_every','list_for_every_safe','list_for_every_rcu','mt_for_each','list_for_each_entry',
-                'list_for_each_entry_safe', 'list_for_each_entry_rcu']
+                'list_for_each_entry_safe', 'list_for_each_entry_rcu', 'for_each_thread']
 IncludeBlocks: Regroup
 IndentExternBlock: NoIndent
 IncludeCategories:
