@@ -254,7 +254,7 @@ extern "C" [[noreturn]] void riscv_context_switch(thread *prev, unsigned char *s
     if (!(next_regs->status & RISCV_SSTATUS_SPP) && next_regs->epc > VM_HIGHER_HALF)
         panic("what");
 
-    if (next->flags & THREAD_KERNEL)
+    if (in_kernel_space_regs(next_regs))
         next_regs->tp = riscv_get_tp();
 
     bool is_last_dead = prev && prev->status == THREAD_DEAD;
