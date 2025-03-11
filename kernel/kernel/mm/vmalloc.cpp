@@ -176,6 +176,7 @@ static struct vmalloc_region *vmalloc_insert_region(struct vmalloc_tree *tree,
  */
 void *vmalloc(size_t pages, int type, int perms, unsigned int gfp_flags)
 {
+    unsigned long alloc_off = 0, guard_pages = 0;
     auto pgs = alloc_page_list(pages, gfp_flags);
     if (!pgs)
         return errno = ENOMEM, nullptr;
@@ -187,17 +188,24 @@ void *vmalloc(size_t pages, int type, int perms, unsigned int gfp_flags)
         return errno = ENOMEM, nullptr;
     }
 
-    scoped_lock g{vmalloc_tree.lock};
-    auto start = vmalloc_allocate_base(&vmalloc_tree, 0, pages << PAGE_SHIFT);
+    /* Add guard pages on both sides of the stack */
+    if (type == VM_TYPE_STACK)
+    {
+        guard_pages = 2;
+        alloc_off = PAGE_SIZE;
+    }
 
-    if (start + (pages << PAGE_SHIFT) > vmalloc_tree.start + vmalloc_tree.length)
+    scoped_lock g{vmalloc_tree.lock};
+    auto start = vmalloc_allocate_base(&vmalloc_tree, 0, (pages + guard_pages) << PAGE_SHIFT);
+
+    if (start + ((pages + guard_pages) << PAGE_SHIFT) > vmalloc_tree.start + vmalloc_tree.length)
     {
         free_page_list(pgs);
         pool.free(reg);
         return errno = ENOMEM, nullptr;
     }
 
-    auto vmal_reg = vmalloc_insert_region(&vmalloc_tree, reg, start, pages, perms,
+    auto vmal_reg = vmalloc_insert_region(&vmalloc_tree, reg, start, pages + guard_pages, perms,
                                           gfp_flags | PAGE_ALLOC_NO_SANITIZER_SHADOW);
     if (!vmal_reg)
     {
@@ -212,11 +220,17 @@ void *vmalloc(size_t pages, int type, int perms, unsigned int gfp_flags)
     };
 
 #ifdef CONFIG_KASAN
-    if (kasan_alloc_shadow(vmal_reg->addr, pages << PAGE_SHIFT, true) < 0)
+    if (kasan_alloc_shadow(vmal_reg->addr, (pages + guard_pages) << PAGE_SHIFT, true) < 0)
     {
         delvmr();
         free_page_list(pgs);
         return errno = ENOMEM, nullptr;
+    }
+    if (guard_pages)
+    {
+        asan_poison_shadow(vmal_reg->addr, PAGE_SIZE, KASAN_LEFT_REDZONE);
+        asan_poison_shadow(vmal_reg->addr + (vmal_reg->pages << PAGE_SHIFT) - PAGE_SIZE, PAGE_SIZE,
+                           KASAN_REDZONE);
     }
 #endif
 
@@ -224,7 +238,7 @@ void *vmalloc(size_t pages, int type, int perms, unsigned int gfp_flags)
     for (size_t i = 0; i < pages; i++, it = it->next_un.next_allocation)
     {
         bool success =
-            vm_map_page(&kernel_address_space, vmal_reg->addr + (i << PAGE_SHIFT),
+            vm_map_page(&kernel_address_space, vmal_reg->addr + alloc_off + (i << PAGE_SHIFT),
                         (uint64_t) page_to_phys(it), vmal_reg->perms, nullptr) != nullptr;
         if (!success)
         {
@@ -234,12 +248,12 @@ void *vmalloc(size_t pages, int type, int perms, unsigned int gfp_flags)
             return errno = ENOMEM, nullptr;
         }
 
-        *(char *) (vmal_reg->addr + (i << PAGE_SHIFT)) = 0;
+        *(char *) (vmal_reg->addr + alloc_off + (i << PAGE_SHIFT)) = 0;
     }
 
     vmal_reg->backing_pgs = pgs;
 
-    return (void *) vmal_reg->addr;
+    return (void *) (vmal_reg->addr + alloc_off);
 }
 
 /**
@@ -292,15 +306,9 @@ static void __vfree(void *ptr, bool is_mmiounmap)
         panic("vfree: Bad pointer %p not mapped\n", ptr);
     }
 
-    if (!is_mmiounmap && reg->addr != (unsigned long) ptr)
-    {
-        panic("vfree: Pointer %p does not point to start of vmalloc allocation %lx\n", ptr,
-              reg->addr);
-    }
-
 #ifdef CONFIG_KASAN
     // Re-poison the shadow as free
-    asan_poison_shadow((unsigned long) ptr, reg->pages << PAGE_SHIFT, KASAN_FREED);
+    asan_poison_shadow((unsigned long) reg->addr, reg->pages << PAGE_SHIFT, KASAN_FREED);
 #endif
 
     // First, free the pages, then unmap the memory, then finally unlink it
