@@ -451,10 +451,11 @@ void riscv_invalidate_tlb(void *context)
     auto addr = info->addr;
     auto pages = info->pages;
     auto addr_space = info->mm;
-    struct mm_address_space *mm;
+    struct mm_address_space *mm = NULL;
 
     auto curr_thread = get_current_thread();
-    mm = curr_thread->active_mm ?: curr_thread->aspace;
+    if (curr_thread)
+        mm = curr_thread->active_mm ?: curr_thread->aspace;
 
     if (is_higher_half(addr) || mm == addr_space)
     {
