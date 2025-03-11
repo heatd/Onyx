@@ -50,3 +50,5 @@ libk-y:=$(patsubst %, lib/libk/%, $(LIBK_OBJS))
 kernel-archives:=$(kernel-archives) lib/libk/libk.a
 
 EXTRA_LIBK_OBJS:=$(patsubst %, lib/libk/%, $(LIBK_EXTRA_OBJ))
+
+$(libk-y): CFLAGS+=-fno-builtin
