@@ -68,9 +68,8 @@ extern "C" void thread_finish_destruction(struct rcu_head *head)
     unsigned long stack_base = ((unsigned long) thread->kernel_stack_top) - kernel_stack_size;
     if (adding_guard_page)
         stack_base -= PAGE_SIZE;
-    auto pages = adding_guard_page ? 6 : 4;
 
-    vfree((void *) stack_base, pages);
+    vfree((void *) stack_base);
 #endif
     /* Free the fpu area */
     free(thread->fpu_area);

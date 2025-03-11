@@ -70,7 +70,7 @@ bool decompress_bytestream::init(size_t len)
 decompress_bytestream::~decompress_bytestream()
 {
     if (buf)
-        vfree((void *) buf, vm_size_to_pages(len));
+        vfree((void *) buf);
 }
 
 expected<size_t, int> decompress_bytestream::read(cul::slice<unsigned char> dst)
