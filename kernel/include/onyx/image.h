@@ -12,7 +12,7 @@
 // Defined as (major << 16 | minor)
 #define RISCV_HEADER_VERSION (0 << 16 | 2)
 
-#define RISCV_LOAD_ADDRESS 0x80080000
+#define RISCV_LOAD_ADDRESS 0x200000
 
 #define ARM64_IMAGE_MAGIC "ARM\x64"
 
