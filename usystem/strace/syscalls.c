@@ -647,10 +647,6 @@ void do_clone(struct syscall_args *args, struct proc_event *event)
     void *tls = (void *) args->args[5];
 
     const char *flags_str = NULL;
-    if (flags == CLONE_FORK)
-        flags_str = "CLONE_FORK";
-    else if (flags == CLONE_SPAWNTHREAD)
-        flags_str = "CLONE_SPAWNTHREAD";
 
     if (flags_str)
         printf("%p, %p, %s, %p, %p, %p", fn, child_stack, flags_str, arg, ptid, tls);
