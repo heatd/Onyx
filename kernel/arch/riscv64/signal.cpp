@@ -144,7 +144,7 @@ static void deliver_signal(struct arch_siginfo *sinfo, struct registers *regs)
         /* Only restart ERESTARTSYS (if SA_RESTART) and ERESTARTNOINTR. ERESTART_RESTARTBLOCK is
          * only supposed to be used for SIGSTOP help, and ERESTARTNOHAND never restarts if there is
          * a handler we're dispatching to (poll, pause, sigsuspend, etc) */
-        switch (regs->a0)
+        switch ((long) regs->a0)
         {
             case -ERESTARTSYS:
                 if (!(ksa->sa_flags & SA_RESTART))
@@ -195,7 +195,7 @@ void handle_signal(struct registers *regs)
      * ERESTARTNOINTR and ERESTART_RESTARTBLOCK */
     if (in_syscall(regs))
     {
-        switch (regs->a0)
+        switch ((long) regs->a0)
         {
             case -ERESTARTNOHAND:
             case -ERESTARTNOINTR:
