@@ -33,6 +33,7 @@
 #include <onyx/process.h>
 #include <onyx/random.h>
 #include <onyx/scoped_lock.h>
+#include <onyx/seqlock.h>
 #include <onyx/syscall.h>
 #include <onyx/task_switching.h>
 #include <onyx/thread.h>
@@ -44,11 +45,8 @@
 #include <onyx/vfork_completion.h>
 #include <onyx/worker.h>
 
-ids *process_ids = nullptr;
-
 struct process *first_process = nullptr;
 DEFINE_LIST(tasklist);
-static spinlock process_list_lock;
 
 rwslock_t tasklist_lock;
 
@@ -92,7 +90,6 @@ process::process() : pgrp_node{this}, session_node{this}, thread_list_node{this}
     exit_code = 0;
     personality = 0;
     parent = nullptr;
-    user_time = system_time = children_stime = children_utime = 0;
     spinlock_init(&sub_queue_lock);
     sub_queue = nullptr;
     nr_acks = nr_subs = 0;
@@ -100,6 +97,8 @@ process::process() : pgrp_node{this}, session_node{this}, thread_list_node{this}
     INIT_LIST_HEAD(&children_head);
     ctid = NULL;
     task_init_signals(this);
+    majflt = minflt = 0;
+    nvcsw = nivcsw = 0;
 }
 
 process::~process()
@@ -188,12 +187,14 @@ process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *p
     proc->fs->root = get_filesystem_root();
     proc->sig = (struct signal_struct *) kmalloc(sizeof(struct signal_struct), GFP_KERNEL);
     CHECK(proc->sig);
+    memset((void *) proc->sig, 0, sizeof(struct signal_struct));
 
     proc->sig->refs = REFCOUNT_INIT(1);
     proc->sig->ctty = NULL;
     proc->sig->nr_threads = 1;
     proc->sig->group_notify_task = NULL;
     proc->sig->group_notify_pending = 0;
+    seqlock_init(&proc->sig->stats_lock);
     INIT_LIST_HEAD(&proc->sig->thread_list);
     rwslock_init(&proc->sig->rlimit_lock);
     proc->sig->signal_group_flags = 0;
@@ -275,11 +276,6 @@ struct process *get_process_from_pid_noref(pid_t pid)
     return task;
 }
 
-void unlock_process_list(void)
-{
-    spin_unlock(&process_list_lock);
-}
-
 pid_t sys_getppid()
 {
     if (get_current_process()->parent)
@@ -324,18 +320,6 @@ int process_attach(process *tracer, process *tracee)
 process *process_find_tracee(process *tracer, pid_t pid)
 {
     return nullptr;
-}
-
-void process_increment_stats(bool is_kernel)
-{
-    process *process = get_current_process();
-    /* We're not in a process, return! */
-    if (!process)
-        return;
-    if (is_kernel)
-        process->system_time++;
-    else
-        process->user_time++;
 }
 
 void for_every_process(process_visit_function_t func, void *ctx)

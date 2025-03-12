@@ -157,17 +157,17 @@ int clock_gettime_kernel(clockid_t clk_id, struct timespec *tp)
 
         case CLOCK_PROCESS_CPUTIME_ID: {
             struct process *p = get_current_process();
-
-            hrtime_t total_time = p->system_time + p->user_time;
-
-            hrtime_to_timespec(total_time, tp);
+            hrtime_t utime, stime;
+            tg_cputime(p, &utime, &stime);
+            hrtime_to_timespec(utime + stime, tp);
             break;
         }
 
         case CLOCK_THREAD_CPUTIME_ID: {
             struct thread *thr = get_current_thread();
 
-            hrtime_t total_time = thr->cputime_info.system_time + thr->cputime_info.user_time;
+            hrtime_t total_time =
+                READ_ONCE(thr->cputime_info.system_time) + READ_ONCE(thr->cputime_info.user_time);
             hrtime_to_timespec(total_time, tp);
             break;
         }

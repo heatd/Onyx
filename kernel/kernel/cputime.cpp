@@ -13,12 +13,11 @@
 /* This needs to run with IRQs disabled */
 void do_cputime_accounting(void)
 {
-    auto current = get_current_thread();
-    auto current_process = get_current_process();
     /* TODO: Fix this. We're screwing up system_time vs user_time *hard* on, e.g, make workloads.
      * Replacing with just counting ticks. */
     return;
 
+#if 0
     auto now = clocksource_get_time();
     auto &timeinfo = current->cputime_info;
 
@@ -40,6 +39,7 @@ void do_cputime_accounting(void)
     }
 
     timeinfo.last_timeslice_timestamp = now;
+#endif
 }
 
 void context_tracking_enter_kernel(void)
@@ -94,10 +94,9 @@ clock_t sys_times(struct tms *buf)
     struct process *current = get_current_process();
 
     struct tms b = {};
-    b.tms_stime = current->system_time / NS_PER_MS;
-    b.tms_utime = current->user_time / NS_PER_MS;
-    b.tms_cutime = current->children_utime;
-    b.tms_cstime = current->children_stime;
+    tg_cputime_clock_t(current, &b.tms_utime, &b.tms_stime);
+    b.tms_cutime = READ_ONCE(current->sig->cutime) / NS_PER_MS;
+    b.tms_cstime = READ_ONCE(current->sig->cstime) / NS_PER_MS;
 
     if (copy_to_user(buf, &b, sizeof(struct tms)) < 0)
         return -EFAULT;

@@ -25,6 +25,7 @@
 #include <onyx/rwlock.h>
 #include <onyx/scheduler.h>
 #include <onyx/semaphore.h>
+#include <onyx/seqlock_types.h>
 #include <onyx/signal.h>
 #include <onyx/spinlock.h>
 #include <onyx/syscall.h>
@@ -98,6 +99,20 @@ struct signal_struct
     struct itimer timers[ITIMER_COUNT];
     struct wait_queue wait_child_event;
     struct sigqueue shared_signals;
+    /* These utime and stime store the utime and stime of *dead* tasks (zombie or not) */
+    seqlock_t stats_lock;
+    hrtime_t utime;
+    hrtime_t stime;
+    hrtime_t cutime;
+    hrtime_t cstime;
+    unsigned long majflt;
+    unsigned long minflt;
+    unsigned long cmajflt;
+    unsigned long cminflt;
+    unsigned long nvcsw;
+    unsigned long nivcsw;
+    unsigned long cnvcsw;
+    unsigned long cnivcsw;
 };
 
 struct process
@@ -159,12 +174,6 @@ struct process
     /* This process' parent */
     struct process __rcu *parent;
 
-    /* User time and system time consumed by the process */
-    hrtime_t user_time;
-    hrtime_t system_time;
-    hrtime_t children_utime;
-    hrtime_t children_stime;
-
     /* proc_event queue */
     struct spinlock sub_queue_lock;
     struct proc_event_sub *sub_queue;
@@ -194,6 +203,11 @@ struct process
     struct rcu_head rcu_head;
 
     struct thread *thr;
+
+    unsigned long majflt;
+    unsigned long minflt;
+    unsigned long nvcsw;
+    unsigned long nivcsw;
 
 #ifdef __cplusplus
     process();
@@ -561,6 +575,9 @@ static inline rlim_t rlim_get_cur(unsigned int rlimit)
     return READ_ONCE(cur->sig->rlimits[rlimit].rlim_cur);
 }
 
+void task_ctime(struct process *task, hrtime_t *cutime, hrtime_t *cstime);
+void tg_cputime(struct process *process, hrtime_t *utime, hrtime_t *stime);
+void tg_cputime_clock_t(struct process *process, __clock_t *utime, __clock_t *stime);
 __END_CDECLS
 
 #ifdef __cplusplus

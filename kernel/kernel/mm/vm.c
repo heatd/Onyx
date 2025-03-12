@@ -1501,6 +1501,14 @@ int vm_handle_page_fault(struct fault_info *info)
     info->error_info = 0;
     __sync_add_and_fetch(&as->page_faults, 1);
     int ret = __vm_handle_pf(entry, info);
+    if (ret >= 0)
+    {
+        if (ret & VM_FAULT_MAJOR)
+            current->majflt++;
+        else
+            current->minflt++;
+    }
+
     rw_unlock_read(&as->vm_lock);
     return ret;
 err:

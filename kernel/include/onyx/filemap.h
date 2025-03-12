@@ -51,6 +51,7 @@ ssize_t filemap_write_iter(struct file *filp, size_t off, struct iovec_iter *ite
 #define FIND_PAGE_NO_READPAGE (1 << 2)
 #define FIND_PAGE_NO_RA       (1 << 3)
 #define FIND_PAGE_ACTIVATE    (1 << 4)
+#define FIND_PAGE_FAULT       (1 << 5)
 
 int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags, struct page **outp,
                       struct readahead_state *ra_state);

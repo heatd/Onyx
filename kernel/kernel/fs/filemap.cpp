@@ -97,6 +97,7 @@ retry:
              * care of waiting for the IO, or kicking it off if required. */
             filemap_do_readahead_sync(ino, ra_state, pgoff);
             DCHECK(!(flags & FIND_PAGE_NO_READPAGE));
+            st = (flags & FIND_PAGE_FAULT ? FIND_PAGE_FAULT : 0);
         }
         rw_unlock_read(&ino->i_pages->truncate_lock);
     }
@@ -120,6 +121,7 @@ retry:
 
         if (!page_flag_set(p, PAGE_FLAG_UPTODATE))
         {
+            st = (flags & FIND_PAGE_FAULT ? FIND_PAGE_FAULT : 0);
             ssize_t st2 = ino->i_pages->ops->readpage(p, pgoff << PAGE_SHIFT, ino);
 
             /* In case of errors, propagate... */
@@ -147,7 +149,7 @@ retry:
     }
 
 out:
-    if (st == 0)
+    if ((st & ~FIND_PAGE_FAULT) == 0)
         *outp = p;
     else
     {
@@ -729,6 +731,7 @@ static int filemap_fault(struct vm_pf_context *ctx) NO_THREAD_SAFETY_ANALYSIS
     struct page *page = nullptr;
     struct inode *ino = vma->vm_file->f_ino;
     int st = 0;
+    int ret = 0;
     unsigned long pgoff = (ctx->vpage - vma->vm_start) >> PAGE_SHIFT;
     pte_t *ptep;
     pte_t oldpte = ctx->oldpte;
@@ -756,12 +759,14 @@ static int filemap_fault(struct vm_pf_context *ctx) NO_THREAD_SAFETY_ANALYSIS
             return -EIO;
         }
 
-        unsigned ffp_flags = FIND_PAGE_ACTIVATE | (locked ? FIND_PAGE_LOCK : 0);
+        unsigned ffp_flags = FIND_PAGE_ACTIVATE | FIND_PAGE_FAULT | (locked ? FIND_PAGE_LOCK : 0);
         st = filemap_find_page(vma->vm_file->f_ino, fileoff, ffp_flags, &page,
                                &vma->vm_file->f_ra_state);
 
         if (st < 0)
             goto err;
+        if (st == FIND_PAGE_FAULT)
+            ret = VM_FAULT_MAJOR;
     }
 
     if (!info->write)
@@ -843,7 +848,7 @@ out:
     if (locked)
         unlock_page(page);
     page_unref(page);
-    return 0;
+    return ret;
 enomem:
     st = -ENOMEM;
 err:

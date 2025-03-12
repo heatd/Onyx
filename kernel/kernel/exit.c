@@ -31,6 +31,7 @@
 #include <onyx/proc_event.h>
 #include <onyx/process.h>
 #include <onyx/random.h>
+#include <onyx/seqlock.h>
 #include <onyx/syscall.h>
 #include <onyx/task_switching.h>
 #include <onyx/thread.h>
@@ -370,32 +371,102 @@ static bool wait_matches_process(struct wait_info *info, struct process *proc)
     return false;
 }
 
+void task_ctime(struct process *task, hrtime_t *cutime, hrtime_t *cstime)
+{
+    *cutime = READ_ONCE(task->sig->cutime);
+    *cstime = READ_ONCE(task->sig->cstime);
+}
+
+void tg_cputime(struct process *process, hrtime_t *utime, hrtime_t *stime)
+{
+    struct process *task;
+    unsigned int seq;
+
+    seq = 0;
+retry:
+    read_seqbegin_or_lock(&process->sig->stats_lock, &seq);
+    *utime = READ_ONCE(process->sig->utime);
+    *stime = READ_ONCE(process->sig->stime);
+    rcu_read_lock();
+    for_each_thread (process, task)
+    {
+        *utime += READ_ONCE(task->thr->cputime_info.user_time);
+        *stime += READ_ONCE(task->thr->cputime_info.system_time);
+    }
+    rcu_read_unlock();
+    if (read_seqretry(&process->sig->stats_lock, seq))
+    {
+        seq = 1;
+        goto retry;
+    }
+    done_seqretry(&process->sig->stats_lock, seq);
+}
+
+void tg_cputime_clock_t(struct process *process, __clock_t *utime, __clock_t *stime)
+{
+    hrtime_t t0, t1;
+    tg_cputime(process, &t0, &t1);
+    *utime = t0 / NS_PER_MS;
+    *stime = t1 / NS_PER_MS;
+}
+
 static int do_getrusage(int who, struct rusage *usage, struct process *proc)
 {
-    memset(usage, 0, sizeof(struct rusage));
+    struct process *task;
+    struct signal_struct *sig = proc->sig;
     hrtime_t utime = 0;
     hrtime_t stime = 0;
+    unsigned int seq = 0;
 
+retry:
+    read_seqbegin_or_lock(&sig->stats_lock, &seq);
+    memset(usage, 0, sizeof(struct rusage));
+    utime = 0;
+    stime = 0;
     switch (who)
     {
         case RUSAGE_BOTH:
         case RUSAGE_CHILDREN:
-            utime = proc->children_utime;
-            stime = proc->children_stime;
-
+            task_ctime(proc, &utime, &stime);
+            usage->ru_majflt = proc->sig->cmajflt;
+            usage->ru_minflt = proc->sig->cminflt;
+            usage->ru_nvcsw = proc->sig->cnvcsw;
+            usage->ru_nivcsw = proc->sig->cnivcsw;
             if (who == RUSAGE_CHILDREN)
                 break;
 
             /* fallthrough */
         case RUSAGE_SELF:
-            utime += proc->user_time;
-            stime += proc->system_time;
+            utime += READ_ONCE(sig->utime);
+            stime += READ_ONCE(sig->stime);
+            usage->ru_majflt += READ_ONCE(sig->majflt);
+            usage->ru_minflt += READ_ONCE(sig->minflt);
+            usage->ru_nvcsw += sig->nvcsw;
+            usage->ru_nivcsw += sig->nivcsw;
+            rcu_read_lock();
+            for_each_thread (proc, task)
+            {
+                utime += READ_ONCE(task->thr->cputime_info.user_time);
+                stime += READ_ONCE(task->thr->cputime_info.system_time);
+                usage->ru_majflt += task->majflt;
+                usage->ru_minflt += task->minflt;
+                usage->ru_nvcsw += task->nvcsw;
+                usage->ru_nivcsw += task->nivcsw;
+            }
+            rcu_read_unlock();
             break;
 
         default:
             return -EINVAL;
     }
 
+    if (read_seqretry(&sig->stats_lock, seq))
+    {
+        seq = 1;
+        goto retry;
+    }
+
+    done_seqretry(&sig->stats_lock, seq);
     hrtime_to_timeval(utime, &usage->ru_utime);
     hrtime_to_timeval(stime, &usage->ru_stime);
     return 0;
@@ -417,10 +488,15 @@ int sys_getrusage(int who, struct rusage *user_usage)
 
 static void process_accumulate_rusage(struct process *child, const struct rusage *usage)
 {
-    __atomic_add_fetch(&current->children_stime, timeval_to_hrtime(&usage->ru_stime),
-                       __ATOMIC_RELAXED);
-    __atomic_add_fetch(&current->children_utime, timeval_to_hrtime(&usage->ru_utime),
-                       __ATOMIC_RELAXED);
+    struct signal_struct *sig = current->sig;
+    write_seqlock(&sig->stats_lock);
+    sig->cstime += timeval_to_hrtime(&usage->ru_stime);
+    sig->cutime += timeval_to_hrtime(&usage->ru_utime);
+    sig->cmajflt += usage->ru_majflt;
+    sig->cminflt += usage->ru_minflt;
+    sig->cnivcsw += usage->ru_nivcsw;
+    sig->cnvcsw += usage->ru_nvcsw;
+    write_sequnlock(&sig->stats_lock);
 }
 
 static bool process_wait_exit(struct process *child, struct wait_info *winfo)
@@ -618,6 +694,15 @@ static void exit_signal(struct process *task)
      * threads around.
      */
     bool group_leader = thread_group_leader(task);
+
+    write_seqlock(&sig->stats_lock);
+    sig->stime += task->thr->cputime_info.system_time;
+    sig->utime += task->thr->cputime_info.user_time;
+    sig->majflt += task->majflt;
+    sig->minflt += task->minflt;
+    sig->nvcsw += task->nvcsw;
+    sig->nivcsw += task->nivcsw;
+    write_sequnlock(&sig->stats_lock);
 
     spin_lock(&sighand->signal_lock);
 

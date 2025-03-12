@@ -391,17 +391,9 @@ void sched_decrease_quantum(clockevent *ev)
     if (current)
     {
         if (in_kernel_space_regs(current->regs))
-        {
             current->cputime_info.system_time += NS_PER_MS;
-            if (current->owner)
-                __atomic_add_fetch(&current->owner->system_time, NS_PER_MS, __ATOMIC_RELAXED);
-        }
         else
-        {
             get_current_thread()->cputime_info.user_time += NS_PER_MS;
-            if (current->owner)
-                __atomic_add_fetch(&current->owner->user_time, NS_PER_MS, __ATOMIC_RELAXED);
-        }
     }
 
     if (quantum == 1)
@@ -491,8 +483,6 @@ NO_ASAN void sched_load_finish(thread *prev_thread, thread *next_thread)
     native::arch_context_switch(prev_thread, next_thread);
 }
 
-unsigned long st_invoked = 0;
-
 extern "C" void *sched_schedule(void *last_stack)
 {
     if (!is_initialized)
@@ -516,8 +506,10 @@ extern "C" void *sched_schedule(void *last_stack)
 
     if (likely(curr_thread))
     {
+        struct process *current = curr_thread->owner;
         int status = READ_ONCE(curr_thread->status);
-        bool thread_blocked = status == THREAD_INTERRUPTIBLE || status == THREAD_UNINTERRUPTIBLE;
+        bool thread_blocked = status == THREAD_INTERRUPTIBLE || status == THREAD_UNINTERRUPTIBLE ||
+                              status == THREAD_STOPPED;
 
         if (thread_blocked)
         {
@@ -531,6 +523,14 @@ extern "C" void *sched_schedule(void *last_stack)
             trace_sched_block();
         }
 
+        if (current)
+        {
+            if (thread_blocked)
+                current->nvcsw++;
+            else
+                current->nivcsw++;
+        }
+
         curr_thread->flags &= ~THREAD_ACTIVE;
 
         sched_save_thread(curr_thread, last_stack);
@@ -542,7 +542,6 @@ extern "C" void *sched_schedule(void *last_stack)
     irq_save_and_disable();
 
     curr_thread = sched_find_runnable();
-    st_invoked++;
 
     if (source_thread != curr_thread)
     {
