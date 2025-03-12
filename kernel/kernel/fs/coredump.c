@@ -143,6 +143,12 @@ static void coredump_unlink_core(void)
 
 static void core_state_destroy(struct core_state *state)
 {
+    for (unsigned int i = 0; i < state->nr_vmas; i++)
+    {
+        if (state->vmas[i].file)
+            fd_put(state->vmas[i].file);
+    }
+
     kvfree(state->vmas);
     fd_put(state->core_file);
     state->core_file = NULL;
