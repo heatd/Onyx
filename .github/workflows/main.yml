@@ -252,7 +252,7 @@ jobs:
 
       - name: Cache (GNU toolchain)
         id: toolchain-cache-gnu
-        uses: actions/cache@v2.1.4
+        uses: actions/cache@v4.2.0
         with:
           # A list of files, directories, and wildcard patterns to cache and restore
           path: toolchain_binaries-gnu-stage1/
@@ -361,7 +361,7 @@ jobs:
       - name: Cache (GNU toolchain)
         if: matrix.toolchain == 'gnu'
         id: toolchain-cache-gnu
-        uses: actions/cache@v2.1.4
+        uses: actions/cache@v4.2.0
         with:
           # A list of files, directories, and wildcard patterns to cache and restore
           path: toolchain_binaries-gnu/
@@ -372,7 +372,7 @@ jobs:
       - name: Cache (LLVM toolchain)
         if: matrix.toolchain == 'llvm'
         id: toolchain-cache-llvm
-        uses: actions/cache@v2.1.4
+        uses: actions/cache@v4.2.0
         with:
           # A list of files, directories, and wildcard patterns to cache and restore
           path: toolchain_binaries-llvm/
