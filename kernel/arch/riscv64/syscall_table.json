@@ -2938,12 +2938,12 @@
                 "parent_tidptr"
             ],
             [
-                "int *",
-                "child_tidptr"
-            ],
-            [
                 "unsigned long",
                 "tls"
+            ],
+            [
+                "int *",
+                "child_tidptr"
             ]
         ],
         "return_type": "int",
