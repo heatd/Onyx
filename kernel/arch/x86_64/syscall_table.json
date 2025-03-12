@@ -2993,5 +2993,131 @@
         ],
         "return_type": "int",
         "abi": "c"
+    },
+    {
+        "name": "getresuid",
+        "nr": 166,
+        "nr_args": 3,
+        "args": [
+            [
+                "uid_t *",
+                "ruid"
+            ],
+            [
+                "uid_t *",
+                "euid"
+            ],
+            [
+                "uid_t *",
+                "suid"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "getresgid",
+        "nr": 167,
+        "nr_args": 3,
+        "args": [
+            [
+                "gid_t *",
+                "rgid"
+            ],
+            [
+                "gid_t *",
+                "egid"
+            ],
+            [
+                "gid_t *",
+                "sgid"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "setresuid",
+        "nr": 168,
+        "nr_args": 3,
+        "args": [
+            [
+                "uid_t",
+                "ruid"
+            ],
+            [
+                "uid_t",
+                "euid"
+            ],
+            [
+                "uid_t",
+                "suid"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "setresgid",
+        "nr": 169,
+        "nr_args": 3,
+        "args": [
+            [
+                "gid_t",
+                "rgid"
+            ],
+            [
+                "gid_t",
+                "egid"
+            ],
+            [
+                "gid_t",
+                "sgid"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "setreuid",
+        "nr": 170,
+        "nr_args": 2,
+        "args": [
+            [
+                "uid_t",
+                "ruid"
+            ],
+            [
+                "uid_t",
+                "euid"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "setregid",
+        "nr": 171,
+        "nr_args": 2,
+        "args": [
+            [
+                "gid_t",
+                "rgid"
+            ],
+            [
+                "gid_t",
+                "egid"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "geteuid",
+        "nr": 172,
+        "nr_args": 0,
+        "args": [],
+        "return_type": "uid_t"
+    },
+    {
+        "name": "getegid",
+        "nr": 173,
+        "nr_args": 0,
+        "args": [],
+        "return_type": "gid_t"
     }
 ]

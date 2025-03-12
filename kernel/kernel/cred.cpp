@@ -1,11 +1,12 @@
 /*
- * Copyright (c) 2020 - 2024 Pedro Falcato
+ * Copyright (c) 2020 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
 
+#define DEFINE_CURRENT
 #include <errno.h>
 
 #include <onyx/compiler.h>
@@ -193,6 +194,34 @@ int sys_get_uids(uid_t *ruid, uid_t *euid, uid_t *suid)
     return 0;
 }
 
+int sys_getresuid(uid_t *ruid, uid_t *euid, uid_t *suid)
+{
+    creds_guard<CGType::Read> g;
+    auto c = g.get();
+
+    if (copy_to_user(ruid, &c->ruid, sizeof(uid_t)) < 0)
+        return -EFAULT;
+    if (copy_to_user(euid, &c->euid, sizeof(uid_t)) < 0)
+        return -EFAULT;
+    if (copy_to_user(suid, &c->suid, sizeof(uid_t)) < 0)
+        return -EFAULT;
+    return 0;
+}
+
+int sys_getresgid(gid_t *rgid, gid_t *egid, gid_t *sgid)
+{
+    creds_guard<CGType::Read> g;
+    auto c = g.get();
+
+    if (copy_to_user(rgid, &c->rgid, sizeof(gid_t)) < 0)
+        return -EFAULT;
+    if (copy_to_user(egid, &c->egid, sizeof(gid_t)) < 0)
+        return -EFAULT;
+    if (copy_to_user(sgid, &c->sgid, sizeof(gid_t)) < 0)
+        return -EFAULT;
+    return 0;
+}
+
 int sys_get_gids(gid_t *rgid, gid_t *egid, gid_t *sgid)
 {
     creds_guard<CGType::Read> g;
@@ -210,7 +239,7 @@ int sys_get_gids(gid_t *rgid, gid_t *egid, gid_t *sgid)
     return 0;
 }
 
-bool may_switch_to_uid(uid_t id, creds *c)
+static inline bool may_switch_to_uid(uid_t id, creds *c)
 {
     return id == c->euid || id == c->ruid || id == c->suid;
 }
@@ -219,16 +248,16 @@ bool may_switch_to_uid(uid_t id, creds *c)
 #define SET_UIDS_EUID_VALID (1 << 1)
 #define SET_UIDS_SUID_VALID (1 << 2)
 
-int sys_set_uids(unsigned int flags, uid_t ruid, uid_t euid, uid_t suid)
+int sys_setresuid(uid_t ruid, uid_t euid, uid_t suid)
 {
     creds_guard<CGType::Write> g;
 
     /* We check for -1 because it's an invalid uid and POSIX uses it in
      * setresuid to signal a UID that shouldn't be changed.
      */
-    bool euid_valid = flags & SET_UIDS_EUID_VALID && euid != (uid_t) -1;
-    bool ruid_valid = flags & SET_UIDS_RUID_VALID && ruid != (uid_t) -1;
-    bool suid_valid = flags & SET_UIDS_SUID_VALID && suid != (uid_t) -1;
+    bool euid_valid = euid != (uid_t) -1;
+    bool ruid_valid = ruid != (uid_t) -1;
+    bool suid_valid = suid != (uid_t) -1;
 
     auto c = g.get();
 
@@ -251,12 +280,23 @@ int sys_set_uids(unsigned int flags, uid_t ruid, uid_t euid, uid_t suid)
     return 0;
 }
 
-bool may_switch_to_gid(gid_t id, creds *c)
+int sys_set_uids(unsigned int flags, uid_t ruid, uid_t euid, uid_t suid)
+{
+    if (!(flags & SET_UIDS_EUID_VALID))
+        euid = -1;
+    if (!(flags & SET_UIDS_RUID_VALID))
+        ruid = -1;
+    if (!(flags & SET_UIDS_SUID_VALID))
+        suid = -1;
+    return sys_setresuid(ruid, euid, suid);
+}
+
+static inline bool may_switch_to_gid(gid_t id, creds *c)
 {
     return id == c->egid || id == c->rgid || id == c->sgid;
 }
 
-int sys_set_gids(unsigned int flags, gid_t rgid, gid_t egid, gid_t sgid)
+int sys_setresgid(gid_t rgid, gid_t egid, gid_t sgid)
 {
     creds_guard<CGType::Write> g;
 
@@ -264,9 +304,9 @@ int sys_set_gids(unsigned int flags, gid_t rgid, gid_t egid, gid_t sgid)
      * setresuid to signal a GID that shouldn't be changed.
      */
 
-    bool egid_valid = flags & SET_GIDS_EGID_VALID && egid != (gid_t) -1;
-    bool rgid_valid = flags & SET_GIDS_RGID_VALID && rgid != (gid_t) -1;
-    bool sgid_valid = flags & SET_GIDS_SGID_VALID && sgid != (gid_t) -1;
+    bool egid_valid = egid != (gid_t) -1;
+    bool rgid_valid = rgid != (gid_t) -1;
+    bool sgid_valid = sgid != (gid_t) -1;
 
     auto c = g.get();
 
@@ -286,6 +326,73 @@ int sys_set_gids(unsigned int flags, gid_t rgid, gid_t egid, gid_t sgid)
     if (sgid_valid)
         c->sgid = sgid;
 
+    return 0;
+}
+
+int sys_set_gids(unsigned int flags, gid_t rgid, gid_t egid, gid_t sgid)
+{
+    if (!(flags & SET_GIDS_EGID_VALID))
+        egid = -1;
+    if (!(flags & SET_GIDS_RGID_VALID))
+        rgid = -1;
+    if (!(flags & SET_GIDS_SGID_VALID))
+        sgid = -1;
+    return sys_setresgid(rgid, egid, sgid);
+}
+
+int sys_setreuid(uid_t ruid, uid_t euid)
+{
+    creds_guard<CGType::Write> g;
+    struct creds *c = g.get();
+    bool euid_valid = euid != (uid_t) -1;
+    bool ruid_valid = ruid != (uid_t) -1;
+
+    if (c->euid != 0)
+    {
+        /* Small note: Unprivileged users may only set the real user ID to the real user ID or the
+         * effective user ID. */
+        if ((euid_valid && !may_switch_to_uid(euid, c)) ||
+            (ruid_valid && (ruid != c->euid && ruid != c->ruid)))
+            return -EPERM;
+    }
+
+    /* If the real user ID is set (i.e., ruid is not -1) or the effective user ID is set to a value
+     * not equal to the previous real user ID, the saved set-user-ID will be set to the new
+     * effective user ID. */
+    if (ruid_valid || (euid_valid && euid != c->ruid))
+        c->suid = c->euid;
+    if (ruid_valid)
+        c->ruid = ruid;
+    if (euid_valid)
+        c->euid = euid;
+    return 0;
+}
+
+int sys_setregid(gid_t rgid, gid_t egid)
+{
+    creds_guard<CGType::Write> g;
+    struct creds *c = g.get();
+    bool egid_valid = egid != (gid_t) -1;
+    bool rgid_valid = rgid != (gid_t) -1;
+
+    if (c->euid != 0)
+    {
+        /* Small note: Unprivileged users may only set the real user ID to the real user ID or the
+         * effective user ID. */
+        if ((egid_valid && !may_switch_to_gid(egid, c)) ||
+            (rgid_valid && (rgid != c->egid && rgid != c->rgid)))
+            return -EPERM;
+    }
+
+    /* If the real user ID is set (i.e., ruid is not -1) or the effective user ID is set to a value
+     * not equal to the previous real user ID, the saved set-user-ID will be set to the new
+     * effective user ID. */
+    if (rgid_valid || (egid_valid && egid != c->rgid))
+        c->sgid = c->egid;
+    if (rgid_valid)
+        c->rgid = rgid;
+    if (egid_valid)
+        c->egid = egid;
     return 0;
 }
 
@@ -320,7 +427,6 @@ int supp_groups::get_groups(int _size, gid_t *ugids)
     return 0;
 }
 
-/* TODO: Implement set/getresuid, set/getresgid, set/getgroups */
 int sys_setgroups(size_t size, const gid_t *ugids)
 {
     creds_guard<CGType::Write> g;
@@ -393,4 +499,14 @@ bool cred_is_in_group(struct creds *c, gid_t gid)
     }
 
     return false;
+}
+
+uid_t sys_geteuid(void)
+{
+    return current->cred.euid;
+}
+
+gid_t sys_getegid(void)
+{
+    return current->cred.egid;
 }
