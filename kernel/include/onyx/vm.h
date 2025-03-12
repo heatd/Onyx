@@ -97,6 +97,8 @@ struct vm_operations
     int (*fault)(struct vm_pf_context *ctx);
 };
 
+#define VM_FAULT_MAJOR (1 << 0)
+
 extern const struct vm_operations anon_vmops;
 extern const struct vm_operations file_vmops;
 

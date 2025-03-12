@@ -879,7 +879,7 @@ int do_swap_page(struct vm_pf_context *context) NO_THREAD_SAFETY_ANALYSIS
 
     unlock_page(page);
     page_unref(page);
-    return 0;
+    return VM_FAULT_MAJOR;
 err_unlock:
     unlock_page(page);
 err:

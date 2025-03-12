@@ -31,6 +31,7 @@
 #include <onyx/proc_event.h>
 #include <onyx/process.h>
 #include <onyx/random.h>
+#include <onyx/seqlock.h>
 #include <onyx/syscall.h>
 #include <onyx/task_switching.h>
 #include <onyx/thread.h>
@@ -144,6 +145,10 @@ static int dup_signal(struct process *child)
     spin_lock_init(&sig->pgrp_lock);
     init_wait_queue_head(&sig->wait_child_event);
     sigqueue_init(&sig->shared_signals);
+    seqlock_init(&sig->stats_lock);
+    sig->cutime = sig->cstime = sig->stime = sig->utime = 0;
+    sig->majflt = sig->minflt = sig->cmajflt = sig->cminflt = 0;
+    sig->nivcsw = sig->nvcsw = sig->cnivcsw = sig->cnvcsw = 0;
 
     /* Note: We don't dupe pgrp, session and pgrp here, because we don't hold the tasklist_lock */
     read_lock(&curr->rlimit_lock);

@@ -1355,8 +1355,7 @@ bool parent_notify(unsigned int exit_code)
     info.si_signo = sig;
     info.si_pid = pid_nr(current->sig->tgid);
     info.si_uid = current->cred.ruid;
-    info.si_stime = current->system_time / NS_PER_MS;
-    info.si_utime = current->user_time / NS_PER_MS;
+    tg_cputime_clock_t(current, &info.si_utime, &info.si_stime);
 
     if (WIFEXITED(exit_code))
     {
@@ -1414,8 +1413,7 @@ bool notify_process_stop_cont(struct process *task, unsigned int exit_code)
     info.si_signo = sig;
     info.si_pid = pid_nr(task->sig->tgid);
     info.si_uid = task->cred.ruid;
-    info.si_stime = task->system_time / NS_PER_MS;
-    info.si_utime = task->user_time / NS_PER_MS;
+    tg_cputime_clock_t(current, &info.si_utime, &info.si_stime);
 
     if (WIFEXITED(exit_code))
     {
