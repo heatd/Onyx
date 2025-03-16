@@ -242,7 +242,10 @@ __attribute__((noreturn)) void do_exit(unsigned int exit_code)
     sched_yield();
 
     while (true)
-        ;
+    {
+        set_current_state(THREAD_DEAD);
+        sched_yield();
+    }
 }
 
 void sys_exit(int value)
