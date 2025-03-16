@@ -769,6 +769,10 @@ out:
 int sys_sigaction(int signum, const struct k_sigaction *act, struct k_sigaction *oldact)
 {
     int st = 0;
+    struct k_sigaction *ksa;
+    struct k_sigaction old;
+    struct k_sigaction news;
+
     if (!is_valid_signal(signum))
         return -EINVAL;
 
@@ -776,9 +780,7 @@ int sys_sigaction(int signum, const struct k_sigaction *act, struct k_sigaction 
     if (!oldact && !act)
         return 0;
 
-    struct k_sigaction old;
-    struct k_sigaction news;
-
+    ksa = &current->sighand->sigtable[signum];
     if (act)
     {
         if (copy_from_user(&news, act, sizeof(struct k_sigaction)) < 0)
@@ -802,19 +804,19 @@ int sys_sigaction(int signum, const struct k_sigaction *act, struct k_sigaction 
 
     /* If old_act, save the old action */
     if (oldact)
-        memcpy(&old, &current->sighand->sigtable[signum], sizeof(struct k_sigaction));
+        memcpy(&old, ksa, sizeof(struct k_sigaction));
 
     if (act)
     {
         /* Don't let anyone set a signal handler that was marked immutable */
-        if (old.sa_flags & SA_IMMUTABLE)
+        if (ksa->sa_flags & SA_IMMUTABLE)
         {
             st = -EINVAL;
             goto skip;
         }
 
         /* If act, set the new action */
-        memcpy(&current->sighand->sigtable[signum], &news, sizeof(news));
+        memcpy(ksa, &news, sizeof(news));
 
         if (is_signal_ignored(current, signum))
         {
