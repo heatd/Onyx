@@ -273,6 +273,7 @@ static pid_t kernel_clone(struct clone_args *args)
     if (!new_thread)
         goto err_put_mm;
 
+    child->ctid = child->set_tid = NULL;
     if (flags & CLONE_CHILD_CLEARTID)
         child->ctid = args->child_tid;
     if (flags & CLONE_CHILD_SETTID)
