@@ -295,6 +295,55 @@ __always_inline auto_fd __fdget(int fd, u8 extra_flags)
     return auto_fd{f, extra_flags};
 }
 
+extern "C" struct file *fdget_remote(struct process *task, unsigned int fd)
+{
+    struct file *filp = NULL;
+    spin_lock(&task->alloc_lock);
+    if (task->ctx)
+        filp = __get_file_description(fd, task);
+    spin_unlock(&task->alloc_lock);
+    return filp;
+}
+
+static struct file *__fdget_remote_next(int fd, int *outfd, struct process *p)
+{
+    struct ioctx *ctx = p->ctx;
+    /* We're getting either fd, or something after it */
+
+    while (true)
+    {
+        struct fd_table *table = rcu_dereference(ctx->table);
+        if (!validate_fd_number(fd, table))
+            break;
+
+        struct file *f = rcu_dereference(table->file_desc[fd]);
+        if (!f)
+        {
+            fd++;
+            continue;
+        }
+
+        if (!fd_get_rcu(f))
+            continue;
+        *outfd = fd;
+        return f;
+    }
+
+    *outfd = -1;
+    return NULL;
+}
+
+extern "C" struct file *fdget_remote_next(struct process *task, unsigned int fd, int *out)
+{
+    struct file *filp = NULL;
+    *out = -2;
+    read_lock(&tasklist_lock);
+    if (task->ctx)
+        filp = __fdget_remote_next(fd, out, task);
+    read_unlock(&tasklist_lock);
+    return filp;
+}
+
 auto_fd fdget(int fd)
 {
     return __fdget(fd, 0);
@@ -569,7 +618,10 @@ static void close_all_fds(struct ioctx *ctx)
 
 void exit_files(struct process *process)
 {
+    spin_lock(&process->alloc_lock);
     struct ioctx *ctx = process->ctx;
+    process->ctx = NULL;
+    spin_unlock(&process->alloc_lock);
     if (refcount_dec_and_test(&ctx->refs))
     {
         close_all_fds(ctx);
@@ -923,8 +975,8 @@ int sys_dup23_internal(int oldfd, int newfd, int dupflags, unsigned int flags)
 
     struct file *newf_old = nullptr;
 
-    /* We pass FDGET_SHARED so we always get an extra reference (for the dup). A normal fdget here
-     * is wrong, as the behavior changes from single-threaded to multi-threaded. */
+    /* We pass FDGET_SHARED so we always get an extra reference (for the dup). A normal fdget
+     * here is wrong, as the behavior changes from single-threaded to multi-threaded. */
     auto_fd old = __fdget(oldfd, FDGET_SHARED);
     if (!old)
         return -EBADF;
@@ -1666,8 +1718,8 @@ void file_do_cloexec(struct ioctx *ctx)
         if (fd_is_cloexec(i, table))
         {
             /* Close the file */
-            // FIXME: Doing this under a spinlock is not correct and does crash if the struct file
-            // cleanup needs to grab a lock. for instance, during any possible writeback
+            // FIXME: Doing this under a spinlock is not correct and does crash if the struct
+            // file cleanup needs to grab a lock. for instance, during any possible writeback
             auto file = __file_close_unlocked(i, get_current_process()).unwrap();
             filp_close(file);
         }
