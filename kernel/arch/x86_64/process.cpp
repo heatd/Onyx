@@ -79,6 +79,7 @@ struct thread *process_fork_thread(thread_t *src, struct process *dest, unsigned
     thread->owner = dest;
     thread->set_aspace(dest->get_aspace());
     dest->thr = thread;
+    thread_get(thread);
     return thread;
 }
 
