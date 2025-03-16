@@ -305,6 +305,7 @@ static void process_remove_from_list(struct process *proc)
 
 void process_end(struct process *process)
 {
+    thread_put(process->thr);
     process_dtor(process);
     kfree_rcu(process, rcu_head);
 }
