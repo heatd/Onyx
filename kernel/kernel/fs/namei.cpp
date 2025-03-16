@@ -14,10 +14,30 @@
 #include <onyx/process.h>
 #include <onyx/seqlock.h>
 #include <onyx/user.h>
+#include <onyx/vfs.h>
 
 #include <uapi/fcntl.h>
 
 #include <onyx/memory.hpp>
+
+#ifdef CONFIG_DEBUG_NAMEI_TRACE_OPS
+#define DEFINE_NAMEI_TRACE_HELPER(lowercase, uppercase)          \
+    static inline void d_mark_##lowercase(struct dentry *dentry) \
+    {                                                            \
+        dentry->d_flags |= DENTRY_FLAG_##uppercase;              \
+    }
+#else
+#define DEFINE_NAMEI_TRACE_HELPER(lowercase, uppercase)          \
+    static inline void d_mark_##lowercase(struct dentry *dentry) \
+    {                                                            \
+    }
+#endif
+
+DEFINE_NAMEI_TRACE_HELPER(creat, CREAT);
+DEFINE_NAMEI_TRACE_HELPER(unlink, UNLINK);
+DEFINE_NAMEI_TRACE_HELPER(rename, RENAME);
+DEFINE_NAMEI_TRACE_HELPER(link, LINK);
+DEFINE_NAMEI_TRACE_HELPER(symlink, SYMLINK);
 
 enum class fs_token_type : uint8_t
 {
@@ -606,6 +626,7 @@ static int do_creat(dentry *dir, struct inode *inode, struct dentry *dentry, mod
         return -errno;
 
     d_positiveize(dentry, new_inode);
+    d_mark_creat(dentry);
     return 0;
 }
 
@@ -1001,6 +1022,7 @@ static expected<struct dentry *, int> namei_create_generic(int dirfd, const char
     }
 
     d_positiveize(dent, inode);
+    d_mark_creat(dent);
 
     inode_unlock(dir_ino);
     path_put(&parent);
@@ -1084,6 +1106,7 @@ int symlink_vfs(const char *path, const char *dest, int dirfd)
     }
 
     d_positiveize(dent, inode);
+    d_mark_symlink(dent);
 
     inode_unlock(dir_ino);
     path_put(&parent);
@@ -1151,6 +1174,7 @@ int link_vfs(struct file *target, int dirfd, const char *newpath)
 
     inode_ref(dest_ino);
     d_positiveize(dent, dest_ino);
+    d_mark_link(dent);
     inode_inc_nlink(dest_ino);
 
     inode_unlock(dir_ino);
@@ -1278,6 +1302,7 @@ int unlink_vfs(const char *path, int flags, int dirfd)
     {
         goto out2;
     }
+    d_mark_unlink(child);
 
     /* The fs unlink succeeded! Lets change the dcache now that we can't fail! */
     if (child)
@@ -1459,6 +1484,10 @@ int do_renameat(struct dentry *dir, struct lookup_path &last, struct dentry *old
         return st;
     }
 
+    d_mark_rename(old);
+    d_mark_rename(dir);
+    d_mark_rename(dest);
+
     dentry_rename(old, _name, dir, dest);
     dput(dest);
     dput(old_parent);
@@ -1614,6 +1643,7 @@ static int namei_create_generic_path(int dirfd, const char *path, mode_t mode, d
     }
 
     d_positiveize(dent, inode);
+    d_mark_creat(dent);
 
     inode_unlock(dir_ino);
     dput(parent.dentry);
