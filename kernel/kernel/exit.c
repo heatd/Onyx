@@ -44,7 +44,10 @@
 
 void exit_fs(struct process *p)
 {
+    spin_lock(&p->alloc_lock);
     struct fsctx *fs = p->fs;
+    p->fs = NULL;
+    spin_unlock(&p->alloc_lock);
     if (refcount_dec_and_test(&fs->refs))
     {
         path_put(&fs->root);
@@ -62,9 +65,12 @@ void exit_sighand(struct process *p)
 
 static void exit_mmap(void)
 {
-    vm_set_aspace(&kernel_address_space);
-    mmput(current->address_space);
+    struct mm_address_space *mm = current->address_space;
+    spin_lock(&current->alloc_lock);
     current->address_space = &kernel_address_space;
+    spin_unlock(&current->alloc_lock);
+    vm_set_aspace(&kernel_address_space);
+    mmput(mm);
 }
 
 static struct process *reaper_process(struct process *task) REQUIRES(tasklist_lock)
@@ -307,6 +313,10 @@ static void process_remove_from_list(struct process *proc)
 
 void process_end(struct process *process)
 {
+    struct signal_struct *sig = process->sig;
+    if (refcount_dec_and_test(&sig->refs))
+        kfree(sig);
+
     thread_put(process->thr);
     process_dtor(process);
     kfree_rcu(process, rcu_head);
@@ -741,8 +751,6 @@ static void exit_signal(struct process *task)
 
     if (group_leader)
         CHECK(sig->nr_threads == 0);
-    if (refcount_dec_and_test(&sig->refs))
-        kfree(sig);
 }
 
 static void release_task(struct process *task) REQUIRES(tasklist_lock)

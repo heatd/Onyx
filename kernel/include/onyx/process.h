@@ -163,6 +163,8 @@ struct process
     /** Used by pselect, ppoll, sigsuspend */
     sigset_t original_sigset;
     unsigned int exit_code;
+    /* Protects mm, ioctx, fs, etc from being cleared under a remote task (e.g procfs) */
+    struct spinlock alloc_lock;
 
     LIST_HEAD_CPP(process) pgrp_node;
     LIST_HEAD_CPP(process) session_node;
@@ -578,6 +580,9 @@ static inline rlim_t rlim_get_cur(unsigned int rlimit)
 void task_ctime(struct process *task, hrtime_t *cutime, hrtime_t *cstime);
 void tg_cputime(struct process *process, hrtime_t *utime, hrtime_t *stime);
 void tg_cputime_clock_t(struct process *process, __clock_t *utime, __clock_t *stime);
+
+unsigned long get_forks_since_boot(void);
+
 __END_CDECLS
 
 #ifdef __cplusplus
