@@ -119,6 +119,8 @@ static void exit_reparent_children(struct process *task, struct list_head *reap)
         rcu_assign_pointer(child->parent, reaper);
     }
 
+    wait_queue_wake_all(&reaper->sig->wait_child_event);
+
     /* Check if we should autoreap ourselves. This may happen for various reasons:
      * 1) We're a thread while not being a thread group leader (the parent will never wait for us)
      * 2) SIGCHLD has SA_NOCLDWAIT set
