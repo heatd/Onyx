@@ -9,5 +9,12 @@ config EXT2
 
         If unsure, say Y.
 
+config DEBUG_NAMEI_TRACE_OPS
+    bool "Trace dentry namei operations"
+    def_bool n
+    help
+        CONFIG_DEBUG_NAMEI_TRACE_OPS=y lets you trace filesystem namecache operations
+        done in each specific dentry. Useful when debugging VFS refcounting problems.
 
+        If you don't know what any of the above means, say N.
 endmenu
