@@ -45,6 +45,16 @@
 #include <uapi/clone.h>
 
 struct vfork_completion;
+static unsigned long nr_forks = 0;
+
+unsigned long get_forks_since_boot(void)
+{
+    unsigned long nr;
+    read_lock(&tasklist_lock);
+    nr = nr_forks;
+    read_unlock(&tasklist_lock);
+    return nr;
+}
 
 #define __user
 
@@ -325,8 +335,7 @@ static pid_t kernel_clone(struct clone_args *args)
         pid_add_process(session, child, PIDTYPE_SID);
     }
 
-    spin_unlock(&child->sighand->signal_lock);
-    write_unlock(&tasklist_lock);
+    nr_forks++;
 
     set_task_flag(child, PROCESS_FORKED);
     pid = child->pid_;
@@ -347,6 +356,8 @@ static pid_t kernel_clone(struct clone_args *args)
     /* Note: sched_start_thread already provides the necessary memory ordering wrt vfork or anything
      * else */
     sched_start_thread(new_thread);
+    spin_unlock(&child->sighand->signal_lock);
+    write_unlock(&tasklist_lock);
 
     if (flags & CLONE_VFORK)
     {

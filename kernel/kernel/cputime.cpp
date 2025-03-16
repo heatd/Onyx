@@ -107,3 +107,18 @@ void cputime_restart_accounting(thread *t)
 {
     t->cputime_info.last_timeslice_timestamp = clocksource_get_time();
 }
+
+static PER_CPU_VAR(struct kcputime cputime);
+
+void kcputime_add(enum kcputimes time, hrtime_t delta)
+{
+    struct kcputime *cpu = get_per_cpu_ptr(cputime);
+    /* Ugh, this doesn't work: add_per_cpu(cputime.times[time], delta); */
+    cpu->times[time] += delta;
+}
+
+void kcputime_get(unsigned int cpu, struct kcputime *time)
+{
+    struct kcputime *t = get_per_cpu_ptr_any(cputime, cpu);
+    memcpy(time, t, sizeof(*t));
+}

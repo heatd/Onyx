@@ -41,5 +41,28 @@ struct thread_cputime_info
 
 void cputime_info_init(struct thread *t);
 
+enum kcputimes
+{
+    CPUTIME_USER = 0,
+    CPUTIME_NICE,
+    CPUTIME_SYSTEM,
+    CPUTIME_IDLE,
+    CPUTIME_IOWAIT,
+    CPUTIME_IRQ,
+    CPUTIME_SOFTIRQ,
+    CPUTIME_STEAL,
+    CPUTIME_GUEST,
+    CPUTIME_GUEST_NICE,
+    CPUTIME_MAX,
+};
+
+struct kcputime
+{
+    hrtime_t times[CPUTIME_MAX];
+};
+
+void kcputime_add(enum kcputimes time, hrtime_t delta);
+void kcputime_get(unsigned int cpu, struct kcputime *time);
+
 __END_CDECLS
 #endif

@@ -274,6 +274,9 @@ static inline struct syscall_frame *task_curr_syscall_frame(void)
     return ((struct syscall_frame *) curr->kernel_stack_top) - 1;
 }
 
+unsigned long sched_total_ctx_switches(void);
+unsigned long sched_get_runnable(void);
+
 /**
  * @brief Check if we can sleep (to be used by debugging functions)
  *

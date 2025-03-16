@@ -828,6 +828,7 @@ void tty_create_dev(tty *tty, const char *override_name)
 
     dev->private_ = tty;
     dev->show(0666);
+    tty->cdev = dev->dev();
 }
 
 int ctty_open(file *f);

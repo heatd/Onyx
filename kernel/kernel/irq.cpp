@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -19,6 +19,7 @@
 #include <onyx/percpu.h>
 #include <onyx/perf_probe.h>
 #include <onyx/platform.h>
+#include <onyx/seq_file.h>
 
 struct irq_line irq_lines[NR_IRQ] = {};
 unsigned long rogue_irqs = 0;
@@ -116,6 +117,7 @@ void free_irq(unsigned int irq, struct device *device)
 }
 
 PER_CPU_VAR(bool in_irq) = false;
+static PER_CPU_VAR(unsigned long total_irqs);
 
 void dispatch_irq(unsigned int irq, struct irq_context *context)
 {
@@ -147,7 +149,25 @@ void dispatch_irq(unsigned int irq, struct irq_context *context)
         __atomic_add_fetch(&line->stats.spurious, 1, __ATOMIC_RELAXED);
     }
 
+    inc_per_cpu(total_irqs);
     write_per_cpu(in_irq, false);
+}
+
+void irq_print_stat(struct seq_file *m)
+{
+    unsigned long irqs = 0;
+    for (unsigned int i = 0; i < get_nr_cpus(); i++)
+        irqs += get_per_cpu_any(total_irqs, i);
+    seq_printf(m, "intr %lu", irqs);
+
+    for (unsigned int i = 0; i < NR_IRQ; i++)
+    {
+        unsigned long total =
+            READ_ONCE(irq_lines[i].stats.handled_irqs) + READ_ONCE(irq_lines[i].stats.spurious);
+        seq_printf(m, " %lu", total);
+    }
+
+    seq_putc(m, '\n');
 }
 
 void irq_init()

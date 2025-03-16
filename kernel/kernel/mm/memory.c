@@ -105,6 +105,7 @@ static pte_t *__pte_alloc(struct mm_address_space *mm)
     if (!page)
         return NULL;
     increment_vm_stat(mm, page_tables_size, PAGE_SIZE);
+    inc_page_stat(page, NR_PTES);
     return page_to_phys(page);
 }
 
@@ -561,6 +562,7 @@ static enum unmap_result pte_unmap_range(struct unmap_info *uinfo, pte_t *pte, u
 
 static int pmd_free_pte(struct unmap_info *uinfo, pmd_t *pmd, unsigned long addr, int flags)
 {
+    struct page *pte_page;
     pte_t *pte = (pte_t *) __tovirt(pmd_addr(*pmd));
     if (!(flags & UNMAP_FREE_PGTABLE))
     {
@@ -573,6 +575,8 @@ static int pmd_free_pte(struct unmap_info *uinfo, pmd_t *pmd, unsigned long addr
     }
 
     set_pmd(pmd, __pmd(0));
+    pte_page = phys_to_page(((unsigned long) pte) - PHYS_BASE);
+    dec_page_stat(pte_page, NR_PTES);
     tlbi_remove_pte(uinfo->mm, &uinfo->tlbi, pte, addr);
     return 1;
 }

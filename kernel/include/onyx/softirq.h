@@ -17,9 +17,14 @@ enum softirq_vector
     SOFTIRQ_VECTOR_NETRX,
     SOFTIRQ_VECTOR_TASKLET,
     SOFTIRQ_VECTOR_BLOCK,
-    SOFTIRQ_VECTOR_RCU
+    SOFTIRQ_VECTOR_RCU,
+    SOFTIRQ_VECTOR_MAX
 };
 
+__BEGIN_CDECLS
+
+struct seq_file;
+void softirq_print_stat(struct seq_file *m);
 void softirq_raise(enum softirq_vector vec);
 bool softirq_pending();
 void softirq_handle();
@@ -30,5 +35,7 @@ __always_inline __nocov bool softirq_is_handling()
 {
     return get_per_cpu(handling_softirq);
 }
+
+__END_CDECLS
 
 #endif
