@@ -109,7 +109,7 @@ ENTRY(syscall_ENTRY64)
     mov %rsp, %rdi
 
     call do_syscall64
-    cmp %al, %al
+    test %al, %al
     jz x86_scheduler_exit
 
     # Disable the interrupts since we're about to do some naughty stuff with the stack
