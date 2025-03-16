@@ -169,22 +169,30 @@ std::string_view get_token_from_path(lookup_path &path, bool no_consume_if_last)
 #define DENTRY_FOLLOW_SYMLINK_NOT_NAMEI_WALK_COMPONENT (1U << 0)
 static int dentry_follow_symlink(nameidata &data, dentry *symlink, unsigned int flags = 0)
 {
-    file f;
+    struct inode *ino = symlink->d_inode;
+    struct file f;
     f.f_ino = symlink->d_inode;
+
+    if (!inode_can_access(ino, FILE_ACCESS_EXECUTE))
+        return -EACCES;
+
+    if (unlikely(ino->i_op->magic_jump))
+        return ino->i_op->magic_jump(symlink, ino, &data);
 
     /* Oops - We hit the max symlink count */
     if (++data.nloops == nameidata::max_loops)
-    {
         return -ELOOP;
-    }
 
     auto target_str = readlink_vfs(&f);
-    if (!target_str)
-        return -errno;
+    if (IS_ERR_OR_NULL(target_str))
+        return !target_str ? -errno : PTR_ERR(target_str);
 
     /* Empty symlinks = -ENOENT. See nameitests for more info. */
     if (target_str[0] == '\0')
+    {
+        free(target_str);
         return -ENOENT;
+    }
 
     // XXX make it expand
     CHECK(++data.pdepth < SYMLOOP_MAX);
@@ -1665,4 +1673,10 @@ int mknodat_path(int dirfd, const char *path, mode_t mode, dev_t dev, struct pat
     if (mode & S_IFMT & S_IFBAD)
         return -EINVAL;
     return namei_create_generic_path(dirfd, path, mode, 0, out);
+}
+
+void namei_jump(struct nameidata *data, struct path *path)
+{
+    path_put(&data->cur);
+    data->cur = *path;
 }

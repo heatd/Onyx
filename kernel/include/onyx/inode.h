@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -69,6 +69,8 @@ struct file_ops
     ssize_t (*directio)(struct file *file, size_t off, struct iovec_iter *iter, unsigned int flags);
 };
 
+struct nameidata;
+
 struct inode_operations
 {
     __open open;
@@ -82,6 +84,7 @@ struct inode_operations
     struct inode *(*mknod)(struct dentry *dentry, mode_t mode, dev_t dev, struct dentry *dir);
     char *(*readlink)(struct file *ino);
     int (*unlink)(const char *name, int flags, struct dentry *dir);
+    int (*magic_jump)(struct dentry *dentry, struct inode *inode, struct nameidata *data);
 };
 
 /* For directio's flags */
@@ -101,6 +104,7 @@ struct getdents_ret
 
 __BEGIN_CDECLS
 int inode_init(struct inode *ino, bool is_reg);
+void namei_jump(struct nameidata *data, struct path *path);
 __END_CDECLS
 
 struct pipe;
