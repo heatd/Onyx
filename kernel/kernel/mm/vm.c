@@ -23,6 +23,7 @@
 #include <onyx/filemap.h>
 // #include <onyx/gen/trace_vm.h>
 #include <onyx/log.h>
+#include <onyx/majorminor.h>
 #include <onyx/mm/kasan.h>
 #include <onyx/mm/shmem.h>
 #include <onyx/mm/slab.h>
@@ -33,9 +34,11 @@
 #include <onyx/panic.h>
 #include <onyx/percpu.h>
 #include <onyx/pgtable.h>
+#include <onyx/proc.h>
 #include <onyx/process.h>
 #include <onyx/random.h>
 #include <onyx/rmap.h>
+#include <onyx/seq_file.h>
 #include <onyx/spinlock.h>
 #include <onyx/swap.h>
 #include <onyx/sysfs.h>
@@ -2686,3 +2689,204 @@ bool paging_change_perms(void *addr, int prot)
 
     return __paging_change_perms(as, addr, prot);
 }
+
+struct mm_address_space *get_remote_mm(struct process *task)
+{
+    struct mm_address_space *mm;
+    spin_lock(&task->alloc_lock);
+    mm = task->address_space;
+    if (!mm || mm == &kernel_address_space)
+        mm = NULL;
+    else
+        mmget(mm);
+    spin_unlock(&task->alloc_lock);
+    return mm;
+}
+
+struct proc_maps_info
+{
+    struct process *task;
+    struct mm_address_space *mm;
+    struct vma_iterator vmi;
+};
+
+static struct vm_area_struct *vmi_next(struct vma_iterator *vmi)
+{
+    return mas_find(&vmi->mas, -1UL);
+}
+
+static void *maps_start(struct seq_file *m, off_t *off)
+{
+    struct proc_maps_info *info = m->private;
+    struct vm_area_struct *vma;
+    info->mm = get_remote_mm(info->task);
+    if (!info->mm)
+        return NULL;
+
+    rw_lock_read(&info->mm->vm_lock);
+    vmi_init(&info->vmi, info->mm, *off, -1UL);
+    vma = vmi_next(&info->vmi);
+    if (vma)
+        *off = vma->vm_start;
+    return vma;
+}
+
+static void maps_stop(struct seq_file *m, void *ptr)
+{
+    struct proc_maps_info *info = m->private;
+    rw_unlock_read(&info->mm->vm_lock);
+    mmput(info->mm);
+    info->mm = NULL;
+}
+
+static void *maps_next(struct seq_file *m, void *ptr, off_t *pos)
+{
+    struct proc_maps_info *info = m->private;
+    struct vm_area_struct *vma, *old = ptr;
+
+    vma = vmi_next(&info->vmi);
+    if (vma)
+        *pos = vma->vm_start;
+    else
+        *pos = old->vm_end;
+    return vma;
+}
+
+static int print_d_path(struct seq_file *m, struct file *filp)
+{
+    unsigned int bufsize = 64;
+    char *buf, *path;
+    int err = 0;
+
+    buf = kmalloc(bufsize, GFP_KERNEL);
+    if (!buf)
+        return -ENOMEM;
+
+again:
+    path = d_path(&filp->f_path, buf, bufsize);
+    if (IS_ERR(path))
+    {
+        if (PTR_ERR(path) == -ENAMETOOLONG)
+        {
+            bufsize <<= 1;
+            char *buf2 = krealloc(buf, bufsize, GFP_KERNEL);
+            if (!buf2)
+            {
+                err = -ENOMEM;
+                goto out;
+            }
+            buf = buf2;
+            goto again;
+        }
+
+        /* This shouldn't happen, but just keep going in case of an unspecified failure */
+        return 0;
+    }
+
+    seq_puts(m, path);
+out:
+    kfree(buf);
+    return err;
+}
+
+static int maps_show_name(struct seq_file *m, struct vm_area_struct *vma)
+{
+    struct file *filp = vma->vm_file;
+
+    if (!filp)
+    {
+        /* Anon. For now, lets not print anything (since we don't know what's brk or stack or
+         * whatnot) */
+        return 0;
+    }
+
+    seq_putc(m, ' ');
+    seq_puts(m, "\t\t");
+    if (filp->f_path.mount)
+        return print_d_path(m, filp);
+    /* Just print the dentry's name, it ought to be fine... */
+    rcu_read_lock();
+    seq_puts(m, filp->f_dentry->d_name);
+    rcu_read_unlock();
+    return 0;
+}
+
+static int maps_show(struct seq_file *m, void *ptr)
+{
+    struct vm_area_struct *vma = ptr;
+    int flags = vma->vm_flags;
+    bool anon = vma->vm_file == NULL;
+    int err;
+
+    seq_printf(m, "%08lx-%08lx %c%c%c%c ", vma->vm_start, vma->vm_end, flags & VM_READ ? 'r' : '-',
+               flags & VM_WRITE ? 'w' : '-', flags & VM_EXEC ? 'x' : '-',
+               flags & VM_SHARED ? 's' : 'p');
+    if (anon)
+    {
+        /* Zero off, dev, inode */
+        seq_puts(m, "00000000 00:00 0");
+    }
+    else
+    {
+        struct file *filp = vma->vm_file;
+        struct inode *ino = filp->f_ino;
+        seq_printf(m, "%08lx %02x:%02x %lx", vma->vm_offset, MAJOR(ino->i_dev), MINOR(ino->i_dev),
+                   ino->i_inode);
+    }
+
+    err = maps_show_name(m, vma);
+    if (err)
+        return err;
+    seq_putc(m, '\n');
+    return 0;
+}
+
+static const struct seq_operations maps_ops = {
+    .start = maps_start,
+    .stop = maps_stop,
+    .next = maps_next,
+    .show = maps_show,
+};
+
+int proc_maps_open(struct file *filp)
+{
+    int err;
+    struct proc_maps_info *info;
+
+    info = kmalloc(sizeof(*info), GFP_KERNEL);
+    if (!info)
+        return -ENOMEM;
+    info->task = get_inode_task((struct procfs_inode *) filp->f_ino);
+    if (!info->task)
+    {
+        kfree(info);
+        return -ENOMEM;
+    }
+
+    info->mm = NULL;
+    err = seq_open(filp, &maps_ops);
+    if (err < 0)
+    {
+        process_put(info->task);
+        kfree(info);
+        return err;
+    }
+
+    ((struct seq_file *) filp->private_data)->private = info;
+    return err;
+}
+
+static void proc_maps_release(struct file *filp)
+{
+    struct seq_file *m = filp->private_data;
+    struct proc_maps_info *info = m->private;
+    process_put(info->task);
+    kfree(info);
+    seq_release(filp);
+}
+
+const struct proc_file_ops proc_maps_ops = {
+    .open = proc_maps_open,
+    .read_iter = seq_read_iter,
+    .release = proc_maps_release,
+};
