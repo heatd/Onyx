@@ -23,16 +23,18 @@ struct sysinfo do_sys_sysinfo()
     unsigned long pagestats[PAGE_STATS_MAX];
     page_accumulate_stats(pagestats);
 
-    sys.mem_unit = PAGE_SIZE;
+    /* Using mem_unit = PAGE_SIZE sounds obvious, but Linux advertises mem_unit = 1 and some
+     * userspace (e.g toybox top) seems to assume that. */
+    sys.mem_unit = 1;
     page_get_stats(&memstat);
-    sys.bufferram = memstat.page_cache_pages;
+    sys.bufferram = memstat.page_cache_pages << PAGE_SHIFT;
     sys.freehigh = 0;
-    sys.freeram = memstat.total_pages - memstat.allocated_pages;
+    sys.freeram = (memstat.total_pages - memstat.allocated_pages) << PAGE_SHIFT;
     sys.totalswap = sys.freeswap = 0;
-    sys.totalram = memstat.total_pages;
+    sys.totalram = memstat.total_pages << PAGE_SHIFT;
     sys.totalhigh = 0;
     sys.procs = (unsigned short) process_get_active_processes();
-    sys.sharedram = pagestats[NR_SHARED];
+    sys.sharedram = pagestats[NR_SHARED] << PAGE_SHIFT;
 
     if (clock_gettime_kernel(CLOCK_BOOTTIME, &boottime) < 0)
     {
