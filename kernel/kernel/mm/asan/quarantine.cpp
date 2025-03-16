@@ -178,7 +178,7 @@ public:
      * @brief Pop the global queue and unlock, before freeing.
      *
      */
-    void pop_and_unlock(scoped_lock<spinlock> &g);
+    void pop_and_unlock(scoped_lock<spinlock, true> &g);
 
     /**
      * @brief Flush the Quarantine
@@ -195,7 +195,7 @@ public:
  */
 void quarantine::add_chunk_global(quarantine_chunk *chunk, size_t chunk_size)
 {
-    scoped_lock g{queue_lock_};
+    scoped_lock<spinlock, true> g{queue_lock_};
 
     queue_.add_chunk(chunk, chunk_size);
 
@@ -228,7 +228,7 @@ void quarantine::pop()
  * @brief Pop the global queue and unlock, before freeing.
  *
  */
-void quarantine::pop_and_unlock(scoped_lock<spinlock> &g)
+void quarantine::pop_and_unlock(scoped_lock<spinlock, true> &g)
 {
     // We're using a variant of pop() to be able to transfer the whole queue to a local one
     // and therefore free the queue_lock_, which would block every other thread on this very
@@ -274,7 +274,7 @@ void quarantine::add_chunk(quarantine_chunk *chunk, size_t chunk_size)
     if (pcpu.queue.overflowing())
     {
         // If we're overflowing, we'll transfer the whole list to the global queue
-        scoped_lock g{queue_lock_};
+        scoped_lock<spinlock, true> g{queue_lock_};
         queue_.xfer_in(pcpu.queue);
 
         // Since pop may take a while, release the pcpu touched
@@ -318,7 +318,7 @@ void quarantine::flush_pcpu()
     if (pcpu.touched)
         return;
 
-    scoped_lock g{queue_lock_};
+    scoped_lock<spinlock, true> g{queue_lock_};
     queue_.xfer_in(pcpu.queue);
 }
 
@@ -336,7 +336,7 @@ void quarantine::flush()
     sched_enable_preempt();
 
     // Flush the global queue
-    scoped_lock g{queue_lock_};
+    scoped_lock<spinlock, true> g{queue_lock_};
     pop();
 }
 
