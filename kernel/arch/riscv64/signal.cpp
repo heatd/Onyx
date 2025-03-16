@@ -92,9 +92,10 @@ int signal_setup_context(int sig, siginfo_t *siginfo, struct k_sigaction *k_siga
     return 0;
 }
 
-unsigned long sys_sigreturn(registers *frame)
+unsigned long sys_sigreturn()
 {
     /* Switch the registers again */
+    registers *frame = task_regs(current);
     __riscv_mc_gp_state state;
     __riscv_mc_fp_state fpstate;
 

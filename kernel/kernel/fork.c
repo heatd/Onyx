@@ -374,7 +374,7 @@ free_proc:
     return err;
 }
 
-pid_t sys_fork(struct syscall_frame *ctx)
+pid_t sys_fork(void)
 {
     struct clone_args args = {
         .exit_signal = SIGCHLD,
@@ -383,7 +383,7 @@ pid_t sys_fork(struct syscall_frame *ctx)
     return kernel_clone(&args);
 }
 
-pid_t sys_vfork(struct syscall_frame *ctx)
+pid_t sys_vfork(void)
 {
     struct clone_args args = {
         .exit_signal = SIGCHLD,

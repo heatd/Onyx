@@ -1238,7 +1238,7 @@ static int alt_stack_sp_flags(const struct syscall_frame *frame, const stack_t *
 
 #define VALID_SIGALTSTACK_FLAGS (SS_AUTODISARM | SS_DISABLE)
 
-int sys_sigaltstack(const stack_t *new_stack, stack_t *old_stack, const struct syscall_frame *frame)
+int sys_sigaltstack(const stack_t *new_stack, stack_t *old_stack)
 {
     stack_t *stack = &current->altstack;
 
@@ -1247,7 +1247,7 @@ int sys_sigaltstack(const stack_t *new_stack, stack_t *old_stack, const struct s
         stack_t kold = {};
         kold.ss_sp = stack->ss_sp;
         kold.ss_size = stack->ss_size;
-        kold.ss_flags = alt_stack_sp_flags(frame, stack) | stack->ss_flags;
+        kold.ss_flags = alt_stack_sp_flags(task_curr_syscall_frame(), stack) | stack->ss_flags;
 
         if (copy_to_user(old_stack, &kold, sizeof(kold)) < 0)
             return -EFAULT;
@@ -1262,7 +1262,7 @@ int sys_sigaltstack(const stack_t *new_stack, stack_t *old_stack, const struct s
         if (stk.ss_flags & ~VALID_SIGALTSTACK_FLAGS)
             return -EINVAL;
 
-        if (executing_in_altstack(frame, stack))
+        if (executing_in_altstack(task_curr_syscall_frame(), stack))
             return -EPERM;
 
         if (stk.ss_flags & SS_DISABLE)

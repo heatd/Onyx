@@ -142,12 +142,8 @@
     {
         "name": "fork",
         "nr": 10,
-        "nr_args": 1,
+        "nr_args": 0,
         "args": [
-            [
-                "syscall_frame *",
-                "ctx"
-            ]
         ],
         "return_type": "pid_t",
         "abi": "c"
@@ -624,10 +620,6 @@
         "nr": 37,
         "nr_args": 1,
         "args": [
-            [
-                "registers *",
-                "frame"
-            ]
         ],
         "return_type": "unsigned long"
     },
@@ -2202,7 +2194,7 @@
     {
         "name": "sigaltstack",
         "nr": 123,
-        "nr_args": 3,
+        "nr_args": 2,
         "args": [
             [
                 "const stack_t *",
@@ -2211,10 +2203,6 @@
             [
                 "stack_t *",
                 "old_stack"
-            ],
-            [
-                "const struct syscall_frame *",
-                "frame"
             ]
         ],
         "return_type": "int",
@@ -2667,12 +2655,8 @@
     {
             "name": "vfork",
             "nr": 150,
-            "nr_args": 1,
+            "nr_args": 0,
             "args": [
-                [
-                    "syscall_frame *",
-                    "ctx"
-                ]
             ],
             "return_type": "pid_t",
             "abi": "c"
