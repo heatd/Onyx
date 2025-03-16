@@ -53,6 +53,8 @@ struct irq_line
 
 extern bool in_irq;
 
+__BEGIN_CDECLS
+
 __always_inline __nocov bool is_in_interrupt()
 {
     return get_per_cpu(in_irq);
@@ -63,5 +65,10 @@ int install_irq(unsigned int irq, irq_t handler, struct device *device, unsigned
                 void *cookie);
 void free_irq(unsigned int irq, struct device *device);
 void irq_init(void);
+
+struct seq_file;
+void irq_print_stat(struct seq_file *m);
+
+__END_CDECLS
 
 #endif
