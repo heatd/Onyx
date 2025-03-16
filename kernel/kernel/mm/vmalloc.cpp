@@ -23,6 +23,8 @@ struct vmalloc_tree
     unsigned long length;
 } vmalloc_tree;
 
+#define VM_STACK (1U << 31)
+
 struct vmalloc_region
 {
     unsigned long addr;
@@ -193,6 +195,7 @@ void *vmalloc(size_t pages, int type, int perms, unsigned int gfp_flags)
     {
         guard_pages = 2;
         alloc_off = PAGE_SIZE;
+        perms |= VM_STACK;
     }
 
     scoped_lock g{vmalloc_tree.lock};
@@ -249,6 +252,8 @@ void *vmalloc(size_t pages, int type, int perms, unsigned int gfp_flags)
         }
 
         *(char *) (vmal_reg->addr + alloc_off + (i << PAGE_SHIFT)) = 0;
+        if (type == VM_TYPE_STACK)
+            inc_page_stat(it, NR_KSTACK);
     }
 
     vmal_reg->backing_pgs = pgs;
@@ -313,7 +318,17 @@ static void __vfree(void *ptr, bool is_mmiounmap)
 
     // First, free the pages, then unmap the memory, then finally unlink it
     if (!is_mmiounmap && reg->backing_pgs)
-        free_page_list(reg->backing_pgs);
+    {
+        struct page *next;
+        for (struct page *p = reg->backing_pgs; p != NULL; p = next)
+        {
+            next = p->next_un.next_allocation;
+            if (reg->perms & VM_STACK)
+                dec_page_stat(p, NR_KSTACK);
+
+            free_page(p);
+        }
+    }
 
     vm_mmu_unmap(&kernel_address_space, (void *) reg->addr, reg->pages, nullptr);
 

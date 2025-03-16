@@ -57,6 +57,7 @@ struct tty
     const struct tty_ops *ops;
     void *priv;
     uintptr_t tty_num;
+    dev_t cdev;
     struct tty_line_disc *ldisc;
     bool is_vterm;
 

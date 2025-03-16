@@ -363,7 +363,7 @@ PER_CPU_VAR(clockevent *sched_pulse);
 unsigned long avenrun[3];
 unsigned long nrun = 0;
 
-void calc_avenrun()
+unsigned long sched_get_runnable(void)
 {
     unsigned long nr_runnable = 0, nr_runnable2 = 0;
 
@@ -374,12 +374,26 @@ void calc_avenrun()
     }
 
     DCHECK(nr_runnable == nr_runnable2);
+    return nr_runnable;
+}
+
+void calc_avenrun()
+{
+    unsigned long nr_runnable = sched_get_runnable();
     if ((long) nr_runnable < 0)
         panic("calc_avenrun: negative nr runnable %ld", nr_runnable);
     nrun = nr_runnable;
 
     for (int i = 0; i < 3; i++)
         avenrun[i] = (avenrun[i] * cexp[i] + nr_runnable * FSCALE * (FSCALE - cexp[i])) >> FSHIFT;
+}
+
+static void sched_acct_system(hrtime_t time)
+{
+    enum kcputimes type = CPUTIME_SYSTEM;
+    if (softirq_is_handling())
+        type = CPUTIME_SOFTIRQ;
+    kcputime_add(type, time);
 }
 
 void sched_decrease_quantum(clockevent *ev)
@@ -391,9 +405,18 @@ void sched_decrease_quantum(clockevent *ev)
     if (current)
     {
         if (in_kernel_space_regs(current->regs))
+        {
+            if (current->entry == sched_idle)
+                kcputime_add(CPUTIME_IDLE, NS_PER_MS);
+            else
+                sched_acct_system(NS_PER_MS);
             current->cputime_info.system_time += NS_PER_MS;
+        }
         else
+        {
+            kcputime_add(CPUTIME_USER, NS_PER_MS);
             get_current_thread()->cputime_info.user_time += NS_PER_MS;
+        }
     }
 
     if (quantum == 1)
@@ -456,6 +479,15 @@ void sched_load_thread(struct thread *prev, thread *thread, unsigned int cpu)
 
 extern "C" void asan_unpoison_stack_shadow_ctxswitch(struct registers *regs);
 
+static PER_CPU_VAR(unsigned long nr_ctx_switches);
+unsigned long sched_total_ctx_switches(void)
+{
+    unsigned long total = 0;
+    for (unsigned int i = 0; i < get_nr_cpus(); i++)
+        total += get_per_cpu_any(nr_ctx_switches, i);
+    return total;
+}
+
 NO_ASAN void sched_load_finish(thread *prev_thread, thread *next_thread)
 {
     CHECK(irq_is_disabled());
@@ -466,6 +498,7 @@ NO_ASAN void sched_load_finish(thread *prev_thread, thread *next_thread)
 
     rcu_do_quiesc();
 
+    inc_per_cpu(nr_ctx_switches);
     if (prev_thread)
         atomic_and_relaxed(prev_thread->flags, ~THREAD_RUNNING);
 

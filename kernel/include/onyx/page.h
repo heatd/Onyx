@@ -562,6 +562,9 @@ enum page_stat
     NR_ACTIVE_FILE,
     NR_INACTIVE_ANON,
     NR_ACTIVE_ANON,
+    NR_FILE_MAPPED,
+    NR_KSTACK,
+    NR_PTES,
     PAGE_STATS_MAX,
 };
 

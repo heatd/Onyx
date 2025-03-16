@@ -70,8 +70,13 @@ __BEGIN_CDECLS
  * objects before kmem_cache_alloc. */
 #define KMEM_CACHE_TYPESAFE_BY_RCU (1 << 4)
 
+/* Memory for this slab cache is accounted for as reclaimable. Use it when slabs have associated
+ * shrinkers. */
+#define KMEM_CACHE_RECLAIM_ACCOUNT (1 << 5)
+
 #define SLAB_PANIC           KMEM_CACHE_PANIC
 #define SLAB_TYPESAFE_BY_RCU KMEM_CACHE_TYPESAFE_BY_RCU
+#define SLAB_RECLAIM_ACCOUNT (1 << 5)
 
 /**
  * @brief Create a slab cache

@@ -32,6 +32,9 @@ bool swap_is_available(void);
  */
 int swap_add(struct page *page);
 
+unsigned long swap_free(void);
+unsigned long swap_total(void);
+
 struct vm_object;
 extern struct vm_object *swap_spaces[];
 

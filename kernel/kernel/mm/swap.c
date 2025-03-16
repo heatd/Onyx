@@ -139,6 +139,16 @@ bool swap_is_available(void)
     return READ_ONCE(swap_usage.counter) < total_swap;
 }
 
+unsigned long swap_free(void)
+{
+    return READ_ONCE(swap_usage.counter);
+}
+
+unsigned long swap_total(void)
+{
+    return READ_ONCE(total_swap);
+}
+
 #define MAX_SWAP_AREAS 16
 
 struct spinlock swap_areas_lock;

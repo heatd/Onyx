@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2024 Pedro Falcato
+ * Copyright (c) 2020 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -12,6 +12,7 @@
 #include <onyx/panic.h>
 #include <onyx/percpu.h>
 #include <onyx/rcupdate.h>
+#include <onyx/seq_file.h>
 #include <onyx/softirq.h>
 #include <onyx/tasklet.h>
 #include <onyx/timer.h>
@@ -31,6 +32,13 @@ bool softirq_pending()
 {
     return get_per_cpu(pending_vectors) != 0;
 }
+
+struct softirq_stats
+{
+    unsigned long total[SOFTIRQ_VECTOR_MAX];
+};
+
+static PER_CPU_VAR(struct softirq_stats stats);
 
 void softirq_handle()
 {
@@ -52,6 +60,7 @@ void softirq_handle()
     {
         timer_handle_events(platform_get_timer());
         pending &= ~(1 << SOFTIRQ_VECTOR_TIMER);
+        inc_per_cpu(stats.total[SOFTIRQ_VECTOR_TIMER]);
     }
 
 #ifdef CONFIG_NET
@@ -59,6 +68,7 @@ void softirq_handle()
     {
         netif_do_rx();
         pending &= ~(1 << SOFTIRQ_VECTOR_NETRX);
+        inc_per_cpu(stats.total[SOFTIRQ_VECTOR_NETRX]);
     }
 #endif
 
@@ -66,15 +76,20 @@ void softirq_handle()
     {
         tasklet_run();
         pending &= ~(1 << SOFTIRQ_VECTOR_TASKLET);
+        inc_per_cpu(stats.total[SOFTIRQ_VECTOR_TASKLET]);
     }
 
     if (pending & (1 << SOFTIRQ_VECTOR_BLOCK))
+    {
         block_handle_completion();
+        inc_per_cpu(stats.total[SOFTIRQ_VECTOR_BLOCK]);
+    }
 
     if (pending & (1 << SOFTIRQ_VECTOR_RCU))
     {
         rcu_work();
         pending &= ~(1 << SOFTIRQ_VECTOR_RCU);
+        inc_per_cpu(stats.total[SOFTIRQ_VECTOR_RCU]);
     }
 
     if (is_disabled)
@@ -106,4 +121,24 @@ void softirq_raise(enum softirq_vector vec)
 
     if (pending && softirq_may_handle())
         softirq_handle();
+}
+
+void softirq_print_stat(struct seq_file *m)
+{
+    struct softirq_stats stats = {};
+    unsigned long total = 0;
+    for (unsigned int i = 0; i < get_nr_cpus(); i++)
+    {
+        struct softirq_stats *cpu = get_per_cpu_ptr_any(stats, i);
+        for (unsigned int j = 0; j < SOFTIRQ_VECTOR_MAX; j++)
+        {
+            total += cpu->total[j];
+            stats.total[j] += cpu->total[j];
+        }
+    }
+
+    seq_printf(m, " softirq %lu", total);
+    for (int i = 0; i < SOFTIRQ_VECTOR_MAX; i++)
+        seq_printf(m, " %lu", stats.total[i]);
+    seq_putc(m, '\n');
 }
