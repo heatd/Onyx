@@ -49,14 +49,6 @@ extern "C" long do_syscall64(struct syscall_frame *frame)
 {
     context_tracking_enter_kernel();
     CHECK(frame == task_curr_syscall_frame());
-    /* In case of a fork or sigreturn, adjust %rdi so it points to the frame */
-    if (frame->rax == SYS_fork || frame->rax == SYS_sigreturn || frame->rax == SYS_vfork)
-        frame->rdi = (unsigned long) frame;
-
-    /* sigaltstack's implementation requires the syscall frame as the 3rd argument */
-    if (frame->rax == SYS_sigaltstack)
-        frame->rdx = (unsigned long) frame;
-
     unsigned long syscall_nr = frame->rax;
     long ret = 0;
 
