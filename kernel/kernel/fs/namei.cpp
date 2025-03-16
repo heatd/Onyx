@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2024 Pedro Falcato
+ * Copyright (c) 2020 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -1149,6 +1149,7 @@ int link_vfs(struct file *target, int dirfd, const char *newpath)
         goto put_unlock_err;
     }
 
+    inode_ref(dest_ino);
     d_positiveize(dent, dest_ino);
     inode_inc_nlink(dest_ino);
 
