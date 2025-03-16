@@ -1794,9 +1794,12 @@ ssize_t sys_readlinkat(int dirfd, const char *upathname, char *ubuf, size_t bufs
     }
 
     buf = readlink_vfs(f);
-    if (!buf)
+    if (IS_ERR_OR_NULL(buf))
     {
-        st = -errno;
+        if (!buf)
+            st = -errno;
+        else
+            st = PTR_ERR(buf);
         goto out1;
     }
 
