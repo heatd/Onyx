@@ -697,7 +697,8 @@ dentry *dentry_lookup_internal(std::string_view v, dentry *dir, dentry_lookup_fl
 
 void dentry_init()
 {
-    dentry_cache = kmem_cache_create("dentry", sizeof(dentry), 0, KMEM_CACHE_HWALIGN, nullptr);
+    dentry_cache = kmem_cache_create("dentry", sizeof(dentry), 0,
+                                     KMEM_CACHE_HWALIGN | SLAB_RECLAIM_ACCOUNT, nullptr);
     CHECK(dentry_cache != nullptr);
 }
 
