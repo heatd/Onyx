@@ -24,6 +24,15 @@ struct vma_iterator
     struct vma_iterator name = {index, (end) -1, mm, \
                                 MA_STATE_INIT(&(mm)->region_tree, index, (end) -1)}
 
+static inline void vmi_init(struct vma_iterator *vmi, struct mm_address_space *mm,
+                            unsigned long index, unsigned long end)
+{
+    vmi->index = index;
+    vmi->end = end - 1;
+    vmi->mm = mm;
+    mas_init(&vmi->mas, &mm->region_tree, index);
+}
+
 static inline void vmi_destroy(struct vma_iterator *vmi)
 {
     mas_destroy(&vmi->mas);
