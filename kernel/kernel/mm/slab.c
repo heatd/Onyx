@@ -474,13 +474,20 @@ struct slab *kmem_pointer_to_slab_maybe(void *mem)
     return s;
 }
 
+static enum page_stat kmem_slab_stat(struct slab_cache *cache)
+{
+    if (cache->flags & SLAB_RECLAIM_ACCOUNT)
+        return NR_SLAB_RECLAIMABLE;
+    return NR_SLAB_UNRECLAIMABLE;
+}
+
 static void kmem_slab_unaccount_pages(struct slab *slab, unsigned int flags)
 {
     struct page *pages = slab->pages;
     if (flags & KMEM_CACHE_VMALLOC)
         pages = vmalloc_to_pages(slab->start);
     for (; pages; pages = pages->next_un.next_allocation)
-        dec_page_stat(pages, NR_SLAB_UNRECLAIMABLE);
+        dec_page_stat(pages, kmem_slab_stat(slab->cache));
 }
 
 /**
@@ -509,7 +516,7 @@ NO_ASAN static struct slab *kmem_cache_create_slab(struct slab_cache *cache, uns
             return NULL;
         start = (char *) PAGE_TO_VIRT(pages);
         for (unsigned long i = 0; i < (1UL << order); i++)
-            inc_page_stat(&pages[i], NR_SLAB_UNRECLAIMABLE);
+            inc_page_stat(&pages[i], kmem_slab_stat(cache));
     }
     else
     {
@@ -517,7 +524,7 @@ NO_ASAN static struct slab *kmem_cache_create_slab(struct slab_cache *cache, uns
         if (!start)
             return NULL;
         for (pages = vmalloc_to_pages(start); pages; pages = pages->next_un.next_allocation)
-            inc_page_stat(pages, NR_SLAB_UNRECLAIMABLE);
+            inc_page_stat(pages, kmem_slab_stat(cache));
     }
 
     ptr = start;

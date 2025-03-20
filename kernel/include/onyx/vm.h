@@ -777,6 +777,8 @@ static inline bool vma_is_pfnmap(struct vm_area_struct *vma)
 void vm_do_mmu_mprotect(struct mm_address_space *as, void *address, size_t nr_pgs, int old_prots,
                         int new_prots);
 
+struct mm_address_space *get_remote_mm(struct process *task);
+
 __END_CDECLS
 
 #ifdef __cplusplus

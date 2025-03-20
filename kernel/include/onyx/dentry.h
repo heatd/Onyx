@@ -40,6 +40,16 @@ __BEGIN_CDECLS
 #define DENTRY_FLAG_LRU        (1 << 7)
 #define DENTRY_FLAG_REFERENCED (1 << 8)
 
+/* The below flags are only used if CONFIG_DEBUG_NAMEI_TRACE_OPS=y. In that case, when a certain
+ * operation is done on a dentry, it gets tagged for debug purposes. */
+#ifdef CONFIG_DEBUG_NAMEI_TRACE_OPS
+#define DENTRY_FLAG_CREAT   (1 << 9)
+#define DENTRY_FLAG_UNLINK  (1 << 10)
+#define DENTRY_FLAG_RENAME  (1 << 11)
+#define DENTRY_FLAG_LINK    (1 << 12)
+#define DENTRY_FLAG_SYMLINK (1 << 13)
+#endif
+
 struct dentry_operations
 {
     int (*d_revalidate)(struct dentry *, unsigned int flags);
