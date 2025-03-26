@@ -169,7 +169,7 @@ static int fault_in_range(u8 *start, size_t len)
     unsigned long addr = (unsigned long) start;
     u8 *ptr;
     unsigned int dummy;
-    int err;
+    int err = 0;
 
     /* Page align our buffer */
     if (addr & (PAGE_SIZE - 1))
