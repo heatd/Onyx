@@ -24,7 +24,7 @@ static int page_frag_refill(struct page_frag_info *pfi, unsigned int len, gfp_t 
     if (pfi->page)
         page_unref(pfi->page);
 
-    pfi->page = alloc_pages(order, gfp);
+    pfi->page = alloc_pages(order, gfp | PAGE_ALLOC_NO_ZERO);
     if (!pfi->page)
         return -ENOMEM;
     pfi->offset = 0;
