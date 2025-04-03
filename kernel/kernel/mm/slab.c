@@ -1330,7 +1330,7 @@ static void kmem_cache_free_slab(struct slab *slab)
     struct slab_cache *cache = slab->cache;
 
     // Free it from the free list
-#if CONFIG_KASAN
+#ifdef CONFIG_KASAN
     /* If we're going to call_rcu, we need to have an unpoisoned struct slab (so RCU doesn't trip on
      * this) */
     asan_unpoison_shadow((unsigned long) slab, sizeof(struct slab));
