@@ -69,8 +69,8 @@ public:
     int getsockopt(int level, int optname, void *optval, socklen_t *optlen);
     int setsockopt(int level, int optname, const void *optval, socklen_t optlen);
     int connect(sockaddr *addr, socklen_t addrlen, int flags);
-    ssize_t sendmsg(const struct msghdr *msg, int flags);
-    ssize_t recvmsg(struct msghdr *msg, int flags);
+    ssize_t sendmsg(const struct kernel_msghdr *msg, int flags);
+    ssize_t recvmsg(struct kernel_msghdr *msg, int flags);
 
     expected<packetbuf *, int> get_datagram(int flags)
     {

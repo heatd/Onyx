@@ -143,7 +143,7 @@ int netkernel_socket::connect(sockaddr *addr, socklen_t addrlen, int flags)
 
 #define NETKERNEL_HDR_VALID_FLAGS_MASK 0
 
-ssize_t netkernel_socket::sendmsg(const struct msghdr *msg, int flags)
+ssize_t netkernel_socket::sendmsg(const struct kernel_msghdr *msg, int flags)
 {
     scoped_hybrid_lock hlock{socket_lock, this};
     auto addr = (const sockaddr *) msg->msg_name;
@@ -151,9 +151,7 @@ ssize_t netkernel_socket::sendmsg(const struct msghdr *msg, int flags)
     if (!addr && !connected)
         return -ENOTCONN;
 
-    auto len = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
-    if (len < 0)
-        return len;
+    ssize_t len = iovec_iter_bytes(msg->msg_iter);
 
     auto obj = dst;
 
@@ -176,17 +174,9 @@ ssize_t netkernel_socket::sendmsg(const struct msghdr *msg, int flags)
     unsigned char *buf = new unsigned char[len];
     if (!buf)
         return -ENOMEM;
-    auto bufp = buf;
 
-    for (int i = 0; i < msg->msg_iovlen; i++)
-    {
-        const auto &vec = msg->msg_iov[i];
-
-        if (copy_from_user(bufp, vec.iov_base, vec.iov_len) < 0)
-            return -EFAULT;
-
-        bufp += vec.iov_len;
-    }
+    if (ssize_t err = copy_from_iter(msg->msg_iter, buf, len); err != len)
+        return err < 0 ? err : -EFAULT;
 
     auto hdr = (netkernel_hdr *) buf;
 
@@ -238,11 +228,9 @@ ssize_t netkernel_socket::sendmsg(const struct msghdr *msg, int flags)
     return len;
 }
 
-ssize_t netkernel_socket::recvmsg(struct msghdr *msg, int flags)
+ssize_t netkernel_socket::recvmsg(struct kernel_msghdr *msg, int flags)
 {
-    auto iovlen = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
-    if (iovlen < 0)
-        return iovlen;
+    ssize_t iovlen = iovec_iter_bytes(msg->msg_iter);
 
     scoped_hybrid_lock hlock{socket_lock, this};
 
@@ -263,28 +251,14 @@ ssize_t netkernel_socket::recvmsg(struct msghdr *msg, int flags)
         to_ret = buf->length();
     }
 
-    const unsigned char *ptr = buf->data;
-
     if (msg->msg_name)
     {
         // TODO
     }
 
-    for (int i = 0; i < msg->msg_iovlen; i++)
-    {
-        auto iov = msg->msg_iov[i];
-        auto to_copy = min((ssize_t) iov.iov_len, read - was_read);
-        if (copy_to_user(iov.iov_base, ptr, to_copy) < 0)
-        {
-            return -EFAULT;
-        }
-
-        was_read += to_copy;
-
-        ptr += to_copy;
-
-        buf->data += to_copy;
-    }
+    was_read = buf->copy_iter(*msg->msg_iter, flags & MSG_PEEK ? PBF_COPY_ITER_PEEK : 0);
+    if (was_read != iovlen)
+        return was_read < 0 ? was_read : -EFAULT;
 
     msg->msg_controllen = 0;
 

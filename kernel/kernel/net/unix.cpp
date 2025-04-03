@@ -303,7 +303,7 @@ class un_socket : public socket
      * @param msg msghdr
      * @return Length transfered, or negative error codes
      */
-    ssize_t queue_data(const struct msghdr *msg);
+    ssize_t queue_data(const struct kernel_msghdr *msg);
 
     bool has_data() const
     {
@@ -382,16 +382,16 @@ public:
     socket *accept(int flags);
     short poll(void *poll_file, short events);
 
-    ssize_t sendmsg(const struct msghdr *msg, int flags);
-    ssize_t recvmsg(struct msghdr *msg, int flags);
+    ssize_t sendmsg(const struct kernel_msghdr *msg, int flags);
+    ssize_t recvmsg(struct kernel_msghdr *msg, int flags);
     int getsockname(sockaddr *addr, socklen_t *addrlen);
     int getpeername(sockaddr *addr, socklen_t *addrlen);
 
-    ssize_t sendmsg_stream(const struct msghdr *msg, int flags);
-    ssize_t recvmsg_stream(struct msghdr *msg, int flags);
+    ssize_t sendmsg_stream(const struct kernel_msghdr *msg, int flags);
+    ssize_t recvmsg_stream(struct kernel_msghdr *msg, int flags);
 
-    ssize_t sendmsg_dgram(const struct msghdr *msg, int flags);
-    ssize_t recvmsg_dgram(struct msghdr *msg, int flags);
+    ssize_t sendmsg_dgram(const struct kernel_msghdr *msg, int flags);
+    ssize_t recvmsg_dgram(struct kernel_msghdr *msg, int flags);
 
     static void connect_pair(un_socket *sock0, un_socket *sock1);
 
@@ -984,7 +984,7 @@ static int unix_scm_rights(struct unix_pbf_info *info, struct cmsghdr *cmsg)
     return 0;
 }
 
-static int unix_pbf_init(packetbuf *pbf, const struct msghdr *msg)
+static int unix_pbf_init(packetbuf *pbf, const struct kernel_msghdr *msg)
 {
     struct unix_pbf_info *info = pbf_to_unix(pbf);
     info->nfiles = 0;
@@ -1029,7 +1029,7 @@ static void unix_pbf_free(packetbuf *pbf)
     }
 }
 
-static ssize_t fill_pbuf(packetbuf *pbuf, iovec_iter &iter, const struct msghdr *msg)
+static ssize_t fill_pbuf(packetbuf *pbuf, struct iovec_iter *iter, const struct kernel_msghdr *msg)
 {
     struct unix_pbf_info *info = pbf_to_unix(pbuf);
     ssize_t written = 0;
@@ -1038,21 +1038,9 @@ static ssize_t fill_pbuf(packetbuf *pbuf, iovec_iter &iter, const struct msghdr 
     if (msg && unix_has_anciliary(info))
         return 0;
 
-    while (!iter.empty())
-    {
-        // XXX Partial writes (in case of failure) must return the written bytes.
-        // We don't do that atm, because of partial packetbuf writes that are still kind of
-        // buggy.
-        auto iovec = iter.curiovec();
-
-        auto st = pbuf->expand_buffer(iovec.iov_base, iovec.iov_len);
-        if (st < 0)
-            return st;
-        else if (st == 0)
-            break; // Ran out of room
-        iter.advance(st);
-        written += st;
-    }
+    written = copy_to_pbf(pbuf, iter);
+    if (written < 0)
+        return written;
 
     /* We only do CMSG stuff after possible earlier failure, to avoid contrived error paths. */
     if (int err = unix_pbf_init(pbuf, msg); err < 0)
@@ -1067,13 +1055,12 @@ static ssize_t fill_pbuf(packetbuf *pbuf, iovec_iter &iter, const struct msghdr 
  * @param msg msghdr
  * @return Length transfered, or negative error codes
  */
-ssize_t un_socket::queue_data(const struct msghdr *msg)
+ssize_t un_socket::queue_data(const struct kernel_msghdr *msg)
 {
     bool looked_at_tail = false;
-    auto len = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
+    struct iovec_iter *iter = msg->msg_iter;
+    ssize_t len = iovec_iter_bytes(iter);
     bool has_cmsg = msg->msg_control != nullptr;
-    if (len < 0)
-        return len;
 
     scoped_hybrid_lock g{socket_lock, this};
 
@@ -1085,9 +1072,7 @@ ssize_t un_socket::queue_data(const struct msghdr *msg)
         return -EPIPE;
     }
 
-    iovec_iter iter{{msg->msg_iov, static_cast<size_t>(msg->msg_iovlen)}, static_cast<size_t>(len)};
-
-    while (!iter.empty())
+    while (!iter->empty())
     {
         ref_guard<packetbuf> pbuf;
         if (!looked_at_tail && type == SOCK_STREAM)
@@ -1111,7 +1096,7 @@ ssize_t un_socket::queue_data(const struct msghdr *msg)
         if (!pbuf)
             return -ENOBUFS;
 
-        size_t length = cul::min(PACKETBUF_MAX_NR_PAGES << PAGE_SHIFT, iter.bytes);
+        size_t length = cul::min(PACKETBUF_MAX_NR_PAGES << PAGE_SHIFT, iovec_iter_bytes(iter));
         if (!pbuf->allocate_space(length))
             return -ENOBUFS;
 
@@ -1128,7 +1113,7 @@ ssize_t un_socket::queue_data(const struct msghdr *msg)
     return len;
 }
 
-ssize_t un_socket::sendmsg_stream(const struct msghdr *msg, int flags)
+ssize_t un_socket::sendmsg_stream(const struct kernel_msghdr *msg, int flags)
 {
     scoped_hybrid_lock g{socket_lock, this};
 
@@ -1154,7 +1139,7 @@ ssize_t un_socket::sendmsg_stream(const struct msghdr *msg, int flags)
     return peer->queue_data(msg);
 }
 
-ssize_t un_socket::sendmsg_dgram(const struct msghdr *msg, int flags)
+ssize_t un_socket::sendmsg_dgram(const struct kernel_msghdr *msg, int flags)
 {
     scoped_hybrid_lock g{socket_lock, this};
 
@@ -1199,14 +1184,14 @@ ssize_t un_socket::sendmsg_dgram(const struct msghdr *msg, int flags)
     return ret;
 }
 
-ssize_t un_socket::sendmsg(const struct msghdr *msg, int flags)
+ssize_t un_socket::sendmsg(const struct kernel_msghdr *msg, int flags)
 {
     if (type == SOCK_STREAM)
         return sendmsg_stream(msg, flags);
     return sendmsg_dgram(msg, flags);
 }
 
-static int put_cmsg(struct msghdr *msg, int level, int type, void *data, int len)
+static int put_cmsg(struct kernel_msghdr *msg, int level, int type, void *data, int len)
 {
     socklen_t total_len = CMSG_LEN(len);
     if (msg->msg_controllen < total_len)
@@ -1232,7 +1217,7 @@ static int put_cmsg(struct msghdr *msg, int level, int type, void *data, int len
     return 0;
 }
 
-static int unix_put_cmsg(struct unix_pbf_info *pbf, struct msghdr *msg)
+static int unix_put_cmsg(struct unix_pbf_info *pbf, struct kernel_msghdr *msg)
 {
     socklen_t len = msg->msg_controllen;
     if (len == 0)
@@ -1270,19 +1255,11 @@ static int unix_put_cmsg(struct unix_pbf_info *pbf, struct msghdr *msg)
     return 0;
 }
 
-ssize_t un_socket::recvmsg_stream(struct msghdr *msg, int flags)
+ssize_t un_socket::recvmsg_stream(struct kernel_msghdr *msg, int flags)
 {
-    auto iovlen = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
-    if (iovlen < 0)
-        return iovlen;
-
     scoped_hybrid_lock g{socket_lock, this};
-
+    struct iovec_iter *iter = msg->msg_iter;
     CONSUME_SOCK_ERR;
-
-    iovec_iter iter{{msg->msg_iov, static_cast<size_t>(msg->msg_iovlen)},
-                    static_cast<size_t>(iovlen)};
-
     size_t bytes_read = 0;
 
     auto ex = get_data(flags);
@@ -1296,10 +1273,10 @@ ssize_t un_socket::recvmsg_stream(struct msghdr *msg, int flags)
 
     list_for_every_safe (&inbuf_list)
     {
-        if (iter.empty())
+        if (iter->empty())
             break;
         packetbuf *buf = container_of(l, packetbuf, list_node);
-        ssize_t read = buf->copy_iter(iter, flags & MSG_PEEK ? PBF_COPY_ITER_PEEK : 0);
+        ssize_t read = buf->copy_iter(*iter, flags & MSG_PEEK ? PBF_COPY_ITER_PEEK : 0);
 
         if (read < 0)
         {
@@ -1336,20 +1313,13 @@ ssize_t un_socket::recvmsg_stream(struct msghdr *msg, int flags)
     return bytes_read;
 }
 
-ssize_t un_socket::recvmsg_dgram(struct msghdr *msg, int flags)
+ssize_t un_socket::recvmsg_dgram(struct kernel_msghdr *msg, int flags)
 {
     // TODO: Merge stream and dgram paths? I'm still not sure...
-    auto iovlen = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
-    if (iovlen < 0)
-        return iovlen;
-
+    struct iovec_iter *iter = msg->msg_iter;
     scoped_hybrid_lock g{socket_lock, this};
 
     CONSUME_SOCK_ERR;
-
-    iovec_iter iter{{msg->msg_iov, static_cast<size_t>(msg->msg_iovlen)},
-                    static_cast<size_t>(iovlen)};
-
     auto ex = get_data(flags);
 
     if (ex.has_error())
@@ -1360,7 +1330,7 @@ ssize_t un_socket::recvmsg_dgram(struct msghdr *msg, int flags)
     }
 
     packetbuf *buf = ex.value();
-    ssize_t read = buf->copy_iter(iter, flags & MSG_PEEK ? PBF_COPY_ITER_PEEK : 0);
+    ssize_t read = buf->copy_iter(*iter, flags & MSG_PEEK ? PBF_COPY_ITER_PEEK : 0);
 
     if (read >= 0)
     {
@@ -1383,7 +1353,7 @@ ssize_t un_socket::recvmsg_dgram(struct msghdr *msg, int flags)
     return read;
 }
 
-ssize_t un_socket::recvmsg(struct msghdr *msg, int flags)
+ssize_t un_socket::recvmsg(struct kernel_msghdr *msg, int flags)
 {
     if (type == SOCK_STREAM)
         return recvmsg_stream(msg, flags);

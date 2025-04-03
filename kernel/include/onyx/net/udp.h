@@ -66,7 +66,7 @@ class udp_socket : public inet_socket
     }
 
     template <typename AddrType>
-    ssize_t udp_sendmsg(const msghdr *msg, int flags, const inet_sock_address &dst);
+    ssize_t udp_sendmsg(const kernel_msghdr *msg, int flags, const inet_sock_address &dst);
 
     unsigned int wants_cork : 1;
 
@@ -80,12 +80,10 @@ public:
 
     int bind(sockaddr *addr, socklen_t len);
     int connect(sockaddr *addr, socklen_t len, int flags);
-    ssize_t sendmsg(const msghdr *msg, int flags);
+    ssize_t sendmsg(const kernel_msghdr *msg, int flags);
     int getsockopt(int level, int optname, void *val, socklen_t *len);
     int setsockopt(int level, int optname, const void *val, socklen_t len);
-    int send_packet(const msghdr *msg, ssize_t payload_size, in_port_t source_port,
-                    in_port_t dest_port, inet_route &route, int msg_domain);
-    ssize_t recvmsg(msghdr *msg, int flags);
+    ssize_t recvmsg(kernel_msghdr *msg, int flags);
 
     void rx_dgram(packetbuf *buf);
 
