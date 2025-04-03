@@ -87,7 +87,7 @@ in_port_t allocate_ephemeral_port(inet_sock_address &addr, inet_socket *sock, in
     }
 }
 
-void copy_msgname_to_user(struct msghdr *msg, packetbuf *buf, bool isv6, in_port_t port)
+void copy_msgname_to_user(struct kernel_msghdr *msg, packetbuf *buf, bool isv6, in_port_t port)
 {
     if (buf->domain == AF_INET && !isv6)
     {

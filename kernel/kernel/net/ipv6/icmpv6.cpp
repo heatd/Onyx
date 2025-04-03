@@ -195,14 +195,11 @@ bool is_security_sensitive_icmp_packet(icmpv6_header *header)
     return header->type != ICMPV6_ECHO_REQUEST;
 }
 
-ssize_t icmp6_socket::sendmsg(const struct msghdr *msg, int flags)
+ssize_t icmp6_socket::sendmsg(const struct kernel_msghdr *msg, int flags)
 {
     cul::vector<ip_option> options;
 
-    auto iovlen = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
-    if (iovlen < 0)
-        return iovlen;
-
+    auto iovlen = iovec_iter_bytes(msg->msg_iter);
     if (iovlen < min_icmp6_size())
         return -EINVAL;
 
@@ -257,18 +254,11 @@ ssize_t icmp6_socket::sendmsg(const struct msghdr *msg, int flags)
         rt = st.value();
     }
 
-    auto hdr = (icmpv6_header *) packet->push_header(min_icmp6_size());
-    packet->put(extra_size);
-    auto p = (unsigned char *) hdr;
-
-    for (int i = 0; i < msg->msg_iovlen; i++)
+    auto hdr = (icmpv6_header *) packet->tail;
+    if (ssize_t err = copy_to_pbf(packet.get(), msg->msg_iter); err != (ssize_t) iovlen)
     {
-        auto &vec = msg->msg_iov[i];
-
-        if (copy_from_user(p, vec.iov_base, vec.iov_len) < 0)
-            return -EFAULT;
-
-        p += vec.iov_len;
+        err = err < 0 ? err : -EFAULT;
+        return err;
     }
 
     if (is_security_sensitive_icmp_packet(hdr) && !is_root_user())
@@ -382,12 +372,9 @@ expected<packetbuf *, int> icmp6_socket::get_datagram(int flags)
     return buf;
 }
 
-ssize_t icmp6_socket::recvmsg(msghdr *msg, int flags)
+ssize_t icmp6_socket::recvmsg(kernel_msghdr *msg, int flags)
 {
-    auto iovlen = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
-    if (iovlen < 0)
-        return iovlen;
-
+    auto iovlen = iovec_iter_bytes(msg->msg_iter);
     scoped_hybrid_lock hlock{socket_lock, this};
 
     auto st = get_datagram(flags);
@@ -404,8 +391,6 @@ ssize_t icmp6_socket::recvmsg(msghdr *msg, int flags)
     {
         read = buf->length();
     }
-
-    auto ptr = buf->data;
 
     if (msg->msg_name)
     {
@@ -428,19 +413,9 @@ ssize_t icmp6_socket::recvmsg(msghdr *msg, int flags)
     if (!(flags & MSG_TRUNC))
         read = to_read;
 
-    for (int i = 0; to_read != 0; i++)
-    {
-        auto iov = msg->msg_iov[i];
-        auto to_copy = min((ssize_t) iov.iov_len, to_read);
-
-        if (copy_to_user(iov.iov_base, ptr, to_copy) < 0)
-        {
-            return -EFAULT;
-        }
-
-        ptr += to_copy;
-        to_read -= to_copy;
-    }
+    if (ssize_t err = buf->copy_iter(*msg->msg_iter, flags & MSG_PEEK ? PBF_COPY_ITER_PEEK : 0);
+        err != to_read)
+        return err < 0 ? err : -EFAULT;
 
     msg->msg_controllen = 0;
 
