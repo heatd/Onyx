@@ -129,11 +129,11 @@ public:
 
     int bind(struct sockaddr *addr, socklen_t addrlen);
     int connect(struct sockaddr *addr, socklen_t addrlen, int flags);
-    ssize_t sendmsg(const struct msghdr *msg, int flags);
+    ssize_t sendmsg(const struct kernel_msghdr *msg, int flags);
     int getsockopt(int level, int optname, void *val, socklen_t *len);
     int setsockopt(int level, int optname, const void *val, socklen_t len);
     short poll(void *poll_file, short events);
-    ssize_t recvmsg(msghdr *msg, int flags);
+    ssize_t recvmsg(kernel_msghdr *msg, int flags);
 
     bool match_filter(const icmp_header *header)
     {

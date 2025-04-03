@@ -221,11 +221,11 @@ static int restore_fpu_sigframe(void *fpregs)
     return 0;
 }
 
-unsigned long sys_sigreturn(struct syscall_frame *sysframe)
+unsigned long sys_sigreturn(void)
 {
     /* Switch the registers again */
-    struct registers *regs = (struct registers *) sysframe;
-    struct sigframe *sframe = (struct sigframe *) (sysframe->rsp - 8);
+    struct registers *regs = task_regs(current);
+    struct sigframe *sframe = (struct sigframe *) (regs->rsp - 8);
     void *fpregs;
 
     /* Set-up the ucontext */

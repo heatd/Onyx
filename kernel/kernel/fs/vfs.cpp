@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -17,6 +17,7 @@
 #include <onyx/cpu.h>
 #include <onyx/dentry.h>
 #include <onyx/dev.h>
+#include <onyx/err.h>
 #include <onyx/file.h>
 #include <onyx/fnv.h>
 #include <onyx/libfs.h>
@@ -340,18 +341,17 @@ void close_vfs(struct inode *this_)
 char *readlink_vfs(struct file *file)
 {
     if (!S_ISLNK(file->f_ino->i_mode))
-        return errno = EINVAL, nullptr;
+        return (char *) ERR_PTR(-EINVAL);
 
     if (file->f_ino->i_op->readlink)
     {
         char *p = file->f_ino->i_op->readlink(file);
-        if (p != nullptr)
+        if (!IS_ERR_OR_NULL(p))
             inode_update_atime(file->f_ino);
-
         return p;
     }
 
-    return errno = EINVAL, nullptr;
+    return (char *) ERR_PTR(-EINVAL);
 }
 
 bool inode_can_access(struct inode *file, unsigned int perms)

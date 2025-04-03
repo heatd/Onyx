@@ -202,6 +202,75 @@ static int allocate_page_vec(page_iov &v)
     return 0;
 }
 
+ssize_t copy_to_pbf(struct packetbuf *pbf, iovec_iter *iter)
+{
+    ssize_t ret = 0, st;
+    unsigned int tail_room;
+    /* Right now, trying to expand a packetbuf with zero copy enabled would blow up spectacularly,
+     * since it could try to access random pages that may be allocated or something.
+     */
+    assert(!pbf->zero_copy);
+
+    if (pbf_can_try_put(pbf))
+    {
+        tail_room = pbf_tail_room(pbf);
+        if (tail_room > 0)
+        {
+            void *tail = pbf->tail;
+            ret = copy_from_iter(iter, tail, tail_room);
+            if (ret < 0)
+                return ret;
+
+            pbf->tail += ret;
+            if (ret < tail_room)
+                return ret;
+        }
+#if DEBUG_PACKETBUF_GROW
+        printk("Put %ld bytes in put()\n", ret);
+#endif
+    }
+
+    for (unsigned int i = 1; i < PACKETBUF_MAX_NR_PAGES; i++)
+    {
+        if (iter->empty())
+            break;
+
+        auto &v = pbf->page_vec[i];
+
+        if (!v.page)
+        {
+            if (allocate_page_vec(v) < 0)
+                return -ENOMEM;
+        }
+
+        tail_room = PAGE_SIZE - v.length;
+        if (tail_room > 0)
+        {
+#if DEBUG_PACKETBUF_GROW
+            printk("length %u + tail room %u = %u", length(), tail_room, length() + tail_room);
+#endif
+            u8 *dest_ptr = (u8 *) PAGE_TO_VIRT(v.page) + v.page_off + v.length;
+
+            st = copy_from_iter(iter, dest_ptr, tail_room);
+            if (st < 0)
+            {
+                if (!ret)
+                    ret = st;
+                break;
+            }
+
+#if DEBUG_PACKETBUF_GROW
+            printk("Put %u bytes in page vec %u\n", to_put, i);
+#endif
+
+            v.length += st;
+            ret += st;
+        }
+    }
+
+    return ret;
+}
+
 /**
  * @brief Expands the packet buffer, either by doing put(), expanding page iters, or adding new
  * pages.
@@ -213,71 +282,11 @@ static int allocate_page_vec(page_iov &v)
  */
 ssize_t pbf_expand_buffer(struct packetbuf *pbf, const void *ubuf_, unsigned int len)
 {
-    // printk("len %u\n", len);
-    ssize_t ret = 0;
-    const uint8_t *ubuf = static_cast<const uint8_t *>(ubuf_);
-    /* Right now, trying to expand a packetbuf with zero copy enabled would blow up spectacularly,
-     * since it could try to access random pages that may be allocated or something.
-     */
-    assert(!pbf->zero_copy);
-
-    if (pbf_can_try_put(pbf))
-    {
-        if (pbf_tail_room(pbf))
-        {
-            auto to_put = min(pbf_tail_room(pbf), len);
-            auto p = pbf_put(pbf, to_put);
-
-            if (copy_from_user(p, ubuf, to_put) < 0)
-                return -EFAULT;
-
-            ubuf += to_put;
-            len -= to_put;
-            ret += to_put;
-        }
-#if DEBUG_PACKETBUF_GROW
-        printk("Put %ld bytes in put()\n", ret);
-#endif
-    }
-
-    for (unsigned int i = 1; i < PACKETBUF_MAX_NR_PAGES; i++)
-    {
-        if (!len)
-            break;
-
-        auto &v = pbf->page_vec[i];
-
-        if (!v.page)
-        {
-            if (allocate_page_vec(v) < 0)
-                return -ENOMEM;
-        }
-
-        unsigned int tail_room = PAGE_SIZE - v.length;
-
-        if (tail_room > 0)
-        {
-            auto to_put = min(tail_room, len);
-
-#if DEBUG_PACKETBUF_GROW
-            printk("length %u + tail room %u = %u", length(), tail_room, length() + tail_room);
-#endif
-            uint8_t *dest_ptr = (uint8_t *) PAGE_TO_VIRT(v.page) + v.page_off + v.length;
-
-            if (copy_from_user(dest_ptr, ubuf, to_put) < 0)
-                return -EFAULT;
-#if DEBUG_PACKETBUF_GROW
-            printk("Put %u bytes in page vec %u\n", to_put, i);
-#endif
-
-            v.length += to_put;
-            ubuf += to_put;
-            len -= to_put;
-            ret += to_put;
-        }
-    }
-
-    return ret;
+    struct iovec iov;
+    iov.iov_base = (void *) ubuf_;
+    iov.iov_len = len;
+    iovec_iter iter{{&iov, 1}, len};
+    return copy_to_pbf(pbf, &iter);
 }
 
 /**
@@ -303,7 +312,7 @@ ssize_t packetbuf::expand_buffer(const void *ubuf, unsigned int len)
  */
 ssize_t packetbuf::copy_iter(iovec_iter &iter, unsigned int flags)
 {
-    ssize_t copied = 0;
+    ssize_t copied = 0, st;
     unsigned int last_vec = 1;
     u8 *datap = data;
     size_t in_body_data = tail - datap;
@@ -312,20 +321,18 @@ ssize_t packetbuf::copy_iter(iovec_iter &iter, unsigned int flags)
     {
         if (iter.empty())
             break;
-        auto iov = iter.curiovec();
-        size_t to_copy = min(iov.iov_len, in_body_data);
 
-        if (copy_to_user(iov.iov_base, datap, to_copy) < 0)
+        st = copy_to_iter(&iter, datap, in_body_data);
+        if (st < 0)
         {
             if (!copied)
                 copied = -EFAULT;
             return copied;
         }
 
-        datap += to_copy;
-        in_body_data -= to_copy;
-        copied += to_copy;
-        iter.advance(copied);
+        datap += st;
+        in_body_data -= st;
+        copied += st;
         DCHECK(datap <= tail);
 
         if (!(flags & PBF_COPY_ITER_PEEK))
@@ -343,7 +350,6 @@ ssize_t packetbuf::copy_iter(iovec_iter &iter, unsigned int flags)
     {
         ssize_t to_copy = 0;
         void *ptr = nullptr;
-        auto iov = iter.curiovec();
         struct page_iov *vec = nullptr;
 
         for (; last_vec < PACKETBUF_MAX_NR_PAGES + 1;
@@ -362,7 +368,7 @@ ssize_t packetbuf::copy_iter(iovec_iter &iter, unsigned int flags)
                 continue;
 
             vec = &page_vec[last_vec];
-            to_copy = min(iov.iov_len, (size_t) current_iov_len);
+            to_copy = current_iov_len;
             ptr = (u8 *) (PAGE_TO_VIRT(vec->page)) + vec->page_off + current_iov_off;
             break;
         }
@@ -370,23 +376,23 @@ ssize_t packetbuf::copy_iter(iovec_iter &iter, unsigned int flags)
         if (!vec)
             break;
 
-        if (copy_to_user(iov.iov_base, ptr, to_copy) < 0)
+        st = copy_to_iter(&iter, ptr, to_copy);
+        if (st < 0)
         {
             if (!copied)
                 copied = -EFAULT;
             break;
         }
 
-        current_iov_len -= to_copy;
-        current_iov_off += to_copy;
-        copied += to_copy;
-        iter.advance(to_copy);
+        current_iov_len -= st;
+        current_iov_off += st;
+        copied += st;
 
         if (!(flags & PBF_COPY_ITER_PEEK))
         {
             // Adjust the page_iov
-            vec->page_off += to_copy;
-            vec->length -= to_copy;
+            vec->page_off += st;
+            vec->length -= st;
             current_iov_off = 0;
             DCHECK(vec->page_off <= PAGE_SIZE);
             DCHECK(vec->length <= PAGE_SIZE);

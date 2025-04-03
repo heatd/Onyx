@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -15,6 +15,8 @@
 #include <onyx/file.h>
 #include <onyx/init.h>
 #include <onyx/modules.h>
+#include <onyx/proc.h>
+#include <onyx/seq_file.h>
 #include <onyx/symbol.h>
 #include <onyx/user.h>
 #include <onyx/vfs.h>
@@ -476,4 +478,134 @@ int sym_symbolize(void *address, char *buf, size_t bufsize, unsigned int flags)
     }
 
     return 0;
+}
+
+static void *kallsyms_start(struct seq_file *m, off_t *pos)
+{
+    size_t off = *pos;
+    spin_lock(&module_list_lock);
+    struct module *mod = module_list;
+    while (mod)
+    {
+        if (off < mod->nr_symtable_entries)
+        {
+            /* We found our module, return a symbol in here */
+            m->private_ = mod;
+            return &mod->symtable[off];
+        }
+
+        off -= mod->nr_symtable_entries;
+        mod = mod->next;
+    }
+
+    return NULL;
+}
+
+static void *kallsyms_next(struct seq_file *m, void *ptr, off_t *pos)
+{
+    struct module *mod = (struct module *) m->private_;
+    struct symbol *cur = (struct symbol *) ptr;
+    (*pos)++;
+    if (cur + 1 < mod->symtable + mod->nr_symtable_entries)
+    {
+        cur++;
+        return cur;
+    }
+
+    /* Ran out of symbols in this module, check the next */
+    mod = mod->next;
+    if (!mod)
+        return NULL;
+    m->private_ = mod;
+    return &mod->symtable[0];
+}
+
+static char nm_char(struct symbol *sym, struct module *mod)
+{
+    /* Check if we're in .text or .(ro)data (.bss not yet supported) */
+    unsigned long value = sym->value;
+    if (value >= mod->layout.start_text && value < mod->layout.start_text + mod->layout.text_size)
+        return (sym->visibility & SYMBOL_VIS_GLOBAL) ? 'T' : 't';
+    if ((value >= mod->layout.start_data &&
+         value < mod->layout.start_data + mod->layout.data_size) ||
+        (value >= mod->layout.start_ro && value < mod->layout.start_ro + mod->layout.ro_size))
+        return (sym->visibility & SYMBOL_VIS_GLOBAL) ? 'D' : 'd';
+
+    /* Assume percpu (though this is a little dubious) */
+    return (sym->visibility & SYMBOL_VIS_GLOBAL) ? 'L' : 'l';
+}
+
+static int kallsyms_show(struct seq_file *m, void *v)
+{
+    struct module *mod = (struct module *) m->private_;
+    struct symbol *sym = (struct symbol *) v;
+    bool obfuscate_addr = !is_root_user();
+    unsigned long value = obfuscate_addr ? 0 : sym->value;
+
+    seq_printf(m, "%016lx %c %s", value, nm_char(sym, mod), sym->name);
+    if (mod != &core_kernel)
+        seq_printf(m, " [%s]", mod->name);
+    seq_putc(m, '\n');
+    return 0;
+}
+
+static int kallsyms2_show(struct seq_file *m, void *v)
+{
+    struct module *mod = (struct module *) m->private_;
+    struct symbol *sym = (struct symbol *) v;
+    bool obfuscate_addr = !is_root_user();
+    unsigned long value = obfuscate_addr ? 0 : sym->value;
+
+    /* Like regular kallsyms, but also show the symbol's size instead of userspace tooling having to
+     * guess it */
+    seq_printf(m, "%016lx %lx %c %s", value, sym->size, nm_char(sym, mod), sym->name);
+    if (mod != &core_kernel)
+        seq_printf(m, " [%s]", mod->name);
+    seq_putc(m, '\n');
+    return 0;
+}
+
+static void kallsyms_stop(struct seq_file *m, void *v)
+{
+    spin_unlock(&module_list_lock);
+}
+
+static struct seq_operations kallsyms_seq_ops = {
+    .start = kallsyms_start,
+    .stop = kallsyms_stop,
+    .next = kallsyms_next,
+    .show = kallsyms_show,
+};
+
+static struct seq_operations kallsyms2_seq_ops = {
+    .start = kallsyms_start,
+    .stop = kallsyms_stop,
+    .next = kallsyms_next,
+    .show = kallsyms2_show,
+};
+
+static int kallsyms_open(struct file *filp)
+{
+    return seq_open(filp, &kallsyms_seq_ops);
+}
+
+static int kallsyms2_open(struct file *filp)
+{
+    return seq_open(filp, &kallsyms2_seq_ops);
+}
+
+const struct proc_file_ops kallsyms_ops = {
+    .open = kallsyms_open,
+    .read_iter = seq_read_iter,
+};
+
+const struct proc_file_ops kallsyms2_ops = {
+    .open = kallsyms2_open,
+    .read_iter = seq_read_iter,
+};
+
+static __init void kallsyms_init(void)
+{
+    procfs_add_entry("kallsyms", S_IFREG | 0400, NULL, &kallsyms_ops);
+    procfs_add_entry("kallsyms2", S_IFREG | 0400, NULL, &kallsyms2_ops);
 }

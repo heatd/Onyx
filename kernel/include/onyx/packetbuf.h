@@ -449,6 +449,7 @@ typedef unsigned int gfp_t;
 struct packetbuf *pbf_alloc(gfp_t gfp);
 struct packetbuf *pbf_alloc_sk(gfp_t gfp, struct socket *sock, unsigned int len);
 struct packetbuf *pbf_alloc_rx(gfp_t gfp, unsigned int len);
+ssize_t copy_to_pbf(struct packetbuf *pbf, struct iovec_iter *iter);
 
 __END_CDECLS
 
