@@ -773,7 +773,7 @@ static void tcp_prepare_segment(struct tcp_socket *sock, struct packetbuf *pbf)
 
 static int tcp_write_alloc(struct tcp_socket *sock);
 
-static bool tcp_attempt_merge(struct packetbuf *pbf, struct page_frag *pf)
+static void tcp_add_pbf_frag(struct packetbuf *pbf, struct page_frag *pf)
 {
     struct page_iov *iov = &pbf->page_vec[pbf->nr_vecs - 1];
 
@@ -790,18 +790,25 @@ static bool tcp_attempt_merge(struct packetbuf *pbf, struct page_frag *pf)
             pbf->tail += pf->len;
             pbf->end += pf->len;
         }
-        return true;
+        return;
     }
 
-    /* TODO: We can't use the last page_iov for legacy reasons */
-    if (unlikely(pbf->nr_vecs >= PBF_PAGE_IOVS - 1))
-        return false;
+    CHECK(pbf->nr_vecs < PBF_PAGE_IOVS - 1);
     pbf->nr_vecs++;
     iov++;
     iov->page = pf->page;
     iov->page_off = pf->offset;
     iov->length = pf->len;
-    return true;
+}
+
+static bool tcp_may_add(struct packetbuf *pbf, struct page_frag *pf)
+{
+    struct page_iov *iov = &pbf->page_vec[pbf->nr_vecs - 1];
+
+    /* TODO: We can't use the last page_iov for legacy reasons */
+    if (likely(pbf->nr_vecs < PBF_PAGE_IOVS - 1))
+        return true;
+    return likely(iov->page == pf->page && iov->page_off + iov->length == pf->offset);
 }
 
 static u8 *ptr_from_frag(struct page_frag *pf)
@@ -812,7 +819,6 @@ static u8 *ptr_from_frag(struct page_frag *pf)
 static int tcp_append_to_segment(struct tcp_socket *tp, struct packetbuf *pbf,
                                  struct iovec_iter *iter)
 {
-    struct iovec iov;
     unsigned int len, to_add;
     struct page_frag pf;
     int err;
@@ -825,13 +831,12 @@ static int tcp_append_to_segment(struct tcp_socket *tp, struct packetbuf *pbf,
 
     while (len < tp->mss)
     {
-        if (iter->empty())
+        if (iovec_iter_empty(iter))
             break;
         if (write_space == 0)
             break;
 
-        iov = iter->curiovec();
-        to_add = min((unsigned int) iov.iov_len, (unsigned int) write_space);
+        to_add = min((unsigned int) iovec_iter_bytes(iter), (unsigned int) write_space);
         to_add = min(to_add, tp->mss - len);
         to_add = min(to_add, (unsigned int) PAGE_SIZE);
 
@@ -839,9 +844,13 @@ static int tcp_append_to_segment(struct tcp_socket *tp, struct packetbuf *pbf,
         if (err)
             return -ENOBUFS;
 
-        /* Note: We cannot copy_from_iter because we don't yet know if this fragment will be valid
-         */
-        if (copy_from_user(ptr_from_frag(&pf), iov.iov_base, to_add) < 0)
+        if (!tcp_may_add(pbf, &pf))
+        {
+            page_unref(pf.page);
+            break;
+        }
+
+        if (copy_from_iter(iter, ptr_from_frag(&pf), to_add) < 0)
         {
             page_unref(pf.page);
             return -EFAULT;
@@ -855,18 +864,11 @@ static int tcp_append_to_segment(struct tcp_socket *tp, struct packetbuf *pbf,
             break;
         }
 
-        if (unlikely(!tcp_attempt_merge(pbf, &pf)))
-        {
-            page_unref(pf.page);
-            sock_discharge_snd_bytes(tp, to_add);
-            break;
-        }
-
+        tcp_add_pbf_frag(pbf, &pf);
         pbf->total_len += pf.len;
         len += pf.len;
         write_space -= len;
         pbf->tpi.seq_len += pf.len;
-        iter->advance(to_add);
     }
 
     return iter->empty() ? 0 : -ENOSPC;
@@ -941,9 +943,10 @@ static int tcp_write_alloc(struct tcp_socket *sock)
     return 0;
 }
 
-ssize_t tcp_sendmsg(struct socket *sock_, const msghdr *msg, int flags)
+ssize_t tcp_sendmsg(struct socket *sock_, const kernel_msghdr *msg, int flags)
 {
     int err;
+    ssize_t len;
     struct tcp_socket *sock = TCP_SOCK(sock_);
     if (msg->msg_name)
         return -EISCONN;
@@ -968,15 +971,11 @@ ssize_t tcp_sendmsg(struct socket *sock_, const msghdr *msg, int flags)
             return sock_stream_error(sock, err, flags);
     }
 
-    auto len = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
+    len = iovec_iter_bytes(msg->msg_iter);
 
-    if (len < 0)
-        return len;
-
-    iovec_iter iter{{msg->msg_iov, (size_t) msg->msg_iovlen}, (size_t) len, IOVEC_USER};
-    err = tcp_append_write(sock, &iter, sock->mss, flags);
+    err = tcp_append_write(sock, msg->msg_iter, sock->mss, flags);
     if (err < 0)
-        return len - iter.bytes ?: err;
+        return len - iovec_iter_bytes(msg->msg_iter) ?: err;
 
     err = tcp_output(sock);
     if (err < 0)
@@ -1027,19 +1026,14 @@ static void tcp_update_rmem_window(struct tcp_socket *tp, size_t bytes_read)
         tcp_send_ack(tp);
 }
 
-static ssize_t tcp_recvmsg(struct socket *sock_, msghdr *msg, int flags)
+static ssize_t tcp_recvmsg(struct socket *sock_, struct kernel_msghdr *msg, int flags)
 {
     size_t bytes_read = 0;
-    ssize_t iovlen;
     unsigned int pbuf_len;
+    struct iovec_iter *iter = msg->msg_iter;
     struct packetbuf *pbf, *next;
     struct tcp_socket *sock = TCP_SOCK(sock_);
 
-    iovlen = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
-    if (iovlen < 0)
-        return iovlen;
-
-    iovec_iter iter{{msg->msg_iov, (size_t) msg->msg_iovlen}, (size_t) iovlen, IOVEC_USER};
     scoped_hybrid_lock g{sock_->socket_lock, sock_};
 
     if (sock->has_sock_err())
@@ -1055,23 +1049,27 @@ static ssize_t tcp_recvmsg(struct socket *sock_, msghdr *msg, int flags)
         return 0;
     }
 
-    pbuf_len = pbf_length(pbf);
-
-    if (iovlen < pbuf_len)
-        msg->msg_flags = MSG_TRUNC;
-
     list_for_each_entry_safe (pbf, next, &sock->read_queue, list_node)
     {
-        if (iter.empty())
+        if (iovec_iter_empty(iter))
+        {
+            msg->msg_flags |= MSG_TRUNC;
             break;
-        ssize_t read = pbf->copy_iter(iter, flags & MSG_PEEK ? PBF_COPY_ITER_PEEK : 0);
+        }
 
+        pbuf_len = pbf_length(pbf);
+
+        ssize_t read = pbf->copy_iter(*iter, flags & MSG_PEEK ? PBF_COPY_ITER_PEEK : 0);
         if (read < 0)
         {
             if (bytes_read == 0)
                 bytes_read = read;
             break;
         }
+
+        bytes_read += read;
+        if (read != pbuf_len)
+            break;
 
         if (!(flags & MSG_PEEK))
         {
@@ -1081,8 +1079,6 @@ static ssize_t tcp_recvmsg(struct socket *sock_, msghdr *msg, int flags)
                 pbf_put_ref(pbf);
             }
         }
-
-        bytes_read += read;
     }
 
     if (bytes_read > 0 && !(flags & MSG_PEEK))

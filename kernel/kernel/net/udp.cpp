@@ -170,21 +170,9 @@ void udp_prepare_headers(packetbuf *buf, in_port_t sport, in_port_t dport, size_
     udp_header->checksum = 0;
 }
 
-static int udp_put_data(struct packetbuf *buf, struct iovec_iter *iter)
+static ssize_t udp_put_data(struct packetbuf *buf, struct iovec_iter *iter)
 {
-    unsigned char *ptr = (unsigned char *) buf->put((unsigned int) iter->bytes);
-
-    while (!iter->empty())
-    {
-        const auto vec = iter->curiovec();
-        if (copy_from_user(ptr, vec.iov_base, vec.iov_len) < 0)
-            return -EFAULT;
-
-        ptr += vec.iov_len;
-        iter->advance(vec.iov_len);
-    }
-
-    return 0;
+    return copy_to_pbf(buf, iter);
 }
 
 template <int domain>
@@ -227,19 +215,17 @@ int udp_do_send(packetbuf *buf, const inet_route &route)
 }
 
 template <typename AddrType>
-ssize_t udp_socket::udp_sendmsg(const msghdr *msg, int flags, const inet_sock_address &dst)
+ssize_t udp_socket::udp_sendmsg(const kernel_msghdr *msg, int flags, const inet_sock_address &dst)
 {
     bool wanting_cork = wants_cork || flags & MSG_MORE;
     bool will_append = false;
+    ssize_t ret;
+    struct iovec_iter *iter = msg->msg_iter;
 
-    auto payload_size = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
-    if (payload_size < 0)
-        return payload_size;
-
+    ssize_t payload_size = iovec_iter_bytes(msg->msg_iter);
     if (payload_size > UINT16_MAX)
         return -EMSGSIZE;
 
-    iovec_iter iter{{msg->msg_iov, (size_t) msg->msg_iovlen}, (size_t) payload_size, IOVEC_USER};
     inet_route route;
 
     constexpr auto our_domain = inet_domain_type_v<AddrType>;
@@ -315,10 +301,12 @@ ssize_t udp_socket::udp_sendmsg(const msghdr *msg, int flags, const inet_sock_ad
         pbf_reserve_headers(pbf, sizeof(udphdr) + PACKET_MAX_HEAD_LENGTH);
 
         udp_prepare_headers(pbf, src_addr.port, dst.port, payload_size);
-        if (udp_put_data(pbf, &iter) < 0)
+        ret = udp_put_data(pbf, iter);
+        if (ret < 0 || ret != payload_size)
         {
             pbf_free(pbf);
-            return -EFAULT;
+            ret = ret < 0 ? ret : -EFAULT;
+            return ret;
         }
 
         udp_do_csum<our_domain>(pbf, route);
@@ -329,18 +317,22 @@ ssize_t udp_socket::udp_sendmsg(const msghdr *msg, int flags, const inet_sock_ad
         }
 
         pbf_put_ref(pbf);
-        return payload_size;
+        return ret;
     }
 
     scoped_hybrid_lock g{socket_lock, this};
 
     cork_pending = our_domain;
 
+#if 0
     /* Woohoo, corking path! */
     if (int st = cork.append_data(msg->msg_iov, msg->msg_iovlen, sizeof(udphdr), 0xffff); st < 0)
     {
         return st;
     }
+#endif
+    WARN_ON_ONCE(1);
+    return -EIO;
 
     if (!wanting_cork)
     {
@@ -357,7 +349,7 @@ ssize_t udp_socket::udp_sendmsg(const msghdr *msg, int flags, const inet_sock_ad
     return payload_size;
 }
 
-ssize_t udp_socket::sendmsg(const msghdr *msg, int flags)
+ssize_t udp_socket::sendmsg(const kernel_msghdr *msg, int flags)
 {
     sockaddr *addr = (sockaddr *) msg->msg_name;
     if (addr && !validate_sockaddr_len_pair(addr, msg->msg_namelen))
@@ -568,11 +560,10 @@ expected<packetbuf *, int> udp_socket::get_datagram(int flags)
     return buf;
 }
 
-ssize_t udp_socket::recvmsg(msghdr *msg, int flags)
+ssize_t udp_socket::recvmsg(kernel_msghdr *msg, int flags)
 {
-    auto iovlen = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
-    if (iovlen < 0)
-        return iovlen;
+    struct iovec_iter *iter = msg->msg_iter;
+    ssize_t iovlen = iovec_iter_bytes(iter);
 
     scoped_hybrid_lock hlock{socket_lock, this};
 
@@ -589,11 +580,7 @@ ssize_t udp_socket::recvmsg(msghdr *msg, int flags)
         msg->msg_flags = MSG_TRUNC;
 
     if (flags & MSG_TRUNC)
-    {
         to_ret = buf->length();
-    }
-
-    const unsigned char *ptr = buf->data;
 
     if (msg->msg_name)
     {
@@ -601,19 +588,9 @@ ssize_t udp_socket::recvmsg(msghdr *msg, int flags)
         ip::copy_msgname_to_user(msg, buf, domain == AF_INET6, hdr->source_port);
     }
 
-    for (int i = 0; i < msg->msg_iovlen; i++)
-    {
-        auto iov = msg->msg_iov[i];
-        auto to_copy = min((ssize_t) iov.iov_len, read - was_read);
-        if (copy_to_user(iov.iov_base, ptr, to_copy) < 0)
-        {
-            return -EFAULT;
-        }
-
-        was_read += to_copy;
-
-        ptr += to_copy;
-    }
+    was_read = buf->copy_iter(*iter, flags & MSG_PEEK ? PBF_COPY_ITER_PEEK : 0);
+    if (was_read < 0)
+        return was_read;
 
     msg->msg_controllen = 0;
 

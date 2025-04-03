@@ -23,7 +23,7 @@ struct inet_proto_family;
 namespace ip
 {
 
-void copy_msgname_to_user(struct msghdr *msg, packetbuf *buf, bool isv6, in_port_t port);
+void copy_msgname_to_user(struct kernel_msghdr *msg, packetbuf *buf, bool isv6, in_port_t port);
 
 }; // namespace ip
 

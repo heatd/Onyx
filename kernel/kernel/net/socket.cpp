@@ -118,7 +118,7 @@ int socket::connect(struct sockaddr *addr, socklen_t addrlen, int flags)
     return -EIO;
 }
 
-ssize_t socket::sendmsg(const struct msghdr *msg, int flags)
+ssize_t socket::sendmsg(const struct kernel_msghdr *msg, int flags)
 {
     (void) msg;
     (void) flags;
@@ -153,30 +153,9 @@ static inline int fd_flags_to_msg_flags(struct file *f)
     return flags;
 }
 
-ssize_t socket::recvmsg(struct msghdr *msg, int flags)
+ssize_t socket::recvmsg(struct kernel_msghdr *msg, int flags)
 {
     return -EIO;
-}
-
-size_t socket_write(size_t offset, size_t len, void *buffer, struct file *file)
-{
-    socket *s = file_to_socket(file);
-
-    msghdr msg;
-    msg.msg_control = nullptr;
-    msg.msg_controllen = 0;
-    msg.msg_flags = 0;
-
-    iovec vec0;
-    /* This cast is safe because sendmsg won't write to the iov */
-    vec0.iov_base = const_cast<void *>(buffer);
-    vec0.iov_len = len;
-    msg.msg_iov = &vec0;
-    msg.msg_iovlen = 1;
-    msg.msg_name = nullptr;
-    msg.msg_namelen = 0;
-
-    return s->sock_ops->sendmsg(s, &msg, fd_flags_to_msg_flags(file));
 }
 
 ssize_t socket_write_iter(file *filp, size_t offset, iovec_iter *iter, unsigned int flags)
@@ -185,50 +164,28 @@ ssize_t socket_write_iter(file *filp, size_t offset, iovec_iter *iter, unsigned 
     (void) flags;
     socket *s = file_to_socket(filp);
 
-    msghdr msg;
+    kernel_msghdr msg;
     msg.msg_control = nullptr;
     msg.msg_controllen = 0;
     msg.msg_flags = 0;
-    msg.msg_iov = iter->vec.data();
-    msg.msg_iovlen = iter->vec.size();
+    msg.msg_iter = iter;
     msg.msg_name = nullptr;
     msg.msg_namelen = 0;
 
     return s->sock_ops->sendmsg(s, &msg, fd_flags_to_msg_flags(filp));
 }
 
-size_t socket_read(size_t offset, size_t len, void *buffer, file *file)
-{
-    socket *s = file_to_socket(file);
-    msghdr msg;
-    msg.msg_control = nullptr;
-    msg.msg_controllen = 0;
-    msg.msg_flags = 0;
-
-    iovec vec0;
-    /* This cast is safe because sendmsg won't write to the iov */
-    vec0.iov_base = buffer;
-    vec0.iov_len = len;
-    msg.msg_iov = &vec0;
-    msg.msg_iovlen = 1;
-    msg.msg_name = nullptr;
-    msg.msg_namelen = 0;
-
-    return s->sock_ops->recvmsg(s, &msg, fd_flags_to_msg_flags(file));
-}
-
-ssize_t socker_read_iter(file *filp, size_t offset, iovec_iter *iter, unsigned int flags)
+ssize_t socket_read_iter(file *filp, size_t offset, iovec_iter *iter, unsigned int flags)
 {
     (void) offset;
     (void) flags;
     socket *s = file_to_socket(filp);
 
-    msghdr msg;
+    kernel_msghdr msg;
     msg.msg_control = nullptr;
     msg.msg_controllen = 0;
     msg.msg_flags = 0;
-    msg.msg_iov = iter->vec.data();
-    msg.msg_iovlen = iter->vec.size();
+    msg.msg_iter = iter;
     msg.msg_name = nullptr;
     msg.msg_namelen = 0;
 
@@ -420,11 +377,11 @@ unsigned int socket_ioctl(int request, void *argp, struct file *file)
 }
 
 struct file_ops socket_ops = {
-    .read = socket_read,
-    .write = socket_write,
     .close = socket_close,
     .ioctl = socket_ioctl,
     .poll = socket_poll,
+    .read_iter = socket_read_iter,
+    .write_iter = socket_write_iter,
 };
 
 auto_file get_socket_fd(int fd)
@@ -433,7 +390,7 @@ auto_file get_socket_fd(int fd)
     if (!desc)
         return errno = EBADF, nullptr;
 
-    if (desc->f_ino->i_fops->write != socket_write)
+    if (desc->f_ino->i_fops != &socket_ops)
     {
         fd_put(desc);
         return errno = ENOTSOCK, nullptr;
@@ -530,7 +487,7 @@ ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockad
             return -EFAULT;
     }
 
-    msghdr msg;
+    kernel_msghdr msg;
     msg.msg_control = nullptr;
     msg.msg_controllen = 0;
     msg.msg_flags = 0;
@@ -539,8 +496,8 @@ ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockad
     /* This cast is safe because sendmsg won't write to the iov */
     vec0.iov_base = const_cast<void *>(buf);
     vec0.iov_len = len;
-    msg.msg_iov = &vec0;
-    msg.msg_iovlen = 1;
+    iovec_iter iter{{&vec0, 1}, len};
+    msg.msg_iter = &iter;
     msg.msg_name = src_addr ? &sa : nullptr;
     msg.msg_namelen = src_addr ? addrlen : 0;
 
@@ -1232,15 +1189,35 @@ int copy_msghdr_from_user(msghdr *msg, const msghdr *umsg, msghdr_guard &guard)
     return 0;
 }
 
-ssize_t socket_sendmsg(socket *sock, msghdr *umsg, int flags)
+static kernel_msghdr msghdr_to_kmsghdr(msghdr *msg, struct iovec_iter *iter)
+{
+    kernel_msghdr kmsg;
+    kmsg.msg_iter = iter;
+    kmsg.msg_control = msg->msg_control;
+    kmsg.msg_controllen = msg->msg_controllen;
+    kmsg.msg_flags = msg->msg_flags;
+    kmsg.msg_name = msg->msg_name;
+    kmsg.msg_namelen = msg->msg_namelen;
+    return kmsg;
+}
+
+static ssize_t socket_sendmsg(socket *sock, msghdr *umsg, int flags)
 {
     msghdr msg;
     msghdr_guard g;
+    kernel_msghdr kmsg;
+    ssize_t len;
 
     if (int st = copy_msghdr_from_user(&msg, umsg, g); st < 0)
         return st;
 
-    return sock->sock_ops->sendmsg(sock, &msg, flags);
+    len = iovec_count_length(msg.msg_iov, msg.msg_iovlen);
+    if (len < 0)
+        return len;
+
+    iovec_iter iter{{msg.msg_iov, (size_t) msg.msg_iovlen}, (size_t) len};
+    kmsg = msghdr_to_kmsghdr(&msg, &iter);
+    return sock->sock_ops->sendmsg(sock, &kmsg, flags);
 }
 
 ssize_t sys_sendto(int sockfd, const void *buf, size_t len, int flags, struct sockaddr *addr,
@@ -1264,7 +1241,7 @@ ssize_t sys_sendto(int sockfd, const void *buf, size_t len, int flags, struct so
             return -EFAULT;
     }
 
-    msghdr msg;
+    kernel_msghdr msg;
     msg.msg_control = nullptr;
     msg.msg_controllen = 0;
     msg.msg_flags = 0;
@@ -1273,8 +1250,8 @@ ssize_t sys_sendto(int sockfd, const void *buf, size_t len, int flags, struct so
     /* This cast is safe because sendmsg won't write to the iov */
     vec0.iov_base = const_cast<void *>(buf);
     vec0.iov_len = len;
-    msg.msg_iov = &vec0;
-    msg.msg_iovlen = 1;
+    iovec_iter iter{{&vec0, 1}, len};
+    msg.msg_iter = &iter;
     msg.msg_name = addr ? &sa : nullptr;
     msg.msg_namelen = addr ? addrlen : 0;
 
@@ -1299,12 +1276,21 @@ ssize_t socket_recvmsg(socket *sock, msghdr *umsg, int flags)
 {
     msghdr msg;
     msghdr_guard g;
+    struct kernel_msghdr kmsg;
+    ssize_t iovlen;
 
     if (int st = copy_msghdr_from_user(&msg, umsg, g); st < 0)
         return st;
 
+    iovlen = iovec_count_length(msg.msg_iov, msg.msg_iovlen);
+    if (iovlen < 0)
+        return iovlen;
+
+    iovec_iter iter{{msg.msg_iov, (size_t) msg.msg_iovlen}, (size_t) iovlen};
+    kmsg = msghdr_to_kmsghdr(&msg, &iter);
+
     socklen_t len = msg.msg_controllen;
-    auto st = sock->sock_ops->recvmsg(sock, &msg, flags);
+    auto st = sock->sock_ops->recvmsg(sock, &kmsg, flags);
 
     if (st < 0)
         return st;
@@ -1312,17 +1298,17 @@ ssize_t socket_recvmsg(socket *sock, msghdr *umsg, int flags)
     msg.msg_control = g.ucontrol;
     msg.msg_iov = (iovec *) g.uiov;
     msg.msg_name = g.uname;
-    msg.msg_controllen = len - msg.msg_controllen;
+    msg.msg_controllen = len - kmsg.msg_controllen;
 
     if (msg.msg_control)
     {
-        if (copy_to_user(msg.msg_control, g.msg_control, msg.msg_controllen) < 0)
+        if (copy_to_user(msg.msg_control, g.msg_control, kmsg.msg_controllen) < 0)
             return -EFAULT;
     }
 
     if (msg.msg_name)
     {
-        if (copy_to_user(msg.msg_name, g.uname, msg.msg_namelen) < 0)
+        if (copy_to_user(msg.msg_name, g.uname, kmsg.msg_namelen) < 0)
             return -EFAULT;
     }
 

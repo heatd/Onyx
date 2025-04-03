@@ -39,6 +39,16 @@
 
 struct socket;
 
+struct kernel_msghdr
+{
+    void *msg_name;
+    socklen_t msg_namelen;
+    struct iovec_iter *msg_iter;
+    void *msg_control;
+    socklen_t msg_controllen;
+    int msg_flags;
+};
+
 struct socket_ops
 {
     void (*destroy)(struct socket *);
@@ -46,8 +56,8 @@ struct socket_ops
     struct socket *(*accept)(struct socket *, int flags);
     int (*bind)(struct socket *, struct sockaddr *addr, socklen_t addrlen);
     int (*connect)(struct socket *, struct sockaddr *addr, socklen_t addrlen, int flags);
-    ssize_t (*sendmsg)(struct socket *, const struct msghdr *msg, int flags);
-    ssize_t (*recvmsg)(struct socket *, struct msghdr *msg, int flags);
+    ssize_t (*sendmsg)(struct socket *, const struct kernel_msghdr *msg, int flags);
+    ssize_t (*recvmsg)(struct socket *, struct kernel_msghdr *msg, int flags);
     int (*getsockname)(struct socket *, struct sockaddr *addr, socklen_t *addrlen);
     int (*getpeername)(struct socket *, struct sockaddr *addr, socklen_t *addrlen);
     int (*shutdown)(struct socket *, int how);
@@ -180,8 +190,8 @@ public:
     socket *accept(int flags);
     int bind(sockaddr *addr, socklen_t addrlen);
     int connect(sockaddr *addr, socklen_t addrlen, int flags);
-    ssize_t sendmsg(const struct msghdr *msg, int flags);
-    ssize_t recvmsg(struct msghdr *msg, int flags);
+    ssize_t sendmsg(const struct kernel_msghdr *msg, int flags);
+    ssize_t recvmsg(struct kernel_msghdr *msg, int flags);
     int getsockname(sockaddr *addr, socklen_t *addrlen);
     int getpeername(sockaddr *addr, socklen_t *addrlen);
     int shutdown(int how);
@@ -247,13 +257,13 @@ int cpp_connect(struct socket *sock, struct sockaddr *addr, socklen_t addrlen, i
 }
 
 template <typename T>
-ssize_t cpp_sendmsg(struct socket *sock, const struct msghdr *msg, int flags)
+ssize_t cpp_sendmsg(struct socket *sock, const struct kernel_msghdr *msg, int flags)
 {
     return ((T *) sock)->sendmsg(msg, flags);
 }
 
 template <typename T>
-ssize_t cpp_recvmsg(struct socket *sock, struct msghdr *msg, int flags)
+ssize_t cpp_recvmsg(struct socket *sock, struct kernel_msghdr *msg, int flags)
 {
     return ((T *) sock)->recvmsg(msg, flags);
 }

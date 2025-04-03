@@ -96,6 +96,22 @@ ssize_t copy_to_iter(iovec_iter *iter, const void *buf, size_t len)
     return st;
 }
 
+void iovec_iter_advance(struct iovec_iter *iter, size_t len)
+{
+    const auto cur = iter->vec;
+    DCHECK(cur->iov_len >= iter->pos_ + len);
+    DCHECK(iter->bytes >= len);
+    iter->pos_ += len;
+    iter->bytes -= len;
+
+    while (!iter->empty() && iter->pos_ == iter->vec->iov_len)
+    {
+        iter->vec++;
+        iter->nr_vecs--;
+        iter->pos_ = 0;
+    }
+}
+
 /**
  * @brief Check if all buffers' addresses and lengths are aligned
  *
@@ -106,8 +122,9 @@ ssize_t copy_to_iter(iovec_iter *iter, const void *buf, size_t len)
 bool iovec_is_aligned(struct iovec_iter *iter, unsigned long alignment)
 {
     bool first = true;
-    for (const iovec &v : iter->vec)
+    for (size_t i = 0; i < iter->nr_vecs; i++)
     {
+        const auto &v = iter->vec[i];
         unsigned long addr = (unsigned long) v.iov_base;
         unsigned long len = v.iov_len;
 

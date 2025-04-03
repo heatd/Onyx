@@ -23,21 +23,29 @@ enum iovec_type
 };
 
 #ifdef __cplusplus
-
-#include <onyx/assert.h>
-
 #include <onyx/slice.hpp>
 #include <onyx/utility.hpp>
+#endif
+#include <onyx/assert.h>
+
+__BEGIN_CDECLS
+struct iovec_iter;
+
+void iovec_iter_advance(struct iovec_iter *iter, size_t len);
 
 struct iovec_iter
 {
-    cul::slice<iovec> vec;
-    size_t pos_{0};
+    union {
+        const struct iovec *vec;
+    };
+    size_t nr_vecs;
+    size_t pos_;
     size_t bytes;
     enum iovec_type type;
 
+#ifdef __cplusplus
     iovec_iter(cul::slice<iovec> vec, size_t length, enum iovec_type type = IOVEC_USER)
-        : vec{cul::move(vec)}, bytes{length}, type{type}
+        : vec{vec.cbegin()}, nr_vecs{vec.size()}, pos_{0}, bytes{length}, type{type}
     {
         if (length > 0)
             skip_zero_len();
@@ -48,44 +56,31 @@ struct iovec_iter
         /* Required so users never need to explicitly handle zero-len iov_lens. It's all handled by
          * skip_zero_len in the ctor, and advance().
          */
-        while (vec.front().iov_len == 0)
-            vec.adjust(1);
+        if (type != IOVEC_USER)
+            return;
+        while (vec->iov_len == 0)
+        {
+            vec++;
+            nr_vecs--;
+        }
     }
 
     [[nodiscard]] bool empty()
     {
-        return vec.size() == 0;
+        return nr_vecs == 0;
     }
 
     [[nodiscard]] iovec curiovec() const
     {
-        return {(void *) ((u8 *) vec.front().iov_base + pos_), vec.front().iov_len - pos_};
+        return {(void *) ((u8 *) vec->iov_base + pos_), vec->iov_len - pos_};
     }
 
     void advance(size_t len)
     {
-        const auto &cur = vec.front();
-
-        DCHECK(cur.iov_len >= pos_ + len);
-        DCHECK(bytes >= len);
-        pos_ += len;
-        bytes -= len;
-
-        while (!empty() && pos_ == vec.front().iov_len)
-        {
-            vec.adjust(1);
-            pos_ = 0;
-        }
+        iovec_iter_advance(this, len);
     }
-};
-#else
-
-/* Opaque definition of iovec_iter */
-struct iovec_iter;
-
 #endif
-
-__BEGIN_CDECLS
+};
 
 static inline ssize_t iovec_count_length(struct iovec *vec, unsigned int n)
 {
@@ -133,6 +128,16 @@ ssize_t copy_to_iter(struct iovec_iter *iter, const void *buf, size_t len);
  * @return True if aligned, else false
  */
 bool iovec_is_aligned(struct iovec_iter *iter, unsigned long alignment);
+
+static inline size_t iovec_iter_bytes(struct iovec_iter *iter)
+{
+    return iter->bytes;
+}
+
+static inline bool iovec_iter_empty(struct iovec_iter *iter)
+{
+    return iter->nr_vecs == 0;
+}
 
 __END_CDECLS
 
