@@ -57,7 +57,7 @@ int set_root(struct path *path)
     path_get(&boot_root);
     if (get_current_process())
     {
-        /* eww eww eww eww eww eww eww*/
+        /* eww eww eww eww eww eww eww */
         get_current_process()->fs->root = boot_root;
         path_get(&boot_root);
     }
