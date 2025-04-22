@@ -1224,27 +1224,22 @@ void sem_init(semaphore *sem, long counter)
     sem->counter = 0;
 }
 
-void sem_do_slow_path(semaphore *sem)
+static void sem_do_slow_path(semaphore *sem, unsigned long flags)
 {
     while (sem->counter == 0)
     {
         thread *thread = get_current_thread();
-
         unsigned long f = sched_lock(thread);
-
         enqueue_thread_sem(sem, thread);
-
-        spin_unlock(&sem->lock);
-
+        spin_unlock_irqrestore(&sem->lock, flags);
         __sched_block(thread, f);
-
-        spin_lock(&sem->lock);
+        flags = spin_lock_irqsave(&sem->lock);
     }
 }
 
 void sem_wait(semaphore *sem)
 {
-    spin_lock(&sem->lock);
+    unsigned long flags = spin_lock_irqsave(&sem->lock);
 
     while (true)
     {
@@ -1255,11 +1250,11 @@ void sem_wait(semaphore *sem)
         }
         else
         {
-            sem_do_slow_path(sem);
+            sem_do_slow_path(sem, flags);
         }
     }
 
-    spin_unlock(&sem->lock);
+    spin_unlock_irqrestore(&sem->lock, flags);
 }
 
 static void wake_up(semaphore *sem)
