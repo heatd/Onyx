@@ -201,7 +201,7 @@ __attribute__((noreturn)) void do_exit(unsigned int exit_code)
     DEFINE_LIST(reap);
     if (current->pid_ == 1)
     {
-        printk("Panic: %s exited with exit code %u!\n", current->comm, exit_code);
+        pr_err("Panic: %s exited with exit code %u!\n", current->comm, exit_code);
         irq_enable();
         for (;;)
             sched_sleep_ms(10000);
