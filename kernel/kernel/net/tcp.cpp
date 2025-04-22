@@ -1274,6 +1274,11 @@ static void tcp_close(struct socket *sock_)
 static int tcp_listen(struct socket *sock_)
 {
     struct tcp_socket *sock = TCP_SOCK(sock_);
+
+    /* Callers can call listen() on a single socket multiple times to set the backlog. In this case,
+     * the socket is already bound, so we return straight away. */
+    if (sock->state == TCP_STATE_LISTEN)
+        return 0;
     if (sock->state != TCP_STATE_CLOSED)
         return -EINVAL;
 
