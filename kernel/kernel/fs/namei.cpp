@@ -1057,7 +1057,7 @@ expected<dentry *, int> mknod_vfs(const char *path, mode_t mode, dev_t dev, int 
 {
     if (mode & S_IFMT & S_IFBAD)
         return unexpected<int>{-EINVAL};
-    return namei_create_generic(dirfd, path, mode, 0);
+    return namei_create_generic(dirfd, path, mode, dev);
 }
 
 expected<dentry *, int> mkdir_vfs(const char *path, mode_t mode, int dirfd)
