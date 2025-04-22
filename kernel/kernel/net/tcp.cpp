@@ -232,6 +232,8 @@ static u16 tcp_select_wsize(struct tcp_socket *tp)
 
     new_win = tcp_select_win(tp);
     old_win = tcp_receive_window(tp);
+    WARN_ON(new_win > INT_MAX);
+    WARN_ON(old_win > INT_MAX);
     if (new_win < old_win)
     {
         /* The window can't shrink. So if the new window is smaller than the old one, clamp it to
