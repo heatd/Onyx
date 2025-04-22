@@ -42,7 +42,7 @@ static int buf_put(const char *str, int len, struct stream *stream)
 {
     struct bufstream *bufstr = (struct bufstream *) stream;
     size_t towrite;
-    unsigned int may_use = bufstr->n - 1;
+    unsigned int may_use = bufstr->n == 0 ? 0 : bufstr->n - 1;
 
     if (!may_use)
         return len;
@@ -57,9 +57,8 @@ static int buf_put(const char *str, int len, struct stream *stream)
 static void bufstream_end(struct stream *stream)
 {
     struct bufstream *bufstr = (struct bufstream *) stream;
-    if (bufstr->n < 1)
-        __builtin_abort();
-    *bufstr->str = '\0';
+    if (bufstr->n > 0)
+        *bufstr->str = '\0';
 }
 
 enum integer_type
