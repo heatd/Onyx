@@ -920,7 +920,7 @@ int sys_nanosleep(const timespec *req, timespec *rem)
     }
 
     if (signal_is_pending())
-        return -ERESTARTSYS;
+        return -ERESTART_RESTARTBLOCK;
 
     return 0;
 }
