@@ -152,6 +152,8 @@ struct tcp_connreq
     struct packetbuf *tc_syndata;
     struct inet_route tc_route;
     struct tcp_synack_options tc_opts;
+    unsigned int retry;
+    struct clockevent retransmit_timer;
     u32 tc_our_mss;
     u32 tc_rcv_nxt;
     u32 tc_iss;
