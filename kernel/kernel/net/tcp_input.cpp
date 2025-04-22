@@ -713,6 +713,101 @@ static inline void tcp_connreq_init(struct tcp_socket *sock, struct tcp_connreq 
     conn->tc_rcv_nxt = hdr->sequence_number + 1;
 }
 
+/**
+ * @brief Drop a TCP connreq from the queues
+ * Note: req->tc_lock and rcu_read_lock are held
+ *
+ * @param req Request to be dropped and rcu-freed
+ * @retval 0 if we dropped the request
+ * @retval -ESTALE if we were too late
+ */
+static int tcp_drop_connreq(struct tcp_connreq *conn)
+{
+    struct tcp_socket *parent = conn->tc_sock;
+    conn->tc_dead = 1;
+
+    spin_unlock(&conn->tc_lock);
+
+    tcp_remove_synack(conn);
+
+    /* TRICKYNESS ENSUING: No locks are held at the moment. Because the connreq isn't dead
+     * (!tc_dead) _and it's locked_, we know the parent socket is valid and alive. So we need to
+     * dequeue and requeue ourselves in the parent socket. Because locking ordering goes:
+     *  sock->lock -> connreq->tc_lock
+     * we need to release our lock and relock from the top. This only works properly because we
+     * hold the RCU read lock and the tcp_socket cache is TYPESAFE_BY_RCU. So, basically, in a nice
+     * diagram:
+     *  [grabbed connreq from queues, locked, !tc_dead, tc_sock valid] -> [tc_dead = 1, grab valid
+     * sock pointer] -> [grab rcu read lock, unlock tc_lock (sock pointer type stability is
+     * guaranteed)] -> [lock sock, lock tc_lock] -> [recheck tc_sock. If it changed, we got
+     * killed by socket destruction].
+     **/
+
+    /* Under the RCU lock (reference has to be valid), grab the ref if not zero, then lock, then
+     * recheck stuff. The ref makes it so socket_lock doesn't go byebye while we hold it.
+     * TODO: Maybe we could avoid this?
+     **/
+
+    if (!parent->ref_not_zero())
+        return -ESTALE;
+
+    parent->socket_lock.lock_bh();
+    spin_lock(&conn->tc_lock);
+
+    if (conn->tc_sock != parent)
+    {
+        parent->socket_lock.unlock_bh();
+        spin_unlock(&conn->tc_lock);
+        return -ESTALE;
+    }
+    else
+    {
+        conn->tc_sock = NULL;
+        timer_cancel_event(&conn->retransmit_timer);
+        list_remove(&conn->tc_list_node);
+        kfree_rcu(conn, tc_rcu_head);
+    }
+
+    spin_unlock(&conn->tc_lock);
+    parent->socket_lock.unlock_bh();
+    parent->unref();
+    return 0;
+}
+
+#define TCP_SYNACK_RETRIES 5
+#define TCP_SYNACK_RTO_NS  (500 * NS_PER_MS)
+
+static void tcp_do_synack_retransmit(struct clockevent *ce)
+{
+    struct tcp_connreq *conn = (struct tcp_connreq *) ce->priv;
+    rcu_read_lock();
+    spin_lock(&conn->tc_lock);
+    if (conn->retry == TCP_SYNACK_RETRIES)
+    {
+        ce->flags &= ~CLOCKEVENT_FLAG_PULSE;
+        tcp_drop_connreq(conn);
+        rcu_read_unlock();
+        return;
+    }
+
+    tcp_send_synack(conn);
+    conn->retry++;
+    ce->deadline = clocksource_get_time() + (TCP_SYNACK_RTO_NS << conn->retry);
+    ce->flags |= CLOCKEVENT_FLAG_PULSE;
+    spin_unlock(&conn->tc_lock);
+    rcu_read_unlock();
+}
+
+static void tcp_setup_synack_retransmit(struct tcp_connreq *conn)
+{
+    struct clockevent *ce = &conn->retransmit_timer;
+    ce->callback = tcp_do_synack_retransmit;
+    ce->flags = 0;
+    ce->deadline = clocksource_get_time() + TCP_SYNACK_RTO_NS;
+    ce->priv = conn;
+    timer_queue_clockevent(&conn->retransmit_timer);
+}
+
 static int tcp_input_listen(struct tcp_socket *sock, struct packetbuf *pbf)
 {
     int err;
@@ -758,6 +853,7 @@ static int tcp_input_listen(struct tcp_socket *sock, struct packetbuf *pbf)
         pbf_get(pbf);
     }
 
+    tcp_setup_synack_retransmit(connreq);
     tcp_add_to_synacks(connreq);
 
     err = tcp_send_synack(connreq);
@@ -774,12 +870,40 @@ static int tcp_input_conn(struct tcp_connreq *conn, struct packetbuf *pbf)
 {
     struct tcp_socket *sock, *parent;
     struct tcp_header *hdr = (struct tcp_header *) pbf->transport_header;
+    u32 end_seq;
+    u32 ack = ntohl(hdr->ack_number);
+    int err;
+    bool on_ipv4_mode = false;
     CHECK(spin_lock_held(&conn->tc_lock));
-    /* Make this connreq into a real socket */
 
+    pbf->tpi.seq = ntohl(hdr->sequence_number);
+    pbf->tpi.seq_len = pbf_length(pbf) -
+                       (tcp_header_data_off_to_length(hdr->doff) - sizeof(tcp_header)) +
+                       (hdr->syn + hdr->fin);
+    end_seq = pbf->tpi.seq + pbf->tpi.seq_len;
+
+    /* Check if the incoming segment ACKs the SYNACK */
+    err = TCP_DROP_BAD_PACKET;
+    if (!hdr->ack)
+        goto err_unlock;
+    err = TCP_DROP_UNCROMULENT1;
+    if (before(end_seq, conn->tc_rcv_nxt))
+        goto err_unlock;
+    /* If SND.UNA < SEG.ACK =< SND.NXT, then set SND.UNA <- SEG.ACK */
+    err = TCP_DROP_ACK_DUP;
+    if (!after(ack, conn->tc_iss))
+        goto err_unlock;
+    err = TCP_DROP_ACK_UNSENT;
+    if (after(ack, conn->tc_iss + 1))
+        goto err_unlock;
+
+    /* Make this connreq into a real socket */
     sock = (struct tcp_socket *) tcp_create_socket(SOCK_STREAM);
     if (!sock)
-        return -ENOMEM;
+    {
+        err = -ENOMEM;
+        goto err_unlock;
+    }
 
     parent = conn->tc_sock;
     sock->rcv_mss = conn->tc_domain == AF_INET ? 536 : 1220;
@@ -812,7 +936,7 @@ static int tcp_input_conn(struct tcp_connreq *conn, struct packetbuf *pbf)
     if (conn->tc_opts.sacking)
         sock->sacking = 1;
 
-    bool on_ipv4_mode = conn->tc_domain == AF_INET && conn->tc_sock->domain == AF_INET6;
+    on_ipv4_mode = conn->tc_domain == AF_INET && conn->tc_sock->domain == AF_INET6;
 
     sock->dest_addr = conn->tc_dst;
     sock->src_addr = conn->tc_src;
@@ -831,7 +955,8 @@ static int tcp_input_conn(struct tcp_connreq *conn, struct packetbuf *pbf)
     {
         /* This should not be possible... */
         kfree(sock);
-        return -EINVAL;
+        err = -EINVAL;
+        goto err_unlock;
     }
 
     sock->mss = min(sock->send_mss, sock->rcv_mss);
@@ -872,7 +997,6 @@ static int tcp_input_conn(struct tcp_connreq *conn, struct packetbuf *pbf)
      **/
     if (!parent->ref_not_zero())
     {
-        spin_unlock(&conn->tc_lock);
         tcp_set_state(sock, TCP_STATE_CLOSED);
         sock->unref();
         return 0;
@@ -891,6 +1015,7 @@ static int tcp_input_conn(struct tcp_connreq *conn, struct packetbuf *pbf)
     else
     {
         conn->tc_sock = NULL;
+        timer_cancel_event(&conn->retransmit_timer);
         list_remove(&conn->tc_list_node);
         kfree_rcu(conn, tc_rcu_head);
         /* We can double up this conn_queue as a list node, because sock->conn_queue will never be
@@ -905,6 +1030,9 @@ static int tcp_input_conn(struct tcp_connreq *conn, struct packetbuf *pbf)
     parent->unref();
     rcu_read_unlock();
     return 0;
+err_unlock:
+    spin_unlock(&conn->tc_lock);
+    return err;
 }
 
 static int tcp_parse_options(struct tcp_socket *sock, struct packetbuf *pbf)
@@ -951,8 +1079,8 @@ static int tcp_parse_options(struct tcp_socket *sock, struct packetbuf *pbf)
                 /* TODO: Actually sack */
                 break;
             default:
-                /* Drop packets with options we don't recognize */
-                return TCP_DROP_BAD_PACKET;
+                /* Ignore unknown options*/
+                break;
         }
     }
 
@@ -1053,7 +1181,6 @@ int tcp_input(struct tcp_socket *sock, struct packetbuf *pbf)
             sock->snd_wnd = (u32) ntohs(hdr->window_size) << sock->snd_wnd_shift;
             sock->snd_wl1 = hdr->sequence_number;
             sock->snd_wl2 = hdr->ack_number;
-            pr_warn("established\n");
         }
         /* TODO: If the segment acknowledgment is not acceptable, form a reset segment and send
          * it
@@ -1159,7 +1286,10 @@ int tcp_handle_packet(const inet_route &route, packetbuf *buf)
     {
         err = tcp_input_conn(conn, buf);
         if (err)
+        {
+            pr_info("input_conn drop %d\n", err);
             return err;
+        }
         /* Fallthrough. Generic code will handle the rest of the connection */
     }
 
