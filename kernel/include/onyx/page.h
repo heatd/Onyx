@@ -196,6 +196,8 @@ struct page *page_add_page_late(void *paddr);
 #define __GFP_NO_INSTRUMENT   (1 << 13)
 #define __GFP_NOWARN          (1 << 14)
 #define __GFP_NOWAIT          (1 << 15)
+#define __GFP_DMA32           PAGE_ALLOC_4GB_LIMIT
+#define GFP_DMA32             __GFP_DMA32
 #define __GFP_MAY_RECLAIM     (__GFP_DIRECT_RECLAIM | __GFP_WAKE_PAGEDAEMON)
 #define GFP_KERNEL            (__GFP_MAY_RECLAIM | __GFP_IO | __GFP_FS)
 #define GFP_ATOMIC            (__GFP_ATOMIC | __GFP_WAKE_PAGEDAEMON)
