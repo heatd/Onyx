@@ -16,86 +16,104 @@
 #include <onyx/task_switching.h>
 #include <onyx/vector.h>
 #include <onyx/vm.h>
+#include <onyx/wait_queue.h>
 
 #include <onyx/mm/pool.hpp>
 
 /* The work queue does need locks for insertion, because another CPU might try
  * to queue work in at the same time as us
  */
-static struct semaphore dpc_work_semaphore = {};
-static thread_t *dpc_thread;
-memory_pool<dpc_work, MEMORY_POOL_USABLE_ON_IRQ> dpc_pool;
+static memory_pool<dpc_work, MEMORY_POOL_USABLE_ON_IRQ> dpc_pool;
 
-class dpc_queue
+struct dpc_queue
 {
-    spinlock wq_lock{};
-    list_head queue{};
-
-    bool has_work_locked()
-    {
-        return !list_is_empty(&queue);
-    }
-
-public:
-    constexpr dpc_queue()
-    {
-        INIT_LIST_HEAD(&queue);
-        spinlock_init(&wq_lock);
-    }
-
-    void do_work()
-    {
-        while (true)
-        {
-            dpc_work *work = nullptr;
-
-            {
-                scoped_lock<spinlock, true> g{wq_lock};
-                if (!has_work_locked())
-                    return;
-                auto l = list_first_element(&queue);
-                work = container_of(l, dpc_work, list_node);
-                list_remove(l);
-            }
-
-            work->funcptr(work->context);
-            dpc_pool.free(work);
-        }
-    }
-
-    void add(dpc_work *w)
-    {
-        scoped_lock<spinlock, true> g{wq_lock};
-        list_add_tail(&w->list_node, &queue);
-    }
+    struct list_head items;
+    struct spinlock lock;
+    struct thread *thread;
+    bool blocked;
 };
 
-dpc_queue dpc_queues[3];
+static struct dpc_queue dpc_queues[3];
 
-void dpc_do_work(void *context)
+static bool dpc_has_work(struct dpc_queue *queue)
 {
+    return !list_is_empty(&queue->items);
+}
+
+static void dpc_process(struct dpc_queue *queue, unsigned long irq_flags)
+{
+    struct dpc_work *work, *next;
+    DEFINE_LIST(items);
+    list_splice_tail_init(&queue->items, &items);
+    spin_unlock_irqrestore(&queue->lock, irq_flags);
+
+    list_for_each_entry_safe (work, next, &items, list_node)
+    {
+        list_remove(&work->list_node);
+        work->funcptr(work->context);
+        dpc_pool.free(work);
+    }
+
+    irq_flags = spin_lock_irqsave(&queue->lock);
+}
+
+static void dpc_do_work(void *context)
+{
+    struct dpc_queue *queue = (struct dpc_queue *) context;
+    unsigned long flags = spin_lock_irqsave(&queue->lock);
     while (true)
     {
-        sem_wait(&dpc_work_semaphore);
+        if (dpc_has_work(queue))
+            dpc_process(queue, flags);
 
-        /* Process work */
-        for (int i = 0; i < 3; i++)
+        queue->blocked = true;
+        set_current_state(THREAD_UNINTERRUPTIBLE);
+        if (dpc_has_work(queue))
         {
-            /* Let's process DPC work */
-            dpc_queues[i].do_work();
+            queue->blocked = false;
+            set_current_state(THREAD_RUNNABLE);
+            continue;
         }
+
+        spin_unlock_irqrestore(&queue->lock, flags);
+        sched_yield();
+        flags = spin_lock_irqsave(&queue->lock);
     }
 }
 
-void dpc_init()
+static void dpc_add_work(struct dpc_queue *queue, struct dpc_work *work)
 {
-    sem_init(&dpc_work_semaphore, 0);
+    unsigned long flags = spin_lock_irqsave(&queue->lock);
+    list_add_tail(&work->list_node, &queue->items);
+    if (queue->blocked)
+    {
+        thread_wake_up(queue->thread);
+        queue->blocked = false;
+    }
+    spin_unlock_irqrestore(&queue->lock, flags);
+}
 
-    dpc_thread = sched_create_thread(dpc_do_work, THREAD_KERNEL, nullptr);
-    assert(dpc_thread != nullptr);
-    dpc_thread->priority = SCHED_PRIO_VERY_HIGH;
+static int dpc_sched_prio[3] = {
+    /*[DPC_PRIORITY_HIGH] =*/SCHED_PRIO_HIGH,
+    SCHED_PRIO_NORMAL,
+    SCHED_PRIO_LOW,
+};
 
-    sched_start_thread(dpc_thread);
+void dpc_init(void)
+{
+    struct dpc_queue *queue;
+
+    for (unsigned int i = 0; i < 3; i++)
+    {
+        queue = &dpc_queues[i];
+        INIT_LIST_HEAD(&queue->items);
+        spin_lock_init(&queue->lock);
+        queue->blocked = false;
+        queue->thread = sched_create_thread(dpc_do_work, THREAD_KERNEL, queue);
+        CHECK(queue->thread != NULL);
+        queue->thread->priority = dpc_sched_prio[i];
+        sched_start_thread(queue->thread);
+    }
 }
 
 int dpc_schedule_work(dpc_work *_work, dpc_priority prio)
@@ -111,10 +129,6 @@ int dpc_schedule_work(dpc_work *_work, dpc_priority prio)
     }
 
     memcpy(work, _work, sizeof(struct dpc_work));
-
-    dpc_queues[prio].add(work);
-
-    sem_signal(&dpc_work_semaphore);
-
+    dpc_add_work(&dpc_queues[prio], work);
     return 0;
 }
