@@ -1,19 +1,30 @@
 /*
- * Copyright (c) 2024 Pedro Falcato
+ * Copyright (c) 2024 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
 
+#include <onyx/err.h>
 #include <onyx/file.h>
 #include <onyx/inode.h>
 #include <onyx/mm/slab.h>
 #include <onyx/page.h>
 #include <onyx/proc.h>
 
+static char *proc_readlink(struct file *filp)
+{
+    struct procfs_entry *entry = I_PROC_ENTRY(filp->f_ino);
+    if (entry->ops->readlink)
+        return entry->ops->readlink(filp);
+    WARN_ON(1);
+    return ERR_PTR(-EIO);
+}
+
 static const struct inode_operations procfs_ino_ops = {
     .stat = proc_stat,
+    .readlink = proc_readlink,
 };
 
 static int proc_on_open(struct file *filp)
@@ -58,7 +69,7 @@ static const struct file_ops procfs_file_ops = {
 
 struct inode *proc_create_inode(struct superblock *sb, struct procfs_entry *entry)
 {
-    struct inode *inode = kmalloc(sizeof(*inode), GFP_KERNEL);
+    struct inode *inode = kmalloc(sizeof(struct procfs_inode), GFP_KERNEL);
     if (!inode)
         return NULL;
     if (inode_init(inode, false) < 0)
@@ -76,6 +87,7 @@ struct inode *proc_create_inode(struct superblock *sb, struct procfs_entry *entr
     inode->i_inode = entry->inum;
     inode->i_helper = entry;
     inode->i_mtime = inode->i_ctime = inode->i_atime = clock_get_posix_time();
+    ((struct procfs_inode *) inode)->owner = NULL;
 
     return inode;
 

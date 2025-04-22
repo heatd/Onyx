@@ -1,16 +1,24 @@
 /*
- * Copyright (c) 2024 Pedro Falcato
+ * Copyright (c) 2024 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
+#define DEFINE_CURRENT
+#include <ctype.h>
 
 #include <onyx/fs_mount.h>
 #include <onyx/libfs.h>
 #include <onyx/mm/slab.h>
 #include <onyx/proc.h>
+#include <onyx/process.h>
+#include <onyx/rculist.h>
+#include <onyx/rcupdate.h>
+#include <onyx/seq_file.h>
+#include <onyx/seqlock.h>
 #include <onyx/superblock.h>
+#include <onyx/tty.h>
 
 int proc_open_entry(struct dentry *dir, const char *name, struct dentry *dentry)
 {
@@ -37,8 +45,13 @@ positive:
     return 0;
 }
 
+int proc_pid_open(struct dentry *dir, const char *name, struct dentry *dentry);
+
 static int proc_root_open(struct dentry *dir, const char *name, struct dentry *dentry)
 {
+    int err = proc_pid_open(dir, name, dentry);
+    if (err != -EINVAL)
+        return err;
     return proc_open_entry(dir, name, dentry);
 }
 
@@ -48,22 +61,44 @@ static int proc_root_open(struct dentry *dir, const char *name, struct dentry *d
 static off_t proc_root_pid_getdirent(struct dirent *buf, off_t off, struct procfs_entry *dir,
                                      struct file *file)
 {
-    return 0;
+    struct process *task;
+    char name[32];
+    off_t ret = PROC_ROOT_PID_END + 2;
+    rcu_read_lock();
+
+    list_for_each_entry_rcu (task, &tasklist, tasklist_node)
+    {
+        if (!thread_group_leader(task))
+            continue;
+        if (task->pid_ < off)
+            continue;
+
+        sprintf(name, "%d", task->pid_);
+        put_dir(name, task->pid_, 0, DT_DIR, buf);
+        ret = task->pid_ + 1;
+        break;
+    }
+
+    rcu_read_unlock();
+    return ret;
 }
 
 static off_t proc_root_getdirent(struct dirent *buf, off_t off, struct file *file)
 {
     off_t i;
     struct procfs_entry *dir = I_PROC_ENTRY(file->f_dentry->d_inode), *entry;
-#if 0
     if (off < PROC_ROOT_PID_END)
-        return proc_root_pid_getdirent(buf, off, dir, file);
-#endif
+    {
+        i = proc_root_pid_getdirent(buf, off, dir, file);
+        if (i != PROC_ROOT_PID_END + 2)
+            return i;
+        off = PROC_ROOT_PID_END;
+    }
 
-    if (off < 2)
-        return libfs_put_dots(buf, off, file->f_dentry);
+    if (off - PROC_ROOT_PID_END < 2)
+        return libfs_put_dots(buf, off - PROC_ROOT_PID_END, file->f_dentry) + PROC_ROOT_PID_END;
 
-    i = off - 2;
+    i = off - PROC_ROOT_PID_END - 2;
     spin_lock(&dir->children_lock);
 
     list_for_each_entry (entry, &dir->children, child_node)
@@ -116,6 +151,14 @@ struct procfs_entry root_entry = {
     .fops = &proc_root_file_ops,
 };
 
+static int proc_kill_inode(struct inode *ino)
+{
+    struct procfs_inode *inode = (struct procfs_inode *) ino;
+    if (inode->owner)
+        put_pid(inode->owner);
+    return 0;
+}
+
 static struct superblock *proc_mount(struct vfs_mount_info *info)
 {
     struct inode *root_ino;
@@ -132,6 +175,7 @@ static struct superblock *proc_mount(struct vfs_mount_info *info)
     }
 
     sb->s_flags |= SB_FLAG_NODIRTY;
+    sb->kill_inode = proc_kill_inode;
     d_positiveize(info->root_dir, root_ino);
     return sb;
 }
@@ -144,8 +188,8 @@ __init static void procfs_init(void)
 /* TODO: Do this better? */
 static ino_t inum = 3;
 
-static void procfs_init_entry(struct procfs_entry *entry, const char *name, mode_t mode,
-                              struct procfs_entry *parent, const struct proc_file_ops *ops)
+void procfs_init_entry(struct procfs_entry *entry, const char *name, mode_t mode,
+                       struct procfs_entry *parent, const struct proc_file_ops *ops)
 {
     memset(entry, 0, sizeof(*entry));
     INIT_LIST_HEAD(&entry->children);
@@ -176,4 +220,59 @@ struct procfs_entry *procfs_add_entry(const char *name, mode_t mode, struct proc
     list_add_tail(&new->child_node, &parent->children);
     spin_unlock(&parent->children_lock);
     return new;
+}
+
+const struct proc_file_ops proc_noop;
+
+static char *procfs_self_readlink(struct file *filp)
+{
+    char *link = kmalloc(16, GFP_KERNEL);
+    if (!link)
+        return ERR_PTR(-ENOMEM);
+    sprintf(link, "%d", pid_nr(current->sig->tgid));
+    return link;
+}
+
+static const struct proc_file_ops proc_self_ops = {
+    .readlink = procfs_self_readlink,
+};
+
+static char *procfs_threadself_readlink(struct file *filp)
+{
+    char *link = kmalloc(16, GFP_KERNEL);
+    if (!link)
+        return ERR_PTR(-ENOMEM);
+    sprintf(link, "%d", current->pid_);
+    return link;
+}
+
+static const struct proc_file_ops proc_threadself_ops = {
+    .readlink = procfs_threadself_readlink,
+};
+
+static __init void procfs_self_init(void)
+{
+    procfs_add_entry("self", S_IFLNK | 0777, NULL, &proc_self_ops);
+    procfs_add_entry("thread-self", S_IFLNK | 0777, NULL, &proc_threadself_ops);
+}
+
+int str_to_int(const char *name)
+{
+    unsigned int pid = 0, old;
+    while (*name)
+    {
+        char c = *name;
+        if (!isdigit(c))
+            return -1;
+        old = pid;
+        pid *= 10;
+        pid += c - '0';
+        if (old > pid)
+            return -1;
+        name++;
+    }
+
+    if (pid > INT_MAX)
+        return -1;
+    return pid;
 }
