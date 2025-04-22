@@ -1947,7 +1947,7 @@ struct key_action pt_pt_key_actions[] = {
     {KEYMAP_KEY_TAB, "\t"},
     {KEYMAP_KEY_APOSTROPHE, "º", "ª"},
     {KEYMAP_KEY_SLASH, "-", "_"},
-    {KEYMAP_KEY_BACKSLASH, "|"},
+    {KEYMAP_KEY_BACKSLASH, "~", "^"},
     {KEYMAP_KEY_BACKSPACE, "\x7f"},
     {KEYMAP_KEY_KEYPAD_DOT, "."},
     {KEYMAP_KEY_KEYPAD_SLASH, "/"},
