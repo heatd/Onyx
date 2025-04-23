@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2024 Pedro Falcato
+ * Copyright (c) 2017 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -303,6 +303,26 @@ extern "C" struct file *fdget_remote(struct process *task, unsigned int fd)
         filp = __get_file_description(fd, task);
     spin_unlock(&task->alloc_lock);
     return filp;
+}
+
+extern "C" bool fdexists_remote(struct process *task, unsigned int fd)
+{
+    struct ioctx *ctx;
+    struct fd_table *table;
+    bool exists = true;
+
+    spin_lock(&task->alloc_lock);
+    rcu_read_lock();
+
+    ctx = task->ctx;
+    table = rcu_dereference(ctx->table);
+
+    if (!validate_fd_number(fd, table) || !table->file_desc[fd])
+        exists = false;
+
+    rcu_read_unlock();
+    spin_unlock(&task->alloc_lock);
+    return exists;
 }
 
 static struct file *__fdget_remote_next(int fd, int *outfd, struct process *p)

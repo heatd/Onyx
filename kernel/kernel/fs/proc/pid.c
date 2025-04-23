@@ -292,6 +292,7 @@ static const struct proc_file_ops proc_statm_ops = {
 };
 
 struct file *fdget_remote(struct process *task, unsigned int fd);
+bool fdexists_remote(struct process *task, unsigned int fd);
 struct file *fdget_remote_next(struct process *task, unsigned int fd, int *out);
 
 static int instantiate(struct dentry *dir, struct dentry *dentry, struct process *task,
@@ -413,11 +414,42 @@ static const struct inode_operations proc_fd_iops = {
     .magic_jump = proc_fd_magic_jump,
 };
 
+static int proc_fd_revalidate(struct dentry *dentry, unsigned int flags)
+{
+    int fd;
+    struct procfs_inode *d_ino;
+    struct process *task;
+    int ret;
+
+    if (d_is_negative(dentry))
+    {
+        /* Unfortunately, we have no easy way of revalidating negative dentries (we don't have a
+         * reference to the task struct). As such, always assume they're invalid. We probably don't
+         * have many ENOENTs in these cases anyway. (Use the parent dentry's inode?) */
+        return 0;
+    }
+
+    fd = str_to_int(dentry->d_name);
+    d_ino = (struct procfs_inode *) dentry->d_inode;
+    task = get_inode_task(d_ino);
+    if (!task)
+        return 0;
+
+    ret = fdexists_remote(task, fd);
+    process_put(task);
+    return ret;
+}
+
+const struct dentry_operations proc_fd_dops = {
+    .d_revalidate = proc_fd_revalidate,
+};
+
 static void fd_instantiate(struct procfs_entry *new, void *data)
 {
     struct fd_info *info = data;
     procfs_init_entry(new, info->name, 0700 | S_IFLNK, NULL, &proc_noop);
     new->iops = &proc_fd_iops;
+    new->dops = &proc_fd_dops;
 }
 
 static int proc_fd_open(struct dentry *dir, const char *name, struct dentry *dentry)
@@ -432,7 +464,7 @@ static int proc_fd_open(struct dentry *dir, const char *name, struct dentry *den
     d_ino = (struct procfs_inode *) dir->d_inode;
     fd = str_to_int(name);
     if (fd == -1)
-        return fd;
+        return -ENOENT;
 
     task = get_inode_task(d_ino);
     if (!task)
