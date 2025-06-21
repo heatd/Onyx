@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2023 Pedro Falcato
+ * Copyright (c) 2019 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -58,8 +58,8 @@ void boot(unsigned int cpu)
 
     s->thread_stack = (unsigned long) thread_stack;
 
-    apic_wake_up_processor(static_cast<uint8_t>(cpu2lapicid(cpu)), s);
-    // The AP sets calls smp::set_online
+    if (apic_wake_up_processor(static_cast<uint8_t>(cpu2lapicid(cpu)), s))
+        smp::set_online(cpu);
 
     inited_cpus.set_cpu(cpu);
 }
