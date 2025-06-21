@@ -59,9 +59,13 @@ struct pid *pid_alloc(struct process *leader)
 struct pid *pid_lookup(pid_t pid)
 {
     struct pid *p = NULL;
-    MA_STATE(mas, &pid_tree, pid, pid + 1);
+
+    if (pid < 0)
+        return NULL;
+
+    MA_STATE(mas, &pid_tree, pid, (unsigned int) pid + 1);
     mas_lock(&mas);
-    p = mas_find(&mas, pid + 1);
+    p = mas_find(&mas, (unsigned int) pid + 1);
     mas_unlock(&mas);
     if (unlikely(!p || p->pid_ != pid))
         return NULL;
@@ -71,9 +75,13 @@ struct pid *pid_lookup(pid_t pid)
 struct pid *pid_lookup_ref(pid_t pid)
 {
     struct pid *p = NULL;
-    MA_STATE(mas, &pid_tree, pid, pid + 1);
+
+    if (pid < 0)
+        return NULL;
+
+    MA_STATE(mas, &pid_tree, pid, (unsigned int) pid + 1);
     mas_lock(&mas);
-    p = mas_find(&mas, pid + 1);
+    p = mas_find(&mas, (unsigned int) pid + 1);
     mas_unlock(&mas);
     if (unlikely(!p || p->pid_ != pid))
         return NULL;
