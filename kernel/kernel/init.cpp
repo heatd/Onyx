@@ -244,6 +244,9 @@ extern "C" void kernel_main(void)
     new_thread = sched_create_thread(kernel_multitasking, 1, nullptr);
 
     assert(new_thread);
+    /* the idle thread has a cpu affinity for the current cpu. Set the new thread to run on every
+     * online CPU. */
+    new_thread->task_affinity = smp::get_online_cpumask();
 
     /* Start the new thread */
     sched_start_thread(new_thread);

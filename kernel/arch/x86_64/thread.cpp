@@ -177,6 +177,7 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
     new_thread->id = curr_id++;
     new_thread->flags = flags;
     new_thread->canary = THREAD_STRUCT_CANARY;
+    new_thread->task_affinity = smp::get_online_cpumask();
 
     bool is_user = !(flags & THREAD_KERNEL);
     auto pages = adding_guard_page ? 6 : 4;

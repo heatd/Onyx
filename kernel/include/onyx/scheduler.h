@@ -82,6 +82,7 @@ typedef struct thread
     struct blk_plug *plug;
 
     struct registers *regs;
+    struct cpumask task_affinity;
     unsigned int pagefault_disabled;
 
 #ifdef CONFIG_KCOV
@@ -117,6 +118,7 @@ typedef struct thread
 #endif
         active_mm = NULL;
         pagefault_disabled = 0;
+        task_affinity = cpumask{};
     }
 
     /**
@@ -165,8 +167,6 @@ hrtime_t sched_sleep(unsigned long ns);
 
 void sched_yield(void);
 
-void thread_add(thread_t *add, unsigned int cpu);
-
 void set_current_thread(thread_t *t);
 
 void thread_destroy(thread_t *t);
@@ -192,8 +192,6 @@ void __sched_block(struct thread *thread, unsigned long cpuflags);
 void thread_exit();
 
 struct thread *get_thread_for_cpu(unsigned int cpu);
-
-void sched_start_thread_for_cpu(struct thread *thread, unsigned int cpu);
 
 void sched_init_cpu(unsigned int cpu);
 
@@ -272,6 +270,22 @@ static inline struct syscall_frame *task_curr_syscall_frame(void)
 {
     struct thread *curr = get_current_thread();
     return ((struct syscall_frame *) curr->kernel_stack_top) - 1;
+}
+
+static inline struct cpumask task_cpu_affinity(struct thread *thread)
+{
+    struct cpumask mask;
+    unsigned long flags;
+
+    flags = spin_lock_irqsave(&thread->lock);
+    mask = thread->task_affinity;
+    spin_unlock_irqrestore(&thread->lock, flags);
+    return mask;
+}
+
+static inline struct cpumask task_curr_affinity(void)
+{
+    return task_cpu_affinity(get_current_thread());
 }
 
 unsigned long sched_total_ctx_switches(void);

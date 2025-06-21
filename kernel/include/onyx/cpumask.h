@@ -222,4 +222,11 @@ static inline void cpumask_unset_atomic(struct cpumask* mask, unsigned long cpu)
     __atomic_and_fetch(&mask->mask[long_idx], ~(1UL << bit_idx), __ATOMIC_RELAXED);
 }
 
+static inline bool cpumask_is_set(struct cpumask* mask, unsigned long cpu)
+{
+    unsigned long long_idx = cpu / LONG_SIZE_BITS;
+    unsigned long bit_idx = cpu % LONG_SIZE_BITS;
+    return mask->mask[long_idx] & (1UL << bit_idx);
+}
+
 #endif

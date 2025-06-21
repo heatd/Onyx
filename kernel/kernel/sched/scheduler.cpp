@@ -240,21 +240,26 @@ static thread_t *sched_steal_job(unsigned int cpu)
         for (int j = NUM_PRIO - 1; j >= 0; j--)
         {
             /* If this queue has a thread, we found a runnable thread! */
-            if (thread_queues[j])
+            for (struct thread *thr = thread_queues[j]; thr != NULL; thr = thr->next_prio)
             {
-                thread_t *ret = thread_queues[j];
-                if (ret->entry == sched_idle)
+                /* Skip if the task affinity doesn't have our cpu */
+                if (!cpumask_is_set(&thr->task_affinity, cpu))
                     continue;
-                /* Advance the queue by one */
-                thread_queues[j] = ret->next_prio;
-                if (thread_queues[j])
-                    ret->prev_prio = nullptr;
-                ret->next_prio = nullptr;
+                /* Remove the thread from the queue */
+                if (thr->prev_prio)
+                    thr->prev_prio->next_prio = thr->next_prio;
+                else
+                    thread_queues[j] = thr->next_prio;
+
+                if (thr->next_prio)
+                    thr->next_prio->prev_prio = thr->prev_prio;
+
+                thr->next_prio = thr->prev_prio = NULL;
                 other_cpu_add(tasks_in_queues, -1, i);
                 add_per_cpu(tasks_in_queues, 1);
-                ret->cpu = cpu;
+                thr->cpu = cpu;
                 spin_unlock(sched_lock);
-                return ret;
+                return thr;
             }
         }
 
@@ -314,8 +319,8 @@ thread_t *__sched_find_next(unsigned int cpu)
             /* Advance the queue by one */
             thread_queues[i] = ret->next_prio;
             if (thread_queues[i])
-                ret->prev_prio = nullptr;
-            ret->next_prio = nullptr;
+                thread_queues[i]->prev_prio = nullptr;
+            ret->next_prio = ret->prev_prio = nullptr;
 
             return ret;
         }
@@ -663,30 +668,30 @@ void sched_append_to_queue(int priority, unsigned int cpu, thread_t *thread)
     add_per_cpu(runnable_delta, 1);
 }
 
-unsigned int sched_allocate_processor(void)
+unsigned int sched_allocate_processor(struct cpumask mask)
 {
-    unsigned int nr_cpus = get_nr_cpus();
     unsigned int dest_cpu = -1;
     size_t active_threads_min = SIZE_MAX;
 
-    for (unsigned int i = 0; i < nr_cpus; i++)
-    {
+    if (WARN_ON(mask.is_empty()))
+        return 0;
+
+    mask &= smp::get_online_cpumask();
+    mask.for_every_cpu([&dest_cpu, &active_threads_min](unsigned int i) -> bool {
         unsigned long active_threads_for_cpu = get_per_cpu_any(tasks_in_queues, i);
         if (active_threads_for_cpu < active_threads_min)
         {
             dest_cpu = i;
             active_threads_min = active_threads_for_cpu;
         }
-    }
+        return true;
+    });
 
     return dest_cpu;
 }
 
-void thread_add(thread_t *thread, unsigned int cpu_num)
+static void thread_add(thread_t *thread, unsigned int cpu_num)
 {
-    if (cpu_num == SCHED_NO_CPU_PREFERENCE || cpu_num > get_nr_cpus())
-        cpu_num = sched_allocate_processor();
-
     thread->cpu = cpu_num;
     trace_sched_cpu_assign(thread->id, thread->owner ? thread->owner->pid_ : 0,
                            thread->owner ? thread->owner->comm : NULL, thread->cpu);
@@ -702,6 +707,7 @@ void sched_init_cpu(unsigned int cpu)
 
     t->priority = SCHED_PRIO_VERY_LOW;
     t->cpu = cpu;
+    t->task_affinity = cpumask::one(cpu);
 
     write_per_cpu_any(current_thread, t, cpu);
     write_per_cpu_any(sched_quantum, SCHED_QUANTUM, cpu);
@@ -739,6 +745,8 @@ int sched_init(void)
     assert(t != NULL);
 
     t->priority = SCHED_PRIO_NORMAL;
+    t->task_affinity = cpumask::one(get_cpu_nr());
+    t->cpu = get_cpu_nr();
     // sched_start_thread_for_cpu(t, get_cpu_nr());
 
     write_per_cpu(sched_quantum, SCHED_QUANTUM);
@@ -796,17 +804,17 @@ int signal_find(struct thread *thread);
 
 hrtime_t sched_sleep(unsigned long ns)
 {
-    thread_t *current = get_current_thread();
+    thread_t *curthr = get_current_thread();
 
     clockevent ev;
     ev.callback = sched_sleep_unblock;
-    ev.priv = current;
+    ev.priv = curthr;
 
     /* This is a bit of a hack but we need this in cases where we have timeout but we're not
      * supposed to be woken by signals. In this case, wait_for_event_* already set the current
      * state.
      */
-    int status = READ_ONCE(current->status);
+    int status = READ_ONCE(curthr->status);
     if (status == THREAD_RUNNABLE)
     {
         set_current_state(THREAD_INTERRUPTIBLE);
@@ -1048,7 +1056,7 @@ void __thread_wake_up(thread *thread, unsigned int cpu)
     if (thread->status == THREAD_RUNNABLE)
         return;
 
-    new_cpu = sched_allocate_processor();
+    new_cpu = sched_allocate_processor(thread->task_affinity);
     thread->status = THREAD_RUNNABLE;
     if (new_cpu != cpu)
     {
@@ -1134,15 +1142,10 @@ void sched_sleep_until_wake(void)
     sched_block(thread);
 }
 
-void sched_start_thread_for_cpu(thread *t, unsigned int cpu)
-{
-    assert(t != NULL);
-    thread_add(t, cpu);
-}
-
 void sched_start_thread(thread_t *thread)
 {
-    sched_start_thread_for_cpu(thread, SCHED_NO_CPU_PREFERENCE);
+    unsigned int cpu = sched_allocate_processor(task_cpu_affinity(thread));
+    thread_add(thread, cpu);
 }
 
 enqueue_thread_generic(condvar, cond);
@@ -1354,21 +1357,100 @@ bool __can_sleep_internal()
     return !sched_is_preemption_disabled() && !irq_is_disabled();
 }
 
+static int copy_cpumask_from_user(const void *cpu_set, size_t cpusetsize, struct cpumask *mask)
+{
+    size_t copy_size = min(cpusetsize, sizeof(struct cpumask));
+
+    /* If copying less bytes, clear the whole cpumask (this could be optimized, with some care) */
+    if (copy_size < sizeof(struct cpumask))
+        *mask = cpumask{};
+
+    if (copy_from_user(mask, cpu_set, copy_size))
+        return -EFAULT;
+    return 0;
+}
+
+int task_set_affinity(struct thread *thread, struct cpumask mask)
+{
+    unsigned long flags;
+
+    mask &= smp::get_online_cpumask();
+    if (mask.is_empty())
+        return -EINVAL;
+
+    flags = sched_lock(thread);
+    thread->task_affinity = mask;
+    /* TODO: Migrate thread if they're scheduleable */
+    sched_unlock(thread, flags);
+    return 0;
+}
+
+static bool task_may_set_affinity(struct process *current, struct process *target)
+{
+    uid_t euid = current->cred.euid;
+    return euid == 0 || euid == target->cred.euid || euid == target->cred.ruid;
+}
+
 int sys_sched_setaffinity(pid_t pid, size_t cpusetsize, const void *cpu_set)
 {
-    /* TODO: Actually implement this, instead of just being here as a placeholder. The blocker here
-     * is partly that pids aren't tids... */
-    return 0;
+    struct process *task, *current;
+    struct cpumask new_mask;
+    int err;
+
+    err = copy_cpumask_from_user(cpu_set, cpusetsize, &new_mask);
+    if (err)
+        return err;
+
+    rcu_read_lock();
+    current = get_current_process();
+    if (!pid)
+        task = current;
+    else
+    {
+        task = get_process_from_pid_noref(pid);
+        if (!task)
+        {
+            err = -ESRCH;
+            goto out;
+        }
+    }
+
+    err = -EPERM;
+    if (task_may_set_affinity(current, task))
+        err = task_set_affinity(task->thr, new_mask);
+out:
+    rcu_read_unlock();
+    return err;
 }
 
 int sys_sched_getaffinity(pid_t pid, size_t cpusetsize, void *cpu_set)
 {
-    /* TODO: Same as above, this is a placeholder */
-    cpumask online_cpus = smp::get_online_cpumask();
+    struct process *task;
+    struct cpumask mask;
+    unsigned long flags;
+
+    rcu_read_lock();
+    if (!pid)
+        task = get_current_process();
+    else
+    {
+        task = get_process_from_pid_noref(pid);
+        if (!task)
+        {
+            rcu_read_unlock();
+            return -ESRCH;
+        }
+    }
+
+    flags = spin_lock_irqsave(&task->thr->lock);
+    mask = task->thr->task_affinity;
+    spin_unlock_irqrestore(&task->thr->lock, flags);
+    rcu_read_unlock();
+
     if (cpusetsize < sizeof(cpumask))
         return -EINVAL;
 
-    if (copy_to_user(cpu_set, &online_cpus.mask, sizeof(cpumask)))
+    if (copy_to_user(cpu_set, &mask, sizeof(cpumask)))
         return -EFAULT;
     if (cpusetsize > sizeof(cpumask))
     {
