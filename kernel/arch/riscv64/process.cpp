@@ -50,6 +50,7 @@ struct thread *process_fork_thread(thread_t *src, struct process *dest, unsigned
     if (!thread)
         return nullptr;
 
+    thread->task_affinity = task_curr_affinity();
     regs.epc = (unsigned long) &ret_from_fork_asm;
     riscv::internal::thread_setup_stack(thread, false, &regs);
     save_fpu(thread->fpu_area);
