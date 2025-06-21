@@ -1452,16 +1452,14 @@ int sys_sched_getaffinity(pid_t pid, size_t cpusetsize, void *cpu_set)
     spin_unlock_irqrestore(&task->thr->lock, flags);
     rcu_read_unlock();
 
+    /* Linux man-page verbiage (and, indeed, the implementation) allows us to not require a full
+     * cpumask from userspace (i.e if we only have 8 bits, a byte would do). However, we don't
+     * really do that kind of tracking, and this level of micro-optimization is useless. */
     if (cpusetsize < sizeof(cpumask))
         return -EINVAL;
 
     if (copy_to_user(cpu_set, &mask, sizeof(cpumask)))
         return -EFAULT;
-    if (cpusetsize > sizeof(cpumask))
-    {
-        if (user_memset((u8 *) cpu_set + sizeof(cpumask), 0, cpusetsize - sizeof(cpumask)))
-            return -EFAULT;
-    }
 
-    return 0;
+    return sizeof(cpumask);
 }
