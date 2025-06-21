@@ -1429,6 +1429,11 @@ int sys_sched_getaffinity(pid_t pid, size_t cpusetsize, void *cpu_set)
     struct cpumask mask;
     unsigned long flags;
 
+    /* The passed size should be unsigned long aligned, since the cpu_set is de-facto of type
+     * unsigned long */
+    if (cpusetsize & (sizeof(unsigned long) - 1))
+        return -EINVAL;
+
     rcu_read_lock();
     if (!pid)
         task = get_current_process();
