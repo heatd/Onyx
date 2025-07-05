@@ -245,7 +245,7 @@ static inline bool pte_present(pte_t pte)
     return pte_val(pte) & (_PAGE_PRESENT | _PAGE_PROTNONE);
 }
 
-#define KERNEL_PGTBL (_PAGE_PRESENT | _PAGE_WRITE | _PAGE_GLOBAL)
+#define KERNEL_PGTBL (_PAGE_PRESENT | _PAGE_WRITE)
 #define USER_PGTBL   (KERNEL_PGTBL | _PAGE_USER)
 
 static inline pte_t pte_mkpte(u64 phys, pgprot_t prot)
