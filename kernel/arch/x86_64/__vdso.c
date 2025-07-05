@@ -18,8 +18,6 @@
 #include <onyx/vdso.h>
 #undef __is_onyx_kernel
 
-#include <fixed_point/fixed_point.h>
-
 struct vdso_info
 {
     char name[255];
@@ -49,7 +47,8 @@ volatile struct vdso_time __time;
 unsigned long tsc_elapsed_ns(uint64_t start, uint64_t end)
 {
     uint64_t delta = clock_delta_calc(start, end);
-    return u64_mul_u64_fp32_64(delta, __time.ticks_per_ns);
+    /* We need to use 128-bit math here, because the delta can be arbitrarily large (for now). */
+    return (unsigned long) (((__uint128_t) delta * __time.mult) >> __time.shift);
 }
 
 #define SyS_clock_gettime 42

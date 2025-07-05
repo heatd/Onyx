@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2017 Pedro Falcato
+ * Copyright (c) 2017 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 #ifndef _KERNEL_VDSO_H
 #define _KERNEL_VDSO_H
@@ -16,7 +18,8 @@
 
 struct vdso_time
 {
-    struct fp_32_64 ticks_per_ns;
+    /* Timer mult and shift parameters - to convert cycles to ns */
+    u32 mult, shift;
 #ifdef __x86_64__
     bool using_tsc;
 #endif

@@ -694,11 +694,12 @@ void timer_calibrate()
 
 void apic_set_oneshot_tsc(hrtime_t deadline)
 {
-    uint64_t future_tsc_counter = tsc_get_counter_from_ns(deadline);
+    u64 cycles = tsc_get_counter_from_ns(deadline);
+    u64 tsc = rdtsc();
 
     lapic_write(LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_TSC_DEADLINE);
     msr_fence();
-    wrmsr(IA32_TSC_DEADLINE, future_tsc_counter);
+    wrmsr(IA32_TSC_DEADLINE, tsc + cycles);
 }
 
 struct fp_32_64 apic_ticks_per_ns;

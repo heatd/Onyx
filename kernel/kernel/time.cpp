@@ -131,10 +131,10 @@ int clock_gettime_kernel(clockid_t clk_id, struct timespec *tp)
             const hrtime_t delta = now - clocks[clk_id].measurement_timestamp;
             tp->tv_sec = clk->time.tv_sec + delta / NS_PER_SEC;
             tp->tv_nsec = clk->time.tv_nsec + delta % NS_PER_SEC;
-            if (tp->tv_nsec >= (s64) NS_PER_SEC)
+            while (tp->tv_nsec >= (s64) NS_PER_SEC)
             {
                 tp->tv_sec++;
-                tp->tv_nsec %= NS_PER_SEC;
+                tp->tv_nsec -= NS_PER_SEC;
             }
 
             break;
