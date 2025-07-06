@@ -36,6 +36,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <onyx/mutex.h>
 #include <onyx/random.h>
 #include <onyx/spinlock.h>
 
@@ -153,14 +154,14 @@ static size_t rs_have = 0;
 static size_t rs_count = 0;
 static struct chacha rs_chacha;
 static unsigned char rs_buf[16 * 64];
-static struct spinlock random_lock;
+static struct mutex random_lock;
 
 void arc4random_buf(void* buffer_ptr, size_t size)
 {
     unsigned char entropy[KEYSZ + IVSZ];
     unsigned char* buffer = (unsigned char*) buffer_ptr;
 
-    spin_lock(&random_lock);
+    mutex_lock(&random_lock);
 
     while (0 < size)
     {
@@ -215,7 +216,7 @@ void arc4random_buf(void* buffer_ptr, size_t size)
         }
     }
 
-    spin_unlock(&random_lock);
+    mutex_unlock(&random_lock);
 }
 
 uint32_t arc4random(void)
