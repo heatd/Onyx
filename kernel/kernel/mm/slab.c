@@ -610,14 +610,16 @@ NO_ASAN static struct slab *kmem_cache_create_slab(struct slab_cache *cache, uns
  *
  * @param cache Slab cache
  * @param flags Allocation flags
+ * @param irqflags IRQ lock flags
  * @return Allocated object, or NULL in OOM situations
  */
-static void *kmem_cache_alloc_noslab(struct slab_cache *cache, unsigned int flags)
+static void *kmem_cache_alloc_noslab(struct slab_cache *cache, unsigned int flags,
+                                     unsigned long *irqflags)
 {
     /* Release the lock (we need it for allocation from the backend) */
-    spin_unlock(&cache->lock);
+    spin_unlock_irqrestore(&cache->lock, *irqflags);
     struct slab *s = kmem_cache_create_slab(cache, flags, true);
-    spin_lock(&cache->lock);
+    *irqflags = spin_lock_irqsave(&cache->lock);
 
     if (!s)
         return NULL;
@@ -644,17 +646,17 @@ void *kmem_cache_alloc_nopcpu(struct slab_cache *cache, unsigned int flags)
 {
     void *ptr;
 
-    spin_lock(&cache->lock);
+    unsigned long irqflags = spin_lock_irqsave(&cache->lock);
     if (cache->npartialslabs != 0)
         ptr = kmem_cache_alloc_from_partial(cache, flags);
     else if (cache->nfreeslabs != 0)
         ptr = kmem_cache_alloc_from_free(cache, flags);
     else
-        ptr = kmem_cache_alloc_noslab(cache, flags);
+        ptr = kmem_cache_alloc_noslab(cache, flags, &irqflags);
 
     if (likely(ptr))
         cache->pcpu[get_cpu_nr()].active_objs++;
-    spin_unlock(&cache->lock);
+    spin_unlock_irqrestore(&cache->lock, irqflags);
     return ptr;
 }
 
@@ -771,10 +773,13 @@ static int kmem_cache_refill_mag_noalloc(struct slab_cache *cache,
  * @param cache Slab cache
  * @param pcpu Slab percpu cache
  * @param flags GFP flags (see GFP_KERNEL, et al)
+ * @param old_irqflags _irq irq flags (only valid if irqsafe)
+ * @param irqsafe True if in a _irq variant, else false.
  * @return 0 on success, negative error codes
  */
 static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
-                                       struct slab_cache_percpu_context *pcpu, unsigned int flags)
+                                       struct slab_cache_percpu_context *pcpu, unsigned int flags,
+                                       unsigned long old_irqflags, bool irqsafe)
 {
     /* Preemption is off, cache is unlocked. The cache lock is only held in very specific points.
      * The lock must *not* be held when allocating slabs, as page allocation can sleep. */
@@ -782,9 +787,9 @@ static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
     int slabs_to_alloc;
     int nslabs;
 
-    spin_lock(&cache->lock);
+    unsigned long irqflags = spin_lock_irqsave(&cache->lock);
     slabs_to_alloc = kmem_cache_refill_mag_noalloc(cache, pcpu);
-    spin_unlock(&cache->lock);
+    spin_unlock_irqrestore(&cache->lock, irqflags);
     if (slabs_to_alloc == 0)
     {
         /* This is good, preemption was never reenabled, so pcpu is definitely the same. We never
@@ -795,7 +800,10 @@ static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
     /* Release the pcpu. We're going to effectively drop it in a bit */
     __atomic_store_n(&pcpu->touched, 0, __ATOMIC_RELAXED);
 
-    sched_enable_preempt();
+    if (irqsafe)
+        irq_restore(old_irqflags);
+    else
+        sched_enable_preempt();
     /* Allocate N slabs and add them to allocated_slabs. These are temporarily isolated from the
      * cache, but will be added to the slab cache system when allocation finishes. */
 
@@ -807,7 +815,10 @@ static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
             /* If i == 0, this is definitely a failure. Else, just break the loop */
             if (nslabs == 0)
             {
-                sched_disable_preempt();
+                if (irqsafe)
+                    irq_disable();
+                else
+                    sched_disable_preempt();
                 return -ENOMEM;
             }
 
@@ -825,11 +836,14 @@ static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
     /* Pin ourselves again to a CPU and get its percpu cache. It may or may not be the same, and
      * that's okay. If we switched CPUs and overallocated, the remaining slabs will stay in the
      * cache's free slabs list. */
-    sched_disable_preempt();
+    if (irqsafe)
+        irq_disable();
+    else
+        sched_disable_preempt();
     pcpu = &cache->pcpu[get_cpu_nr()];
     __atomic_store_n(&pcpu->touched, 1, __ATOMIC_RELAXED);
 
-    spin_lock(&cache->lock);
+    irqflags = spin_lock_irqsave(&cache->lock);
     /* Splice the allocated_slabs to free_slabs */
     list_splice_tail(&allocated_slabs, &cache->free_slabs);
     cache->nfreeslabs += nslabs;
@@ -837,7 +851,7 @@ static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
     kmem_cache_refill_mag_noalloc(cache, pcpu);
     DCHECK(pcpu->size > 0);
 
-    spin_unlock(&cache->lock);
+    spin_unlock_irqrestore(&cache->lock, irqflags);
 
     /* Preemption is disabled, cache is unlocked, mag should hold at least one object */
     return 0;
@@ -916,40 +930,19 @@ __always_inline void kmem_cache_post_alloc_bulk(struct slab_cache *cache, unsign
         kmem_cache_post_alloc(cache, flags, objects[i]);
 }
 
-/**
- * @brief Allocate an object from the slab
- * This function call be called in nopreempt/softirq context.
- *
- * @param cache Slab cache
- * @param flags Allocation flags
- * @return Allocated object, or NULL in OOM situations.
- */
-void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
+__always_inline void *kmem_cache_alloc_fast_path(struct slab_cache *cache, unsigned int flags,
+                                                 unsigned long irqflags, bool irqsafe)
 {
-    if (unlikely(cache->flags & KMEM_CACHE_NOPCPU))
-    {
-        void *ret = kmem_cache_alloc_nopcpu(cache, flags);
-        if (ret)
-            kmem_cache_post_alloc(cache, flags, ret);
-        return ret;
-    }
-
-    // Disable preemption so we can safely touch the percpu data
-    sched_disable_preempt();
-
     struct slab_cache_percpu_context *pcpu = &cache->pcpu[get_cpu_nr()];
-
     __atomic_store_n(&pcpu->touched, 1, __ATOMIC_RELEASE);
-
     if (unlikely(!pcpu->size))
     {
         // If our magazine is empty, lets refill it
-        int st = kmem_cache_alloc_refill_mag(cache, pcpu, flags);
+        int st = kmem_cache_alloc_refill_mag(cache, pcpu, flags, irqflags, irqsafe);
         /* pcpu might've changed over refill_mag, so reload it */
         pcpu = &cache->pcpu[get_cpu_nr()];
-        if (st < 0)
+        if (unlikely(st < 0))
         {
-            sched_enable_preempt();
             errno = ENOMEM;
             return NULL;
         }
@@ -962,10 +955,67 @@ void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
 
     pcpu->active_objs++;
     __atomic_store_n(&pcpu->touched, 0, __ATOMIC_RELEASE);
+    return ret;
+}
+
+/**
+ * @brief Allocate an object from the slab
+ * This function can be called in nopreempt/softirq context.
+ *
+ * @param cache Slab cache
+ * @param flags Allocation flags
+ * @return Allocated object, or NULL in OOM situations.
+ */
+void *kmem_cache_alloc(struct slab_cache *cache, unsigned int flags)
+{
+    void *ret;
+
+    if (unlikely(cache->flags & KMEM_CACHE_NOPCPU))
+    {
+        ret = kmem_cache_alloc_nopcpu(cache, flags);
+        if (ret)
+            kmem_cache_post_alloc(cache, flags, ret);
+        return ret;
+    }
+
+    // Disable preemption so we can safely touch the percpu data
+    sched_disable_preempt();
+    ret = kmem_cache_alloc_fast_path(cache, flags, 0, false);
     sched_enable_preempt();
 
-    kmem_cache_post_alloc(cache, flags, ret);
+    if (likely(ret))
+        kmem_cache_post_alloc(cache, flags, ret);
+    return ret;
+}
 
+/**
+ * @brief Allocate an object from the slab
+ * This function can be called in IRQ context. If you call this once for a given cache, you need to
+ * always call the _irq variants.
+ *
+ * @param cache Slab cache
+ * @param flags Allocation flags
+ * @return Allocated object, or NULL in OOM situations.
+ */
+void *kmem_cache_alloc_irq(struct slab_cache *cache, unsigned int flags)
+{
+    void *ret;
+
+    if (unlikely(cache->flags & KMEM_CACHE_NOPCPU))
+    {
+        ret = kmem_cache_alloc_nopcpu(cache, flags);
+        if (ret)
+            kmem_cache_post_alloc(cache, flags, ret);
+        return ret;
+    }
+
+    // Disable preemption so we can safely touch the percpu data
+    unsigned long irqf = irq_save_and_disable();
+    ret = kmem_cache_alloc_fast_path(cache, flags, irqf, true);
+    irq_restore(irqf);
+
+    if (likely(ret))
+        kmem_cache_post_alloc(cache, flags, ret);
     return ret;
 }
 
@@ -1017,7 +1067,7 @@ size_t kmem_cache_alloc_bulk(struct slab_cache *cache, unsigned int gfp_flags, s
         if (unlikely(!pcpu->size))
         {
             /* Refill and try again */
-            int st = kmem_cache_alloc_refill_mag(cache, pcpu, gfp_flags);
+            int st = kmem_cache_alloc_refill_mag(cache, pcpu, gfp_flags, 0, false);
             if (unlikely(st < 0))
             {
                 sched_enable_preempt();
@@ -1117,15 +1167,15 @@ static void kfree_nopcpu(void *ptr)
 #endif
     }
 
-    spin_lock(&cache->lock);
+    unsigned long flags = spin_lock_irqsave(&cache->lock);
     kmem_free_to_slab(cache, slab, ptr);
     cache->pcpu[get_cpu_nr()].active_objs--;
-    spin_unlock(&cache->lock);
+    spin_unlock_irqrestore(&cache->lock, flags);
 }
 
 void kmem_cache_return_pcpu_batch(struct slab_cache *cache, struct slab_cache_percpu_context *pcpu)
 {
-    spin_lock(&cache->lock);
+    unsigned long flags = spin_lock_irqsave(&cache->lock);
     int size = cache->mag_limit;
     int batchsize = size / 2;
     for (int i = 0; i < batchsize; i++)
@@ -1141,7 +1191,7 @@ void kmem_cache_return_pcpu_batch(struct slab_cache *cache, struct slab_cache_pe
     }
 
     // Unlock the cache since we're about to do an expensive-ish memmove
-    spin_unlock(&cache->lock);
+    spin_unlock_irqrestore(&cache->lock, flags);
 
     memmove(pcpu->magazine, &pcpu->magazine[batchsize], (size - pcpu->size) * sizeof(void *));
 }
@@ -1506,7 +1556,7 @@ static unsigned long kmem_cache_release_free_all(struct slab_cache *cache,
  */
 static unsigned long kmem_cache_shrink(struct slab_cache *cache, unsigned long target_freep)
 {
-    spin_lock(&cache->lock);
+    unsigned long flags = spin_lock_irqsave(&cache->lock);
 
     sched_disable_preempt();
 
@@ -1519,7 +1569,7 @@ static unsigned long kmem_cache_shrink(struct slab_cache *cache, unsigned long t
     ASSERT_SLAB_COUNT(cache);
     unsigned long freed = kmem_cache_release_free_all(cache, target_freep);
     kmem_slab_freeze_wait(&rndvz);
-    spin_unlock(&cache->lock);
+    spin_unlock_irqrestore(&cache->lock, flags);
     return freed;
 }
 
@@ -1748,9 +1798,9 @@ void kmem_free_kasan(void *ptr)
 
     cache = slab->cache;
     buf->flags = 0;
-    spin_lock(&cache->lock);
+    unsigned long flags = spin_lock_irqsave(&cache->lock);
     kmem_free_to_slab(cache, slab, kmem_bufctl_to_ptr(cache, buf));
-    spin_unlock(&cache->lock);
+    spin_unlock_irqrestore(&cache->lock, flags);
 }
 
 static void stack_trace_print(unsigned long *entries, unsigned long nr)
@@ -1863,9 +1913,9 @@ void slab_shrink_caches(unsigned long target_freep)
         struct slab_cache *cache = container_of(l, struct slab_cache, cache_list_node);
         unsigned long freed = 0;
         /* The limitation above does not apply, because caches have been unfrozen. */
-        spin_lock(&cache->lock);
+        unsigned long flags = spin_lock_irqsave(&cache->lock);
         freed = kmem_cache_release_free_all(cache, target_freep);
-        spin_unlock(&cache->lock);
+        spin_unlock_irqrestore(&cache->lock, flags);
         if (freed >= target_freep)
             break;
         target_freep -= freed;
@@ -1881,7 +1931,7 @@ void kmem_print_stats()
     list_for_every (&cache_list)
     {
         struct slab_cache *cache = container_of(l, struct slab_cache, cache_list_node);
-        spin_lock(&cache->lock);
+        unsigned long flags = spin_lock_irqsave(&cache->lock);
         unsigned long total = (cache->nfreeslabs + cache->npartialslabs + cache->nfullslabs) *
                               kmem_calc_slab_size(cache);
         unsigned long nactive = 0;
@@ -1891,7 +1941,7 @@ void kmem_print_stats()
                 "total slab size\n",
                 cache->name, cache->objsize, cache->nfullslabs, cache->nfreeslabs,
                 cache->npartialslabs, nactive, nactive * cache->objsize, total);
-        spin_unlock(&cache->lock);
+        spin_unlock_irqrestore(&cache->lock, flags);
     }
     mutex_unlock(&cache_list_lock);
 }
