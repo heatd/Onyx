@@ -1383,7 +1383,6 @@ ssize_t socket_recvmsg(socket *sock, msghdr *umsg, int flags)
 
     msg.msg_control = g.ucontrol;
     msg.msg_iov = (iovec *) g.uiov;
-    msg.msg_name = g.uname;
     msg.msg_controllen = len - kmsg.msg_controllen;
 
     if (msg.msg_control)
@@ -1394,10 +1393,11 @@ ssize_t socket_recvmsg(socket *sock, msghdr *umsg, int flags)
 
     if (msg.msg_name)
     {
-        if (copy_to_user(msg.msg_name, g.uname, kmsg.msg_namelen) < 0)
+        if (copy_to_user(g.uname, msg.msg_name, kmsg.msg_namelen) < 0)
             return -EFAULT;
     }
 
+    msg.msg_name = g.uname;
     if (copy_to_user(umsg, &msg, sizeof(msghdr)) < 0)
         return -EFAULT;
 
