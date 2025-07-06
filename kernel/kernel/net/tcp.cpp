@@ -1193,7 +1193,6 @@ void tcp_destroy_sock(struct tcp_socket *sock)
 {
     struct packetbuf *pbf, *next;
     DCHECK(sock->dead);
-    DCHECK(!sock->socket_lock.is_ours());
     tcp_stop_retransmit(sock);
 
     list_for_each_entry_safe (pbf, next, &sock->on_wire_queue, list_node)
@@ -1220,6 +1219,8 @@ void tcp_destroy_sock(struct tcp_socket *sock)
     WARN_ON(sock->sk_send_queued > 0);
     if (WARN_ON(sock->sk_rmem > 0))
         pr_warn("tcp: socket with leftover sk_rmem %u\n", sock->sk_rmem);
+    /* Note: Unref'ing this is unsafe if we hold the socket lock. However, we can take a ref, lock
+     * it, destroy the sock and only then unlock it + unref(). */
     sock->unref();
 }
 
