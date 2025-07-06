@@ -14,7 +14,7 @@
 
 #include <onyx/compiler.h>
 
-#define BOOTMEM_FLAG_LOW_MEM (1 << 0)
+#define BOOTMEM_FLAG_HIGH_MEM (1 << 0)
 
 __BEGIN_CDECLS
 

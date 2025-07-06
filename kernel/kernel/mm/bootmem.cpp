@@ -172,9 +172,37 @@ void bootmem_reserve(unsigned long start, size_t size)
     phys_range_seq++;
 }
 
+static void *alloc_boot_page_rev(size_t size)
+{
+    for (int i = nr_phys_ranges - 1; i >= 0; i--)
+    {
+        auto &ranges = phys_ranges[i];
+
+        if (ranges.size >= size)
+        {
+            auto ret = (void *) (ranges.start + ranges.size - size);
+            ranges.size -= size;
+
+            if (!ranges.size)
+            {
+                // Clean up if we allocated the whole range
+                bootmem_remove_range(i);
+            }
+#ifdef CONFIG_BOOTMEM_DEBUG
+            printf("alloc_boot_page: Allocated [%016lx, %016lx]\n", (unsigned long) ret,
+                   (unsigned long) ret + size);
+#endif
+            return ret;
+        }
+    }
+    panic("alloc_boot_page of %lu pages failed", size >> PAGE_SHIFT);
+}
+
 void *alloc_boot_page(size_t nr_pages, long flags)
 {
     size_t size = nr_pages << PAGE_SHIFT;
+    if (flags & BOOTMEM_FLAG_HIGH_MEM)
+        return alloc_boot_page_rev(size);
     for (unsigned int i = 0; i < nr_phys_ranges; i++)
     {
         auto &ranges = phys_ranges[i];
