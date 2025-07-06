@@ -621,7 +621,7 @@ void page_init(size_t memory_size, unsigned long maxpfn)
     page_memory_size = memory_size;
 
     size_t needed_memory = maxpfn * sizeof(struct page);
-    void *ptr = alloc_boot_page(vm_size_to_pages(needed_memory), 0);
+    void *ptr = alloc_boot_page(vm_size_to_pages(needed_memory), BOOTMEM_FLAG_HIGH_MEM);
     if (!ptr)
     {
         halt();
