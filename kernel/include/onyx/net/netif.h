@@ -73,6 +73,7 @@ struct netif
     unsigned char mac_address[6];
 
     struct sockaddr_in local_ip;
+    in_addr_t ipv4_submask;
 
     struct rwslock inet6_addr_list_lock;
     struct list_head inet6_addr_list;
