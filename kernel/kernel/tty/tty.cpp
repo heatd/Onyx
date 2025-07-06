@@ -838,10 +838,15 @@ const file_ops ctty_fops = {.on_open = ctty_open};
 int ctty_open(file *f)
 {
     auto current_process = get_current_process();
+    auto new_inode = inode_create(false);
+    if (!new_inode)
+        return -ENOMEM;
+
     scoped_lock g{current_process->sig->pgrp_lock};
 
     if (!current_process->sig->ctty)
     {
+        inode_unref(new_inode);
         return -EIO;
     }
 
@@ -849,10 +854,6 @@ int ctty_open(file *f)
     // that has the ctty's fops and private.
     // Note that we don't touch the dentry, so backtracking code will still find
     // /dev/tty as the path
-    auto new_inode = inode_create(false);
-
-    if (!new_inode)
-        return -ENOMEM;
 
     new_inode->i_dev = f->f_ino->i_dev;
     new_inode->i_helper = current_process->sig->ctty;
