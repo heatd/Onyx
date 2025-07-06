@@ -842,6 +842,66 @@ __always_inline void prepare_pages_after_alloc(struct page *page, unsigned int o
 #define PAGE_ALLOC_MAX_RECLAIM_ATTEMPT 5
 void stack_trace();
 
+static void pagestats_accumulate_for_zone(struct page_zone *zone,
+                                          unsigned long pagestats[PAGE_STATS_MAX])
+{
+    for (unsigned int i = 0; i < PAGE_STATS_MAX; i++)
+    {
+        for (unsigned int j = 0; j < CONFIG_SMP_NR_CPUS; j++)
+            pagestats[i] += zone->pcpu[i].pagestats[i];
+    }
+}
+
+static void dump_oom_log(void)
+{
+    unsigned long pagestats[PAGE_STATS_MAX];
+    unsigned long global_stats[PAGE_STATS_MAX];
+    unsigned long flags;
+    struct page_zone *zone;
+
+    pr_warn("Mem-Info:\n");
+
+#define PGTOKB(x) ((x) << (PAGE_SHIFT - 10))
+
+    memset(global_stats, 0, sizeof(global_stats));
+    /* Print mem stats and per-zone information */
+    for_zones_in_node((&main_node), zone)
+    {
+        memset(pagestats, 0, sizeof(pagestats));
+        flags = spin_lock_irqsave(&zone->lock);
+        pagestats_accumulate_for_zone(zone, pagestats);
+        for (int i = 0; i < PAGE_STATS_MAX; i++)
+            global_stats[i] += pagestats[i];
+        pr_warn("%s free:%lukB total:%lukB min:%lukB low:%lukB high:%lukB active_anon:%lukB "
+                "inactive_anon:%lukB "
+                "active_file:%lukB inactive_file:%lukB writeback:%lukB dirty:%lukB "
+                "slab_reclaimable:%lukB "
+                "slab_unreclaimable:%lukB kernel_stack:%lukB pagetables:%lukB\n",
+                zone->name, PGTOKB(zone->total_pages - zone->used_pages), PGTOKB(zone->total_pages),
+                PGTOKB(zone->min_watermark), PGTOKB(zone->low_watermark),
+                PGTOKB(zone->high_watermark), PGTOKB(pagestats[NR_ACTIVE_ANON]),
+                PGTOKB(pagestats[NR_INACTIVE_ANON]), PGTOKB(pagestats[NR_ACTIVE_FILE]),
+                PGTOKB(pagestats[NR_INACTIVE_FILE]), PGTOKB(pagestats[NR_WRITEBACK]),
+                PGTOKB(pagestats[NR_DIRTY]), PGTOKB(pagestats[NR_SLAB_RECLAIMABLE]),
+                PGTOKB(pagestats[NR_SLAB_UNRECLAIMABLE]), PGTOKB(pagestats[NR_KSTACK]),
+                PGTOKB(pagestats[NR_PTES]));
+        spin_unlock_irqrestore(&zone->lock, flags);
+    }
+
+    pr_warn(
+        "active_anon:%lukB "
+        "inactive_anon:%lukB "
+        "active_file:%lukB inactive_file:%lukB writeback:%lukB dirty:%lukB slab_reclaimable:%lukB "
+        "slab_unreclaimable:%lukB kernel_stack:%lukB pagetables:%lukB\n",
+        PGTOKB(global_stats[NR_ACTIVE_ANON]), PGTOKB(global_stats[NR_INACTIVE_ANON]),
+        PGTOKB(global_stats[NR_ACTIVE_FILE]), PGTOKB(global_stats[NR_INACTIVE_FILE]),
+        PGTOKB(global_stats[NR_WRITEBACK]), PGTOKB(global_stats[NR_DIRTY]),
+        PGTOKB(global_stats[NR_SLAB_RECLAIMABLE]), PGTOKB(global_stats[NR_SLAB_UNRECLAIMABLE]),
+        PGTOKB(global_stats[NR_KSTACK]), PGTOKB(global_stats[NR_PTES]));
+
+    pr_warn("%lu pages RAM\n", nr_global_pages.load());
+}
+
 struct page *page_node::alloc_order(unsigned int order, unsigned long flags)
 {
     struct page *page = nullptr;
@@ -907,6 +967,7 @@ failure:
     {
         pr_warn("pagealloc: Failed allocation of order %u, gfp_flags %lx, on:\n", order, flags);
         stack_trace();
+        dump_oom_log();
     }
 
     return nullptr;
