@@ -39,6 +39,7 @@ unsigned int netif_ioctl(int request, void *argp, struct file *f)
                 return -EFAULT;
             auto local = &netif->local_ip;
             memcpy(&local->sin_addr, &i.address, sizeof(struct in_addr));
+            netif->ipv4_submask = i.subnet.s_addr;
             return 0;
         }
         case SIOGETINET4: {

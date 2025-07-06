@@ -102,6 +102,12 @@
 #define SIOCSIFFLAGS 0x8914
 #define SIOCGIFADDR  0x8915
 #define SIOCSIFADDR  0x8916
+#define SIOCGIFNETMASK     0x891b
+#define SIOCSIFNETMASK     0x891c
+#define SIOCGIFMTU         0x8921
+#define SIOCSIFMTU         0x8922
+#define SIOCSIFHWADDR      0x8924
+#define SIOCGIFHWADDR      0x8927
 
 struct winsize
 {

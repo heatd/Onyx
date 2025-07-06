@@ -7,6 +7,7 @@
  */
 #include <errno.h>
 #include <net/if.h>
+#include <net/if_arp.h>
 
 #include <onyx/dentry.h>
 #include <onyx/file.h>
@@ -348,6 +349,74 @@ unsigned int do_siocsifaddr(struct ifreq *ureq)
     return copy_to_user(ureq, &req, sizeof(req));
 }
 
+static unsigned int do_generic_getioctl(struct ifreq *ureq, int request)
+{
+    struct ifreq req;
+    if (copy_from_user(&req, ureq, sizeof(req)) < 0)
+        return -EFAULT;
+
+    // Make sure the name is null terminated
+    req.ifr_name[IFNAMSIZ - 1] = '\0';
+
+    auto nif = netif_from_name(req.ifr_name);
+    if (!nif)
+        return -ENODEV;
+    switch (request)
+    {
+        case SIOCGIFMTU:
+            req.ifr_mtu = nif->mtu;
+            break;
+        case SIOCGIFHWADDR:
+            req.ifr_hwaddr.sa_family = ARPHRD_ETHER;
+            memcpy(&req.ifr_hwaddr.sa_data, nif->mac_address, sizeof(nif->mac_address));
+            break;
+        case SIOCGIFFLAGS: {
+            req.ifr_flags = IFF_RUNNING;
+            if (nif->flags & NETIF_LINKUP)
+                req.ifr_flags |= IFF_UP;
+            if (nif->flags & NETIF_LOOPBACK)
+                req.ifr_flags |= IFF_LOOPBACK;
+            break;
+        }
+        case SIOCGIFNETMASK: {
+            struct sockaddr_in in = {};
+            in.sin_family = AF_INET;
+            in.sin_addr.s_addr = nif->ipv4_submask;
+            memcpy(&req.ifr_netmask, &in, sizeof(in));
+            break;
+        }
+    }
+
+    return copy_to_user(ureq, &req, sizeof(req));
+}
+
+static unsigned int do_generic_setioctl(struct ifreq *ureq, int request)
+{
+    struct ifreq req;
+    if (copy_from_user(&req, ureq, sizeof(req)) < 0)
+        return -EFAULT;
+
+    // Make sure the name is null terminated
+    req.ifr_name[IFNAMSIZ - 1] = '\0';
+
+    auto nif = netif_from_name(req.ifr_name);
+    if (!nif)
+        return -ENODEV;
+    switch (request)
+    {
+        case SIOCSIFMTU:
+            nif->mtu = req.ifr_mtu;
+            break;
+        case SIOCSIFNETMASK:
+            struct sockaddr_in mask;
+            memcpy(&mask, &req.ifr_netmask, sizeof(mask));
+            nif->ipv4_submask = mask.sin_addr.s_addr;
+            break;
+    }
+
+    return 0;
+}
+
 #endif
 
 unsigned int socket_ioctl(int request, void *argp, struct file *file)
@@ -369,6 +438,23 @@ unsigned int socket_ioctl(int request, void *argp, struct file *file)
 
         case SIOCSIFADDR: {
             return do_siocsifaddr((struct ifreq *) argp);
+        }
+
+        case SIOCGIFMTU:
+        case SIOCGIFNETMASK:
+        case SIOCGIFHWADDR:
+        case SIOCGIFFLAGS: {
+            return do_generic_getioctl((struct ifreq *) argp, request);
+        }
+
+        case SIOCSIFFLAGS: {
+            /* We're not implementing this, for now... */
+            return 0;
+        }
+
+        case SIOCSIFMTU:
+        case SIOCSIFNETMASK: {
+            return do_generic_setioctl((struct ifreq *) argp, request);
         }
 #endif
     }
