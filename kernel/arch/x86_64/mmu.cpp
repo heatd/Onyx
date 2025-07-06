@@ -1109,7 +1109,7 @@ static void pte_kasan_range(pte_t *pte, unsigned long start, unsigned long end)
             continue;
         }
 
-        void *shadow = alloc_boot_page(1, 0);
+        void *shadow = alloc_boot_page(1, BOOTMEM_FLAG_HIGH_MEM);
         memset(PHYS_TO_VIRT(shadow), 0, PAGE_SIZE);
         set_pte(pte, pte_mkpte((u64) shadow,
                                __pgprot(_PAGE_WRITE | _PAGE_PRESENT | _PAGE_NX | _PAGE_GLOBAL)));
@@ -1131,7 +1131,7 @@ static void pmd_kasan_range(pmd_t *pmd, unsigned long start, unsigned long end)
         pte = pte_offset(pmd, start);
         if (pmd_addr(*pmd) == SHADOW(pte, pt))
         {
-            pte_t *newpte = (pte_t *) alloc_boot_page(1, 0);
+            pte_t *newpte = (pte_t *) alloc_boot_page(1, BOOTMEM_FLAG_HIGH_MEM);
             memcpy(PHYS_TO_VIRT(newpte), shadow_pt, PAGE_SIZE);
             set_pmd(pmd, pmd_mkpmd((unsigned long) newpte, __pgprot(KERNEL_PGTBL)));
             pte = pte_offset(pmd, start);
@@ -1155,7 +1155,7 @@ static void pud_kasan_range(pud_t *pud, unsigned long start, unsigned long end)
         pmd = pmd_offset(pud, start);
         if (pud_addr(*pud) == SHADOW(pmd, pd))
         {
-            pmd_t *newpmd = (pmd_t *) alloc_boot_page(1, 0);
+            pmd_t *newpmd = (pmd_t *) alloc_boot_page(1, BOOTMEM_FLAG_HIGH_MEM);
             memcpy(PHYS_TO_VIRT(newpmd), shadow_pd, PAGE_SIZE);
             set_pud(pud, pud_mkpud((unsigned long) newpmd, __pgprot(KERNEL_PGTBL)));
             pmd = pmd_offset(pud, start);
@@ -1179,7 +1179,7 @@ static void p4d_kasan_range(p4d_t *p4d, unsigned long start, unsigned long end)
         pud = pud_offset(p4d, start);
         if (p4d_addr(*p4d) == SHADOW(pud, pdpt))
         {
-            pud_t *newpud = (pud_t *) alloc_boot_page(1, 0);
+            pud_t *newpud = (pud_t *) alloc_boot_page(1, BOOTMEM_FLAG_HIGH_MEM);
             memcpy(PHYS_TO_VIRT(newpud), shadow_pdpt, PAGE_SIZE);
             set_p4d(p4d, p4d_mkp4d((unsigned long) newpud, __pgprot(KERNEL_PGTBL)));
             pud = pud_offset(p4d, start);
@@ -1202,7 +1202,7 @@ static void pgd_kasan_range(pgd_t *pgd, unsigned long start, unsigned long end)
         p4d = p4d_offset(pgd, start);
         if (pml5_present() && pgd_addr(*pgd) == SHADOW(p4d, pml4))
         {
-            p4d_t *newp4d = (p4d_t *) alloc_boot_page(1, 0);
+            p4d_t *newp4d = (p4d_t *) alloc_boot_page(1, BOOTMEM_FLAG_HIGH_MEM);
             memcpy(PHYS_TO_VIRT(newp4d), shadow_pml4, PAGE_SIZE);
             set_pgd(pgd, pgd_mkpgd((unsigned long) newp4d, __pgprot(KERNEL_PGTBL)));
             p4d = p4d_offset(pgd, start);
