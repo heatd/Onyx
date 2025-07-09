@@ -107,6 +107,7 @@ static void exit_reparent_children(struct process *task, struct list_head *reap)
 {
     bool autoreap = false;
     bool group_dead = true;
+    bool wake = false;
     bool notify;
     struct process *child, *next;
     struct process *leader;
@@ -123,9 +124,11 @@ static void exit_reparent_children(struct process *task, struct list_head *reap)
         list_remove(&child->sibbling_node);
         list_add_tail(&child->sibbling_node, &reaper->children_head);
         rcu_assign_pointer(child->parent, reaper);
+        wake = true;
     }
 
-    wait_queue_wake_all(&reaper->sig->wait_child_event);
+    if (wake)
+        wait_queue_wake_all(&reaper->sig->wait_child_event);
 
     /* Check if we should autoreap ourselves. This may happen for various reasons:
      * 1) We're a thread while not being a thread group leader (the parent will never wait for us)
