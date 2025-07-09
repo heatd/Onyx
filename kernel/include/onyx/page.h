@@ -269,6 +269,20 @@ static inline unsigned long page_ref(struct page *p)
     return newrefs;
 }
 
+static inline bool page_try_get(struct page *p)
+{
+    unsigned int old = READ_ONCE(p->ref), expected;
+    do
+    {
+        if (old == 0)
+            return false;
+        expected = old;
+        old = cmpxchg_relaxed(&p->ref, old, old + 1);
+    } while (old != expected);
+
+    return true;
+}
+
 static inline unsigned long page_ref_many(struct page *p, unsigned long c)
 {
     return __atomic_add_fetch(&p->ref, c, __ATOMIC_ACQUIRE);

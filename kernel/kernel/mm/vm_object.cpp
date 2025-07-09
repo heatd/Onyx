@@ -119,10 +119,7 @@ struct page *vm_object::insert_page_unlocked(unsigned long off, struct page *pag
  */
 vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page **ppage)
 {
-    vmo_status_t st = VMO_STATUS_OK;
     struct page *p = nullptr;
-
-    scoped_lock g{vmo->page_lock};
 
 #if 1
     if (vmo->ino && !(vmo->flags & VMO_FLAG_DEVICE_MAPPING))
@@ -132,20 +129,27 @@ vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page
     if (off >= vmo->size)
         return VMO_STATUS_BUS_ERROR;
 
-    auto ex = vmo->vm_pages.get(off >> PAGE_SHIFT);
-    if (ex.has_value())
+    do
+    {
+        auto ex = vmo->vm_pages.get(off >> PAGE_SHIFT);
+        if (!ex.has_value())
+            return VMO_STATUS_NON_EXISTENT;
         p = (struct page *) ex.value();
 
-    if (!p)
-        st = VMO_STATUS_NON_EXISTENT;
+        if (!page_try_get(p))
+            continue;
+        auto ex2 = vmo->vm_pages.get(off >> PAGE_SHIFT);
+        if (!ex2.has_value() || (struct page *) ex2.value() != p)
+        {
+            page_unref(p);
+            continue;
+        }
 
-    if (st == VMO_STATUS_OK)
-    {
-        page_pin(p);
-        *ppage = p;
-    }
+        break;
+    } while (1);
 
-    return st;
+    *ppage = p;
+    return VMO_STATUS_OK;
 }
 
 /**
