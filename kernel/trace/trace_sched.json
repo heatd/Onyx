@@ -30,7 +30,8 @@
         ],
 
         "format": {
-
+            "stack_trace": {"type": "u64[16]", "custom_assign": "size_t stack_trace_get_cpp(unsigned long *, unsigned long *, size_t);size_t frames = stack_trace_get_cpp((unsigned long *) __builtin_frame_address(0), record.stack_trace, 16);"},
+            "trace_size": {"type": "u8", "custom_assign": "record.trace_size = (u8) frames;"}
         }
     },
     {
