@@ -49,7 +49,7 @@ int vm_anon_fault(struct vm_pf_context *ctx)
         page_set_anon(page);
         page->owner = (struct vm_object *) anon;
         page->pageoff = ctx->vpage;
-        page_add_lru(page);
+        folio_add_lru(page_folio(page));
         page_set_dirty(page);
     }
 

@@ -297,7 +297,6 @@ static int vmo_purge_pages(unsigned long start, unsigned long end,
              * reference */
             page_unref(old_p);
             dec_page_stat(old_p, NR_FILE);
-            page_remove_lru(old_p);
             if (!vmo->ops->free_page)
                 free_page(old_p);
             else

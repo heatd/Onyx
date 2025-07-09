@@ -754,7 +754,7 @@ void page_accumulate_stats(unsigned long pages[PAGE_STATS_MAX]);
 struct page_lru;
 struct page_lru *page_to_page_lru(struct page *page);
 
-void page_promote_referenced(struct page *page);
+void folio_promote_referenced(struct folio *folio);
 
 static inline void __page_reset_mapcount(struct page *page, unsigned int raw_value)
 {

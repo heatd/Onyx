@@ -785,7 +785,7 @@ static struct page *swap_read_from_storage(swp_entry_t swp, struct vm_object *ob
 
     *created = true;
     page_set_anon(page);
-    page_add_lru(page);
+    folio_add_lru(page_folio(page));
 
     /* page locked. Read it in. */
     err = swap_readpage(obj, swp, page);
