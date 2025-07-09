@@ -1644,15 +1644,12 @@ err:
     return -1;
 }
 
-static void vm_destroy_area(struct vm_area_struct *region)
+static void vm_destroy_area(struct vm_area_struct *region, struct tlbi_tracker *tlbi)
 {
-    vm_mmu_unmap(region->vm_mm, (void *) region->vm_start, vma_pages(region), region);
-
+    vma_unmap(region->vm_mm, (void *) region->vm_start, vma_pages(region), region, tlbi);
     decrement_vm_stat(region->vm_mm, virtual_memory_size, region->vm_end - region->vm_start);
-
     if (vma_shared(region))
         decrement_vm_stat(region->vm_mm, shared_set_size, region->vm_end - region->vm_start);
-
     vma_destroy(region);
 }
 
@@ -1664,12 +1661,15 @@ static void vm_destroy_area(struct vm_area_struct *region)
 void vm_destroy_addr_space(struct mm_address_space *mm)
 {
     /* First, iterate through the maple tree and free/unmap stuff */
+    struct tlbi_tracker tlbi;
+
+    tlbi_tracker_init(&tlbi);
     rw_lock_write(&mm->vm_lock);
 
     struct vm_area_struct *entry;
     unsigned long index = 0;
     mt_for_each (&mm->region_tree, entry, index, -1UL)
-        vm_destroy_area(entry);
+        vm_destroy_area(entry, &tlbi);
 
     mtree_destroy(&mm->region_tree);
     assert(mm->resident_set_size == 0);
@@ -1683,6 +1683,9 @@ void vm_destroy_addr_space(struct mm_address_space *mm)
     assert(mm->page_tables_size == PAGE_SIZE);
 
     rw_unlock_write(&mm->vm_lock);
+
+    if (tlbi_active(&tlbi))
+        tlbi_end_batch(&tlbi);
 }
 
 /**
@@ -2134,6 +2137,7 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size) REQUIRES
     unsigned long addr = (unsigned long) __addr & -PAGE_SIZE;
     unsigned long limit = ALIGN_TO(((unsigned long) __addr) + size, PAGE_SIZE);
     struct list_head list = LIST_HEAD_INIT(list);
+    struct tlbi_tracker tlbi;
 
     struct vm_area_struct *vma = vm_search(as, (void *) addr, PAGE_SIZE);
     if (!vma)
@@ -2161,6 +2165,7 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size) REQUIRES
             break;
     }
 
+    tlbi_tracker_init(&tlbi);
     list_for_every_safe (&list)
     {
         vma = container_of(l, struct vm_area_struct, vm_detached_node);
@@ -2168,7 +2173,7 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size) REQUIRES
         bool is_shared = vma_shared(vma);
         unsigned long sz = vma->vm_end - vma->vm_start;
 
-        vm_mmu_unmap(as, (void *) vma->vm_start, vma_pages(vma), vma);
+        vma_unmap(as, (void *) vma->vm_start, vma_pages(vma), vma, &tlbi);
         list_remove(&vma->vm_detached_node);
         vma_destroy(vma);
 
@@ -2176,6 +2181,9 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size) REQUIRES
         if (is_shared)
             decrement_vm_stat(as, shared_set_size, sz);
     }
+
+    if (tlbi_active(&tlbi))
+        tlbi_end_batch(&tlbi);
 
     vmi_destroy(&vmi);
     validate_mm_tree(as);

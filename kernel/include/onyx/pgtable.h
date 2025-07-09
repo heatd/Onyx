@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 Pedro Falcato
+ * Copyright (c) 2024 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -9,6 +9,7 @@
 #define _ONYX_PGTABLE_H
 
 #include <onyx/compiler.h>
+#include <onyx/list.h>
 
 __BEGIN_CDECLS
 
@@ -229,10 +230,30 @@ static inline unsigned long pte_addr_end(unsigned long addr)
     return end < addr ? -1UL : end;
 }
 
+struct tlbi_tracker
+{
+    /* Somewhat primitive, but will do for the time being... */
+    unsigned long start, end;
+    struct list_head batches;
+    bool active;
+};
+
+static inline void tlbi_tracker_init(struct tlbi_tracker *tlbi)
+{
+    tlbi->start = tlbi->end = 0;
+    tlbi->active = false;
+    INIT_LIST_HEAD(&tlbi->batches);
+}
+
+void tlbi_end_batch(struct tlbi_tracker *tlbi);
+bool tlbi_active(struct tlbi_tracker *tlbi);
+
 pte_t pte_get(struct mm_address_space *mm, unsigned long addr);
 pte_t *ptep_get_locked(struct mm_address_space *mm, unsigned long addr, struct spinlock **lock);
 int pgtable_prealloc(struct mm_address_space *mm, unsigned long virt);
 int zap_page_range(unsigned long start, unsigned long end, struct vm_area_struct *vma);
+int vma_unmap(struct mm_address_space *mm, void *addr, size_t pages, struct vm_area_struct *vma,
+              struct tlbi_tracker *tlbi);
 __END_CDECLS
 
 #endif
