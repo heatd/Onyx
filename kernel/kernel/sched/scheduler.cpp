@@ -684,6 +684,7 @@ unsigned int sched_allocate_processor(void)
 
 void thread_add(thread_t *thread, unsigned int cpu_num)
 {
+    struct thread *remote;
     if (cpu_num == SCHED_NO_CPU_PREFERENCE || cpu_num > get_nr_cpus())
         cpu_num = sched_allocate_processor();
 
@@ -692,6 +693,17 @@ void thread_add(thread_t *thread, unsigned int cpu_num)
                            thread->owner ? thread->owner->comm : NULL, thread->cpu);
     /* Append the thread to the queue */
     sched_append_to_queue(thread->priority, cpu_num, thread);
+    rcu_read_lock();
+    remote = get_thread_for_cpu(cpu_num);
+    if (remote && remote->priority < thread->priority)
+    {
+        if (cpu_num == get_cpu_nr())
+            sched_should_resched();
+        else
+            cpu_send_resched(cpu_num);
+    }
+
+    rcu_read_unlock();
 }
 
 void sched_init_cpu(unsigned int cpu)
