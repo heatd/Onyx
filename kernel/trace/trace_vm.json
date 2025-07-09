@@ -48,5 +48,22 @@
 
         "format": {
         }
+    },
+    {
+        "name": "lock_page_end",
+        "category": "mm",
+        "args": [
+        ],
+        "format": {
+        }
+    },
+        {
+        "name": "lock_page_begin",
+        "category": "mm",
+        "args": [
+        ],
+        "format": {
+        }
     }
+
 ]

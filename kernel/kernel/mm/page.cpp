@@ -13,6 +13,7 @@
 
 #include <onyx/bootmem.h>
 #include <onyx/fnv.h>
+#include <onyx/gen/trace_vm.h>
 #include <onyx/log.h>
 #include <onyx/page.h>
 #include <onyx/vm.h>
@@ -201,6 +202,7 @@ int page_wait_bit(struct page *p, unsigned int bit, bool interruptible) NO_THREA
     winfo.bit = bit;
 
     struct wait_queue *wq = &wait_queues[index];
+    trace_mm_lock_page_begin();
 
     auto flags = spin_lock_irqsave(&wq->lock);
 
@@ -252,7 +254,7 @@ int page_wait_bit(struct page *p, unsigned int bit, bool interruptible) NO_THREA
         page_clear_waiters(p);
 
     spin_unlock_irqrestore(&wq->lock, flags);
-
+    trace_mm_lock_page_end();
     return st;
 }
 
