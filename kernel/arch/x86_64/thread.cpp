@@ -143,6 +143,45 @@ int sys_arch_prctl(int code, unsigned long *addr)
 
 constexpr bool adding_guard_page = false;
 
+struct pcpu_stack_cache
+{
+    unsigned long stack[16];
+    unsigned int nr_used;
+};
+
+static PER_CPU_VAR(struct pcpu_stack_cache stack_cache);
+
+static void thread_free_stack(unsigned long base)
+{
+    struct pcpu_stack_cache *cache = get_per_cpu_ptr(stack_cache);
+    if (cache->nr_used == 16)
+    {
+        vfree((void *) base);
+        return;
+    }
+
+    cache->stack[cache->nr_used++] = base;
+}
+
+static void *thread_alloc_stack(void)
+{
+    struct pcpu_stack_cache *cache;
+    void *ret;
+
+    sched_disable_preempt();
+    cache = get_per_cpu_ptr(stack_cache);
+    if (cache->nr_used > 0)
+    {
+        ret = (void *) cache->stack[--cache->nr_used];
+        sched_enable_preempt();
+        return ret;
+    }
+
+    sched_enable_preempt();
+    auto pages = adding_guard_page ? 6 : 4;
+    return vmalloc(pages, VM_TYPE_STACK, VM_READ | VM_WRITE, GFP_KERNEL);
+}
+
 extern "C" void thread_finish_destruction(struct rcu_head *head)
 {
     thread *thread = container_of(head, struct thread, rcu_head);
@@ -153,7 +192,7 @@ extern "C" void thread_finish_destruction(struct rcu_head *head)
     if (adding_guard_page)
         stack_base -= PAGE_SIZE;
 
-    vfree((void *) stack_base);
+    thread_free_stack(stack_base);
 #endif
     /* Free the fpu area */
     free(thread->fpu_area);
@@ -179,7 +218,6 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
     new_thread->canary = THREAD_STRUCT_CANARY;
 
     bool is_user = !(flags & THREAD_KERNEL);
-    auto pages = adding_guard_page ? 6 : 4;
     void *original_entry = (void *) regs->rip;
 
     if (is_user)
@@ -211,8 +249,7 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
 
     new_thread->refcount = 1;
 
-    thr_stack_alloc =
-        static_cast<uintptr_t *>(vmalloc(pages, VM_TYPE_STACK, VM_READ | VM_WRITE, GFP_KERNEL));
+    thr_stack_alloc = static_cast<uintptr_t *>(thread_alloc_stack());
 
     new_thread->kernel_stack = thr_stack_alloc;
     if (!new_thread->kernel_stack)
