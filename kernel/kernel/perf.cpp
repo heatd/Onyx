@@ -53,7 +53,7 @@ static int perf_probe_enable_wait()
             fg[i].nentries = FLAME_GRAPH_NENTRIES;
             fg[i].fge = (flame_graph_entry *) vmalloc(
                 vm_size_to_pages(sizeof(flame_graph_entry) * FLAME_GRAPH_NENTRIES), VM_TYPE_REGULAR,
-                VM_READ | VM_WRITE, GFP_KERNEL);
+                VM_READ | VM_WRITE, GFP_ATOMIC);
             assert(fg[i].fge != nullptr);
         }
     }
@@ -97,7 +97,7 @@ static int perf_probe_enable()
             fg[i].nentries = FLAME_GRAPH_NENTRIES;
             fg[i].fge = (flame_graph_entry *) vmalloc(
                 vm_size_to_pages(sizeof(flame_graph_entry) * FLAME_GRAPH_NENTRIES), VM_TYPE_REGULAR,
-                VM_READ | VM_WRITE, GFP_KERNEL);
+                VM_READ | VM_WRITE, GFP_ATOMIC);
             assert(fg[i].fge != nullptr);
         }
     }
