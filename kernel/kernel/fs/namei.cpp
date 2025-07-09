@@ -615,16 +615,11 @@ static int do_last_open(nameidata &data, int open_flags, mode_t mode)
 {
     dentry *cur = data.cur.dentry;
     inode *curino = cur->d_inode;
-    bool lockwrite = open_flags & O_CREAT;
+    bool lockwrite = false;
     int st = 0;
+    std::string_view last;
     auto &path = data.paths[data.pdepth];
     unsigned int lookup_flags = NAMEI_UNLOCKED | NAMEI_NO_FOLLOW_SYM;
-
-    if (open_flags & O_CREAT)
-    {
-        /* We want to get negative dentries too for O_CREAT */
-        lookup_flags |= NAMEI_ALLOW_NEGATIVE;
-    }
 
     DCHECK(data.lookup_flags & LOOKUP_INTERNAL_SAW_LAST_NAME);
 
@@ -635,7 +630,7 @@ static int do_last_open(nameidata &data, int open_flags, mode_t mode)
     else
         inode_lock_shared(curino);
 
-    auto last = get_token_from_path(path, false);
+    last = get_token_from_path(path, false);
     DCHECK(last.data() != nullptr);
 
     if (open_flags & O_CREAT && path.trailing_slash())
@@ -644,11 +639,22 @@ static int do_last_open(nameidata &data, int open_flags, mode_t mode)
         goto out;
     }
 
+again:
     st = namei_walk_component(last, data, lookup_flags);
 
     if (st < 0 || (open_flags & O_CREAT && d_is_negative(data.cur.dentry)))
     {
         /* Failed to walk, try to creat if we can */
+        if (!lockwrite && (open_flags & O_CREAT))
+        {
+            lockwrite = true;
+            inode_unlock_shared(curino);
+            inode_lock(curino);
+            /* We want to get negative dentries too for O_CREAT, this time around */
+            lookup_flags |= NAMEI_ALLOW_NEGATIVE;
+            goto again;
+        }
+
         if (open_flags & O_CREAT)
             st = do_creat(cur, curino, data.cur.dentry, mode, data);
     }
