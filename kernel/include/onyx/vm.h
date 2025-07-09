@@ -89,6 +89,7 @@ static inline unsigned long vm_prot_to_cache_type(uint64_t prot)
 #define VM_FULL_ADDRESS_SPACE (1 << 2)
 
 #define PHYS_TO_VIRT(x) (void *) ((uintptr_t) (x) + PHYS_BASE)
+#define VIRT_TO_PHYS(x) ((uintptr_t) (x) -PHYS_BASE)
 
 struct vm_object;
 struct vm_pf_context;

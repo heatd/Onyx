@@ -365,27 +365,18 @@ unsigned long __get_mapping_info(void *addr, struct mm_address_space *mm)
     return pte_to_mapping_info(*pte);
 }
 
-#define MAX_PENDING_PAGEN 32
-
-struct tlbi_tracker
+struct tlbi_batch
 {
-    /* Somewhat primitive, but will do for the time being... */
-    unsigned long start, end;
-    struct page *pending_pages[MAX_PENDING_PAGEN];
+    struct list_head list_node;
     unsigned int used_pending_pages;
-    bool active;
+    struct page *pending_pages[];
 };
 
-static void tlbi_tracker_init(struct tlbi_tracker *tlbi)
-{
-    tlbi->start = tlbi->end = 0;
-    tlbi->active = false;
-    tlbi->used_pending_pages = 0;
-}
+#define MAX_PENDING_PAGEN ((PAGE_SIZE - (offsetof(struct tlbi_batch, pending_pages))) / 8)
 
 struct unmap_info
 {
-    struct tlbi_tracker tlbi;
+    struct tlbi_tracker *tlbi;
     struct mm_address_space *mm;
     struct vm_area_struct *vma;
     int kernel : 1, full : 1, freepgtables : 1;
@@ -402,19 +393,47 @@ enum unmap_result
     UNMAP_DONT_FREE = (1 << 1)
 };
 
-static void tlbi_end_batch(struct tlbi_tracker *tlbi)
+void tlbi_end_batch(struct tlbi_tracker *tlbi)
 {
+    struct tlbi_batch *batch, *next;
+    struct page *page;
+
     vm_invalidate_range(tlbi->start, (tlbi->end - tlbi->start) >> PAGE_SHIFT);
-    for (unsigned int i = 0; i < tlbi->used_pending_pages; i++)
-        page_unref(tlbi->pending_pages[i]);
+    list_for_each_entry_safe (batch, next, &tlbi->batches, list_node)
+    {
+        /* TODO: Efficient way to unref many pages at a time. */
+        for (unsigned int i = 0; i < batch->used_pending_pages; i++)
+            page_unref(batch->pending_pages[i]);
+        list_remove(&batch->list_node);
+        page = phys_to_page(VIRT_TO_PHYS(batch));
+        CHECK((unsigned long) page > 0xf0000);
+        free_page(page);
+    }
+
     tlbi->active = false;
-    tlbi->used_pending_pages = 0;
 }
 
-static void tlbi_add_defer_free(struct tlbi_tracker *tlbi, struct page *page)
+static bool tlbi_add_defer_free(struct tlbi_tracker *tlbi, struct page *page)
 {
-    DCHECK(tlbi->used_pending_pages < MAX_PENDING_PAGEN);
-    tlbi->pending_pages[tlbi->used_pending_pages++] = page;
+    struct tlbi_batch *batch;
+    struct page *batchpage;
+
+    batch = list_is_empty(&tlbi->batches)
+                ? NULL
+                : list_last_entry(&tlbi->batches, struct tlbi_batch, list_node);
+    if (!batch || batch->used_pending_pages == MAX_PENDING_PAGEN)
+    {
+        /* Allocate a new batch and append it */
+        batchpage = alloc_page(GFP_ATOMIC | __GFP_NOWARN);
+        if (!batchpage)
+            return false;
+        batch = PAGE_TO_VIRT(batchpage);
+        batch->used_pending_pages = 0;
+        list_add_tail(&batch->list_node, &tlbi->batches);
+    }
+
+    batch->pending_pages[batch->used_pending_pages++] = page;
+    return true;
 }
 
 static void tlbi_remove_page(struct tlbi_tracker *tlbi, unsigned long addr, struct page *page)
@@ -432,27 +451,35 @@ retry:
      * the cost of flushing too much TLB */
     /* If the new page is too far away (say, a PMD of distance), flush this batch and start anew. If
      * we have a page to queue, and the defer queue is empty, flush the batch and start anew. */
-    if ((long) (tlbi->start - addr) >= (long) PMD_SIZE ||
-        (long) (addr - tlbi->end) >= (long) PMD_SIZE ||
-        (page && tlbi->used_pending_pages == MAX_PENDING_PAGEN))
+    if (/*(long) (tlbi->start - addr) >= (long) PMD_SIZE ||
+       (long) (addr - tlbi->end) >= (long) PMD_SIZE ||*/
+        (page))
     {
-        tlbi_end_batch(tlbi);
-        goto retry;
+        // goto retry;
     }
 
     if (addr < tlbi->start)
         tlbi->start = addr;
     else if (addr >= tlbi->end)
         tlbi->end = addr + PAGE_SIZE;
-
 out:
     if (page)
-        tlbi_add_defer_free(tlbi, page);
+    {
+        if (!tlbi_add_defer_free(tlbi, page))
+        {
+            tlbi_end_batch(tlbi);
+            /* TODO: This is iffy. */
+            if (!tlbi_add_defer_free(tlbi, page))
+                panic("Crap");
+            goto retry;
+        }
+    }
 }
 
 static bool tlbi_defer_page_queue_full(struct tlbi_tracker *tlbi)
 {
-    return tlbi->used_pending_pages == MAX_PENDING_PAGEN;
+    /* XXX: Maybe remove */
+    return true;
 }
 
 static bool tlbi_covers(struct tlbi_tracker *tlbi, unsigned long start, unsigned long end)
@@ -460,7 +487,7 @@ static bool tlbi_covers(struct tlbi_tracker *tlbi, unsigned long start, unsigned
     return start <= tlbi->end && tlbi->start <= end;
 }
 
-static bool tlbi_active(struct tlbi_tracker *tlbi)
+bool tlbi_active(struct tlbi_tracker *tlbi)
 {
     return tlbi->active;
 }
@@ -550,7 +577,7 @@ static enum unmap_result pte_unmap_range(struct unmap_info *uinfo, pte_t *pte, u
         if (pte_present(old) || pte_protnone(old))
             decrement_vm_stat(uinfo->mm, resident_set_size, PAGE_SIZE);
         set_pte(pte, __pte(0));
-        tlbi_remove_page(&uinfo->tlbi, start, page);
+        tlbi_remove_page(uinfo->tlbi, start, page);
     }
 
     /* If we *know* the page table is clear, tell it to the caller so we skip expensive checks */
@@ -577,7 +604,7 @@ static int pmd_free_pte(struct unmap_info *uinfo, pmd_t *pmd, unsigned long addr
     set_pmd(pmd, __pmd(0));
     pte_page = phys_to_page(((unsigned long) pte) - PHYS_BASE);
     dec_page_stat(pte_page, NR_PTES);
-    tlbi_remove_pte(uinfo->mm, &uinfo->tlbi, pte, addr);
+    tlbi_remove_pte(uinfo->mm, uinfo->tlbi, pte, addr);
     return 1;
 }
 
@@ -595,7 +622,7 @@ static int pud_free_pmd(struct unmap_info *uinfo, pud_t *pud, unsigned long addr
     }
 
     set_pud(pud, __pud(0));
-    tlbi_remove_pmd(uinfo->mm, &uinfo->tlbi, pmd, addr);
+    tlbi_remove_pmd(uinfo->mm, uinfo->tlbi, pmd, addr);
     return 1;
 }
 
@@ -613,7 +640,7 @@ static int p4d_free_pud(struct unmap_info *uinfo, p4d_t *p4d, unsigned long addr
     }
 
     set_p4d(p4d, __p4d(0));
-    tlbi_remove_pud(uinfo->mm, &uinfo->tlbi, pud, addr);
+    tlbi_remove_pud(uinfo->mm, uinfo->tlbi, pud, addr);
     return 1;
 }
 
@@ -631,7 +658,7 @@ static int pgd_free_p4d(struct unmap_info *uinfo, pgd_t *pgd, unsigned long addr
     }
 
     set_pgd(pgd, __pgd(0));
-    tlbi_remove_p4d(uinfo->mm, &uinfo->tlbi, p4d, addr);
+    tlbi_remove_p4d(uinfo->mm, uinfo->tlbi, p4d, addr);
     return 1;
 }
 
@@ -743,7 +770,8 @@ static void pgd_unmap_range(struct unmap_info *uinfo, pgd_t *pgd, unsigned long 
     }
 }
 
-int vm_mmu_unmap(struct mm_address_space *mm, void *addr, size_t pages, struct vm_area_struct *vma)
+int vma_unmap(struct mm_address_space *mm, void *addr, size_t pages, struct vm_area_struct *vma,
+              struct tlbi_tracker *tlbi)
 {
     unsigned long virt = (unsigned long) addr;
     unsigned long end = virt + (pages << PAGE_SHIFT);
@@ -753,14 +781,36 @@ int vm_mmu_unmap(struct mm_address_space *mm, void *addr, size_t pages, struct v
     unmap_info.kernel = mm == &kernel_address_space;
     unmap_info.full = 0;
     unmap_info.freepgtables = 1;
-    tlbi_tracker_init(&unmap_info.tlbi);
+    unmap_info.tlbi = tlbi;
 
     spin_lock(&mm->page_table_lock);
     pgd_unmap_range(&unmap_info, pgd_offset(mm, virt), virt, end);
     spin_unlock(&mm->page_table_lock);
 
-    if (tlbi_active(&unmap_info.tlbi))
-        tlbi_end_batch(&unmap_info.tlbi);
+    /* Caller is responsible for calling tlbi_end_batch */
+    return 0;
+}
+
+int vm_mmu_unmap(struct mm_address_space *mm, void *addr, size_t pages, struct vm_area_struct *vma)
+{
+    unsigned long virt = (unsigned long) addr;
+    unsigned long end = virt + (pages << PAGE_SHIFT);
+    struct unmap_info unmap_info;
+    struct tlbi_tracker tlbi;
+    unmap_info.vma = vma;
+    unmap_info.mm = mm;
+    unmap_info.kernel = mm == &kernel_address_space;
+    unmap_info.full = 0;
+    unmap_info.freepgtables = 1;
+    unmap_info.tlbi = &tlbi;
+    tlbi_tracker_init(&tlbi);
+
+    spin_lock(&mm->page_table_lock);
+    pgd_unmap_range(&unmap_info, pgd_offset(mm, virt), virt, end);
+    spin_unlock(&mm->page_table_lock);
+
+    if (tlbi_active(&tlbi))
+        tlbi_end_batch(&tlbi);
     return 0;
 }
 
@@ -768,19 +818,21 @@ int zap_page_range(unsigned long start, unsigned long end, struct vm_area_struct
 {
     struct mm_address_space *mm = vma->vm_mm;
     struct unmap_info unmap_info;
+    struct tlbi_tracker tlbi;
     unmap_info.vma = vma;
     unmap_info.mm = mm;
     unmap_info.kernel = 0;
     unmap_info.full = 0;
     unmap_info.freepgtables = 0;
-    tlbi_tracker_init(&unmap_info.tlbi);
+    unmap_info.tlbi = &tlbi;
+    tlbi_tracker_init(&tlbi);
 
     spin_lock(&mm->page_table_lock);
     pgd_unmap_range(&unmap_info, pgd_offset(mm, start), start, end);
     spin_unlock(&mm->page_table_lock);
 
-    if (tlbi_active(&unmap_info.tlbi))
-        tlbi_end_batch(&unmap_info.tlbi);
+    if (tlbi_active(&tlbi))
+        tlbi_end_batch(&tlbi);
     return 0;
 }
 
