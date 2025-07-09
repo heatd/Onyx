@@ -300,6 +300,14 @@ int flush_old_exec(struct exec_state *state)
     curr->address_space = cul::move(state->new_address_space);
     if (mm != &kernel_address_space)
         mmput(mm);
+
+    // Wake up waiters stuck on vfork
+    if (current->vfork_compl)
+    {
+        vfork_compl_wake(current->vfork_compl);
+        current->vfork_compl = nullptr;
+    }
+
     rwlock_init(&curr->address_space->vm_lock);
 
     /* Close O_CLOEXEC files */
@@ -434,16 +442,6 @@ int sys_execve(const char *p, const char **argv, const char **envp)
      * that) */
     karg = args.argv;
     kenv = args.envp;
-
-    if (state.flushed)
-    {
-        // Wake up waiters stuck on vfork
-        if (current->vfork_compl)
-        {
-            vfork_compl_wake(current->vfork_compl);
-            current->vfork_compl = nullptr;
-        }
-    }
 
     if (!entry)
     {
