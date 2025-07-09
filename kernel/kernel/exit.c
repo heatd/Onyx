@@ -666,7 +666,7 @@ static bool wait_check_thread_group(struct process *proc, struct wait_info *winf
 
     if (winfo->options & WNOHANG || winfo->status == -ECHILD)
     {
-        if (winfo->options & WNOHANG)
+        if (winfo->options & WNOHANG && winfo->status != -ECHILD)
             winfo->status = WINFO_STATUS_NOHANG;
         return true;
     }
