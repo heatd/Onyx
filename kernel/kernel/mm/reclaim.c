@@ -425,6 +425,14 @@ static void isolate_pages(struct page_lru *lru, enum lru_state list, struct list
             continue;
         }
 
+        if (!page_test_lru(page))
+        {
+            /* We *cannot* remove a page off the LRU if flag-wise it's not even there. That will
+             * cause problems with the page batching logic. Note that this does not race because we
+             * only set and clear LRU under the lock, which we are holding. */
+            continue;
+        }
+
         /* Not sure if we need a page_try_get here... */
         page_ref(page);
         DCHECK(page->ref > 1);
