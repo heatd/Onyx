@@ -541,6 +541,8 @@ void signal_interrupt_task(struct process *task, int signal)
     if (thr->status == THREAD_INTERRUPTIBLE ||
         (thr->status == THREAD_STOPPED && signal_may_wake(signal)))
         thread_wake_up(thr);
+    else if (thr->status == THREAD_RUNNABLE && get_thread_for_cpu(thr->cpu) == thr)
+        cpu_send_resched(thr->cpu);
 }
 
 static void signal_set_pending(struct process *task, int signal, enum pid_type type)
