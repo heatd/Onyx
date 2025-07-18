@@ -25,6 +25,7 @@ typedef u64 sector_t;
 #define BIO_REQ_READ_OP         0
 #define BIO_REQ_WRITE_OP        1
 #define BIO_REQ_DEVICE_SPECIFIC 2
+#define BIO_REQ_FLUSH_OP        3
 
 /* BIO flags start at bit 8 since bits 0 - 7 are reserved for operations */
 /* Note that we still have 24 bits for flags, which should be More Than Enough(tm) */
