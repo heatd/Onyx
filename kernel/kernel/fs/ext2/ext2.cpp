@@ -1071,6 +1071,7 @@ static int ext2_fsyncdata(struct inode *ino, struct writepages_info *wpinfo)
      * object) */
     if (!S_ISBLK(ino->i_mode))
         block_buf_sync_assoc(ino->i_pages);
+    blkdev_issue_flush(ino->i_sb->s_bdev);
     return 0;
 }
 
