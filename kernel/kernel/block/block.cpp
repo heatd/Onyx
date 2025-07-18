@@ -965,3 +965,26 @@ unsigned int bdev_sector_size(struct blockdev *bdev)
 {
     return bdev->sector_size;
 }
+
+/**
+ * @brief Issue a FLUSH command to the block device
+ * This FLUSH command is synchronous, and any previously observed write will
+ * also be observed by this FLUSH.
+ *
+ * @param bdev Block device
+ * @return 0 on success, negative error codes
+ */
+int blkdev_issue_flush(struct blockdev *bdev)
+{
+    int err;
+    struct bio_req *bio;
+    /* We allocate a 1-vector bio because we currently can't cope with vectorless bios... */
+    bio = bio_alloc(GFP_KERNEL, 1);
+    if (!bio)
+        return -ENOMEM;
+    bio->flags = BIO_REQ_FLUSH_OP;
+
+    err = bio_submit_req_wait(bdev, bio);
+    bio_put(bio);
+    return err;
+}
