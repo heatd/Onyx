@@ -213,5 +213,16 @@ int bdev_do_open(struct blockdev *bdev, bool exclusive);
 void bdev_release(struct blockdev *bdev);
 unsigned int bdev_sector_size(struct blockdev *bdev);
 u64 bdev_get_size(struct blockdev *bdev);
+
+/**
+ * @brief Issue a FLUSH command to the block device
+ * This FLUSH command is synchronous, and any previously observed write will
+ * also be observed by this FLUSH.
+ *
+ * @param bdev Block device
+ * @return 0 on success, negative error codes
+ */
+int blkdev_issue_flush(struct blockdev *bdev);
+
 __END_CDECLS
 #endif
