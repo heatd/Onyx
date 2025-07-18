@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 - 2023 Pedro Falcato
+ * Copyright (c) 2022 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -315,6 +315,8 @@ private:
     static int prepare_nvme_request(u8 bio_command, nvmecmd *cmd, struct request *breq,
                                     nvme_namespace *ns);
 
+    static int prepare_flush(nvmecmd *cmd, struct request *breq, nvme_namespace *ns);
+
     void set_queue_properties(blockdev *bdev);
 
 public:
@@ -542,6 +544,9 @@ struct prp_setup
     u64 prp2;
     u32 nr_indirects;
 
+    prp_setup() : first{0}, prp2{0}, nr_indirects{0}
+    {
+    }
     ~prp_setup();
 };
 
@@ -704,6 +709,7 @@ static_assert(sizeof(nvme_identify_namespace) == 4096);
 #define NVME_CREATE_IOCQ_PHYS_CONTIG (1 << 0)
 #define NVME_CREATE_IOCQ_IEN         (1 << 1)
 
+#define NVME_NVM_CMD_FLUSH 0
 #define NVME_NVM_CMD_WRITE 1
 #define NVME_NVM_CMD_READ  2
 
