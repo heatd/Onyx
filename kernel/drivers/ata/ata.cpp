@@ -1,9 +1,9 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the MIT License
+ * Copyright (c) 2016 - 2025 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 
 #include <assert.h>
@@ -345,13 +345,31 @@ ide_drive *ide_drive_from_blockdev(blockdev *dev)
 int ide_ata_bus::device_io_submit(struct request *req)
 {
     auto drive = ide_drive_from_blockdev(req->r_bdev);
-    bool write = (req->r_flags & BIO_REQ_OP_MASK) == BIO_REQ_WRITE_OP;
-    u8 command = write ? ATA_CMD_WRITE_DMA_EXT : ATA_CMD_READ_DMA_EXT;
-    bool prdt_write = !write;
+    bool write = false;
+    bool no_dma = false;
+    u8 command;
 
-    fill_prdt_from_request(req);
+    switch (req->r_flags & BIO_REQ_OP_MASK)
+    {
+        case BIO_REQ_WRITE_OP:
+            command = ATA_CMD_WRITE_DMA_EXT;
+            write = true;
+            break;
+        case BIO_REQ_READ_OP:
+            command = ATA_CMD_READ_DMA_EXT;
+            break;
+        case BIO_REQ_FLUSH_OP:
+            command = ATA_CMD_CACHE_FLUSH_EXT;
+            break;
+        default:
+            return -EOPNOTSUPP;
+    }
 
-    prepare_dma(prdt_page, prdt_write);
+    if (!no_dma)
+    {
+        fill_prdt_from_request(req);
+        prepare_dma(prdt_page, !write);
+    }
 
     int st = drive->wait_for_bsy_clear();
     if (st < 0)
@@ -383,10 +401,10 @@ int ide_ata_bus::device_io_submit(struct request *req)
 
     outb(data_reg + ATA_REG_COMMAND, command);
 
-    start_dma(prdt_write);
+    if (!no_dma)
+        start_dma(!write);
 
     this->req = req;
-
     return 0;
 }
 
@@ -662,5 +680,5 @@ void ide_ata_bus::stop_dma()
 
 MODULE_INIT(ata_init);
 MODULE_INSERT_VERSION();
-MODULE_LICENSE(MODULE_LICENSE_MIT);
+MODULE_LICENSE(MODULE_LICENSE_GPL2);
 MODULE_AUTHOR("Pedro Falcato");
