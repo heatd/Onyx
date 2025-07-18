@@ -1,9 +1,9 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the MIT License
+ * Copyright (c) 2016 - 2025 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 #include "include/ahci.h"
 
@@ -38,7 +38,7 @@
 #define NUM_PRDT_PER_TABLE 56
 
 MODULE_AUTHOR("Pedro Falcato");
-MODULE_LICENSE(MODULE_LICENSE_MIT);
+MODULE_LICENSE(MODULE_LICENSE_GPL2);
 MODULE_INSERT_VERSION();
 
 #define MPRINTF(...) printf("ahci: " __VA_ARGS__)
@@ -133,6 +133,8 @@ static uint8_t blk_request_to_ata_cmd(struct request *req)
             return ATA_CMD_READ_DMA_EXT;
         case BIO_REQ_WRITE_OP:
             return ATA_CMD_WRITE_DMA_EXT;
+        case BIO_REQ_FLUSH_OP:
+            return ATA_CMD_CACHE_FLUSH_EXT;
         case BIO_REQ_IDENTIFY_CMD:
             return ATA_CMD_IDENTIFY;
         default:
@@ -217,6 +219,8 @@ int ahci_io_queue::device_io_submit(struct request *req)
     size_t num_sectors = req->r_nsectors;
     table->cfis.count = (uint16_t) num_sectors;
     table->cfis.command = blk_request_to_ata_cmd(req);
+    if (table->cfis.command == ATA_CMD_ERR_BAD_REQ)
+        return -EIO;
 
     struct command_list *l = &cmdslots[list_index];
 
