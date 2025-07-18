@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 - 2024 Pedro Falcato
+ * Copyright (c) 2022 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -347,7 +347,6 @@ static inline prp_setup *request_to_prp(struct request *req)
 int nvme_device::setup_prp(struct request *breq, nvme_namespace *ns)
 {
     prp_setup *s = request_to_prp(breq);
-    s->first = s->prp2 = s->nr_indirects = 0;
 
     // An empty transfer is invalid, and so is a request with a xfer_size % sector_size
     if (breq->r_nsectors == 0)
@@ -862,6 +861,15 @@ bool nvme_device::nvme_queue::handle_cq()
     return handled;
 }
 
+int nvme_device::prepare_flush(nvmecmd *cmd, struct request *breq, nvme_namespace *ns)
+{
+    cmd->cmd.cdw0.cdw0 =
+        NVME_CMD_OPCODE(NVME_NVM_CMD_FLUSH) | NVME_CMD_FUSE_NORMAL | NVME_CMD_PSDT_PRP;
+    cmd->cmd.nsid = ns->nsid_;
+    cmd->req = breq;
+    return 0;
+}
+
 int nvme_device::prepare_nvme_request(u8 bio_command, nvmecmd *cmd, struct request *breq,
                                       nvme_namespace *ns)
 {
@@ -870,8 +878,9 @@ int nvme_device::prepare_nvme_request(u8 bio_command, nvmecmd *cmd, struct reque
     new (pdu) request_pdu;
 
     struct prp_setup *prp = &pdu->setup;
+    u16 command;
 
-    uint16_t command;
+    memset(cmd, 0, sizeof(*cmd));
 
     switch (bio_command)
     {
@@ -881,11 +890,12 @@ int nvme_device::prepare_nvme_request(u8 bio_command, nvmecmd *cmd, struct reque
         case BIO_REQ_WRITE_OP:
             command = NVME_NVM_CMD_WRITE;
             break;
+        case BIO_REQ_FLUSH_OP:
+            return prepare_flush(cmd, breq, ns);
         default:
             return -EOPNOTSUPP;
     }
 
-    memset(cmd, 0, sizeof(*cmd));
     cmd->cmd.cdw0.cdw0 = NVME_CMD_OPCODE(command) | NVME_CMD_FUSE_NORMAL | NVME_CMD_PSDT_PRP;
     cmd->cmd.nsid = ns->nsid_;
     cmd->cmd.cdw12 = 0;
