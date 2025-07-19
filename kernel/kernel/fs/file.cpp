@@ -2081,13 +2081,12 @@ int sys_lchown(const char *pathname, uid_t owner, gid_t group)
 /**
  * @brief Retrieve statistics about a specific file's filesystem
  *
- * @param f Pointer to the file
+ * @param ino Pointer to the inode
  * @param buf Pointer to the statfs buffer (kernel pointer)
  * @return 0 on success, else negative error code
  */
-int kernel_statfs(file *f, struct statfs *buf)
+static int kernel_statfs(struct inode *ino, struct statfs *buf)
 {
-    auto ino = f->f_ino;
     auto sb = ino->i_sb;
 
     // Not supported
@@ -2109,11 +2108,11 @@ int kernel_statfs(file *f, struct statfs *buf)
     return sb->s_ops->statfs(buf, sb);
 }
 
-int core_statfs(file *f, struct statfs *ubuf)
+static int core_statfs(struct inode *ino, struct statfs *ubuf)
 {
     struct statfs buf;
 
-    if (int st = kernel_statfs(f, &buf); st < 0)
+    if (int st = kernel_statfs(ino, &buf); st < 0)
         return st;
 
     return copy_to_user(ubuf, &buf, sizeof(buf));
@@ -2121,15 +2120,20 @@ int core_statfs(file *f, struct statfs *ubuf)
 
 int sys_statfs(const char *upath, struct statfs *ubuf)
 {
-    user_string path;
-    if (auto ex = path.from_user(upath); ex.has_error())
+    struct path path;
+    user_string pathname;
+    int err;
+
+    if (auto ex = pathname.from_user(upath); ex.has_error())
         return ex.error();
 
-    auto_file f = open_vfs(AT_FDCWD, path.data());
-    if (!f)
-        return -errno;
+    err = path_openat(AT_FDCWD, pathname.data(), 0, &path);
+    if (err)
+        return err;
 
-    return core_statfs(f.get_file(), ubuf);
+    err = core_statfs(path.dentry->d_inode, ubuf);
+    path_put(&path);
+    return err;
 }
 
 int sys_fstatfs(int fd, struct statfs *ubuf)
@@ -2139,7 +2143,7 @@ int sys_fstatfs(int fd, struct statfs *ubuf)
     if (!f)
         return -errno;
 
-    return core_statfs(f.get_file(), ubuf);
+    return core_statfs(f.get_file()->f_ino, ubuf);
 }
 
 static struct slab_cache *file_cache = nullptr;
