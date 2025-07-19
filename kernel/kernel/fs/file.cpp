@@ -830,66 +830,6 @@ bool may_noatime(file *f)
     return g.get()->euid == 0 || f->f_ino->i_uid == g.get()->euid;
 }
 
-static expected<struct file *, int> try_to_open(int dirfd, const char *filename, int flags,
-                                                mode_t mode)
-{
-    auto ex = vfs_open(dirfd, filename, flags, mode);
-    if (ex.has_error())
-        return unexpected<int>{ex.error()};
-
-    struct file *ret = ex.value();
-
-    DCHECK(ret != nullptr);
-
-    if (ret)
-    {
-        /* Let's check for permissions */
-        if (!file_can_access(ret, open_to_file_access_flags(flags)))
-        {
-            fd_put(ret);
-            return unexpected<int>{-EACCES};
-        }
-
-        // O_NOATIME can only be used when the euid of the process = owner of file, or
-        // when we're privileged (root).
-        if (flags & O_NOATIME)
-        {
-            if (!may_noatime(ret))
-            {
-                fd_put(ret);
-                return unexpected<int>{-EPERM};
-            }
-        }
-
-        if (S_ISDIR(ret->f_ino->i_mode))
-        {
-            if (flags & O_RDWR || flags & O_WRONLY || (flags & O_CREAT && !(flags & O_DIRECTORY)))
-            {
-                fd_put(ret);
-                return unexpected<int>{-EISDIR};
-            }
-        }
-
-        if (flags & O_TRUNC)
-        {
-            int st = ftruncate_vfs(0, ret);
-            if (st < 0)
-            {
-                fd_put(ret);
-                return unexpected<int>{st};
-            }
-        }
-    }
-
-    if (ret)
-    {
-        ret->f_seek = 0;
-        ret->f_flags = flags;
-    }
-
-    return ret;
-}
-
 /* TODO: Add O_PATH */
 #define VALID_OPEN_FLAGS                                                                       \
     (O_RDONLY | O_WRONLY | O_RDWR | O_CREAT | O_DIRECTORY | O_EXCL | O_NOFOLLOW | O_NONBLOCK | \
@@ -910,23 +850,11 @@ int do_sys_open(const char *filename, int flags, mode_t mode, int dirfd)
     int fd_num = -1;
 
     /* Open/creat the file */
-    auto ex = try_to_open(dirfd, filename, flags, mode);
+    auto ex = vfs_open(dirfd, filename, flags, mode);
     if (ex.has_error())
-    {
         return ex.error();
-    }
 
     struct file *file = ex.value();
-
-    if (file->f_ino->i_fops->on_open)
-    {
-        int st = file->f_ino->i_fops->on_open(file);
-        if (st < 0)
-        {
-            fd_put(file);
-            return st;
-        }
-    }
 
     /* Allocate a file descriptor and a file description for the file */
     fd_num = open_with_vnode(file, flags);
