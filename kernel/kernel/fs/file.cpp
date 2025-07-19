@@ -2154,7 +2154,7 @@ int kernel_statfs(file *f, struct statfs *buf)
     auto sb = ino->i_sb;
 
     // Not supported
-    if (!sb || !sb->statfs)
+    if (!sb || !sb->s_ops->statfs)
         return -ENOSYS;
 
     // Prevent any accidental leak by zeroing it all explicitly
@@ -2169,7 +2169,7 @@ int kernel_statfs(file *f, struct statfs *buf)
     buf->f_fsid.__val[0] = (int) sb->s_devnr;
     buf->f_fsid.__val[1] = (int) (sb->s_devnr >> 32);
 
-    return sb->statfs(buf, sb);
+    return sb->s_ops->statfs(buf, sb);
 }
 
 int core_statfs(file *f, struct statfs *ubuf)

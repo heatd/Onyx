@@ -83,8 +83,8 @@ static int writeback_inode(struct inode *inode, unsigned int sync_flags)
     {
         TRACE_EVENT_DURATION(wb_write_inode, inum, dev);
         int st = 0;
-        if (inode->i_sb && inode->i_sb->flush_inode)
-            st = inode->i_sb->flush_inode(inode, sync_flags & WB_FLAG_SYNC);
+        if (inode->i_sb && inode->i_sb->s_ops->flush_inode)
+            st = inode->i_sb->s_ops->flush_inode(inode, sync_flags & WB_FLAG_SYNC);
         if (st < 0)
             return st;
     }
