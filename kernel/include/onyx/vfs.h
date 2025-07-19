@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -166,6 +166,9 @@ __always_inline void inode_unlock_shared(struct inode *ino)
 #define FILE_ACCESS_WRITE   (1 << 1)
 #define FILE_ACCESS_EXECUTE (1 << 2)
 
+struct creds;
+bool __inode_can_access(struct inode *file, unsigned int perms, uid_t uid, gid_t gid,
+                        struct creds *c);
 bool inode_can_access(struct inode *file, unsigned int perms);
 bool file_can_access(struct file *file, unsigned int perms);
 bool fd_may_access(struct file *f, unsigned int access);
