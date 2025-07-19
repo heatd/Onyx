@@ -12,9 +12,11 @@
 
 #include <onyx/cred.h>
 #include <onyx/elf.h>
+#include <onyx/err.h>
 #include <onyx/file.h>
 #include <onyx/init.h>
 #include <onyx/modules.h>
+#include <onyx/namei.h>
 #include <onyx/proc.h>
 #include <onyx/seq_file.h>
 #include <onyx/symbol.h>
@@ -212,10 +214,10 @@ int load_module(const char *path, const char *name)
 
     module_add(mod);
 
-    file = open_vfs(AT_FDCWD, path);
-    if (!file)
+    file = c_vfs_open(AT_FDCWD, path, O_RDONLY, 0);
+    if (IS_ERR(file))
     {
-        errno = ENOENT;
+        errno = PTR_ERR(file);
         goto error_path;
     }
 
