@@ -1462,12 +1462,14 @@ int sys_fstatat(int dirfd, const char *upathname, struct stat *ubuf, int flags)
     struct stat buf = {};
     int st = 0;
 
-    if (flags & AT_EMPTY_PATH && strlen(s.data()) == 0)
+    if (flags & AT_EMPTY_PATH && strlen(s.data()) == 0 && dirfd >= 0)
         return sys_fstat(dirfd, ubuf);
 
     unsigned int open_flags = 0;
     if (flags & AT_SYMLINK_NOFOLLOW)
         open_flags |= LOOKUP_NOFOLLOW;
+    if (flags & AT_EMPTY_PATH)
+        open_flags |= LOOKUP_EMPTY_PATH;
     st = path_openat(dirfd, s.data(), open_flags, &path);
     if (st)
         return st;
