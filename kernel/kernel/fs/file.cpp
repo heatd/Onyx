@@ -2037,29 +2037,22 @@ int chown_vfs(inode *ino, uid_t owner, gid_t group)
 
 int sys_fchownat_core(int dirfd, const char *pathname, uid_t owner, gid_t group, int flags)
 {
+    struct path path;
+    int lookup_flags;
+    int err;
+
     if (flags & ~VALID_FCHOWNAT_FLAGS)
         return -EINVAL;
 
-    auto_file f;
+    lookup_flags = (flags & AT_EMPTY_PATH ? LOOKUP_EMPTY_PATH : 0) |
+                   (flags & AT_SYMLINK_NOFOLLOW ? LOOKUP_NOFOLLOW : 0);
+    err = path_openat(dirfd, pathname, lookup_flags, &path);
+    if (err)
+        return err;
 
-    if (strlen(pathname) == 0)
-    {
-        if (!(flags & AT_EMPTY_PATH))
-            return -ENOENT;
-        // Empty path, interpret as dirfd = ino
-        f = get_file_description(dirfd);
-        if (!f)
-            return -errno;
-    }
-    else
-    {
-        int open_flags = (flags & AT_SYMLINK_NOFOLLOW ? LOOKUP_NOFOLLOW : 0);
-        f = open_vfs_with_flags(dirfd, pathname, open_flags);
-        if (!f)
-            return -errno;
-    }
-
-    return chown_vfs(f.get_file()->f_ino, owner, group);
+    err = chown_vfs(path.dentry->d_inode, owner, group);
+    path_put(&path);
+    return err;
 }
 
 int sys_fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group, int flags)
