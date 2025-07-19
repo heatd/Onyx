@@ -200,7 +200,6 @@ static void inode_wait_for_wb_and_remove(struct inode *inode)
 
 void inode_release(struct inode *inode)
 {
-    bool should_die = inode_get_nlink(inode) == 0;
     // printk("Should die %u\n", should_die);
     if (inode->i_flags & I_HASHED)
     {
@@ -213,24 +212,23 @@ void inode_release(struct inode *inode)
     inode->set_evicting();
 
     inode_wait_for_wb_and_remove(inode);
-    inode_sync(inode);
+
     {
         /* Clear dirty/writeback */
         scoped_lock g{inode->i_lock};
         inode->i_flags &= ~(I_DIRTYALL | I_WRITEBACK);
     }
 
-    /* Note that we require kill_inode to be called before close, at least for now,
-     * because close may very well free resources that are needed to free the inode.
-     * This happens, for example, in ext2.
-     */
     struct superblock *sb = inode->i_sb;
 
-    if (should_die && sb && sb->kill_inode)
-    {
-        /* TODO: Handle failures? */
-        sb->kill_inode(inode);
-    }
+    /* Ugh. */
+    if (!sb)
+        goto skip_evict;
+
+    if (sb->evict_inode)
+        sb->evict_inode(inode);
+
+skip_evict:
 
     DCHECK((inode->i_flags & (I_DIRTYALL | I_WRITEBACK)) == 0);
 
