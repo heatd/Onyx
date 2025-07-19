@@ -333,7 +333,7 @@ struct fd_info
     const char *name;
 };
 
-static char *proc_fd_readlink(struct file *filp)
+static char *proc_fd_readlink(struct dentry *dentry)
 {
     /* TODO: Don't do this with PATH_MAX... */
     struct process *task;
@@ -342,8 +342,8 @@ static char *proc_fd_readlink(struct file *filp)
     char *path, *buf;
 
     buf = ERR_PTR(-ESRCH);
-    fd = str_to_int(filp->f_dentry->d_name);
-    task = get_inode_task((struct procfs_inode *) filp->f_ino);
+    fd = str_to_int(dentry->d_name);
+    task = get_inode_task((struct procfs_inode *) dentry->d_inode);
     if (!task)
         return ERR_PTR(-ESRCH);
     real = fdget_remote(task, fd);

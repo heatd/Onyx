@@ -93,9 +93,9 @@ inode *tmpfs_mknod(struct dentry *dentry, mode_t mode, dev_t dev, struct dentry 
     return inode;
 }
 
-char *tmpfs_readlink(struct file *f)
+char *tmpfs_readlink(struct dentry *dentry)
 {
-    tmpfs_inode *ino = static_cast<tmpfs_inode *>(f->f_ino);
+    tmpfs_inode *ino = static_cast<tmpfs_inode *>(dentry->d_inode);
 
     return strdup(ino->link);
 }

@@ -35,7 +35,7 @@
 int ext2_open(struct dentry *dir, const char *name, struct dentry *dentry);
 off_t ext2_getdirent(struct dirent *buf, off_t off, struct file *f);
 struct inode *ext2_creat(struct dentry *dentry, int mode, struct dentry *dir);
-char *ext2_readlink(struct file *ino);
+char *ext2_readlink(struct dentry *dentry);
 void ext2_close(struct inode *ino);
 struct inode *ext2_mknod(struct dentry *dentry, mode_t mode, dev_t dev, struct dentry *dir);
 struct inode *ext2_mkdir(struct dentry *dentry, mode_t mode, struct dentry *dir);

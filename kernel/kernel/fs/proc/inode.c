@@ -13,11 +13,11 @@
 #include <onyx/page.h>
 #include <onyx/proc.h>
 
-static char *proc_readlink(struct file *filp)
+static char *proc_readlink(struct dentry *dentry)
 {
-    struct procfs_entry *entry = I_PROC_ENTRY(filp->f_ino);
+    struct procfs_entry *entry = I_PROC_ENTRY(dentry->d_inode);
     if (entry->ops->readlink)
-        return entry->ops->readlink(filp);
+        return entry->ops->readlink(dentry);
     WARN_ON(1);
     return ERR_PTR(-EIO);
 }

@@ -74,7 +74,7 @@ static inline int libfs_no_fallocate(int mode, off_t offset, off_t len, struct f
     return -EROFS;
 }
 
-static inline char *libfs_no_readlink(struct file *ino)
+static inline char *libfs_no_readlink(struct dentry *dentry)
 {
     errno = EINVAL;
     return NULL;
