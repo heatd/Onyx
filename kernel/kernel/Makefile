@@ -33,6 +33,7 @@ include kernel/tty/Makefile
 include kernel/sched/Makefile
 include kernel/kcsan/Makefile
 include kernel/fonts/Makefile
+include kernel/block/Makefile
 
 kernel/syscall_thunk.cpp: generate_syscall_bits.py $(ARCHDIR)/syscall_table.json
 	mkdir -p include/onyx/gen
