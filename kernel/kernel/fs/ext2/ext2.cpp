@@ -446,7 +446,8 @@ static const struct vm_object_ops ext2_vm_obj_ops = {
 struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
                                      ext2_superblock *sb)
 {
-    bool has_vmo = S_ISDIR(inode->i_mode) || S_ISREG(inode->i_mode) || S_ISLNK(inode->i_mode);
+    bool has_vmo = S_ISDIR(inode->i_mode) || S_ISREG(inode->i_mode) || S_ISLNK(inode->i_mode) ||
+                   S_ISFIFO(inode->i_mode);
     /* Create a file */
     struct inode *ino = inode_create(has_vmo);
 
@@ -650,12 +651,14 @@ int ext2_flush_inode(struct inode *inode, bool in_sync)
     return 0;
 }
 
-int ext2_kill_inode(struct inode *inode)
+void ext2_evict_inode(struct inode *inode)
 {
     struct ext2_superblock *fs = ext2_superblock_from_inode(inode);
 
-    ext2_delete_inode(inode, (uint32_t) inode->i_inode, fs);
-    return 0;
+    if (inode_get_nlink(inode) == 0)
+        ext2_delete_inode(inode, (uint32_t) inode->i_inode, fs);
+    else
+        ext2_flush_inode(inode, false);
 }
 
 int ext2_statfs(struct statfs *buf, superblock *sb)
@@ -797,7 +800,7 @@ struct superblock *ext2_mount_partition(struct vfs_mount_info *info)
 
     superblock_add_inode(sb, root_inode);
     sb->flush_inode = ext2_flush_inode;
-    sb->kill_inode = ext2_kill_inode;
+    sb->evict_inode = ext2_evict_inode;
     sb->statfs = ext2_statfs;
     sb->shutdown = ext2_shutdown_sb;
 

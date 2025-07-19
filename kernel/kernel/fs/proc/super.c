@@ -151,12 +151,11 @@ struct procfs_entry root_entry = {
     .fops = &proc_root_file_ops,
 };
 
-static int proc_kill_inode(struct inode *ino)
+static void proc_evict_inode(struct inode *ino)
 {
     struct procfs_inode *inode = (struct procfs_inode *) ino;
     if (inode->owner)
         put_pid(inode->owner);
-    return 0;
 }
 
 static struct superblock *proc_mount(struct vfs_mount_info *info)
@@ -175,7 +174,7 @@ static struct superblock *proc_mount(struct vfs_mount_info *info)
     }
 
     sb->s_flags |= SB_FLAG_NODIRTY;
-    sb->kill_inode = proc_kill_inode;
+    sb->evict_inode = proc_evict_inode;
     d_positiveize(info->root_dir, root_ino);
     return sb;
 }

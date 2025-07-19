@@ -35,6 +35,7 @@ struct superblock
     unsigned long s_ref;
     void *s_helper;
     int (*flush_inode)(struct inode *inode, bool in_sync);
+    void (*evict_inode)(struct inode *inode);
     int (*kill_inode)(struct inode *inode);
     int (*statfs)(struct statfs *buf, struct superblock *sb);
     int (*umount)(struct mount *mnt);
