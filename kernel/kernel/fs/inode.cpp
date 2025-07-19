@@ -100,10 +100,6 @@ int inode_special_init(struct inode *ino)
 void inode_ref(struct inode *ino)
 {
     __atomic_add_fetch(&ino->i_refc, 1, __ATOMIC_ACQUIRE);
-#if 0
-	if(ino->i_inode == 3549)
-		printk("inode_ref(%lu) from %p\n", ino->i_refc, __builtin_return_address(0));
-#endif
 }
 
 void inode_destroy_page_caches(struct inode *inode)
