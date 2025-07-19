@@ -742,6 +742,73 @@ out:
     return st;
 }
 
+static bool may_noatime(file *f)
+{
+    creds_guard g;
+    return g.get()->euid == 0 || f->f_ino->i_uid == g.get()->euid;
+}
+
+static expected<file *, int> complete_open(struct file *filp, unsigned int flags)
+{
+    /* Given a half-open (as in half-initialized) file, complete the open() per open(2) semantics */
+    int err = 0;
+
+    /* Let's check for permissions */
+    if (!file_can_access(filp, open_to_file_access_flags(flags)))
+    {
+        err = -EACCES;
+        goto err_free_half;
+    }
+
+    // O_NOATIME can only be used when the euid of the process = owner of file, or
+    // when we're privileged (root).
+    if (flags & O_NOATIME)
+    {
+        if (!may_noatime(filp))
+        {
+            err = -EPERM;
+            goto err_free_half;
+        }
+    }
+
+    if (S_ISDIR(filp->f_ino->i_mode))
+    {
+        if (flags & O_RDWR || flags & O_WRONLY || (flags & O_CREAT && !(flags & O_DIRECTORY)))
+        {
+            err = -EISDIR;
+            goto err_free_half;
+        }
+    }
+
+    /* Call the fops on_open. This is required before we call any filesystem methods. */
+    if (filp->f_ino->i_fops->on_open)
+    {
+        err = filp->f_ino->i_fops->on_open(filp);
+        if (err < 0)
+            goto err_free_half;
+    }
+
+    if (flags & O_TRUNC)
+    {
+        int st = ftruncate_vfs(0, filp);
+        if (st < 0)
+        {
+            fd_put(filp);
+            return unexpected<int>{st};
+        }
+    }
+
+    filp->f_seek = 0;
+    filp->f_flags = flags;
+    return filp;
+
+err_free_half:
+    close_vfs(filp->f_ino);
+    path_put(&filp->f_path);
+    file_free(filp);
+    return unexpected<int>{err};
+}
+
 expected<file *, int> vfs_open(int dirfd, const char *name, unsigned int open_flags, mode_t mode)
 {
     const unsigned int flags = open_flags & O_DIRECTORY ? LOOKUP_MUST_BE_DIR : 0;
@@ -796,7 +863,7 @@ expected<file *, int> vfs_open(int dirfd, const char *name, unsigned int open_fl
 
     inode_ref(p.dentry->d_inode);
     new_file->f_path = p;
-    return new_file;
+    return complete_open(new_file, open_flags);
 }
 
 static int do_lookup_parent_last(nameidata &data)
