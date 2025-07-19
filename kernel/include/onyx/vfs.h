@@ -79,9 +79,6 @@ static inline bool file_needs_unlock(struct file *filp)
 
 int inode_create_vmo(struct inode *ino);
 
-struct file *open_vfs_with_flags(int dirfd, const char *path, unsigned int flags);
-struct file *open_vfs(int dirfd, const char *path);
-
 ssize_t read_vfs(size_t offset, size_t length, void *buffer, struct file *file);
 
 ssize_t write_vfs(size_t offset, size_t length, void *buffer, struct file *file);
