@@ -1925,12 +1925,23 @@ void utimensat_vfs(inode *ino, timespec ktimes[2])
 
 #define VALID_UTIMENSAT_FLAGS (AT_SYMLINK_NOFOLLOW)
 
+static int do_ftimensat(int fd, struct timespec ktimes[2])
+{
+    auto_fd filp = fdget(fd);
+    if (!filp)
+        return -EBADF;
+    utimensat_vfs(filp.get_file()->f_ino, ktimes);
+    return 0;
+}
+
 int sys_utimensat(int dirfd, const char *pathname, const struct timespec *times, int flags)
 {
-    if (flags & ~VALID_FCHMODAT_FLAGS)
-        return -EINVAL;
-
+    int err;
     user_string path;
+    struct path p;
+
+    if (flags & ~VALID_UTIMENSAT_FLAGS)
+        return -EINVAL;
 
     if (pathname)
     {
@@ -1946,33 +1957,24 @@ int sys_utimensat(int dirfd, const char *pathname, const struct timespec *times,
             return -EFAULT;
     }
     else
-    {
         ktimes[0].tv_nsec = ktimes[1].tv_nsec = UTIME_NOW;
-    }
 
-    auto_file dir;
-
-    auto_file f;
-    if (pathname)
-    {
-        int open_flags = (flags & AT_SYMLINK_NOFOLLOW ? LOOKUP_NOFOLLOW : 0);
-        f = open_vfs_with_flags(dirfd, path.data(), open_flags);
-
-        if (!f)
-            return -errno;
-    }
-    else
+    if (!pathname)
     {
         // Ok, let's use dirfd as the file to use
         // dirfd cannot be AT_FDCWD
         if (dirfd == AT_FDCWD)
             return -EFAULT;
-        if (int st = f.from_fd(dirfd); st < 0)
-            return st;
+        return do_ftimensat(dirfd, ktimes);
     }
 
-    utimensat_vfs(f.get_file()->f_ino, ktimes);
-
+    int open_flags = (flags & AT_SYMLINK_NOFOLLOW ? LOOKUP_NOFOLLOW : 0) |
+                     (flags & AT_EMPTY_PATH ? LOOKUP_EMPTY_PATH : 0);
+    err = path_openat(dirfd, path.data(), open_flags, &p);
+    if (err)
+        return err;
+    utimensat_vfs(p.dentry->d_inode, ktimes);
+    path_put(&p);
     return 0;
 }
 
