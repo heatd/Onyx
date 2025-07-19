@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -19,6 +19,7 @@
 #include <onyx/file.h>
 #include <onyx/initrd.h>
 #include <onyx/memstream.h>
+#include <onyx/namei.h>
 #include <onyx/panic.h>
 #include <onyx/string_parsing.h>
 #include <onyx/tmpfs.h>
@@ -78,18 +79,26 @@ void tar_handle_entry(tar_header_t *entry, onx::stream &str)
         {
         retry:
             *slash_ptr = '\0';
-            struct file *f = open_vfs(AT_FDCWD, full_filename);
-            if (!f)
+            auto ex = vfs_open(AT_FDCWD, full_filename, O_RDONLY | O_DIRECTORY, 0);
+            if (ex.has_error())
             {
-                auto ex = mkdir_vfs(full_filename, 0755, AT_FDCWD);
-                if (ex.has_error())
+                if (ex.error() != -ENOENT)
+                    panic("initrd: failed to unpack: vfs_open returned (unexpected) %d\n",
+                          ex.error());
+
+                auto ex2 = mkdir_vfs(full_filename, 0755, AT_FDCWD);
+                if (ex2.has_error())
                 {
                     perror("mkdir");
                     panic("Error loading initrd");
                 }
-                dput(ex.value());
+
+                dput(ex2.value());
+                fd_put(ex.value());
                 goto retry;
             }
+
+            fd_put(ex.value());
             *slash_ptr = '/';
             slash_ptr = strchr(slash_ptr + 1, '/');
         }
