@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2017 Pedro Falcato
+ * Copyright (c) 2017 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 
 #include <errno.h>
@@ -11,6 +13,8 @@
 
 #include <onyx/binfmt.h>
 #include <onyx/exec.h>
+#include <onyx/file.h>
+#include <onyx/namei.h>
 
 static struct binfmt *format_list;
 void *load_binary(struct binfmt_args *args)
@@ -45,26 +49,28 @@ void *bin_do_interp(struct binfmt_args *_args)
 {
     struct binfmt_args args;
     memcpy(&args, _args, sizeof(struct binfmt_args));
+    struct file *file;
 
-    struct file *file = open_vfs(AT_FDCWD, args.interp_path);
-    if (!file)
+    auto ex = vfs_open(AT_FDCWD, args.interp_path, O_RDONLY, 0);
+    if (ex.has_error())
     {
-#if 0
-		printk("Could not open %s\n", args.interp_path);
-		perror("open_vfs");
-#endif
+        errno = -ex.error();
         return nullptr;
     }
+
+    file = ex.value();
 
     if (!file_is_executable(file))
     {
         errno = EACCES;
+        fd_put(file);
         return nullptr;
     }
 
     if (ssize_t st = read_vfs(0, BINFMT_SIGNATURE_LENGTH, args.file_signature, file); st < 0)
     {
         errno = -st;
+        fd_put(file);
         return nullptr;
     }
 
