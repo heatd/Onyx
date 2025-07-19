@@ -119,8 +119,8 @@ static struct blockdev *resolve_bdev(const char *source, struct fs_mount *fs)
         return NULL;
     }
 
-    struct file *block_file = open_vfs(AT_FDCWD, source);
-    if (!block_file)
+    struct file *block_file = c_vfs_open(AT_FDCWD, source, O_RDWR, 0);
+    if (IS_ERR(block_file))
     {
         ret = -ENOENT;
         goto err;
