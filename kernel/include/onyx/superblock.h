@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2024 Pedro Falcato
+ * Copyright (c) 2017 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -28,19 +28,24 @@ struct fs_mount;
 #define SB_FLAG_NODIRTY   (1 << 0)
 #define SB_FLAG_IN_MEMORY (1 << 1)
 
-struct superblock
+struct super_ops
 {
-    struct list_head s_inodes;
-    struct spinlock s_ilock;
-    unsigned long s_ref;
-    void *s_helper;
     int (*flush_inode)(struct inode *inode, bool in_sync);
     void (*evict_inode)(struct inode *inode);
     int (*kill_inode)(struct inode *inode);
     int (*statfs)(struct statfs *buf, struct superblock *sb);
     int (*umount)(struct mount *mnt);
     int (*shutdown)(struct superblock *sb);
+};
+
+struct superblock
+{
+    struct list_head s_inodes;
+    struct spinlock s_ilock;
+    unsigned long s_ref;
+    void *s_helper;
     unsigned int s_block_size;
+    const struct super_ops *s_ops;
     struct blockdev *s_bdev;
     dev_t s_devnr;
     unsigned long s_flags;
@@ -69,6 +74,8 @@ struct page_iov;
 int sb_read_bio(struct superblock *sb, struct page_iov *vec, size_t nr_vecs, size_t block_number);
 int sb_write_bio(struct superblock *sb, struct page_iov *vec, size_t nr_vecs, size_t block_number,
                  void (*endio)(struct bio_req *), void *b_private);
+
+bool sb_check_callbacks(struct superblock *sb);
 
 __END_CDECLS
 

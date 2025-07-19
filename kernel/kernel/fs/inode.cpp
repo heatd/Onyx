@@ -138,8 +138,8 @@ ssize_t inode_sync(struct inode *inode)
     if (flags & I_DIRTY)
     {
         int st = 0;
-        if (inode->i_sb && inode->i_sb->flush_inode)
-            st = inode->i_sb->flush_inode(inode, true);
+        if (inode->i_sb && inode->i_sb->s_ops->flush_inode)
+            st = inode->i_sb->s_ops->flush_inode(inode, true);
         if (st < 0)
             return st;
     }
@@ -225,8 +225,8 @@ void inode_release(struct inode *inode)
     if (!sb)
         goto skip_evict;
 
-    if (sb->evict_inode)
-        sb->evict_inode(inode);
+    if (sb->s_ops->evict_inode)
+        sb->s_ops->evict_inode(inode);
 
 skip_evict:
 

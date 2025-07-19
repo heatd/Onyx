@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -664,6 +664,10 @@ static off_t devfs_getdirent(struct dirent *buf, off_t off, struct file *file)
     return off + 1;
 }
 
+static const struct super_ops devfs_sb_ops = {
+    .shutdown = sb_generic_shutdown,
+};
+
 /**
  * @brief Mount a devfs instance
  *
@@ -686,6 +690,7 @@ struct superblock *devfs_mount(struct vfs_mount_info *info)
     superblock_init(new_fs.get());
     new_fs->s_devnr = ex.value()->dev();
     new_fs->s_flags |= SB_FLAG_NODIRTY;
+    new_fs->s_ops = &devfs_sb_ops;
 
     auto node = devfs_create_inode(&devfs_root, new_fs.get());
     if (!node)

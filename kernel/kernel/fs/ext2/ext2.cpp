@@ -676,6 +676,13 @@ static int ext2_shutdown_sb(struct superblock *sb_)
     return 0;
 }
 
+static const struct super_ops ext2_sb_ops = {
+    .flush_inode = ext2_flush_inode,
+    .evict_inode = ext2_evict_inode,
+    .statfs = ext2_statfs,
+    .shutdown = ext2_shutdown_sb,
+};
+
 struct superblock *ext2_mount_partition(struct vfs_mount_info *info)
 {
     struct blockdev *dev = info->bdev;
@@ -799,10 +806,7 @@ struct superblock *ext2_mount_partition(struct vfs_mount_info *info)
         goto error;
 
     superblock_add_inode(sb, root_inode);
-    sb->flush_inode = ext2_flush_inode;
-    sb->evict_inode = ext2_evict_inode;
-    sb->statfs = ext2_statfs;
-    sb->shutdown = ext2_shutdown_sb;
+    sb->s_ops = &ext2_sb_ops;
 
     sb->sb->s_mtime = clock_get_posix_time();
     sb->sb->s_mnt_count++;

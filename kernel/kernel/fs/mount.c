@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 Pedro Falcato
+ * Copyright (c) 2024 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -258,6 +258,9 @@ int do_mount(const char *source, const char *target, const char *fstype, unsigne
     mnt->mnt_sb->s_type = fs;
     mnt->mnt_devname = source;
     root_dentry = NULL;
+
+    WARN_ON(!sb_check_callbacks(mnt->mnt_sb));
+
     if (!check_created_mnt(mnt))
     {
         ret = -EIO;
@@ -381,8 +384,8 @@ static int do_umount_path(struct path *path, int flags)
      * this. */
     path_put(path);
 
-    if (mount->mnt_sb->umount)
-        mount->mnt_sb->umount(mount);
+    if (mount->mnt_sb->s_ops->umount)
+        mount->mnt_sb->s_ops->umount(mount);
 
     dentry_shrink_subtree(mount->mnt_root);
     dput(mount->mnt_point);

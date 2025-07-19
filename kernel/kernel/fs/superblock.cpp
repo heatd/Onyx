@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2024 Pedro Falcato
+ * Copyright (c) 2017 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -8,6 +8,7 @@
 
 #include <onyx/block.h>
 #include <onyx/dentry.h>
+#include <onyx/fs_mount.h>
 #include <onyx/superblock.h>
 #include <onyx/vfs.h>
 
@@ -27,9 +28,6 @@ void superblock_init(struct superblock *sb)
     sb->s_shrinker.scan_objects = sb_scan_objects;
     sb->s_shrinker.shrink_objects = sb_shrink_objects;
     shrinker_register(&sb->s_shrinker);
-
-    sb->umount = nullptr;
-    sb->shutdown = sb_generic_shutdown;
 }
 
 int sb_read_bio(struct superblock *sb, struct page_iov *vec, size_t nr_vecs, size_t block_number)
@@ -141,7 +139,7 @@ int sb_generic_shutdown(struct superblock *sb)
 
 void sb_shutdown(struct superblock *sb)
 {
-    sb->shutdown(sb);
+    sb->s_ops->shutdown(sb);
     if (sb->s_bdev)
         bdev_release(sb->s_bdev);
 
@@ -149,4 +147,23 @@ void sb_shutdown(struct superblock *sb)
     WARN_ON(!list_is_empty(&sb->s_inodes));
     WARN_ON(sb->s_ref != 1);
     kfree_rcu(sb, s_rcu);
+}
+
+bool sb_check_callbacks(struct superblock *sb)
+{
+    const struct super_ops *ops = sb->s_ops;
+
+    if (!ops)
+    {
+        pr_err("super: sb %s does not have s_ops\n", sb->s_type->name);
+        return false;
+    }
+
+    if (!ops->shutdown)
+    {
+        pr_err("super: sb %s does not have ->shutdown\n", sb->s_type->name);
+        return false;
+    }
+
+    return true;
 }

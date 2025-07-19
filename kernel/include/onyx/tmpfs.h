@@ -24,7 +24,7 @@ struct tmpfs_inode : public inode
 
 extern const file_ops tmpfs_fops;
 
-int tmpfs_statfs(struct statfs *buf, struct superblock *sb);
+extern const super_ops tmpfs_sb_ops;
 
 class tmpfs_superblock : public superblock
 {
@@ -46,7 +46,7 @@ public:
         superblock_init(this);
         s_block_size = PAGE_SIZE;
         s_flags = SB_FLAG_NODIRTY | SB_FLAG_IN_MEMORY;
-        this->statfs = tmpfs_statfs;
+        this->s_ops = &tmpfs_sb_ops;
     }
 
     tmpfs_inode *create_inode(mode_t mode, dev_t rdev = 0);

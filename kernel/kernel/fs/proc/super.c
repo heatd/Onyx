@@ -158,6 +158,11 @@ static void proc_evict_inode(struct inode *ino)
         put_pid(inode->owner);
 }
 
+static const struct super_ops proc_sb_ops = {
+    .evict_inode = proc_evict_inode,
+    .shutdown = sb_generic_shutdown,
+};
+
 static struct superblock *proc_mount(struct vfs_mount_info *info)
 {
     struct inode *root_ino;
@@ -174,7 +179,7 @@ static struct superblock *proc_mount(struct vfs_mount_info *info)
     }
 
     sb->s_flags |= SB_FLAG_NODIRTY;
-    sb->evict_inode = proc_evict_inode;
+    sb->s_ops = &proc_sb_ops;
     d_positiveize(info->root_dir, root_ino);
     return sb;
 }

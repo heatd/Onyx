@@ -395,11 +395,7 @@ static int tmpfs_umount(struct mount *mnt)
 
 tmpfs_superblock *tmpfs_create_sb()
 {
-    tmpfs_superblock *new_fs = new tmpfs_superblock{};
-    if (!new_fs)
-        return nullptr;
-    new_fs->umount = tmpfs_umount;
-    return new_fs;
+    return new tmpfs_superblock{};
 }
 
 /**
@@ -460,7 +456,7 @@ __init void tmpfs_init()
 
 #define TMPFS_MAGIC 0x11102002
 
-int tmpfs_statfs(struct statfs *buf, struct superblock *sb)
+static int tmpfs_statfs(struct statfs *buf, struct superblock *sb)
 {
     tmpfs_superblock *s = (tmpfs_superblock *) sb;
     buf->f_type = TMPFS_MAGIC;
@@ -476,3 +472,9 @@ int tmpfs_statfs(struct statfs *buf, struct superblock *sb)
     buf->f_flags = 0;
     return 0;
 }
+
+const struct super_ops tmpfs_sb_ops = {
+    .statfs = tmpfs_statfs,
+    .umount = tmpfs_umount,
+    .shutdown = sb_generic_shutdown,
+};
