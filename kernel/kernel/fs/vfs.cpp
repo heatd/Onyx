@@ -354,20 +354,19 @@ char *readlink_vfs(struct file *file)
     return (char *) ERR_PTR(-EINVAL);
 }
 
-bool inode_can_access(struct inode *file, unsigned int perms)
+bool __inode_can_access(struct inode *ino, unsigned int perms, uid_t uid, gid_t gid,
+                        struct creds *c)
 {
-    bool access_good = true;
-    struct creds *c = creds_get();
 
-    if (unlikely(c->euid == 0))
+    if (unlikely(uid == 0))
     {
         /* We're root: the access is good */
         // We can always do anything with dirs (exec doesn't mean exec here)
-        if (S_ISDIR(file->i_mode))
-            goto out;
+        if (S_ISDIR(ino->i_mode))
+            return true;
         // If we're executing, we need a single execute bit set
-        if (perms != FILE_ACCESS_EXECUTE || file->i_mode & 0111)
-            goto out;
+        if (perms != FILE_ACCESS_EXECUTE || ino->i_mode & 0111)
+            return true;
     }
 
     /* We're not root, let's do permission checking */
@@ -377,13 +376,13 @@ bool inode_can_access(struct inode *file, unsigned int perms)
     /* We're going to transform FILE_ACCESS_* constants (our perms var) into UNIX permissions */
     mode_t ino_perms;
 
-    if (likely(file->i_uid == c->euid))
+    if (likely(ino->i_uid == uid))
     {
         ino_perms = ((perms & FILE_ACCESS_READ) ? S_IRUSR : 0) |
                     ((perms & FILE_ACCESS_WRITE) ? S_IWUSR : 0) |
                     ((perms & FILE_ACCESS_EXECUTE) ? S_IXUSR : 0);
     }
-    else if (file->i_gid == c->egid || cred_is_in_group(c, file->i_gid))
+    else if (ino->i_gid == gid || cred_is_in_group(c, ino->i_gid))
     {
         /* Case 2 - we're in the same group as the file */
         ino_perms = ((perms & FILE_ACCESS_READ) ? S_IRGRP : 0) |
@@ -399,18 +398,16 @@ bool inode_can_access(struct inode *file, unsigned int perms)
     }
 
     /* Now, test the calculated permission bits against the file's mode */
+    return (ino->i_mode & ino_perms) == ino_perms;
+}
 
-    access_good = (file->i_mode & ino_perms) == ino_perms;
-
-#if 0
-    if (!access_good)
-    {
-        panic("Halting for debug: ino perms %o, perms %o\n", ino_perms, file->i_mode);
-    }
-#endif
-out:
+bool inode_can_access(struct inode *ino, unsigned int perms)
+{
+    bool can;
+    struct creds *c = creds_get();
+    can = __inode_can_access(ino, perms, c->euid, c->egid, c);
     creds_put(c);
-    return access_good;
+    return can;
 }
 
 bool file_can_access(struct file *file, unsigned int perms)

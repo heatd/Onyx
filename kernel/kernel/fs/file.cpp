@@ -1767,32 +1767,46 @@ int open_with_vnode(struct file *node, int flags)
     return fd_num;
 }
 
+static int do_access_check(struct path *path, int amode, int flags)
+{
+    const unsigned int mask = ((amode & R_OK) ? FILE_ACCESS_READ : 0) |
+                              ((amode & X_OK) ? FILE_ACCESS_EXECUTE : 0) |
+                              ((amode & W_OK) ? FILE_ACCESS_WRITE : 0);
+    int ret = 0;
+    struct creds *c = creds_get();
+
+    if (!__inode_can_access(path->dentry->d_inode, mask, flags & AT_EACCESS ? c->euid : c->ruid,
+                            flags & AT_EACCESS ? c->egid : c->rgid, c))
+        ret = -EACCES;
+    creds_put(c);
+    return ret;
+}
+
 int sys_faccessat(int dirfd, const char *upath, int amode, int flags)
 {
-    // TODO: Implement flags, we're doing the check wrong(it should be with ruid
-    // instead of euid by default)
-    user_string path;
+    user_string pathname;
     auto_file f;
+    struct path path;
+    int st = 0;
 
-    if (auto res = path.from_user(upath); res.has_error())
+    if (flags & ~(AT_SYMLINK_NOFOLLOW | AT_EACCESS | AT_EMPTY_PATH))
+        return -EINVAL;
+
+    if (auto res = pathname.from_user(upath); res.has_error())
         return -EFAULT;
 
-    auto_file file = open_vfs(dirfd, path.data());
+    unsigned int open_flags = 0;
+    if (flags & AT_SYMLINK_NOFOLLOW)
+        open_flags |= LOOKUP_NOFOLLOW;
+    if (flags & AT_EMPTY_PATH)
+        open_flags |= LOOKUP_EMPTY_PATH;
+    st = path_openat(dirfd, pathname.data(), open_flags, &path);
+    if (st)
+        return st;
 
-    unsigned int mask = ((amode & R_OK) ? FILE_ACCESS_READ : 0) |
-                        ((amode & X_OK) ? FILE_ACCESS_EXECUTE : 0) |
-                        ((amode & W_OK) ? FILE_ACCESS_WRITE : 0);
-    if (!file)
-    {
-        return -errno;
-    }
-
-    if (!file_can_access(file.get_file(), mask))
-    {
-        return -EACCES;
-    }
-
-    return 0;
+    st = do_access_check(&path, amode, flags);
+    path_put(&path);
+    return st;
 }
 
 int sys_access(const char *path, int amode)
