@@ -589,31 +589,6 @@ static int dentry_resolve(nameidata &data, struct path *p)
     return 0;
 }
 
-file *open_vfs_with_flags(int dirfd, const char *name, unsigned int lookup_flags)
-{
-    nameidata namedata{std::string_view{name, strlen(name)}};
-    namedata.lookup_flags = lookup_flags;
-    namedata.dirfd = dirfd;
-    struct path p;
-    path_init(&p);
-
-    int err = dentry_resolve(namedata, &p);
-    /* TODO: Fix this interface's error reporting */
-    if (err < 0)
-        return errno = -err, nullptr;
-
-    auto new_file = inode_to_file(p.dentry->d_inode);
-    if (!new_file)
-    {
-        path_put(&p);
-        return nullptr;
-    }
-
-    inode_ref(p.dentry->d_inode);
-    new_file->f_path = p;
-    return new_file;
-}
-
 static int do_creat(dentry *dir, struct inode *inode, struct dentry *dentry, mode_t mode,
                     nameidata &data)
 {
@@ -1007,11 +982,6 @@ static int namei_lookup_parentat(int dirfd, const char *name, unsigned int flags
     *outn = namedata.paths[namedata.pdepth];
     *parent = namedata.getcur();
     return 0;
-}
-
-struct file *open_vfs(int dirfd, const char *path)
-{
-    return open_vfs_with_flags(dirfd, path, 0);
 }
 
 /* Helper to open specific dentries */
