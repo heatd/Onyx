@@ -16,6 +16,7 @@
 #include <onyx/file.h>
 #include <onyx/kunit.h>
 #include <onyx/mm/slab.h>
+#include <onyx/namei.h>
 #include <onyx/process.h>
 #include <onyx/random.h>
 #include <onyx/signal.h>
@@ -400,12 +401,13 @@ int sys_execve(const char *p, const char **argv, const char **envp)
     thread_change_addr_limit(VM_USER_ADDR_LIMIT);
 
     /* Open the file */
-    exec_file = open_vfs(AT_FDCWD, path);
-    if (!exec_file)
+    if (auto ex = vfs_open(AT_FDCWD, path, O_RDONLY, 0); ex.has_error())
     {
-        st = -errno;
+        st = ex.error();
         goto error;
     }
+    else
+        exec_file = ex.value();
 
     if (!file_is_executable(exec_file))
     {
