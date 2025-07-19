@@ -1193,12 +1193,12 @@ unlock_err:
     return st;
 }
 
-int link_vfs(struct file *target, int dirfd, const char *newpath)
+int link_vfs(struct dentry *target, int dirfd, const char *newpath)
 {
     int st;
     struct lookup_path last_name;
     unsigned int lookup_flags = NAMEI_ALLOW_NEGATIVE;
-    struct inode *dest_ino = target->f_ino;
+    struct inode *dest_ino = target->d_inode;
     struct path parent;
 
     st = namei_lookup_parentat(dirfd, newpath, lookup_flags, &last_name, &parent);
@@ -1237,7 +1237,7 @@ int link_vfs(struct file *target, int dirfd, const char *newpath)
         goto put_unlock_err;
     }
 
-    st = dir_ino->i_op->link(target->f_dentry, dent);
+    st = dir_ino->i_op->link(target, dent);
 
     if (st < 0)
     {
@@ -1266,10 +1266,12 @@ unlock_err:
 
 int do_sys_link(int olddirfd, const char *uoldpath, int newdirfd, const char *unewpath, int flags)
 {
+    int err;
+    struct path path;
+    unsigned int lookup_flags = LOOKUP_NOFOLLOW;
+
     if (flags & ~VALID_LINKAT_FLAGS)
         return -EINVAL;
-
-    unsigned int lookup_flags = LOOKUP_NOFOLLOW;
 
     if (flags & AT_EMPTY_PATH)
         lookup_flags |= LOOKUP_EMPTY_PATH;
@@ -1285,14 +1287,19 @@ int do_sys_link(int olddirfd, const char *uoldpath, int newdirfd, const char *un
     if (flags & AT_SYMLINK_FOLLOW)
         lookup_flags &= ~LOOKUP_NOFOLLOW;
 
-    auto_file src_file = open_vfs_with_flags(olddirfd, oldpath.data(), lookup_flags);
-    if (!src_file)
-        return -errno;
+    err = path_openat(olddirfd, oldpath.data(), lookup_flags, &path);
+    if (err)
+        return err;
 
-    if (src_file.is_dir())
+    if (dentry_is_dir(path.dentry))
+    {
+        path_put(&path);
         return -EPERM;
+    }
 
-    return link_vfs(src_file.get_file(), newdirfd, newpath.data());
+    err = link_vfs(path.dentry, newdirfd, newpath.data());
+    path_put(&path);
+    return err;
 }
 
 int sys_link(const char *oldpath, const char *newpath)
