@@ -27,7 +27,7 @@ struct proc_file_ops
                          unsigned int flags);
     ssize_t (*write_iter)(struct file *filp, size_t offset, struct iovec_iter *iter,
                           unsigned int flags);
-    char *(*readlink)(struct file *filp);
+    char *(*readlink)(struct dentry *dentry);
 };
 
 struct inode_operations;

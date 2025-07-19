@@ -1798,18 +1798,15 @@ ssize_t sys_readlinkat(int dirfd, const char *upathname, char *ubuf, size_t bufs
     if (!pathname)
         return -errno;
 
-    struct file *f;
+    struct path path;
     char *buf;
     size_t buf_len, to_copy;
 
-    f = open_vfs_with_flags(dirfd, pathname, LOOKUP_NOFOLLOW);
-    if (!f)
-    {
-        st = -errno;
+    st = path_openat(dirfd, pathname, LOOKUP_NOFOLLOW, &path);
+    if (st)
         goto out;
-    }
 
-    buf = readlink_vfs(f);
+    buf = readlink_vfs(path.dentry);
     if (IS_ERR_OR_NULL(buf))
     {
         if (!buf)
@@ -1830,7 +1827,7 @@ ssize_t sys_readlinkat(int dirfd, const char *upathname, char *ubuf, size_t bufs
 
     free(buf);
 out1:
-    fd_put(f);
+    path_put(&path);
 out:
     free(pathname);
     return st;

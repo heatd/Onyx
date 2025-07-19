@@ -86,11 +86,11 @@ char *ext2_read_symlink(struct inode *ino, struct ext2_superblock *fs)
         return ext2_do_slow_symlink(ino);
 }
 
-char *ext2_readlink(struct file *f)
+char *ext2_readlink(struct dentry *dentry)
 {
-    struct ext2_superblock *fs = ext2_superblock_from_inode(f->f_ino);
+    struct ext2_superblock *fs = ext2_superblock_from_inode(dentry->d_inode);
 
-    return ext2_read_symlink(f->f_ino, fs);
+    return ext2_read_symlink(dentry->d_inode, fs);
 }
 
 int ext2_set_symlink(inode *ino, const char *dest)

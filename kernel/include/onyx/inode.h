@@ -82,7 +82,7 @@ struct inode_operations
     int (*ftruncate)(size_t length, struct file *node);
     struct inode *(*mkdir)(struct dentry *dentry, mode_t mode, struct dentry *dir);
     struct inode *(*mknod)(struct dentry *dentry, mode_t mode, dev_t dev, struct dentry *dir);
-    char *(*readlink)(struct file *ino);
+    char *(*readlink)(struct dentry *dentry);
     int (*unlink)(const char *name, int flags, struct dentry *dir);
     int (*magic_jump)(struct dentry *dentry, struct inode *inode, struct nameidata *data);
 };

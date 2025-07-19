@@ -114,7 +114,7 @@ int fallocate_vfs(int mode, off_t offset, off_t len, struct file *file);
 
 int unlink_vfs(const char *path, int flags, int dirfd);
 
-char *readlink_vfs(struct file *file);
+char *readlink_vfs(struct dentry *dentry);
 
 /* C does not support default args... */
 #ifdef __cplusplus

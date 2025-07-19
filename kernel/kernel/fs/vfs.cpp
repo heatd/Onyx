@@ -338,16 +338,19 @@ void close_vfs(struct inode *this_)
     inode_unref(this_);
 }
 
-char *readlink_vfs(struct file *file)
+char *readlink_vfs(struct dentry *dentry)
 {
-    if (!S_ISLNK(file->f_ino->i_mode))
+    struct inode *ino;
+
+    if (!dentry_is_symlink(dentry))
         return (char *) ERR_PTR(-EINVAL);
 
-    if (file->f_ino->i_op->readlink)
+    ino = dentry->d_inode;
+    if (ino->i_op->readlink)
     {
-        char *p = file->f_ino->i_op->readlink(file);
+        char *p = ino->i_op->readlink(dentry);
         if (!IS_ERR_OR_NULL(p))
-            inode_update_atime(file->f_ino);
+            inode_update_atime(ino);
         return p;
     }
 

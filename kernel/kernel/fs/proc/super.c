@@ -228,7 +228,7 @@ struct procfs_entry *procfs_add_entry(const char *name, mode_t mode, struct proc
 
 const struct proc_file_ops proc_noop;
 
-static char *procfs_self_readlink(struct file *filp)
+static char *procfs_self_readlink(struct dentry *dentry)
 {
     char *link = kmalloc(16, GFP_KERNEL);
     if (!link)
@@ -241,7 +241,7 @@ static const struct proc_file_ops proc_self_ops = {
     .readlink = procfs_self_readlink,
 };
 
-static char *procfs_threadself_readlink(struct file *filp)
+static char *procfs_threadself_readlink(struct dentry *dentry)
 {
     char *link = kmalloc(16, GFP_KERNEL);
     if (!link)
