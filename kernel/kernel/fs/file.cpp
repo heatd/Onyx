@@ -1857,24 +1857,25 @@ int chmod_vfs(struct inode *ino, mode_t mode)
 
 #define VALID_FCHMODAT_FLAGS (AT_SYMLINK_NOFOLLOW)
 
-int sys_fchmodat(int dirfd, const char *pathname, mode_t mode, int flags)
+int sys_fchmodat(int dirfd, const char *upathname, mode_t mode, int flags)
 {
+    user_string pathname;
+    struct path path;
+    int err;
     if (flags & ~VALID_FCHMODAT_FLAGS)
         return -EINVAL;
 
-    user_string path;
-    if (auto ex = path.from_user(pathname); ex.has_error())
+    if (auto ex = pathname.from_user(upathname); ex.has_error())
         return ex.error();
 
     int open_flags = (flags & AT_SYMLINK_NOFOLLOW ? LOOKUP_NOFOLLOW : 0);
-    auto_file f = open_vfs_with_flags(dirfd, path.data(), open_flags);
+    err = path_openat(dirfd, pathname.data(), open_flags, &path);
+    if (err)
+        return err;
 
-    if (!f)
-        return -errno;
-
-    int st = chmod_vfs(f.get_file()->f_ino, mode);
-
-    return st;
+    err = chmod_vfs(path.dentry->d_inode, mode);
+    path_put(&path);
+    return err;
 }
 
 int sys_fchmod(int fd, mode_t mode)
