@@ -759,6 +759,9 @@ static expected<file *, int> complete_open(struct file *filp, unsigned int flags
         }
     }
 
+    filp->f_seek = 0;
+    filp->f_flags = flags;
+
     /* Call the fops on_open. This is required before we call any filesystem methods. */
     if (filp->f_ino->i_fops->on_open)
     {
@@ -777,8 +780,6 @@ static expected<file *, int> complete_open(struct file *filp, unsigned int flags
         }
     }
 
-    filp->f_seek = 0;
-    filp->f_flags = flags;
     return filp;
 
 err_free_half:
