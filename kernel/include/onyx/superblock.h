@@ -32,7 +32,6 @@ struct super_ops
 {
     int (*flush_inode)(struct inode *inode, bool in_sync);
     void (*evict_inode)(struct inode *inode);
-    int (*kill_inode)(struct inode *inode);
     int (*statfs)(struct statfs *buf, struct superblock *sb);
     int (*umount)(struct mount *mnt);
     int (*shutdown)(struct superblock *sb);
