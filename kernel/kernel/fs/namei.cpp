@@ -1147,7 +1147,7 @@ int symlink_vfs(const char *path, const char *dest, int dirfd)
         goto put_unlock_err;
     }
 
-    inode = dir_ino->i_fops->symlink(dent, dest, dir);
+    inode = dir_ino->i_op->symlink(dent, dest, dir);
 
     if (!inode)
     {

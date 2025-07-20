@@ -277,7 +277,6 @@ const struct file_ops tmpfs_fops = {
     .close = tmpfs_close,
     .getdirent = tmpfs_getdirent,
     .ioctl = nullptr,
-    .symlink = tmpfs_symlink,
     .mmap = nullptr,
     .on_open = nullptr,
     .poll = nullptr,
@@ -296,6 +295,7 @@ const struct inode_operations tmpfs_ino_ops = {
     .ftruncate = tmpfs_ftruncate,
     .mkdir = tmpfs_mkdir,
     .mknod = tmpfs_mknod,
+    .symlink = tmpfs_symlink,
     .readlink = tmpfs_readlink,
     .unlink = tmpfs_unlink,
 };

@@ -476,7 +476,6 @@ static off_t devfs_getdirent(struct dirent *buf, off_t off, struct file *file);
 
 static const struct file_ops devfs_root_ops = {
     .getdirent = devfs_getdirent,
-    .symlink = libfs_no_symlink,
     .fallocate = libfs_no_fallocate,
 };
 
@@ -487,6 +486,7 @@ static const struct inode_operations devfs_ino_ops = {
     .ftruncate = libfs_no_ftruncate,
     .mkdir = libfs_no_mkdir,
     .mknod = libfs_no_mknod,
+    .symlink = libfs_no_symlink,
     .readlink = libfs_no_readlink,
     .unlink = libfs_no_unlink,
 };

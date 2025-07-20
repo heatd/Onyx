@@ -57,7 +57,6 @@ struct file_ops ext2_ops = {
     .close = ext2_close,
     .getdirent = ext2_getdirent,
     .ioctl = ext2_ioctl,
-    .symlink = ext2_symlink,
     .fallocate = ext2_fallocate,
     .read_iter = filemap_read_iter,
     .write_iter = filemap_write_iter,
@@ -72,6 +71,7 @@ const struct inode_operations ext2_ino_ops = {
     .ftruncate = ext2_ftruncate,
     .mkdir = ext2_mkdir,
     .mknod = ext2_mknod,
+    .symlink = ext2_symlink,
     .readlink = ext2_readlink,
     .unlink = ext2_unlink,
 };

@@ -129,13 +129,13 @@ static const struct inode_operations proc_root_ino_ops = {
     .open = proc_root_open,
     .link = libfs_no_link,
     .unlink = libfs_no_unlink,
+    .symlink = libfs_no_symlink,
     .readlink = libfs_no_readlink,
     .stat = proc_stat,
 };
 
 static const struct file_ops proc_root_file_ops = {
     .getdirent = proc_root_getdirent,
-    .symlink = libfs_no_symlink,
 };
 
 struct procfs_entry root_entry = {
