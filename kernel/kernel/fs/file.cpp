@@ -1848,8 +1848,20 @@ mode_t sys_umask(mode_t mask)
     return old;
 }
 
+static bool may_chmod(struct inode *ino)
+{
+    bool may;
+    struct creds *c = creds_get();
+
+    may = ino->i_uid == c->euid || c->euid == 0;
+    creds_put(c);
+    return may;
+}
+
 int chmod_vfs(struct inode *ino, mode_t mode)
 {
+    if (!may_chmod(ino))
+        return -EPERM;
     ino->i_mode = (ino->i_mode & S_IFMT) | (mode & 07777);
     inode_update_ctime(ino);
     return 0;
