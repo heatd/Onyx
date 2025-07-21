@@ -36,7 +36,7 @@ int ext2_open(struct dentry *dir, const char *name, struct dentry *dentry);
 off_t ext2_getdirent(struct dirent *buf, off_t off, struct file *f);
 struct inode *ext2_creat(struct dentry *dentry, int mode, struct dentry *dir);
 char *ext2_readlink(struct dentry *dentry);
-void ext2_close(struct inode *ino);
+void ext2_free_inode(struct inode *ino);
 struct inode *ext2_mknod(struct dentry *dentry, mode_t mode, dev_t dev, struct dentry *dir);
 struct inode *ext2_mkdir(struct dentry *dentry, mode_t mode, struct dentry *dir);
 int ext2_link_fops(struct dentry *old_dentry, struct dentry *new_dentry);
@@ -54,7 +54,6 @@ int ext2_rename(struct dentry *src_parent, struct dentry *src, struct dentry *ds
                 struct dentry *dst);
 
 struct file_ops ext2_ops = {
-    .close = ext2_close,
     .getdirent = ext2_getdirent,
     .ioctl = ext2_ioctl,
     .fallocate = ext2_fallocate,
@@ -94,7 +93,7 @@ void ext2_delete_inode(struct inode *inode_, uint32_t inum, struct ext2_superblo
     fs->free_inode(inum);
 }
 
-void ext2_close(struct inode *vfs_ino)
+void ext2_free_inode(struct inode *vfs_ino)
 {
     struct ext2_inode *inode = ext2_get_inode_from_node(vfs_ino);
 
@@ -681,6 +680,7 @@ static const struct super_ops ext2_sb_ops = {
     .evict_inode = ext2_evict_inode,
     .statfs = ext2_statfs,
     .shutdown = ext2_shutdown_sb,
+    .free_inode = ext2_free_inode,
 };
 
 struct superblock *ext2_mount_partition(struct vfs_mount_info *info)

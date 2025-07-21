@@ -209,7 +209,7 @@ short socket_poll(void *poll_file, short events, struct file *node)
     return s->sock_ops->poll(s, poll_file, events);
 }
 
-void socket_close(struct inode *ino);
+void socket_close(struct file *filp);
 
 #ifdef CONFIG_NET
 
@@ -463,9 +463,9 @@ unsigned int socket_ioctl(int request, void *argp, struct file *file)
 }
 
 struct file_ops socket_ops = {
-    .close = socket_close,
     .ioctl = socket_ioctl,
     .poll = socket_poll,
+    .release = socket_close,
     .read_iter = socket_read_iter,
     .write_iter = socket_write_iter,
 };
@@ -808,9 +808,9 @@ socket *socket_create(int domain, int type, int protocol)
     return socket;
 }
 
-void socket_close(struct inode *ino)
+void socket_close(struct file *filp)
 {
-    socket *s = static_cast<socket *>(ino->i_helper);
+    socket *s = static_cast<socket *>(filp->f_ino->i_helper);
     s->sock_ops->close(s);
 }
 

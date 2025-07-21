@@ -375,16 +375,6 @@ void pipe::close_read_end()
     }
 }
 
-void pipe_close(struct inode *ino)
-{
-    pipe *p = get_pipe(ino->i_pipe);
-
-    assert(p->writer_count == 0);
-    assert(p->reader_count == 0);
-
-    p->unref();
-}
-
 short pipe::poll(struct file *filp, void *poll_file, short events)
 {
     short revents = 0;
@@ -501,6 +491,7 @@ void pipe_release(struct file *filp)
 
     if (fd_may_access(filp, FILE_ACCESS_WRITE))
         p->close_write_end();
+    p->unref();
 }
 
 ssize_t pipe::read_iter(iovec_iter *iter, unsigned int flags)
@@ -676,7 +667,6 @@ ssize_t pipe_write_iter(struct file *filp, size_t off, iovec_iter *iter, unsigne
 const struct file_ops pipe_ops = {
     .read = pipe_read,
     .write = pipe_write,
-    .close = pipe_close,
     .ioctl = pipe_ioctl,
     .poll = pipe_poll,
     .fcntl = pipe_fcntl,
@@ -736,6 +726,7 @@ static int pipe_create(struct file **pipe_readable, struct file **pipe_writeable
     *pipe_readable = rd;
     *pipe_writeable = wr;
 
+    new_pipe.ref();
     anon_pipe_ino->i_pipe = new_pipe.release();
 
     return 0;
@@ -833,7 +824,6 @@ void named_pipe_release(struct file *filp);
 const struct file_ops named_pipe_ops = {
     .read = pipe_read,
     .write = pipe_write,
-    .close = pipe_close,
     .ioctl = pipe_ioctl,
     .on_open = named_pipe_open,
     .poll = pipe_poll,
@@ -854,6 +844,8 @@ void named_pipe_release(struct file *filp)
 
     if (fd_may_access(filp, FILE_ACCESS_WRITE))
         p->close_write_end();
+
+    p->unref();
 
     if (p->reader_count + p->writer_count == 0)
     {

@@ -93,6 +93,7 @@ void proc_event_close(struct inode *ino)
 {
     struct proc_event_sub *sub = (proc_event_sub *) ino->i_helper;
 
+    /* XXX: Call this from somewhere */
     if (sub->valid_sub == false)
     {
         free(sub);
@@ -124,8 +125,7 @@ unsigned int proc_event_ioctl(int request, void *argp, struct file *file)
     }
 }
 
-struct file_ops proc_event_ops = {
-    .read = proc_event_read, .close = proc_event_close, .ioctl = proc_event_ioctl};
+struct file_ops proc_event_ops = {.read = proc_event_read, .ioctl = proc_event_ioctl};
 
 int sys_proc_event_attach(pid_t pid, unsigned long flags)
 {
