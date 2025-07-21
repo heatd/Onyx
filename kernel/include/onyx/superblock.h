@@ -35,6 +35,7 @@ struct super_ops
     int (*statfs)(struct statfs *buf, struct superblock *sb);
     int (*umount)(struct mount *mnt);
     int (*shutdown)(struct superblock *sb);
+    void (*free_inode)(struct inode *inode);
 };
 
 struct superblock

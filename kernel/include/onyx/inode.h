@@ -51,7 +51,6 @@ struct file_ops
 {
     __read read;
     __write write;
-    __close close;
     __getdirent getdirent;
     __ioctl ioctl;
     void *(*mmap)(struct vm_area_struct *area, struct file *node);

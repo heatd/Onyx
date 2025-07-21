@@ -231,8 +231,8 @@ skip_evict:
     /* Destroy the page cache *after* kill inode, since kill_inode might need to access the vmo */
     inode_destroy_page_caches(inode);
 
-    if (inode->i_fops->close != nullptr)
-        inode->i_fops->close(inode);
+    if (sb && sb->s_ops->free_inode)
+        sb->s_ops->free_inode(inode);
 
     if (inode->i_flock)
         flock_destroy_info(inode->i_flock);

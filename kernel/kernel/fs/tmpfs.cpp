@@ -252,9 +252,9 @@ int tmpfs_prepare_write(inode *ino, struct page *page, size_t page_off, size_t o
     return 0;
 }
 
-void tmpfs_close(inode *file)
+static void tmpfs_free_inode(inode *inode)
 {
-    tmpfs_inode *ino = (tmpfs_inode *) file;
+    tmpfs_inode *ino = (tmpfs_inode *) inode;
 
     if (ino->link)
         free((void *) ino->link);
@@ -274,7 +274,6 @@ int tmpfs_ftruncate(size_t len, file *f)
 const struct file_ops tmpfs_fops = {
     .read = nullptr,
     .write = nullptr,
-    .close = tmpfs_close,
     .getdirent = tmpfs_getdirent,
     .ioctl = nullptr,
     .mmap = nullptr,
@@ -477,4 +476,5 @@ const struct super_ops tmpfs_sb_ops = {
     .statfs = tmpfs_statfs,
     .umount = tmpfs_umount,
     .shutdown = sb_generic_shutdown,
+    .free_inode = tmpfs_free_inode,
 };
