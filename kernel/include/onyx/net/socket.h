@@ -121,6 +121,7 @@ public:
         pfi_init(&sock_pfi);
         sk_send_queued = 0;
         sk_rmem = 0;
+        backlog = 0;
     }
 
     virtual ~socket()
