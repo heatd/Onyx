@@ -216,10 +216,9 @@ ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t off
 static inline ssize_t filemap_do_direct(struct file *filp, size_t off, iovec_iter *iter,
                                         unsigned int flags)
 {
-    struct inode *ino = filp->f_ino;
-    if (!ino->i_fops->directio)
+    if (!filp->f_op->directio)
         return -EIO;
-    return ino->i_fops->directio(filp, off, iter, flags);
+    return filp->f_op->directio(filp, off, iter, flags);
 }
 
 /**
@@ -233,14 +232,9 @@ static inline ssize_t filemap_do_direct(struct file *filp, size_t off, iovec_ite
  */
 ssize_t filemap_read_iter(struct file *filp, size_t off, iovec_iter *iter, unsigned int flags)
 {
-    struct inode *ino = filp->f_ino;
+    struct vm_object *vm_obj = filp->f_mapping;
+    struct inode *ino = vm_obj->ino;
     size_t size = ino->i_size;
-
-    if (S_ISBLK(ino->i_mode))
-    {
-        struct blockdev *bdev = (struct blockdev *) ino->i_helper;
-        size = bdev->nr_sectors * bdev->sector_size;
-    }
 
     if (filp->f_flags & O_DIRECT)
         return filemap_do_direct(filp, off, iter, flags);
@@ -252,8 +246,8 @@ ssize_t filemap_read_iter(struct file *filp, size_t off, iovec_iter *iter, unsig
         struct page *page = nullptr;
         if ((size_t) off >= size)
             break;
-        int st2 = filemap_find_page(filp->f_ino, off >> PAGE_SHIFT, FIND_PAGE_ACTIVATE, &page,
-                                    &filp->f_ra_state);
+        int st2 =
+            filemap_find_page(ino, off >> PAGE_SHIFT, FIND_PAGE_ACTIVATE, &page, &filp->f_ra_state);
 
         if (st2 < 0)
             return st ?: st2;
@@ -402,8 +396,8 @@ static int default_write_begin(struct file *filp, struct vm_object *vm_obj, off_
 {
     struct page *page = nullptr;
     struct inode *ino = vm_obj->ino;
-    int st = filemap_find_page(filp->f_ino, off >> PAGE_SHIFT, FIND_PAGE_ACTIVATE, &page,
-                               &filp->f_ra_state);
+    int st =
+        filemap_find_page(ino, off >> PAGE_SHIFT, FIND_PAGE_ACTIVATE, &page, &filp->f_ra_state);
 
     if (st < 0)
         return st;
@@ -453,8 +447,8 @@ static int default_write_end(struct file *file, struct vm_object *vm_obj, off_t 
 ssize_t filemap_write_iter(struct file *filp, size_t off, iovec_iter *iter,
                            unsigned int flags) NO_THREAD_SAFETY_ANALYSIS
 {
-    struct inode *ino = filp->f_ino;
-    struct vm_object *vm_obj = ino->i_pages;
+    struct vm_object *vm_obj = filp->f_mapping;
+    struct inode *ino = vm_obj->ino;
 
     if (filp->f_flags & O_DIRECT)
         return filemap_do_direct(filp, off, iter, DIRECT_IO_WRITE);
@@ -653,14 +647,14 @@ int filemap_writepages(struct inode *inode,
     return 0;
 }
 
-int filemap_fdatasync(struct inode *inode, unsigned long start, unsigned long end)
+int filemap_fdatasync(struct file *filp, unsigned long start, unsigned long end)
 {
-    DCHECK(inode->i_fops->fsyncdata);
+    DCHECK(filp->f_op->fsyncdata);
     struct writepages_info wp;
     wp.start = start;
     wp.end = end;
     wp.flags = WRITEPAGES_SYNC;
-    return inode->i_fops->fsyncdata(inode, &wp);
+    return filp->f_op->fsyncdata(filp->f_ino, &wp);
 }
 
 static int filemap_mkwrite_private(struct vm_pf_context *ctx,
@@ -729,7 +723,8 @@ static int filemap_fault(struct vm_pf_context *ctx) NO_THREAD_SAFETY_ANALYSIS
     struct vm_area_struct *vma = ctx->entry;
     struct fault_info *info = ctx->info;
     struct page *page = nullptr;
-    struct inode *ino = vma->vm_file->f_ino;
+    struct vm_object *vm_obj = vma->vm_obj;
+    struct inode *ino = vm_obj->ino;
     int st = 0;
     int ret = 0;
     unsigned long pgoff = (ctx->vpage - vma->vm_start) >> PAGE_SHIFT;
@@ -760,8 +755,7 @@ static int filemap_fault(struct vm_pf_context *ctx) NO_THREAD_SAFETY_ANALYSIS
         }
 
         unsigned ffp_flags = FIND_PAGE_ACTIVATE | FIND_PAGE_FAULT | (locked ? FIND_PAGE_LOCK : 0);
-        st = filemap_find_page(vma->vm_file->f_ino, fileoff, ffp_flags, &page,
-                               &vma->vm_file->f_ra_state);
+        st = filemap_find_page(ino, fileoff, ffp_flags, &page, &vma->vm_file->f_ra_state);
 
         if (st < 0)
             goto err;

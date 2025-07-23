@@ -757,13 +757,13 @@ static struct vm_area_struct *vma_create(struct vma_iterator *vmi, unsigned int 
 
         if (S_ISCHR(ino->i_mode))
         {
-            if (!ino->i_fops->mmap)
+            if (!file->f_op->mmap)
             {
                 err = -ENODEV;
                 goto unmap_vma;
             }
 
-            void *ret = ino->i_fops->mmap(vma, file);
+            void *ret = file->f_op->mmap(vma, file);
             if (!ret)
             {
                 err = -errno;
@@ -1873,11 +1873,9 @@ int vma_setup_backing(struct vm_area_struct *region, size_t pages, bool is_file_
 
     if (is_file_backed)
     {
-        struct inode *ino = region->vm_file->f_ino;
-
-        assert(ino->i_pages != NULL);
-        vmo_ref(ino->i_pages);
-        vmo = ino->i_pages;
+        vmo = region->vm_file->f_mapping;
+        CHECK(vmo != NULL);
+        vmo_ref(vmo);
         region->vm_ops = &file_vmops;
     }
     else
@@ -2482,8 +2480,8 @@ static int do_sync(struct file *file, unsigned long start, unsigned long end)
     wp.start = start >> PAGE_SHIFT;
     wp.end = (end - 1) >> PAGE_SHIFT;
     wp.flags = WRITEPAGES_SYNC;
-    if (file->f_ino->i_fops->fsyncdata)
-        return file->f_ino->i_fops->fsyncdata(file->f_ino, &wp);
+    if (file->f_op->fsyncdata)
+        return file->f_op->fsyncdata(file->f_ino, &wp);
     return -EINVAL;
 }
 

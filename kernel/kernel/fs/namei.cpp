@@ -761,11 +761,13 @@ static expected<file *, int> complete_open(struct file *filp, unsigned int flags
 
     filp->f_seek = 0;
     filp->f_flags = flags;
+    filp->f_op = filp->f_ino->i_fops;
+    filp->f_mapping = filp->f_ino->i_pages;
 
     /* Call the fops on_open. This is required before we call any filesystem methods. */
-    if (filp->f_ino->i_fops->on_open)
+    if (filp->f_op->on_open)
     {
-        err = filp->f_ino->i_fops->on_open(filp);
+        err = filp->f_op->on_open(filp);
         if (err < 0)
             goto err_free_half;
     }
@@ -1083,14 +1085,6 @@ unlock_err:
     inode_unlock(dir_ino);
     path_put(&parent);
     return unexpected<int>{st};
-}
-
-expected<dentry *, int> creat_vfs(int dirfd, const char *path, int mode)
-{
-    // Mask out the possible file type bits and set IFREG for a regular creat
-    mode &= ~S_IFMT;
-    mode |= S_IFREG;
-    return namei_create_generic(dirfd, path, mode, 0);
 }
 
 #define S_IFBAD (~(S_IFDIR | S_IFCHR | S_IFBLK | S_IFREG | S_IFIFO | S_IFLNK | S_IFSOCK))

@@ -831,10 +831,6 @@ const struct file_ops named_pipe_ops = {
     .release = named_pipe_release,
 };
 
-const struct file_ops preopen_named_pipe_ops = {
-    .on_open = named_pipe_open,
-};
-
 void named_pipe_release(struct file *filp)
 {
     pipe *p = get_pipe(filp->f_ino->i_pipe);
@@ -858,7 +854,6 @@ void named_pipe_release(struct file *filp)
             // Free the pipe, undo file_ops
             p->unref();
             filp->f_ino->i_pipe = nullptr;
-            filp->f_ino->i_fops = (struct file_ops *) &preopen_named_pipe_ops;
         }
     }
 }
@@ -891,8 +886,6 @@ int named_pipe_open(struct file *f)
 
     g.unlock();
 
-    ino->i_fops = (struct file_ops *) &named_pipe_ops;
-
     int st = p->open_named(f);
     if (st < 0)
     {
@@ -904,8 +897,6 @@ int named_pipe_open(struct file *f)
             // Unused, we can free
             p->unref();
             ino->i_pipe = nullptr;
-            // ... and undo the i_fops
-            ino->i_fops = (struct file_ops *) &preopen_named_pipe_ops;
         }
 
         g.unlock();
@@ -968,7 +959,7 @@ int pipe::open_named(struct file *filp)
 
 int pipe_do_fifo(inode *ino)
 {
-    ino->i_fops = (file_ops *) &preopen_named_pipe_ops;
+    ino->i_fops = (file_ops *) &named_pipe_ops;
     return 0;
 }
 

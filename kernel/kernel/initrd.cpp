@@ -108,17 +108,15 @@ void tar_handle_entry(tar_header_t *entry, onx::stream &str)
 
     if (entry->typeflag == TAR_TYPE_FILE)
     {
-        auto ex = creat_vfs(AT_FDCWD, full_filename, perms);
+        struct file *filp;
+        auto ex = vfs_open(AT_FDCWD, full_filename, O_RDWR | O_CREAT, perms);
         if (ex.has_error())
             panic("Could not create file from initrd - errno %d", ex.error());
 
-        /* Create a file from the dentry on the stack. Kind of hacky, but simple */
-        struct file f = {};
-        f.f_dentry = ex.value();
-        f.f_ino = f.f_dentry->d_inode;
-
+        filp = ex.value();
         size_t size = tar_get_size(entry->size);
-        str.splice(size, &f).unwrap();
+        str.splice(size, filp).unwrap();
+        fd_put(filp);
     }
     else if (entry->typeflag == TAR_TYPE_DIR)
     {
