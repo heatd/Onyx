@@ -202,9 +202,7 @@ int sys_ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *utimeout,
             return -ENOMEM;
     }
 
-    bool should_return = false;
-
-    while (!should_return)
+    while (true)
     {
         /* The current poll implementation wasn't safe.
          * Particularly, we could miss wakeups in between the check and the sleep,
@@ -222,19 +220,21 @@ int sys_ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *utimeout,
             {
                 pf->set_revents(revents);
                 nr_nonzero_revents++;
-                should_return = true;
             }
         }
 
-        if (nr_nonzero_revents == 0 && signal_is_pending())
+        if (signal_is_pending())
         {
             mask_guard.disable();
-            nr_nonzero_revents = -ERESTARTNOHAND;
-            break;
+            if (nr_nonzero_revents == 0)
+            {
+                nr_nonzero_revents = -ERESTARTNOHAND;
+                break;
+            }
         }
 
-        if (should_return)
-            continue;
+        if (nr_nonzero_revents > 0)
+            break;
 
         pt.dont_queue();
 
