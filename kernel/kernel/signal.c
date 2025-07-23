@@ -254,6 +254,8 @@ static void do_signal_stop(int signo)
     /* Ok. We're starting (or continuing?) a signal stop. Check which one it is */
     struct signal_struct *sig = current->sig;
     struct process *t;
+    bool notify = false;
+
     if (!test_task_flag(current, TF_STOP_PENDING))
     {
         CHECK(signo != 0);
@@ -273,17 +275,23 @@ static void do_signal_stop(int signo)
     if (--sig->nr_group_stop_pending == 0)
     {
         sig->signal_group_flags |= SIGNAL_GROUP_STOPPED;
+        notify = true;
+    }
+    /* Set THREAD_STOPPED, unlock signal_lock and notify. There's no risk of a race because signal
+     * delivery will take the signal lock, and we set the status before unlocking. */
+    set_current_state(THREAD_STOPPED);
+    clear_task_flag(current, TF_STOP_PENDING);
+    spin_unlock(&current->sighand->signal_lock);
+
+    if (notify)
+    {
         /* Ok, group stop finished (either we're a single thread, or the last thread in the group
          * stop). Notify the parent */
         read_lock(&tasklist_lock);
         notify_process_stop_cont(current, sig->signal_group_exit_code);
         read_unlock(&tasklist_lock);
     }
-    /* Set THREAD_STOPPED, unlock signal_lock and yield. There's no risk of a race because signal
-     * delivery will take the signal lock, and we set the status before unlocking. */
-    set_current_state(THREAD_STOPPED);
-    clear_task_flag(current, TF_STOP_PENDING);
-    spin_unlock(&current->sighand->signal_lock);
+
     sched_yield();
     spin_lock(&current->sighand->signal_lock);
 }
@@ -291,11 +299,22 @@ static void do_signal_stop(int signo)
 static void do_sigcont_notify(void)
 {
     struct signal_struct *sig = current->sig;
-    /* XXX Lock ordering is screwed up here (and in do_signal_stop). signal_lock nests under
-     * tasklist_lock, not vice-versa. Can we do this exclusively under RCU? */
+    bool did = false;
+
+    spin_unlock(&current->sighand->signal_lock);
     read_lock(&tasklist_lock);
-    notify_process_stop_cont(current, W_CONTINUED);
+    spin_lock(&current->sighand->signal_lock);
+
+    if (sig->signal_group_flags & SIGNAL_GROUP_CONT_PENDING)
+    {
+        notify_process_stop_cont(current, W_CONTINUED);
+        did = true;
+    }
+
     read_unlock(&tasklist_lock);
+
+    if (!did)
+        return;
     sig->signal_group_exit_code = W_CONTINUED;
     sig->signal_group_flags &= ~(SIGNAL_GROUP_CONT_PENDING | SIGNAL_GROUP_STOPPED);
     sig->signal_group_flags |= SIGNAL_GROUP_CONT;
