@@ -93,8 +93,8 @@ void fd_put(struct file *fd)
         if (file_needs_unlock(fd))
             flock_remove_ofd(fd);
 
-        if (fd->f_ino->i_fops->release)
-            fd->f_ino->i_fops->release(fd);
+        if (fd->f_op->release)
+            fd->f_op->release(fd);
 
         close_vfs(fd->f_ino);
         // printk("file %s dentry refs %lu\n", fd->f_dentry->d_name, fd->f_dentry->d_ref);
@@ -1435,8 +1435,7 @@ int sys_fcntl(int fd, int cmd, unsigned long arg)
             if (int st = f.from_fd(fd); st < 0)
                 return st;
 
-            const auto ino = f.get_file()->f_ino;
-            const auto fcntl_ = ino->i_fops->fcntl ?: default_fcntl;
+            const auto fcntl_ = f.get_file()->f_op->fcntl ?: default_fcntl;
             ret = fcntl_(f.get_file(), cmd, arg);
             break;
         }

@@ -137,12 +137,10 @@ static ssize_t write_iter_emul(struct file *filp, size_t off, iovec_iter *iter, 
 {
     bool undo;
     ssize_t st;
-    struct inode *ino;
     unsigned long addr_lim = 0;
 
     undo = false;
     st = 0;
-    ino = filp->f_ino;
 
     if (iter->type == IOVEC_KERNEL)
     {
@@ -153,7 +151,7 @@ static ssize_t write_iter_emul(struct file *filp, size_t off, iovec_iter *iter, 
     while (!iter->empty())
     {
         const auto iov = iter->curiovec();
-        ssize_t status = ino->i_fops->write(off, iov.iov_len, iov.iov_base, filp);
+        ssize_t status = filp->f_op->write(off, iov.iov_len, iov.iov_base, filp);
         if (status <= 0)
         {
             if (st == 0)
@@ -189,12 +187,10 @@ static ssize_t read_iter_emul(struct file *filp, size_t off, iovec_iter *iter, u
 {
     bool undo;
     ssize_t st;
-    struct inode *ino;
     unsigned long addr_lim = 0;
 
     undo = false;
     st = 0;
-    ino = filp->f_ino;
 
     if (iter->type == IOVEC_KERNEL)
     {
@@ -205,7 +201,7 @@ static ssize_t read_iter_emul(struct file *filp, size_t off, iovec_iter *iter, u
     while (!iter->empty())
     {
         const auto iov = iter->curiovec();
-        ssize_t status = ino->i_fops->read(off, iov.iov_len, iov.iov_base, filp);
+        ssize_t status = filp->f_op->read(off, iov.iov_len, iov.iov_base, filp);
         if (status <= 0)
         {
             if (st == 0)
@@ -245,9 +241,9 @@ ssize_t read_iter_vfs(struct file *filp, size_t off, iovec_iter *iter, unsigned 
     if (S_ISDIR(ino->i_mode))
         return -EISDIR;
 
-    if (ino->i_fops->read_iter)
-        st = ino->i_fops->read_iter(filp, off, iter, flags);
-    else if (ino->i_fops->read)
+    if (filp->f_op->read_iter)
+        st = filp->f_op->read_iter(filp, off, iter, flags);
+    else if (filp->f_op->read)
         st = read_iter_emul(filp, off, iter, flags);
 
     if (st >= 0)
@@ -275,9 +271,9 @@ ssize_t write_iter_vfs(struct file *filp, size_t off, iovec_iter *iter, unsigned
     if (S_ISDIR(ino->i_mode))
         return -EISDIR;
 
-    if (ino->i_fops->write_iter) [[likely]]
-        st = ino->i_fops->write_iter(filp, off, iter, flags);
-    else if (ino->i_fops->write)
+    if (filp->f_op->write_iter) [[likely]]
+        st = filp->f_op->write_iter(filp, off, iter, flags);
+    else if (filp->f_op->write)
         st = write_iter_emul(filp, off, iter, flags);
 
     if (st >= 0)
@@ -328,8 +324,8 @@ int ioctl_vfs(int request, char *argp, struct file *file)
         }
     }
 
-    if (file->f_ino->i_fops->ioctl != nullptr)
-        return file->f_ino->i_fops->ioctl(request, (void *) argp, file);
+    if (file->f_op->ioctl)
+        return file->f_op->ioctl(request, (void *) argp, file);
     return -ENOTTY;
 }
 
@@ -421,8 +417,8 @@ bool file_can_access(struct file *file, unsigned int perms)
 off_t do_getdirent(struct dirent *buf, off_t off, struct file *file)
 {
     /* FIXME: Detect when we're trying to list unlinked directories, lock the dentry, etc... */
-    if (file->f_ino->i_fops->getdirent != nullptr)
-        return file->f_ino->i_fops->getdirent(buf, off, file);
+    if (file->f_op->getdirent)
+        return file->f_op->getdirent(buf, off, file);
     return -ENOSYS;
 }
 
@@ -539,12 +535,12 @@ int stat_vfs(struct stat *buf, const struct path *path)
 
 short default_poll(void *poll_table, short events, struct file *node);
 
-short poll_vfs(void *poll_file, short events, struct file *node)
+short poll_vfs(void *poll_file, short events, struct file *filp)
 {
-    if (node->f_ino->i_fops->poll != nullptr)
-        return node->f_ino->i_fops->poll(poll_file, events, node);
+    if (filp->f_op->poll != nullptr)
+        return filp->f_op->poll(poll_file, events, filp);
 
-    return default_poll(poll_file, events, node);
+    return default_poll(poll_file, events, filp);
 }
 
 bool inode_is_cacheable(struct inode *ino)
@@ -672,9 +668,9 @@ int default_fallocate(int mode, off_t offset, off_t len, struct file *file)
 
 int fallocate_vfs(int mode, off_t offset, off_t len, struct file *file)
 {
-    if (file->f_ino->i_fops->fallocate)
+    if (file->f_op->fallocate)
     {
-        return file->f_ino->i_fops->fallocate(mode, offset, len, file);
+        return file->f_op->fallocate(mode, offset, len, file);
     }
     else
         return default_fallocate(mode, offset, len, file);
@@ -718,6 +714,8 @@ struct file *inode_to_file(struct inode *ino)
     f->f_seek = 0;
     path_init(&f->f_path);
     f->f_flock = nullptr;
+    f->f_op = ino->i_fops;
+    f->f_mapping = ino->i_pages;
     ra_state_init(&f->f_ra_state);
 
     return f;

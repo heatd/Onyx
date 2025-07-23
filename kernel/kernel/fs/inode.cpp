@@ -82,12 +82,6 @@ int inode_special_init(struct inode *ino)
 
         ino->i_fops = const_cast<file_ops *>(dev->fops());
         ino->i_helper = dev->private_;
-        if (S_ISBLK(ino->i_mode))
-        {
-            struct blockdev *bdev = (struct blockdev *) dev->private_;
-            ino->i_pages = bdev->b_ino->i_pages;
-            vmo_ref(ino->i_pages);
-        }
     }
     else if (S_ISFIFO(ino->i_mode))
     {

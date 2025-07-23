@@ -182,7 +182,6 @@ static short pty_poll(void *poll_file, short events, struct file *f)
  * master's write and read due to it not having its own inode. Fix the model ASAP. */
 static const struct file_ops pty_master_ops = {
     .getdirent = libfs_no_getdirent,
-    .symlink = libfs_no_symlink,
     .fallocate = libfs_no_fallocate,
     .on_open = pty_master_on_open,
     .write = ptydevfs_write,
@@ -194,7 +193,6 @@ static const struct file_ops pty_master_ops = {
 
 static const struct file_ops pty_slave_ops = {
     .getdirent = libfs_no_getdirent,
-    .symlink = libfs_no_symlink,
     .fallocate = libfs_no_fallocate,
     .on_open = pty_slave_on_open,
     .write = ptydevfs_write,

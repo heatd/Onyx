@@ -75,7 +75,7 @@ unsigned int blkdev_ioctl(int request, void *argp, struct file *f)
             if (!is_root_user())
                 return -EACCES;
             /* Synchronize the block device's page cache and truncate all the pages out! */
-            if (int st = filemap_fdatasync(d->b_ino, 0, -1UL); st < 0)
+            if (int st = filemap_fdatasync(f, 0, -1UL); st < 0)
                 return st;
 
             if (int st = vmo_punch_range(d->b_ino->i_pages, 0, -1UL); st < 0)
@@ -793,6 +793,23 @@ void blk_end_plug(struct blk_plug *plug)
     }
 }
 
+static int bdev_sync(struct blockdev *bdev)
+{
+    int st;
+    struct writepages_info info;
+
+    info.start = 0;
+    info.end = ULONG_MAX;
+    info.flags = WRITEPAGES_SYNC;
+    if (st = filemap_writepages(bdev->b_ino, &info); st < 0)
+    {
+        pr_err("%s: sync failed: %d\n", bdev->name.c_str(), st);
+        return st;
+    }
+
+    return 0;
+}
+
 /**
  * @brief Set the block device's block size
  *
@@ -827,7 +844,7 @@ int block_set_bsize(struct blockdev *bdev, unsigned int block_size)
 
     /* Synchronize the block device's page cache and truncate all the pages out! This fixes issues
      * with stale block_buffer data. */
-    if (st = filemap_fdatasync(bdev->b_ino, 0, -1UL); st < 0)
+    if (st = bdev_sync(bdev); st < 0)
     {
         pr_err("%s: fdatasync failed: %d\n", bdev->name.c_str(), st);
         return st;
@@ -894,6 +911,8 @@ int bdev_on_open(struct file *f)
     int st = bdev_do_open(dev, f->f_flags & O_EXCL);
     if (st == 0)
         f->private_data = BDEV_PRIVATE_UNDO;
+
+    f->f_mapping = dev->b_ino->i_pages;
     return st;
 }
 
@@ -903,18 +922,6 @@ void bdev_release(struct file *f)
     struct blockdev *dev = (blockdev *) f->f_ino->i_helper;
     if (f->private_data == BDEV_PRIVATE_UNDO)
         bdev_release(dev);
-}
-
-static int bdev_sync(struct blockdev *bdev)
-{
-    int st;
-    if (st = filemap_fdatasync(bdev->b_ino, 0, -1UL); st < 0)
-    {
-        pr_err("%s: sync failed: %d\n", bdev->name.c_str(), st);
-        return st;
-    }
-
-    return 0;
 }
 
 static void bdev_teardown(struct blockdev *bdev)

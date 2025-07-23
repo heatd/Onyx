@@ -68,6 +68,8 @@ struct file
     };
     struct mutex f_seeklock;
     unsigned int f_flags;
+    const struct file_ops *f_op;
+    struct vm_object *f_mapping;
     struct readahead_state f_ra_state;
     struct flock_file_info *f_flock;
 };
@@ -227,7 +229,6 @@ void put_dentry_to_dirent(struct dirent *buf, struct dentry *dentry,
 
 extern "C++"
 {
-expected<dentry *, int> creat_vfs(int dirfd, const char *path, int mode);
 expected<dentry *, int> mknod_vfs(const char *path, mode_t mode, dev_t dev, int dirfd);
 expected<dentry *, int> mkdir_vfs(const char *path, mode_t mode, int dirfd);
 }
