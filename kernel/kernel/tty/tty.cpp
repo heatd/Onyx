@@ -504,6 +504,12 @@ unsigned int do_tty_csctty(tty *tty, int force)
     if (!current->is_session_leader_unlocked())
         goto out;
 
+    if (current->sig->ctty == tty)
+    {
+        err = 0;
+        goto out;
+    }
+
     // ...and not have a controlling terminal
     if (current->sig->ctty)
         goto out;
