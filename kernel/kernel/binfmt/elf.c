@@ -545,17 +545,20 @@ static void fill_notes_for_thread(struct core_state *core, struct elf_core_notes
 
 static int fill_thread_notes(struct core_state *core, struct elf_core_notes *notes)
 {
-    struct process *thread;
+    struct core_thread *thread;
     struct elf_core_thread *thr;
-    notes->nr_threads = READ_ONCE(current->sig->nr_threads);
+    notes->nr_threads = core->nr_threads + 1;
     notes->threads = kvcalloc(notes->nr_threads, sizeof(struct elf_core_thread), GFP_KERNEL);
     if (!notes->threads)
         return -ENOMEM;
 
     thr = notes->threads;
-    for_each_thread (current, thread)
+    fill_notes_for_thread(core, notes, thr, current);
+    thr++;
+
+    list_for_each_entry (thread, &core->thread_list, list_node)
     {
-        fill_notes_for_thread(core, notes, thr, thread);
+        fill_notes_for_thread(core, notes, thr, thread->task);
         thr++;
     }
 

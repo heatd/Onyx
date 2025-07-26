@@ -64,6 +64,7 @@ __END_CDECLS
 #define TF_SIGPENDING      (1 << 5)
 #define TF_RESTORE_SIGMASK (1 << 6)
 #define TF_STOP_PENDING    (1 << 7)
+#define TF_POST_COREDUMP   (1 << 8) /* too far gone in exit(2) to ask for a coredump */
 
 struct vfork_completion;
 
@@ -74,6 +75,8 @@ struct vfork_completion;
 #else
 #define CPP_DFLINIT
 #endif
+
+struct core_state;
 
 /* signal_struct (in classic Linux style) represents per-process (instead of per-thread,
  * CLONE_THREAD) data. CLONE_THREAD processes share this struct. It contains signal stuff, and other
@@ -113,6 +116,7 @@ struct signal_struct
     unsigned long nivcsw;
     unsigned long cnvcsw;
     unsigned long cnivcsw;
+    struct core_state *core_state;
 };
 
 struct process

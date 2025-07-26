@@ -17,6 +17,7 @@
 
 #include <onyx/binfmt.h>
 #include <onyx/compiler.h>
+#include <onyx/coredump.h>
 #include <onyx/cpu.h>
 #include <onyx/dentry.h>
 #include <onyx/elf.h>
@@ -195,6 +196,45 @@ static void exit_do_ctid(void)
     }
 }
 
+static void exit_coredump(void)
+{
+    struct core_thread thread;
+    struct core_state *core;
+
+    spin_lock(&current->sighand->signal_lock);
+    set_task_flag(current, TF_POST_COREDUMP);
+    core = current->sig->core_state;
+
+    if (likely(!core))
+    {
+        spin_unlock(&current->sighand->signal_lock);
+        return;
+    }
+
+    /* If we're the last arriving thread, wake up the dumper */
+    if (--core->threads_pending == 0)
+        thread_wake_up(core->dumper->thr);
+
+    /* Await for the sweet embrace of the coredump */
+    list_add_tail(&thread.list_node, &core->thread_list);
+    thread.task = current;
+    spin_unlock(&current->sighand->signal_lock);
+
+    set_current_state(THREAD_UNINTERRUPTIBLE);
+    while (READ_ONCE(thread.task) != NULL)
+    {
+        /* sched_yield() provides a full memory barrier and pairs with thread_wake_up in coredump
+         * code. */
+        sched_yield();
+        set_current_state(THREAD_UNINTERRUPTIBLE);
+    }
+
+    /* Doesn't matter if we were in the list or not, the coredump code magically took care of all of
+     * this. */
+
+    set_current_state(THREAD_INTERRUPTIBLE);
+}
+
 static void release_task(struct process *task) REQUIRES(tasklist_lock);
 
 __attribute__((noreturn)) void do_exit(unsigned int exit_code)
@@ -213,6 +253,7 @@ __attribute__((noreturn)) void do_exit(unsigned int exit_code)
     current->exit_code = exit_code;
     current->flags |= PROCESS_EXITING;
 
+    exit_coredump();
     exit_do_ctid();
     exit_files(current);
     exit_fs(current);

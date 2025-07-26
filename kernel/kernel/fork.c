@@ -166,6 +166,7 @@ static int dup_signal(struct process *child)
         sig->rlimits[i] = curr->rlimits[i];
     read_unlock(&curr->rlimit_lock);
 
+    sig->core_state = NULL;
     itimer_init(child);
     child->flags = current->flags;
     return 0;
