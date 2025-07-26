@@ -8,6 +8,8 @@
 #ifndef _ONYX_COREDUMP_H
 #define _ONYX_COREDUMP_H
 
+#include <onyx/list.h>
+
 #include <uapi/signal.h>
 
 struct file;
@@ -22,6 +24,12 @@ struct core_vma
     struct file *file;
 };
 
+struct core_thread
+{
+    struct process *task;
+    struct list_head list_node;
+};
+
 struct core_state
 {
     struct file *core_file;
@@ -30,6 +38,10 @@ struct core_state
     int signo;
     siginfo_t *siginfo;
     unsigned long core_limit;
+    unsigned int nr_threads;
+    unsigned int threads_pending;
+    struct process *dumper;
+    struct list_head thread_list;
 };
 
 void do_coredump(int sig, siginfo_t *siginfo);

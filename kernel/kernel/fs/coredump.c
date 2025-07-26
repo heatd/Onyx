@@ -156,24 +156,81 @@ static void core_state_destroy(struct core_state *state)
 
 int do_elf_coredump(struct core_state *core);
 
+static void coredump_suspend_threads(struct core_state *core)
+{
+    struct process *t;
+    unsigned int nr_threads = 0;
+
+    spin_lock(&current->sighand->signal_lock);
+    current->sig->signal_group_exit_code = make_wait4_wstatus(core->signo, true, 0);
+    current->sig->signal_group_flags |= SIGNAL_GROUP_EXIT;
+
+    for_each_thread (current, t)
+    {
+        if (t == current)
+            continue;
+        if (test_task_flag(t, TF_POST_COREDUMP))
+            continue;
+        nr_threads++;
+        sigaddset(&t->sigqueue.pending, SIGKILL);
+        signal_interrupt_task(t, SIGKILL);
+    }
+
+    core->nr_threads = nr_threads;
+    core->threads_pending = nr_threads;
+    core->dumper = current;
+    current->sig->core_state = core;
+
+    set_current_state(THREAD_UNINTERRUPTIBLE);
+    while (core->threads_pending > 0)
+    {
+        spin_unlock(&current->sighand->signal_lock);
+        sched_yield();
+        spin_lock(&current->sighand->signal_lock);
+        set_current_state(THREAD_UNINTERRUPTIBLE);
+    }
+
+    set_current_state(THREAD_RUNNABLE);
+    current->sig->core_state = NULL;
+    spin_unlock(&current->sighand->signal_lock);
+}
+
+static void coredump_unfreeze(struct core_state *core)
+{
+    struct core_thread *thread, *next;
+    struct process *task;
+
+    /* Unfreeze all threads. */
+    spin_lock(&current->sighand->signal_lock);
+
+    list_for_each_entry_safe (thread, next, &core->thread_list, list_node)
+    {
+        task = thread->task;
+        WRITE_ONCE(thread->task, NULL);
+        list_remove(&thread->list_node);
+
+        /* thread->task doesn't need any synchronization because thread_wake_up implies a
+         * happens-before (with a full memory barrier) with regards to everything that happens
+         * before (in the waking thread) and after (in the wakee) */
+        thread_wake_up(task->thr);
+    }
+
+    spin_unlock(&current->sighand->signal_lock);
+}
+
 void do_coredump(int sig, siginfo_t *siginfo)
 {
     struct core_state core = {
         .core_limit = rlim_get_cur(RLIMIT_CORE),
+        .thread_list = LIST_HEAD_INIT(core.thread_list),
     };
     int err;
-    /* TODO: Stop other threads */
-    if (WARN_ON_ONCE(current->sig->nr_threads != 1))
-    {
-        pr_warn("attempted to coredump process %s (pid %d, %u threads). Multi-threaded "
-                "coredumps not yet supported\n",
-                current->comm, current->pid_, current->sig->nr_threads);
-        return;
-    }
+
+    coredump_suspend_threads(&core);
 
     err = coredump_create_core(&core);
     if (err)
-        return;
+        goto unfreeze;
     err = coredump_collect_vmas(&core);
     if (err)
     {
@@ -185,10 +242,14 @@ void do_coredump(int sig, siginfo_t *siginfo)
     core.siginfo = siginfo;
     err = do_elf_coredump(&core);
     core_state_destroy(&core);
-    if (err)
-        return;
-err_unlink_core:
-    coredump_unlink_core();
+    if (!err)
+    {
+    err_unlink_core:
+        coredump_unlink_core();
+    }
+
+unfreeze:
+    coredump_unfreeze(&core);
 }
 
 int dump_write(struct core_state *state, const void *buf, size_t len)

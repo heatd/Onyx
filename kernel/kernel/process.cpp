@@ -201,6 +201,7 @@ process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *p
     proc->sig->signal_group_flags = 0;
     proc->sig->tg_leader = proc;
     proc->sig->tgid = newpid;
+    proc->sig->core_state = NULL;
     sigqueue_init(&proc->sig->shared_signals);
     list_add_tail_rcu(&proc->thread_list_node, &proc->sig->thread_list);
     init_wait_queue_head(&proc->sig->wait_child_event);
