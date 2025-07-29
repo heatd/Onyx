@@ -179,7 +179,7 @@ unsigned long __wait_queue_wake(struct wait_queue *queue, unsigned int flags, vo
         list_remove(&token->token_node);
         token->signaled = true;
         if (token->callback)
-            token->callback(context, token);
+            token->callback(context ?: token->context, token);
 
         thread_wake_up(token->thread);
         woken++;
