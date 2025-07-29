@@ -132,7 +132,7 @@ bool _dump_thread(const void *key, void *_thread, void *of)
 {
     auto thread = (struct thread *) _thread;
 
-    dump_printk("Thread id %d\n", thread->id);
+    dump_printk("Thread id %d (refs %lu)\n", thread->id, thread->refcount);
 
     // FIXME: Fix all instances of cmd_line.c_str() with a race-condition safe way
     if (thread->owner)
