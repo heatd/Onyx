@@ -1,10 +1,11 @@
 /*
- * Copyright (c) 2023 Pedro Falcato
+ * Copyright (c) 2023 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
+#include <onyx/anon_inode.h>
 #include <onyx/assert.h>
 #include <onyx/cred.h>
 #include <onyx/dentry.h>
@@ -48,7 +49,7 @@ struct inode *anon_inode_alloc(mode_t file_type)
     return ino;
 }
 
-struct file *anon_inode_open(mode_t file_type, struct file_ops *ops, const char *name)
+struct file *anon_inode_open(mode_t file_type, const struct file_ops *ops, const char *name)
 {
     struct inode *ino = nullptr;
     struct dentry *dentry = nullptr;
@@ -58,7 +59,7 @@ struct file *anon_inode_open(mode_t file_type, struct file_ops *ops, const char 
     if (!ino)
         return nullptr;
 
-    ino->i_fops = ops;
+    ino->i_fops = (struct file_ops *) ops;
 
     dentry = dentry_create(name, ino, nullptr);
     if (!dentry)
@@ -70,6 +71,7 @@ struct file *anon_inode_open(mode_t file_type, struct file_ops *ops, const char 
         goto err;
 
     f->f_dentry = dentry;
+    f->f_op = ops;
     return f;
 err:
     if (dentry)
