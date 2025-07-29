@@ -143,8 +143,7 @@
         "name": "fork",
         "nr": 10,
         "nr_args": 0,
-        "args": [
-        ],
+        "args": [],
         "return_type": "pid_t",
         "abi": "c"
     },
@@ -619,8 +618,7 @@
         "name": "sigreturn",
         "nr": 37,
         "nr_args": 1,
-        "args": [
-        ],
+        "args": [],
         "return_type": "unsigned long",
         "abi": "c"
     },
@@ -2701,8 +2699,7 @@
         "name": "vfork",
         "nr": 150,
         "nr_args": 0,
-        "args": [
-        ],
+        "args": [],
         "return_type": "pid_t",
         "abi": "c"
     },
@@ -3103,5 +3100,35 @@
         "nr_args": 0,
         "args": [],
         "return_type": "gid_t"
+    },
+    {
+        "name": "eventfd",
+        "nr": 174,
+        "nr_args": 1,
+        "args": [
+            [
+                "unsigned int",
+                "initval"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "eventfd2",
+        "nr": 175,
+        "nr_args": 2,
+        "args": [
+            [
+                "unsigned int",
+                "initval"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
     }
 ]

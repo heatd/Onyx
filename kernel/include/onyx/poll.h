@@ -257,8 +257,6 @@ public:
     sleep_result sleep_poll(hrtime_t timeout, bool timeout_valid);
 };
 
-void poll_wait_helper(void *poll_file, struct wait_queue *q);
-
 struct pselect_arg
 {
     const sigset_t *mask;
@@ -267,7 +265,10 @@ struct pselect_arg
 
 #endif
 
-int sys_pselect(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
-                const struct timespec *timeout, struct pselect_arg *arg);
+__BEGIN_CDECLS
+
+void poll_wait_helper(void *poll_file, struct wait_queue *q);
+
+__END_CDECLS
 
 #endif
