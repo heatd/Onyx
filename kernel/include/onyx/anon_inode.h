@@ -9,6 +9,7 @@
 #ifndef _ONYX_ANON_INODE_H
 #define _ONYX_ANON_INODE_H
 
+#include <onyx/compiler.h>
 #include <onyx/types.h>
 
 #include <uapi/stat.h>
@@ -17,7 +18,16 @@ struct inode;
 struct file;
 struct file_ops;
 
-struct inode *anon_inode_alloc(mode_t file_type = S_IFREG);
-struct file *anon_inode_open(mode_t file_type, struct file_ops *ops, const char *name);
+__BEGIN_CDECLS
+
+struct inode *anon_inode_alloc(mode_t file_type
+#ifdef __cplusplus
+                               = S_IFREG
+#endif
+);
+
+struct file *anon_inode_open(mode_t file_type, const struct file_ops *ops, const char *name);
+
+__END_CDECLS
 
 #endif
