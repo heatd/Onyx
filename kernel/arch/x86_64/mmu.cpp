@@ -739,7 +739,7 @@ void mmu_invalidate_range(unsigned long addr, size_t pages, mm_address_space *mm
     }
     else
     {
-        mask = mm->active_mask;
+        mask = mm->active_mask.copy_atomic();
         mask.remove_cpu(our_cpu);
     }
 

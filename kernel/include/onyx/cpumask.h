@@ -19,6 +19,14 @@ struct cpumask
     {
     }
 
+    cpumask copy_atomic() const
+    {
+        cpumask m;
+        for (unsigned int i = 0; i < CPUMASK_SIZE; i++)
+            m.mask[i] = __atomic_load_n(&mask[i], __ATOMIC_RELAXED);
+        return m;
+    }
+
     constexpr void set_cpu(unsigned long cpu)
     {
         auto long_idx = cpu / LONG_SIZE_BITS;
