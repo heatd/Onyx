@@ -49,7 +49,7 @@ struct inode *anon_inode_alloc(mode_t file_type)
     return ino;
 }
 
-struct file *anon_inode_open(mode_t file_type, struct file_ops *ops, const char *name)
+struct file *anon_inode_open(mode_t file_type, const struct file_ops *ops, const char *name)
 {
     struct inode *ino = nullptr;
     struct dentry *dentry = nullptr;
@@ -59,7 +59,7 @@ struct file *anon_inode_open(mode_t file_type, struct file_ops *ops, const char 
     if (!ino)
         return nullptr;
 
-    ino->i_fops = ops;
+    ino->i_fops = (struct file_ops *) ops;
 
     dentry = dentry_create(name, ino, nullptr);
     if (!dentry)
@@ -71,6 +71,7 @@ struct file *anon_inode_open(mode_t file_type, struct file_ops *ops, const char 
         goto err;
 
     f->f_dentry = dentry;
+    f->f_op = ops;
     return f;
 err:
     if (dentry)

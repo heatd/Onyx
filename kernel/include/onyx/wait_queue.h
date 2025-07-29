@@ -233,6 +233,38 @@ bool signal_is_pending();
     __wait_for_event(wq, cond, THREAD_INTERRUPTIBLE, write_unlock(lock); sched_yield(); \
                      write_lock(lock))
 
+#define wait_for_event_wqlocked_interruptible(wq, cond) \
+    ({                                                  \
+        long __ret = 0;                                 \
+        struct wait_queue_token token;                  \
+        if (cond)                                       \
+            goto out_final;                             \
+        init_wq_token(&token);                          \
+                                                        \
+        while (true)                                    \
+        {                                               \
+            set_current_state(THREAD_INTERRUPTIBLE);    \
+            token.thread = get_current_thread();        \
+            __wait_queue_add(wq, &token);               \
+            if (cond)                                   \
+                break;                                  \
+            if (signal_is_pending())                    \
+            {                                           \
+                __ret = -ERESTARTSYS;                   \
+                goto __out;                             \
+            }                                           \
+            spin_unlock(&(wq)->lock);                   \
+            sched_yield();                              \
+            spin_lock(&(wq)->lock);                     \
+            __wait_queue_remove(wq, &token);            \
+        }                                               \
+    __out:                                              \
+        __wait_queue_remove(wq, &token);                \
+        set_current_state(THREAD_RUNNABLE);             \
+    out_final:;                                         \
+        __ret;                                          \
+    })
+
 #define WAIT_QUEUE_INIT(x) {.lock = {}, .token_list = LIST_HEAD_INIT(&x.token_list)};
 
 static inline void init_wait_queue_head(struct wait_queue *q)
