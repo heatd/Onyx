@@ -598,6 +598,12 @@ static int __send_signal_to_task(int signal, struct process *task, unsigned int 
     siginfo_t *copy_siginfo = NULL;
     struct sigqueue *queue;
 
+    if (signal == 0)
+    {
+        /* No-op, just a permission check from before. Return 0. */
+        return 0;
+    }
+
     signal_do_special_behaviour(signal, task);
     queue = type == PIDTYPE_TGID ? &task->sig->shared_signals : &task->sigqueue;
 
@@ -685,7 +691,7 @@ static int send_signal_to_task(int signal, struct process *task, unsigned int fl
 
 bool is_valid_signal(int sig)
 {
-    return sig > 0 && sig < NSIG;
+    return sig >= 0 && sig < NSIG;
 }
 
 bool pid_is_system_process(pid_t pid)
@@ -745,11 +751,6 @@ int sys_kill(pid_t pid, int sig)
         p = get_process_from_pid(pid);
         if (!p)
             return -ESRCH;
-    }
-
-    if (sig == 0)
-    {
-        goto out;
     }
 
     if (!is_valid_signal(sig))
@@ -1471,18 +1472,21 @@ bool notify_process_stop_cont(struct process *task, unsigned int exit_code)
 
 int pid_kill_pgrp(struct pid *pid, int sig, int flags, siginfo_t *info)
 {
-    int signals_sent = 0;
+    int err = -ESRCH, st;
     struct process *proc;
 
     pgrp_for_every_member(pid, proc, PIDTYPE_PGRP)
     {
         if (may_kill(sig, proc, info) < 0)
+        {
+            err = -EPERM;
             continue;
-        if (send_signal_to_task(sig, proc, 0, info, PIDTYPE_TGID) < 0)
-            break;
+        }
 
-        signals_sent++;
+        st = send_signal_to_task(sig, proc, 0, info, PIDTYPE_TGID);
+        if (err)
+            err = st;
     }
 
-    return signals_sent != 0 ? 0 : -EPERM;
+    return err;
 }
