@@ -468,7 +468,10 @@ void sched_load_thread(struct thread *prev, thread *thread, unsigned int cpu)
             thread->active_mm = mm;
             mmgrab(mm);
             if (prev->active_mm)
+            {
+                mmdrop(mm);
                 prev->active_mm = NULL;
+            }
         }
     }
 
