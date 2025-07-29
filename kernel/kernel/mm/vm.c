@@ -2626,10 +2626,10 @@ struct mm_address_space *mm_fork(void)
  */
 void vm_load_aspace(struct mm_address_space *aspace, unsigned int cpu)
 {
-    vm_load_arch_mmu(&aspace->arch_mmu);
     if (unlikely(cpu == -1U))
         cpu = get_cpu_nr();
     cpumask_set_atomic(&aspace->active_mask, cpu);
+    vm_load_arch_mmu(&aspace->arch_mmu);
 }
 
 /**

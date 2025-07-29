@@ -447,14 +447,16 @@ void sched_load_thread(struct thread *prev, thread *thread, unsigned int cpu)
     if (thread->owner)
     {
         /* Clear ourselves from the mm mask and drop the active_mm, if we had one */
-        cpumask_unset_atomic(&mm->active_mask, cpu);
-
-        native::arch_load_process(thread->owner, thread, cpu);
-
         if (prev->active_mm)
         {
             mmdrop(mm);
             prev->active_mm = NULL;
+        }
+
+        if (mm != thread->owner->get_aspace())
+        {
+            cpumask_unset_atomic(&mm->active_mask, cpu);
+            native::arch_load_process(thread->owner, thread, cpu);
         }
     }
     else
