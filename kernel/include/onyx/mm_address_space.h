@@ -45,6 +45,8 @@ struct mm_address_space
 
     /* mmap(2) base */
     void *mmap_base;
+    unsigned long mmap_end;
+    unsigned long stack_start;
 
     /* Process' brk */
     void *brk;
