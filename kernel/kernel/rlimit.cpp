@@ -67,6 +67,8 @@ void process::init_default_limits()
 
     sig->rlimits[RLIMIT_NOFILE].rlim_cur = 1024;
     sig->rlimits[RLIMIT_NOFILE].rlim_max = 4096;
+    sig->rlimits[RLIMIT_STACK].rlim_cur = 0x800000;
+    sig->rlimits[RLIMIT_STACK].rlim_max = 0x800000;
 }
 
 constexpr int nlimits = 16;

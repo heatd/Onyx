@@ -469,11 +469,12 @@ int sys_execve(const char *p, const char **argv, const char **envp)
     current->flags &= ~PROCESS_FORKED;
 
     struct stack_info si;
-    si.length = DEFAULT_USER_STACK_LEN * 8;
+    si.length = PAGE_SIZE;
 
     if (process_alloc_stack(&si) < 0)
         goto error_die_signal;
 
+    current->address_space->stack_start = (unsigned long) si.base;
     if (process_put_entry_info(&si, karg, kenv) < 0)
         goto error_die_signal;
 

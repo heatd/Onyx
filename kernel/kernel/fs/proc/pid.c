@@ -191,7 +191,7 @@ static int proc_pid_stat_show(struct seq_file *m, void *v)
 
     rsslim = READ_ONCE(task->sig->rlimits[RLIMIT_RSS].rlim_cur);
     /* TODO */
-    startcode = endcode = startstack = kstkeip = kstkesp = startdata = enddata = 0;
+    startcode = endcode = kstkeip = kstkesp = startdata = enddata = 0;
     wchan = task->thr->status != THREAD_RUNNABLE;
 
     mm = get_remote_mm(task);
@@ -201,11 +201,13 @@ static int proc_pid_stat_show(struct seq_file *m, void *v)
         vsize = 0;
         rss = 0;
         start_brk = arg_start = arg_end = 0;
+        startstack = 0;
     }
     else
     {
         vsize = mm->virtual_memory_size;
         rss = mm->resident_set_size >> PAGE_SHIFT;
+        startstack = mm->stack_start;
         /* More TODO */
         start_brk = 0;
         arg_start = mm->arg_start;

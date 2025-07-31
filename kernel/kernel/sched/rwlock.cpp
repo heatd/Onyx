@@ -371,6 +371,14 @@ void rw_unlock_write(rwlock *lock)
         rwlock_wake(lock);
 }
 
+void rw_downgrade_write(struct rwlock *lock)
+{
+    const bool has_waiters =
+        __atomic_exchange_n(&lock->lock, 1, __ATOMIC_RELEASE) & RDWR_LOCK_WAITERS;
+    if (has_waiters)
+        rwlock_wake(lock);
+}
+
 extern "C"
 {
 

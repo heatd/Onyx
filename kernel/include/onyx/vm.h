@@ -60,6 +60,7 @@ __BEGIN_CDECLS
 #define VM_SHARED        (1 << 10)
 #define VM_PFNMAP        (1 << 11)
 #define VM_DONTDUMP      (1 << 12)
+#define VM_GROWSDOWN     (1 << 13)
 
 /* Internal flags used by the mm code */
 #define __VM_CACHE_TYPE_REGULAR     0
@@ -778,6 +779,8 @@ void vm_do_mmu_mprotect(struct mm_address_space *as, void *address, size_t nr_pg
                         int new_prots);
 
 struct mm_address_space *get_remote_mm(struct process *task);
+
+unsigned long vm_pick_stack_location(void);
 
 __END_CDECLS
 

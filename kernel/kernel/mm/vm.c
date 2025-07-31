@@ -209,10 +209,12 @@ static int vm_alloc_address(struct vma_iterator *vmi, u64 flags, size_t size, in
 
     if (min < mm->start)
         min = mm->start;
-    if (mas_empty_area(&vmi->mas, min, mm->end, size) != 0)
+    if (mas_empty_area(&vmi->mas, min, mm->mmap_end, size) != 0)
         return -ENOMEM;
 
     unsigned long new_base = vmi->mas.index;
+
+    CHECK(new_base + size <= mm->mmap_end);
     CHECK((new_base & (PAGE_SIZE - 1)) == 0);
     if (!arch_vm_validate_mmap_region(new_base, size, flags))
         return -ENOMEM;
@@ -374,6 +376,12 @@ static unsigned long vm_get_base_address(uint64_t flags, uint32_t type)
     }
 }
 
+static struct vm_area_struct *vma_find(struct mm_address_space *mm, unsigned long addr)
+    REQUIRES_SHARED(mm->vm_lock)
+{
+    return mt_find(&mm->region_tree, &addr, ULONG_MAX);
+}
+
 struct vm_area_struct *vm_search(struct mm_address_space *mm, void *addr, size_t length)
     REQUIRES_SHARED(mm->vm_lock)
 {
@@ -504,7 +512,7 @@ int vm_fork_address_space(struct mm_address_space *addr_space) EXCLUDES(addr_spa
 {
     struct mm_address_space *current_mm = get_current_address_space();
     int err = 0;
-    rw_lock_read(&current_mm->vm_lock);
+    rw_lock_write(&current_mm->vm_lock);
 
 #ifdef CONFIG_DEBUG_ADDRESS_SPACE_ACCT
     mmu_verify_address_space_accounting(get_current_address_space());
@@ -539,6 +547,8 @@ int vm_fork_address_space(struct mm_address_space *addr_space) EXCLUDES(addr_spa
      * mapped, since the old page table entries were copied in.
      */
     addr_space->mmap_base = current_mm->mmap_base;
+    addr_space->mmap_end = current_mm->mmap_end;
+    addr_space->stack_start = current_mm->stack_start;
     addr_space->brk = current_mm->brk;
     addr_space->start = current_mm->start;
     addr_space->end = current_mm->end;
@@ -553,7 +563,7 @@ int vm_fork_address_space(struct mm_address_space *addr_space) EXCLUDES(addr_spa
     rwlock_init(&addr_space->vm_lock);
     validate_mm_tree(addr_space);
 out:
-    rw_unlock_read(&current_mm->vm_lock);
+    rw_unlock_write(&current_mm->vm_lock);
     return err;
 }
 
@@ -830,6 +840,9 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 
     if (flags & MAP_SHARED)
         vm_prot |= VM_SHARED;
+
+    if (flags & MAP_GROWSDOWN)
+        vm_prot |= VM_GROWSDOWN;
 
     /* Sanitize the address and length */
     const unsigned long aligned_len = pages << PAGE_SHIFT;
@@ -1432,6 +1445,137 @@ static int __vm_handle_pf(struct vm_area_struct *entry, struct fault_info *info)
     return 0;
 }
 
+static void no_vma(struct fault_info *info)
+{
+    struct thread *ct = get_current_thread();
+    if (ct && info->user)
+    {
+        printk("Curr thread: %p\n", ct);
+        const char *str;
+        if (info->write)
+            str = "write";
+        else if (info->exec)
+            str = "exec";
+        else
+            str = "read";
+        printk("Page fault at %lx, %s, ip %lx, process name %s\n", info->fault_address, str,
+               info->ip, current ? current->comm : "(kernel)");
+#if 0
+            vm_print_umap();
+            panic("pid %ld page fault", current->pid_);
+#endif
+    }
+
+    info->signal = VM_SIGSEGV;
+}
+
+static struct vm_area_struct *vma_grow_down(struct mm_address_space *mm, struct vm_area_struct *vma,
+                                            unsigned long addr)
+{
+    struct vm_area_struct *prev;
+    unsigned long new_stack;
+    VMA_ITERATOR(vmi, mm, vma->vm_start, vma->vm_end);
+
+    addr &= -PAGE_SIZE;
+    prev = mas_prev(&vmi.mas, 0);
+    if (prev)
+    {
+        /* If there's a previous vma, check if we're not (close to) overrunning it */
+        if (addr - prev->vm_end < PAGE_SIZE * 32)
+        {
+            /* Too close to other mmap allocations, fail. */
+            return NULL;
+        }
+    }
+
+    if (vma->vm_end - addr > rlim_get_cur(RLIMIT_STACK))
+    {
+        pr_warn("%s[%d]: Process exhausted program stack (RLIMIT_STACK %llu bytes, new stack size "
+                "%lu)\n",
+                current->comm, current->pid_, rlim_get_cur(RLIMIT_STACK), vma->vm_end - addr);
+        return NULL;
+    }
+
+    new_stack = vma->vm_start - addr;
+
+    if (!vm_test_vs_rlimit(mm, new_stack))
+        return NULL;
+
+    if (vma->vm_offset > 0 && (unsigned long) vma->vm_offset < new_stack)
+    {
+        /* Offset is going to underflow, so we'll fail this expansion */
+        return NULL;
+    }
+
+    mas_set_range(&vmi.mas, addr, vma->vm_end - 1);
+    if (mas_store_gfp(&vmi.mas, vma, GFP_KERNEL) != 0)
+        return NULL;
+
+    if (vma->vm_start >= mm->stack_start)
+    {
+        /* This is the stack */
+        mm->stack_start = addr;
+    }
+
+    vma_pre_adjust(vma);
+
+    if (vma->vm_offset)
+        vma->vm_offset -= new_stack;
+    vma->vm_start = addr;
+
+    increment_vm_stat(mm, virtual_memory_size, new_stack);
+    if (vma_shared(vma))
+        increment_vm_stat(mm, shared_set_size, new_stack);
+
+    vma_post_adjust(vma);
+    return vma;
+}
+
+static struct vm_area_struct *vma_expand_stack(struct mm_address_space *mm, unsigned long addr)
+{
+    struct vm_area_struct *vma;
+
+    /* Drop the read lock, and grab the write lock. We then must grab a new vma (and things may have
+     * changed in the meanwhile, so recheck). */
+    rw_unlock_read(&mm->vm_lock);
+    rw_lock_write(&mm->vm_lock);
+
+    vma = vma_find(mm, addr);
+    if (!vma)
+        goto out;
+    if (vma->vm_start > addr && !(vma->vm_flags & VM_GROWSDOWN))
+    {
+        vma = NULL;
+        goto out;
+    }
+
+    vma = vma_grow_down(mm, vma, addr);
+out:
+    rw_downgrade_write(&mm->vm_lock);
+    return vma;
+}
+
+static struct vm_area_struct *vma_find_maybe_expand(struct mm_address_space *mm, unsigned long addr)
+    REQUIRES_SHARED(mm->vm_lock)
+{
+    struct vm_area_struct *vma;
+
+    vma = vma_find(mm, addr);
+    if (likely(vma && vma->vm_start <= addr))
+        return vma;
+    else if (!vma)
+        return NULL;
+
+    /* Page fault, but there's a "next" vma. Check if it's a stack. */
+    if (vma->vm_flags & VM_GROWSDOWN)
+    {
+        /* Good. Let's expand this down, if possible */
+        return vma_expand_stack(mm, addr);
+    }
+
+    return NULL;
+}
+
 /**
  * @brief Handles a page fault.
  *
@@ -1464,29 +1608,10 @@ int vm_handle_page_fault(struct fault_info *info)
 
     rw_lock_read(&as->vm_lock);
 
-    struct vm_area_struct *entry = vm_find_region(as, (void *) info->fault_address);
+    struct vm_area_struct *entry = vma_find_maybe_expand(as, info->fault_address);
     if (!entry)
     {
-        struct thread *ct = get_current_thread();
-        if (ct && info->user)
-        {
-            printk("Curr thread: %p\n", ct);
-            const char *str;
-            if (info->write)
-                str = "write";
-            else if (info->exec)
-                str = "exec";
-            else
-                str = "read";
-            printk("Page fault at %lx, %s, ip %lx, process name %s\n", info->fault_address, str,
-                   info->ip, current ? current->comm : "(kernel)");
-#if 0
-            vm_print_umap();
-            panic("pid %ld page fault", current->pid_);
-#endif
-        }
-
-        info->signal = VM_SIGSEGV;
+        no_vma(info);
         goto err;
     }
 
@@ -1821,9 +1946,9 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 
     if (is_user_mode)
     {
-        printf("%s at %016lx at ip %lx in process %u(%s)\n",
+        printf("%s at %016lx at ip %lx in process %u(%s) (likely on CPU %u)\n",
                info->signal == SIGSEGV ? "SEGV" : "SIGBUS", info->fault_address, info->ip,
-               current->pid_, current->comm);
+               current->pid_, current->comm, get_cpu_nr());
         printf("Error info: %x on %c%c%c\n", info->error_info, info->read ? 'r' : '-',
                info->write ? 'w' : '-', info->exec ? 'x' : '-');
         printf("Program base: %p\n", current->interp_base);
@@ -1920,6 +2045,32 @@ void *map_page_list(struct page *pl, size_t size, uint64_t prot)
     return NULL;
 }
 
+static unsigned long vm_mmap_end(struct mm_address_space *mm)
+{
+    /* Default to a 128MiB gap, minimum */
+    unsigned long gap = 0x8000000;
+
+    /* If we have ASLR, randomize it a little bit. Top out at ~16GiB of stack space */
+#ifdef CONFIG_ASLR
+    gap = vm_randomize_address(gap, 34);
+#endif
+    return mm->end - gap;
+}
+
+unsigned long vm_pick_stack_location(void)
+{
+    unsigned long gap = 0;
+
+    /* Default to ->end, page aligned */
+#ifdef CONFIG_ASLR
+    gap = vm_randomize_address(gap, 22);
+#endif
+    /* XXX restrict the gap to a minimum, so we don't map the last page. Currently some code seems
+     * to bug out on that, plus problems with x86 canonical addresses. */
+    gap = max(gap, PAGE_SIZE);
+    return (current->address_space->end - gap) & -PAGE_SIZE;
+}
+
 /**
  * @brief Sets up a new address space on \p mm
  *
@@ -1934,6 +2085,7 @@ int vm_create_address_space(struct mm_address_space *mm)
     mm->resident_set_size = 0;
     mm->shared_set_size = 0;
     mm->virtual_memory_size = 0;
+    mm->mmap_end = vm_mmap_end(mm);
 
     // assert(mm->active_mask.is_empty() == true);
 
@@ -2090,7 +2242,7 @@ static bool vm_can_expand(struct mm_address_space *as, struct vm_area_struct *re
         return true;
 
     unsigned long index = region->vm_end;
-    void *ret = mt_find_after(&as->region_tree, &index, as->end);
+    void *ret = mt_find_after(&as->region_tree, &index, as->mmap_end);
 
     // If there's no region after this one, we're clear to expand
     // TODO: What if we overflow here?
@@ -2790,16 +2942,27 @@ out:
 static int maps_show_name(struct seq_file *m, struct vm_area_struct *vma)
 {
     struct file *filp = vma->vm_file;
+    bool may_print = filp != NULL;
 
     if (!filp)
     {
-        /* Anon. For now, lets not print anything (since we don't know what's brk or stack or
-         * whatnot) */
-        return 0;
+        /* Anon. Figure out if we have anything interesting to say. The algorithm to figure out if
+         * something is stack is somewhat crude, but should do for now. */
+        may_print = vma->vm_start >= vma->vm_mm->stack_start;
+        if (!may_print)
+            return 0;
     }
 
     seq_putc(m, ' ');
     seq_puts(m, "\t\t");
+
+    if (!filp)
+    {
+        /* We're the stack */
+        seq_puts(m, "[stack]");
+        return 0;
+    }
+
     if (filp->f_path.mount)
         return print_d_path(m, filp);
     /* Just print the dentry's name, it ought to be fine... */
