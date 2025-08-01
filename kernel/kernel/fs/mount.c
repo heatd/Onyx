@@ -186,7 +186,7 @@ static int mnt_commit(struct mount *mnt, const char *target)
         mnt->mnt_point = mountpoint.dentry;
         mnt->mnt_parent = mountpoint.mount;
     }
-    else
+    else if (!(mnt->mnt_flags & MS_KERNMOUNT))
     {
         /* TODO: This is weird and complicated, given that our boot_root doesn't really match after
          * we chroot. In any case, mount on / should generally disallowed, apart from the first
@@ -217,23 +217,17 @@ static int mnt_commit(struct mount *mnt, const char *target)
     return 0;
 }
 
-int do_mount(const char *source, const char *target, const char *fstype, unsigned long mnt_flags,
-             const void *data)
+static struct mount *do_mount_internal(const char *source, const char *target, struct fs_mount *fs,
+                                       unsigned long mnt_flags, const void *data)
 {
-    struct fs_mount *fs;
     struct blockdev *bdev = NULL;
     struct dentry *root_dentry;
     struct mount *mnt;
     int ret = -ENODEV;
 
-    /* Find the fstype's handler */
-    fs = fs_mount_get(fstype);
-    if (!fs)
-        goto out;
-
     bdev = resolve_bdev(source, fs);
     if (IS_ERR(bdev))
-        return PTR_ERR(bdev);
+        return (void *) bdev;
 
     ret = -ENOMEM;
     mnt = kmalloc(sizeof(*mnt), GFP_KERNEL);
@@ -269,7 +263,7 @@ int do_mount(const char *source, const char *target, const char *fstype, unsigne
 
     ret = mnt_commit(mnt, target);
     if (ret == 0)
-        mnt = NULL;
+        return mnt;
 out3:
     if (root_dentry)
         dput(root_dentry);
@@ -279,7 +273,28 @@ out2:
 out:
     if (bdev)
         bdev_release(bdev);
-    return ret;
+    return ERR_PTR(ret);
+}
+
+struct mount *kern_mount(struct fs_mount *fs)
+{
+    return do_mount_internal(fs->name, "/", fs, MS_KERNMOUNT, NULL);
+}
+
+int do_mount(const char *source, const char *target, const char *fstype, unsigned long mnt_flags,
+             const void *data)
+{
+    struct fs_mount *fs;
+    struct mount *mnt;
+
+    /* Find the fstype's handler */
+    fs = fs_mount_get(fstype);
+    if (!fs)
+        return -ENODEV;
+    mnt = do_mount_internal(source, target, fs, mnt_flags, data);
+    if (IS_ERR(mnt))
+        return PTR_ERR(mnt);
+    return 0;
 }
 
 int sys_mount(const char *usource, const char *utarget, const char *ufilesystemtype,
