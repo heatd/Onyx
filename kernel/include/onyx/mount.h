@@ -51,6 +51,10 @@ __BEGIN_CDECLS
 int do_mount(const char *source, const char *target, const char *fstype, unsigned long mnt_flags,
              const void *data);
 
+struct fs_mount;
+
+struct mount *kern_mount(struct fs_mount *mount);
+
 struct mount *mnt_traverse(struct dentry *mountpoint);
 
 extern seqlock_t mount_lock;
