@@ -217,6 +217,91 @@ static int mnt_commit(struct mount *mnt, const char *target)
     return 0;
 }
 
+static bool mnt_may_write(struct mount *mnt)
+{
+    struct superblock *sb = mnt->mnt_sb;
+
+    if (READ_ONCE(sb->s_remount_ro_pending))
+        return false;
+    return !(READ_ONCE(mnt->mnt_flags) & MNT_READONLY) && !sb_rdonly(sb);
+}
+
+int mnt_get_write_access(struct mount *mnt)
+{
+    /* Increment the mnt_writecount first, before we check for RO, etc */
+    __atomic_add_fetch(&mnt->mnt_writecount, 1, __ATOMIC_RELAXED);
+    /* This pairs with read-only marking code, and makes sure the writecount store is visible before
+     * our WRITE_HOLD reads */
+    smp_mb();
+
+    /* If MNT_WRITE_HOLD is set, someone is modifying the writeability of this mount/superblock. In
+     * such a case, wait until the operation is finished. */
+    while (READ_ONCE(mnt->mnt_flags) & MNT_WRITE_HOLD)
+        cpu_relax();
+
+    /* Order the WRITE_HOLD reads against this READONLY read, otherwise we could observe stale state
+     */
+    smp_rmb();
+    if (!mnt_may_write(mnt))
+    {
+        __atomic_sub_fetch(&mnt->mnt_writecount, 1, __ATOMIC_RELAXED);
+        return -EROFS;
+    }
+
+    return 0;
+}
+
+static int mnt_hold_writers(struct mount *mnt)
+{
+    mnt->mnt_flags |= MNT_WRITE_HOLD;
+    /* This memory barriers pairs with the smp_mb() in mnt_get_write_access. If someone observes our
+     * write hold, we will have observed their writecount bump. */
+    smp_mb();
+
+    if (READ_ONCE(mnt->mnt_writecount) > 0)
+        return -EBUSY;
+
+    return 0;
+}
+
+static int sb_start_ro(struct superblock *sb)
+{
+    /* sb->s_lock held */
+    struct mount *mnt;
+    int err = 0;
+
+    list_for_each_entry (mnt, &sb->s_mounts, mnt_sb_node)
+    {
+        err = mnt_hold_writers(mnt);
+        if (err)
+        {
+            /* Mount has writers. Shame. Back out. */
+            goto out;
+        }
+    }
+
+    WRITE_ONCE(sb->s_remount_ro_pending, 1);
+    /* This barrier pairs against the one in mnt_get_write_access. If it observes MNT_WRITE_HOLD
+     * clear, it will also observe s_remount_ro_pending. */
+    smp_wmb();
+out:
+    list_for_each_entry (mnt, &sb->s_mounts, mnt_sb_node)
+        mnt->mnt_flags &= ~MNT_WRITE_HOLD;
+    return err;
+}
+
+static void sb_end_ro(struct superblock *sb)
+{
+    /* Make sure precending stores are observed in mnt_get_write_access, i.e s_flags changes */
+    smp_wmb();
+    WRITE_ONCE(sb->s_remount_ro_pending, 0);
+}
+
+void mnt_put_write(struct mount *mnt)
+{
+    __atomic_sub_fetch(&mnt->mnt_writecount, 1, __ATOMIC_RELAXED);
+}
+
 static struct mount *do_mount_internal(const char *source, const char *target, struct fs_mount *fs,
                                        unsigned long mnt_flags, const void *data)
 {
@@ -247,6 +332,7 @@ static struct mount *do_mount_internal(const char *source, const char *target, s
         goto out3;
     }
 
+    list_add_tail(&mnt->mnt_sb_node, &mnt->mnt_sb->s_mounts);
     bdev = NULL;
     mnt->mnt_root = root_dentry;
     mnt->mnt_sb->s_type = fs;
@@ -281,17 +367,106 @@ struct mount *kern_mount(struct fs_mount *fs)
     return do_mount_internal(fs->name, "/", fs, MS_KERNMOUNT, NULL);
 }
 
-int do_mount(const char *source, const char *target, const char *fstype, unsigned long mnt_flags,
+static int do_remount_sb(struct superblock *sb, unsigned int sb_flags)
+{
+    /* Superblock write-locked. Do the actual remount for the super, and don't forget to deal with
+     * any mount BS that we may need. */
+    bool rdonly = sb_rdonly(sb);
+    int err = 0;
+
+    if (!rdonly && sb_flags & SB_RDONLY)
+    {
+        /* Remounting read-only. Make sure we hold every mount properly */
+        err = sb_start_ro(sb);
+        if (err)
+            return err;
+    }
+
+    if (sb->s_ops->reconfigure)
+    {
+        err = sb->s_ops->reconfigure(sb, sb_flags);
+        if (err)
+        {
+            pr_warn("super: superblock reconfigure (for filesystem %s) failed: %d\n",
+                    sb->s_type->name, err);
+            goto err;
+        }
+    }
+
+    WRITE_ONCE(sb->s_flags, (READ_ONCE(sb->s_flags) & SB_INTERNAL_FLAGS) | sb_flags);
+
+err:
+    sb_end_ro(sb);
+    return err;
+}
+
+static struct mount *do_remount(const char *target, unsigned int sb_flags, unsigned long mnt_flags,
+                                const void *data)
+{
+    struct path path;
+    struct mount *mnt;
+    struct superblock *sb;
+    int err;
+
+    err = path_openat(AT_FDCWD, target, 0, &path);
+    if (err)
+        return ERR_PTR(err);
+
+    mnt = path.mount;
+    if (path.dentry != mnt->mnt_root)
+    {
+        /* Not the root, error out */
+        err = -EINVAL;
+        goto out;
+    }
+
+    /* Grab the sb (from the mount) and do the actual sb remount. We use s_lock to serialize against
+     * other changes. */
+    sb = mnt->mnt_sb;
+    rw_lock_write(&sb->s_lock);
+    err = do_remount_sb(sb, sb_flags);
+    /* TODO: Re-calculate mnt_flags */
+    rw_unlock_write(&sb->s_lock);
+
+out:
+    path_put(&path);
+    return err ? ERR_PTR(err) : mnt;
+}
+
+#define VALID_MOUNT_FLAGS (MS_RDONLY | MS_SILENT | MS_RELATIME | MS_REMOUNT)
+
+static unsigned long translate_mount_flags(unsigned long flags)
+{
+    unsigned long mflags = 0;
+
+    if (flags & MS_RDONLY)
+        mflags |= MNT_READONLY;
+    return mflags;
+}
+
+int do_mount(const char *source, const char *target, const char *fstype, unsigned long flags,
              const void *data)
 {
     struct fs_mount *fs;
     struct mount *mnt;
+    unsigned long mnt_flags;
+    unsigned int sb_flags;
 
     /* Find the fstype's handler */
     fs = fs_mount_get(fstype);
     if (!fs)
         return -ENODEV;
-    mnt = do_mount_internal(source, target, fs, mnt_flags, data);
+
+    if (flags & ~VALID_MOUNT_FLAGS)
+        return -EINVAL;
+
+    mnt_flags = translate_mount_flags(flags);
+    sb_flags = flags & (SB_RDONLY | SB_SILENT);
+
+    if ((flags & (MS_REMOUNT | MS_BIND)) == MS_REMOUNT)
+        mnt = do_remount(target, sb_flags, mnt_flags, data);
+    else
+        mnt = do_mount_internal(source, target, fs, mnt_flags, data);
     if (IS_ERR(mnt))
         return PTR_ERR(mnt);
     return 0;

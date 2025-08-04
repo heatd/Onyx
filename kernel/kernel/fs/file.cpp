@@ -87,6 +87,9 @@ void fd_put(struct file *fd)
 {
     if (__atomic_sub_fetch(&fd->f_refcount, 1, __ATOMIC_RELEASE) == 0)
     {
+        if (fd->f_flags2 & FILE_MNT_WRITE)
+            mnt_put_write(fd->f_path.mount);
+
         if (fd->f_flock)
             flock_release(fd);
 
@@ -1857,12 +1860,21 @@ static bool may_chmod(struct inode *ino)
     return may;
 }
 
-int chmod_vfs(struct inode *ino, mode_t mode)
+static int chmod_vfs(struct path *path, mode_t mode)
 {
+    struct inode *ino;
+    int err;
+
+    ino = path->dentry->d_inode;
     if (!may_chmod(ino))
         return -EPERM;
+
+    err = mnt_get_write_access(path->mount);
+    if (err)
+        return err;
     ino->i_mode = (ino->i_mode & S_IFMT) | (mode & 07777);
     inode_update_ctime(ino);
+    mnt_put_write(path->mount);
     return 0;
 }
 
@@ -1884,7 +1896,7 @@ int sys_fchmodat(int dirfd, const char *upathname, mode_t mode, int flags)
     if (err)
         return err;
 
-    err = chmod_vfs(path.dentry->d_inode, mode);
+    err = chmod_vfs(&path, mode);
     path_put(&path);
     return err;
 }
@@ -1895,7 +1907,7 @@ int sys_fchmod(int fd, mode_t mode)
     if (int st = f.from_fd(fd); st < 0)
         return st;
 
-    return chmod_vfs(f.get_file()->f_ino, mode);
+    return chmod_vfs(&f.get_file()->f_path, mode);
 }
 
 int sys_chmod(const char *pathname, mode_t mode)
@@ -1903,9 +1915,16 @@ int sys_chmod(const char *pathname, mode_t mode)
     return sys_fchmodat(AT_FDCWD, pathname, mode, 0);
 }
 
-void utimensat_vfs(inode *ino, timespec ktimes[2])
+int utimensat_vfs(struct path *path, timespec ktimes[2])
 {
     bool set_time = false;
+    struct inode *ino = path->dentry->d_inode;
+    int err;
+
+    err = mnt_get_write_access(path->mount);
+    if (err)
+        return err;
+
     for (unsigned int i = 0; i < 2; i++)
     {
         if (ktimes[i].tv_nsec == UTIME_NOW)
@@ -1932,6 +1951,9 @@ void utimensat_vfs(inode *ino, timespec ktimes[2])
         // Note: dirties the inode
         inode_update_ctime(ino);
     }
+
+    mnt_put_write(path->mount);
+    return 0;
 }
 
 #define VALID_UTIMENSAT_FLAGS (AT_SYMLINK_NOFOLLOW)
@@ -1941,8 +1963,7 @@ static int do_ftimensat(int fd, struct timespec ktimes[2])
     auto_fd filp = fdget(fd);
     if (!filp)
         return -EBADF;
-    utimensat_vfs(filp.get_file()->f_ino, ktimes);
-    return 0;
+    return utimensat_vfs(&filp.get_file()->f_path, ktimes);
 }
 
 int sys_utimensat(int dirfd, const char *pathname, const struct timespec *times, int flags)
@@ -1984,9 +2005,9 @@ int sys_utimensat(int dirfd, const char *pathname, const struct timespec *times,
     err = path_openat(dirfd, path.data(), open_flags, &p);
     if (err)
         return err;
-    utimensat_vfs(p.dentry->d_inode, ktimes);
+    err = utimensat_vfs(&p, ktimes);
     path_put(&p);
-    return 0;
+    return err;
 }
 
 static bool may_change_owner(inode *ino)
@@ -2005,13 +2026,21 @@ static bool may_change_group(inode *ino, gid_t group)
     return ino->i_uid == creds->euid && (creds->egid == group || cred_is_in_group(creds, group));
 }
 
-int chown_vfs(inode *ino, uid_t owner, gid_t group)
+static int chown_vfs(struct path *path, uid_t owner, gid_t group)
 {
     bool changed_inode = false;
+    struct inode *ino = path->dentry->d_inode;
+    int err;
+
+    err = mnt_get_write_access(path->mount);
+    if (err)
+        return err;
+
+    err = -EPERM;
     if (owner != (uid_t) -1 && ino->i_uid != owner)
     {
         if (!may_change_owner(ino))
-            return -EPERM;
+            goto out;
 
         ino->i_uid = owner;
         changed_inode = true;
@@ -2020,7 +2049,7 @@ int chown_vfs(inode *ino, uid_t owner, gid_t group)
     if (group != (gid_t) -1 && ino->i_gid != group)
     {
         if (!may_change_group(ino, group))
-            return -EPERM;
+            goto out;
 
         ino->i_gid = group;
         changed_inode = true;
@@ -2041,6 +2070,10 @@ int chown_vfs(inode *ino, uid_t owner, gid_t group)
         inode_update_ctime(ino);
     }
 
+    err = 0;
+
+out:
+    mnt_put_write(path->mount);
     return 0;
 }
 
@@ -2061,7 +2094,7 @@ int sys_fchownat_core(int dirfd, const char *pathname, uid_t owner, gid_t group,
     if (err)
         return err;
 
-    err = chown_vfs(path.dentry->d_inode, owner, group);
+    err = chown_vfs(&path, owner, group);
     path_put(&path);
     return err;
 }
