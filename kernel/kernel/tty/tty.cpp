@@ -301,7 +301,7 @@ void tty_write_string_kernel(const char *data)
 
 size_t ttydevfs_write(size_t offset, size_t len, void *ubuffer, struct file *f)
 {
-    struct tty *tty = (struct tty *) f->f_ino->i_helper;
+    struct tty *tty = (struct tty *) f->private_data;
 
     char *buffer = (char *) malloc(len);
     if (!buffer)
@@ -390,7 +390,7 @@ ssize_t tty_consume_input_iter(iovec_iter *iter, size_t buflen, struct tty *tty)
 
 size_t ttydevfs_read(size_t offset, size_t count, void *buffer, struct file *this_)
 {
-    struct tty *tty = (struct tty *) this_->f_ino->i_helper;
+    struct tty *tty = (struct tty *) this_->private_data;
 
     int st = tty_wait_for_line(this_->f_flags, tty);
 
@@ -407,9 +407,7 @@ size_t ttydevfs_read(size_t offset, size_t count, void *buffer, struct file *thi
 
 ssize_t ttydevfs_read_iter(file *filp, size_t offset, iovec_iter *iter, unsigned int flags)
 {
-    (void) offset;
-    (void) flags;
-    struct tty *tty = (struct tty *) filp->f_ino->i_helper;
+    struct tty *tty = (struct tty *) filp->private_data;
 
     int st = tty_wait_for_line(filp->f_flags, tty);
 
@@ -607,7 +605,7 @@ err:
 unsigned int tty_ioctl(int request, void *argp, struct file *dev)
 {
     struct tty *slave_tty;
-    struct tty *tty = (struct tty *) dev->f_ino->i_helper;
+    struct tty *tty = (struct tty *) dev->private_data;
 
     slave_tty = tty;
     if (tty->flags & TTY_FLAG_MASTER_PTY)
@@ -742,7 +740,7 @@ unsigned int tty_ioctl(int request, void *argp, struct file *dev)
 
 short tty_poll(void *poll_file, short events, struct file *f)
 {
-    struct tty *tty = (struct tty *) f->f_ino->i_helper;
+    struct tty *tty = (struct tty *) f->private_data;
 
     short revents = 0;
 
@@ -794,7 +792,7 @@ int ttyopen_try_to_set_ctty(tty *tty)
 
 int ttydev_on_open_unlocked(struct file *filp)
 {
-    struct tty *tty = (struct tty *) filp->f_ino->i_helper;
+    struct tty *tty = (struct tty *) filp->private_data;
 
     bool noctty = filp->f_flags & O_NOCTTY;
 
@@ -805,7 +803,10 @@ int ttydev_on_open_unlocked(struct file *filp)
 
 int ttydev_open(file *f)
 {
-    struct tty *tty = (struct tty *) f->f_ino->i_helper;
+    struct tty *tty;
+
+    f->private_data = f->f_ino->i_helper;
+    tty = (struct tty *) f->private_data;
     scoped_mutex g{tty->lock};
     return ttydev_on_open_unlocked(f);
 }
@@ -837,55 +838,23 @@ void tty_create_dev(tty *tty, const char *override_name)
     tty->cdev = dev->dev();
 }
 
-int ctty_open(file *f);
-
-const file_ops ctty_fops = {.on_open = ctty_open};
-
-int ctty_open(file *f)
+static int ctty_open(struct file *f)
 {
     auto current_process = get_current_process();
-    auto new_inode = inode_create(false);
-    if (!new_inode)
-        return -ENOMEM;
-
     scoped_lock g{current_process->sig->pgrp_lock};
 
     if (!current_process->sig->ctty)
-    {
-        inode_unref(new_inode);
         return -EIO;
-    }
 
-    // Release the proper /dev/tty inode and replace it with a fake inode
-    // that has the ctty's fops and private.
-    // Note that we don't touch the dentry, so backtracking code will still find
-    // /dev/tty as the path
-
-    new_inode->i_dev = f->f_ino->i_dev;
-    new_inode->i_helper = current_process->sig->ctty;
-    new_inode->i_fops = (file_ops *) &tty_fops;
-
-    inode_unref(f->f_ino);
-    f->f_ino = new_inode;
-
+    f->f_op = &tty_fops;
+    f->private_data = current_process->sig->ctty;
     return 0;
 }
 
-int console_open(file *f)
+const file_ops ctty_fops = {.on_open = ctty_open};
+
+static int console_open(struct file *f)
 {
-    auto new_inode = inode_create(false);
-
-    if (!new_inode)
-        return -ENOMEM;
-
-    new_inode->i_dev = f->f_ino->i_dev;
-    new_inode->i_helper = f->f_ino->i_helper;
-    new_inode->i_fops = (file_ops *) &tty_fops;
-
-    inode_unref(f->f_ino);
-    f->f_ino = new_inode;
-
-    // Not great, but works!
     // /dev/console can never control a tty, so set O_NOCTTY temporarily
     int old_flags = f->f_flags;
     f->f_flags |= O_NOCTTY;
@@ -893,6 +862,8 @@ int console_open(file *f)
     int st = ttydev_open(f);
     f->f_flags = old_flags;
 
+    if (st == 0)
+        f->f_op = &tty_fops;
     return st;
 }
 

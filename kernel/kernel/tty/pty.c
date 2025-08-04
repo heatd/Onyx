@@ -34,6 +34,7 @@ static int pty_slave_on_open(struct file *filp)
     int st = 0;
     struct tty *tty = filp->f_ino->i_helper;
 
+    filp->private_data = tty;
     mutex_lock(&tty->lock);
 
     if (tty->flags & TTY_FLAG_LOCKED_PTY)
@@ -145,7 +146,8 @@ static unsigned int pty_ioctl(int request, void *argp, struct tty *tty)
     struct inode _ino;                    \
     struct file _f;                       \
     _ino.i_helper = (filp)->private_data; \
-    _f.f_ino = &_ino;
+    _f.f_ino = &_ino;                     \
+    _f.private_data = (filp)->private_data;
 
 static size_t ptydevfs_write(size_t offset, size_t len, void *ubuffer, struct file *f)
 {
