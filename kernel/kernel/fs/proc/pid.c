@@ -526,6 +526,7 @@ static const struct file_ops proc_fd_fops = {
 };
 
 extern const struct proc_file_ops proc_maps_ops;
+extern const struct proc_file_ops mounts_proc_ops;
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
@@ -536,6 +537,7 @@ static const struct pid_attr pid_attrs[] = {
     {"statm", S_IFREG | 0444, &proc_statm_ops},
     {"fd", S_IFDIR | 0444, &proc_noop, &proc_fd_operations, &proc_fd_fops},
     {"maps",  S_IFREG | 0400, &proc_maps_ops},
+    {"mounts", S_IFREG | 0400, &mounts_proc_ops},
 };
 
 // clang-format on
