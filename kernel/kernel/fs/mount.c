@@ -666,7 +666,7 @@ static int mounts_open(struct file *filp)
     return seq_open(filp, &mounts_seq_ops);
 }
 
-static const struct proc_file_ops mounts_proc_ops = {
+const struct proc_file_ops mounts_proc_ops = {
     .open = mounts_open,
     .release = seq_release,
     .read_iter = seq_read_iter,
