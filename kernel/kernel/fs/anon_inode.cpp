@@ -21,8 +21,7 @@ __init void anon_sb_init()
 {
     anonsb = new superblock;
     CHECK(anonsb != nullptr);
-    superblock_init(anonsb);
-    anonsb->s_flags |= SB_FLAG_NODIRTY | SB_FLAG_IN_MEMORY;
+    superblock_init(anonsb, SB_FLAG_NODIRTY | SB_FLAG_IN_MEMORY);
 }
 
 struct inode *anon_inode_alloc(mode_t file_type)

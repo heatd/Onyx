@@ -135,7 +135,7 @@ void sysfs_init()
 
     assert(sb != nullptr);
 
-    superblock_init(sb);
+    superblock_init(sb, 0);
 
     root->i_sb = sb;
     root->i_inode = (ino_t) &sysfs_root;
