@@ -5,7 +5,7 @@
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
-
+#define DEFINE_CURRENT
 #include <sys/mount.h>
 
 #include <onyx/compiler.h>
@@ -14,6 +14,7 @@
 #include <onyx/file.h>
 #include <onyx/mm/slab.h>
 #include <onyx/mount.h>
+#include <onyx/process.h>
 #include <onyx/rculist.h>
 #include <onyx/rcupdate.h>
 #include <onyx/seqlock.h>
@@ -125,7 +126,6 @@ static char *__d_path(const struct path *path, const struct path *root, char *bu
     struct rbuf rbuf0 = {buf + buflen, buflen}, rbuf1;
     unsigned int seq = 0, m_seq = 0;
     enum walk_path_result res;
-    rcu_read_lock();
 
 retry_mnt:
     read_seqbegin_or_lock(&mount_lock, &m_seq);
@@ -150,7 +150,6 @@ retry:
     }
 
     done_seqretry(&mount_lock, m_seq);
-    rcu_read_unlock();
 
     if (res == WALK_PATH_OUT_OF_ROOT && (flags & D_PATH_NO_ESCAPE_ROOT))
         return NULL;
@@ -160,7 +159,9 @@ retry:
 char *d_path(const struct path *path, char *buf, unsigned int buflen)
 {
     struct path root = get_filesystem_root();
+    rcu_read_lock();
     char *ret = __d_path(path, &root, buf, buflen, 0);
+    rcu_read_unlock();
     path_put(&root);
     return ret;
 }
@@ -168,17 +169,19 @@ char *d_path(const struct path *path, char *buf, unsigned int buflen)
 char *d_path_under_root(const struct path *path, const struct path *root, char *buf,
                         unsigned int buflen)
 {
-    char *ret;
+    char *p;
     struct path root2;
+
+    rcu_read_lock();
     if (!root)
     {
-        root2 = get_filesystem_root();
+        spin_lock(&current->fs->cwd_lock);
+        root2 = current->fs->root;
+        spin_unlock(&current->fs->cwd_lock);
         root = &root2;
     }
 
-    ret = __d_path(path, root, buf, buflen, D_PATH_NO_ESCAPE_ROOT);
-
-    if (root == &root2)
-        path_put(&root2);
-    return ret;
+    p = __d_path(path, root, buf, buflen, D_PATH_NO_ESCAPE_ROOT);
+    rcu_read_unlock();
+    return p;
 }
