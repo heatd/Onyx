@@ -18,9 +18,13 @@ static int sb_shrink_objects(struct shrinker *s, struct shrink_control *ctl);
 void superblock_init(struct superblock *sb)
 {
     INIT_LIST_HEAD(&sb->s_inodes);
+    INIT_LIST_HEAD(&sb->s_mounts);
     sb->s_ref = 1;
     spinlock_init(&sb->s_ilock);
     sb->s_flags = 0;
+    sb->s_remount_ro_pending = 0;
+    sb->s_bdev = NULL;
+    rwlock_init(&sb->s_lock);
     mutex_init(&sb->s_rename_lock);
     lru_list_init(&sb->s_dcache_lru);
     sb->s_shrinker.name = "superblock";

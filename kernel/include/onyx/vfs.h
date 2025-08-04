@@ -68,11 +68,14 @@ struct file
     };
     struct mutex f_seeklock;
     unsigned int f_flags;
+    unsigned int f_flags2;
     const struct file_ops *f_op;
     struct vm_object *f_mapping;
     struct readahead_state f_ra_state;
     struct flock_file_info *f_flock;
 };
+
+#define FILE_MNT_WRITE (1 << 0)
 
 static inline bool file_needs_unlock(struct file *filp)
 {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 Pedro Falcato
+ * Copyright (c) 2024 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -15,7 +15,9 @@
 struct dentry;
 struct superblock;
 
-#define MNT_DOOMED (1U << 31)
+#define MNT_READONLY   (1U << 0)
+#define MNT_WRITE_HOLD (1U << 30)
+#define MNT_DOOMED     (1U << 31)
 
 struct mount
 {
@@ -34,6 +36,7 @@ struct mount
     struct list_head mnt_submounts;
     struct list_head mnt_submount_node;
     struct list_head mnt_namespace_node;
+    struct list_head mnt_sb_node;
 };
 
 static inline void mnt_get(struct mount *mnt)
@@ -47,6 +50,9 @@ static inline void mnt_put(struct mount *mnt)
 }
 
 __BEGIN_CDECLS
+
+int mnt_get_write_access(struct mount *mnt);
+void mnt_put_write(struct mount *mnt);
 
 int do_mount(const char *source, const char *target, const char *fstype, unsigned long mnt_flags,
              const void *data);

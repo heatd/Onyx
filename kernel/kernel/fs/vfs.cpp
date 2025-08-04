@@ -710,6 +710,7 @@ struct file *inode_to_file(struct inode *ino)
     new (f) file;
     f->f_ino = ino;
     f->f_flags = 0;
+    f->f_flags2 = 0;
     f->f_refcount = 1;
     f->f_seek = 0;
     path_init(&f->f_path);

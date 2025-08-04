@@ -592,6 +592,8 @@ static int dentry_resolve(nameidata &data, struct path *p)
 static int do_creat(dentry *dir, struct inode *inode, struct dentry *dentry, mode_t mode,
                     nameidata &data)
 {
+    int err;
+
     if (!inode_can_access(inode, FILE_ACCESS_WRITE))
         return -EACCES;
 
@@ -600,9 +602,13 @@ static int do_creat(dentry *dir, struct inode *inode, struct dentry *dentry, mod
 
     DCHECK(d_is_negative(dentry));
 
+    err = mnt_get_write_access(data.cur.mount);
+    if (err)
+        return err;
+
     struct inode *new_inode =
         inode->i_op->creat(dentry, do_umask((int) (mode & ~S_IFMT) | S_IFREG), dir);
-
+    mnt_put_write(data.cur.mount);
     if (!new_inode)
         return -errno;
 
@@ -739,6 +745,14 @@ static expected<file *, int> complete_open(struct file *filp, unsigned int flags
         goto err_free_half;
     }
 
+    if (open_to_file_access_flags(flags) & FILE_ACCESS_WRITE)
+    {
+        err = mnt_get_write_access(filp->f_path.mount);
+        if (err)
+            goto err_free_half;
+        filp->f_flags2 |= FILE_MNT_WRITE;
+    }
+
     // O_NOATIME can only be used when the euid of the process = owner of file, or
     // when we're privileged (root).
     if (flags & O_NOATIME)
@@ -785,6 +799,8 @@ static expected<file *, int> complete_open(struct file *filp, unsigned int flags
     return filp;
 
 err_free_half:
+    if (filp->f_flags2 & FILE_MNT_WRITE)
+        mnt_put_write(filp->f_path.mount);
     close_vfs(filp->f_ino);
     path_put(&filp->f_path);
     file_free(filp);
@@ -1048,6 +1064,10 @@ static expected<struct dentry *, int> namei_create_generic(int dirfd, const char
         goto put_unlock_err;
     }
 
+    st = mnt_get_write_access(parent.mount);
+    if (st)
+        goto put_unlock_err;
+
     mode = do_umask(mode);
     switch (mode & S_IFMT)
     {
@@ -1066,6 +1086,8 @@ static expected<struct dentry *, int> namei_create_generic(int dirfd, const char
         default:
             DCHECK(0);
     }
+
+    mnt_put_write(parent.mount);
 
     if (!inode)
     {
@@ -1141,8 +1163,12 @@ int symlink_vfs(const char *path, const char *dest, int dirfd)
         goto put_unlock_err;
     }
 
-    inode = dir_ino->i_op->symlink(dent, dest, dir);
+    st = mnt_get_write_access(parent.mount);
+    if (st)
+        goto put_unlock_err;
 
+    inode = dir_ino->i_op->symlink(dent, dest, dir);
+    mnt_put_write(parent.mount);
     if (!inode)
     {
         st = -errno;
@@ -1208,8 +1234,12 @@ int link_vfs(struct dentry *target, int dirfd, const char *newpath)
         goto put_unlock_err;
     }
 
-    st = dir_ino->i_op->link(target, dent);
+    st = mnt_get_write_access(parent.mount);
+    if (st)
+        goto put_unlock_err;
 
+    st = dir_ino->i_op->link(target, dent);
+    mnt_put_write(parent.mount);
     if (st < 0)
     {
         st = -errno;
@@ -1345,6 +1375,10 @@ int unlink_vfs(const char *path, int flags, int dirfd)
         }
     }
 
+    st = mnt_get_write_access(parent.mount);
+    if (st)
+        goto out;
+
     rw_lock_write(&inode->i_rwlock);
     /* Do the actual fs unlink */
     st = inode->i_op->unlink(_name, flags, dentry);
@@ -1366,6 +1400,7 @@ int unlink_vfs(const char *path, int flags, int dirfd)
     }
 
 out2:
+    mnt_put_write(parent.mount);
     rw_unlock_write(&inode->i_rwlock);
 
     /* Release the reference that we got from dentry_lookup_internal */
@@ -1549,7 +1584,9 @@ int sys_renameat(int olddirfd, const char *uoldpath, int newdirfd, const char *u
 {
     user_string oldpath, newpath;
     struct lookup_path last_name;
+    struct path old;
     struct path parent;
+    int st;
 
     if (auto res = oldpath.from_user(uoldpath); res.has_error())
         return res.error();
@@ -1557,24 +1594,39 @@ int sys_renameat(int olddirfd, const char *uoldpath, int newdirfd, const char *u
         return res.error();
 
     /* rename operates on the old and new symlinks and not their destination */
-    auto_dentry old = dentry_do_open(olddirfd, oldpath.data(), LOOKUP_NOFOLLOW);
-    if (!old)
-        return -errno;
+    st = path_openat(olddirfd, oldpath.data(), LOOKUP_NOFOLLOW, &old);
+    if (st < 0)
+        return st;
 
     /* Although this doesn't need to be an error, we're considering it as one in the meanwhile
      */
-    if (dentry_involved_with_mount(old.get_dentry()))
-        return -EBUSY;
+    st = -EBUSY;
+    if (dentry_involved_with_mount(old.dentry))
+        goto out_put_old;
 
-    if (!inode_can_access(old.get_dentry()->d_inode, FILE_ACCESS_WRITE))
-        return -EACCES;
+    st = -EACCES;
+    if (!inode_can_access(old.dentry->d_inode, FILE_ACCESS_WRITE))
+        goto out_put_old;
 
-    unsigned int lookup_flag = LOOKUP_NOFOLLOW;
-    int st = namei_lookup_parentat(newdirfd, newpath.data(), lookup_flag, &last_name, &parent);
+    st = mnt_get_write_access(old.mount);
+    if (st)
+        goto out_put_old;
+
+    st = namei_lookup_parentat(newdirfd, newpath.data(), LOOKUP_NOFOLLOW, &last_name, &parent);
     if (st < 0)
         return st;
-    st = do_renameat(parent.dentry, last_name, old.get_dentry());
+
+    st = mnt_get_write_access(parent.mount);
+    if (st < 0)
+        goto out_put;
+
+    st = do_renameat(parent.dentry, last_name, old.dentry);
+    mnt_put_write(parent.mount);
+out_put:
     path_put(&parent);
+    mnt_put_write(old.mount);
+out_put_old:
+    path_put(&old);
     return st;
 }
 
@@ -1668,6 +1720,10 @@ static int namei_create_generic_path(int dirfd, const char *path, mode_t mode, d
         goto put_unlock_err;
     }
 
+    st = mnt_get_write_access(parent.mount);
+    if (st)
+        goto put_unlock_err;
+
     mode = do_umask(mode);
     switch (mode & S_IFMT)
     {
@@ -1686,6 +1742,8 @@ static int namei_create_generic_path(int dirfd, const char *path, mode_t mode, d
         default:
             DCHECK(0);
     }
+
+    mnt_put_write(parent.mount);
 
     if (!inode)
     {
