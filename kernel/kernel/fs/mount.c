@@ -303,7 +303,8 @@ void mnt_put_write(struct mount *mnt)
 }
 
 static struct mount *do_mount_internal(const char *source, const char *target, struct fs_mount *fs,
-                                       unsigned long mnt_flags, const void *data)
+                                       unsigned long mnt_flags, unsigned int sb_flags,
+                                       const void *data)
 {
     struct blockdev *bdev = NULL;
     struct dentry *root_dentry;
@@ -364,7 +365,7 @@ out:
 
 struct mount *kern_mount(struct fs_mount *fs)
 {
-    return do_mount_internal(fs->name, "/", fs, MS_KERNMOUNT, NULL);
+    return do_mount_internal(fs->name, "/", fs, MS_KERNMOUNT, MS_KERNMOUNT, NULL);
 }
 
 static int do_remount_sb(struct superblock *sb, unsigned int sb_flags)
@@ -466,7 +467,7 @@ int do_mount(const char *source, const char *target, const char *fstype, unsigne
     if ((flags & (MS_REMOUNT | MS_BIND)) == MS_REMOUNT)
         mnt = do_remount(target, sb_flags, mnt_flags, data);
     else
-        mnt = do_mount_internal(source, target, fs, mnt_flags, data);
+        mnt = do_mount_internal(source, target, fs, mnt_flags, sb_flags, data);
     if (IS_ERR(mnt))
         return PTR_ERR(mnt);
     return 0;

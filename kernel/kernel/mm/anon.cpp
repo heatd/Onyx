@@ -80,7 +80,7 @@ static tmpfs_superblock *shmemfs_sb;
 
 __init void shmem_init()
 {
-    shmemfs_sb = new tmpfs_superblock();
+    shmemfs_sb = new tmpfs_superblock(0);
     CHECK(shmemfs_sb);
 }
 
