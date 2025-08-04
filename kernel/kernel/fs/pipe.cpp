@@ -339,6 +339,7 @@ ssize_t pipe::write(int flags, size_t len, const void *ubuf)
 
 pipe *get_pipe(void *helper)
 {
+    CHECK(helper != NULL);
     return (pipe *) helper;
 }
 
@@ -904,7 +905,7 @@ int named_pipe_open(struct file *f)
         p->unref();
     }
 
-    return 0;
+    return st;
 }
 
 int pipe::open_named(struct file *filp)
