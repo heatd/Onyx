@@ -169,7 +169,7 @@ static struct superblock *proc_mount(struct vfs_mount_info *info)
     struct superblock *sb = kmalloc(sizeof(*sb), GFP_KERNEL);
     if (!sb)
         return NULL;
-    superblock_init(sb);
+    superblock_init(sb, info->mnt_flags);
 
     root_ino = proc_create_inode(sb, &root_entry);
     if (!root_ino)

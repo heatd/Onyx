@@ -413,9 +413,9 @@ struct ext2_superblock : public superblock
     ext2_block_no try_allocate_block_from_bg(ext2_block_group_no nr);
 
 public:
-    ext2_superblock()
+    ext2_superblock(unsigned int sb_flags)
     {
-        superblock_init(this);
+        superblock_init(this, sb_flags);
     }
 
     /**

@@ -77,7 +77,7 @@ static inline bool sb_rdonly(struct superblock *sb)
     return READ_ONCE(sb->s_flags) & SB_RDONLY;
 }
 
-void superblock_init(struct superblock *sb);
+void superblock_init(struct superblock *sb, unsigned int sb_flags);
 struct inode *superblock_find_inode(struct superblock *sb, ino_t inode);
 void superblock_add_inode_unlocked(struct superblock *sb, struct inode *inode);
 void superblock_add_inode(struct superblock *sb, struct inode *inode);

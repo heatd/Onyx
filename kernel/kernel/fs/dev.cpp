@@ -687,7 +687,7 @@ struct superblock *devfs_mount(struct vfs_mount_info *info)
         dev_unregister_dev(ex.value(), true);
         return nullptr;
     }
-    superblock_init(new_fs.get());
+    superblock_init(new_fs.get(), info->mnt_flags);
     new_fs->s_devnr = ex.value()->dev();
     new_fs->s_flags |= SB_FLAG_NODIRTY;
     new_fs->s_ops = &devfs_sb_ops;

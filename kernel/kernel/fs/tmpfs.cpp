@@ -392,9 +392,9 @@ static int tmpfs_umount(struct mount *mnt)
     return 0;
 }
 
-tmpfs_superblock *tmpfs_create_sb()
+static tmpfs_superblock *tmpfs_create_sb(unsigned int sb_flags)
 {
-    return new tmpfs_superblock{};
+    return new tmpfs_superblock{sb_flags};
 }
 
 /**
@@ -406,7 +406,7 @@ tmpfs_superblock *tmpfs_create_sb()
 struct superblock *tmpfs_mount(struct vfs_mount_info *info)
 {
     pr_info("tmpfs: Mounting a new instance of tmpfs\n");
-    auto new_sb = tmpfs_create_sb();
+    auto new_sb = tmpfs_create_sb(info->mnt_flags);
     if (!new_sb)
         return (struct superblock *) ERR_PTR(-ENOMEM);
 

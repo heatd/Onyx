@@ -350,7 +350,7 @@ __init static void bdev_setup_fs()
     bdev_sb = new superblock;
     CHECK(bdev_sb);
 
-    superblock_init(bdev_sb);
+    superblock_init(bdev_sb, 0);
 }
 
 extern struct file_ops buffer_ops;

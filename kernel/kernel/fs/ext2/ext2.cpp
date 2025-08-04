@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -696,7 +696,7 @@ struct superblock *ext2_mount_partition(struct vfs_mount_info *info)
     superblock_t *ext2_sb = nullptr;
 
     pr_info("ext2: mounting ext2 partition on block device %s\n", dev->name.c_str());
-    ext2_superblock *sb = new ext2_superblock;
+    ext2_superblock *sb = new ext2_superblock(info->mnt_flags);
     if (!sb)
         goto error;
 

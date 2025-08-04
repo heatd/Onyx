@@ -40,10 +40,10 @@ public:
     atomic<size_t> nblocks;
     atomic<size_t> ino_nr;
 
-    tmpfs_superblock()
+    tmpfs_superblock(unsigned int sb_flags)
         : superblock{}, curr_inode{}, fs_minor{++curr_minor_number}, tmpfs_ops_{&tmpfs_fops}
     {
-        superblock_init(this);
+        superblock_init(this, sb_flags);
         s_block_size = PAGE_SIZE;
         s_flags = SB_FLAG_NODIRTY | SB_FLAG_IN_MEMORY;
         this->s_ops = &tmpfs_sb_ops;
