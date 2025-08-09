@@ -63,12 +63,12 @@ int sock_default_connect(struct socket *sock, struct sockaddr *addr, socklen_t a
     return -EIO;
 }
 
-ssize_t sock_default_sendmsg(struct socket *sock, const struct msghdr *msg, int flags)
+ssize_t sock_default_sendmsg(struct socket *sock, const struct kernel_msghdr *msg, int flags)
 {
     return -EIO;
 }
 
-ssize_t sock_default_recvmsg(struct socket *sock, struct msghdr *msg, int flags)
+ssize_t sock_default_recvmsg(struct socket *sock, struct kernel_msghdr *msg, int flags)
 {
     return -EIO;
 }
