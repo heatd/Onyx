@@ -84,7 +84,7 @@ struct socket
      * to prevent race conditions.
      */
 
-    hybrid_lock socket_lock;
+    struct hybrid_lock socket_lock;
     bool bound;
     bool connected;
     bool reuse_addr : 1;
@@ -132,6 +132,7 @@ struct socket
         shutdown_state = 0;
         rcv_timeout = snd_timeout = 0;
         sock_ops = NULL;
+        hybrid_lock_init(&socket_lock);
         INIT_LIST_HEAD(&socket_backlog);
         pfi_init(&sock_pfi);
         sk_send_queued = 0;
