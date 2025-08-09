@@ -18,6 +18,7 @@
 #include <onyx/net/netif.h>
 #include <onyx/object.h>
 #include <onyx/page_frag.h>
+#include <onyx/ref.h>
 #include <onyx/refcount.h>
 #include <onyx/semaphore.h>
 #include <onyx/vector.h>
@@ -70,10 +71,9 @@ struct socket_ops
     void (*write_space)(struct socket *);
 };
 
-struct socket : public refcountable
+struct socket
 {
-private:
-public:
+    refcount_t refs;
     int type;
     int proto;
     int domain;
@@ -89,10 +89,10 @@ public:
     bool connected;
     bool reuse_addr : 1;
     bool broadcast_allowed : 1;
-    bool proto_needs_work : 1 {0};
-    bool dead : 1 {0};
-    bool sndbuf_locked : 1 {0};
-    bool rcvbuf_locked : 1 {0};
+    bool proto_needs_work : 1;
+    bool dead : 1;
+    bool sndbuf_locked : 1;
+    bool rcvbuf_locked : 1;
 
     struct list_head socket_backlog;
 
@@ -112,11 +112,26 @@ public:
     struct page_frag_info sock_pfi;
 
     /* Define a default constructor here */
-    socket()
-        : type{}, proto{}, domain{}, flags{}, sock_err{}, socket_lock{}, bound{}, connected{},
-          reuse_addr{false}, sk_rcvbuf{DEFAULT_RX_MAX_BUF}, sk_sndbuf{DEFAULT_TX_MAX_BUF},
-          shutdown_state{}, rcv_timeout{0}, snd_timeout{0}, sock_ops{}
+    socket() : socket_lock{}
     {
+        refs = REFCOUNT_INIT(1);
+        proto_needs_work = 0;
+        dead = 0;
+        sndbuf_locked = 0;
+        rcvbuf_locked = 0;
+        type = 0;
+        proto = 0;
+        domain = 0;
+        flags = 0;
+        sock_err = 0;
+        bound = false;
+        connected = false;
+        reuse_addr = false;
+        sk_rcvbuf = DEFAULT_RX_MAX_BUF;
+        sk_sndbuf = DEFAULT_TX_MAX_BUF;
+        shutdown_state = 0;
+        rcv_timeout = snd_timeout = 0;
+        sock_ops = NULL;
         INIT_LIST_HEAD(&socket_backlog);
         pfi_init(&sock_pfi);
         sk_send_queued = 0;
@@ -198,6 +213,22 @@ public:
     int shutdown(int how);
     int getsockopt(int level, int optname, void *optval, socklen_t *optlen);
     int setsockopt(int level, int optname, const void *optval, socklen_t optlen);
+
+    void ref()
+    {
+        refcount_inc(&refs);
+    }
+
+    bool ref_not_zero()
+    {
+        return refcount_inc_not_zero(&refs);
+    }
+
+    void unref()
+    {
+        if (refcount_dec_and_test(&refs))
+            delete this;
+    }
 
     void close()
     {
