@@ -16,6 +16,8 @@
 
 #include <onyx/atomic.hpp>
 
+__BEGIN_CDECLS
+
 struct socket;
 void sock_do_post_work(socket *sock);
 bool sock_needs_work(socket *sock);
@@ -26,23 +28,16 @@ bool sock_needs_work(socket *sock);
  * if it actually owns it.
  *
  */
-class hybrid_lock
+struct hybrid_lock
 {
-private:
     spinlock lock_;
-    atomic<raw_spinlock_t> owned;
+    raw_spinlock_t owned;
     wait_queue wq;
 
+#ifdef __cplusplus
     void __wait_for_owned()
     {
         wait_for_event_locked(&wq, owned == 0, &lock_);
-    }
-
-public:
-    hybrid_lock()
-    {
-        init_wait_queue_head(&wq);
-        spinlock_init(&lock_);
     }
 
     void lock()
@@ -51,7 +46,7 @@ public:
 
         if (owned)
             __wait_for_owned();
-        owned.store(get_cpu_nr() + 1, mem_order::release);
+        owned = get_cpu_nr() + 1;
     }
 
     void unlock_sock(socket *sock)
@@ -61,17 +56,14 @@ public:
         if (sock_needs_work(sock)) [[unlikely]]
             sock_do_post_work(sock);
 
-        owned.store(0, mem_order::release);
-
+        owned = 0;
         wait_queue_wake(&wq);
     }
 
     void unlock()
     {
         scoped_lock g{lock_};
-
         owned = 0;
-
         wait_queue_wake(&wq);
     }
 
@@ -89,14 +81,67 @@ public:
     {
         return owned == 0;
     }
+#endif
 };
 
+static inline void hybrid_lock_init(struct hybrid_lock *lock)
+{
+    init_wait_queue_head(&lock->wq);
+    spinlock_init(&lock->lock_);
+    lock->owned = 0;
+}
+
+static inline void sk_wait_for_owned(struct hybrid_lock *lock)
+{
+    wait_for_event_locked(&lock->wq, lock->owned == 0, &lock->lock_);
+}
+
+static inline void hybrid_lock(struct hybrid_lock *lock)
+{
+    spin_lock(&lock->lock_);
+    if (lock->owned)
+        sk_wait_for_owned(lock);
+    lock->owned = get_cpu_nr() + 1;
+    spin_unlock(&lock->lock_);
+}
+
+static inline void __unlock_sock(struct hybrid_lock *lock, struct socket *sock)
+{
+    spin_lock(&lock->lock_);
+
+    if (unlikely(sock_needs_work(sock)))
+        sock_do_post_work(sock);
+
+    lock->owned = 0;
+
+    wait_queue_wake(&lock->wq);
+    spin_unlock(&lock->lock_);
+}
+
+static inline void hybrid_lock_bh(struct hybrid_lock *lock)
+{
+    spin_lock(&lock->lock_);
+}
+
+static inline void hybrid_unlock_bh(struct hybrid_lock *lock)
+{
+    spin_unlock(&lock->lock_);
+}
+
+static inline bool hybrid_is_ours(const struct hybrid_lock *lock)
+{
+    return READ_ONCE(lock->owned) == 0;
+}
+
+__END_CDECLS
+
+#ifdef __cplusplus
 template <bool bh = false>
 class scoped_hybrid_lock
 {
 private:
     bool IsLocked;
-    hybrid_lock &lock_;
+    struct hybrid_lock &lock_;
     socket *sock;
 
 public:
@@ -118,7 +163,7 @@ public:
         IsLocked = false;
     }
 
-    explicit scoped_hybrid_lock(hybrid_lock &lock, socket *sock) : lock_{lock}, sock{sock}
+    explicit scoped_hybrid_lock(struct hybrid_lock &lock, socket *sock) : lock_{lock}, sock{sock}
     {
         this->lock();
     }
@@ -129,5 +174,6 @@ public:
             unlock();
     }
 };
+#endif
 
 #endif
