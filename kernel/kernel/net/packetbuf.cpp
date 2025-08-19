@@ -404,6 +404,11 @@ out:
     return copied;
 }
 
+ssize_t copy_from_pbf(struct packetbuf *pbf, struct iovec_iter *iter, unsigned int flags)
+{
+    return pbf->copy_iter(*iter, flags);
+}
+
 void pbf_free(struct packetbuf *pbf)
 {
     pbf->~packetbuf();

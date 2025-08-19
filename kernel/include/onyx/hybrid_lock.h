@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2022 Pedro Falcato
+ * Copyright (c) 2020 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -9,18 +9,14 @@
 #ifndef _ONYX_HYBRID_LOCK_H
 #define _ONYX_HYBRID_LOCK_H
 
-#include <onyx/conditional.h>
-#include <onyx/scoped_lock.h>
 #include <onyx/spinlock.h>
 #include <onyx/wait_queue.h>
-
-#include <onyx/atomic.hpp>
 
 __BEGIN_CDECLS
 
 struct socket;
-void sock_do_post_work(socket *sock);
-bool sock_needs_work(socket *sock);
+void sock_do_post_work(struct socket *sock);
+bool sock_needs_work(struct socket *sock);
 /**
  * @brief Works in a similar fashion to linux's socket_lock_t.
  * When used in a user context, the lock's user is supposed to lock it like a mutex, which may
@@ -30,9 +26,9 @@ bool sock_needs_work(socket *sock);
  */
 struct hybrid_lock
 {
-    spinlock lock_;
+    struct spinlock lock_;
     raw_spinlock_t owned;
-    wait_queue wq;
+    struct wait_queue wq;
 
 #ifdef __cplusplus
     void __wait_for_owned()
@@ -136,6 +132,9 @@ static inline bool hybrid_is_ours(const struct hybrid_lock *lock)
 __END_CDECLS
 
 #ifdef __cplusplus
+
+#include <onyx/scoped_lock.h>
+
 template <bool bh = false>
 class scoped_hybrid_lock
 {
