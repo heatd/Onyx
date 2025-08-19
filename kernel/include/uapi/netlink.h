@@ -4,7 +4,7 @@
 
 typedef unsigned int __socklen_t;
 typedef unsigned short __sa_family_t;
-#include <uapi/types.h>
+#include <onyx/types.h>
 
 typedef __sa_family_t __kernel_sa_family_t;
 
