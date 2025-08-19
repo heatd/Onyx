@@ -695,6 +695,7 @@ int check_af_support(int domain)
         case AF_UNIX:
         case AF_INET6:
         case AF_NETKERNEL:
+        case AF_NETLINK:
             return 0;
         default:
             return -1;
@@ -716,6 +717,8 @@ int net_autodetect_protocol(int type, int domain)
     /* AF_NETKERNEL is an outlier since it's usable in both types */
     if (domain == AF_NETKERNEL)
         return NETKERNEL_PROTO;
+    if (domain == AF_NETLINK)
+        return 0;
 
     switch (type & type_mask)
     {
@@ -772,6 +775,8 @@ static void socket_sanity_check(socket *sock)
     DCHECK(sock_ops->poll);
 }
 
+extern "C" struct socket *netlink_create_socket(int type);
+
 socket *socket_create(int domain, int type, int protocol)
 {
     socket *socket = nullptr;
@@ -790,6 +795,9 @@ socket *socket_create(int domain, int type, int protocol)
             break;
         case AF_NETKERNEL:
             socket = netkernel::create_socket(type);
+            break;
+        case AF_NETLINK:
+            socket = netlink_create_socket(type);
             break;
         default:
             return errno = EAFNOSUPPORT, nullptr;
