@@ -147,6 +147,7 @@ struct socket
     ~socket()
     {
         pfi_destroy(&sock_pfi);
+        sock_ops->destroy(this);
     }
 
     short poll(void *poll_file, short events);
