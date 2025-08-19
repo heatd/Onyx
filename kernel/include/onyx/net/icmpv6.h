@@ -90,7 +90,7 @@ public:
         sock_ops = &icmp6_ops;
     }
 
-    ~icmp6_socket() override = default;
+    ~icmp6_socket() = default;
 
     int bind(struct sockaddr *addr, socklen_t addrlen);
     int connect(struct sockaddr *addr, socklen_t addrlen, int flags);

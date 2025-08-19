@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 - 2024 Pedro Falcato
+ * Copyright (c) 2022 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -20,6 +20,7 @@
 #include <onyx/poll.h>
 #include <onyx/process.h>
 
+#include <onyx/pair.hpp>
 #include <onyx/utility.hpp>
 
 #ifdef CONFIG_KUNIT
@@ -357,7 +358,7 @@ public:
         peer_nowr = false;
     }
 
-    ~un_socket() override;
+    ~un_socket();
 
     int bind(sockaddr *addr, socklen_t addrlen);
 

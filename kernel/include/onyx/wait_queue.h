@@ -225,9 +225,9 @@ bool signal_is_pending();
     __wait_for_event(wq, cond, THREAD_INTERRUPTIBLE, socket_lock.unlock_sock(this); sched_yield(); \
                      socket_lock.lock())
 
-#define wait_for_event_socklocked_interruptible_2(wq, cond, sock)                           \
-    __wait_for_event(wq, cond, THREAD_INTERRUPTIBLE, (sock)->socket_lock.unlock_sock(sock); \
-                     sched_yield(); (sock)->socket_lock.lock())
+#define wait_for_event_socklocked_interruptible_2(wq, cond, sock)                               \
+    __wait_for_event(wq, cond, THREAD_INTERRUPTIBLE, __unlock_sock(&(sock)->socket_lock, sock); \
+                     sched_yield(); hybrid_lock(&(sock)->socket_lock);)
 
 #define wait_for_event_writelocked_interruptible(wq, cond, lock)                        \
     __wait_for_event(wq, cond, THREAD_INTERRUPTIBLE, write_unlock(lock); sched_yield(); \

@@ -13,7 +13,9 @@
 
 #include <onyx/iovec_iter.h>
 #include <onyx/limits.h>
+#if __cplusplus
 #include <onyx/net/inet_route.h>
+#endif
 #include <onyx/page.h>
 #include <onyx/page_iov.h>
 
@@ -64,6 +66,9 @@ __END_CDECLS
  * implementation.
  *
  */
+
+#define PBF_COPY_ITER_PEEK (1 << 0)
+
 struct packetbuf
 {
     /* Reasoning behind this - We're going to need at
@@ -113,7 +118,9 @@ struct packetbuf
     };
 
     union {
+#ifdef __cplusplus
         inet_route route;
+#endif
         char proto_space[PACKETBUF_PROTO_SPACE];
     };
 
@@ -131,7 +138,7 @@ struct packetbuf
      */
     packetbuf()
         : refcount{1}, page_vec{}, phy_header{}, link_header{}, net_header{}, transport_header{},
-          data{}, tail{}, end{}, buffer_start{}, csum_offset{nullptr}, csum_start{nullptr},
+          data{}, tail{}, end{}, buffer_start{}, csum_offset{NULL}, csum_start{NULL},
           header_length{}, gso_size{}, gso_flags{}, needs_csum{0}, zero_copy{0}, domain{0}
     {
         route = {};
@@ -283,8 +290,6 @@ struct packetbuf
         __builtin_unreachable();
     }
 
-#define PBF_COPY_ITER_PEEK (1 << 0)
-
     /**
      * @brief Copy the packetbuf (or whatever is left of it) to iter
      *
@@ -321,7 +326,7 @@ struct packetbuf *packetbuf_clone(struct packetbuf *original);
 static inline bool pbf_can_try_put(struct packetbuf *pbf)
 {
     /* Using put with other page vecs is bound to break something */
-    return pbf->page_vec[1].page == nullptr;
+    return pbf->page_vec[1].page == NULL;
 }
 
 static inline unsigned int pbf_tail_room(struct packetbuf *pbf)
@@ -450,7 +455,7 @@ struct packetbuf *pbf_alloc(gfp_t gfp);
 struct packetbuf *pbf_alloc_sk(gfp_t gfp, struct socket *sock, unsigned int len);
 struct packetbuf *pbf_alloc_rx(gfp_t gfp, unsigned int len);
 ssize_t copy_to_pbf(struct packetbuf *pbf, struct iovec_iter *iter);
-
+ssize_t copy_from_pbf(struct packetbuf *pbf, struct iovec_iter *iter, unsigned int flags);
 __END_CDECLS
 
 #define PACKET_MAX_HEAD_LENGTH 128
