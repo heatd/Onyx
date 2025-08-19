@@ -17,17 +17,19 @@
 #include <onyx/iovec_iter.h>
 #include <onyx/net/netif.h>
 #include <onyx/object.h>
+#include <onyx/packetbuf.h>
 #include <onyx/page_frag.h>
 #include <onyx/ref.h>
+
+#ifdef __cplusplus
 #include <onyx/refcount.h>
-#include <onyx/semaphore.h>
 #include <onyx/vector.h>
-#include <onyx/vfs.h>
-#include <onyx/wait_queue.h>
 
 #include <onyx/expected.hpp>
-#include <onyx/hashtable.hpp>
-#include <onyx/pair.hpp>
+#endif
+
+#include <onyx/vfs.h>
+#include <onyx/wait_queue.h>
 
 #define PROTOCOL_IPV4 1
 #define PROTOCOL_IPV6 2
@@ -111,6 +113,7 @@ struct socket
     /* Socket page frag info - used for allocating wmem */
     struct page_frag_info sock_pfi;
 
+#ifdef __cplusplus
     /* Define a default constructor here */
     socket() : socket_lock{}
     {
@@ -140,9 +143,10 @@ struct socket
         backlog = 0;
     }
 
-    virtual ~socket()
+    ~socket()
     {
         pfi_destroy(&sock_pfi);
+        sock_ops->destroy(this);
     }
 
     short poll(void *poll_file, short events);
@@ -244,14 +248,13 @@ struct socket
     {
         list_add_tail(node, &socket_backlog);
     }
+#endif
 };
 
 #define SOL_ICMP   800
 #define SOL_TCP    6
 #define SOL_UDP    21
 #define SOL_ICMPV6 58
-
-void socket_init(struct socket *socket);
 
 // Internal representations of the shutdown state of the socket
 #define SHUTDOWN_RD   (1 << 0)
@@ -371,8 +374,9 @@ short cpp_poll(struct socket *sock, void *poll_file, short events)
 
 __BEGIN_CDECLS
 
+void socket_init(struct socket *socket);
 int sock_default_listen(struct socket *sock);
-socket *sock_default_accept(struct socket *sock, int flags);
+struct socket *sock_default_accept(struct socket *sock, int flags);
 int sock_default_bind(struct socket *sock, struct sockaddr *addr, socklen_t addrlen);
 int sock_default_connect(struct socket *sock, struct sockaddr *addr, socklen_t addrlen, int flags);
 ssize_t sock_default_sendmsg(struct socket *sock, const struct kernel_msghdr *msg, int flags);
@@ -382,6 +386,8 @@ int sock_default_getpeername(struct socket *sock, struct sockaddr *addr, socklen
 int sock_default_shutdown(struct socket *sock, int how);
 void sock_default_close(struct socket *sock);
 short sock_default_poll(struct socket *sock, void *poll_file, short events);
+int getsockopt_socket_level(struct socket *sock, int optname, void *optval, socklen_t *optlen);
+int setsockopt_socket_level(struct socket *sock, int optname, const void *optval, socklen_t optlen);
 
 static inline bool sock_may_write(struct socket *sock)
 {

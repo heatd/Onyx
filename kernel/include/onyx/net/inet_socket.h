@@ -117,7 +117,7 @@ struct inet_socket : public socket
 
     void append_inet_rx_pbuf(packetbuf *buf);
 
-    virtual ~inet_socket();
+    ~inet_socket();
 
     int setsockopt_inet(int level, int opt, const void *optval, socklen_t len);
     int getsockopt_inet(int level, int opt, void *optval, socklen_t *len);
