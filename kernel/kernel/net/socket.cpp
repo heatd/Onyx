@@ -769,7 +769,6 @@ static void socket_sanity_check(socket *sock)
     DCHECK(sock_ops->getsockopt);
     DCHECK(sock_ops->setsockopt);
     DCHECK(sock_ops->close);
-    DCHECK(sock_ops->handle_backlog);
     DCHECK(sock_ops->poll);
 }
 
