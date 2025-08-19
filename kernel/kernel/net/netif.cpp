@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2022 Pedro Falcato
+ * Copyright (c) 2017 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -16,6 +16,7 @@
 #include <onyx/net/ip.h>
 #include <onyx/net/netif.h>
 #include <onyx/net/netkernel.h>
+#include <onyx/net/rtnetlink.h>
 #include <onyx/softirq.h>
 #include <onyx/spinlock.h>
 #include <onyx/vector.h>
@@ -482,24 +483,190 @@ public:
     }
 };
 
+static int netif_dump_if(struct packetbuf *pbf, struct netif *iff, pid_t pid, u32 seq)
+{
+    struct ifinfomsg *msg;
+    struct nlmsghdr *nlh;
+    static const struct rtnl_link_stats fake_stats = {0};
+    static const u8 brdcast[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+    int err;
+
+    nlh = nl_put(pbf, pid, seq, RTM_NEWLINK, NLM_F_MULTI, sizeof(*msg));
+    if (!nlh)
+        return -EMSGSIZE;
+
+    msg = (struct ifinfomsg *) NLMSG_DATA(nlh);
+    msg->ifi_family = AF_UNSPEC;
+    msg->ifi_change = 0xffffffff;
+    msg->ifi_index = iff->if_id;
+    msg->ifi_type = iff->flags & NETIF_LOOPBACK ? ARPHRD_LOOPBACK : ARPHRD_ETHER;
+    msg->ifi_flags = 0;
+
+    if (iff->flags & NETIF_LINKUP)
+        msg->ifi_flags |= IFF_UP;
+    if (iff->flags & NETIF_LOOPBACK)
+        msg->ifi_flags |= IFF_LOOPBACK;
+
+    err = nla_put_str(pbf, IFLA_IFNAME, iff->name);
+    if (err)
+        return err;
+
+    if (nla_put(pbf, IFLA_ADDRESS, 6, iff->mac_address) ||
+        nla_put(pbf, IFLA_BROADCAST, 6, brdcast) || nla_put_u32(pbf, IFLA_MTU, iff->mtu) ||
+        nla_put(pbf, IFLA_STATS, sizeof(fake_stats), &fake_stats))
+        return -EMSGSIZE;
+    nlh->nlmsg_len = pbf->tail - (unsigned char *) nlh;
+    return 0;
+}
+
+static int netif_getlink(struct netlink_sock *nlsk, struct packetbuf *pbf, struct nlmsghdr *nlh,
+                         struct rtgenmsg *rth)
+{
+    int err = 0;
+
+    if (rth->rtgen_family != AF_UNSPEC)
+        return -EINVAL;
+
+    spin_lock(&netif_list_lock);
+
+    for (auto &nif : netif_list)
+    {
+        err = netif_dump_if(pbf, nif, nlh->nlmsg_pid, nlh->nlmsg_seq);
+        if (err)
+            break;
+    }
+
+    spin_unlock(&netif_list_lock);
+    return err || nl_put(pbf, nlh->nlmsg_pid, nlh->nlmsg_seq, NLMSG_DONE, 0, 0);
+}
+
+static int dump_v4_addr(struct packetbuf *pbf, struct netif *iff, pid_t pid, u32 seq)
+{
+    struct ifaddrmsg *msg;
+    struct nlmsghdr *nlh;
+    int err;
+
+    nlh = nl_put(pbf, pid, seq, RTM_NEWADDR, NLM_F_MULTI, sizeof(*msg));
+    if (!nlh)
+        return -EMSGSIZE;
+
+    msg = (struct ifaddrmsg *) NLMSG_DATA(nlh);
+    msg->ifa_family = AF_INET;
+    msg->ifa_flags = IFA_F_PERMANENT;
+    msg->ifa_scope = 0;
+    msg->ifa_prefixlen = 32;
+    msg->ifa_index = iff->if_id;
+
+    err = nla_put_str(pbf, IFA_LABEL, iff->name);
+    if (err)
+        return err;
+
+    if (nla_put_u32(pbf, IFA_ADDRESS, iff->local_ip.sin_addr.s_addr))
+        return -EMSGSIZE;
+    nlh->nlmsg_len = pbf->tail - (unsigned char *) nlh;
+    return 0;
+}
+
+static int dump_v6_addr(struct packetbuf *pbf, struct netif *iff, pid_t pid, u32 seq,
+                        struct netif_inet6_addr *addr)
+{
+    struct ifaddrmsg *msg;
+    struct nlmsghdr *nlh;
+    int err;
+
+    nlh = nl_put(pbf, pid, seq, RTM_NEWADDR, NLM_F_MULTI, sizeof(*msg));
+    if (!nlh)
+        return -EMSGSIZE;
+
+    msg = (struct ifaddrmsg *) NLMSG_DATA(nlh);
+    msg->ifa_family = AF_INET6;
+    msg->ifa_flags = IFA_F_PERMANENT;
+    msg->ifa_scope = 0;
+
+    /* TODO: Seems hardcoded? */
+    if (addr->flags & INET6_ADDR_LOCAL)
+        msg->ifa_scope = 2;
+    else if (addr->flags & INET6_ADDR_GLOBAL)
+        msg->ifa_scope = 0xe;
+
+    msg->ifa_prefixlen = 128;
+    msg->ifa_index = iff->if_id;
+
+    pr_warn("prefix len %u\n", addr->prefix_len);
+
+    err = nla_put_str(pbf, IFA_LABEL, iff->name);
+    if (err)
+        return err;
+
+    if (nla_put(pbf, IFA_ADDRESS, 16, &addr->address))
+        return -EMSGSIZE;
+    nlh->nlmsg_len = pbf->tail - (unsigned char *) nlh;
+    return 0;
+}
+
+static int netif_dump_ifaddr(struct packetbuf *pbf, struct netif *iff, pid_t pid, u32 seq,
+                             int family)
+{
+    int err;
+
+    if (family == AF_INET || family == AF_UNSPEC)
+    {
+        if (iff->local_ip.sin_addr.s_addr != 0)
+        {
+            err = dump_v4_addr(pbf, iff, pid, seq);
+            if (err)
+                return -EMSGSIZE;
+        }
+    }
+
+    if (family == AF_INET6 || family == AF_UNSPEC)
+    {
+        struct netif_inet6_addr *addr;
+        scoped_rwslock<rw_lock::read> g{iff->inet6_addr_list_lock};
+
+        list_for_each_entry (addr, &iff->inet6_addr_list, list_node)
+        {
+            err = dump_v6_addr(pbf, iff, pid, seq, addr);
+            if (err)
+                return -EMSGSIZE;
+        }
+    }
+
+    return 0;
+}
+
+static int netif_getaddr(struct netlink_sock *nlsk, struct packetbuf *pbf, struct nlmsghdr *nlh,
+                         struct rtgenmsg *rth)
+{
+    int err = 0;
+
+    spin_lock(&netif_list_lock);
+
+    for (auto &nif : netif_list)
+    {
+        err = netif_dump_ifaddr(pbf, nif, nlh->nlmsg_pid, nlh->nlmsg_seq, rth->rtgen_family);
+        if (err)
+            break;
+    }
+
+    spin_unlock(&netif_list_lock);
+    return err || nl_put(pbf, nlh->nlmsg_pid, nlh->nlmsg_seq, NLMSG_DONE, 0, 0);
+}
+
 void netif_init_netkernel()
 {
     auto root = netkernel::open({"", 0});
-
     auto nif_member = make_shared<netkernel::netkernel_object>("netif");
 
     assert(nif_member != nullptr);
-
     nif_member->set_flags(NETKERNEL_OBJECT_PATH_ELEMENT);
-
     assert(root->add_child(nif_member) == true);
-
     auto nt = make_shared<netif_table_nk>();
     assert(nt != nullptr);
-
     auto generic_nt = cast<netkernel::netkernel_object, netif_table_nk>(nt);
-
     assert(nif_member->add_child(generic_nt));
+    rtnl_register(RTM_GETLINK, netif_getlink);
+    rtnl_register(RTM_GETADDR, netif_getaddr);
 }
 
 INIT_LEVEL_CORE_KERNEL_ENTRY(netif_init_netkernel);
