@@ -11,6 +11,9 @@
 #ifndef _UAPI_TYPES_H
 #define _UAPI_TYPES_H
 
+#ifdef __is_onyx_kernel
+#include <onyx/types.h>
+#else
 /* Assume standard LP64-ish types - char = 1 byte, short = 2, int = 4,
    long long = 8, long = native word.
  */
@@ -26,5 +29,5 @@ typedef unsigned long long __u64;
 
 typedef unsigned long __uptr;
 typedef unsigned long __usize;
-
+#endif
 #endif
