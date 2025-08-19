@@ -14,8 +14,10 @@
 #include <onyx/spinlock.h>
 #include <onyx/vfs.h>
 struct netif;
+#ifdef __cplusplus
 #include <onyx/net/dll.h>
 #include <onyx/vector.h>
+#endif
 
 #include <uapi/netinet.h>
 #include <uapi/socket.h>
@@ -34,7 +36,7 @@ struct packetbuf;
 
 struct netif_inet6_addr
 {
-    in6_addr address;
+    struct in6_addr address;
     uint16_t flags;
     uint8_t prefix_len;
     struct list_head list_node;
@@ -78,14 +80,19 @@ struct netif
     struct rwslock inet6_addr_list_lock;
     struct list_head inet6_addr_list;
 
-    int (*sendpacket)(packetbuf *buf, struct netif *nif);
+    int (*sendpacket)(struct packetbuf *buf, struct netif *nif);
     int (*poll_rx)(struct netif *nif);
     void (*rx_end)(struct netif *nif);
 
     struct list_head list_node;
     struct list_head rx_queue_node;
+#ifdef __cplusplus
     data_link_layer_ops *dll_ops;
+#else
+    void *__dll_ops;
+#endif
 
+#ifdef __cplusplus
     netif()
         : name{}, device_file{}, priv{}, if_id{}, flags{}, mtu{}, mac_address{}, local_ip{},
           inet6_addr_list_lock{}, inet6_addr_list{}, sendpacket{}, poll_rx{}, rx_end{}, list_node{},
@@ -93,6 +100,7 @@ struct netif
     {
         INIT_LIST_HEAD(&inet6_addr_list);
     }
+#endif
 };
 
 #ifdef __cplusplus
@@ -122,25 +130,27 @@ struct inet_socket;
 #define ADD_SOCKET_UNLOCKED    (1 << 0)
 #define REMOVE_SOCKET_UNLOCKED (1 << 0)
 
-int netif_send_packet(struct netif *netif, packetbuf *buf);
 int netif_add_v6_address(netif *nif, const if_inet6_addr &addr_);
 in6_addr netif_get_v6_address(netif *nif, uint16_t flags);
 int netif_remove_v6_address(netif *nif, const in6_addr &addr);
 bool netif_find_v6_address(netif *nif, const in6_addr &addr);
-
+cul::vector<netif *> &netif_lock_and_get_list(void);
+void netif_unlock_list(void);
+struct netif *netif_get_from_addr(const inet_sock_address &s, int domain);
 #endif
+
+__BEGIN_CDECLS
 
 void netif_register_if(struct netif *netif);
 int netif_unregister_if(struct netif *netif);
 struct netif *netif_choose(void);
 void netif_get_ipv4_addr(struct sockaddr_in *s, struct netif *netif);
-struct netif *netif_get_from_addr(const inet_sock_address &s, int domain);
-netif *netif_from_if(uint32_t oif);
-cul::vector<netif *> &netif_lock_and_get_list(void);
-void netif_unlock_list(void);
+struct netif *netif_from_if(uint32_t oif);
 struct netif *netif_from_name(const char *name);
 int netif_do_rx(void);
-void netif_signal_rx(netif *nif);
-int netif_process_pbuf(netif *nif, packetbuf *buf);
+void netif_signal_rx(struct netif *nif);
+int netif_process_pbuf(struct netif *nif, struct packetbuf *buf);
+int netif_send_packet(struct netif *netif, struct packetbuf *buf);
+__END_CDECLS
 
 #endif

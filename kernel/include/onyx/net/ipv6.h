@@ -15,6 +15,7 @@
 #include <uapi/netinet.h>
 #include <uapi/socket.h>
 
+#include <onyx/pair.hpp>
 #include <onyx/tuple.hpp>
 
 struct ip6hdr
