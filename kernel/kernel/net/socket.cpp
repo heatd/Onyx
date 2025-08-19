@@ -1129,6 +1129,16 @@ int socket::setsockopt_socket_level(int optname, const void *optval, socklen_t o
     return -ENOPROTOOPT;
 }
 
+int getsockopt_socket_level(struct socket *sock, int optname, void *optval, socklen_t *optlen)
+{
+    return sock->getsockopt_socket_level(optname, optval, optlen);
+}
+
+int setsockopt_socket_level(struct socket *sock, int optname, const void *optval, socklen_t optlen)
+{
+    return sock->setsockopt_socket_level(optname, optval, optlen);
+}
+
 int sys_getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *optlen)
 {
     auto f = get_socket_fd(sockfd);
@@ -1578,4 +1588,9 @@ int sock_stream_error(struct socket *sock, int err, int flags)
     if (err == -EPIPE && !(flags & MSG_NOSIGNAL))
         kernel_raise_signal(SIGPIPE, get_current_process(), 0, NULL);
     return err;
+}
+
+void socket_init(struct socket *socket)
+{
+    new (socket) struct socket;
 }
