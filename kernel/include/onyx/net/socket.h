@@ -15,6 +15,7 @@
 #include <onyx/fnv.h>
 #include <onyx/hybrid_lock.h>
 #include <onyx/iovec_iter.h>
+#include <onyx/mm/slab.h>
 #include <onyx/net/netif.h>
 #include <onyx/object.h>
 #include <onyx/packetbuf.h>
@@ -146,7 +147,6 @@ struct socket
     ~socket()
     {
         pfi_destroy(&sock_pfi);
-        sock_ops->destroy(this);
     }
 
     short poll(void *poll_file, short events);
@@ -232,7 +232,10 @@ struct socket
     void unref()
     {
         if (refcount_dec_and_test(&refs))
-            delete this;
+        {
+            sock_ops->destroy(this);
+            kfree(this);
+        }
     }
 
     void close()
