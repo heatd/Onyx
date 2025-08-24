@@ -898,11 +898,17 @@ socket *un_socket::accept(int flags)
  */
 void un_socket::disconnect_peer()
 {
-    scoped_hybrid_lock hlock{socket_lock, this};
+    un_socket *dst;
 
-    if (dst_)
-        dst_->unref();
-    dst_ = nullptr;
+    {
+        scoped_hybrid_lock hlock{socket_lock, this};
+
+        dst = dst_;
+        dst_ = nullptr;
+    }
+
+    if (dst)
+        dst->unref();
 }
 
 void un_socket::close()
