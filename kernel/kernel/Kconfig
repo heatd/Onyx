@@ -1,5 +1,6 @@
 source "kernel/net/Kconfig"
 source "kernel/fs/Kconfig"
+source "kernel/mm/Kconfig"
 
 menu "Security options"
 

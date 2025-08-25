@@ -1,0 +1,11 @@
+menu "Memory Management options"
+
+config PAGEALLOC_POISON
+    bool "Page allocator poison-on-alloc"
+    help
+        Enable page poisoning on page allocation. This helps debugging
+        uninitialized memory issues, and may improve security by wiping old
+        page contents. There is however a performance penalty.
+
+        If in doubt, say N.
+endmenu
