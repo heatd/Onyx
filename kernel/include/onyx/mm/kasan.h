@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2024 Pedro Falcato
+ * Copyright (c) 2019 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -41,6 +41,15 @@ void kasan_flush_quarantine();
  * @param chunk_size Size of the chunk, in bytes
  */
 void kasan_quarantine_add_chunk(void *ptr, size_t chunk_size);
+
+struct page;
+
+/**
+ * @brief Add a single struct page to the quarantine
+ *
+ * @param page Page to add
+ */
+void kasan_quarantine_add_page(struct page *page);
 
 /**
  * @brief Get the redzone's size for the objsize
