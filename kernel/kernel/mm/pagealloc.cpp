@@ -1012,10 +1012,6 @@ void page_node::free_page(struct page *p)
     if (page_flag_set(p, PAGE_FLAG_ANON))
         dec_page_stat(p, NR_ANON);
 
-#ifdef CONFIG_KASAN
-    kasan_set_state((unsigned long *) PAGE_TO_VIRT(p), PAGE_SIZE, 1);
-#endif
-
     /* Reset the page */
     p->flags = 0;
     p->owner = nullptr;
