@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2022 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -10,6 +10,7 @@
 
 #include <onyx/cpu.h>
 #include <onyx/mm/kasan.h>
+#include <onyx/page.h>
 #include <onyx/scheduler.h>
 #include <onyx/scoped_lock.h>
 #include <onyx/spinlock.h>
@@ -39,12 +40,14 @@ struct quarantine_chunk
 struct quarantine_queue
 {
     quarantine_chunk *global_queue_head_{nullptr}, *global_queue_tail_{nullptr};
+    struct list_head page_queue;
     size_t max_size_;
     size_t cur_size_{0};
     size_t nr_flushes_{0};
 
     constexpr quarantine_queue(size_t max_size) : max_size_{max_size}
     {
+        INIT_LIST_HEAD(&page_queue);
     }
 
     /**
@@ -68,18 +71,20 @@ struct quarantine_queue
         chunk->next = nullptr;
 
         if (!global_queue_head_)
-        {
             global_queue_head_ = chunk;
-        }
 
         if (global_queue_tail_)
-        {
             global_queue_tail_->next = chunk;
-        }
 
         global_queue_tail_ = chunk;
 
         cur_size_ += chunk_size;
+    }
+
+    void add_page(struct page *page)
+    {
+        list_add_tail(&page->lru_node, &page_queue);
+        cur_size_ += PAGE_SIZE;
     }
 
     /**
@@ -91,6 +96,7 @@ struct quarantine_queue
     {
         cur_size_ = 0;
         global_queue_head_ = global_queue_tail_ = nullptr;
+        INIT_LIST_HEAD(&page_queue);
         nr_flushes_++;
     }
 
@@ -115,6 +121,7 @@ struct quarantine_queue
             global_queue_tail_ = q.global_queue_tail_;
         }
 
+        list_splice_tail(&q.page_queue, &page_queue);
         cur_size_ += q.cur_size_;
 
         q.reset();
@@ -141,14 +148,6 @@ private:
     quarantine_percpu pcpu_[CONFIG_SMP_NR_CPUS];
 
     /**
-     * @brief Add a chunk to the global quarantine queue
-     *
-     * @param chunk Chunk to add
-     * @param chunk_size Size of the chunk, in bytes
-     */
-    void add_chunk_global(quarantine_chunk *chunk, size_t chunk_size);
-
-    /**
      * @brief Flush this cpu's pcpu quarantine queue
      *
      */
@@ -168,6 +167,7 @@ public:
      */
     void add_chunk(quarantine_chunk *chunk, size_t chunk_size);
 
+    void add_page(struct page *page);
     /**
      * @brief Pop all of the quarantine's elements
      *
@@ -188,24 +188,6 @@ public:
 };
 
 /**
- * @brief Add a chunk to the global quarantine queue
- *
- * @param chunk Chunk to add
- * @param chunk_size Size of the chunk, in bytes
- */
-void quarantine::add_chunk_global(quarantine_chunk *chunk, size_t chunk_size)
-{
-    scoped_lock<spinlock, true> g{queue_lock_};
-
-    queue_.add_chunk(chunk, chunk_size);
-
-    if (queue_.overflowing())
-    {
-        pop();
-    }
-}
-
-/**
  * @brief Pop all of the quarantine's elements
  *
  */
@@ -224,6 +206,8 @@ void quarantine::pop()
     queue_.reset();
 }
 
+void kasan_free_page_direct(struct page *p);
+
 /**
  * @brief Pop the global queue and unlock, before freeing.
  *
@@ -233,13 +217,13 @@ void quarantine::pop_and_unlock(scoped_lock<spinlock, true> &g)
     // We're using a variant of pop() to be able to transfer the whole queue to a local one
     // and therefore free the queue_lock_, which would block every other thread on this very
     // expensive operation.
+    struct page *page, *next;
     quarantine_queue q{queue_.max_size_};
     q.xfer_in(queue_);
 
     g.unlock();
 
     // Now free
-
     quarantine_chunk *c = q.global_queue_head_;
 
     while (c)
@@ -248,6 +232,9 @@ void quarantine::pop_and_unlock(scoped_lock<spinlock, true> &g)
         kmem_free_kasan(c);
         c = next;
     }
+
+    list_for_each_entry_safe (page, next, &q.page_queue, lru_node)
+        kasan_free_page_direct(page);
 }
 
 /**
@@ -293,6 +280,35 @@ void quarantine::add_chunk(quarantine_chunk *chunk, size_t chunk_size)
     sched_enable_preempt();
 }
 
+void quarantine::add_page(struct page *page)
+{
+    // First, we try to add ourselves to the percpu queue, similar to the
+    // page allocator's pcpu magazines. We need to disable IRQs here, because we may be
+    // called from hardirqs.
+
+    unsigned long flags = irq_save_and_disable();
+
+    auto &pcpu = pcpu_[get_cpu_nr()];
+
+    pcpu.queue.add_page(page);
+
+    if (pcpu.queue.overflowing())
+    {
+        // If we're overflowing, we'll transfer the whole list to the global queue
+        scoped_lock<spinlock, true> g{queue_lock_};
+        queue_.xfer_in(pcpu.queue);
+
+        // If the queue is now overflowing, now that we've added our pcpu queue to it, pop.
+        // We're using a variant of pop() to be able to transfer the whole queue to a local one
+        // and therefore free the queue_lock_, which would block every other thread on this very
+        // expensive operation.
+        if (queue_.overflowing())
+            pop_and_unlock(g);
+    }
+
+    irq_restore(flags);
+}
+
 constinit static quarantine kasan_quarantine;
 
 /**
@@ -309,17 +325,29 @@ void kasan_quarantine_add_chunk(void *ptr, size_t chunk_size)
 }
 
 /**
+ * @brief Add a single struct page to the quarantine
+ *
+ * @param page Page to add
+ */
+void kasan_quarantine_add_page(struct page *page)
+{
+    kasan_quarantine.add_page(page);
+}
+/**
  * @brief Flush this cpu's pcpu quarantine queue
  *
  */
 void quarantine::flush_pcpu()
 {
+    unsigned long flags = irq_save_and_disable();
     auto &pcpu = pcpu_[get_cpu_nr()];
-    if (pcpu.touched)
-        return;
+    if (!pcpu.touched)
+    {
+        scoped_lock<spinlock, true> g{queue_lock_};
+        queue_.xfer_in(pcpu.queue);
+    }
 
-    scoped_lock<spinlock, true> g{queue_lock_};
-    queue_.xfer_in(pcpu.queue);
+    irq_restore(flags);
 }
 
 /**
@@ -329,11 +357,7 @@ void quarantine::flush_pcpu()
 void quarantine::flush()
 {
     // Flush every CPU's queue directly. Each object goes back to the slab allocator
-    sched_disable_preempt();
-
     smp::sync_call([](void *ctx) { ((quarantine *) ctx)->flush_pcpu(); }, this, cpumask::all());
-
-    sched_enable_preempt();
 
     // Flush the global queue
     scoped_lock<spinlock, true> g{queue_lock_};
