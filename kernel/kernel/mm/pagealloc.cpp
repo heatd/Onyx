@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2024 Pedro Falcato
+ * Copyright (c) 2017 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -1012,10 +1012,6 @@ void page_node::free_page(struct page *p)
     if (page_flag_set(p, PAGE_FLAG_ANON))
         dec_page_stat(p, NR_ANON);
 
-#ifdef CONFIG_KASAN
-    kasan_set_state((unsigned long *) PAGE_TO_VIRT(p), PAGE_SIZE, 1);
-#endif
-
     /* Reset the page */
     p->flags = 0;
     p->owner = nullptr;
@@ -1025,9 +1021,20 @@ void page_node::free_page(struct page *p)
     CHECK(page_mapcount(p) == 0);
 
     /* Add it at the beginning since it might be fresh in the cache */
-    // list_add(&p->page_allocator_node.list_node, &page_list);
+#ifdef CONFIG_KASAN
+    kasan_set_state((unsigned long *) PAGE_TO_VIRT(p), PAGE_SIZE, 1);
+    kasan_quarantine_add_page(p);
+    return;
+#endif
 
     struct page_zone *z = pick_zone((unsigned long) page_to_phys(p));
+    // XXX Free higher order stuff directly
+    page_zone_free(z, p, 0);
+}
+
+void kasan_free_page_direct(struct page *p)
+{
+    struct page_zone *z = main_node.pick_zone((unsigned long) page_to_phys(p));
     // XXX Free higher order stuff directly
     page_zone_free(z, p, 0);
 }
