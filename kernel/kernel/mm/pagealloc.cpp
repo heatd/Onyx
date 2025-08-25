@@ -807,6 +807,15 @@ struct page *page_node::allocate_pages(size_t nr_pgs, unsigned long flags)
     return plist;
 }
 
+__always_inline bool page_should_poison(unsigned long flags)
+{
+#ifdef CONFIG_PAGEALLOC_POISON
+    return true;
+#else
+    return false;
+#endif
+}
+
 __always_inline void prepare_pages_after_alloc(struct page *page, unsigned int order,
                                                unsigned long flags)
 {
@@ -819,9 +828,9 @@ __always_inline void prepare_pages_after_alloc(struct page *page, unsigned int o
 #endif
 
     if (page_should_zero(flags))
-    {
         memset(PAGE_TO_VIRT(page), 0, 1UL << (order + PAGE_SHIFT));
-    }
+    else if (page_should_poison(flags))
+        memset(PAGE_TO_VIRT(page), 0xAB, 1UL << (order + PAGE_SHIFT));
 
     for (; pages != 0; pages--, last = page++)
     {
