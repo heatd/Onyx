@@ -803,6 +803,8 @@ static void swap_cache_remove(struct vm_object *obj, struct page *page)
         return;
     page_clear_swap(page);
     swap_final_put(entry);
+    /* Refs were previously frozen, add one ref for "us" */
+    page_ref_unfreeze(page, 1);
 }
 
 static int do_protnone(swp_entry_t swp, struct vm_pf_context *context)

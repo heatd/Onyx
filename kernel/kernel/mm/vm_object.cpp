@@ -567,28 +567,19 @@ void vm_obj_clean_page(struct vm_object *obj, struct page *page)
 
 bool vm_obj_remove_page(struct vm_object *obj, struct page *page)
 {
-    bool ret = false;
     DCHECK_PAGE(page_locked(page), page);
     DCHECK_PAGE(page_vmobj(page) == obj, page);
     DCHECK_PAGE(page->ref != 0, page);
 
-    spin_lock(&obj->page_lock);
-    /* Under the lock, pages can't get their references incremented, so we check if pins == 2 here.
-     * We take into account the mapcount, because virtual references can be punted off.
-     */
-
     unsigned int expected_refs = 2 + (page_mapcount(page) > 0);
-    if (__atomic_load_n(&page->ref, __ATOMIC_RELAXED) > expected_refs)
-        goto out;
+    if (!page_ref_freeze(page, expected_refs))
+        return false;
 
     obj->vm_pages.store(page_pgoff(page), 0);
     if (page_test_swap(page))
         swap_unset_swapcache(swpval_to_swp_entry(page->priv));
-    /* We do not need to reset owner here, because we're the only reference */
-    ret = true;
-out:
-    spin_unlock(&obj->page_lock);
-    return ret;
+    page->owner = NULL;
+    return true;
 }
 
 long vm_obj_get_page_references(struct vm_object *obj, struct page *page, unsigned int *vm_flags)
