@@ -40,7 +40,7 @@ struct page_node
     struct page *alloc_order(unsigned int order, unsigned long flags);
     struct page *allocate_pages(unsigned long nr_pages, unsigned long flags);
     struct page *alloc_page(unsigned long flags);
-    void free_page(struct page *p);
+    void free_page(struct page *p, unsigned int order);
 
     template <typename Callable>
     bool for_every_zone(Callable c)

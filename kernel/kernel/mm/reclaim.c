@@ -125,6 +125,7 @@ static const struct page_flag flags[] = {
     X(PAGE_FLAG_READAHEAD),   X(PAGE_FLAG_LRU),
     X(PAGE_FLAG_REFERENCED),  X(PAGE_FLAG_ACTIVE),
     X(PAGE_FLAG_SWAP),        X(PAGE_FLAG_RECLAIM),
+    X(PAGE_FLAG_HEAD),
 };
 
 #ifdef __clang__
@@ -160,7 +161,8 @@ void dump_page(struct page *page)
 
     pr_crit("Page %p (pfn %016lx)  ref: %u mapcount: %u (%u)\n", page, page_to_pfn(page), page->ref,
             page->mapcount, page_mapcount(page));
-    pr_crit("  flags: %016lx (%s)  private: %016lx\n", page->flags, flags_buf, page->priv);
+    pr_crit("  flags: %016lx (%s)  private: %016lx order %u\n", page->flags, flags_buf, page->priv,
+            page_order(page));
     pr_crit("  owner: %p  pageoff %lx\n", page->owner, page->pageoff);
     if (page->owner && !page_flag_set(page, PAGE_FLAG_ANON))
     {
