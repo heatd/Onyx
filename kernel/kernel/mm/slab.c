@@ -1533,6 +1533,9 @@ static unsigned long kmem_cache_release_free_all(struct slab_cache *cache,
 {
     if (!cache->nfreeslabs)
         return 0;
+    /* We cannot do reclaim of vmalloc regions under noirq, which we're under right now. */
+    if (cache->flags & KMEM_CACHE_VMALLOC)
+        return 0;
 
     unsigned long freed = 0;
 
