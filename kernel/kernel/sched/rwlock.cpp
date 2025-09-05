@@ -167,6 +167,7 @@ __always_inline bool rw_lock_spin_read(rwlock *lock)
         {
             if (rw_lock_tryread(lock) == 0) [[likely]]
                 return rwspin_succ++, true;
+            continue;
         }
 
         if (thread && !(thread->flags & THREAD_RUNNING))
