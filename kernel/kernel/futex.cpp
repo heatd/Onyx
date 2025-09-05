@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2017 Pedro Falcato
+ * Copyright (c) 2017 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 #include <errno.h>
 #include <stdbool.h>
@@ -225,6 +227,7 @@ int calculate_key(int *uaddr, int flags, futex_key &out_key)
     auto address_space = get_current_address_space();
     auto offset_within_page = (unsigned long) uaddr & (PAGE_SIZE - 1);
     bool is_shared = false;
+    struct folio *folio;
 
     /* If it was already specified to be a private futex(thanks user-space!),
      * we can just shortpath our way out.
@@ -248,10 +251,11 @@ int calculate_key(int *uaddr, int flags, futex_key &out_key)
 
     is_shared = st & GPP_ACCESS_SHARED;
 
-    if (!is_shared || !page->owner)
+    folio = page_folio(page);
+    if (!is_shared || !folio->owner)
     {
         /* This is a private mapping, treat it like the above. */
-        page_unpin(page);
+        folio_put(folio);
         goto private_futex_out;
     }
 
@@ -263,7 +267,7 @@ int calculate_key(int *uaddr, int flags, futex_key &out_key)
     out_key.shared.vmo = vmo;
     out_key.both.offset = offset_within_page | FUTEX_OFFSET_SHARED;
 
-    page_unpin(page);
+    folio_put(folio);
 
     return 0;
 }
