@@ -438,32 +438,28 @@ void sched_decrease_quantum(clockevent *ev)
 void sched_load_thread(struct thread *prev, thread *thread, unsigned int cpu)
 {
     struct mm_address_space *mm = prev->active_mm ?: prev->aspace;
-    bool cleared = false;
-    write_per_cpu(current_thread, thread);
 
+    write_per_cpu(current_thread, thread);
     errno = thread->errno_val;
 
     native::arch_load_thread(thread, cpu);
 
+    if (!(thread->flags & THREAD_KERNEL))
+        DCHECK(thread->owner);
+
     if (thread->owner)
     {
         /* Clear ourselves from the mm mask and drop the active_mm, if we had one */
-        if (prev->active_mm)
-        {
-            /* Clear ourselves from the active mask before dropping the mm. We must do it this way,
-             * since mmdrop() can very well just free the mm. */
-            cpumask_unset_atomic(&mm->active_mask, cpu);
-            cleared = true;
-            mmdrop(mm);
-            prev->active_mm = NULL;
-        }
-
         if (mm != thread->owner->get_aspace())
         {
-            /* We didn't clear it yet? Clear it now. */
-            if (!cleared)
-                cpumask_unset_atomic(&mm->active_mask, cpu);
             native::arch_load_process(thread->owner, thread, cpu);
+            cpumask_unset_atomic(&mm->active_mask, cpu);
+        }
+
+        if (prev->active_mm)
+        {
+            mmdrop(mm);
+            prev->active_mm = NULL;
         }
     }
     else
