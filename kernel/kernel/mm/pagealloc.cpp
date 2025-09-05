@@ -739,30 +739,15 @@ static void dump_page_ownership(struct page *page)
 }
 #endif
 
-static void debug_page(const char *message, struct page *page)
-{
-    panic_start();
-    printk("Assertion '%s' failed on page %p (pfn %lu)", message, page, page_to_pfn(page));
-#ifdef CONFIG_PAGE_OWNER
-    dump_page_ownership(page);
-#endif
-}
-
-#define PAGE_CHECK(cond, page) \
-    if (!(cond))               \
-    {                          \
-        debug_page(#cond, p);  \
-        panic(#cond);          \
-    }
-
 void free_page(struct page *p)
 {
     assert(p != NULL);
-    PAGE_CHECK(p->ref != 0, p);
+    p = page_compound_head(p);
+    CHECK_PAGE(p->ref != 0, p);
 
     if (__page_unref(p) == 0)
     {
-        main_node.free_page(p);
+        main_node.free_page(p, page_order(p));
         // printf("free pages %p, %p\n", page_to_phys(p), __builtin_return_address(0));
     }
 #if 0
@@ -820,6 +805,7 @@ __always_inline void prepare_pages_after_alloc(struct page *page, unsigned int o
                                                unsigned long flags)
 {
     struct page *last = nullptr;
+    struct page *head = page;
 
     auto pages = pow2(order);
 
@@ -839,8 +825,28 @@ __always_inline void prepare_pages_after_alloc(struct page *page, unsigned int o
         page->flags = 0;
         page->priv = 0;
         page->next_un.next_allocation = nullptr;
-        if (last)
-            last->next_un.next_allocation = page;
+
+        if (flags & __GFP_COMP && order > 0)
+        {
+            if (last)
+            {
+                /* We're not head */
+                page->__head = ((unsigned long) head) + 1;
+                page->__nr_pages = order;
+            }
+            else
+            {
+                /* Set head */
+                page_set_head(page);
+            }
+        }
+        else if (!(flags & __GFP_COMP))
+        {
+            if (last)
+                last->next_un.next_allocation = page;
+            page->owner = NULL;
+        }
+
 #ifdef CONFIG_PAGE_OWNER
         if (!(flags & __GFP_NO_INSTRUMENT))
             page_owner_owned(page);
@@ -991,6 +997,11 @@ struct page *alloc_pages(unsigned int order, unsigned long flags)
     return node.alloc_order(order, flags);
 }
 
+struct folio *folio_alloc(unsigned int order, unsigned long flags)
+{
+    return (struct folio *) alloc_pages(order, flags | __GFP_COMP);
+}
+
 void __reclaim_page(struct page *new_page)
 {
     nr_global_pages.add_fetch(1, mem_order::release);
@@ -998,11 +1009,12 @@ void __reclaim_page(struct page *new_page)
     node.add_region((unsigned long) page_to_phys(new_page), PAGE_SIZE);
 }
 
-void page_node::free_page(struct page *p)
+void page_node::free_page(struct page *p, unsigned int order)
 {
     CHECK_PAGE(
         !(p->flags & (PAGE_FLAG_WRITEBACK | PAGE_FLAG_LOCKED | PAGE_FLAG_SWAP | PAGE_FLAG_WAITERS)),
         p);
+    CHECK_PAGE(page_mapcount(p) == 0, p);
 #ifdef CONFIG_PAGE_OWNER
     page_owner_freed(p);
 #endif
@@ -1018,25 +1030,23 @@ void page_node::free_page(struct page *p)
     p->pageoff = 0;
     p->next_un.next_allocation = nullptr;
     p->ref = 0;
-    CHECK(page_mapcount(p) == 0);
 
     /* Add it at the beginning since it might be fresh in the cache */
 #ifdef CONFIG_KASAN
-    kasan_set_state((unsigned long *) PAGE_TO_VIRT(p), PAGE_SIZE, 1);
+    kasan_set_state((unsigned long *) PAGE_TO_VIRT(p), (1UL << (order + PAGE_SHIFT)), 1);
     kasan_quarantine_add_page(p);
     return;
 #endif
 
     struct page_zone *z = pick_zone((unsigned long) page_to_phys(p));
-    // XXX Free higher order stuff directly
-    page_zone_free(z, p, 0);
+    page_zone_free(z, p, order);
 }
 
 void kasan_free_page_direct(struct page *p)
 {
     struct page_zone *z = main_node.pick_zone((unsigned long) page_to_phys(p));
-    // XXX Free higher order stuff directly
-    page_zone_free(z, p, 0);
+
+    page_zone_free(z, p, page_order(p));
 }
 
 /**
