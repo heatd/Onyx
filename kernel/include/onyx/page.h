@@ -293,6 +293,16 @@ static inline unsigned long __page_unref(struct page *p)
     return __atomic_sub_fetch(&p->ref, 1, __ATOMIC_RELEASE);
 }
 
+static inline bool page_ref_freeze(struct page *page, unsigned int expected)
+{
+    return cmpxchg_relaxed(&page->ref, expected, 0) == expected;
+}
+
+static inline void page_ref_unfreeze(struct page *page, unsigned int refs)
+{
+    WRITE_ONCE(page->ref, refs);
+}
+
 #define page_unref(p) free_page(p)
 
 static inline unsigned long page_unref_many(struct page *p, unsigned long c)

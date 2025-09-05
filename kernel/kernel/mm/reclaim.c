@@ -333,8 +333,9 @@ static enum lru_result shrink_page(struct reclaim_data *data,
     }
 
     unlock_page(page);
-    DCHECK(page->ref == 2);
-    page_unref(page);
+    DCHECK(page->ref == 0);
+    /* One ref for "us". ideally we would be able to free frozen pages, but we can't. */
+    page_ref_unfreeze(page, 1);
     if (!page_flag_set(page, PAGE_FLAG_ANON))
         dec_page_stat(page, NR_FILE);
 
