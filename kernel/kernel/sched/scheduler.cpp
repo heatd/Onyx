@@ -666,11 +666,11 @@ static void __sched_append_to_queue(int priority, unsigned int cpu, struct threa
 
 void sched_append_to_queue(int priority, unsigned int cpu, thread_t *thread)
 {
-    spin_lock(get_per_cpu_ptr_any(scheduler_lock, cpu));
+    unsigned long flags = spin_lock_irqsave(get_per_cpu_ptr_any(scheduler_lock, cpu));
 
     __sched_append_to_queue(priority, cpu, thread);
 
-    spin_unlock(get_per_cpu_ptr_any(scheduler_lock, cpu));
+    spin_unlock_irqrestore(get_per_cpu_ptr_any(scheduler_lock, cpu), flags);
 
     add_per_cpu(runnable_delta, 1);
 }
