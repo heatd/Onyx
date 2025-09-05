@@ -336,16 +336,14 @@ bool vm_mapping_requires_write_protect(struct vm_area_struct *reg)
 static void vma_destroy(struct vm_area_struct *region)
 {
     /* First, unref things */
-    if (region->vm_file)
-    {
-        fd_put(region->vm_file);
-    }
-
     if (region->vm_obj)
     {
         vmo_remove_mapping(region->vm_obj, region);
         vmo_unref(region->vm_obj);
     }
+
+    if (region->vm_file)
+        fd_put(region->vm_file);
 
     if (region->anon_vma)
         anon_vma_unlink(region->anon_vma, region);
