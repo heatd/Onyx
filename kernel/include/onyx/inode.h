@@ -44,6 +44,8 @@ struct writepages_info
     unsigned int flags;
 };
 
+struct vma_iterator;
+
 /* Wait for writeback to complete (this is part of sync or fsync) */
 #define WRITEPAGES_SYNC (1 << 0)
 
@@ -54,6 +56,8 @@ struct file_ops
     __getdirent getdirent;
     __ioctl ioctl;
     void *(*mmap)(struct vm_area_struct *area, struct file *node);
+    int (*find_free_area)(struct vma_iterator *vmi, unsigned long min, size_t size,
+                          struct file *file);
     int (*on_open)(struct file *node);
     short (*poll)(void *poll_file, short events, struct file *node);
     int (*fallocate)(int mode, off_t offset, off_t len, struct file *node);
