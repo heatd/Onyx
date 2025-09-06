@@ -26,8 +26,10 @@ struct vm_pf_context
     /* Mapping info if page was present */
     unsigned long mapping_info;
     pte_t oldpte;
+    pmd_t oldpmd;
     /* The to-be-mapped page - filled by called code */
     struct page *page;
+    pmd_t *pmd;
 };
 
 #endif

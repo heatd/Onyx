@@ -254,6 +254,14 @@ int pgtable_prealloc(struct mm_address_space *mm, unsigned long virt);
 int zap_page_range(unsigned long start, unsigned long end, struct vm_area_struct *vma);
 int vma_unmap(struct mm_address_space *mm, void *addr, size_t pages, struct vm_area_struct *vma,
               struct tlbi_tracker *tlbi);
+
+p4d_t *p4d_get_or_alloc(pgd_t *pgd, unsigned long addr, struct mm_address_space *mm);
+pud_t *pud_get_or_alloc(p4d_t *p4d, unsigned long addr, struct mm_address_space *mm);
+pmd_t *pmd_get_or_alloc(pud_t *pud, unsigned long addr, struct mm_address_space *mm);
+pte_t *pte_get_or_alloc(pmd_t *pmd, unsigned long addr, struct mm_address_space *mm);
+
+#define pmd_lockptr(mm, pmd) (&(mm)->page_table_lock)
+
 __END_CDECLS
 
 #endif

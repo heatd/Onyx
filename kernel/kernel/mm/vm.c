@@ -1384,6 +1384,27 @@ static bool vm_fault_was_spurious(struct fault_info *info, struct vm_pf_context 
     return true;
 }
 
+static bool vma_may_fault_pmd(struct vm_area_struct *vma)
+{
+    return vma->vm_flags & VM_HUGETLB;
+}
+
+static int do_huge_pmd_fault(struct vm_pf_context *context, pmd_t *pmd)
+{
+    struct mm_address_space *mm;
+    struct vm_area_struct *vma;
+
+    vma = context->entry;
+    mm = vma->vm_mm;
+    context->oldpmd = *pmd;
+    spin_unlock(&mm->page_table_lock);
+
+    context->pmd = pmd;
+    if (WARN_ON_ONCE(!vma->vm_ops->fault_huge_pmd))
+        return -ENOMEM;
+    return vma->vm_ops->fault_huge_pmd(context);
+}
+
 static int __vm_handle_pf(struct vm_area_struct *entry, struct fault_info *info)
 {
 #if 0
@@ -1395,12 +1416,42 @@ static int __vm_handle_pf(struct vm_area_struct *entry, struct fault_info *info)
 #endif
     const u8 fault_write = info->write;
     struct vm_pf_context context;
+    struct mm_address_space *mm = entry->vm_mm;
+    pgd_t *pgd;
+    p4d_t *p4d;
+    pud_t *pud;
+    pmd_t *pmd;
+    pte_t *ptep;
+
     context.entry = entry;
     context.info = info;
     context.vpage = info->fault_address & -PAGE_SIZE;
     context.page = NULL;
     context.page_rwx = entry->vm_flags;
-    context.oldpte = pte_get(entry->vm_mm, context.vpage);
+
+    spin_lock(&mm->page_table_lock);
+    pgd = pgd_offset(mm, context.vpage);
+    p4d = p4d_get_or_alloc(pgd, context.vpage, mm);
+    if (!p4d)
+        goto pgtable_oom;
+
+    pud = pud_get_or_alloc(p4d, context.vpage, mm);
+    if (!pud)
+        goto pgtable_oom;
+
+    pmd = pmd_get_or_alloc(pud, context.vpage, mm);
+    if (!pmd)
+        goto pgtable_oom;
+
+    if (vma_may_fault_pmd(entry))
+        return do_huge_pmd_fault(&context, pmd);
+
+    ptep = pte_get_or_alloc(pmd, context.vpage, mm);
+    if (!ptep)
+        goto pgtable_oom;
+
+    context.oldpte = *ptep;
+    spin_unlock(&mm->page_table_lock);
     context.mapping_info = get_mapping_info((void *) context.vpage);
 
     if (!pte_none(context.oldpte) && (!pte_present(context.oldpte) || pte_protnone(context.oldpte)))
@@ -1423,6 +1474,9 @@ static int __vm_handle_pf(struct vm_area_struct *entry, struct fault_info *info)
     /* This is unreachable */
     CHECK(0);
     return 0;
+pgtable_oom:
+    spin_unlock(&mm->page_table_lock);
+    return -ENOMEM;
 }
 
 static void no_vma(struct fault_info *info)
@@ -2457,34 +2511,21 @@ static int gpp_try_to_fault_in(unsigned long addr, struct vm_area_struct *entry,
     return GPP_ACCESS_OK;
 }
 
-static struct page *page_from_pte(pte_t *pte, struct vm_area_struct *vma, unsigned int flags,
-                                  struct spinlock *lock)
+static struct page *page_from_pte(u64 addr, bool present, bool protnone, bool write,
+                                  unsigned int flags, struct spinlock *lock)
 {
     struct page *page = NULL;
-    unsigned long addr;
 
-    if (pte_none(*pte))
-    {
-        /* We should fault the page in, except if this is part of a coredump process; in that case
-         * we want to skip writing out and faulting in anon zero pages to disk. */
-        if (flags & GPP_DUMP && vm_mapping_is_anon(vma))
-        {
-            page = ERR_PTR(-ENODATA);
-            goto nopage;
-        }
-    }
-
-    if (!pte_present(*pte))
+    if (!present)
         goto nopage;
 
     /* coredumps want protnone pages - so pass them with no problem */
-    if (pte_protnone(*pte) && (flags & GPP_READ) && !(flags & GPP_DUMP))
+    if (protnone && (flags & GPP_READ) && !(flags & GPP_DUMP))
         goto nopage;
 
-    if (flags & GPP_WRITE && !pte_write(*pte))
+    if (flags & GPP_WRITE && !write)
         goto nopage;
 
-    addr = pte_addr(*pte);
     page = phys_to_page(addr);
 
     if (unlikely(flags & GPP_DUMP && page == vm_zero_page))
@@ -2496,39 +2537,140 @@ nopage:
     return page;
 }
 
-static int __get_phys_pages(struct vm_area_struct *region, unsigned long addr, unsigned int flags,
+static struct page *follow_no_pte(struct vm_area_struct *vma, unsigned long addr,
+                                  unsigned int flags, unsigned long *entry_mask,
+                                  unsigned long entry_size)
+{
+    struct page *page = NULL;
+
+    *entry_mask = entry_size - 1;
+
+    /* We should fault the page in, except if this is part of a coredump process; in that case
+     * we want to skip writing out and faulting in anon zero pages to disk. */
+    if (flags & GPP_DUMP && vm_mapping_is_anon(vma))
+        page = ERR_PTR(-ENODATA);
+    return page;
+}
+
+static struct page *follow_pte_page(struct vm_area_struct *vma, unsigned long addr,
+                                    unsigned int flags, unsigned long *entry_mask, pmd_t *pmd)
+{
+    pte_t *pte;
+
+    pte = pte_offset(pmd, addr);
+    if (pte_none(*pte))
+        return follow_no_pte(vma, addr, flags, entry_mask, PTE_SIZE);
+    spin_lock(&vma->vm_mm->page_table_lock);
+    *entry_mask = PTE_SIZE - 1;
+    return page_from_pte(pte_addr(*pte), pte_present(*pte), pte_protnone(*pte), pte_write(*pte),
+                         flags, &vma->vm_mm->page_table_lock);
+}
+
+static struct page *follow_pmd_page(struct vm_area_struct *vma, unsigned long addr,
+                                    unsigned int flags, unsigned long *entry_mask, pud_t *pud)
+{
+    pmd_t *pmd;
+
+    pmd = pmd_offset(pud, addr);
+    if (pmd_none(*pmd))
+        return follow_no_pte(vma, addr, flags, entry_mask, PMD_SIZE);
+    if (pmd_huge(*pmd))
+    {
+        spin_lock(&vma->vm_mm->page_table_lock);
+        *entry_mask = PMD_SIZE - 1;
+        return page_from_pte(pmd_addr(*pmd), pmd_present(*pmd), pmd_protnone(*pmd), pmd_write(*pmd),
+                             flags, &vma->vm_mm->page_table_lock);
+    }
+
+    return follow_pte_page(vma, addr, flags, entry_mask, pmd);
+}
+
+static struct page *follow_pud_page(struct vm_area_struct *vma, unsigned long addr,
+                                    unsigned int flags, unsigned long *entry_mask, p4d_t *p4d)
+{
+    pud_t *pud;
+
+    pud = pud_offset(p4d, addr);
+    if (pud_none(*pud))
+        return follow_no_pte(vma, addr, flags, entry_mask, PUD_SIZE);
+    return follow_pmd_page(vma, addr, flags, entry_mask, pud);
+}
+
+static struct page *follow_p4d_page(struct vm_area_struct *vma, unsigned long addr,
+                                    unsigned int flags, unsigned long *entry_mask, pgd_t *pgd)
+{
+    p4d_t *p4d;
+
+    p4d = p4d_offset(pgd, addr);
+    if (p4d_none(*p4d))
+        return follow_no_pte(vma, addr, flags, entry_mask, P4D_SIZE);
+    return follow_pud_page(vma, addr, flags, entry_mask, p4d);
+}
+
+static struct page *follow_page(struct vm_area_struct *vma, unsigned long addr, unsigned int flags,
+                                unsigned long *entry_mask)
+{
+    pgd_t *pgd;
+
+    pgd = pgd_offset(vma->vm_mm, addr);
+    if (pgd_none(*pgd))
+        return follow_no_pte(vma, addr, flags, entry_mask, PGD_SIZE);
+    return follow_p4d_page(vma, addr, flags, entry_mask, pgd);
+}
+
+static int __get_phys_pages(struct vm_area_struct *vma, unsigned long addr, unsigned int flags,
                             struct page **pages, size_t nr_pgs)
 {
-    struct spinlock *lock;
-    pte_t *pte;
+    unsigned long entry_mask, end;
+    size_t followed_pages;
+    struct folio *folio;
     struct page *page;
+    size_t i = 0;
     int st;
 
-    for (size_t i = 0; i < nr_pgs; i++, addr += PAGE_SIZE)
+    addr &= -PAGE_SIZE;
+
+    while (i < nr_pgs)
     {
     retry:;
-        /* TODO: Walking this properly (and this logic being a callback) would be better */
-        pte = ptep_get_locked(region->vm_mm, addr, &lock);
-        if (!pte)
-            goto fault_in;
+        page = follow_page(vma, addr, flags, &entry_mask);
+        /* Given we know the entry mask (and thus size), calculate the number of pages we "followed"
+         * here.
+         * Knowing the entry mask, we calculate the next address as (addr + entry_mask + 1) &
+         * ~entry_mask.
+         * followed_pages is then the "number of pages" between addr and the end of the entry,
+         * clamped by the number of pages we're still looking for. */
+        end = (addr + entry_mask + 1) & ~entry_mask;
+        followed_pages = min((end - addr) >> PAGE_SHIFT, nr_pgs - i);
 
-        page = page_from_pte(pte, region, flags, lock);
         if (IS_ERR(page))
         {
             /* Ok, we're coredumping and found pages we were going to fault in as zero, or were
              * already zero. Skip these. */
             WARN_ON(!(flags & GPP_DUMP));
             WARN_ON(PTR_ERR(page) != -ENODATA);
-            pages[i] = NULL;
-            continue;
+            for (; followed_pages > 0; followed_pages--)
+                pages[i++] = NULL;
+            goto next;
         }
         else if (page == NULL)
             goto fault_in;
 
-        pages[i] = page;
+        if (followed_pages > 1)
+        {
+            /* Large folio, lets grab all the refs at a time. We already hold a single one, from
+             * follow_page. */
+            folio = page_folio(page);
+            folio_get_many(folio, followed_pages - 1);
+        }
+
+        for (; followed_pages > 0; followed_pages--)
+            pages[i++] = page++;
+    next:
+        addr = end;
         continue;
     fault_in:
-        st = gpp_try_to_fault_in(addr, region, flags);
+        st = gpp_try_to_fault_in(addr, vma, flags);
         /* TODO: Recovery path is funky and we're not cleaning up pages properly */
         if (!(st & GPP_ACCESS_OK))
             return st;
