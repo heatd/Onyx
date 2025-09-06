@@ -61,6 +61,7 @@ __BEGIN_CDECLS
 #define VM_PFNMAP        (1 << 11)
 #define VM_DONTDUMP      (1 << 12)
 #define VM_GROWSDOWN     (1 << 13)
+#define VM_HUGETLB       (1 << 14)
 
 /* Internal flags used by the mm code */
 #define __VM_CACHE_TYPE_REGULAR     0
@@ -97,6 +98,8 @@ struct vm_pf_context;
 struct vm_operations
 {
     int (*fault)(struct vm_pf_context *ctx);
+    bool (*may_split)(struct vm_area_struct *vma, unsigned long addr);
+    int (*fault_huge_pmd)(struct vm_pf_context *ctx);
 };
 
 #define VM_FAULT_MAJOR (1 << 0)
