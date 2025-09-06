@@ -1,6 +1,6 @@
 mm-y:= bootmem.o page.o pagealloc.o vm_object.o vm.o vmalloc.o reclaim.o anon.o \
        mincore.o page_lru.o swap.o rmap.o slab_cache_pool.o memory.o madvise.o \
-       page_frag.o mlock.o
+       page_frag.o mlock.o hugetlb.o
 mm-$(CONFIG_KUNIT)+= vm_tests.o
 
 ifeq ($(CONFIG_KASAN), y)
