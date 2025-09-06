@@ -1,5 +1,5 @@
 mm-y:= bootmem.o page.o pagealloc.o vm_object.o vm.o vmalloc.o reclaim.o anon.o \
-       mincore.o page_lru.o swap.o rmap.o slab_cache_pool.o madvise.o page_frag.o
+       mincore.o page_lru.o swap.o rmap.o slab_cache_pool.o madvise.o page_frag.o hugetlb.o
 mm-$(CONFIG_KUNIT)+= vm_tests.o
 mm-$(CONFIG_X86)+= memory.o
 mm-$(CONFIG_RISCV)+= memory.o
