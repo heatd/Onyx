@@ -258,6 +258,11 @@ static inline pmd_t pmd_mkpmd(u64 phys, pgprot_t prot)
     return __pmd(phys | pgprot_val(prot));
 }
 
+static inline pmd_t pmd_mkpmd_huge(u64 phys, pgprot_t prot)
+{
+    return __pmd(phys | pgprot_val(prot) | _PAGE_HUGE);
+}
+
 static inline pud_t pud_mkpud(u64 phys, pgprot_t prot)
 {
     return __pud(phys | pgprot_val(prot));
@@ -411,6 +416,11 @@ static inline pte_t pte_wrprotect(pte_t pte)
     return __pte(pte_val(pte) & ~_PAGE_WRITE);
 }
 
+static inline pmd_t pmd_wrprotect(pmd_t pmd)
+{
+    return __pmd(pmd_val(pmd) & ~_PAGE_WRITE);
+}
+
 #define X86_CACHING_BITS(index) ((((index) &0x3) << 3) | (((index >> 2) & 1) << 7))
 
 static inline pgprot_t calc_pgprot(u64 phys, u64 prot)
@@ -434,6 +444,11 @@ static inline pgprot_t calc_pgprot(u64 phys, u64 prot)
 static inline bool pte_protnone(pte_t pte)
 {
     return (pte_val(pte) & (_PAGE_PRESENT | _PAGE_PROTNONE)) == _PAGE_PROTNONE;
+}
+
+static inline bool pmd_protnone(pmd_t pmd)
+{
+    return (pmd_val(pmd) & (_PAGE_PRESENT | _PAGE_PROTNONE)) == _PAGE_PROTNONE;
 }
 
 #define ARCH_SWAP_NR_TYPES  16
