@@ -37,7 +37,7 @@
 #define KASAN_SHIFT  3
 #define KASAN_N_MASK ((1 << KASAN_SHIFT) - 1)
 
-bool kasan_is_init = false;
+bool kasan_is_init = true;
 
 #define ADDR_SPACE_SIZE (KADDR_SPACE_SIZE / 8)
 
@@ -195,6 +195,9 @@ static void kasan_dump_shadow(unsigned long addr)
 void kasan_fail(unsigned long addr, size_t size, bool write, unsigned char b)
 {
     /* Disable kasan so we can panic */
+    if (!kasan_is_init)
+        return;
+
     kasan_is_init = false;
 
     vterm_panic();
@@ -207,6 +210,7 @@ void kasan_fail(unsigned long addr, size_t size, bool write, unsigned char b)
             event = "use-after-free";
             thing_accessed = "Accessed zone marked KASAN_FREED";
             break;
+        case KASAN_LEFT_REDZONE:
         case KASAN_REDZONE:
             thing_accessed = "Accessed zone marked KASAN_REDZONE";
             [[fallthrough]];
@@ -291,8 +295,6 @@ void kasan_check_memory(unsigned long addr, size_t size, bool write)
             size -= to_set;
         }
     }
-
-    kasan_is_init = true;
 }
 
 #define KASAN_LOAD(size)                            \
