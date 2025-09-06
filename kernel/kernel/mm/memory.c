@@ -35,7 +35,7 @@ p4d_t *p4d_alloc(pgd_t *pgd, unsigned long addr, struct mm_address_space *mm)
     return (p4d_t *) __tovirt(p4d) + p4d_index(addr);
 }
 
-static p4d_t *p4d_get_or_alloc(pgd_t *pgd, unsigned long addr, struct mm_address_space *mm)
+p4d_t *p4d_get_or_alloc(pgd_t *pgd, unsigned long addr, struct mm_address_space *mm)
 {
     if (likely(!pgd_none(*pgd)))
         return p4d_offset(pgd, addr);
@@ -63,7 +63,7 @@ pud_t *pud_alloc(p4d_t *p4d, unsigned long addr, struct mm_address_space *mm)
     return (pud_t *) __tovirt(pud) + pud_index(addr);
 }
 
-static pud_t *pud_get_or_alloc(p4d_t *p4d, unsigned long addr, struct mm_address_space *mm)
+pud_t *pud_get_or_alloc(p4d_t *p4d, unsigned long addr, struct mm_address_space *mm)
 {
     if (likely(!p4d_none(*p4d)))
         return pud_offset(p4d, addr);
@@ -91,7 +91,7 @@ pmd_t *pmd_alloc(pud_t *pud, unsigned long addr, struct mm_address_space *mm)
     return (pmd_t *) __tovirt(pmd) + pmd_index(addr);
 }
 
-static pmd_t *pmd_get_or_alloc(pud_t *pud, unsigned long addr, struct mm_address_space *mm)
+pmd_t *pmd_get_or_alloc(pud_t *pud, unsigned long addr, struct mm_address_space *mm)
 {
     if (likely(!pud_none(*pud)))
         return pmd_offset(pud, addr);
@@ -120,7 +120,7 @@ pte_t *pte_alloc(pmd_t *pmd, unsigned long addr, struct mm_address_space *mm)
     return (pte_t *) __tovirt(pte) + pte_index(addr);
 }
 
-static pte_t *pte_get_or_alloc(pmd_t *pmd, unsigned long addr, struct mm_address_space *mm)
+pte_t *pte_get_or_alloc(pmd_t *pmd, unsigned long addr, struct mm_address_space *mm)
 {
     if (likely(!pmd_none(*pmd)))
         return pte_offset(pmd, addr);
@@ -547,6 +547,14 @@ static void tlbi_update_page_prots(struct tlbi_tracker *tlbi, unsigned long addr
     tlbi_remove_page(tlbi, addr, NULL);
 }
 
+static void tlbi_update_page_prots_huge_pmd(struct tlbi_tracker *tlbi, unsigned long addr,
+                                            pmd_t old, pmd_t new)
+{
+    /* TODO: We can take the spurious faults on permission upgrade, *if* the PFN is the same (if
+     * not, we risk exposing stale data to userspace). */
+    tlbi_remove_page(tlbi, addr, NULL);
+}
+
 static enum unmap_result pte_unmap_range(struct unmap_info *uinfo, pte_t *pte, unsigned long start,
                                          unsigned long end)
 {
@@ -662,6 +670,29 @@ static int pgd_free_p4d(struct unmap_info *uinfo, pgd_t *pgd, unsigned long addr
     return 1;
 }
 
+static void pmd_unmap_huge(struct unmap_info *uinfo, pmd_t *pmd, unsigned long start,
+                           unsigned long end)
+{
+    struct folio *folio = NULL;
+    pmd_t old = *pmd;
+
+    /* Hugepage splitting not yet supported */
+    CHECK((end & (PMD_SIZE - 1)) == 0);
+
+    if (!uinfo->kernel && (pmd_present(old) || pmd_protnone(old)))
+    {
+        folio = phys_to_folio(pmd_addr(old));
+        /* Ref the page, so it doesn't go away before the tlbi */
+        folio_get(folio);
+        folio_sub_mapcount(folio);
+    }
+
+    if (pmd_present(old) || pmd_protnone(old))
+        decrement_vm_stat(uinfo->mm, resident_set_size, PMD_SIZE);
+    set_pmd(pmd, __pmd(0));
+    tlbi_remove_page(uinfo->tlbi, start, folio_to_page(folio));
+}
+
 static enum unmap_result pmd_unmap_range(struct unmap_info *uinfo, pmd_t *pmd, unsigned long start,
                                          unsigned long end)
 {
@@ -676,8 +707,14 @@ static enum unmap_result pmd_unmap_range(struct unmap_info *uinfo, pmd_t *pmd, u
             clear++;
             continue;
         }
-        /* TODO: Huge page unmapping and splitting not supported yet... */
-        DCHECK(!pmd_huge(*pmd));
+
+        if (pmd_huge(*pmd))
+        {
+            pmd_unmap_huge(uinfo, pmd, start, next_start);
+            clear++;
+            continue;
+        }
+
         enum unmap_result res = pte_unmap_range(uinfo, pte_offset(pmd, start), start, next_start);
         if (uinfo->freepgtables)
         {
@@ -885,6 +922,24 @@ static void pte_protect_range(struct tlbi_tracker *tlbi, pte_t *pte, unsigned lo
     }
 }
 
+static void pmd_protect_huge(struct tlbi_tracker *tlbi, pmd_t *pmd, unsigned long start,
+                             unsigned long end, int new_prots)
+{
+    /* Hugepage splitting not yet supported */
+    CHECK((end & (PMD_SIZE - 1)) == 0);
+
+    /* Note: Preserve the A and D bits */
+    pmd_t old = *pmd;
+    pmd_t newpmd = pmd_mkpmd_huge(pmd_addr(old), calc_pgprot(pmd_addr(old), new_prots));
+    if (pmd_accessed(old))
+        pmd_val(newpmd) |= _PAGE_ACCESSED;
+    if (pmd_dirty(old))
+        pmd_val(old) |= _PAGE_DIRTY;
+    set_pmd(pmd, newpmd);
+
+    tlbi_update_page_prots_huge_pmd(tlbi, start, old, newpmd);
+}
+
 static void pmd_protect_range(struct tlbi_tracker *tlbi, pmd_t *pmd, unsigned long start,
                               unsigned long end, int new_prots)
 {
@@ -895,8 +950,12 @@ static void pmd_protect_range(struct tlbi_tracker *tlbi, pmd_t *pmd, unsigned lo
         if (pmd_none(*pmd))
             continue;
 
-        /* TODO: Huge page splitting not supported yet... */
-        DCHECK(!pmd_huge(*pmd));
+        if (pmd_huge(*pmd))
+        {
+            pmd_protect_huge(tlbi, pmd, start, next_start, new_prots);
+            continue;
+        }
+
         pte_protect_range(tlbi, pte_offset(pmd, start), start, next_start, new_prots);
     }
 }
@@ -1005,24 +1064,63 @@ static int pte_fork_range(struct tlbi_tracker *tlbi, pte_t *pte, pte_t *old_pte,
     return 0;
 }
 
+static int pmd_fork_huge(struct tlbi_tracker *tlbi, pmd_t *pmd, pmd_t *old_pmd, unsigned long start,
+                         struct mm_address_space *mm, struct vm_area_struct *old_vma)
+{
+    struct folio *folio = NULL;
+    pmd_t old = *old_pmd;
+
+    spin_lock(&mm->page_table_lock);
+
+    if (!vma_is_pfnmap(old_vma))
+    {
+        folio = phys_to_folio(pmd_addr(old));
+        folio_add_mapcount(folio);
+    }
+
+    if (!pmd_protnone(old) && vma_private(old_vma))
+    {
+        /* We must CoW MAP_PRIVATE */
+        set_pmd(old_pmd, pmd_wrprotect(old));
+        set_pmd(pmd, *old_pmd);
+        tlbi_update_page_prots_huge_pmd(tlbi, start, old, *pmd);
+    }
+    else
+    {
+        set_pmd(pmd, old);
+    }
+
+    increment_vm_stat(mm, resident_set_size, PMD_SIZE);
+    spin_unlock(&mm->page_table_lock);
+    return 0;
+}
+
 static int pmd_fork_range(struct tlbi_tracker *tlbi, pmd_t *pmd, pmd_t *old_pmd,
                           unsigned long start, unsigned long end, struct mm_address_space *mm,
                           struct vm_area_struct *old_vma)
 {
     unsigned long next_start;
+    int err;
+
     for (; start < end; pmd++, old_pmd++, start = next_start)
     {
         next_start = min(pmd_addr_end(start), end);
         if (pmd_none(*old_pmd))
             continue;
+
+        if (pmd_huge(*old_pmd))
+        {
+            err = pmd_fork_huge(tlbi, pmd, old_pmd, start, mm, old_vma);
+            if (err < 0)
+                return err;
+            continue;
+        }
+
         pte_t *pte = pte_get_or_alloc(pmd, start, mm);
         if (!pte)
             return -ENOMEM;
 
-        /* TODO: Huge page splitting not supported yet... */
-        DCHECK(!pmd_huge(*pmd));
-        int err =
-            pte_fork_range(tlbi, pte, pte_offset(old_pmd, start), start, next_start, mm, old_vma);
+        err = pte_fork_range(tlbi, pte, pte_offset(old_pmd, start), start, next_start, mm, old_vma);
         if (err < 0)
             return err;
     }
@@ -1118,8 +1216,8 @@ int mmu_fork_tables(struct vm_area_struct *old_vma, struct mm_address_space *mm)
     tlbi_tracker_init(&tlbi);
 
     /* Note: We can't take the page table spinlock here (hold time is too long, too many memory
-     * allocations may happen). We'll rely on holding the mm lock exclusively. Page table lifetime
-     * atm is a bit iffy, needs some solid rethinking. */
+     * allocations may happen). We'll rely on holding the mm lock exclusively. Page table
+     * lifetime atm is a bit iffy, needs some solid rethinking. */
     err = pgd_fork_range(&tlbi, pgd_offset(mm, start), pgd_offset(old_vma->vm_mm, start), start,
                          end, mm, old_vma);
 
@@ -1151,8 +1249,8 @@ int try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
     }
 
     DCHECK(!pte_special(oldpte));
-    /* Ref the page. This makes sure it _doesnt_ go away after the sub_mapcount. We need this so the
-     * page isn't freed before the tlbi. */
+    /* Ref the page. This makes sure it _doesnt_ go away after the sub_mapcount. We need this so
+     * the page isn't freed before the tlbi. */
     page_ref(page);
     page_sub_mapcount(page);
 
@@ -1245,15 +1343,15 @@ oom:
 
 static bool wp_may_reuse_old(struct page *page)
 {
-    /* Check if there are circumstances to use the old page as the new dirtied page. Basically, we
-     * want to check for refcount/mapcount while also being careful about the page going away at
-     * some point. Page tables are locked. */
+    /* Check if there are circumstances to use the old page as the new dirtied page. Basically,
+     * we want to check for refcount/mapcount while also being careful about the page going away
+     * at some point. Page tables are locked. */
     if (page->ref > 1U + page_test_swap(page))
         return false;
     if (page_mapcount(page) > 1)
         return false;
-    /* Try-lock it, and recheck these conditions. The swap tests for instance are racy without the
-     * lock. */
+    /* Try-lock it, and recheck these conditions. The swap tests for instance are racy without
+     * the lock. */
     if (!try_lock_page(page))
         return false;
     if (page->ref > 1U + page_test_swap(page))
@@ -1274,9 +1372,9 @@ static int do_reuse_wp(struct vm_pf_context *context, struct page *oldp, pte_t *
                        struct spinlock *lock)
 {
     set_pte(pte, pte_mkwrite(*pte));
-    /* We keep the same PFN. This is okay. We can get away with a core-local TLB invalidation. Other
-     * cores either re-fetch the correct entry from the TLB, or take a spurious fault. Either
-     * situation is faster than possibly IPI'ing or broadcasting a TLBI. */
+    /* We keep the same PFN. This is okay. We can get away with a core-local TLB invalidation.
+     * Other cores either re-fetch the correct entry from the TLB, or take a spurious fault.
+     * Either situation is faster than possibly IPI'ing or broadcasting a TLBI. */
     spin_unlock(lock);
     tlbi_upgrade_pte_prots(context->entry->vm_mm, context->vpage);
     return 0;
