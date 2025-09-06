@@ -22,6 +22,7 @@
 #include <onyx/file.h>
 #include <onyx/filemap.h>
 // #include <onyx/gen/trace_vm.h>
+#include <onyx/hugetlb.h>
 #include <onyx/log.h>
 #include <onyx/majorminor.h>
 #include <onyx/mm/kasan.h>
@@ -200,16 +201,44 @@ bool vm_insert_region(struct mm_address_space *as, struct vm_area_struct *region
 
 static unsigned long vm_get_base_address(uint64_t flags, uint32_t type);
 
-static int vm_alloc_address(struct vma_iterator *vmi, u64 flags, size_t size, int type)
-    REQUIRES(vmi->mm->vm_lock)
+int vm_find_free_area(struct vma_iterator *vmi, unsigned long min, size_t size, size_t alignment)
+{
+    size_t alloc_size = size;
+
+    if (alignment > PAGE_SIZE)
+    {
+        DCHECK((alignment & (PAGE_SIZE - 1)) == 0);
+        alloc_size = ALIGN_TO(size + 1, alignment);
+    }
+
+    int err = mas_empty_area(&vmi->mas, min, vmi->mm->mmap_end, alloc_size);
+    if (err != 0)
+        return -ENOMEM;
+
+    if (alignment > PAGE_SIZE)
+    {
+        unsigned long addr = ALIGN_TO(vmi->mas.index, alignment);
+        __mas_set_range(&vmi->mas, addr, addr + alloc_size - 1);
+    }
+
+    return 0;
+}
+
+static int vm_alloc_address(struct vma_iterator *vmi, u64 flags, size_t size, int type,
+                            struct file *file) REQUIRES(vmi->mm->vm_lock)
 {
     struct mm_address_space *mm = vmi->mm;
     unsigned long min = vm_get_base_address(flags, type);
+    int err;
 
     if (min < mm->start)
         min = mm->start;
-    if (mas_empty_area(&vmi->mas, min, mm->mmap_end, size) != 0)
-        return -ENOMEM;
+
+    err = (file && file->f_ino->i_fops->find_free_area)
+              ? file->f_ino->i_fops->find_free_area(vmi, min, size, file)
+              : vm_find_free_area(vmi, min, size, 0);
+    if (err < 0)
+        return err;
 
     unsigned long new_base = vmi->mas.index;
 
@@ -815,8 +844,13 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
     if (flags & MAP_GROWSDOWN)
         vm_prot |= VM_GROWSDOWN;
 
+    if (flags & MAP_HUGETLB)
+        vm_prot |= VM_HUGETLB;
     /* Sanitize the address and length */
-    const unsigned long aligned_len = pages << PAGE_SHIFT;
+    unsigned long aligned_len = pages << PAGE_SHIFT;
+
+    if (vm_prot & VM_HUGETLB)
+        aligned_len = ALIGN_TO(aligned_len, hugetlb_pagesize());
 
     rw_lock_write(&mm->vm_lock);
     if (aligned_len > arch_low_half_max)
@@ -845,7 +879,8 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
     }
     else
     {
-        if (vm_alloc_address(&vmi, VM_ADDRESS_USER | extra_flags, aligned_len, VM_TYPE_REGULAR) < 0)
+        if (vm_alloc_address(&vmi, VM_ADDRESS_USER | extra_flags, aligned_len, VM_TYPE_REGULAR,
+                             file) < 0)
             goto enomem;
         virt = vmi.index;
     }
@@ -860,7 +895,7 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
     /* vma_merge_around may touch around the vmi, reset the state */
     mas_set_range(&vmi.mas, vmi.index, vmi.end);
 
-    if (flags & MAP_ANONYMOUS)
+    if (!(flags & MAP_HUGETLB) && flags & MAP_ANONYMOUS)
         file = NULL;
 
     vma = vma_create(&vmi, vm_prot, file, off);
@@ -902,6 +937,10 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 
     if (is_file_mapping) /* This is a file-backed mapping */
     {
+        /* hugetlb file mappings are not supported yet :/ */
+        if (flags & MAP_HUGETLB)
+            return ERR_PTR(-EINVAL);
+
         file = get_file_description(fd);
         if (!file)
             return (void *) (unsigned long) -errno;
@@ -921,6 +960,12 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
             error = -EACCES;
             goto out_error;
         }
+    }
+    else if (flags & MAP_HUGETLB)
+    {
+        file = hugetlb_new_file(length);
+        if (!file)
+            return ERR_PTR(-ENOMEM);
     }
 
     ret = vm_mmap(addr, length, prot, flags, file, off);
@@ -1001,7 +1046,15 @@ static struct vm_area_struct *vm_split_region(struct mm_address_space *as,
 {
     DCHECK((addr & (PAGE_SIZE - 1)) == 0);
     size_t region_off = addr - vma->vm_start;
-    struct vm_area_struct *newr = vma_alloc();
+    struct vm_area_struct *newr;
+
+    if (vma->vm_ops && vma->vm_ops->may_split)
+    {
+        if (!vma->vm_ops->may_split(vma, addr))
+            return NULL;
+    }
+
+    newr = vma_alloc();
     if (!newr)
         return NULL;
 
@@ -2005,7 +2058,10 @@ int vma_setup_backing(struct vm_area_struct *region, size_t pages, bool is_file_
         vmo = region->vm_file->f_mapping;
         CHECK(vmo != NULL);
         vmo_ref(vmo);
-        region->vm_ops = &file_vmops;
+        if (region->vm_flags & VM_HUGETLB)
+            region->vm_ops = &hugetlb_vmops;
+        else
+            region->vm_ops = &file_vmops;
     }
     else
     {

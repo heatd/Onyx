@@ -773,6 +773,9 @@ struct mm_address_space *get_remote_mm(struct process *task);
 
 unsigned long vm_pick_stack_location(void);
 
+struct vma_iterator;
+int vm_find_free_area(struct vma_iterator *vmi, unsigned long min, size_t size, size_t alignment);
+
 __END_CDECLS
 
 #ifdef __cplusplus
