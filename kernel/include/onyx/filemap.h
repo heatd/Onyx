@@ -95,6 +95,7 @@ struct readpages_state
 struct page *readpages_next_page(struct readpages_state *state);
 
 void filemap_clear_dirty(struct page *page) REQUIRES(page);
+void filemap_unaccount_dirty(struct page *page, struct vm_object *obj);
 
 __END_CDECLS
 
