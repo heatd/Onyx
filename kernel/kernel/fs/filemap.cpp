@@ -540,6 +540,12 @@ void page_end_writeback(struct page *page) EXCLUDES(inode->i_pages->page_lock)
     dec_page_stat(page, NR_WRITEBACK);
 }
 
+void filemap_unaccount_dirty(struct page *page, struct vm_object *obj)
+{
+    if (page_test_swap(page) || !inode_no_dirty(obj->ino, I_DATADIRTY))
+        dec_page_stat(page, NR_DIRTY);
+}
+
 void filemap_clear_dirty(struct page *page) REQUIRES(page)
 {
     /* Clear the dirty flag for IO */
@@ -555,7 +561,7 @@ void filemap_clear_dirty(struct page *page) REQUIRES(page)
     /* Nothing to clear in PTEs if this is a swap page */
     if (!page_test_swap(page))
         vm_obj_clean_page(obj, page);
-    dec_page_stat(page, NR_DIRTY);
+    filemap_unaccount_dirty(page, obj);
 }
 
 static void filemap_wait_writeback(struct inode *inode, unsigned long start, unsigned long end)
