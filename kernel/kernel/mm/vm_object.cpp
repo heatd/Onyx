@@ -10,6 +10,7 @@
 #include <sys/mman.h>
 
 #include <onyx/file.h>
+#include <onyx/filemap.h>
 #include <onyx/ioctx.h>
 #include <onyx/mm/page_lru.h>
 #include <onyx/mm/vm_object.h>
@@ -288,11 +289,9 @@ static int vmo_purge_pages(unsigned long start, unsigned long end,
              * and free. */
             struct page *old_p = pagebatch[i];
             vmo->unmap_page(old_p->pageoff << PAGE_SHIFT);
-            if (unlikely(page_test_dirty(old_p)))
-            {
-                page_clear_dirty(old_p);
-                dec_page_stat(old_p, NR_DIRTY);
-            }
+            if (unlikely(page_test_clear_dirty(old_p)))
+                filemap_unaccount_dirty(old_p, vmo);
+
             unlock_page(old_p);
             /* Unref it twice, once for the vm_obj_get_pages, and another for the page cache
              * reference */
