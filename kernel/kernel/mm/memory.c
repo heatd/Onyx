@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 Pedro Falcato
+ * Copyright (c) 2024 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -16,27 +16,44 @@
 
 static p4d_t *__p4d_alloc(struct mm_address_space *mm)
 {
-    /* TODO: Deal with locking properly... */
-    struct page *page = alloc_page(GFP_ATOMIC);
+    gfp_t gfp = GFP_KERNEL;
+    struct page *page;
+
+    /* Note that for kernel mappings we do ATOMIC allocations, for various reasons, including that
+     * of vmalloc being called from atomic context. Such is life. */
+    if (mm == &kernel_address_space)
+        gfp = GFP_ATOMIC;
+    page = alloc_page(gfp);
     if (!page)
         return NULL;
-    increment_vm_stat(mm, page_tables_size, PAGE_SIZE);
     return page_to_phys(page);
 }
 
 p4d_t *p4d_alloc(pgd_t *pgd, unsigned long addr, struct mm_address_space *mm)
 {
-    DCHECK(pgd_none(*pgd));
     pgprotval_t perms = addr < VM_USER_ADDR_LIMIT ? USER_PGTBL : KERNEL_PGTBL;
     p4d_t *p4d = __p4d_alloc(mm);
     if (!p4d)
         return NULL;
+    spin_lock(&mm->page_table_lock);
+    /* Recheck under the lock - someone might've allocated the table while we were not looking. */
+    if (!pgd_none(*pgd))
+    {
+        free_page(phys_to_page((unsigned long) p4d));
+        p4d = p4d_offset(pgd, addr);
+        spin_unlock(&mm->page_table_lock);
+        return p4d;
+    }
+
     set_pgd(pgd, pgd_mkpgd((unsigned long) p4d, __pgprot(perms)));
+    increment_vm_stat(mm, page_tables_size, PAGE_SIZE);
+    spin_unlock(&mm->page_table_lock);
     return (p4d_t *) __tovirt(p4d) + p4d_index(addr);
 }
 
 p4d_t *p4d_get_or_alloc(pgd_t *pgd, unsigned long addr, struct mm_address_space *mm)
 {
+    DCHECK(!spin_lock_held(&mm->page_table_lock));
     if (likely(!pgd_none(*pgd)))
         return p4d_offset(pgd, addr);
     return p4d_alloc(pgd, addr, mm);
@@ -44,27 +61,44 @@ p4d_t *p4d_get_or_alloc(pgd_t *pgd, unsigned long addr, struct mm_address_space 
 
 static pud_t *__pud_alloc(struct mm_address_space *mm)
 {
-    /* TODO: Deal with locking properly... */
-    struct page *page = alloc_page(GFP_ATOMIC);
+    gfp_t gfp = GFP_KERNEL;
+    struct page *page;
+
+    /* Note that for kernel mappings we do ATOMIC allocations, for various reasons, including that
+     * of vmalloc being called from atomic context. Such is life. */
+    if (mm == &kernel_address_space)
+        gfp = GFP_ATOMIC;
+    page = alloc_page(gfp);
     if (!page)
         return NULL;
-    increment_vm_stat(mm, page_tables_size, PAGE_SIZE);
     return page_to_phys(page);
 }
 
 pud_t *pud_alloc(p4d_t *p4d, unsigned long addr, struct mm_address_space *mm)
 {
-    DCHECK(p4d_none(*p4d));
     pgprotval_t perms = addr < VM_USER_ADDR_LIMIT ? USER_PGTBL : KERNEL_PGTBL;
     pud_t *pud = __pud_alloc(mm);
     if (!pud)
         return NULL;
+    spin_lock(&mm->page_table_lock);
+    /* Recheck under the lock - someone might've allocated the table while we were not looking. */
+    if (!p4d_none(*p4d))
+    {
+        free_page(phys_to_page((unsigned long) pud));
+        pud = pud_offset(p4d, addr);
+        spin_unlock(&mm->page_table_lock);
+        return pud;
+    }
+
     set_p4d(p4d, p4d_mkp4d((unsigned long) pud, __pgprot(perms)));
+    increment_vm_stat(mm, page_tables_size, PAGE_SIZE);
+    spin_unlock(&mm->page_table_lock);
     return (pud_t *) __tovirt(pud) + pud_index(addr);
 }
 
 pud_t *pud_get_or_alloc(p4d_t *p4d, unsigned long addr, struct mm_address_space *mm)
 {
+    DCHECK(!spin_lock_held(&mm->page_table_lock));
     if (likely(!p4d_none(*p4d)))
         return pud_offset(p4d, addr);
     return pud_alloc(p4d, addr, mm);
@@ -72,27 +106,45 @@ pud_t *pud_get_or_alloc(p4d_t *p4d, unsigned long addr, struct mm_address_space 
 
 static pmd_t *__pmd_alloc(struct mm_address_space *mm)
 {
-    /* TODO: Deal with locking properly... */
-    struct page *page = alloc_page(GFP_ATOMIC);
+    gfp_t gfp = GFP_KERNEL;
+    struct page *page;
+
+    /* Note that for kernel mappings we do ATOMIC allocations, for various reasons, including that
+     * of vmalloc being called from atomic context. Such is life. */
+    if (mm == &kernel_address_space)
+        gfp = GFP_ATOMIC;
+    page = alloc_page(gfp);
     if (!page)
         return NULL;
-    increment_vm_stat(mm, page_tables_size, PAGE_SIZE);
     return page_to_phys(page);
 }
 
 pmd_t *pmd_alloc(pud_t *pud, unsigned long addr, struct mm_address_space *mm)
 {
-    DCHECK(pud_none(*pud));
     pgprotval_t perms = addr < VM_USER_ADDR_LIMIT ? USER_PGTBL : KERNEL_PGTBL;
     pmd_t *pmd = __pmd_alloc(mm);
     if (!pmd)
         return NULL;
+
+    spin_lock(&mm->page_table_lock);
+    /* Recheck under the lock - someone might've allocated the table while we were not looking. */
+    if (!pud_none(*pud))
+    {
+        free_page(phys_to_page((unsigned long) pmd));
+        pmd = pmd_offset(pud, addr);
+        spin_unlock(&mm->page_table_lock);
+        return pmd;
+    }
+
     set_pud(pud, pud_mkpud((unsigned long) pmd, __pgprot(perms)));
+    increment_vm_stat(mm, page_tables_size, PAGE_SIZE);
+    spin_unlock(&mm->page_table_lock);
     return (pmd_t *) __tovirt(pmd) + pmd_index(addr);
 }
 
 pmd_t *pmd_get_or_alloc(pud_t *pud, unsigned long addr, struct mm_address_space *mm)
 {
+    DCHECK(!spin_lock_held(&mm->page_table_lock));
     if (likely(!pud_none(*pud)))
         return pmd_offset(pud, addr);
     return pmd_alloc(pud, addr, mm);
@@ -100,28 +152,46 @@ pmd_t *pmd_get_or_alloc(pud_t *pud, unsigned long addr, struct mm_address_space 
 
 static pte_t *__pte_alloc(struct mm_address_space *mm)
 {
-    /* TODO: Deal with locking properly... */
-    struct page *page = alloc_page(GFP_ATOMIC);
+    gfp_t gfp = GFP_KERNEL;
+    struct page *page;
+
+    /* Note that for kernel mappings we do ATOMIC allocations, for various reasons, including that
+     * of vmalloc being called from atomic context. Such is life. */
+    if (mm == &kernel_address_space)
+        gfp = GFP_ATOMIC;
+    page = alloc_page(gfp);
     if (!page)
         return NULL;
-    increment_vm_stat(mm, page_tables_size, PAGE_SIZE);
-    inc_page_stat(page, NR_PTES);
     return page_to_phys(page);
 }
 
 pte_t *pte_alloc(pmd_t *pmd, unsigned long addr, struct mm_address_space *mm)
 {
-    DCHECK(pmd_none(*pmd));
     pgprotval_t perms = addr < VM_USER_ADDR_LIMIT ? USER_PGTBL : KERNEL_PGTBL;
     pte_t *pte = __pte_alloc(mm);
     if (!pte)
         return NULL;
+
+    spin_lock(&mm->page_table_lock);
+    /* Recheck under the lock - someone might've allocated the table while we were not looking. */
+    if (!pmd_none(*pmd))
+    {
+        free_page(phys_to_page((unsigned long) pte));
+        pte = pte_offset(pmd, addr);
+        spin_unlock(&mm->page_table_lock);
+        return pte;
+    }
+
     set_pmd(pmd, pmd_mkpmd((unsigned long) pte, __pgprot(perms)));
+    increment_vm_stat(mm, page_tables_size, PAGE_SIZE);
+    inc_page_stat(phys_to_page((unsigned long) pte), NR_PTES);
+    spin_unlock(&mm->page_table_lock);
     return (pte_t *) __tovirt(pte) + pte_index(addr);
 }
 
 pte_t *pte_get_or_alloc(pmd_t *pmd, unsigned long addr, struct mm_address_space *mm)
 {
+    DCHECK(!spin_lock_held(&mm->page_table_lock));
     if (likely(!pmd_none(*pmd)))
         return pte_offset(pmd, addr);
     return pte_alloc(pmd, addr, mm);
@@ -148,26 +218,25 @@ void *vm_map_page(struct mm_address_space *as, uint64_t virt, uint64_t phys, uin
     bool ispfnmap = vma_is_pfnmap(vma);
     bool special_mapping = phys == (u64) page_to_phys(vm_get_zero_page());
 
-    spin_lock(&as->page_table_lock);
-
     pgd = pgd_offset(as, virt);
 
     p4d = p4d_get_or_alloc(pgd, virt, as);
     if (unlikely(!p4d))
-        goto oom;
+        return NULL;
 
     pud = pud_get_or_alloc(p4d, virt, as);
     if (unlikely(!pud))
-        goto oom;
+        return NULL;
 
     pmd = pmd_get_or_alloc(pud, virt, as);
     if (unlikely(!pmd))
-        goto oom;
+        return NULL;
 
     pte = pte_get_or_alloc(pmd, virt, as);
     if (unlikely(!pte))
-        goto oom;
+        return NULL;
 
+    pte_lock(pte, as);
     pte_t oldpte = *pte;
     pgprot_t pgprot = calc_pgprot(phys, prot);
     set_pte(pte, pte_mkpte(phys, pgprot));
@@ -192,49 +261,19 @@ void *vm_map_page(struct mm_address_space *as, uint64_t virt, uint64_t phys, uin
         }
     }
 
-    spin_unlock(&as->page_table_lock);
+    pte_unlock(pte, as);
     return (void *) virt;
-oom:
-    spin_unlock(&as->page_table_lock);
-    return NULL;
-}
-
-static pte_t *pte_get_from_addr(struct mm_address_space *mm, unsigned long addr)
-{
-    pgd_t *pgd;
-    p4d_t *p4d;
-    pud_t *pud;
-    pmd_t *pmd;
-    pgd = pgd_offset(mm, addr);
-    if (pgd_none(*pgd))
-        return NULL;
-
-    p4d = p4d_offset(pgd, addr);
-    if (p4d_none(*p4d))
-        return NULL;
-
-    pud = pud_offset(p4d, addr);
-    if (pud_none(*pud))
-        return NULL;
-    DCHECK(!pud_huge(*pud));
-
-    pmd = pmd_offset(pud, addr);
-    if (pmd_none(*pmd))
-        return NULL;
-    DCHECK(!pmd_huge(*pmd));
-
-    return pte_offset(pmd, addr);
 }
 
 unsigned int mmu_get_clear_referenced(struct mm_address_space *mm, void *addr, struct page *page)
 {
     int ret = 0;
     pte_t *ptep;
-    spin_lock(&mm->page_table_lock);
+    struct spinlock *lock;
 
-    ptep = pte_get_from_addr(mm, (unsigned long) addr);
+    ptep = ptep_get_locked(mm, (unsigned long) addr, &lock);
     if (!ptep)
-        goto out;
+        return ret;
 
     pte_t old = *ptep;
     pte_t new_pte;
@@ -252,7 +291,7 @@ unsigned int mmu_get_clear_referenced(struct mm_address_space *mm, void *addr, s
      * want the A bit to be set again, but we can just wait for an unrelated TLB flush (e.g context
      * switch) to do the job for us. A TLB shootdown is too much overhead for this purpose. */
 out:
-    spin_unlock(&mm->page_table_lock);
+    spin_unlock(lock);
     return ret;
 }
 
@@ -560,6 +599,8 @@ static enum unmap_result pte_unmap_range(struct unmap_info *uinfo, pte_t *pte, u
 {
     unsigned long next_start;
     int clear = 0;
+
+    pte_lock(pte, uinfo->mm);
     for (; start < end; pte++, start = next_start, clear++)
     {
         next_start = min(pte_addr_end(start), end);
@@ -587,6 +628,8 @@ static enum unmap_result pte_unmap_range(struct unmap_info *uinfo, pte_t *pte, u
         set_pte(pte, __pte(0));
         tlbi_remove_page(uinfo->tlbi, start, page);
     }
+
+    pte_unlock(pte - 1, uinfo->mm);
 
     /* If we *know* the page table is clear, tell it to the caller so we skip expensive checks */
     if (clear == PTRS_PER_PTE)
@@ -670,14 +713,32 @@ static int pgd_free_p4d(struct unmap_info *uinfo, pgd_t *pgd, unsigned long addr
     return 1;
 }
 
-static void pmd_unmap_huge(struct unmap_info *uinfo, pmd_t *pmd, unsigned long start,
+static struct spinlock *pmd_lock_huge(struct mm_address_space *mm, pmd_t *pmd)
+{
+    struct spinlock *lock = pmd_lockptr(mm, pmd);
+
+    /* Because of possible races (particularly when THP gets introduced), we must recheck if the pmd
+     * is a huge page under the lock. If not, return NULL */
+    spin_lock(lock);
+    if (likely(pmd_huge(*pmd)))
+        return lock;
+    spin_unlock(lock);
+    return NULL;
+}
+
+static bool pmd_unmap_huge(struct unmap_info *uinfo, pmd_t *pmd, unsigned long start,
                            unsigned long end)
 {
     struct folio *folio = NULL;
     pmd_t old = *pmd;
+    struct spinlock *lock;
 
     /* Hugepage splitting not yet supported */
     CHECK((end & (PMD_SIZE - 1)) == 0);
+
+    lock = pmd_lock_huge(uinfo->mm, pmd);
+    if (!lock)
+        return false;
 
     if (!uinfo->kernel && (pmd_present(old) || pmd_protnone(old)))
     {
@@ -690,7 +751,10 @@ static void pmd_unmap_huge(struct unmap_info *uinfo, pmd_t *pmd, unsigned long s
     if (pmd_present(old) || pmd_protnone(old))
         decrement_vm_stat(uinfo->mm, resident_set_size, PMD_SIZE);
     set_pmd(pmd, __pmd(0));
+
+    spin_unlock(lock);
     tlbi_remove_page(uinfo->tlbi, start, folio_to_page(folio));
+    return true;
 }
 
 static enum unmap_result pmd_unmap_range(struct unmap_info *uinfo, pmd_t *pmd, unsigned long start,
@@ -820,10 +884,7 @@ int vma_unmap(struct mm_address_space *mm, void *addr, size_t pages, struct vm_a
     unmap_info.freepgtables = 1;
     unmap_info.tlbi = tlbi;
 
-    spin_lock(&mm->page_table_lock);
     pgd_unmap_range(&unmap_info, pgd_offset(mm, virt), virt, end);
-    spin_unlock(&mm->page_table_lock);
-
     /* Caller is responsible for calling tlbi_end_batch */
     return 0;
 }
@@ -842,9 +903,7 @@ int vm_mmu_unmap(struct mm_address_space *mm, void *addr, size_t pages, struct v
     unmap_info.tlbi = &tlbi;
     tlbi_tracker_init(&tlbi);
 
-    spin_lock(&mm->page_table_lock);
     pgd_unmap_range(&unmap_info, pgd_offset(mm, virt), virt, end);
-    spin_unlock(&mm->page_table_lock);
 
     if (tlbi_active(&tlbi))
         tlbi_end_batch(&tlbi);
@@ -864,9 +923,7 @@ int zap_page_range(unsigned long start, unsigned long end, struct vm_area_struct
     unmap_info.tlbi = &tlbi;
     tlbi_tracker_init(&tlbi);
 
-    spin_lock(&mm->page_table_lock);
     pgd_unmap_range(&unmap_info, pgd_offset(mm, start), start, end);
-    spin_unlock(&mm->page_table_lock);
 
     if (tlbi_active(&tlbi))
         tlbi_end_batch(&tlbi);
@@ -875,11 +932,16 @@ int zap_page_range(unsigned long start, unsigned long end, struct vm_area_struct
 
 bool paging_write_protect(void *addr, struct mm_address_space *mm)
 {
-    spin_lock(&mm->page_table_lock);
-    pte_t *pte = pte_get_from_addr(mm, (unsigned long) addr);
+    struct spinlock *lock;
+    pte_t *pte;
+
+    pte = ptep_get_locked(mm, (unsigned long) addr, &lock);
     if (pte)
+    {
         set_pte(pte, pte_wrprotect(*pte));
-    spin_unlock(&mm->page_table_lock);
+        spin_unlock(lock);
+    }
+
     return pte != NULL;
 }
 
@@ -898,11 +960,16 @@ static void pte_change_prot(pte_t *ptep, int vmflags)
 /* TODO: This is on the deprecated chopping block... */
 bool __paging_change_perms(struct mm_address_space *mm, void *addr, int prot)
 {
-    spin_lock(&mm->page_table_lock);
-    pte_t *pte = pte_get_from_addr(mm, (unsigned long) addr);
+    struct spinlock *lock;
+    pte_t *pte;
+
+    pte = ptep_get_locked(mm, (unsigned long) addr, &lock);
     if (pte)
+    {
         pte_change_prot(pte, prot);
-    spin_unlock(&mm->page_table_lock);
+        spin_unlock(lock);
+    }
+
     return pte != NULL;
 }
 
@@ -910,6 +977,8 @@ static void pte_protect_range(struct tlbi_tracker *tlbi, pte_t *pte, unsigned lo
                               unsigned long end, int new_prots)
 {
     unsigned long next_start;
+
+    pte_lock(pte, get_current_address_space());
     for (; start < end; pte++, start = next_start)
     {
         next_start = min(pte_addr_end(start), end);
@@ -920,24 +989,35 @@ static void pte_protect_range(struct tlbi_tracker *tlbi, pte_t *pte, unsigned lo
         pte_change_prot(pte, new_prots);
         tlbi_update_page_prots(tlbi, start, old, *pte);
     }
+
+    pte_unlock(pte - 1, get_current_address_space());
 }
 
-static void pmd_protect_huge(struct tlbi_tracker *tlbi, pmd_t *pmd, unsigned long start,
+static bool pmd_protect_huge(struct tlbi_tracker *tlbi, pmd_t *pmd, unsigned long start,
                              unsigned long end, int new_prots)
 {
+    pmd_t old, newpmd;
+    struct spinlock *lock;
     /* Hugepage splitting not yet supported */
     CHECK((end & (PMD_SIZE - 1)) == 0);
 
+    lock = pmd_lock_huge(get_current_address_space(), pmd);
+    if (!lock)
+        return false;
+
     /* Note: Preserve the A and D bits */
-    pmd_t old = *pmd;
-    pmd_t newpmd = pmd_mkpmd_huge(pmd_addr(old), calc_pgprot(pmd_addr(old), new_prots));
+    old = *pmd;
+    newpmd = pmd_mkpmd_huge(pmd_addr(old), calc_pgprot(pmd_addr(old), new_prots));
     if (pmd_accessed(old))
         pmd_val(newpmd) |= _PAGE_ACCESSED;
     if (pmd_dirty(old))
         pmd_val(old) |= _PAGE_DIRTY;
     set_pmd(pmd, newpmd);
 
+    spin_unlock(lock);
+
     tlbi_update_page_prots_huge_pmd(tlbi, start, old, newpmd);
+    return true;
 }
 
 static void pmd_protect_range(struct tlbi_tracker *tlbi, pmd_t *pmd, unsigned long start,
@@ -952,6 +1032,9 @@ static void pmd_protect_range(struct tlbi_tracker *tlbi, pmd_t *pmd, unsigned lo
 
         if (pmd_huge(*pmd))
         {
+            /* Note: no one can fault this in because we hold the write lock. So, _if_ we go down
+             * this, and we don't see a huge pmd with the lock held, then it means we don't need to
+             * recheck - it will be pmd_none() */
             pmd_protect_huge(tlbi, pmd, start, next_start, new_prots);
             continue;
         }
@@ -1012,9 +1095,7 @@ void vm_do_mmu_mprotect(struct mm_address_space *mm, void *address, size_t nr_pg
     struct tlbi_tracker tlbi;
     tlbi_tracker_init(&tlbi);
 
-    spin_lock(&mm->page_table_lock);
     pgd_protect_range(&tlbi, pgd_offset(mm, start), start, end, new_prots);
-    spin_unlock(&mm->page_table_lock);
 
     if (tlbi_active(&tlbi))
         tlbi_end_batch(&tlbi);
@@ -1232,12 +1313,15 @@ int try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
     struct mm_address_space *mm = vma->vm_mm;
     pte_t *pte, oldpte;
     struct tlbi_tracker tlbi;
+    struct spinlock *lock;
+
     tlbi_tracker_init(&tlbi);
 
-    spin_lock(&mm->page_table_lock);
+    pte = ptep_get_locked(vma->vm_mm, addr, &lock);
+    if (!pte)
+        return 0;
 
-    pte = pte_get_from_addr(vma->vm_mm, addr);
-    if (!pte || (!pte_present(*pte) && !pte_protnone(*pte)))
+    if (!pte_present(*pte) && !pte_protnone(*pte))
         goto out;
 
     oldpte = *pte;
@@ -1272,7 +1356,7 @@ int try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
     }
 
 out:
-    spin_unlock(&mm->page_table_lock);
+    spin_unlock(lock);
 
     if (tlbi_active(&tlbi))
         tlbi_end_batch(&tlbi);
@@ -1280,32 +1364,31 @@ out:
     return 0;
 }
 
-pte_t pte_get(struct mm_address_space *mm, unsigned long addr)
-{
-    spin_lock(&mm->page_table_lock);
-    /* pte_mknone? */
-    pte_t ret = __pte(0);
-    pte_t *pte = pte_get_from_addr(mm, addr);
-
-    if (pte)
-        ret = *pte;
-    spin_unlock(&mm->page_table_lock);
-    return ret;
-}
-
 pte_t *ptep_get_locked(struct mm_address_space *mm, unsigned long addr, struct spinlock **lock)
 {
-    spin_lock(&mm->page_table_lock);
-    /* pte_mknone? */
-    pte_t *pte = pte_get_from_addr(mm, addr);
-    if (!pte)
-    {
-        spin_unlock(&mm->page_table_lock);
-        return NULL;
-    }
+    pgd_t *pgd;
+    p4d_t *p4d;
+    pud_t *pud;
+    pmd_t *pmd;
 
-    *lock = &mm->page_table_lock;
-    return pte;
+    pgd = pgd_offset(mm, addr);
+    if (pgd_none(*pgd))
+        return NULL;
+
+    p4d = p4d_offset(pgd, addr);
+    if (p4d_none(*p4d))
+        return NULL;
+
+    pud = pud_offset(p4d, addr);
+    if (pud_none(*pud))
+        return NULL;
+    DCHECK(!pud_huge(*pud));
+
+    pmd = pmd_offset(pud, addr);
+    if (pmd_none(*pmd))
+        return NULL;
+    DCHECK(!pmd_huge(*pmd));
+    return pte_offset_lock(pmd, addr, mm, lock);
 }
 
 int pgtable_prealloc(struct mm_address_space *mm, unsigned long virt)
@@ -1315,30 +1398,25 @@ int pgtable_prealloc(struct mm_address_space *mm, unsigned long virt)
     pud_t *pud;
     pmd_t *pmd;
     pte_t *pte;
-    spin_lock(&mm->page_table_lock);
 
     pgd = pgd_offset(mm, virt);
 
     p4d = p4d_get_or_alloc(pgd, virt, mm);
     if (unlikely(!p4d))
-        goto oom;
+        return -ENOMEM;
 
     pud = pud_get_or_alloc(p4d, virt, mm);
     if (unlikely(!pud))
-        goto oom;
+        return -ENOMEM;
 
     pmd = pmd_get_or_alloc(pud, virt, mm);
     if (unlikely(!pmd))
-        goto oom;
+        return -ENOMEM;
 
     pte = pte_get_or_alloc(pmd, virt, mm);
     if (unlikely(!pte))
-        goto oom;
-    spin_unlock(&mm->page_table_lock);
+        return -ENOMEM;
     return 0;
-oom:
-    spin_unlock(&mm->page_table_lock);
-    return -ENOMEM;
 }
 
 static bool wp_may_reuse_old(struct page *page)

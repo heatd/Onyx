@@ -1391,13 +1391,10 @@ static bool vma_may_fault_pmd(struct vm_area_struct *vma)
 
 static int do_huge_pmd_fault(struct vm_pf_context *context, pmd_t *pmd)
 {
-    struct mm_address_space *mm;
     struct vm_area_struct *vma;
 
     vma = context->entry;
-    mm = vma->vm_mm;
-    context->oldpmd = *pmd;
-    spin_unlock(&mm->page_table_lock);
+    context->oldpmd = pmdp_get_lockless(pmd);
 
     context->pmd = pmd;
     if (WARN_ON_ONCE(!vma->vm_ops->fault_huge_pmd))
@@ -1429,7 +1426,6 @@ static int __vm_handle_pf(struct vm_area_struct *entry, struct fault_info *info)
     context.page = NULL;
     context.page_rwx = entry->vm_flags;
 
-    spin_lock(&mm->page_table_lock);
     pgd = pgd_offset(mm, context.vpage);
     p4d = p4d_get_or_alloc(pgd, context.vpage, mm);
     if (!p4d)
@@ -1450,8 +1446,7 @@ static int __vm_handle_pf(struct vm_area_struct *entry, struct fault_info *info)
     if (!ptep)
         goto pgtable_oom;
 
-    context.oldpte = *ptep;
-    spin_unlock(&mm->page_table_lock);
+    context.oldpte = ptep_get_lockless(ptep);
     context.mapping_info = get_mapping_info((void *) context.vpage);
 
     if (!pte_none(context.oldpte) && (!pte_present(context.oldpte) || pte_protnone(context.oldpte)))
@@ -1475,7 +1470,6 @@ static int __vm_handle_pf(struct vm_area_struct *entry, struct fault_info *info)
     CHECK(0);
     return 0;
 pgtable_oom:
-    spin_unlock(&mm->page_table_lock);
     return -ENOMEM;
 }
 

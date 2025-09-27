@@ -248,7 +248,6 @@ static inline void tlbi_tracker_init(struct tlbi_tracker *tlbi)
 void tlbi_end_batch(struct tlbi_tracker *tlbi);
 bool tlbi_active(struct tlbi_tracker *tlbi);
 
-pte_t pte_get(struct mm_address_space *mm, unsigned long addr);
 pte_t *ptep_get_locked(struct mm_address_space *mm, unsigned long addr, struct spinlock **lock);
 int pgtable_prealloc(struct mm_address_space *mm, unsigned long virt);
 int zap_page_range(unsigned long start, unsigned long end, struct vm_area_struct *vma);
@@ -261,6 +260,31 @@ pmd_t *pmd_get_or_alloc(pud_t *pud, unsigned long addr, struct mm_address_space 
 pte_t *pte_get_or_alloc(pmd_t *pmd, unsigned long addr, struct mm_address_space *mm);
 
 #define pmd_lockptr(mm, pmd) (&(mm)->page_table_lock)
+#define pte_lockptr(pte, mm) (&(mm)->page_table_lock)
+
+#define pte_lock(pte, mm)   (spin_lock(pte_lockptr(pte, mm)))
+#define pte_unlock(pte, mm) (spin_unlock(pte_lockptr(pte, mm)))
+
+static inline pte_t *pte_offset_lock(pmd_t *pmd, unsigned long addr, struct mm_address_space *mm,
+                                     struct spinlock **lock)
+{
+    pte_t *pte;
+
+    pte = pte_offset(pmd, addr);
+    *lock = pte_lockptr(pte, mm);
+    spin_lock(*lock);
+    return pte;
+}
+
+static inline pte_t ptep_get_lockless(pte_t *pte)
+{
+    return __pte(READ_ONCE(pte->pte));
+}
+
+static inline pmd_t pmdp_get_lockless(pmd_t *pmd)
+{
+    return __pmd(READ_ONCE(pmd->pmd));
+}
 
 __END_CDECLS
 
