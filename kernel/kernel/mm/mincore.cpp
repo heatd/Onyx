@@ -32,13 +32,9 @@ static long do_pagemap(struct mm_address_space *as, unsigned long start, unsigne
         if (vma->vm_start > end)
             break;
 
-        spin_lock(&as->page_table_lock);
-
         /* Note: This is bad and slow(er). Nonetheless, it does the job for now */
         for (; start < end; start += PAGE_SIZE)
             pagemap[pfns_processed++] = __get_mapping_info((void *) start, as);
-
-        spin_unlock(&as->page_table_lock);
 
         if (start == end)
             break;
