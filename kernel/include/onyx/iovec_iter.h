@@ -67,7 +67,7 @@ struct iovec_iter
 
     [[nodiscard]] bool empty()
     {
-        return nr_vecs == 0;
+        return bytes == 0;
     }
 
     [[nodiscard]] iovec curiovec() const
@@ -136,7 +136,7 @@ static inline size_t iovec_iter_bytes(struct iovec_iter *iter)
 
 static inline bool iovec_iter_empty(struct iovec_iter *iter)
 {
-    return iter->nr_vecs == 0;
+    return iter->bytes == 0;
 }
 
 __END_CDECLS
