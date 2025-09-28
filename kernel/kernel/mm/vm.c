@@ -132,12 +132,11 @@ static inline void vma_free(struct vm_area_struct *region)
 static void validate_mm_tree(struct mm_address_space *mm)
 {
     VMA_ITERATOR(vmi, mm, 0, -1UL);
-    void *entry_;
+    struct vm_area_struct *vma;
     size_t counting_vss = 0;
     size_t counting_sss = 0;
-    mas_for_each(&vmi.mas, entry_, -1UL)
+    mas_for_each(&vmi.mas, vma, -1UL)
     {
-        struct vm_area_struct *vma = (struct vm_area_struct *) entry_;
         if (vma->vm_start != vmi.mas.index || vma->vm_end != vmi.mas.last + 1)
         {
             pr_err("mm: vma bounds [%016lx, %016lx] do not match maple tree [%016lx, %016lx]\n",
@@ -284,29 +283,9 @@ void vm_late_init()
     assert(vm_zero_page != NULL);
 }
 
-void do_vm_unmap(struct mm_address_space *as, void *range, size_t pages)
-    REQUIRES_SHARED(as->vm_lock)
-{
-    struct vm_area_struct *entry = vm_find_region(as, range);
-    assert(entry != NULL);
-
-    vm_mmu_unmap(entry->vm_mm, range, pages, entry);
-}
-
-void __vm_unmap_range(struct mm_address_space *as, void *range, size_t pages)
-    REQUIRES_SHARED(as->vm_lock)
-{
-    do_vm_unmap(as, range, pages);
-}
-
-static inline bool inode_requires_wb(struct inode *i)
-{
-    return true;
-}
-
 bool vm_mapping_requires_wb(struct vm_area_struct *reg)
 {
-    return vma_shared(reg) && reg->vm_file && inode_requires_wb(reg->vm_file->f_ino);
+    return vma_shared(reg) && reg->vm_file;
 }
 
 bool vm_mapping_is_anon(struct vm_area_struct *reg)
@@ -384,8 +363,7 @@ struct vm_area_struct *vm_search(struct mm_address_space *mm, void *addr, size_t
     REQUIRES_SHARED(mm->vm_lock)
 {
     unsigned long index = (unsigned long) addr;
-    void *entry = mt_find(&mm->region_tree, &index, index + length - 1);
-    struct vm_area_struct *vma = (struct vm_area_struct *) entry;
+    struct vm_area_struct *vma = mt_find(&mm->region_tree, &index, index + length - 1);
     if (vma && vma->vm_start > (unsigned long) addr)
         return NULL;
     return vma;
@@ -472,13 +450,12 @@ static bool fork_vm_area_struct(struct vm_area_struct *region, struct mm_address
     return true;
 }
 
-static void addr_space_delete(struct vm_area_struct *region) NO_THREAD_SAFETY_ANALYSIS
+static void addr_space_delete(struct vm_area_struct *vma) NO_THREAD_SAFETY_ANALYSIS
 {
     // NO_THREAD_SAFETY_ANALYSIS = we can do this without holding the lock, as tear_down_addr_space
     // is called in fork paths.
-    do_vm_unmap(region->vm_mm, (void *) region->vm_start, vma_pages(region));
-
-    vma_destroy(region);
+    vm_mmu_unmap(vma->vm_mm, (void *) vma->vm_start, vma_pages(vma), vma);
+    vma_destroy(vma);
 }
 
 static void tear_down_addr_space(struct mm_address_space *addr_space)
@@ -488,13 +465,10 @@ static void tear_down_addr_space(struct mm_address_space *addr_space)
      * If we didn't we would leak some memory.
      */
     struct vm_area_struct *entry;
-    void *entry_;
     unsigned long index = 0;
-    mt_for_each (&addr_space->region_tree, entry_, index, -1UL)
-    {
-        entry = (struct vm_area_struct *) entry_;
+
+    mt_for_each (&addr_space->region_tree, entry, index, -1UL)
         addr_space_delete(entry);
-    }
 
     paging_free_page_tables(addr_space);
 }
@@ -508,6 +482,8 @@ static void tear_down_addr_space(struct mm_address_space *addr_space)
 int vm_fork_address_space(struct mm_address_space *addr_space) EXCLUDES(addr_space->vm_lock)
     EXCLUDES(get_current_address_space()->vm_lock)
 {
+    struct vm_area_struct *entry;
+    unsigned long index = 0;
     struct mm_address_space *current_mm = get_current_address_space();
     int err = 0;
     rw_lock_write(&current_mm->vm_lock);
@@ -525,12 +501,8 @@ int vm_fork_address_space(struct mm_address_space *addr_space) EXCLUDES(addr_spa
     addr_space->resident_set_size = 0;
     addr_space->virtual_memory_size = current_mm->virtual_memory_size;
 
-    struct vm_area_struct *entry;
-    void *entry_;
-    unsigned long index = 0;
-    mt_for_each (&current_mm->region_tree, entry_, index, -1UL)
+    mt_for_each (&current_mm->region_tree, entry, index, -1UL)
     {
-        entry = (struct vm_area_struct *) entry_;
         if (!fork_vm_area_struct(entry, addr_space))
         {
             tear_down_addr_space(addr_space);
