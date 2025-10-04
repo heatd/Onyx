@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2024 Pedro Falcato
+ * Copyright (c) 2017 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -24,11 +24,17 @@
 int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags, struct page **outp,
                       struct readahead_state *ra_state) NO_THREAD_SAFETY_ANALYSIS
 {
-    struct page *p = nullptr;
+    return filemap_find_folio(ino, pgoff, flags, (struct folio **) outp, ra_state);
+}
+
+int filemap_find_folio(struct inode *ino, size_t pgoff, unsigned int flags, struct folio **outp,
+                       struct readahead_state *ra_state) NO_THREAD_SAFETY_ANALYSIS
+{
+    struct folio *folio = nullptr;
     int st = 0;
     vmo_status_t vst = VMO_STATUS_OK;
 retry:
-    vst = vmo_get(ino->i_pages, pgoff << PAGE_SHIFT, 0, &p);
+    vst = vmo_get(ino->i_pages, pgoff << PAGE_SHIFT, 0, (struct page **) &folio);
     if (vst != VMO_STATUS_OK)
     {
         if (vst == VMO_STATUS_BUS_ERROR)
@@ -50,27 +56,28 @@ retry:
         }
 
         /* Let's allocate a new page */
-        p = alloc_page(PAGE_ALLOC_NO_ZERO | GFP_KERNEL);
-        if (!p)
+        folio = folio_alloc(0, PAGE_ALLOC_NO_ZERO | GFP_KERNEL);
+        if (!folio)
             return -ENOMEM;
-        p->owner = ino->i_pages;
-        p->pageoff = pgoff;
+        folio->owner = ino->i_pages;
+        folio->pageoff = pgoff;
         /* Add it in... */
-        struct page *p2 = vmo_add_page_safe(pgoff << PAGE_SHIFT, p, ino->i_pages);
+        struct page *p2 =
+            vmo_add_page_safe(pgoff << PAGE_SHIFT, folio_to_page(folio), ino->i_pages);
         if (!p2)
         {
-            page_unref(p);
+            folio_put(folio);
             return -ENOMEM;
         }
 
-        if (p == p2)
+        if (folio_to_page(folio) == p2)
         {
-            inc_page_stat(p, NR_FILE);
-            page_ref(p);
-            page_add_lru(p);
+            inc_folio_stat(folio, NR_FILE);
+            folio_get(folio);
+            page_add_lru(folio_to_page(folio));
         }
-
-        p = p2;
+        else
+            folio = page_folio(p2);
 
         /* Added! Just not up to date... */
     }
@@ -78,20 +85,20 @@ retry:
     {
         /* Activate the page if need be. Note that we do not want to activate pages we create, to
          * help avoid the activation of access-once pages. */
-        DCHECK(p != nullptr);
-        page_promote_referenced(p);
+        DCHECK(folio != nullptr);
+        page_promote_referenced(folio_to_page(folio));
     }
 
     if (!(flags & (FIND_PAGE_NO_READPAGE | FIND_PAGE_NO_RA)) && ra_state)
     {
         rw_lock_read(&ino->i_pages->truncate_lock);
         /* If we found PAGE_FLAG_READAHEAD, kick off more IO */
-        if (page_flag_set(p, PAGE_FLAG_READAHEAD))
+        if (folio_test_readahead(folio))
         {
             if (filemap_do_readahead_async(ino, ra_state, pgoff) != 1)
-                __atomic_and_fetch(&p->flags, ~PAGE_FLAG_READAHEAD, __ATOMIC_RELAXED);
+                folio_clear_readahead(folio);
         }
-        else if (!page_flag_set(p, PAGE_FLAG_UPTODATE))
+        else if (!folio_test_uptodate(folio))
         {
             /* Page is not up to date, kick off "synchronous" readahead. The code below will take
              * care of waiting for the IO, or kicking it off if required. */
@@ -105,24 +112,25 @@ retry:
     /* If the page is not up to date, read it in, but first lock the page. All pages under IO have
      * the lock held.
      */
-    if (!(flags & FIND_PAGE_NO_READPAGE) && !page_flag_set(p, PAGE_FLAG_UPTODATE))
+    if (!(flags & FIND_PAGE_NO_READPAGE) && !folio_test_uptodate(folio))
     {
         DCHECK(ino->i_pages->ops->readpage != nullptr);
         rw_lock_read(&ino->i_pages->truncate_lock);
 
-        lock_page(p);
-        if (p->owner != ino->i_pages)
+        folio_lock(folio);
+        if (folio->owner != ino->i_pages)
         {
-            unlock_page(p);
-            page_unref(p);
+            folio_unlock(folio);
+            folio_put(folio);
             rw_unlock_read(&ino->i_pages->truncate_lock);
             goto retry;
         }
 
-        if (!page_flag_set(p, PAGE_FLAG_UPTODATE))
+        if (!folio_test_uptodate(folio))
         {
             st = (flags & FIND_PAGE_FAULT ? FIND_PAGE_FAULT : 0);
-            ssize_t st2 = ino->i_pages->ops->readpage(p, pgoff << PAGE_SHIFT, ino);
+            ssize_t st2 =
+                ino->i_pages->ops->readpage(folio_to_page(folio), pgoff << PAGE_SHIFT, ino);
 
             /* In case of errors, propagate... */
             if (st2 < 0)
@@ -134,27 +142,27 @@ retry:
         if (flags & FIND_PAGE_LOCK)
             goto out;
 
-        unlock_page(p);
+        folio_unlock(folio);
     }
 
     if (flags & FIND_PAGE_LOCK)
     {
-        lock_page(p);
-        if (p->owner != ino->i_pages)
+        folio_lock(folio);
+        if (folio->owner != ino->i_pages)
         {
-            unlock_page(p);
-            page_unref(p);
+            folio_unlock(folio);
+            folio_put(folio);
             goto retry;
         }
     }
 
 out:
     if ((st & ~FIND_PAGE_FAULT) == 0)
-        *outp = p;
+        *outp = folio;
     else
     {
-        if (p)
-            page_unref(p);
+        if (folio)
+            folio_put(folio);
     }
 
     return st;
