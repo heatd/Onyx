@@ -1106,20 +1106,35 @@ static struct page_zone *page_to_zone(struct page *page)
     return main_node.pick_zone((unsigned long) page_to_phys(page));
 }
 
+static struct page_zone *folio_to_zone(struct folio *folio)
+{
+    return main_node.pick_zone((unsigned long) folio_to_phys(folio));
+}
+
+void inc_folio_stat(struct folio *folio, enum page_stat stat)
+{
+    struct page_zone *zone = folio_to_zone(folio);
+    sched_disable_preempt();
+    zone->pcpu[get_cpu_nr()].pagestats[stat] += folio_nr_pages(folio);
+    sched_enable_preempt();
+}
+
+void dec_folio_stat(struct folio *folio, enum page_stat stat)
+{
+    struct page_zone *zone = folio_to_zone(folio);
+    sched_disable_preempt();
+    zone->pcpu[get_cpu_nr()].pagestats[stat] -= folio_nr_pages(folio);
+    sched_enable_preempt();
+}
+
 void inc_page_stat(struct page *page, enum page_stat stat)
 {
-    struct page_zone *zone = page_to_zone(page);
-    sched_disable_preempt();
-    zone->pcpu[get_cpu_nr()].pagestats[stat]++;
-    sched_enable_preempt();
+    inc_folio_stat(page_folio(page), stat);
 }
 
 void dec_page_stat(struct page *page, enum page_stat stat)
 {
-    struct page_zone *zone = page_to_zone(page);
-    sched_disable_preempt();
-    zone->pcpu[get_cpu_nr()].pagestats[stat]--;
-    sched_enable_preempt();
+    dec_folio_stat(page_folio(page), stat);
 }
 
 void page_accumulate_stats(unsigned long pages[PAGE_STATS_MAX])
