@@ -432,6 +432,8 @@ __always_inline void page_clear_waiters(struct page *p)
     __atomic_fetch_and(&p->flags, ~PAGE_FLAG_WAITERS, __ATOMIC_RELEASE);
 }
 
+#define folio_to_page(folio) ((struct page *) (folio))
+
 void page_owner_owned(struct page *p);
 void page_owner_freed(struct page *p);
 void page_owner_locked(struct page *p);
@@ -466,6 +468,16 @@ __always_inline void unlock_page(struct page *p) RELEASE(p) NO_THREAD_SAFETY_ANA
     unsigned long flags = __atomic_and_fetch(&p->flags, ~PAGE_FLAG_LOCKED, __ATOMIC_RELEASE);
     if (unlikely(flags & PAGE_FLAG_WAITERS))
         page_wake_bit(p, PAGE_FLAG_LOCKED);
+}
+
+__always_inline void folio_lock(struct folio *folio) ACQUIRE(folio)
+{
+    lock_page(folio_to_page(folio));
+}
+
+__always_inline void folio_unlock(struct folio *folio) RELEASE(folio)
+{
+    unlock_page(folio_to_page(folio));
 }
 
 __always_inline bool page_test_set_flag(struct page *p, unsigned long flag)
@@ -732,6 +744,8 @@ enum page_stat
     PAGE_STATS_MAX,
 };
 
+void inc_folio_stat(struct folio *folio, enum page_stat stat);
+void dec_folio_stat(struct folio *folio, enum page_stat stat);
 void inc_page_stat(struct page *page, enum page_stat stat);
 void dec_page_stat(struct page *page, enum page_stat stat);
 
@@ -805,6 +819,7 @@ FOLIOFLAG_OPS(lru, LRU);
 FOLIOFLAG_OPS(uptodate, UPTODATE);
 FOLIOFLAG_OPS(dirty, DIRTY);
 FOLIOFLAG_OPS(head, HEAD);
+FOLIOFLAG_OPS(readahead, READAHEAD);
 
 struct vm_object *page_vmobj(struct page *page);
 unsigned long page_pgoff(struct page *page);
@@ -818,8 +833,6 @@ static inline void page_zero_range(struct page *page, unsigned int off, unsigned
 struct folio *folio_alloc(unsigned int order, unsigned long flags);
 
 #define folio_to_phys(folio) (page_to_phys((struct page *) (folio)))
-
-#define folio_to_page(folio) ((struct page *) (folio))
 
 static void __folio_reset_mapcount(struct folio *folio, unsigned int raw_value)
 {
