@@ -177,15 +177,16 @@ ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t off
 
     while (read != len)
     {
-        struct page *page = nullptr;
-        int st = filemap_find_page(file, offset >> PAGE_SHIFT, FIND_PAGE_ACTIVATE, &page, nullptr);
+        struct folio *folio = nullptr;
+        int st =
+            filemap_find_folio(file, offset >> PAGE_SHIFT, FIND_PAGE_ACTIVATE, &folio, nullptr);
 
         if (st < 0)
             return read ?: st;
-        void *buf = PAGE_TO_VIRT(page);
+        void *buf = FOLIO_TO_VIRT(folio);
 
-        auto cache_off = offset % PAGE_SIZE;
-        auto rest = PAGE_SIZE - cache_off;
+        auto cache_off = offset - folio_offset(folio);
+        auto rest = folio_size(folio) - cache_off;
 
         assert(rest > 0);
 
@@ -196,18 +197,18 @@ ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t off
             amount = file->i_size - offset;
             if (copy_to_user((char *) buffer + read, (char *) buf + cache_off, amount) < 0)
             {
-                page_unpin(page);
+                folio_put(folio);
                 return -EFAULT;
             }
 
-            page_unpin(page);
+            folio_put(folio);
             return read + amount;
         }
         else
         {
             if (copy_to_user((char *) buffer + read, (char *) buf + cache_off, amount) < 0)
             {
-                page_unpin(page);
+                folio_put(folio);
                 return -EFAULT;
             }
         }
@@ -215,7 +216,7 @@ ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t off
         offset += amount;
         read += amount;
 
-        page_unpin(page);
+        folio_put(folio);
     }
 
     return (ssize_t) read;
@@ -251,18 +252,18 @@ ssize_t filemap_read_iter(struct file *filp, size_t off, iovec_iter *iter, unsig
 
     while (!iter->empty())
     {
-        struct page *page = nullptr;
+        struct folio *folio = nullptr;
         if ((size_t) off >= size)
             break;
-        int st2 =
-            filemap_find_page(ino, off >> PAGE_SHIFT, FIND_PAGE_ACTIVATE, &page, &filp->f_ra_state);
+        int st2 = filemap_find_folio(ino, off >> PAGE_SHIFT, FIND_PAGE_ACTIVATE, &folio,
+                                     &filp->f_ra_state);
 
         if (st2 < 0)
             return st ?: st2;
-        void *buffer = PAGE_TO_VIRT(page);
+        void *buffer = FOLIO_TO_VIRT(folio);
 
-        auto cache_off = off % PAGE_SIZE;
-        auto rest = PAGE_SIZE - cache_off;
+        auto cache_off = off - folio_offset(folio);
+        auto rest = folio_size(folio) - cache_off;
 
         /* Do not read more than i_size */
         if (off + rest > size)
@@ -270,7 +271,7 @@ ssize_t filemap_read_iter(struct file *filp, size_t off, iovec_iter *iter, unsig
 
         /* copy_to_iter advances the iter automatically */
         ssize_t copied = copy_to_iter(iter, (const u8 *) buffer + cache_off, rest);
-        page_unpin(page);
+        folio_put(folio);
 
         if (copied <= 0)
             return st ?: copied;
@@ -468,24 +469,24 @@ ssize_t filemap_write_iter(struct file *filp, size_t off, iovec_iter *iter,
     while (!iter->empty())
     {
         int st2;
-        struct page *page;
+        struct folio *folio;
 
         st2 = (vm_obj->ops->write_begin ?: default_write_begin)(filp, vm_obj, off, iter->bytes,
-                                                                &page);
+                                                                (struct page **) &folio);
         if (st2 < 0)
             return st ?: st2;
 
-        void *buffer = PAGE_TO_VIRT(page);
-        unsigned int page_off = off - (page->pageoff << PAGE_SHIFT);
-        unsigned int len = min(iter->bytes, PAGE_SIZE - page_off);
+        void *buffer = FOLIO_TO_VIRT(folio);
+        unsigned int folio_off = off - folio_offset(folio);
+        unsigned int len = min(iter->bytes, folio_size(folio) - folio_off);
         /* copy_from_iter advances the iter automatically */
-        ssize_t copied = copy_from_iter(iter, (u8 *) buffer + page_off, len);
+        ssize_t copied = copy_from_iter(iter, (u8 *) buffer + folio_off, len);
 
         if (copied > 0)
-            filemap_mark_dirty(page, off >> PAGE_SHIFT);
+            filemap_mark_dirty(folio_to_page(folio), off >> PAGE_SHIFT);
 
-        st2 = (vm_obj->ops->write_end ?: default_write_end)(filp, vm_obj, off,
-                                                            copied > 0 ? copied : 0, len, page);
+        st2 = (vm_obj->ops->write_end ?: default_write_end)(
+            filp, vm_obj, off, copied > 0 ? copied : 0, len, folio_to_page(folio));
         if (copied <= 0)
             return st ?: copied;
         if (st2 < 0)
