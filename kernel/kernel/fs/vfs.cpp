@@ -794,6 +794,8 @@ void put_dentry_to_dirent(struct dirent *buf, dentry *dentry, const char *specia
 bool apply_sugid_permissions(file *f)
 {
     auto ino = f->f_ino;
+    bool changed = false;
+
     if (!(ino->i_mode & (S_ISGID | S_ISUID)))
         return false;
 
@@ -801,13 +803,15 @@ bool apply_sugid_permissions(file *f)
 
     if (ino->i_mode & S_ISUID)
     {
+        changed |= g.get()->euid != ino->i_uid;
         g.get()->euid = ino->i_uid;
     }
 
     if (ino->i_mode & S_ISGID)
     {
+        changed |= g.get()->egid != ino->i_gid;
         g.get()->egid = ino->i_gid;
     }
 
-    return true;
+    return changed;
 }
