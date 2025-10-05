@@ -170,6 +170,7 @@ std::string_view get_token_from_path(lookup_path &path, bool no_consume_if_last)
 static int dentry_follow_symlink(nameidata &data, dentry *symlink, unsigned int flags = 0)
 {
     struct inode *ino = symlink->d_inode;
+    struct path p = {symlink, data.cur.mount};
 
     if (!inode_can_access(ino, FILE_ACCESS_EXECUTE))
         return -EACCES;
@@ -181,7 +182,7 @@ static int dentry_follow_symlink(nameidata &data, dentry *symlink, unsigned int 
     if (++data.nloops == nameidata::max_loops)
         return -ELOOP;
 
-    auto target_str = readlink_vfs(symlink);
+    auto target_str = readlink_vfs(&p);
     if (IS_ERR_OR_NULL(target_str))
         return !target_str ? -errno : PTR_ERR(target_str);
 

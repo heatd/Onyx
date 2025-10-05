@@ -434,14 +434,16 @@ out:
     return err ? ERR_PTR(err) : mnt;
 }
 
-#define VALID_MOUNT_FLAGS (MS_RDONLY | MS_SILENT | MS_RELATIME | MS_REMOUNT)
+#define VALID_MOUNT_FLAGS \
+    (MS_RDONLY | MS_SILENT | MS_RELATIME | MS_REMOUNT | MS_BIND | MS_STRICTATIME | MS_NOATIME)
+
+/* These flags have the same bits internally as in the argument */
+#define SAME_FLAGS_MASK (MNT_STRICTATIME | MNT_NOATIME | MNT_NODIRATIME | MNT_READONLY)
 
 static unsigned long translate_mount_flags(unsigned long flags)
 {
-    unsigned long mflags = 0;
+    unsigned long mflags = flags & SAME_FLAGS_MASK;
 
-    if (flags & MS_RDONLY)
-        mflags |= MNT_READONLY;
     return mflags;
 }
 

@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-#include <sys/ioctl.h>
+#include <uapi/ioctl.h>
 
 #define BLKROSET   _IO(0x12, 93)
 #define BLKROGET   _IO(0x12, 94)

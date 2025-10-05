@@ -11,6 +11,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/mount.h>
 
 #include <onyx/buffer.h>
 #include <onyx/clock.h>
@@ -101,10 +102,48 @@ int inode_create_vmo(struct inode *ino)
     return 0;
 }
 
-void inode_update_atime(struct inode *ino)
+static bool inode_needs_atime(const struct path *path, time_t curr)
 {
-    ino->i_atime = clock_get_posix_time();
+    struct mount *mnt = path->mount;
+    struct inode *ino = path->dentry->d_inode;
+    struct superblock *sb = ino->i_sb;
+    unsigned int mnt_flags;
+
+    /* No mount? Skip */
+    if (unlikely(!mnt))
+        return false;
+
+    mnt_flags = READ_ONCE(mnt->mnt_flags);
+    WARN_ON_ONCE(sb == NULL);
+
+    /* If the mount is NOATIME, or NODIRATIME and we're a directory, bail. */
+    if (unlikely(mnt_flags & MNT_NOATIME || (mnt_flags & MNT_NODIRATIME && S_ISDIR(ino->i_mode))))
+        return false;
+
+    if (unlikely(mnt_flags & MNT_STRICTATIME))
+        return true;
+
+    /* For relatime, we update atime if the old one is older than mtime or ctime, or it's been a day
+     * since we last updated atime */
+    return (ino->i_atime <= ino->i_mtime || ino->i_atime <= ino->i_ctime ||
+            curr - ino->i_atime >= 86400);
+}
+
+void inode_update_atime(const struct path *path)
+{
+    time_t curr = clock_get_posix_time();
+    struct mount *mnt = path->mount;
+    struct inode *ino = path->dentry->d_inode;
+
+    if (curr == ino->i_atime || unlikely(!inode_needs_atime(path, curr)))
+        return;
+
+    if (mnt_get_write_access(mnt) < 0)
+        return;
+
+    ino->i_atime = curr;
     inode_mark_dirty(ino);
+    mnt_put_write(mnt);
 }
 
 void inode_update_ctime(struct inode *ino)
@@ -249,7 +288,7 @@ ssize_t read_iter_vfs(struct file *filp, size_t off, iovec_iter *iter, unsigned 
     if (st >= 0)
     {
         if (!(filp->f_flags & O_NOATIME))
-            inode_update_atime(ino);
+            inode_update_atime(&filp->f_path);
     }
 
     return st;
@@ -334,9 +373,10 @@ void close_vfs(struct inode *this_)
     inode_unref(this_);
 }
 
-char *readlink_vfs(struct dentry *dentry)
+char *readlink_vfs(const struct path *path)
 {
     struct inode *ino;
+    struct dentry *dentry = path->dentry;
 
     if (!dentry_is_symlink(dentry))
         return (char *) ERR_PTR(-EINVAL);
@@ -346,7 +386,7 @@ char *readlink_vfs(struct dentry *dentry)
     {
         char *p = ino->i_op->readlink(dentry);
         if (!IS_ERR_OR_NULL(p))
-            inode_update_atime(ino);
+            inode_update_atime(path);
         return p;
     }
 

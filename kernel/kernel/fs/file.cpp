@@ -1808,7 +1808,7 @@ ssize_t sys_readlinkat(int dirfd, const char *upathname, char *ubuf, size_t bufs
     if (st)
         goto out;
 
-    buf = readlink_vfs(path.dentry);
+    buf = readlink_vfs(&path);
     if (IS_ERR_OR_NULL(buf))
     {
         if (!buf)

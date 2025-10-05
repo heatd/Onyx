@@ -116,7 +116,7 @@ int fallocate_vfs(int mode, off_t offset, off_t len, struct file *file);
 
 int unlink_vfs(const char *path, int flags, int dirfd);
 
-char *readlink_vfs(struct dentry *dentry);
+char *readlink_vfs(const struct path *path);
 
 /* C does not support default args... */
 #ifdef __cplusplus
@@ -215,7 +215,7 @@ static inline bool inode_should_die(struct inode *ino)
 
 void inode_unlock_hashtable(struct superblock *sb, ino_t ino_nr);
 
-void inode_update_atime(struct inode *ino);
+void inode_update_atime(const struct path *path);
 void inode_update_ctime(struct inode *ino);
 void inode_update_mtime(struct inode *ino);
 
