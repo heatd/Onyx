@@ -1178,6 +1178,7 @@ int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
         return -errno;
     }
 
+    inode_update_atime(&fil->f_path);
     fil->f_seek = ret_buf.new_off;
 
     ret = ret_buf.read;
