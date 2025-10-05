@@ -1157,7 +1157,7 @@ ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
     return write_iter_vfs(f.get_file(), offset, &iter, 0);
 }
 
-unsigned int putdir(struct dirent *buf, struct dirent *ubuf, unsigned int count);
+int putdir(struct dirent *buf, struct dirent *ubuf, unsigned int count);
 
 int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
 {
@@ -1174,9 +1174,7 @@ int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
     struct getdents_ret ret_buf = {};
     ret = getdents_vfs(count, putdir, dirp, fil->f_seek, &ret_buf, fil);
     if (ret < 0)
-    {
-        return -errno;
-    }
+        return ret;
 
     inode_update_atime(&fil->f_path);
     fil->f_seek = ret_buf.new_off;

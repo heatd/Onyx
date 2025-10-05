@@ -462,18 +462,15 @@ off_t do_getdirent(struct dirent *buf, off_t off, struct file *file)
     return -ENOSYS;
 }
 
-unsigned int putdir(struct dirent *buf, struct dirent *ubuf, unsigned int count)
+int putdir(struct dirent *buf, struct dirent *ubuf, unsigned int count)
 {
     unsigned int reclen = buf->d_reclen;
 
     if (reclen > count)
-        return errno = EINVAL, -1;
+        return -EINVAL;
 
     if (copy_to_user(ubuf, buf, reclen) < 0)
-    {
-        errno = EFAULT;
-        return -1;
-    }
+        return -EFAULT;
 
     return reclen > count ? count : reclen;
 }
@@ -481,51 +478,40 @@ unsigned int putdir(struct dirent *buf, struct dirent *ubuf, unsigned int count)
 int getdents_vfs(unsigned int count, putdir_t putdir, struct dirent *dirp, off_t off,
                  struct getdents_ret *ret, struct file *f)
 {
-    if (!S_ISDIR(f->f_ino->i_mode))
-        return errno = ENOTDIR, -1;
-
-    if (!file_can_access(f, FILE_ACCESS_READ))
-        return errno = EACCES, -1;
-
-    // printk("Seek: %lu\n", off);
-    // printk("Count: %u\n", count);
     struct dirent buf;
     unsigned int pos = 0;
+
+    if (!S_ISDIR(f->f_ino->i_mode))
+        return -ENOTDIR;
+
+    if (!file_can_access(f, FILE_ACCESS_READ))
+        return -EACCES;
 
     while (pos < count)
     {
         off_t of = do_getdirent(&buf, off, f);
-#if 0
-		printk("of: %lu\n", of);
-		printk("Dirent: %s\n", buf.d_name);
-		printk("pos: %u\n", pos);
-		printk("count: %u\n", count);
-		printk("dirp %p\n", dirp);
-#endif
 
         if (of == 0)
         {
-            // printk("EOF\n");
             if (pos)
                 return pos;
             return 0;
         }
 
-        /* Error, return -1 with errno set */
         if (of < 0)
-            return errno = -of, -1;
+            return of;
 
         /* Align d_reclen to a size aligned to alignof(struct dirent) */
         buf.d_reclen = ALIGN_TO(buf.d_reclen, alignof(struct dirent));
 
         /* Put the dirent in the user-space buffer */
-        unsigned int written = putdir(&buf, dirp, count - pos);
+        int written = putdir(&buf, dirp, count - pos);
         /* Error, most likely out of buffer space */
-        if (written == (unsigned int) -1)
+        if (written < 0)
         {
             // printk("Buf: %p\n", dirp);
             if (!pos)
-                return -1;
+                return written;
             else
                 return pos;
         }

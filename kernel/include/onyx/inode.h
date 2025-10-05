@@ -34,7 +34,7 @@ typedef unsigned int (*__ioctl)(int request, void *argp, struct file *file);
 typedef struct inode *(*__creat)(struct dentry *dentry, int mode, struct dentry *dir);
 typedef int (*__stat)(struct stat *buf, const struct path *path);
 typedef struct inode *(*__symlink)(struct dentry *dentry, const char *linkpath, struct dentry *dir);
-typedef unsigned int (*putdir_t)(struct dirent *, struct dirent *ubuf, unsigned int count);
+typedef int (*putdir_t)(struct dirent *, struct dirent *ubuf, unsigned int count);
 
 struct writepages_info
 {
