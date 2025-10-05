@@ -778,7 +778,7 @@ static struct vm_area_struct *vma_create(struct vma_iterator *vmi, unsigned int 
                 goto unmap_vma;
             }
 
-            inode_update_atime(ino);
+            inode_update_atime(&file->f_path);
             goto out;
         }
     }

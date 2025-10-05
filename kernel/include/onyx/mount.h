@@ -15,9 +15,12 @@
 struct dentry;
 struct superblock;
 
-#define MNT_READONLY   (1U << 0)
-#define MNT_WRITE_HOLD (1U << 30)
-#define MNT_DOOMED     (1U << 31)
+#define MNT_READONLY    (1U << 0)
+#define MNT_STRICTATIME MS_STRICTATIME
+#define MNT_NOATIME     MS_NOATIME
+#define MNT_NODIRATIME  MS_NODIRATIME
+#define MNT_WRITE_HOLD  (1U << 30)
+#define MNT_DOOMED      (1U << 31)
 
 struct mount
 {
