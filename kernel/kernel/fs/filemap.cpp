@@ -289,36 +289,35 @@ ssize_t filemap_read_iter(struct file *filp, size_t off, iovec_iter *iter, unsig
 #define EXCLUDES(...)
 
 /**
- * @brief Marks a page dirty in the filemap
+ * @brief Marks a folio dirty in the filemap
  *
- * @param page Page to mark dirty
- * @param pgoff Page offset
- * @invariant page is locked
+ * @param folio Folio to mark dirty
+ * @invariant folio is locked
  */
-void filemap_mark_dirty(struct page *page, size_t pgoff) REQUIRES(page)
+void folio_mark_dirty(struct folio *folio) REQUIRES(folio)
 {
-    DCHECK(page_locked(page));
-    struct vm_object *object = page_vmobj(page);
+    DCHECK(folio_test_locked(folio));
+    struct vm_object *object = folio_vmobj(folio);
     struct inode *ino = object->ino;
 
     // if (ino->i_sb && ino->i_sb->s_flags & SB_FLAG_NODIRTY)
     //     return;
-    if (!page_test_set_flag(page, PAGE_FLAG_DIRTY))
+    if (!folio_test_set_dirty(folio))
         return; /* Already marked as dirty, not our problem! */
 
     if (ino)
-        trace_filemap_dirty_page(ino->i_inode, ino->i_dev, pgoff);
+        trace_filemap_dirty_page(ino->i_inode, ino->i_dev, folio->pageoff);
     /* Set the DIRTY mark, for writeback */
     {
         scoped_lock g{object->page_lock};
-        object->vm_pages.set_mark(pgoff, FILEMAP_MARK_DIRTY);
+        object->vm_pages.set_mark(folio->pageoff, FILEMAP_MARK_DIRTY);
     }
 
-    if (page_test_reclaim(page))
+    if (folio_test_reclaim(folio))
     {
         /* If we got a new dirty, this is probably not the best page to reclaim, even if we were/are
          * in the process. */
-        page_clear_reclaim(page);
+        folio_clear_reclaim(folio);
     }
 
     /* TODO: This is horribly leaky and horrible and awful but it stops NR_DIRTY from leaking on
@@ -326,10 +325,16 @@ void filemap_mark_dirty(struct page *page, size_t pgoff) REQUIRES(page)
      * needs the axe.
      */
     if (!ino || !inode_no_dirty(ino, I_DATADIRTY))
-        inc_page_stat(page, NR_DIRTY);
+        inc_folio_stat(folio, NR_DIRTY);
 
     if (ino)
         inode_mark_dirty(ino, I_DATADIRTY);
+}
+
+void filemap_mark_dirty(struct page *page, size_t pgoff) REQUIRES(page)
+{
+    DCHECK(page->pageoff == pgoff);
+    folio_mark_dirty(page_folio(page));
 }
 
 ssize_t file_write_cache_unlocked(void *buffer, size_t len, struct inode *ino, size_t offset)
@@ -483,7 +488,7 @@ ssize_t filemap_write_iter(struct file *filp, size_t off, iovec_iter *iter,
         ssize_t copied = copy_from_iter(iter, (u8 *) buffer + folio_off, len);
 
         if (copied > 0)
-            filemap_mark_dirty(folio_to_page(folio), off >> PAGE_SHIFT);
+            folio_mark_dirty(folio);
 
         st2 = (vm_obj->ops->write_end ?: default_write_end)(
             filp, vm_obj, off, copied > 0 ? copied : 0, len, folio_to_page(folio));
