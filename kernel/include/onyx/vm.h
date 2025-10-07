@@ -701,19 +701,6 @@ public:
 int get_phys_pages(void *addr, unsigned int flags, struct page **pages, size_t nr);
 
 /**
- * @brief Directly mprotect a page in the paging tables.
- * Called by core MM code and should not be used outside of it.
- * This function handles any edge cases like trying to re-apply write perms on
- * a write-protected page.
- *
- * @param as The target address space.
- * @param addr The virtual address of the page.
- * @param old_prots The old protection flags.
- * @param new_prots The new protection flags.
- */
-void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots, int new_prots);
-
-/**
  * @brief Loads the fallback paging tables.
  *
  */
