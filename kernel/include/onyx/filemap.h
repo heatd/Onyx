@@ -56,6 +56,9 @@ ssize_t filemap_write_iter(struct file *filp, size_t off, struct iovec_iter *ite
 int filemap_find_page(struct inode *ino, size_t pgoff, unsigned int flags, struct page **outp,
                       struct readahead_state *ra_state);
 
+int filemap_find_folio(struct inode *ino, size_t pgoff, unsigned int flags, struct folio **outp,
+                       struct readahead_state *ra_state);
+
 void page_start_writeback(struct page *page) REQUIRES(page);
 
 void page_end_writeback(struct page *page);
@@ -68,6 +71,14 @@ void page_end_writeback(struct page *page);
  * @invariant page is locked
  */
 void filemap_mark_dirty(struct page *page, size_t pgoff) REQUIRES(page);
+
+/**
+ * @brief Marks a folio dirty in the filemap
+ *
+ * @param folio Folio to mark dirty
+ * @invariant folio is locked
+ */
+void folio_mark_dirty(struct folio *folio) REQUIRES(folio);
 
 struct writepages_info;
 
