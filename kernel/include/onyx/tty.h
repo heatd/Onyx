@@ -24,6 +24,7 @@
 struct pid;
 #endif
 
+struct file;
 struct tty;
 struct file_ops;
 struct iovec_iter;
