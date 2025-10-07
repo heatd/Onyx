@@ -11,7 +11,7 @@
 #include <onyx/registers.h>
 #include <onyx/serial.h>
 
-extern "C" char arm64_exception_vector_table[];
+extern char arm64_exception_vector_table[];
 
 void arm64_setup_trap_handling()
 {
@@ -61,22 +61,22 @@ void panic_exception(struct registers *regs, unsigned long esr)
     panic(regs_format(regs, esr));
 }
 
-extern "C" void arm64_exception_sync(struct registers *regs)
+void arm64_exception_sync(struct registers *regs)
 {
     panic_exception(regs, mrs(REG_ESR));
 }
 
-extern "C" void arm64_exception_serror(struct registers *regs)
+void arm64_exception_serror(struct registers *regs)
 {
     panic_exception(regs, mrs(REG_ESR));
 }
 
-extern "C" void arm64_exception_irq(struct registers *regs)
+void arm64_exception_irq(struct registers *regs)
 {
     panic_exception(regs, 0);
 }
 
-extern "C" void arm64_exception_fiq(struct registers *regs)
+void arm64_exception_fiq(struct registers *regs)
 {
     panic_exception(regs, 0);
 }
