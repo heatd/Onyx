@@ -10,6 +10,7 @@
 #define _ONYX_FPU_H
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #include <onyx/compiler.h>
 
