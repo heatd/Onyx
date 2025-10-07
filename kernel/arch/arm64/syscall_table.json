@@ -127,7 +127,7 @@
         "return_type": "off_t"
     },
     {
-        "name": "exit",
+        "name": "exit_group",
         "nr": 8,
         "nr_args": 1,
         "args": [
@@ -136,19 +136,16 @@
                 "status"
             ]
         ],
-        "return_type": "void"
+        "return_type": "void",
+        "abi": "c"
     },
     {
         "name": "fork",
         "nr": 10,
-        "nr_args": 1,
-        "args": [
-            [
-                "syscall_frame *",
-                "ctx"
-            ]
-        ],
-        "return_type": "pid_t"
+        "nr_args": 0,
+        "args": [],
+        "return_type": "pid_t",
+        "abi": "c"
     },
     {
         "name": "mmap",
@@ -180,7 +177,8 @@
                 "offset"
             ]
         ],
-        "return_type": "void *"
+        "return_type": "void *",
+        "abi": "c"
     },
     {
         "name": "munmap",
@@ -196,7 +194,8 @@
                 "length"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "mprotect",
@@ -216,7 +215,8 @@
                 "prot"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "mount",
@@ -277,7 +277,8 @@
                 "addr"
             ]
         ],
-        "return_type": "uint64_t"
+        "return_type": "uint64_t",
+        "abi": "c"
     },
     {
         "name": "kill",
@@ -293,7 +294,8 @@
                 "sig"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "getppid",
@@ -324,7 +326,8 @@
                 "rusage"
             ]
         ],
-        "return_type": "pid_t"
+        "return_type": "pid_t",
+        "abi": "c"
     },
     {
         "name": "time",
@@ -608,7 +611,8 @@
                 "new_address"
             ]
         ],
-        "return_type": "void *"
+        "return_type": "void *",
+        "abi": "c"
     },
     {
         "name": "insmod",
@@ -811,7 +815,8 @@
                 "oldact"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "pipe",
@@ -835,7 +840,8 @@
                 "memstat"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "chdir",
@@ -956,7 +962,7 @@
         "return_type": "int"
     },
     {
-        "name": "exit_thread",
+        "name": "exit",
         "nr": 64,
         "nr_args": 1,
         "args": [
@@ -965,7 +971,8 @@
                 "value"
             ]
         ],
-        "return_type": "void"
+        "return_type": "void",
+        "abi": "c"
     },
     {
         "name": "sigprocmask",
@@ -989,7 +996,8 @@
                 "sigset_size"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "sigsuspend",
@@ -1001,14 +1009,16 @@
                 "set"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "pause",
         "nr": 67,
         "nr_args": 0,
         "args": [],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "futex",
@@ -1212,7 +1222,8 @@
                 "usage"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "ppoll",
@@ -1935,7 +1946,8 @@
                 "info"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "rt_tgsigqueueinfo",
@@ -1959,7 +1971,8 @@
                 "info"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "tkill",
@@ -1975,7 +1988,8 @@
                 "sig"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "tgkill",
@@ -1995,7 +2009,8 @@
                 "sig"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "rt_sigpending",
@@ -2011,7 +2026,8 @@
                 "sigsetlen"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "rt_sigtimedwait",
@@ -2035,7 +2051,8 @@
                 "sigsetlen"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "setsockopt",
@@ -2136,7 +2153,7 @@
     {
         "name": "sigaltstack",
         "nr": 123,
-        "nr_args": 3,
+        "nr_args": 2,
         "args": [
             [
                 "const stack_t *",
@@ -2145,13 +2162,10 @@
             [
                 "stack_t *",
                 "old_stack"
-            ],
-            [
-                "const struct syscall_frame *",
-                "frame"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "setitimer",
@@ -2303,7 +2317,8 @@
                 "pgid"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "getpgid",
@@ -2315,7 +2330,8 @@
                 "pid"
             ]
         ],
-        "return_type": "pid_t"
+        "return_type": "pid_t",
+        "abi": "c"
     },
     {
         "name": "dup3",
@@ -2514,7 +2530,8 @@
         "nr": 144,
         "nr_args": 0,
         "args": [],
-        "return_type": "pid_t"
+        "return_type": "pid_t",
+        "abi": "c"
     },
     {
         "name": "getsid",
@@ -2526,7 +2543,8 @@
                 "pid"
             ]
         ],
-        "return_type": "pid_t"
+        "return_type": "pid_t",
+        "abi": "c"
     },
     {
         "name": "msync",
@@ -2546,7 +2564,8 @@
                 "flags"
             ]
         ],
-        "return_type": "int"
+        "return_type": "int",
+        "abi": "c"
     },
     {
         "name": "statfs",
@@ -2588,6 +2607,30 @@
             [
                 "struct sysinfo *",
                 "info"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "vfork",
+        "nr": 150,
+        "nr_args": 0,
+        "args": [],
+        "return_type": "pid_t",
+        "abi": "c"
+    },
+    {
+        "name": "pipe2",
+        "nr": 151,
+        "nr_args": 2,
+        "args": [
+            [
+                "int *",
+                "pipefds"
+            ],
+            [
+                "int",
+                "flags"
             ]
         ],
         "return_type": "int"
@@ -2635,5 +2678,343 @@
             ]
         ],
         "return_type": "int"
+    },
+    {
+        "name": "chroot",
+        "nr": 154,
+        "nr_args": 1,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "flock",
+        "nr": 155,
+        "nr_args": 2,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "int",
+                "op"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "umount2",
+        "nr": 156,
+        "nr_args": 2,
+        "args": [
+            [
+                "const char *",
+                "target"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "swapon",
+        "nr": 157,
+        "nr_args": 2,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "swapoff",
+        "nr": 158,
+        "nr_args": 1,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "fdatasync",
+        "nr": 159,
+        "nr_args": 1,
+        "args": [
+            [
+                "int",
+                "fd"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "madvise",
+        "nr": 160,
+        "nr_args": 3,
+        "args": [
+            [
+                "void *",
+                "addr"
+            ],
+            [
+                "size_t",
+                "length"
+            ],
+            [
+                "int",
+                "advice"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "sched_setaffinity",
+        "nr": 161,
+        "nr_args": 3,
+        "args": [
+            [
+                "pid_t",
+                "pid"
+            ],
+            [
+                "size_t",
+                "cpusetsize"
+            ],
+            [
+                "const void *",
+                "cpumask"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "sched_getaffinity",
+        "nr": 162,
+        "nr_args": 3,
+        "args": [
+            [
+                "pid_t",
+                "pid"
+            ],
+            [
+                "size_t",
+                "cpusetsize"
+            ],
+            [
+                "void *",
+                "cpumask"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "clock_settime",
+        "nr": 163,
+        "nr_args": 2,
+        "args": [
+            [
+                "clockid_t",
+                "clk_id"
+            ],
+            [
+                "struct timespec *",
+                "tp"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "clock_getres",
+        "nr": 164,
+        "nr_args": 2,
+        "args": [
+            [
+                "clockid_t",
+                "clk_id"
+            ],
+            [
+                "struct timespec *",
+                "tp"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "newclone",
+        "nr": 165,
+        "nr_args": 5,
+        "args": [
+            [
+                "unsigned long",
+                "clone_flags"
+            ],
+            [
+                "unsigned long",
+                "newsp"
+            ],
+            [
+                "int *",
+                "parent_tidptr"
+            ],
+            [
+                "unsigned long",
+                "tls"
+            ],
+            [
+                "int *",
+                "child_tidptr"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "getresuid",
+        "nr": 166,
+        "nr_args": 3,
+        "args": [
+            [
+                "uid_t *",
+                "ruid"
+            ],
+            [
+                "uid_t *",
+                "euid"
+            ],
+            [
+                "uid_t *",
+                "suid"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "getresgid",
+        "nr": 167,
+        "nr_args": 3,
+        "args": [
+            [
+                "gid_t *",
+                "rgid"
+            ],
+            [
+                "gid_t *",
+                "egid"
+            ],
+            [
+                "gid_t *",
+                "sgid"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "setresuid",
+        "nr": 168,
+        "nr_args": 3,
+        "args": [
+            [
+                "uid_t",
+                "ruid"
+            ],
+            [
+                "uid_t",
+                "euid"
+            ],
+            [
+                "uid_t",
+                "suid"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "setresgid",
+        "nr": 169,
+        "nr_args": 3,
+        "args": [
+            [
+                "gid_t",
+                "rgid"
+            ],
+            [
+                "gid_t",
+                "egid"
+            ],
+            [
+                "gid_t",
+                "sgid"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "setreuid",
+        "nr": 170,
+        "nr_args": 2,
+        "args": [
+            [
+                "uid_t",
+                "ruid"
+            ],
+            [
+                "uid_t",
+                "euid"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "setregid",
+        "nr": 171,
+        "nr_args": 2,
+        "args": [
+            [
+                "gid_t",
+                "rgid"
+            ],
+            [
+                "gid_t",
+                "egid"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "geteuid",
+        "nr": 172,
+        "nr_args": 0,
+        "args": [],
+        "return_type": "uid_t"
+    },
+    {
+        "name": "getegid",
+        "nr": 173,
+        "nr_args": 0,
+        "args": [],
+        "return_type": "gid_t"
     }
 ]
