@@ -82,8 +82,8 @@ entry:
     wfi
     b .wait
 
+.section .bss
 .balign 16
-
 stack_bottom:
 .skip 4096
 stack_top:
