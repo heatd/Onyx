@@ -14,6 +14,8 @@
 #include <onyx/tty.h>
 #include <onyx/wait_queue.h>
 
+#ifdef __cplusplus
+
 class serial_port
 {
 private:
@@ -83,7 +85,11 @@ public:
     virtual ssize_t write_serial(const void *buffer, size_t size) = 0;
 };
 
+#endif
+
+__BEGIN_CDECLS
 void platform_serial_init(void);
 void platform_serial_write(const char *s, size_t size);
+__END_CDECLS
 
 #endif
