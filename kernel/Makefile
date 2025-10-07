@@ -26,7 +26,7 @@ KERNEL_TAGS?=
 CFLAGS:=$(CFLAGS) -MMD -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong \
 -Wno-unused-parameter -Wno-unused-function \
 -Werror -Wno-error=frame-address -Wno-address-of-packed-member \
--Wno-error=invalid-offsetof -fno-sanitize=pointer-overflow -fvisibility=protected \
+-Wno-error=invalid-offsetof -fno-sanitize=pointer-overflow \
 -Wno-missing-field-initializers -Wstrict-aliasing -fno-unwind-tables -fno-asynchronous-unwind-tables \
 -Wframe-larger-than=1280 -Wno-error=frame-larger-than=
 
