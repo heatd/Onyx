@@ -48,7 +48,7 @@ bool platform_page_is_used(void *page)
     return false;
 }
 
-void arch_vm_init()
+extern "C" void arch_vm_init()
 {
 }
 
@@ -133,7 +133,9 @@ int arch_transform_into_user_thread(thread *thread)
 
 } // namespace native
 
-thread *process_fork_thread(thread_t *src, struct process *dest, struct syscall_frame *ctx)
+extern "C" struct thread *process_fork_thread(thread_t *src, struct process *dest,
+                                              unsigned int flags, unsigned long stack,
+                                              unsigned long tls)
 {
     UNIMPLEMENTED;
 }
