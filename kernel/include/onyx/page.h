@@ -820,8 +820,11 @@ FOLIOFLAG_OPS(uptodate, UPTODATE);
 FOLIOFLAG_OPS(dirty, DIRTY);
 FOLIOFLAG_OPS(head, HEAD);
 FOLIOFLAG_OPS(readahead, READAHEAD);
+FOLIOFLAG_OPS(locked, LOCKED);
+FOLIOFLAG_OPS(anon, ANON);
 
 struct vm_object *page_vmobj(struct page *page);
+struct vm_object *folio_vmobj(struct folio *folio);
 unsigned long page_pgoff(struct page *page);
 
 static inline void page_zero_range(struct page *page, unsigned int off, unsigned int len)
@@ -856,6 +859,16 @@ static inline unsigned long folio_nr_pages(struct folio *folio)
     return 1UL << folio_order(folio);
 }
 
+static inline unsigned long folio_size(struct folio *folio)
+{
+    return folio_nr_pages(folio) << PAGE_SHIFT;
+}
+
+static inline unsigned long folio_offset(struct folio *folio)
+{
+    return folio->pageoff << PAGE_SHIFT;
+}
+
 #define page_order(page) (folio_order((struct folio *) (page)))
 
 static inline struct folio *page_folio(struct page *page)
@@ -887,6 +900,8 @@ static inline void folio_get_many(struct folio *folio, unsigned int refs)
 {
     page_ref_many(folio_to_page(folio), refs);
 }
+
+#define FOLIO_TO_VIRT(folio) ((void *) ((unsigned long) folio_to_phys(folio) + PHYS_BASE))
 
 __END_CDECLS
 

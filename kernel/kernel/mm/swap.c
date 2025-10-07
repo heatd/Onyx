@@ -651,17 +651,22 @@ int swap_add(struct page *page)
     return 0;
 }
 
-struct vm_object *page_vmobj(struct page *page)
+struct vm_object *folio_vmobj(struct folio *folio)
 {
-    struct vm_object *obj = page->owner;
-    if (page_test_swap(page))
+    struct vm_object *obj = folio->owner;
+    if (folio_test_swap(folio))
     {
-        obj = swap_spaces[SWP_TYPE(swpval_to_swp_entry(page->priv))];
+        obj = swap_spaces[SWP_TYPE(swpval_to_swp_entry(folio->priv))];
         WARN_ON(!obj);
     }
-    else if (page_flag_set(page, PAGE_FLAG_ANON))
+    else if (folio_test_anon(folio))
         obj = NULL;
     return obj;
+}
+
+struct vm_object *page_vmobj(struct page *page)
+{
+    return folio_vmobj(page_folio(page));
 }
 
 unsigned long page_pgoff(struct page *page)
