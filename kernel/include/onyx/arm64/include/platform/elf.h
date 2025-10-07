@@ -10,6 +10,8 @@
 
 #include <onyx/elf.h>
 
+#include <uapi/user.h>
+
 #define EM_CURRENT EM_AARCH64
 
 static inline int arch_elf_do_rela(unsigned long addr, const Elf64_Rela *rela, unsigned long sym,
@@ -17,5 +19,9 @@ static inline int arch_elf_do_rela(unsigned long addr, const Elf64_Rela *rela, u
 {
     return -1;
 }
+
+__BEGIN_CDECLS
+void core_fill_regs(elf_gregset_t *set, struct process *thread);
+__END_CDECLS
 
 #endif
