@@ -13,4 +13,10 @@ config RTC_GOLDFISH
     help
         RTC support for Goldfish, which is common hardware for virtual machines.
 
+config RTC_PL031
+    bool
+    prompt "PL031 RTC support"
+    depends on DEVICE_TREE
+    help
+        PL031 RTC support, which is commonly found on smaller boards.
 endmenu
