@@ -8,11 +8,11 @@
 #ifndef _ONYX_REGISTERS_H
 #define _ONYX_REGISTERS_H
 
+#include <stdbool.h>
+
 #ifdef __x86_64__
 
 #ifndef __ASSEMBLER__
-
-#include <stdbool.h>
 
 #include <onyx/x86/segments.h>
 
@@ -75,8 +75,6 @@ static inline bool in_kernel_space_regs(struct registers *regs)
 #define REGISTER_OFF_SS           176
 
 #elif defined(__riscv)
-
-#include <stdbool.h>
 
 #include <onyx/riscv/intrinsics.h>
 
