@@ -9,6 +9,7 @@
 #include <stdio.h>
 
 #include <onyx/bus_type.h>
+#include <onyx/cmdline.h>
 #include <onyx/device_tree.h>
 #include <onyx/page.h>
 #include <onyx/panic.h>
@@ -259,6 +260,16 @@ void figure_out_initrd_from_chosen(int offset)
 
     set_initrd_address((void *) start, end - start);
 }
+
+void figure_out_cmdline_from_chosen(int offset)
+{
+    int len;
+
+    const char *startp = (const char *) fdt_getprop(fdt_, offset, "bootargs", &len);
+    if (startp)
+        set_kernel_cmdline(startp);
+}
+
 /**
  * @brief Walk the device tree and look for interesting things
  *
@@ -325,6 +336,7 @@ void early_walk()
         else if (!strncmp(name, "chosen", strlen("chosen")))
         {
             figure_out_initrd_from_chosen(offset);
+            figure_out_cmdline_from_chosen(offset);
         }
     }
 }
