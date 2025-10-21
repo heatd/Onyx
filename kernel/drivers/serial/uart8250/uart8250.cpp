@@ -170,7 +170,7 @@ int uart8250_port::write_console(const char *buf, size_t len, unsigned int flags
 {
     if (flags & (CONSOLE_WRITE_ATOMIC | CONSOLE_WRITE_PANIC))
     {
-        if (!(flags & CONSOLE_WRITE_PANIC) && !spin_try_lock(&lock_))
+        if (!(flags & CONSOLE_WRITE_PANIC) && spin_try_lock(&lock_))
             return -EAGAIN;
     }
     else
