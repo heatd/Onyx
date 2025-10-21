@@ -46,7 +46,8 @@ static const unsigned int arm64_max_paging_levels = 5;
 static inline void __native_tlb_invalidate_page(void *addr)
 {
     // TODO: ASIDs
-    __asm__ __volatile__("tlbi vaae1is, %0" ::"r"(addr));
+    __asm__ __volatile__("tlbi vaae1is, %0" ::"r"((unsigned long) addr >> PAGE_SHIFT));
+    dsb();
 }
 
 static bool pte_empty(uint64_t pte)
@@ -193,6 +194,14 @@ int paging_clone_as(mm_address_space *addr_space, mm_address_space *original)
     return 0;
 }
 
+void paging_load_el0_pt(PML *pml)
+{
+    msr("ttbr0_el1", pml);
+    isb();
+    dsb();
+    __native_tlb_invalidate_all();
+}
+
 void paging_load_top_pt(PML *pml)
 {
     msr("ttbr1_el1", pml);
@@ -292,6 +301,12 @@ void paging_invalidate(void *page, size_t pages)
 {
     uintptr_t p = (uintptr_t) page;
 
+    if (pages > 128)
+    {
+        __native_tlb_invalidate_all();
+        return;
+    }
+
     for (size_t i = 0; i < pages; i++, p += PAGE_SIZE)
     {
         total_shootdowns++;
@@ -367,7 +382,7 @@ void vm_free_arch_mmu(struct arch_mm_address_space *mm)
  */
 void vm_load_arch_mmu(struct arch_mm_address_space *mm)
 {
-    paging_load_top_pt((PML *) mm->top_pt);
+    paging_load_el0_pt((PML *) mm->top_pt);
 }
 
 /**
