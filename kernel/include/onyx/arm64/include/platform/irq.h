@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2022 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -28,26 +28,32 @@ struct irq_context
 
 void softirq_try_handle(void);
 
+static inline void irq_disable()
+{
+    __asm__ __volatile__("msr daifset, #3" ::: "memory");
+}
+
 static inline unsigned long irq_save_and_disable()
 {
-    return 0;
+    unsigned long flags = mrs("daif");
+    irq_disable();
+    return flags;
 }
 
 static inline void irq_restore(unsigned long flags)
 {
+    msr("daif", flags);
 }
 
-static inline void irq_enable(void)
+static inline void irq_enable()
 {
-}
-
-static inline void irq_disable(void)
-{
+    __asm__ __volatile__("msr daifclr, #3" ::: "memory");
 }
 
 inline bool irq_is_disabled()
 {
-    return true;
+    unsigned long flags = mrs("daif");
+    return flags & (1 << 7);
 }
 
 #endif
