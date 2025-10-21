@@ -69,6 +69,13 @@ entry:
 
     ldr x1, =percpu_base
     msr tpidr_el1, x1
+
+    // Enable FPU and Advanced SIMD access
+    mrs    x1, cpacr_el1
+    mov    x2, #(3 << 20)
+    orr    x2, x1, x2
+    msr    cpacr_el1, x2
+
     bl kernel_entry
 
     bl runtime_call_constructors
