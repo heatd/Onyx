@@ -30,7 +30,7 @@ extern "C" void arm64_setup_trap_handling();
 extern "C" void kernel_entry(void *fdt)
 {
     write_per_cpu(__cpu_base, (unsigned long) &percpu_base);
-    paging_init();
+    vm_init();
     arm64_setup_trap_handling();
 
     platform_serial_init();
@@ -50,7 +50,8 @@ extern "C" void kernel_entry(void *fdt)
     kasan_init();
 #endif
 
-    console_init();
-
     device_tree::enumerate();
+
+    smp::set_number_of_cpus(1);
+    smp::set_online(0);
 }
