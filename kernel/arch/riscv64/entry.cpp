@@ -66,7 +66,7 @@ extern "C" void kernel_entry(unsigned long hartid, void *fdt)
     kasan_init();
 #endif
 
-    console_init();
+    kern_console_init();
 
     printf("riscv: Booted on hart%lu\n", hartid);
 
