@@ -188,7 +188,7 @@ void *process_setup_auxv(void *buffer, char *strings_space, struct process *proc
     unsigned int i = 0;
     char s[16];
     u8 *random;
-    process->vdso = vdso_map();
+    process->vdso = NULL; /* TODO */
     /* Setup the auxv at the stack bottom */
 
 #define PUT_AUXV(type, val)         \
