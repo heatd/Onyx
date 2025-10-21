@@ -986,7 +986,7 @@ static int pte_fork_range(struct tlbi_tracker *tlbi, pte_t *pte, pte_t *old_pte,
         if (!vma_is_pfnmap(old_vma) && !pte_special(old))
             page_add_mapcount(phys_to_page(pte_addr(old)));
 
-        if (!pte_protnone(old) && vma_private(old_vma))
+        if (!pte_protnone(old) && vma_private(old_vma) && pte_write(old))
         {
             /* We must CoW MAP_PRIVATE */
             set_pte(old_pte, pte_wrprotect(old));
