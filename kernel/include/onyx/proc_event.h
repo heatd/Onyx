@@ -23,5 +23,7 @@ struct proc_event_sub
     struct proc_event_sub *next;
 };
 
+__BEGIN_CDECLS
 void proc_event_enter_syscall(struct syscall_frame *regs, uintptr_t rax);
 void proc_event_exit_syscall(long retval, long syscall_nr);
+__END_CDECLS
