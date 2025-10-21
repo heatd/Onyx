@@ -45,16 +45,25 @@ again:
 
 static void __bootmem_add_range(unsigned long start, size_t size)
 {
+    struct memory_range *range;
+
     if (nr_phys_ranges == DEFAULT_NR_MEMORY_RANGES)
-    {
         panic("Out of space for memory range [%016lx, %016lx]", start, start + size - 1);
-    }
 
     // Attempt to coalesce entries. It's a major win when the memory map is highly fragmented
     // cough cough EFI. Do it backwards since it's way more likely we exit early, as most
     // boot code will add them in growing order.
     for (size_t i = nr_phys_ranges; i > 0; i--)
     {
+        range = &phys_ranges[i - 1];
+        if (WARN_ON(
+                check_for_overlap(range->start, range->start + range->size, start, start + size)))
+        {
+            pr_err("bootmem: Range [%lx, %lx] overlaps with [%lx, %lx], ignoring.\n", start,
+                   start + size, range->start, range->start + range->size);
+            return;
+        }
+
         if (phys_ranges[i - 1].start + phys_ranges[i - 1].size == start)
         {
             phys_ranges[i - 1].size += size;
