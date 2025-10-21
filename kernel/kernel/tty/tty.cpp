@@ -936,7 +936,7 @@ static void kernel_console_ctor(struct tty *tty)
  * @brief Create a kernel console tty
  *
  */
-void console_init()
+void kern_console_init()
 {
     tty_init(nullptr, kernel_console_ctor, 0);
 }

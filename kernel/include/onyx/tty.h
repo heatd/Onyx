@@ -130,7 +130,7 @@ void tty_send_response(struct tty *tty, const char *str);
  * @brief Create a kernel console tty
  *
  */
-void console_init();
+void kern_console_init();
 
 ssize_t tty_received_buf(struct tty *tty, const char *c, size_t len);
 
