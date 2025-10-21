@@ -28,6 +28,7 @@
 #include <onyx/irq.h>
 #include <onyx/kcov.h>
 #include <onyx/mm/kasan.h>
+#include <onyx/mm/slab.h>
 #include <onyx/panic.h>
 #include <onyx/percpu.h>
 #include <onyx/perf_probe.h>
@@ -1397,4 +1398,13 @@ int sys_sched_getaffinity(pid_t pid, size_t cpusetsize, void *cpu_set)
     }
 
     return 0;
+}
+
+thread_t *thread_alloc(void)
+{
+    struct thread *thr = (struct thread *) kmalloc(sizeof(*thr), GFP_KERNEL);
+    if (!thr)
+        return NULL;
+    new (thr) thread;
+    return thr;
 }

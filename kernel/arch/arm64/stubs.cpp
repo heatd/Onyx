@@ -21,10 +21,10 @@ bool platform_has_msi()
 
 void halt()
 {
+    irq_disable();
     while (true)
-    {
-        __asm__ __volatile__("wfi");
-    }
+        __asm__ __volatile__("wfi" ::: "memory");
+    UNREACHABLE();
 }
 
 void cpu_kill_other_cpus()
@@ -38,11 +38,6 @@ int platform_allocate_msi_interrupts(unsigned int num_vectors, bool addr64,
     UNIMPLEMENTED;
 }
 
-thread *sched_create_thread(thread_callback_t callback, uint32_t flags, void *args)
-{
-    UNIMPLEMENTED;
-}
-
 bool platform_page_is_used(void *page)
 {
     return false;
@@ -52,38 +47,8 @@ extern "C" void arch_vm_init()
 {
 }
 
-int process_alloc_stack(struct stack_info *info)
-{
-    UNIMPLEMENTED;
-}
-
 int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigaction,
                          struct registers *regs)
-{
-    UNIMPLEMENTED;
-}
-
-struct timer *platform_get_timer()
-{
-    UNIMPLEMENTED;
-}
-
-extern "C" void platform_yield()
-{
-    UNIMPLEMENTED;
-}
-
-extern "C" void thread_finish_destruction(thread *t)
-{
-    UNIMPLEMENTED;
-}
-
-int platform_install_irq(unsigned int irqn, struct interrupt_handler *h)
-{
-    UNIMPLEMENTED;
-}
-
-void platform_mask_irq(unsigned int irq)
 {
     UNIMPLEMENTED;
 }
@@ -99,43 +64,6 @@ void boot(unsigned int nr)
 } // namespace smp
 
 void cpu_send_sync_notif(unsigned int cpu)
-{
-    UNIMPLEMENTED;
-}
-
-namespace native
-{
-
-void arch_save_thread(thread *thread, void *stack)
-{
-    UNIMPLEMENTED;
-}
-
-void arch_load_thread(thread *thread, unsigned int cpu)
-{
-    UNIMPLEMENTED;
-}
-
-void arch_load_process(process *process, thread *thread, unsigned int cpu)
-{
-    UNIMPLEMENTED;
-}
-
-void arch_context_switch(thread *prev, thread *next)
-{
-    UNIMPLEMENTED;
-}
-
-int arch_transform_into_user_thread(thread *thread)
-{
-    UNIMPLEMENTED;
-}
-
-} // namespace native
-
-extern "C" struct thread *process_fork_thread(thread_t *src, struct process *dest,
-                                              unsigned int flags, unsigned long stack,
-                                              unsigned long tls)
 {
     UNIMPLEMENTED;
 }
@@ -158,11 +86,6 @@ extern "C" int do_machine_halt(unsigned int flags)
 extern "C" int do_machine_suspend(unsigned int flags)
 {
     return -EIO;
-}
-
-extern "C" int return_from_execve(void *entry, void *stack)
-{
-    UNIMPLEMENTED;
 }
 
 void cpu_send_resched(unsigned int cpu)
