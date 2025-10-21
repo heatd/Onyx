@@ -92,5 +92,5 @@ entry:
 .section .bss
 .balign 16
 stack_bottom:
-.skip 4096
+.skip 4096 * 4
 stack_top:
