@@ -114,6 +114,8 @@ typedef struct thread
     void *gs;
 #elif defined(__riscv)
     void *tp;
+#elif defined(__aarch64__)
+    unsigned long tpidr;
 #endif
 
 #ifdef __cplusplus
