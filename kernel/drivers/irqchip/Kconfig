@@ -1,0 +1,11 @@
+menu "Interrupt controllers"
+
+config IRQCHIP_GIC
+    bool "ARM Generic Interrupt Controller support"
+    depends on ARM64
+    default y
+    help
+        The ARM Generic Interrupt Controller (GIC) is a very common interrupt
+        controller for standard ARM systems. If you have such a system, say Y.
+
+endmenu
