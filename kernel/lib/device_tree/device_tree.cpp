@@ -130,8 +130,8 @@ int node::get_property(const char *name, void *buf, size_t length)
  */
 void node::enumerate_resources()
 {
-    int addr_cells = parent->address_cells;
-    int size_cells = parent->size_cells;
+    const int addr_cells = this->address_cells;
+    const int size_cells = this->size_cells;
     int reg_len;
     const void *reg;
     if (reg = fdt_getprop(fdt_, offset, "reg", &reg_len); !reg)
@@ -147,7 +147,10 @@ void node::enumerate_resources()
         uint64_t start, size;
         start = read_reg(reg, reg_offset, addr_cells);
         size = read_reg(reg, reg_offset + addr_cells, size_cells);
-
+#ifdef DEVICE_TREE_DEBUG_ENUMERATE_RESOURCES
+        printk("resource %lx %lx size cells %u address cells %u\n", start, size, size_cells,
+               addr_cells);
+#endif
         // TODO: How to autodetect if the region in reg is MMIO, IO ports (since you *can* have
         // device trees in x86)? Is it even possible?
 
