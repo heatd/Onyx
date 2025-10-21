@@ -8,6 +8,8 @@
 
 #include <onyx/task_switching.h>
 
+__BEGIN_CDECLS
 thread_t *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs);
-
+thread_t *thread_alloc(void);
+__END_CDECLS
 #endif
