@@ -10,6 +10,7 @@
 #include <onyx/internal_abi.h>
 #include <onyx/process.h>
 #include <onyx/scheduler.h>
+#include <onyx/thread.h>
 #include <onyx/vm.h>
 
 #include <onyx/atomic.hpp>
