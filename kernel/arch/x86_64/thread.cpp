@@ -21,6 +21,7 @@
 #include <onyx/spinlock.h>
 #include <onyx/syscall.h>
 #include <onyx/task_switching.h>
+#include <onyx/thread.h>
 #include <onyx/timer.h>
 #include <onyx/tss.h>
 #include <onyx/vm.h>
