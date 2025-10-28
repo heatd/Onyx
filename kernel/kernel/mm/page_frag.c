@@ -13,10 +13,8 @@ static int page_frag_refill(struct page_frag_info *pfi, unsigned int len, gfp_t 
 {
     unsigned int order = pages2order(vm_size_to_pages(len));
 
-    if (WARN_ON_ONCE(order > 0))
+    if (WARN_ON_ONCE(order > MAX_ORDER))
     {
-        /* TODO: We're missing GFP_COMP support, and without it the refcounting gets all screwed
-         * up. So reject order > 0 allocations. */
         pr_warn("%s: Asked for %u bytes, which we can't deliver\n", __func__, len);
         return -ENOMEM;
     }
@@ -24,7 +22,7 @@ static int page_frag_refill(struct page_frag_info *pfi, unsigned int len, gfp_t 
     if (pfi->page)
         page_unref(pfi->page);
 
-    pfi->page = alloc_pages(order, gfp | PAGE_ALLOC_NO_ZERO);
+    pfi->page = alloc_pages(order, gfp | PAGE_ALLOC_NO_ZERO | __GFP_COMP);
     if (!pfi->page)
         return -ENOMEM;
     pfi->offset = 0;
