@@ -1020,8 +1020,8 @@ void page_node::free_page(struct page *p, unsigned int order)
 #ifdef CONFIG_PAGE_OWNER
     page_owner_freed(p);
 #endif
-    if (page_flag_set(p, PAGE_FLAG_LRU))
-        page_remove_lru(p);
+    if (page_test_lru(p))
+        folio_remove_lru(folio);
 
     if (folio_test_anon(folio))
         dec_folio_stat(folio, NR_ANON);

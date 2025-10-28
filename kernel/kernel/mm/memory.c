@@ -1462,7 +1462,7 @@ int do_wp_page(struct vm_pf_context *context)
 {
     struct page *oldp = phys_to_page(pte_addr(context->oldpte));
     bool was_zeropage = oldp == vm_get_zero_page();
-    struct page *new_page;
+    struct folio *new_folio;
     pte_t *ptep;
     u64 phys;
     struct spinlock *lock = NULL;
@@ -1483,25 +1483,26 @@ int do_wp_page(struct vm_pf_context *context)
 
     spin_unlock(lock);
 
-    new_page = alloc_page(GFP_KERNEL | (was_zeropage ? 0 : PAGE_ALLOC_NO_ZERO));
-    if (!new_page)
+    new_folio = folio_alloc(0, GFP_KERNEL | (was_zeropage ? 0 : PAGE_ALLOC_NO_ZERO));
+    if (!new_folio)
         return -ENOMEM;
 
     if (!was_zeropage)
-        copy_page_to_page(page_to_phys(new_page), page_to_phys(oldp));
+        copy_page_to_page(folio_to_phys(new_folio), page_to_phys(oldp));
 
-    new_page->owner = (struct vm_object *) anon;
-    new_page->pageoff = context->vpage;
-    page_set_dirty(new_page);
-    page_set_anon(new_page);
-    page_add_lru(new_page);
+    new_folio->owner = (struct vm_object *) anon;
+    new_folio->pageoff = context->vpage;
+    folio_set_dirty(new_folio);
+    folio_set_anon(new_folio);
+    inc_folio_stat(new_folio, NR_ANON);
+    folio_add_lru(new_folio);
 
     tlbi_tracker_init(&tlbi);
 
     spin_lock(lock);
     if (ptep->pte != context->oldpte.pte)
     {
-        page_unref(new_page);
+        folio_put(new_folio);
         goto out;
     }
 
@@ -1514,11 +1515,11 @@ int do_wp_page(struct vm_pf_context *context)
         page_sub_mapcount(oldp);
     }
 
-    phys = (u64) page_to_phys(new_page);
-    page_add_mapcount(new_page);
+    phys = (u64) folio_to_phys(new_folio);
+    folio_add_mapcount(new_folio);
     set_pte(ptep, pte_mkpte(phys, calc_pgprot(phys, context->entry->vm_flags)));
     tlbi_remove_page(&tlbi, context->vpage, !was_zeropage ? oldp : NULL);
-    page_unref(new_page);
+    folio_put(new_folio);
 out:
     if (tlbi_active(&tlbi))
         tlbi_end_batch(&tlbi);

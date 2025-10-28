@@ -74,7 +74,7 @@ retry:
         {
             inc_folio_stat(folio, NR_FILE);
             folio_get(folio);
-            page_add_lru(folio_to_page(folio));
+            folio_add_lru(folio);
         }
         else
             folio = page_folio(p2);
@@ -86,7 +86,7 @@ retry:
         /* Activate the page if need be. Note that we do not want to activate pages we create, to
          * help avoid the activation of access-once pages. */
         DCHECK(folio != nullptr);
-        page_promote_referenced(folio_to_page(folio));
+        folio_promote_referenced(folio);
     }
 
     if (!(flags & (FIND_PAGE_NO_READPAGE | FIND_PAGE_NO_RA)) && ra_state)
@@ -547,7 +547,7 @@ void page_end_writeback(struct page *page) EXCLUDES(inode->i_pages->page_lock)
     if (page_test_reclaim(page))
     {
         page_clear_reclaim(page);
-        page_lru_demote_reclaim(page);
+        page_lru_demote_reclaim(page_folio(page));
     }
 
     page_unref(page);
@@ -680,7 +680,7 @@ int filemap_fdatasync(struct file *filp, unsigned long start, unsigned long end)
 static int filemap_mkwrite_private(struct vm_pf_context *ctx,
                                    struct page *page) NO_THREAD_SAFETY_ANALYSIS
 {
-    struct page *newp = nullptr;
+    struct folio *new_folio = nullptr;
     struct anon_vma *anon = anon_vma_prepare(ctx->entry);
     if (!anon)
         return -ENOMEM;
@@ -698,17 +698,18 @@ static int filemap_mkwrite_private(struct vm_pf_context *ctx,
     }
 
     /* Allocate a brand new page and copy the old page */
-    newp = alloc_page(PAGE_ALLOC_NO_ZERO | GFP_KERNEL);
-    if (!newp)
+    new_folio = folio_alloc(0, PAGE_ALLOC_NO_ZERO | GFP_KERNEL);
+    if (!new_folio)
         return -ENOMEM;
-    page_set_anon(newp);
-    newp->owner = (struct vm_object *) anon;
-    newp->pageoff = ctx->vpage;
-    page_add_lru(newp);
+    folio_set_anon(new_folio);
+    inc_folio_stat(new_folio, NR_ANON);
+    new_folio->owner = (struct vm_object *) anon;
+    new_folio->pageoff = ctx->vpage;
+    folio_add_lru(new_folio);
 
-    copy_page_to_page(page_to_phys(newp), page_to_phys(page));
-    page_set_dirty(newp);
-    ctx->page = newp;
+    copy_page_to_page(folio_to_phys(new_folio), page_to_phys(page));
+    folio_set_dirty(new_folio);
+    ctx->page = folio_to_page(new_folio);
     return 0;
 }
 
