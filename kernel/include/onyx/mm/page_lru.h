@@ -13,6 +13,7 @@
 #include <onyx/spinlock.h>
 
 struct page;
+struct folio;
 
 #define LRU_ANON_OFF 2
 enum lru_state
@@ -42,9 +43,9 @@ CONSTEXPR static inline void page_lru_init(struct page_lru *lru)
 
 __BEGIN_CDECLS
 
-void page_add_lru(struct page *page);
-void page_remove_lru(struct page *page);
-void page_lru_demote_reclaim(struct page *page);
+void folio_add_lru(struct folio *folio);
+void folio_remove_lru(struct folio *folio);
+void page_lru_demote_reclaim(struct folio *folio);
 
 __END_CDECLS
 

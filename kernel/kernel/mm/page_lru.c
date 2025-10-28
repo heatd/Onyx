@@ -12,7 +12,7 @@
 struct page_lru_batch
 {
     unsigned int nr;
-    struct page *batch[31];
+    struct folio *batch[31];
 };
 
 struct percpu_batches
@@ -24,36 +24,38 @@ struct percpu_batches
 
 static PER_CPU_VAR(struct percpu_batches lru_batches);
 
-static inline int page_to_state(struct page *page)
+static inline int folio_to_state(struct folio *folio)
 {
-    return page_flag_set(page, PAGE_FLAG_ANON) ? LRU_ANON_OFF : 0;
+    return folio_test_anon(folio) ? LRU_ANON_OFF : 0;
 }
 
-static unsigned int page_batch_add(struct page_lru_batch *batch, struct page *page)
+static unsigned int folio_batch_add(struct page_lru_batch *batch, struct folio *folio)
 {
-    page_ref(page);
-    batch->batch[batch->nr++] = page;
+    folio_get(folio);
+    batch->batch[batch->nr++] = folio;
     return batch->nr - 31;
 }
 
-static void page_end_batch(struct page_lru_batch *batch)
+static void folio_end_batch(struct page_lru_batch *batch)
 {
     /* No locks should be held. Puts pages and clears the batch */
     for (unsigned int i = 0; i < batch->nr; i++)
-        page_unref(batch->batch[i]);
+        folio_put(batch->batch[i]);
     batch->nr = 0;
 }
 
-static void page_batch_add_lru(struct page_lru_batch *batch)
+#define folio_to_page_lru(folio) (page_to_page_lru(folio_to_page(folio)))
+
+static void folio_batch_add_lru(struct page_lru_batch *batch)
 {
     struct page_lru *lru = NULL, *newlru;
-    struct page *page;
+    struct folio *folio;
 
     for (unsigned int i = 0; i < batch->nr; i++)
     {
-        page = batch->batch[i];
-        CHECK(!page_test_lru(page));
-        newlru = page_to_page_lru(page);
+        folio = batch->batch[i];
+        CHECK(!folio_test_lru(folio));
+        newlru = folio_to_page_lru(folio);
         if (lru != newlru)
         {
             if (lru)
@@ -62,60 +64,60 @@ static void page_batch_add_lru(struct page_lru_batch *batch)
             lru = newlru;
         }
 
-        page_set_lru(page);
+        folio_set_lru(folio);
 
-        if (page_test_active(page))
+        if (folio_test_active(folio))
         {
             /* We could be active before we're actually added to the LRU. In such case, add
              * ourselves directly to the active list. */
-            inc_page_stat(page, NR_ACTIVE_FILE + page_to_state(page));
-            list_add_tail(&page->lru_node, &lru->lru_lists[LRU_ACTIVE_BASE + page_to_state(page)]);
+            inc_folio_stat(folio, NR_ACTIVE_FILE + folio_to_state(folio));
+            list_add_tail(&folio->lru_node, &lru->lru_lists[LRU_ACTIVE_BASE + folio_to_state(folio)]);
         }
         else
         {
-            inc_page_stat(page, NR_INACTIVE_FILE + page_to_state(page));
-            list_add_tail(&page->lru_node,
-                          &lru->lru_lists[LRU_INACTIVE_BASE + page_to_state(page)]);
+            inc_folio_stat(folio, NR_INACTIVE_FILE + folio_to_state(folio));
+            list_add_tail(&folio->lru_node,
+                          &lru->lru_lists[LRU_INACTIVE_BASE + folio_to_state(folio)]);
         }
     }
 
     spin_unlock(&lru->lock);
-    page_end_batch(batch);
+    folio_end_batch(batch);
 }
 
-void page_add_lru(struct page *page)
+void folio_add_lru(struct folio *folio)
 {
     struct percpu_batches *batches = get_per_cpu_ptr(lru_batches);
     local_lock(&batches->lock);
-    if (!page_batch_add(&batches->lru_add, page))
-        page_batch_add_lru(&batches->lru_add);
+    if (!folio_batch_add(&batches->lru_add, folio))
+        folio_batch_add_lru(&batches->lru_add);
     local_unlock(&batches->lock);
 }
 
-void page_remove_lru(struct page *page)
+void folio_remove_lru(struct folio *folio)
 {
-    CHECK(page_test_lru(page));
-    struct page_lru *lru = page_to_page_lru(page);
+    CHECK(folio_test_lru(folio));
+    struct page_lru *lru = folio_to_page_lru(folio);
     spin_lock(&lru->lock);
-    list_remove(&page->lru_node);
-    if (page_flag_set(page, PAGE_FLAG_ACTIVE))
-        dec_page_stat(page, NR_ACTIVE_FILE + page_to_state(page));
+    list_remove(&folio->lru_node);
+    if (folio_test_active(folio))
+        dec_folio_stat(folio, NR_ACTIVE_FILE + folio_to_state(folio));
     else
-        dec_page_stat(page, NR_INACTIVE_FILE + page_to_state(page));
-    __atomic_and_fetch(&page->flags, ~PAGE_FLAG_LRU, __ATOMIC_RELEASE);
+        dec_folio_stat(folio, NR_INACTIVE_FILE + folio_to_state(folio));
+    folio_clear_lru(folio);
     spin_unlock(&lru->lock);
 }
 
-static void page_batch_activate_lru(struct page_lru_batch *batch)
+static void folio_batch_activate_lru(struct page_lru_batch *batch)
 {
     struct page_lru *lru = NULL, *newlru;
-    struct page *page;
+    struct folio *folio;
 
     for (unsigned int i = 0; i < batch->nr; i++)
     {
-        page = batch->batch[i];
-        CHECK(!page_test_lru(page));
-        newlru = page_to_page_lru(page);
+        folio = batch->batch[i];
+        CHECK(!folio_test_lru(folio));
+        newlru = folio_to_page_lru(folio);
         if (lru != newlru)
         {
             if (lru)
@@ -124,28 +126,28 @@ static void page_batch_activate_lru(struct page_lru_batch *batch)
             lru = newlru;
         }
 
-        page_set_lru(page);
+        folio_set_lru(folio);
 
-        if (!page_test_active(page))
+        if (!folio_test_active(folio))
         {
-            list_remove(&page->lru_node);
-            page_set_active(page);
-            page_clear_referenced(page);
-            dec_page_stat(page, NR_INACTIVE_FILE + page_to_state(page));
-            inc_page_stat(page, NR_ACTIVE_FILE + page_to_state(page));
-            list_add_tail(&page->lru_node, &lru->lru_lists[LRU_ACTIVE_BASE + page_to_state(page)]);
+            list_remove(&folio->lru_node);
+            folio_set_active(folio);
+            folio_clear_referenced(folio);
+            dec_folio_stat(folio, NR_INACTIVE_FILE + folio_to_state(folio));
+            inc_folio_stat(folio, NR_ACTIVE_FILE + folio_to_state(folio));
+            list_add_tail(&folio->lru_node, &lru->lru_lists[LRU_ACTIVE_BASE + folio_to_state(folio)]);
         }
     }
 
     spin_unlock(&lru->lock);
-    page_end_batch(batch);
+    folio_end_batch(batch);
 }
 
-static void page_activate(struct page *page)
+static void folio_activate(struct folio *folio)
 {
     struct percpu_batches *batches = get_per_cpu_ptr(lru_batches);
 
-    if (!page_test_clear_lru(page))
+    if (!folio_test_clear_lru(folio))
     {
         /* We are *not* in the LRU. In this case, ignore the request to activate.
          * Adding us to the batch would wreak havoc if we indeed are not in the LRU by the time
@@ -154,61 +156,61 @@ static void page_activate(struct page *page)
     }
 
     local_lock(&batches->lock);
-    if (!page_batch_add(&batches->activate, page))
-        page_batch_activate_lru(&batches->activate);
+    if (!folio_batch_add(&batches->activate, folio))
+        folio_batch_activate_lru(&batches->activate);
     local_unlock(&batches->lock);
 }
 
-void page_promote_referenced(struct page *page)
+void folio_promote_referenced(struct folio *folio)
 {
     /* Promote a page in the page LRUs. We go from (considering Active, Referenced) (0,0) -> (0, 1)
      * -> (1, 0) -> (1, 1). In reality we could interpret this as a generation counter. Some slight
      * imprecision is tolerated, so we can skip all sorts of awful locking or cmpxchg stuff we would
      * need to pull off. */
-    if (!page_flag_set(page, PAGE_FLAG_REFERENCED))
+    if (!folio_test_referenced(folio))
     {
         /* go from unref'd, inactive to ref'd, inactive */
-        page_set_flag(page, PAGE_FLAG_REFERENCED);
+        folio_set_referenced(folio);
     }
-    else if (page_flag_set(page, PAGE_FLAG_LRU))
+    else if (folio_test_lru(folio))
     {
         /* Referenced, activate. Note that we only try to activate if the page is in the LRU system
          * yet. If not, ignore. Trying to activate a page that's not quite in LRU yet will lead to
          * races. */
-        page_activate(page);
+        folio_activate(folio);
     }
     else
     {
         /* We're in a page batch (or bound to be added by someone else). Just set the active bit and
          * they'll take care of it. */
-        page_set_active(page);
+        folio_set_active(folio);
     }
 }
 
-void page_lru_demote_reclaim(struct page *page)
+void page_lru_demote_reclaim(struct folio *folio)
 {
-    struct page_lru *lru = page_to_page_lru(page);
+    struct page_lru *lru = folio_to_page_lru(folio);
 
-    if (page_flag_set(page, PAGE_FLAG_DIRTY) || page_locked(page))
+    if (folio_test_dirty(folio) || folio_test_locked(folio))
         return;
 
-    if (!page_test_clear_lru(page))
+    if (!folio_test_clear_lru(folio))
         return;
 
     spin_lock(&lru->lock);
 
     /* We _know_ we were in the lru. So remove ourselves and add ourselves to the head. Our page
      * reference makes sure the page wasn't reused. */
-    list_remove(&page->lru_node);
-    list_add(&page->lru_node, &lru->lru_lists[LRU_INACTIVE_BASE + page_to_state(page)]);
-    page_set_lru(page);
+    list_remove(&folio->lru_node);
+    list_add(&folio->lru_node, &lru->lru_lists[LRU_INACTIVE_BASE + folio_to_state(folio)]);
+    folio_set_lru(folio);
 
-    if (page_test_active(page))
+    if (folio_test_active(folio))
     {
-        dec_page_stat(page, NR_ACTIVE_FILE + page_to_state(page));
-        inc_page_stat(page, NR_INACTIVE_FILE + page_to_state(page));
+        dec_folio_stat(folio, NR_ACTIVE_FILE + folio_to_state(folio));
+        inc_folio_stat(folio, NR_INACTIVE_FILE + folio_to_state(folio));
     }
 
-    page_clear_active(page);
+    folio_clear_active(folio);
     spin_unlock(&lru->lock);
 }
