@@ -1011,6 +1011,8 @@ void __reclaim_page(struct page *new_page)
 
 void page_node::free_page(struct page *p, unsigned int order)
 {
+    /* Note: p is the head, so we don't need to call page_folio */
+    struct folio *folio = (struct folio *) p;
     CHECK_PAGE(
         !(p->flags & (PAGE_FLAG_WRITEBACK | PAGE_FLAG_LOCKED | PAGE_FLAG_SWAP | PAGE_FLAG_WAITERS)),
         p);
@@ -1021,8 +1023,8 @@ void page_node::free_page(struct page *p, unsigned int order)
     if (page_flag_set(p, PAGE_FLAG_LRU))
         page_remove_lru(p);
 
-    if (page_flag_set(p, PAGE_FLAG_ANON))
-        dec_page_stat(p, NR_ANON);
+    if (folio_test_anon(folio))
+        dec_folio_stat(folio, NR_ANON);
 
     /* Reset the page */
     p->flags = 0;
