@@ -1602,6 +1602,11 @@ int sys_getcwd(char *path, size_t size)
         return -EINVAL;
 
     struct path cwd = get_current_directory();
+
+    /* If unreachable, return ENOENT */
+    if (!(cwd.dentry->d_flags & DENTRY_FLAG_HASHED) && cwd.dentry != cwd.mount->mnt_root)
+        return -ENOENT;
+
     char *name = d_path(&cwd, pathbuf, PATH_MAX);
     path_put(&cwd);
     if (IS_ERR(name))
