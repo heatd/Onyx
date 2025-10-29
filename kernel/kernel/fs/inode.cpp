@@ -71,22 +71,33 @@ struct inode *inode_create(bool is_cached)
     return inode;
 }
 
+static int dev_do_open(struct file *filp)
+{
+    struct inode *ino = filp->f_ino;
+    gendev *dev;
+
+    dev = S_ISBLK(ino->i_mode) ? (gendev *) dev_find_block(ino->i_rdev)
+                        : (gendev *) dev_find_chr(ino->i_rdev);
+    if (!dev)
+        return -ENODEV;
+    filp->f_op = dev->fops();
+    /* XXX whack i_helper (at the very least any driver usage. looking at you, tty and pty...) */
+    ino->i_helper = dev->private_;
+    if (filp->f_op->on_open)
+        return filp->f_op->on_open(filp);
+    return 0;
+}
+
+static const struct file_ops closed_dev_fops = {
+    .on_open = dev_do_open,
+};
+
 int inode_special_init(struct inode *ino)
 {
     if (S_ISBLK(ino->i_mode) || S_ISCHR(ino->i_mode))
-    {
-        gendev *dev = S_ISBLK(ino->i_mode) ? (gendev *) dev_find_block(ino->i_rdev)
-                                           : (gendev *) dev_find_chr(ino->i_rdev);
-        if (!dev)
-            return -ENODEV;
-
-        ino->i_fops = const_cast<file_ops *>(dev->fops());
-        ino->i_helper = dev->private_;
-    }
+        ino->i_fops = (struct file_ops *) &closed_dev_fops;
     else if (S_ISFIFO(ino->i_mode))
-    {
         return pipe_do_fifo(ino);
-    }
 
     return 0;
 }
