@@ -647,6 +647,12 @@ static int do_last_open(nameidata &data, int open_flags, mode_t mode)
     }
 
 again:
+    if (open_flags & O_CREAT && IS_DEADDIR(curino))
+    {
+        st = -ENOENT;
+        goto out;
+    }
+
     st = namei_walk_component(last, data, lookup_flags);
 
     if (st < 0 || (open_flags & O_CREAT && d_is_negative(data.cur.dentry)))
@@ -1054,10 +1060,18 @@ static expected<struct dentry *, int> namei_create_generic(int dirfd, const char
     /* Ok, we have the directory, lock the inode and fetch the negative dentry */
     struct dentry *dir = parent.dentry;
     struct inode *dir_ino = dir->d_inode;
+    struct dentry *dent = NULL;
     inode_lock(dir_ino);
 
     auto name = get_token_from_path(last_name, false);
-    struct dentry *dent = dentry_lookup_internal(name, dir, DENTRY_LOOKUP_UNLOCKED);
+
+    if (IS_DEADDIR(dir_ino))
+    {
+        st = -ENOENT;
+        goto unlock_err;
+    }
+
+    dent = dentry_lookup_internal(name, dir, DENTRY_LOOKUP_UNLOCKED);
     if (!dent)
     {
         st = -errno;
@@ -1409,7 +1423,10 @@ int unlink_vfs(const char *path, int flags, int dirfd)
         dentry_do_unlink(child);
         spin_unlock(&dentry->d_lock);
         if (dentry_is_dir(child))
+        {
+            child->d_inode->i_flags |= I_DEADDIR;
             dentry_shrink_subtree(child);
+        }
     }
 
 out2:
@@ -1565,6 +1582,12 @@ int do_renameat(struct dentry *dir, struct lookup_path &last, struct dentry *old
         return -EINVAL;
     }
 
+    if (IS_DEADDIR(inode))
+    {
+        dput(dest);
+        dput(old_parent);
+        return -ENOENT;
+    }
     /* Do the actual fs rename */
     /* The overall strategy here is to do everything that may fail first - so, for example,
      * everything that involves I/O or memory allocation. After that, we're left with the
@@ -1711,10 +1734,18 @@ static int namei_create_generic_path(int dirfd, const char *path, mode_t mode, d
     /* Ok, we have the directory, lock the inode and fetch the negative dentry */
     struct dentry *dir = parent.dentry;
     struct inode *dir_ino = dir->d_inode;
+    struct dentry *dent = NULL;
     inode_lock(dir_ino);
 
     auto name = get_token_from_path(last_name, false);
-    struct dentry *dent = dentry_lookup_internal(name, dir, DENTRY_LOOKUP_UNLOCKED);
+
+    if (IS_DEADDIR(dir_ino))
+    {
+        st = -ENOENT;
+        goto unlock_err;
+    }
+
+    dent = dentry_lookup_internal(name, dir, DENTRY_LOOKUP_UNLOCKED);
     if (!dent)
     {
         st = -errno;

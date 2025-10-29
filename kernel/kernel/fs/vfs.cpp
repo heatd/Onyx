@@ -456,7 +456,8 @@ bool file_can_access(struct file *file, unsigned int perms)
 
 off_t do_getdirent(struct dirent *buf, off_t off, struct file *file)
 {
-    /* FIXME: Detect when we're trying to list unlinked directories, lock the dentry, etc... */
+    if (IS_DEADDIR(file->f_ino))
+        return -ENOENT;
     if (file->f_op->getdirent)
         return file->f_op->getdirent(buf, off, file);
     return -ENOSYS;

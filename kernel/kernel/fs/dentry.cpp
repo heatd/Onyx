@@ -618,7 +618,9 @@ dentry *__dentry_try_to_open(std::string_view name, dentry *dir, bool lock_ino)
     if (lock_ino)
         inode_lock_shared(pino);
 
-    int st = dir->d_inode->i_op->open(dir, _name, dent);
+    int st = -ENOENT;
+    if (!IS_DEADDIR(pino))
+        st = pino->i_op->open(dir, _name, dent);
 
     if (lock_ino)
         inode_unlock_shared(pino);
@@ -682,6 +684,9 @@ dentry *dentry_lookup_internal(std::string_view v, dentry *dir, dentry_lookup_fl
 
         return dent;
     }
+
+    if (IS_DEADDIR(dir->d_inode))
+        return errno = ENOENT, nullptr;
 
     dentry *dent = dentry_open_from_cache(dir, v);
 
@@ -948,7 +953,10 @@ void dentry_rename(dentry *dent, const char *name, dentry *parent,
     write_sequnlock(&rename_lock);
 
     if (!d_is_negative(dst) && dentry_is_dir(dst))
+    {
         dentry_shrink_subtree(dst);
+        dst->d_inode->i_flags |= I_DEADDIR;
+    }
 
     if (old)
         dput(old);
