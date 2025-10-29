@@ -1492,6 +1492,21 @@ int sys_symlink(const char *target, const char *linkpath)
     return sys_symlinkat(target, AT_FDCWD, linkpath);
 }
 
+static struct inode *maybe_lock_target(struct dentry *dst)
+{
+    struct inode *dst_inode = dst->d_inode;
+
+    if (!d_is_negative(dst) && dentry_is_dir(dst))
+    {
+        /* If We are looking at a directory rename, we must lock the target directory, to make
+         * sure we don't get e.g someone concurrently un-emptying the file. What a mess. */
+        inode_lock_shared(dst_inode);
+        return dst_inode;
+    }
+
+    return NULL;
+}
+
 int do_renameat(struct dentry *dir, struct lookup_path &last, struct dentry *old)
 {
     std::string_view name = get_token_from_path(last, false);
@@ -1500,6 +1515,7 @@ int do_renameat(struct dentry *dir, struct lookup_path &last, struct dentry *old
     // printk("location %s\n", dir->d_name);
     // printk("last name %.*s\n", (int) name.length(), name.data());
     auto inode = dir->d_inode;
+    struct inode *locked;
 
     /* We've got multiple cases to handle here:
      * 1) name exists: We atomically replace them.
@@ -1590,6 +1606,9 @@ int do_renameat(struct dentry *dir, struct lookup_path &last, struct dentry *old
         dput(old_parent);
         return -ENOENT;
     }
+
+    locked = maybe_lock_target(dest);
+
     /* Do the actual fs rename */
     /* The overall strategy here is to do everything that may fail first - so, for example,
      * everything that involves I/O or memory allocation. After that, we're left with the
@@ -1600,6 +1619,9 @@ int do_renameat(struct dentry *dir, struct lookup_path &last, struct dentry *old
         st = old->d_inode->i_op->rename(old_parent, old, dir, dest);
     else
         st = -EOPNOTSUPP;
+
+    if (locked)
+        inode_unlock_shared(locked);
 
     if (st < 0)
     {
