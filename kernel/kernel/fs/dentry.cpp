@@ -418,7 +418,8 @@ static struct dentry *d_destroy(struct dentry *dentry)
         spin_lock(&parent->d_lock);
         /* Freeze refs. We'll see if we want to whack the parent dentry and return it if so */
         d_freeze_refs(parent);
-        list_remove(&dentry->d_parent_dir_node);
+        if (dentry->d_flags & DENTRY_FLAG_HASHED)
+            list_remove(&dentry->d_parent_dir_node);
     }
 
     if (dentry->d_name_length >= INLINE_NAME_MAX)
@@ -717,11 +718,19 @@ void dentry_do_unlink(dentry *entry)
 
     auto parent = entry->d_parent;
     DCHECK(spin_lock_held(&parent->d_lock));
-    dput_locked(parent);
     if ((entry->d_flags & (DENTRY_FLAG_LRU | DENTRY_FLAG_SHRINK)) == DENTRY_FLAG_LRU)
         d_remove_lru(entry);
-    entry->d_parent = nullptr;
 
+    d_freeze_refs(entry);
+    if (1 || d_refs(entry) > 1)
+    {
+        /* If we do not hold the only reference to entry, unhash it. */
+        dentry_remove_from_cache(entry, parent);
+    }
+
+    d_unfreeze_refs(entry);
+
+    /* TODO: Rework locking around this, so we get to create a negative dentry from this */
     if (!d_is_negative(entry))
     {
         inode_dec_nlink(entry->d_inode);
@@ -733,7 +742,6 @@ void dentry_do_unlink(dentry *entry)
         }
     }
 
-    dentry_remove_from_cache(entry, parent);
     spin_unlock(&entry->d_lock);
 
     // We can do this because we're holding the parent dir's lock
