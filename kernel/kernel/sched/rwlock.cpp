@@ -14,6 +14,7 @@
 #include <onyx/spinlock.h>
 #include <onyx/thread.h>
 #include <onyx/types.h>
+#include <onyx/bug.h>
 
 #include "primitive_generic.h"
 
@@ -353,11 +354,14 @@ void rwlock_wake(rwlock *lock)
 
 void rw_unlock_read(rwlock *lock)
 {
+    unsigned long word;
     /* Implementation note: If we're unlocking a read lock, only wake up a
      * single thread, since the write lock is exclusive, like a mutex.
      */
-    if (__atomic_sub_fetch(&lock->lock, 1, __ATOMIC_RELEASE) & RDWR_LOCK_WAITERS)
+    word = __atomic_sub_fetch(&lock->lock, 1, __ATOMIC_RELEASE);
+    if (word & RDWR_LOCK_WAITERS)
         rwlock_wake(lock);
+    WARN_ON_ONCE(word & RDWR_LOCK_WRITE || (word + 1) & RDWR_LOCK_WRITE);
 }
 
 void rw_unlock_write(rwlock *lock)
