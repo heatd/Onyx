@@ -301,7 +301,9 @@ static int do_dotdot(nameidata &data, struct path *out)
     if (!dentry)
     {
         /* /.. = right where we are */
-        return 0;
+        dentry = curr->dentry;
+        dget(dentry);
+        /* fallthrough */
     }
 
     struct path p = {dentry, curr->mount};
