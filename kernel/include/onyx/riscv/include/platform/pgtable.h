@@ -225,6 +225,13 @@ static inline pmd_t pmd_mkpmd(u64 phys, pgprot_t prot)
     return __pmd(((phys >> PAGE_SHIFT) << 10) | pgprot_val(prot));
 }
 
+static inline pmd_t pmd_mkpmd_huge(u64 phys, pgprot_t prot)
+{
+    /* Any huge page will naturally have READ or WRITE or EXEC set, thus we don't need to do
+     * anything special. */
+    return pmd_mkpmd(phys, prot);
+}
+
 static inline pud_t pud_mkpud(u64 phys, pgprot_t prot)
 {
     return __pud(((phys >> PAGE_SHIFT) << 10) | pgprot_val(prot));
@@ -373,6 +380,11 @@ static inline pte_t pte_wrprotect(pte_t pte)
     return __pte(pte_val(pte) & ~_PAGE_WRITE);
 }
 
+static inline pmd_t pmd_wrprotect(pmd_t pmd)
+{
+    return __pmd(pmd_val(pmd) & ~_PAGE_WRITE);
+}
+
 static inline pgprot_t calc_pgprot(u64 phys, u64 prots)
 {
     bool special_mapping = phys == (u64) page_to_phys(vm_get_zero_page()) || prots & VM_PFNMAP;
@@ -394,6 +406,11 @@ static inline pgprot_t calc_pgprot(u64 phys, u64 prots)
 static inline bool pte_protnone(pte_t pte)
 {
     return (pte_val(pte) & (_PAGE_PRESENT | _PAGE_PROTNONE)) == _PAGE_PROTNONE;
+}
+
+static inline bool pmd_protnone(pmd_t pmd)
+{
+    return (pmd_val(pmd) & (_PAGE_PRESENT | _PAGE_PROTNONE)) == _PAGE_PROTNONE;
 }
 
 #define ARCH_SWAP_NR_TYPES  16
