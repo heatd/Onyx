@@ -1262,6 +1262,7 @@ int link_vfs(struct dentry *target, int dirfd, const char *newpath)
     d_positiveize(dent, dest_ino);
     d_mark_link(dent);
     inode_inc_nlink(dest_ino);
+    inode_update_ctime(dest_ino);
 
     inode_unlock(dir_ino);
     path_put(&parent);
