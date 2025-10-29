@@ -865,6 +865,17 @@ expected<file *, int> vfs_open(int dirfd, const char *name, unsigned int open_fl
     return complete_open(new_file, open_flags);
 }
 
+static bool lookup_was_last_name(nameidata &namedata)
+{
+    for (int i = namedata.pdepth; i >= 0; i--)
+    {
+        if (namedata.paths[i].token_type != fs_token_type::LAST_NAME_IN_PATH)
+            return false;
+    }
+
+    return true;
+}
+
 static int do_lookup_parent_last(nameidata &data)
 {
     dentry *cur = data.cur.dentry;
@@ -912,12 +923,6 @@ static int do_lookup_parent_last(nameidata &data)
                 goto out;
             }
         }
-
-        /* Not a symlink, use parent (cur = parent). */
-        path_put(&data.cur);
-        DCHECK(!path_is_null(&data.parent));
-        data.cur = data.parent;
-        path_init(&data.parent);
     }
     else
     {
@@ -955,7 +960,7 @@ static int namei_lookup_parentat(int dirfd, const char *name, unsigned int flags
 {
     nameidata namedata{std::string_view{name, strlen(name)}};
     namedata.dirfd = dirfd;
-
+    bool get_parent = true;
     auto &pathname = namedata.paths[namedata.pdepth].view;
     auto pathname_length = pathname.length();
 
@@ -983,15 +988,12 @@ static int namei_lookup_parentat(int dirfd, const char *name, unsigned int flags
                 /* Translate the -ENOENT to a 0 if need be. See the comment in
                  * do_lookup_parent_last
                  */
-                bool was_last_name = true;
-                for (int i = namedata.pdepth; i >= 0; i--)
-                {
-                    if (namedata.paths[i].token_type != fs_token_type::LAST_NAME_IN_PATH)
-                        was_last_name = false;
-                }
 
-                if (was_last_name)
+                if (lookup_was_last_name(namedata))
+                {
+                    get_parent = false;
                     st = 0;
+                }
             }
 
             if (st <= 0)
@@ -1003,6 +1005,15 @@ static int namei_lookup_parentat(int dirfd, const char *name, unsigned int flags
 
     if (st < 0)
         return st;
+
+    if (get_parent)
+    {
+        /* Use the parent of whatever we got. */
+        path_put(&namedata.cur);
+        DCHECK(!path_is_null(&namedata.parent));
+        namedata.cur = namedata.parent;
+        path_init(&namedata.parent);
+    }
 
     DCHECK(!path_is_null(&namedata.cur));
     *outn = namedata.paths[namedata.pdepth];
