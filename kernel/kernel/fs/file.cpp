@@ -1446,7 +1446,7 @@ int sys_fcntl(int fd, int cmd, unsigned long arg)
     return ret;
 }
 
-#define FSTATAT_VALID_FLAGS (AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH)
+#define FSTATAT_VALID_FLAGS (AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH | AT_NO_AUTOMOUNT)
 
 int sys_fstat(int fd, struct stat *);
 
