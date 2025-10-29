@@ -115,8 +115,11 @@ struct pipe;
 #define I_DIRTY               (1 << 1)
 #define I_WRITEBACK           (1 << 3)
 #define I_HASHED              (1 << 7)
+#define I_DEADDIR             (1 << 8)
 
 #define I_DIRTYALL (I_DIRTY | I_DATADIRTY)
+
+#define IS_DEADDIR(ino) (unlikely(((ino)->i_flags & I_DEADDIR)))
 
 struct inode
 {
