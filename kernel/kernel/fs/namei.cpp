@@ -679,7 +679,7 @@ again:
                  * link. */
                 st = -EEXIST;
             }
-            else if (open_flags & O_NOFOLLOW)
+            else if (open_flags & O_NOFOLLOW && !path.trailing_slash())
             {
                 st = -ELOOP;
             }
