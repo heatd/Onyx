@@ -512,8 +512,6 @@ flush::writeback_dev *bdev_get_wbdev(struct inode *ino)
     {
         /* Find the block device, get the wbdev that way */
         blockdev *bdev = ino->i_sb->s_bdev;
-        if (S_ISBLK(ino->i_mode))
-            bdev = (blockdev *) ino->i_helper;
         DCHECK(bdev != nullptr);
         dev = bdev->wbdev.get();
     }
