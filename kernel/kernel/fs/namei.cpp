@@ -1142,7 +1142,7 @@ int symlink_vfs(const char *path, const char *dest, int dirfd)
     int st;
     struct lookup_path last_name;
     struct inode *inode = nullptr;
-    unsigned int lookup_flags = NAMEI_ALLOW_NEGATIVE;
+    unsigned int lookup_flags = LOOKUP_NOFOLLOW | NAMEI_ALLOW_NEGATIVE;
     struct path parent;
 
     st = namei_lookup_parentat(dirfd, path, lookup_flags, &last_name, &parent);
