@@ -1172,7 +1172,9 @@ int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
     auto fil = f.get_file();
 
     struct getdents_ret ret_buf = {};
+    inode_lock_shared(fil->f_ino);
     ret = getdents_vfs(count, putdir, dirp, fil->f_seek, &ret_buf, fil);
+    inode_unlock_shared(fil->f_ino);
     if (ret < 0)
         return ret;
 
