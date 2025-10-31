@@ -38,6 +38,11 @@ else
 	target_name="$ONYX_ARCH-unknown-onyx"
 	LIB_PATH="$TOOLCHAIN_PATH/lib/$target_name/"
 	CLANG_VERSION=$($TOOLCHAIN_PATH/bin/clang -dumpversion)
+	MAJOR=$(echo $CLANG_VERSION | cut -d'.' -f 1)
+	# At some point, LLVM changed the compiler path.
+	if [ $MAJOR -ge 21 ]; then
+	  CLANG_VERSION=$MAJOR
+	fi
 	RUNTIME_LIBS="$TOOLCHAIN_PATH/lib/clang/$CLANG_VERSION/lib/$target_name/"
 	LIBSTDCPP_NAME="libc++.so*"
 	LIBCXXABI_NAME="libc++abi.so*"
