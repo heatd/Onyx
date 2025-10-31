@@ -97,14 +97,7 @@ public:
         l.is_locked = false;
     }
 
-    constexpr scoped_lock& operator=(scoped_lock&& rhs)
-    {
-        internal_lock = rhs.internal_lock;
-        is_locked = rhs.is_locked;
-        rhs.is_locked = false;
-
-        return *this;
-    }
+    constexpr scoped_lock& operator=(scoped_lock&& rhs) = delete;
 
     void keep_locked()
     {
@@ -160,21 +153,13 @@ public:
     scoped_mutex(const scoped_mutex& l) = delete;
     scoped_mutex& operator=(const scoped_mutex& rhs) = delete;
 
-    scoped_mutex(scoped_mutex&& l)
+    scoped_mutex(scoped_mutex&& l) : internal_lock{l.internal_lock}
     {
-        internal_lock = l.internal_lock;
         is_locked = l.is_locked;
         l.is_locked = false;
     }
 
-    scoped_mutex& operator=(scoped_mutex&& rhs)
-    {
-        internal_lock = rhs.internal_lock;
-        is_locked = rhs.is_locked;
-        rhs.is_locked = false;
-
-        return *this;
-    }
+    scoped_mutex& operator=(scoped_mutex&& rhs) = delete;
 
     void keep_locked()
     {
