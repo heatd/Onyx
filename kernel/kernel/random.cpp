@@ -52,24 +52,25 @@ void entropy_refill()
     current_entropy = max_entropy;
 }
 
-extern "C" void get_entropy(char *buf, size_t s)
+extern "C" void __get_entropy(char *buf, size_t s)
 {
-    scoped_mutex g{entropy_lock};
+    size_t to_consume;
 
     for (size_t i = 0; i < s; i++)
     {
         if (current_entropy == 0)
             entropy_refill();
-        *buf++ = entropy_buffer[0];
-        current_entropy--;
-        memmove(entropy_buffer, &entropy_buffer[1], current_entropy);
+        to_consume = min(s - i, current_entropy);
+        memcpy(buf, entropy_buffer, to_consume);
+        current_entropy -= to_consume;
+        memmove(entropy_buffer, entropy_buffer + to_consume, current_entropy);
     }
 }
 
-size_t ent_read(size_t off, size_t count, void *buffer, struct file *node)
+extern "C" void get_entropy(char *buf, size_t s)
 {
-    get_entropy((char *) buffer, count);
-    return count;
+    scoped_mutex g{entropy_lock};
+    __get_entropy(buf, s);
 }
 
 void initialize_entropy(void)
@@ -114,27 +115,32 @@ size_t random_get_entropy(size_t size, void *buffer)
 size_t urandom_get_entropy(size_t size, void *buffer)
 {
     unsigned char *buf = (unsigned char *) buffer;
-    size_t to_read = size;
-    while (to_read)
+    size_t bytes = 0, to_consume;
+    int err = 0;
+    char tmp_buf[PAGE_SIZE];
+
+    while (size > 0)
     {
         if (signal_is_pending())
-            return -ERESTARTSYS;
-        if (current_entropy)
         {
-            size_t r = current_entropy > to_read ? to_read : current_entropy;
-
-            if (copy_to_user(buf, entropy_buffer, r) < 0)
-                return -EFAULT;
-
-            buf += r;
-            to_read -= r;
+            err = -ERESTARTSYS;
+            break;
         }
-        else
+
+        to_consume = min(size, sizeof(tmp_buf));
+        __get_entropy(tmp_buf, to_consume);
+        if (copy_to_user(buf, tmp_buf, to_consume))
         {
-            entropy_refill();
+            err = -EFAULT;
+            break;
         }
+
+        bytes += to_consume;
+        size -= to_consume;
+        buf += to_consume;
     }
-    return size;
+
+    return bytes ?: err;
 }
 
 size_t get_entropy_from_pool(int pool, size_t size, void *buffer)
@@ -147,7 +153,7 @@ size_t get_entropy_from_pool(int pool, size_t size, void *buffer)
     switch (pool)
     {
         case ENTROPY_POOL_RANDOM: {
-            ret = random_get_entropy(size, buffer);
+            ret = urandom_get_entropy(size, buffer);
             break;
         }
 
