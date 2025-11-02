@@ -279,6 +279,7 @@ pid_t sys_getpgid(pid_t pid)
     rcu_read_lock();
     pid = pid_nr(task_pgrp(target));
     rcu_read_unlock();
+    process_put(target);
     return pid;
 }
 
