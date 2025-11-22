@@ -3130,5 +3130,47 @@
         ],
         "return_type": "int",
         "abi": "c"
+    },
+    {
+        "name": "listxattr",
+        "nr": 194,
+        "nr_args": 3,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ],
+            [
+                "char *",
+                "list"
+            ],
+            [
+                "size_t",
+                "size"
+            ]
+        ],
+        "return_type": "ssize_t",
+        "abi": "c"
+    },
+    {
+        "name": "llistxattr",
+        "nr": 195,
+        "nr_args": 3,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ],
+            [
+                "char *",
+                "list"
+            ],
+            [
+                "size_t",
+                "size"
+            ]
+        ],
+        "return_type": "ssize_t",
+        "abi": "c"
     }
 ]
