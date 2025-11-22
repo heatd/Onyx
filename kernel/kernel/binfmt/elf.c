@@ -188,7 +188,7 @@ static void *elf_load(struct binfmt_args *args, elf_ehdr *header)
         goto error1;
     }
 
-    if ((st = flush_old_exec(args->state)) < 0)
+    if ((st = flush_old_exec(args)) < 0)
     {
         errno = -st;
         goto error1;

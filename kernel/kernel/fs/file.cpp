@@ -83,6 +83,24 @@ __always_inline bool fd_get_rcu(struct file *fd)
     return true;
 }
 
+struct file *get_mm_exe(struct mm_address_space *mm)
+{
+    struct file *filp;
+    rcu_read_lock();
+
+    for (;;)
+    {
+        filp = rcu_dereference(mm->mm_exe);
+        if (!filp)
+            break;
+        if (fd_get_rcu(filp))
+            break;
+    }
+
+    rcu_read_unlock();
+    return filp;
+}
+
 void fd_put(struct file *fd)
 {
     if (__atomic_sub_fetch(&fd->f_refcount, 1, __ATOMIC_RELEASE) == 0)
