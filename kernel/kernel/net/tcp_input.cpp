@@ -709,7 +709,7 @@ static inline void tcp_connreq_init(struct tcp_socket *sock, struct tcp_connreq 
 
     conn->tc_src = from;
     conn->tc_dst = to;
-    conn->tc_iss = arc4random();
+    conn->tc_iss = 64000;
     conn->tc_rcv_nxt = hdr->sequence_number + 1;
 }
 
