@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2023 Pedro Falcato
+ * Copyright (c) 2020 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -49,26 +49,20 @@ static char *find_not_space_nor_tab(const char *str, size_t len)
     return nullptr;
 }
 
-#if 0
-static int count_argv(char **argv)
-{
-	int argc = 0;
-	while(*argv++)
-		argc++;
-	return argc;
-}
-
-void dump_argv(char **argv)
-{
-	while(*argv)
-		printk("arg %s\n", *argv++);
-}
-#endif
-
 void *shebang_load(struct binfmt_args *args)
 {
     char *buf = (char *) args->file_signature;
     char *end = buf + BINFMT_SIGNATURE_LENGTH;
+
+    if (args->is_interp)
+    {
+        /* Tried to load a shebang file as an interpreter? This is not going to work. Stop now
+         * instead of recursing further. */
+        pr_warn_once(
+            "exec: %s[%d]: Tried to load a shebang executable as an interpreter, failing\n",
+            get_current_process()->comm, get_current_process()->pid_);
+        return errno = ENOEXEC, nullptr;
+    }
 
     char *p = strnchr(buf, BINFMT_SIGNATURE_LENGTH, '\n');
     if (!p)
@@ -182,7 +176,6 @@ void *shebang_load(struct binfmt_args *args)
     free(old_kargs);
 
     args->interp_path = interp;
-    args->needs_interp = false;
 
     void *entry = bin_do_interp(args);
 
