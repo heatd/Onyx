@@ -76,6 +76,7 @@ void *bin_do_interp(struct binfmt_args *_args)
 
     args.filename = args.interp_path;
     args.file = file;
+    args.is_interp = true;
 
     return load_binary(&args);
 }

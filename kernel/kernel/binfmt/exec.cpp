@@ -439,6 +439,7 @@ int sys_execve(const char *p, const char **argv, const char **envp)
     args.file = exec_file;
     args.state = &state;
     args.argc = &argc;
+    args.is_interp = false;
 
     /* Load the actual binary */
     entry = load_binary(&args);
