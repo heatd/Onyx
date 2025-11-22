@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -43,6 +43,7 @@ struct mm_address_space
     unsigned long end;
     struct rwlock vm_lock;
 
+    struct file __rcu *mm_exe;
     /* mmap(2) base */
     void *mmap_base;
     unsigned long mmap_end;
@@ -85,6 +86,7 @@ struct mm_address_space
         page_tables_size = as.page_tables_size;
         arch_mmu = as.arch_mmu;
         active_mask = cul::move(as.active_mask);
+        rcu_assign_pointer(mm_exe, rcu_dereference(as.mm_exe));
         return *this;
     }
 #endif
@@ -122,6 +124,8 @@ static inline void mmput(struct mm_address_space *mm)
     if (refcount_dec_and_test(&mm->mm_users))
         __mmput(mm);
 }
+
+struct file *get_mm_exe(struct mm_address_space *mm);
 
 __END_CDECLS
 

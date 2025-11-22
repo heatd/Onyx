@@ -524,6 +524,7 @@ int vm_fork_address_space(struct mm_address_space *addr_space) EXCLUDES(addr_spa
     addr_space->end = current_mm->end;
     addr_space->arg_start = current_mm->arg_start;
     addr_space->arg_end = current_mm->arg_end;
+    rcu_assign_pointer(addr_space->mm_exe, get_mm_exe(current_mm));
     memcpy(addr_space->saved_auxv, current_mm->saved_auxv, sizeof(current_mm->saved_auxv));
 
 #ifdef CONFIG_DEBUG_ADDRESS_SPACE_ACCT
@@ -2912,9 +2913,14 @@ void __mmdrop(struct mm_address_space *mm)
 
 void __mmput(struct mm_address_space *mm)
 {
+    struct file *filp;
     /* mm has no users, clear out the address space and put the implicit ref. The pgd is not freed
      * and the kernel page tables will be unharmed. */
     vm_destroy_addr_space(mm);
+
+    filp = mm->mm_exe;
+    if (filp)
+        fd_put(filp);
     mmdrop(mm);
 }
 

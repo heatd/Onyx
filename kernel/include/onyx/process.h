@@ -587,6 +587,16 @@ void tg_cputime_clock_t(struct process *process, __clock_t *utime, __clock_t *st
 
 unsigned long get_forks_since_boot(void);
 
+static inline struct file *get_task_exe(struct process *task)
+{
+    struct file *filp;
+
+    spin_lock(&task->alloc_lock);
+    filp = get_mm_exe(task->address_space);
+    spin_unlock(&task->alloc_lock);
+    return filp;
+}
+
 __END_CDECLS
 
 #ifdef __cplusplus

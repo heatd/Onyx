@@ -284,8 +284,9 @@ int process_put_entry_info(struct stack_info *info, char **argv, char **envp)
 
 void process_kill_other_threads(void);
 
-int flush_old_exec(struct exec_state *state)
+int flush_old_exec(struct binfmt_args *args)
 {
+    struct exec_state *state = args->state;
     if (state->flushed)
         return 0;
 
@@ -297,6 +298,8 @@ int flush_old_exec(struct exec_state *state)
     if (st < 0)
         return st;
 
+    rcu_assign_pointer(state->new_address_space->mm_exe, args->file);
+    fd_get(args->file);
     vm_set_aspace(state->new_address_space);
     curr->address_space = cul::move(state->new_address_space);
     if (mm != &kernel_address_space)

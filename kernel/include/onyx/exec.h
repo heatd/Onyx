@@ -23,9 +23,10 @@ struct exec_state
 struct exec_state;
 #endif
 
+struct binfmt_args;
 __BEGIN_CDECLS
 int exec_state_create(struct exec_state *state);
-int flush_old_exec(struct exec_state *state);
+int flush_old_exec(struct binfmt_args *state);
 bool file_is_executable(struct file *exec_file);
 __END_CDECLS
 #endif

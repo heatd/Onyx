@@ -525,6 +525,84 @@ static const struct file_ops proc_fd_fops = {
     .getdirent = proc_fd_getdirent,
 };
 
+static char *proc_exe_readlink(struct dentry *dentry)
+{
+    /* TODO: Don't do this with PATH_MAX... */
+    struct process *task;
+    struct file *real;
+    char *path, *buf;
+
+    buf = ERR_PTR(-ESRCH);
+    task = get_inode_task((struct procfs_inode *) dentry->d_inode);
+    if (!task)
+        return ERR_PTR(-ESRCH);
+    real = get_task_exe(task);
+    if (!real)
+        goto err;
+    /* XXX: ugh */
+    if (!real->f_path.mount)
+    {
+        buf = ERR_PTR(-ENOENT);
+        goto err2;
+    }
+
+    buf = kmalloc(PATH_MAX, GFP_KERNEL);
+    if (!buf)
+    {
+        buf = ERR_PTR(-ENOMEM);
+        goto err2;
+    }
+
+    path = d_path(&real->f_path, buf, PATH_MAX);
+    if (IS_ERR(path))
+    {
+        kfree(buf);
+        goto err2;
+    }
+
+    memmove(buf, path, strlen(path) + 1);
+err2:
+    fd_put(real);
+err:
+    process_put(task);
+    return buf;
+}
+
+static int proc_exe_magic_jump(struct dentry *dentry, struct inode *inode,
+                               struct nameidata *nameidata)
+{
+    struct procfs_inode *d_ino;
+    struct process *task;
+    struct file *filp;
+
+    d_ino = (struct procfs_inode *) dentry->d_inode;
+    task = get_inode_task(d_ino);
+    if (!task)
+        return -ESRCH;
+
+    filp = get_task_exe(task);
+    process_put(task);
+    if (!filp)
+        return -EBADF;
+
+    /* Ugh... hack for files without mount, show nothing */
+    if (!filp->f_path.mount)
+    {
+        fd_put(filp);
+        return -ENOENT;
+    }
+
+    path_get(&filp->f_path);
+    namei_jump(nameidata, &filp->f_path);
+    fd_put(filp);
+    return 0;
+}
+
+static const struct inode_operations proc_exe_iops = {
+    .readlink = proc_exe_readlink,
+    .magic_jump = proc_exe_magic_jump,
+};
+
 extern const struct proc_file_ops proc_maps_ops;
 extern const struct proc_file_ops mounts_proc_ops;
 
@@ -538,6 +616,7 @@ static const struct pid_attr pid_attrs[] = {
     {"fd", S_IFDIR | 0444, &proc_noop, &proc_fd_operations, &proc_fd_fops},
     {"maps",  S_IFREG | 0400, &proc_maps_ops},
     {"mounts", S_IFREG | 0400, &mounts_proc_ops},
+    {"exe", S_IFLNK | 0777, &proc_noop, &proc_exe_iops},
 };
 
 // clang-format on
