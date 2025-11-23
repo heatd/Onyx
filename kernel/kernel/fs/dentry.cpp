@@ -382,18 +382,17 @@ locked:
     return false;
 }
 
-static unsigned long d_stroyed = 0;
-
 static struct dentry *d_destroy(struct dentry *dentry)
 {
     /* Refs frozen, d_lock held */
     struct dentry *parent;
+    bool hashed;
+
     DCHECK(READ_ONCE(dentry->d_ref) & D_REF_LOCKED);
     DCHECK(spin_lock_held(&dentry->d_lock));
 
-    d_stroyed++;
-
-    if (dentry->d_flags & DENTRY_FLAG_HASHED)
+    hashed = dentry->d_flags & DENTRY_FLAG_HASHED;
+    if (hashed)
         dentry_remove_from_cache(dentry, dentry->d_parent);
 
     if ((dentry->d_flags & (DENTRY_FLAG_LRU | DENTRY_FLAG_SHRINK)) == DENTRY_FLAG_LRU)
@@ -418,7 +417,7 @@ static struct dentry *d_destroy(struct dentry *dentry)
         spin_lock(&parent->d_lock);
         /* Freeze refs. We'll see if we want to whack the parent dentry and return it if so */
         d_freeze_refs(parent);
-        if (dentry->d_flags & DENTRY_FLAG_HASHED)
+        if (hashed)
             list_remove(&dentry->d_parent_dir_node);
     }
 
