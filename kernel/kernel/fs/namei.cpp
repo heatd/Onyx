@@ -336,8 +336,8 @@ static int __namei_walk_component(std::string_view v, nameidata &data, struct pa
     if (!dent)
     {
         dent = __dentry_try_to_open(v, data.cur.dentry, !(flags & DENTRY_LOOKUP_UNLOCKED));
-        if (!dent)
-            return -errno;
+        if (IS_ERR(dent))
+            return PTR_ERR(dent);
     }
 
     struct path p = {.dentry = dent, .mount = data.cur.mount};
@@ -429,7 +429,7 @@ static int namei_walk_component(std::string_view v, nameidata &data, unsigned in
             struct dentry *d = new_mount->mnt_root;
             dget(d);
             mnt = new_mount;
-            data.setcur((struct path){d, mnt});
+            data.setcur((struct path) {d, mnt});
             path_put(&path);
             return 0;
         }
@@ -1074,9 +1074,9 @@ static expected<struct dentry *, int> namei_create_generic(int dirfd, const char
     }
 
     dent = dentry_lookup_internal(name, dir, DENTRY_LOOKUP_UNLOCKED);
-    if (!dent)
+    if (IS_ERR(dent))
     {
-        st = -errno;
+        st = PTR_ERR(dent);
         goto unlock_err;
     }
 
@@ -1173,9 +1173,9 @@ int symlink_vfs(const char *path, const char *dest, int dirfd)
     auto name = get_token_from_path(last_name, false);
 
     struct dentry *dent = dentry_lookup_internal(name, dir, DENTRY_LOOKUP_UNLOCKED);
-    if (!dent)
+    if (IS_ERR(dent))
     {
-        st = -errno;
+        st = PTR_ERR(dent);
         goto unlock_err;
     }
 
@@ -1238,9 +1238,9 @@ int link_vfs(struct dentry *target, int dirfd, const char *newpath)
     auto name = get_token_from_path(last_name, false);
 
     struct dentry *dent = dentry_lookup_internal(name, dir, DENTRY_LOOKUP_UNLOCKED);
-    if (!dent)
+    if (IS_ERR(dent))
     {
-        st = -errno;
+        st = PTR_ERR(dent);
         goto unlock_err;
     }
 
@@ -1375,9 +1375,9 @@ int unlink_vfs(const char *path, int flags, int dirfd)
     memcpy(_name, name.data(), name.length());
 
     child = dentry_lookup_internal(name, dentry);
-    if (!child)
+    if (IS_ERR(child))
     {
-        st = -errno;
+        st = PTR_ERR(child);
         goto out;
     }
 
@@ -1557,8 +1557,8 @@ int do_renameat(struct dentry *dir, struct lookup_path &last, struct dentry *old
     memcpy(_name, name.data(), name.length());
 
     dentry *dest = dentry_lookup_internal(name, dir);
-    if (!dest)
-        return -ENOMEM;
+    if (IS_ERR(dest))
+        return PTR_ERR(dest);
 
     /* Can't do that... Note that dentry always exists if it's a mountpoint */
     if (dentry_involved_with_mount(dest))
@@ -1770,9 +1770,9 @@ static int namei_create_generic_path(int dirfd, const char *path, mode_t mode, d
     }
 
     dent = dentry_lookup_internal(name, dir, DENTRY_LOOKUP_UNLOCKED);
-    if (!dent)
+    if (IS_ERR(dent))
     {
-        st = -errno;
+        st = PTR_ERR(dent);
         goto unlock_err;
     }
 
