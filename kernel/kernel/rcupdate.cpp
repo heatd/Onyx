@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 - 2024 Pedro Falcato
+ * Copyright (c) 2023 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 license.
  *
  * SPDX-License-Identifier: GPL-2.0-only
@@ -7,6 +7,7 @@
 #include <onyx/clock.h>
 #include <onyx/cpumask.h>
 #include <onyx/gen/trace_rcupdate.h>
+#include <onyx/mm/kasan.h>
 #include <onyx/mm/slab.h>
 #include <onyx/percpu.h>
 #include <onyx/rcupdate.h>
@@ -407,6 +408,7 @@ void synchronize_rcu()
 
 void __kfree_rcu(struct rcu_head *head, unsigned long off)
 {
+    kasan_record_kfree_rcu(head, off);
     head->func = (void (*)(struct rcu_head *))(void *) off;
     head->next = nullptr;
 

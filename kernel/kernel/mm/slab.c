@@ -847,11 +847,16 @@ static int kmem_cache_alloc_refill_mag(struct slab_cache *cache,
 
 #define KASAN_STACK_DEPTH 16
 
+static inline struct kasan_slab_obj_info *kmem_get_kasan_obj_info(void *object,
+                                                                  struct slab_cache *cache)
+{
+    return (struct kasan_slab_obj_info *) ((u8 *) object - (cache->redzone / 2));
+}
+
 __always_inline void kmem_cache_post_alloc_kasan(struct slab_cache *cache, unsigned int flags,
                                                  void *object)
 {
-    struct kasan_slab_obj_info *info =
-        (struct kasan_slab_obj_info *) ((u8 *) object - (cache->redzone / 2));
+    struct kasan_slab_obj_info *info = kmem_get_kasan_obj_info(object, cache);
     unsigned long trace[KASAN_STACK_DEPTH];
     unsigned long nr =
         stack_trace_get((unsigned long *) __builtin_frame_address(0), trace, KASAN_STACK_DEPTH);
@@ -863,11 +868,25 @@ __always_inline void kmem_cache_post_alloc_kasan(struct slab_cache *cache, unsig
 
 __always_inline void kasan_register_free(void *ptr, struct slab_cache *cache)
 {
-    struct kasan_slab_obj_info *info =
-        (struct kasan_slab_obj_info *) ((u8 *) ptr - (cache->redzone / 2));
+    struct kasan_slab_obj_info *info = kmem_get_kasan_obj_info(ptr, cache);
     unsigned long trace[KASAN_STACK_DEPTH];
     unsigned long nr =
         stack_trace_get((unsigned long *) __builtin_frame_address(0), trace, KASAN_STACK_DEPTH);
+    /* May have already be filled by kasan_record_kfree_rcu */
+    if (info->free_stack == DEPOT_STACK_HANDLE_INVALID)
+        info->free_stack = stackdepot_save_stack(trace, nr);
+}
+
+void kasan_record_kfree_rcu(struct rcu_head *head, size_t off)
+{
+    void *ptr = ((void *) head) - off;
+    struct slab *slab = kmem_pointer_to_slab(ptr);
+    struct slab_cache *cache = slab->cache;
+    struct kasan_slab_obj_info *info = kmem_get_kasan_obj_info(ptr, cache);
+    unsigned long trace[KASAN_STACK_DEPTH];
+    unsigned long nr;
+
+    nr = stack_trace_get((unsigned long *) __builtin_frame_address(0), trace, KASAN_STACK_DEPTH);
     info->free_stack = stackdepot_save_stack(trace, nr);
 }
 
