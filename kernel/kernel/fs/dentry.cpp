@@ -14,6 +14,7 @@
 
 #include <onyx/compiler.h>
 #include <onyx/dentry.h>
+#include <onyx/err.h>
 #include <onyx/file.h>
 #include <onyx/gen/trace_dentry.h>
 #include <onyx/mm/slab.h>
@@ -482,8 +483,8 @@ static const struct dentry_operations default_dops = {};
 
 dentry *dentry_create(const char *name, inode *inode, dentry *parent, u16 flags)
 {
-    if (parent && !S_ISDIR(parent->d_inode->i_mode))
-        return errno = ENOTDIR, nullptr;
+    if (WARN_ON(parent && !S_ISDIR(parent->d_inode->i_mode)))
+        return nullptr;
 
     /* TODO: Move a bunch of this code to a constructor and placement-new it */
     dentry *new_dentry = (dentry *) kmem_cache_alloc(dentry_cache, 0);
@@ -592,7 +593,7 @@ dentry *__dentry_try_to_open(std::string_view name, dentry *dir, bool lock_ino)
     auto ex = dentry_create_pending_lookup(_name, nullptr, dir);
 
     if (ex.has_error())
-        return errno = -ex.error(), nullptr;
+        return (dentry *) ERR_PTR(ex.error());
 
     auto dent = ex.value();
 
@@ -635,7 +636,7 @@ dentry *__dentry_try_to_open(std::string_view name, dentry *dir, bool lock_ino)
 
         dentry_fail_lookup(dent);
         dput(dent);
-        return nullptr;
+        return (dentry *) ERR_PTR(st);
     }
 
     DCHECK(!(dent->d_flags & DENTRY_FLAG_PENDING));
@@ -664,7 +665,7 @@ struct dentry *dentry_parent(struct dentry *dir)
 dentry *dentry_lookup_internal(std::string_view v, dentry *dir, dentry_lookup_flags_t flags)
 {
     if (!dentry_is_dir(dir))
-        return errno = ENOTDIR, nullptr;
+        return (dentry *) ERR_PTR(-ENOTDIR);
 
     if (!v.compare("."))
     {
@@ -685,7 +686,7 @@ dentry *dentry_lookup_internal(std::string_view v, dentry *dir, dentry_lookup_fl
     }
 
     if (IS_DEADDIR(dir->d_inode))
-        return errno = ENOENT, nullptr;
+        return (dentry *) ERR_PTR(-ENOENT);
 
     dentry *dent = dentry_open_from_cache(dir, v);
 

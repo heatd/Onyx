@@ -104,7 +104,7 @@ int tmpfs_unlink(const char *name, int flags, struct dentry *dir)
 {
     int err;
     auto child = dentry_lookup_internal(name, dir, 0);
-    assert(child != nullptr);
+    assert(!IS_ERR(child));
 
     if (S_ISDIR(child->d_inode->i_mode))
     {
