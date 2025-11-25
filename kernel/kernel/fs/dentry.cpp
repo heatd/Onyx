@@ -164,8 +164,9 @@ void dentry_remove_from_cache(dentry *dent, dentry *parent)
 {
     auto hash = hash_dentry_fields(parent, std::string_view{dent->d_name, dent->d_name_length});
     auto index = dentry_ht.get_hashtable_index(hash);
-    spin_lock(&dentry_ht_locks[index]);
 
+    spin_lock(&dentry_ht_locks[index]);
+    WARN_ON(!(dent->d_flags & DENTRY_FLAG_HASHED));
     list_remove_rcu(&dent->d_cache_node);
     dent->d_flags &= ~DENTRY_FLAG_HASHED;
     spin_unlock(&dentry_ht_locks[index]);
@@ -175,8 +176,9 @@ static void dentry_add_to_cache(dentry *dent, dentry *parent)
 {
     auto hash = hash_dentry_fields(parent, std::string_view{dent->d_name, dent->d_name_length});
     auto index = dentry_ht.get_hashtable_index(hash);
-    spin_lock(&dentry_ht_locks[index]);
 
+    spin_lock(&dentry_ht_locks[index]);
+    WARN_ON(dent->d_flags & DENTRY_FLAG_HASHED);
     list_add_tail_rcu(&dent->d_cache_node, dentry_ht.get_hashtable(index));
     dent->d_flags |= DENTRY_FLAG_HASHED;
     spin_unlock(&dentry_ht_locks[index]);
@@ -201,6 +203,7 @@ static struct dentry *dentry_add_to_cache_careful(dentry *dent, dentry *parent)
         return ret;
     }
 
+    WARN_ON(dent->d_flags & DENTRY_FLAG_HASHED);
     list_add_tail_rcu(&dent->d_cache_node, dentry_ht.get_hashtable(index));
     dent->d_flags |= DENTRY_FLAG_HASHED;
     spin_unlock(&dentry_ht_locks[index]);
@@ -829,6 +832,7 @@ void dentry_do_rename_unlink(dentry *entry)
 
     /* The dcache buckets are already locked, so we don't grab the lock again. Just open-code the
      * removal. */
+    WARN_ON(!(entry->d_flags & DENTRY_FLAG_HASHED));
     list_remove_rcu(&entry->d_cache_node);
     entry->d_flags &= ~DENTRY_FLAG_HASHED;
 
@@ -885,6 +889,7 @@ void dentry_rename(dentry *dent, const char *name, dentry *parent,
 
     DCHECK(dentry_is_in_chain(dent, oldi));
 
+    WARN_ON(!(dent->d_flags & DENTRY_FLAG_HASHED));
     list_remove_rcu(&dent->d_cache_node);
     list_add_tail_rcu(&dent->d_cache_node, dentry_ht.get_hashtable(newi));
 
