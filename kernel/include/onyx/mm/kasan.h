@@ -65,5 +65,12 @@ size_t kasan_get_redzone_size(size_t objsize);
 #define KASAN_QUARANTINED  0x9e
 #define KASAN_LEFT_REDZONE 0xfa
 
+#ifdef CONFIG_KASAN
+struct rcu_head;
+void kasan_record_kfree_rcu(struct rcu_head *head, size_t off);
+#else
+#define kasan_record_kfree_rcu(head, off)
+#endif
+
 __END_CDECLS
 #endif
