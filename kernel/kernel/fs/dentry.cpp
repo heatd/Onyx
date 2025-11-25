@@ -335,6 +335,9 @@ static bool d_should_retain(struct dentry *dentry, bool locked)
     if (!(flags & DENTRY_FLAG_HASHED))
         return false;
 
+    if (flags & DENTRY_FLAG_FAILED)
+        return false;
+
     if (!(flags & DENTRY_FLAG_LRU))
     {
         /* If not in an LRU, try to add it (if locked) */
@@ -432,7 +435,8 @@ static struct dentry *d_destroy(struct dentry *dentry)
         spin_lock(&parent->d_lock);
         /* Freeze refs. We'll see if we want to whack the parent dentry and return it if so */
         d_freeze_refs(parent);
-        if (hashed)
+        if (!list_is_empty(&dentry->d_parent_dir_node) &&
+            dentry->d_parent_dir_node.next != LIST_REMOVE_POISON)
             list_remove(&dentry->d_parent_dir_node);
     }
 
@@ -472,8 +476,6 @@ void dput(struct dentry *d)
  */
 void dentry_fail_lookup(struct dentry *d)
 {
-    dentry_remove_from_cache(d, d->d_parent);
-
     {
         d->d_flags |= DENTRY_FLAG_FAILED;
         d->d_flags &= ~DENTRY_FLAG_PENDING;
@@ -532,6 +534,7 @@ dentry *dentry_create(const char *name, inode *inode, dentry *parent, u16 flags)
     new_dentry->d_name_length = name_length;
     new_dentry->d_name_hash = fnv_hash(new_dentry->d_name, new_dentry->d_name_length);
     new_dentry->d_inode = inode;
+    INIT_LIST_HEAD(&new_dentry->d_parent_dir_node);
 
     /* We need this if() because we might call dentry_create before retrieving an inode */
     if (inode)
