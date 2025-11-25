@@ -1018,12 +1018,12 @@ static int namei_lookup_parentat(int dirfd, const char *name, unsigned int flags
     {
         /* Use the parent of whatever we got. */
         path_put(&namedata.cur);
-        DCHECK(!path_is_null(&namedata.parent));
         namedata.cur = namedata.parent;
         path_init(&namedata.parent);
     }
 
-    DCHECK(!path_is_null(&namedata.cur));
+    if (path_is_null(&namedata.cur))
+        return -ENOENT;
     *outn = namedata.paths[namedata.pdepth];
     *parent = namedata.getcur();
     return 0;
