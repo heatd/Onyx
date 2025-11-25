@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2024 Pedro Falcato
+ * Copyright (c) 2020 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -72,6 +72,17 @@ static inline int d_revalidate(struct dentry *dentry, unsigned int flags)
 
 void dentry_remove_from_cache(dentry *dent, dentry *parent);
 
+static bool is_hashtable_head(struct list_head *lh)
+{
+    unsigned long p = (unsigned long) lh;
+    unsigned long ht = (unsigned long) &dentry_ht;
+    return p >= ht && p < ht + sizeof(dentry_ht);
+}
+
+#define list_for_every_ht_rcu(lh)                                              \
+    for (struct list_head *l = __atomic_load_n(&(lh)->next, __ATOMIC_RELAXED); \
+         !is_hashtable_head(l); l = __atomic_load_n(&l->next, __ATOMIC_RELAXED))
+
 static dentry *d_lookup_internal(dentry *dent, std::string_view name)
 {
     auto namehash = fnv_hash(name.data(), name.length());
@@ -79,7 +90,7 @@ static dentry *d_lookup_internal(dentry *dent, std::string_view name)
     auto index = dentry_ht.get_hashtable_index(hash);
     auto list = dentry_ht.get_hashtable(index);
 
-    list_for_every_rcu (list)
+    list_for_every_ht_rcu(list)
     {
         struct dentry *d = container_of(l, struct dentry, d_cache_node);
 
