@@ -1029,22 +1029,6 @@ static int namei_lookup_parentat(int dirfd, const char *name, unsigned int flags
     return 0;
 }
 
-/* Helper to open specific dentries */
-dentry *dentry_do_open(int dirfd, const char *path, unsigned int lookup_flags = 0)
-{
-    nameidata namedata{std::string_view{path, strlen(path)}};
-    namedata.dirfd = dirfd;
-    namedata.lookup_flags = lookup_flags;
-    struct path p;
-
-    int err = dentry_resolve(namedata, &p);
-    if (err < 0)
-        return errno = err, nullptr;
-    if (p.mount)
-        mnt_put(p.mount);
-    return p.dentry;
-}
-
 static expected<struct dentry *, int> namei_create_generic(int dirfd, const char *path, mode_t mode,
                                                            dev_t dev,
                                                            unsigned int extra_lookup_flags = 0)
