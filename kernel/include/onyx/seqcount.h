@@ -36,13 +36,13 @@ static inline int read_seqcount_retry(const seqcount_t *seq, unsigned int old)
 
 static inline void write_seqcount_begin(seqcount_t *seq)
 {
-    WRITE_ONCE(seq, seq + 1);
+    *seq = *seq + 1;
     smp_wmb();
 }
 
 static inline void write_seqcount_end(seqcount_t *seq)
 {
-    __atomic_store_n(&seq, (seq + 1), __ATOMIC_RELEASE);
+    __atomic_store_n(seq, *seq + 1, __ATOMIC_RELEASE);
 }
 
 #endif
