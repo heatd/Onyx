@@ -657,6 +657,8 @@ inline uint32_t ext2_block_number_to_bg(ext2_block_no block_no, const ext2_super
 #define EXT2_ATOMIC_SUB(var, num) __atomic_sub_fetch(&var, num, __ATOMIC_RELAXED)
 
 #define EXT2_SUPPORTED_INCOMPAT EXT2_FEATURE_INCOMPAT_FILETYPE
+#define EXT2_SUPPORTED_RO_COMPAT \
+    (EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER | EXT2_FEATURE_RO_COMPAT_LARGE_FILE)
 
 inode *ext2_get_inode(ext2_superblock *sb, uint32_t inode_num);
 inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, dentry *dir);
