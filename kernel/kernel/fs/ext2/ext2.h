@@ -408,6 +408,7 @@ struct ext2_superblock : public superblock
     uint32_t number_of_block_groups;
     uint16_t inode_size;
     unsigned int entry_shift;
+    unsigned int sb_state;
     cul::vector<ext2_block_group> block_groups;
 
     ext2_block_no try_allocate_block_from_bg(ext2_block_group_no nr);
