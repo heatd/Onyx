@@ -59,7 +59,7 @@ struct file *anon_inode_open(mode_t file_type, const struct file_ops *ops, const
     if (!ino)
         return nullptr;
 
-    ino->i_fops = (struct file_ops *) ops;
+    ino->i_fops = ops;
 
     dentry = dentry_create(name, ino, nullptr);
     if (!dentry)

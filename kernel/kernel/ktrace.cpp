@@ -426,7 +426,7 @@ static int buffd_create(struct file **pfd, u32 cpu_nr)
     anon_ino->i_mode = S_IFIFO;
     anon_ino->i_flags = INODE_FLAG_NO_SEEK;
     anon_ino->i_inode = current_inode_number++;
-    anon_ino->i_fops = (struct file_ops *) &ktrace_buf_fops;
+    anon_ino->i_fops = &ktrace_buf_fops;
 
     char name[NAME_MAX];
     sprintf(name, "<ktrace_buf:%u>", cpu_nr);

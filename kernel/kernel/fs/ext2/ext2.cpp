@@ -503,7 +503,7 @@ struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
         return nullptr;
     }
 
-    ino->i_fops = (struct file_ops *) (S_ISDIR(inode->i_mode) ? &ext2_dir_ops : &ext2_ops);
+    ino->i_fops = S_ISDIR(inode->i_mode) ? &ext2_dir_ops : &ext2_ops;
     ino->i_op = &ext2_ino_ops;
 
     if (inode_is_special(ino))
@@ -890,7 +890,7 @@ struct superblock *ext2_mount_partition(struct vfs_mount_info *info)
         block_buf_dirty(sb->sb_bb);
     }
 
-    root_inode->i_fops = (struct file_ops *) &ext2_dir_ops;
+    root_inode->i_fops = &ext2_dir_ops;
     root_inode->i_op = &ext2_ino_ops;
 
     d_positiveize(info->root_dir, root_inode);

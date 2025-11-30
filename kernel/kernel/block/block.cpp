@@ -74,6 +74,7 @@ unsigned int blkdev_ioctl(int request, void *argp, struct file *f)
         case BLKFLSBUF: {
             if (!is_root_user())
                 return -EACCES;
+            return 0;
             /* Synchronize the block device's page cache and truncate all the pages out! */
             if (int st = filemap_fdatasync(f, 0, -1UL); st < 0)
                 return st;
@@ -353,7 +354,7 @@ __init static void bdev_setup_fs()
     superblock_init(bdev_sb, 0);
 }
 
-extern struct file_ops buffer_ops;
+extern const struct file_ops buffer_ops;
 
 /* Complete noop */
 static const struct inode_operations buffer_ino_ops = {};

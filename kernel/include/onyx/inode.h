@@ -133,7 +133,7 @@ struct inode
     dev_t i_rdev;
     struct superblock *i_sb;
     const struct inode_operations *i_op;
-    struct file_ops *i_fops;
+    const struct file_ops *i_fops;
     struct vm_object *i_pages;
     void *i_helper;
     struct dentry *i_dentry; /* Only valid for directories */

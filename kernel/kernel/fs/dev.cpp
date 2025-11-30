@@ -500,7 +500,7 @@ inode *devfs_create_inode(devfs_file *file, struct superblock *sb)
     inode->i_inode = file->ino;
     inode->i_dev = sb->s_devnr;
     inode->i_rdev = file->dev;
-    inode->i_fops = (struct file_ops *) &devfs_root_ops;
+    inode->i_fops = &devfs_root_ops;
     inode->i_op = &devfs_ino_ops;
     inode->i_mode = file->mode;
     inode->i_helper = file;

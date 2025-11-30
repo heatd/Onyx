@@ -82,7 +82,7 @@ struct inode *proc_create_inode(struct superblock *sb, struct procfs_entry *entr
     inode->i_gid = entry->gid;
     inode->i_sb = sb;
     inode->i_op = entry->iops ?: &procfs_ino_ops;
-    inode->i_fops = (struct file_ops *) (entry->fops ?: &procfs_file_ops);
+    inode->i_fops = entry->fops ?: &procfs_file_ops;
     inode->i_size = entry->size;
     inode->i_inode = entry->inum;
     inode->i_helper = entry;
