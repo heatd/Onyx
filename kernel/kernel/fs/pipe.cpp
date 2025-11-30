@@ -699,7 +699,7 @@ static int pipe_create(struct file **pipe_readable, struct file **pipe_writeable
     anon_pipe_ino->i_mode = S_IFIFO;
     anon_pipe_ino->i_flags = INODE_FLAG_NO_SEEK;
     anon_pipe_ino->i_inode = current_inode_number++;
-    anon_pipe_ino->i_fops = (struct file_ops *) &pipe_ops;
+    anon_pipe_ino->i_fops = &pipe_ops;
 
     anon_pipe_dent = dentry_create("<anon_pipe>", anon_pipe_ino, nullptr);
     if (!anon_pipe_dent)
@@ -960,7 +960,7 @@ int pipe::open_named(struct file *filp)
 
 int pipe_do_fifo(inode *ino)
 {
-    ino->i_fops = (file_ops *) &named_pipe_ops;
+    ino->i_fops = &named_pipe_ops;
     return 0;
 }
 

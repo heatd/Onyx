@@ -54,7 +54,7 @@ void handle_file_close(struct inode *ino)
     handle_from_inode(ino)->handle_unref();
 }
 
-struct file_ops handle_ops = {.read = nullptr, .write = nullptr};
+static const struct file_ops handle_ops = {.read = nullptr, .write = nullptr};
 
 file *handle_inode_to_file(inode *ino)
 {

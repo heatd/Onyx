@@ -462,7 +462,7 @@ unsigned int socket_ioctl(int request, void *argp, struct file *file)
     return -ENOTTY;
 }
 
-struct file_ops socket_ops = {
+static const struct file_ops socket_ops = {
     .ioctl = socket_ioctl,
     .poll = socket_poll,
     .release = socket_close,

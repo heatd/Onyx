@@ -318,7 +318,7 @@ static int instantiate(struct dentry *dir, struct dentry *dentry, struct process
     get_pid(inode->owner);
 
     if (new->fops)
-        inode->pfi_inode.i_fops = (struct file_ops *) new->fops;
+        inode->pfi_inode.i_fops = new->fops;
     if (new->dops)
         dentry->d_ops = new->dops;
     proc_set_owner(inode, task);
@@ -655,7 +655,7 @@ static int pid_attr_instantiate(const struct pid_attr *attr, struct dentry *dir,
     if (attr->dops)
         dentry->d_ops = attr->dops;
     if (attr->fops)
-        inode->pfi_inode.i_fops = (struct file_ops *) attr->fops;
+        inode->pfi_inode.i_fops = attr->fops;
 
     inode->owner = pid_ino->owner;
     proc_set_owner(inode, task);

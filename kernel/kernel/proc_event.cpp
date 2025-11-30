@@ -125,7 +125,7 @@ unsigned int proc_event_ioctl(int request, void *argp, struct file *file)
     }
 }
 
-struct file_ops proc_event_ops = {.read = proc_event_read, .ioctl = proc_event_ioctl};
+static const struct file_ops proc_event_ops = {.read = proc_event_read, .ioctl = proc_event_ioctl};
 
 int sys_proc_event_attach(pid_t pid, unsigned long flags)
 {

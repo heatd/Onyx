@@ -333,7 +333,7 @@ tmpfs_inode *tmpfs_superblock::alloc_inode(mode_t mode, dev_t rdev)
         return nullptr;
     }
 
-    ino->i_fops = (file_ops *) tmpfs_ops_;
+    ino->i_fops = tmpfs_ops_;
     ino->i_op = &tmpfs_ino_ops;
 
     ino->i_nlink = 0;

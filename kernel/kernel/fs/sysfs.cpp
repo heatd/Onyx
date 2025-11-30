@@ -210,7 +210,7 @@ off_t sysfs_getdirent(struct dirent *buf, off_t off, struct file *_file)
     return off + 1;
 }
 
-struct file_ops sysfs_ops = {
+static const struct file_ops sysfs_ops = {
     .read = sysfs_read,
     .write = sysfs_write,
     .getdirent = sysfs_getdirent,

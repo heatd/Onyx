@@ -590,7 +590,7 @@ extern int bdev_on_open(struct file *f);
 extern void bdev_release(struct file *f);
 extern unsigned int blkdev_ioctl(int request, void *argp, struct file *f);
 
-struct file_ops buffer_ops = {
+extern const struct file_ops buffer_ops = {
     .ioctl = blkdev_ioctl,
     .on_open = bdev_on_open,
     .release = bdev_release,
