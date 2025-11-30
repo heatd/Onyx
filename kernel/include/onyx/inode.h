@@ -65,6 +65,7 @@ struct file_ops
                           unsigned int flags);
     int (*fsyncdata)(struct inode *ino, struct writepages_info *wpinfo);
     ssize_t (*directio)(struct file *file, size_t off, struct iovec_iter *iter, unsigned int flags);
+    off_t (*llseek)(struct file *filp, off_t off, int whence);
 };
 
 struct nameidata;
