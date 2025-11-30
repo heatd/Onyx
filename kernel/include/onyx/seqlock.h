@@ -48,6 +48,16 @@ static inline void done_seqretry(seqlock_t *sl, unsigned int seq)
         spin_unlock(&sl->lock);
 }
 
+static inline void read_seqlock_excl(seqlock_t *sl)
+{
+    spin_lock(&sl->lock);
+}
+
+static inline void read_sequnlock_excl(seqlock_t *sl)
+{
+    spin_unlock(&sl->lock);
+}
+
 static inline void seqlock_init(seqlock_t *sl)
 {
     seqcount_init(&sl->seqcount);

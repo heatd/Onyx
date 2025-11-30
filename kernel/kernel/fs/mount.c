@@ -625,7 +625,7 @@ out:
 
 static void *mounts_seq_start(struct seq_file *m, off_t *off)
 {
-    write_seqlock(&mount_lock);
+    read_seqlock_excl(&mount_lock);
     return seq_list_start(&mount_list, *off);
 }
 
@@ -653,7 +653,7 @@ static int mounts_seq_show(struct seq_file *m, void *ptr)
 
 static void mounts_seq_stop(struct seq_file *m, void *ptr)
 {
-    write_sequnlock(&mount_lock);
+    read_sequnlock_excl(&mount_lock);
 }
 
 static const struct seq_operations mounts_seq_ops = {
