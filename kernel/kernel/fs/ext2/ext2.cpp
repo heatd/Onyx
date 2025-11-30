@@ -21,6 +21,7 @@
 #include <onyx/dev.h>
 #include <onyx/filemap.h>
 #include <onyx/fs_mount.h>
+#include <onyx/libfs.h>
 #include <onyx/limits.h>
 #include <onyx/log.h>
 #include <onyx/pagecache.h>
@@ -52,14 +53,24 @@ static int ext2_readpages(struct readpages_state *state, struct inode *ino);
 static unsigned int ext2_ioctl(int request, void *argp, struct file *file);
 int ext2_rename(struct dentry *src_parent, struct dentry *src, struct dentry *dst_dir,
                 struct dentry *dst);
+static off_t ext2_llseek(struct file *filp, off_t off, int whence);
 
-struct file_ops ext2_ops = {
+const struct file_ops ext2_ops = {
+    .ioctl = ext2_ioctl,
+    .fallocate = ext2_fallocate,
+    .read_iter = filemap_read_iter,
+    .write_iter = filemap_write_iter,
+    .fsyncdata = ext2_fsyncdata,
+};
+
+const struct file_ops ext2_dir_ops = {
     .getdirent = ext2_getdirent,
     .ioctl = ext2_ioctl,
     .fallocate = ext2_fallocate,
     .read_iter = filemap_read_iter,
     .write_iter = filemap_write_iter,
     .fsyncdata = ext2_fsyncdata,
+    .llseek = ext2_llseek,
 };
 
 const struct inode_operations ext2_ino_ops = {
@@ -492,7 +503,7 @@ struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
         return nullptr;
     }
 
-    ino->i_fops = &ext2_ops;
+    ino->i_fops = (struct file_ops *) (S_ISDIR(inode->i_mode) ? &ext2_dir_ops : &ext2_ops);
     ino->i_op = &ext2_ino_ops;
 
     if (inode_is_special(ino))
@@ -879,7 +890,7 @@ struct superblock *ext2_mount_partition(struct vfs_mount_info *info)
         block_buf_dirty(sb->sb_bb);
     }
 
-    root_inode->i_fops = &ext2_ops;
+    root_inode->i_fops = (struct file_ops *) &ext2_dir_ops;
     root_inode->i_op = &ext2_ino_ops;
 
     d_positiveize(info->root_dir, root_inode);
@@ -921,6 +932,13 @@ static unsigned int ext2_revalidate_dir(u8 *buf, unsigned long off, unsigned int
     while (base < top)
         base = (ext2_dir_entry_t *) (((u8 *) base) + base->rec_len);
     return ((unsigned long) base) & (PAGE_SIZE - 1);
+}
+
+static off_t ext2_llseek(struct file *filp, off_t off, int whence)
+{
+    /* Reset the cookie to force getdirent to revalidate. */
+    filp->private_data = NULL;
+    return generic_file_llseek(filp, off, whence);
 }
 
 off_t ext2_getdirent(struct dirent *buf, off_t off, struct file *f)
