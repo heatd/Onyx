@@ -361,7 +361,7 @@ void quarantine::flush()
 
     // Flush the global queue
     scoped_lock<spinlock, true> g{queue_lock_};
-    pop();
+    pop_and_unlock(g);
 }
 
 /**
