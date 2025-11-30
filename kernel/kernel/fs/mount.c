@@ -217,13 +217,20 @@ static int mnt_commit(struct mount *mnt, const char *target)
     return 0;
 }
 
+static bool mnt_rdonly(struct mount *mnt)
+{
+    struct superblock *sb = mnt->mnt_sb;
+
+    return (READ_ONCE(mnt->mnt_flags) & MNT_READONLY) || sb_rdonly(sb);
+}
+
 static bool mnt_may_write(struct mount *mnt)
 {
     struct superblock *sb = mnt->mnt_sb;
 
     if (READ_ONCE(sb->s_remount_ro_pending))
         return false;
-    return !(READ_ONCE(mnt->mnt_flags) & MNT_READONLY) && !sb_rdonly(sb);
+    return !mnt_rdonly(mnt);
 }
 
 int mnt_get_write_access(struct mount *mnt)
@@ -634,6 +641,37 @@ static void *mounts_seq_next(struct seq_file *m, void *ptr, off_t *off)
     return seq_list_next(ptr, &mount_list, off);
 }
 
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+
+static void mounts_print_flags(struct seq_file *m, struct mount *mnt)
+{
+    unsigned int flags = READ_ONCE(mnt->mnt_flags);
+    unsigned int i;
+    static const struct
+    {
+        unsigned int flag;
+        const char *name;
+    } mnt_flags[] = {
+        {MNT_NOATIME, "noatime"},
+        {MNT_STRICTATIME, "strictatime"},
+        {MNT_NODIRATIME, "nodiratime"},
+    };
+
+    seq_puts(m, mnt_rdonly(mnt) ? "ro" : "rw");
+
+    for (i = 0; i < ARRAY_SIZE(mnt_flags); i++)
+    {
+        if (flags & mnt_flags[i].flag)
+        {
+            seq_putc(m, ',');
+            seq_puts(m, mnt_flags[i].name);
+        }
+    }
+
+    if (!(flags & (MNT_NOATIME | MNT_STRICTATIME | MNT_NODIRATIME)))
+        seq_puts(m, ",relatime");
+}
+
 static int mounts_seq_show(struct seq_file *m, void *ptr)
 {
     struct mount *mnt = list_entry(ptr, struct mount, mnt_namespace_node);
@@ -645,8 +683,8 @@ static int mounts_seq_show(struct seq_file *m, void *ptr)
     if (err)
         return err;
     seq_printf(m, " %s ", mnt->mnt_sb->s_type->name);
-    /* TODO: Actually do proper flags */
-    seq_printf(m, "rw,relatime 0 0");
+    mounts_print_flags(m, mnt);
+    seq_printf(m, " 0 0");
     seq_putc(m, '\n');
     return 0;
 }
