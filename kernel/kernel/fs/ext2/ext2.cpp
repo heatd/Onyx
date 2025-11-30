@@ -720,7 +720,7 @@ struct superblock *ext2_mount_partition(struct vfs_mount_info *info)
     else
     {
         pr_err("ext2: invalid ext2 signature %x\n", ext2_sb->s_magic);
-        err = EINVAL;
+        err = -EINVAL;
         goto error;
     }
 
@@ -753,6 +753,7 @@ struct superblock *ext2_mount_partition(struct vfs_mount_info *info)
 
     ext2_sb = (superblock_t *) ((char *) block_buf_data(b) + sb_off);
 
+    err = -EINVAL;
     if (ext2_sb->s_rev_level == EXT2_DYNAMIC_REV)
     {
         sb->features_compat = ext2_sb->s_feature_compat;
@@ -770,6 +771,21 @@ struct superblock *ext2_mount_partition(struct vfs_mount_info *info)
     else
     {
         pr_err("ext2: couldn't mount: Unknown revision level\n");
+        goto error;
+    }
+
+    if (sb->features_incompat & ~EXT2_SUPPORTED_INCOMPAT)
+    {
+        pr_err("ext2: couldn't mount: Unknown incompatible feature set %#x\n",
+               sb->features_incompat & ~EXT2_SUPPORTED_INCOMPAT);
+        goto error;
+    }
+
+    if (!sb_rdonly(sb) && sb->features_ro_compat & ~EXT2_SUPPORTED_RO_COMPAT)
+    {
+        pr_err("ext2: couldn't mount as read-write: Unknown ro-compatible feature set %#x required "
+               "for write\n",
+               sb->features_ro_compat & ~EXT2_SUPPORTED_RO_COMPAT);
         goto error;
     }
 
@@ -793,6 +809,7 @@ struct superblock *ext2_mount_partition(struct vfs_mount_info *info)
     if (sb->total_blocks % sb->blocks_per_block_group)
         sb->number_of_block_groups++;
 
+    err = -ENOMEM;
     for (unsigned int i = 0; i < sb->number_of_block_groups; i++)
     {
         ext2_block_group bg{i};
@@ -810,10 +827,14 @@ struct superblock *ext2_mount_partition(struct vfs_mount_info *info)
     superblock_add_inode(sb, root_inode);
     sb->s_ops = &ext2_sb_ops;
 
-    sb->sb->s_mtime = clock_get_posix_time();
-    sb->sb->s_mnt_count++;
-
-    block_buf_dirty(sb->sb_bb);
+    if (!sb_rdonly(sb))
+    {
+        sb->sb->s_mtime = clock_get_posix_time();
+        sb->sb->s_mnt_count++;
+        if (sb->sb_state != EXT2_ERROR_FS)
+            sb->sb->s_state = 0;
+        block_buf_dirty(sb->sb_bb);
+    }
 
     root_inode->i_fops = &ext2_ops;
     root_inode->i_op = &ext2_ino_ops;
@@ -925,9 +946,12 @@ void ext2_superblock::error(const char *str) const
 {
     pr_err("ext2_error: %s\n", str);
 
-    sb->s_state = EXT2_ERROR_FS;
-    block_buf_dirty(sb_bb);
-    block_buf_sync(sb_bb);
+    if (!sb_rdonly((struct superblock *) this))
+    {
+        sb->s_state = EXT2_ERROR_FS;
+        block_buf_dirty(sb_bb);
+        block_buf_sync(sb_bb);
+    }
 
     if (sb->s_errors == EXT2_ERRORS_CONTINUE)
         return;
