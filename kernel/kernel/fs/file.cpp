@@ -19,6 +19,7 @@
 #include <onyx/dentry.h>
 #include <onyx/file.h>
 #include <onyx/fs_mount.h>
+#include <onyx/libfs.h>
 #include <onyx/limits.h>
 #include <onyx/mm/slab.h>
 #include <onyx/namei.h>
@@ -1259,18 +1260,9 @@ int sys_fallocate(int fd, int mode, off_t offset, off_t len)
     return ret;
 }
 
-off_t sys_lseek(int fd, off_t offset, int whence)
+off_t generic_file_llseek(struct file *filp, off_t offset, int whence)
 {
-    off_t ret = 0;
-    auto_fd f = fdget_seek(fd);
-    if (!f)
-        return -errno;
-
-    struct file *filp = f.get_file();
-
-    /* TODO: Add a way for inodes to tell they don't support seeking */
-    if (S_ISFIFO(filp->f_ino->i_mode) || filp->f_ino->i_flags & INODE_FLAG_NO_SEEK)
-        return -ESPIPE;
+    off_t ret;
 
     if (whence == SEEK_CUR)
     {
@@ -1283,8 +1275,23 @@ off_t sys_lseek(int fd, off_t offset, int whence)
         ret = filp->f_seek = filp->f_ino->i_size + offset;
     else
         ret = -EINVAL;
-
     return ret;
+}
+
+off_t sys_lseek(int fd, off_t offset, int whence)
+{
+    auto_fd f = fdget_seek(fd);
+    if (!f)
+        return -errno;
+
+    struct file *filp = f.get_file();
+
+    if (filp->f_op->llseek)
+        return filp->f_op->llseek(filp, offset, whence);
+
+    if (S_ISFIFO(filp->f_ino->i_mode) || filp->f_ino->i_flags & INODE_FLAG_NO_SEEK)
+        return -ESPIPE;
+    return generic_file_llseek(filp, offset, whence);
 }
 
 static int do_dupfd(struct file *f, int fdbase, bool cloexec)
