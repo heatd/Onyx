@@ -677,12 +677,48 @@ static int ext2_shutdown_sb(struct superblock *sb_)
     return 0;
 }
 
+static int ext2_reconfigure_sb(struct superblock *sb_, unsigned int sb_flags)
+{
+    ext2_superblock *sb = (ext2_superblock *) sb_;
+    bool rdonly = sb_rdonly(sb);
+
+    /* Nothing to do if we are already matching in ro/rw */
+    if (rdonly == (bool) (sb_flags & SB_RDONLY))
+        return 0;
+
+    if (sb_flags & SB_RDONLY)
+    {
+        /* We're being remounted read-only. Make sure to properly (re)store the s_state. */
+        sb->sb->s_state = sb->sb_state;
+    }
+    else
+    {
+        /* Mounting read-write: check for proper rw flags */
+        if (!sb_rdonly(sb) && sb->features_ro_compat & ~EXT2_SUPPORTED_RO_COMPAT)
+        {
+            pr_err("ext2: couldn't mount as read-write: Unknown ro-compatible feature set %#x "
+                   "required "
+                   "for write\n",
+                   sb->features_ro_compat & ~EXT2_SUPPORTED_RO_COMPAT);
+            return -EROFS;
+        }
+
+        if (sb->sb_state != EXT2_ERROR_FS)
+            sb->sb->s_state = 0;
+    }
+
+    ext2_dirty_sb(sb);
+    block_buf_sync(sb->sb_bb);
+    return 0;
+}
+
 static const struct super_ops ext2_sb_ops = {
     .flush_inode = ext2_flush_inode,
     .evict_inode = ext2_evict_inode,
     .statfs = ext2_statfs,
     .shutdown = ext2_shutdown_sb,
     .free_inode = ext2_free_inode,
+    .reconfigure = ext2_reconfigure_sb,
 };
 
 struct superblock *ext2_mount_partition(struct vfs_mount_info *info)
@@ -803,6 +839,13 @@ struct superblock *ext2_mount_partition(struct vfs_mount_info *info)
     sb->blocks_per_block_group = ext2_sb->s_blocks_per_group;
     sb->inodes_per_block_group = ext2_sb->s_inodes_per_group;
     sb->number_of_block_groups = sb->total_blocks / sb->blocks_per_block_group;
+    sb->sb_state = ext2_sb->s_state;
+
+    if (sb->sb_state == EXT2_ERROR_FS)
+        pr_warn("ext2: Mounting filesystem with errors - running fsck is recommended\n");
+    else if (sb->sb_state != EXT2_VALID_FS)
+        pr_warn("ext2: Mounting unclean filesystem - running fsck is recommended\n");
+
     entries = sb->block_size / sizeof(uint32_t);
     sb->entry_shift = ilog2(entries);
 
