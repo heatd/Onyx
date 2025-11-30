@@ -912,42 +912,63 @@ static const u8 ft_to_dt_table[] = {
     DT_UNKNOWN, DT_REG, DT_DIR, DT_CHR, DT_BLK, DT_FIFO, DT_SOCK, DT_LNK,
 };
 
+static unsigned int ext2_revalidate_dir(u8 *buf, unsigned long off, unsigned int block_size)
+{
+    ext2_dir_entry_t *base = (ext2_dir_entry_t *) (buf + (off & (block_size - 1)));
+    ext2_dir_entry_t *top = (ext2_dir_entry_t *) (buf + off);
+    /* Revalidate and reposition ourselves in the directory stream by walking through the particular
+     * block's directory entries. */
+    while (base < top)
+        base = (ext2_dir_entry_t *) (((u8 *) base) + base->rec_len);
+    return ((unsigned long) base) & (PAGE_SIZE - 1);
+}
+
 off_t ext2_getdirent(struct dirent *buf, off_t off, struct file *f)
 {
+    struct inode *ino = f->f_ino;
+    ext2_dir_entry_t *entry;
+    struct folio *folio;
+    bool needs_reval;
     off_t new_off;
-    ext2_dir_entry_t entry;
     ssize_t read;
+    u8 *p;
+
+    needs_reval = (unsigned long) f->private_data != inode_query_iversion(ino);
 
 retry:
-    unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
-
-    /* Read a dir entry from the offset */
-    read = file_read_cache(&entry, sizeof(ext2_dir_entry_t), f->f_ino, off);
-    if (read < 0)
-        return read;
-
-    thread_change_addr_limit(old);
-
-    /* If we reached the end of the directory buffer, return 0 */
-    if (read == 0)
+    if ((size_t) off >= ino->i_size)
         return 0;
 
-    /* Should ignore this entry, increment off and retry */
-    if (!entry.inode)
+    read = filemap_find_folio(ino, off >> PAGE_SHIFT, FIND_PAGE_ACTIVATE, &folio, &f->f_ra_state);
+    if (read < 0)
+        return read;
+    p = (u8 *) FOLIO_TO_VIRT(folio);
+    if (needs_reval)
     {
-        off += entry.rec_len;
+        off = folio_offset(folio) + ext2_revalidate_dir(p, off, ino->i_sb->s_block_size);
+        f->private_data = (void *) inode_query_iversion(ino);
+        needs_reval = false;
+    }
+
+    entry = (ext2_dir_entry_t *) (p + (off & (folio_size(folio) - 1)));
+
+    /* Should ignore this entry, increment off and retry */
+    if (!entry->inode)
+    {
+        off += entry->rec_len;
+        folio_put(folio);
         goto retry;
     }
 
-    memcpy(buf->d_name, entry.name, entry.name_len);
-    buf->d_name[entry.name_len] = '\0';
-    buf->d_ino = entry.inode;
+    memcpy(buf->d_name, entry->name, entry->name_len);
+    buf->d_name[entry->name_len] = '\0';
+    buf->d_ino = entry->inode;
     buf->d_off = off;
-    buf->d_reclen = sizeof(struct dirent) - (256 - (entry.name_len + 1));
-    buf->d_type = entry.file_type >= EXT2_FT_MAX ? DT_UNKNOWN : ft_to_dt_table[entry.file_type];
+    buf->d_reclen = sizeof(struct dirent) - (256 - (entry->name_len + 1));
+    buf->d_type = entry->file_type >= EXT2_FT_MAX ? DT_UNKNOWN : ft_to_dt_table[entry->file_type];
 
-    new_off = off + entry.rec_len;
-
+    new_off = off + entry->rec_len;
+    folio_put(folio);
     return new_off;
 }
 

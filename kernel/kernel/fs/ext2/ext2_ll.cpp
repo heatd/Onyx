@@ -263,7 +263,7 @@ int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *ino, i
                     e->name_len = entry.name_len;
                     strlcpy(e->name, entry.name, sizeof(entry.name));
                     e->file_type = entry.file_type;
-
+                    inode_inc_iversion(dir);
                     if (st = file_write_cache_unlocked(buffer, fs->block_size, dir, off); st < 0)
                     {
                         free(buffer);
@@ -280,7 +280,7 @@ int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *ino, i
                     entry.rec_len = e->rec_len - actual_size;
                     e->rec_len = actual_size;
                     memcpy(d, &entry, dirent_size);
-
+                    inode_inc_iversion(dir);
                     if (st = file_write_cache_unlocked(buffer, fs->block_size, dir, off); st < 0)
                     {
                         free(buffer);
@@ -300,7 +300,7 @@ int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *ino, i
         {
             entry.rec_len = fs->block_size;
             memcpy(buf, &entry, dirent_size);
-
+            inode_inc_iversion(dir);
             if (int st = file_write_cache_unlocked(buf, fs->block_size, dir, off); st < 0)
             {
                 return st;
