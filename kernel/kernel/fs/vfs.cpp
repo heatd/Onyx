@@ -724,7 +724,8 @@ int inode_init(struct inode *inode, bool is_cached)
     spinlock_init(&inode->i_lock);
     rwlock_init(&inode->i_rwlock);
     inode->i_op = &noop_ino_ops;
-
+    /* i_version must start as 1 and never overflow */
+    WRITE_ONCE(inode->i_version, 1);
     return 0;
 }
 

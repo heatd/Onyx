@@ -146,6 +146,7 @@ struct inode
 
     /* Write-frequently fields */
     unsigned long i_refc;
+    unsigned long i_version;
     unsigned int i_flags;
     time_t i_atime;
     time_t i_ctime;
@@ -172,6 +173,16 @@ static inline struct flock_info *inode_to_flock(struct inode *inode)
     /* We not need an acquire load here for the same reason rcu_dereference doesn't - dependent
      * stores. */
     return READ_ONCE(inode->i_flock);
+}
+
+static inline void inode_inc_iversion(struct inode *inode)
+{
+    __atomic_add_fetch(&inode->i_version, 1, __ATOMIC_RELEASE);
+}
+
+static inline unsigned long inode_query_iversion(struct inode *inode)
+{
+    return __atomic_load_n(&inode->i_version, __ATOMIC_ACQUIRE);
 }
 
 #endif
