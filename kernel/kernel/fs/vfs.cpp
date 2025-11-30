@@ -745,6 +745,7 @@ struct file *inode_to_file(struct inode *ino)
     f->f_flock = nullptr;
     f->f_op = ino->i_fops;
     f->f_mapping = ino->i_pages;
+    f->private_data = NULL;
     ra_state_init(&f->f_ra_state);
 
     return f;
