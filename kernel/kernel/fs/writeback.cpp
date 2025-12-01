@@ -1,10 +1,11 @@
 /*
- * Copyright (c) 2019 - 2023 Pedro Falcato
+ * Copyright (c) 2019 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
+#define DEFINE_CURRENT
 #include <errno.h>
 #include <stdio.h>
 
@@ -162,13 +163,32 @@ void writeback_dev::run()
     trace_wb_wbdev_create();
     while (true)
     {
-        while (!list_is_empty(&dirty_inodes))
-        {
-            sched_sleep_ms(wb_run_delta_ms);
+        if (!list_is_empty(&dirty_inodes))
             sync(0);
+
+        /* This (implicit) memory barrier pairs with the wakeup. Either waking observes us in S
+         * state, or we observe the wakeup conditions. */
+        set_current_state(THREAD_UNINTERRUPTIBLE);
+        if (!list_is_empty(&dirty_inodes))
+        {
+            lock();
+            wake_delayed();
+            unlock();
         }
 
-        sem_wait(&thread_sem);
+        /* go sleep */
+        sched_yield();
+    }
+}
+
+void writeback_dev::wake_delayed()
+{
+    MUST_HOLD_LOCK(&__lock);
+    if (!(wb_flags & WB_FLAG_DELAYED_QUEUED))
+    {
+        delayed_wake.deadline = clocksource_get_time() + (wb_run_delta_ms * NS_PER_MS);
+        timer_queue_clockevent(&delayed_wake);
+        wb_flags |= WB_FLAG_DELAYED_QUEUED;
     }
 }
 
@@ -178,7 +198,7 @@ void writeback_dev::add_inode(struct inode *ino)
     bool should_wake = list_is_empty(&dirty_inodes);
     list_add_tail(&ino->i_dirty_inode_node, &dirty_inodes);
     if (should_wake)
-        sem_signal(&thread_sem);
+        wake_delayed();
 }
 
 void writeback_dev::remove_inode(struct inode *ino)
@@ -187,6 +207,37 @@ void writeback_dev::remove_inode(struct inode *ino)
 }
 
 } // namespace flush
+
+static unsigned int background_ratio = 10;
+static unsigned int dirty_ratio = 20;
+
+void balance_dirty_pages(struct vm_object *obj)
+{
+    struct inode *inode = obj->ino;
+    flush::writeback_dev *dev;
+    unsigned long nr_dirty, total_mem;
+
+    if (!inode->i_sb || !inode->i_sb->s_bdev)
+        return;
+
+    dev = bdev_get_wbdev(inode);
+    nr_dirty = global_dirty_pages();
+    total_mem = global_total_pages();
+
+    /* TODO: make these ratios not-fixed */
+    if (total_mem / background_ratio <= nr_dirty)
+        dev->wake();
+
+    (void) dirty_ratio;
+    if (nr_dirty * 5 >= total_mem)
+    {
+        /* TODO: properly calculate bandwidth and wait appropriately... */
+        sched_sleep_ms(10);
+    }
+
+    if (current)
+        current->nr_dirtied = 0;
+}
 
 void flush_thr_init(void *arg)
 {

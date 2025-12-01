@@ -99,6 +99,8 @@ process::process() : pgrp_node{this}, session_node{this}, thread_list_node{this}
     task_init_signals(this);
     majflt = minflt = 0;
     nvcsw = nivcsw = 0;
+    nr_dirtied = 0;
+    nr_dirtied_pause = 32;
     spinlock_init(&alloc_lock);
 }
 

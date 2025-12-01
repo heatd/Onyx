@@ -1159,6 +1159,20 @@ void page_accumulate_stats(unsigned long pages[PAGE_STATS_MAX])
     });
 }
 
+unsigned long global_dirty_pages(void)
+{
+    unsigned long pages[PAGE_STATS_MAX];
+
+    /* TODO: This is turrible and costly */
+    page_accumulate_stats(pages);
+    return pages[NR_DIRTY];
+}
+
+unsigned long global_total_pages(void)
+{
+    return nr_global_pages.load(mem_order::relaxed);
+}
+
 /**
  * @brief Calculate a free page target (for reclaim)
  *

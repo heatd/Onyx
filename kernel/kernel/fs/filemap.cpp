@@ -5,7 +5,7 @@
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
-
+#define DEFINE_CURRENT
 #include <onyx/block.h>
 #include <onyx/block/blk_plug.h>
 #include <onyx/filemap.h>
@@ -325,7 +325,11 @@ void folio_mark_dirty(struct folio *folio) REQUIRES(folio)
      * needs the axe.
      */
     if (!ino || !inode_no_dirty(ino, I_DATADIRTY))
+    {
+        if (likely(current))
+            current->nr_dirtied += folio_nr_pages(folio);
         inc_folio_stat(folio, NR_DIRTY);
+    }
 
     if (ino)
         inode_mark_dirty(ino, I_DATADIRTY);
@@ -488,7 +492,10 @@ ssize_t filemap_write_iter(struct file *filp, size_t off, iovec_iter *iter,
         ssize_t copied = copy_from_iter(iter, (u8 *) buffer + folio_off, len);
 
         if (copied > 0)
+        {
             folio_mark_dirty(folio);
+            balance_dirty_pages_ratelimit(vm_obj);
+        }
 
         st2 = (vm_obj->ops->write_end ?: default_write_end)(
             filp, vm_obj, off, copied > 0 ? copied : 0, len, folio_to_page(folio));
