@@ -750,6 +750,8 @@ void inc_page_stat(struct page *page, enum page_stat stat);
 void dec_page_stat(struct page *page, enum page_stat stat);
 
 void page_accumulate_stats(unsigned long pages[PAGE_STATS_MAX]);
+unsigned long global_dirty_pages(void);
+unsigned long global_total_pages(void);
 
 struct page_lru;
 struct page_lru *page_to_page_lru(struct page *page);

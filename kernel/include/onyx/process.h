@@ -215,6 +215,9 @@ struct process
     unsigned long nvcsw;
     unsigned long nivcsw;
 
+    unsigned long nr_dirtied;
+    unsigned long nr_dirtied_pause;
+
 #ifdef __cplusplus
     process();
     virtual ~process();
