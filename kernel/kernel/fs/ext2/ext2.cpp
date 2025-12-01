@@ -963,7 +963,8 @@ retry:
     p = (u8 *) FOLIO_TO_VIRT(folio);
     if (needs_reval)
     {
-        off = folio_offset(folio) + ext2_revalidate_dir(p, off, ino->i_sb->s_block_size);
+        off = folio_offset(folio) +
+              ext2_revalidate_dir(p, off & (folio_size(folio) - 1), ino->i_sb->s_block_size);
         f->private_data = (void *) inode_query_iversion(ino);
         needs_reval = false;
     }
