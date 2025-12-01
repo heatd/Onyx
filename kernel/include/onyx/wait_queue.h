@@ -110,12 +110,10 @@ static inline bool __wait_queue_is_empty(const struct wait_queue *queue)
     return list_is_empty(&queue->token_list);
 }
 
-void wait_queue_wait(struct wait_queue *queue);
 void wait_queue_wake(struct wait_queue *queue);
 void wait_queue_wake_all(struct wait_queue *queue);
 void wait_queue_add(struct wait_queue *queue, struct wait_queue_token *token);
 void wait_queue_remove(struct wait_queue *queue, struct wait_queue_token *token);
-bool wait_queue_may_delete(struct wait_queue *queue);
 
 bool signal_is_pending();
 
