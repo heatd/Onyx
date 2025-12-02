@@ -18,6 +18,7 @@
 #include <onyx/font.h>
 #include <onyx/framebuffer.h>
 #include <onyx/init.h>
+#include <onyx/input-event-codes.h>
 #include <onyx/input/device.h>
 #include <onyx/input/event.h>
 #include <onyx/input/keys.h>
@@ -1805,7 +1806,7 @@ int vterm_receive_input(char *c)
 
 struct key_action
 {
-    keycode_t key;
+    unsigned int key;
     const char *action;
     const char *shift_action;
     const char *ctrl_action;
@@ -1814,154 +1815,154 @@ struct key_action
 };
 
 struct key_action key_actions[] = {
-    {KEYMAP_KEY_A, "a", "A", "\01"},
-    {KEYMAP_KEY_B, "b", "B", "\02"},
-    {KEYMAP_KEY_C, "c", "C", "\03"},
-    {KEYMAP_KEY_D, "d", "D", "\04"},
-    {KEYMAP_KEY_E, "e", "E", "\05"},
-    {KEYMAP_KEY_F, "f", "F", "\06"},
-    {KEYMAP_KEY_G, "g", "G", "\07"},
-    {KEYMAP_KEY_H, "h", "H", "\010"},
-    {KEYMAP_KEY_I, "i", "I", "\011"},
-    {KEYMAP_KEY_J, "j", "J", "\012"},
-    {KEYMAP_KEY_K, "k", "K", "\013"},
-    {KEYMAP_KEY_L, "l", "L", "\014"},
-    {KEYMAP_KEY_M, "m", "M", "\015"},
-    {KEYMAP_KEY_N, "n", "N", "\016"},
-    {KEYMAP_KEY_O, "o", "O", "\017"},
-    {KEYMAP_KEY_P, "p", "P", "\020"},
-    {KEYMAP_KEY_Q, "q", "Q", "\021"},
-    {KEYMAP_KEY_R, "r", "R", "\022"},
-    {KEYMAP_KEY_S, "s", "S", "\023"},
-    {KEYMAP_KEY_T, "t", "T", "\024"},
-    {KEYMAP_KEY_U, "u", "U", "\025"},
-    {KEYMAP_KEY_V, "v", "V", "\026"},
-    {KEYMAP_KEY_W, "w", "W", "\027"},
-    {KEYMAP_KEY_X, "x", "X", "\030"},
-    {KEYMAP_KEY_Y, "y", "Y", "\031"},
-    {KEYMAP_KEY_Z, "z", "Z", "\032"},
-    {KEYMAP_KEY_0, "0", ")"},
-    {KEYMAP_KEY_1, "1", "!"},
-    {KEYMAP_KEY_2, "2", "@"},
-    {KEYMAP_KEY_3, "3", "#"},
-    {KEYMAP_KEY_4, "4", "$"},
-    {KEYMAP_KEY_5, "5", "%"},
-    {KEYMAP_KEY_6, "6", "^"},
-    {KEYMAP_KEY_7, "7", "&"},
-    {KEYMAP_KEY_8, "8", "*"},
-    {KEYMAP_KEY_9, "9", "("},
-    {KEYMAP_KEY_COMMA, ",", "<"},
-    {KEYMAP_KEY_DOT, ".", ">"},
-    {KEYMAP_KEY_KEYPAD_0, "0"},
-    {KEYMAP_KEY_KEYPAD_1, "1"},
-    {KEYMAP_KEY_KEYPAD_2, "2"},
-    {KEYMAP_KEY_KEYPAD_3, "3"},
-    {KEYMAP_KEY_KEYPAD_4, "4"},
-    {KEYMAP_KEY_KEYPAD_5, "5"},
-    {KEYMAP_KEY_KEYPAD_6, "6"},
-    {KEYMAP_KEY_KEYPAD_7, "7"},
-    {KEYMAP_KEY_KEYPAD_8, "8"},
-    {KEYMAP_KEY_KEYPAD_9, "9"},
-    {KEYMAP_KEY_MINUS, "-", "_"},
-    {KEYMAP_KEY_EQUALS, "=", "+"},
-    {KEYMAP_KEY_LEFTBRACE, "[", "{"},
-    {KEYMAP_KEY_RIGHTBRACE, "]", "}"},
-    {KEYMAP_KEY_ENTER, "\r"},
-    {KEYMAP_KEY_SEMICOLON, ";", ":"},
-    {KEYMAP_KEY_GRAVE, "`", "~"},
-    {KEYMAP_KEY_TAB, "\t"},
-    {KEYMAP_KEY_APOSTROPHE, "'", "\""},
-    {KEYMAP_KEY_SLASH, "/", "?"},
-    {KEYMAP_KEY_BACKSLASH, "|"},
-    {KEYMAP_KEY_BACKSPACE, "\x7f"},
-    {KEYMAP_KEY_KEYPAD_DOT, "."},
-    {KEYMAP_KEY_KEYPAD_SLASH, "/"},
-    {KEYMAP_KEY_KEYPAD_ASTERISK, "*"},
-    {KEYMAP_KEY_KEYPAD_MINUS, "-"},
-    {KEYMAP_KEY_KEYPAD_PLUS, "+"},
-    {KEYMAP_KEY_KEYPAD_ENTER, "\n"},
-    {KEYMAP_KEY_SPACE, " ", " "},
-    {KEYMAP_KEY_ARROW_LEFT, "\033[D", NULL, "\033[1;5D"},
-    {KEYMAP_KEY_ARROW_UP, "\033[A", NULL, "\033[1;5A"},
-    {KEYMAP_KEY_ARROW_DOWN, "\033[B", NULL, "\033[1;5B"},
-    {KEYMAP_KEY_ARROW_RIGHT, "\033[C", NULL, "\033[1;5C"},
-    {KEYMAP_KEY_ESC, "\033"},
+    {KEY_A, "a", "A", "\01"},
+    {KEY_B, "b", "B", "\02"},
+    {KEY_C, "c", "C", "\03"},
+    {KEY_D, "d", "D", "\04"},
+    {KEY_E, "e", "E", "\05"},
+    {KEY_F, "f", "F", "\06"},
+    {KEY_G, "g", "G", "\07"},
+    {KEY_H, "h", "H", "\010"},
+    {KEY_I, "i", "I", "\011"},
+    {KEY_J, "j", "J", "\012"},
+    {KEY_K, "k", "K", "\013"},
+    {KEY_L, "l", "L", "\014"},
+    {KEY_M, "m", "M", "\015"},
+    {KEY_N, "n", "N", "\016"},
+    {KEY_O, "o", "O", "\017"},
+    {KEY_P, "p", "P", "\020"},
+    {KEY_Q, "q", "Q", "\021"},
+    {KEY_R, "r", "R", "\022"},
+    {KEY_S, "s", "S", "\023"},
+    {KEY_T, "t", "T", "\024"},
+    {KEY_U, "u", "U", "\025"},
+    {KEY_V, "v", "V", "\026"},
+    {KEY_W, "w", "W", "\027"},
+    {KEY_X, "x", "X", "\030"},
+    {KEY_Y, "y", "Y", "\031"},
+    {KEY_Z, "z", "Z", "\032"},
+    {KEY_0, "0", ")"},
+    {KEY_1, "1", "!"},
+    {KEY_2, "2", "@"},
+    {KEY_3, "3", "#"},
+    {KEY_4, "4", "$"},
+    {KEY_5, "5", "%"},
+    {KEY_6, "6", "^"},
+    {KEY_7, "7", "&"},
+    {KEY_8, "8", "*"},
+    {KEY_9, "9", "("},
+    {KEY_COMMA, ",", "<"},
+    {KEY_DOT, ".", ">"},
+    {KEY_KP0, "0"},
+    {KEY_KP1, "1"},
+    {KEY_KP2, "2"},
+    {KEY_KP3, "3"},
+    {KEY_KP4, "4"},
+    {KEY_KP5, "5"},
+    {KEY_KP6, "6"},
+    {KEY_KP7, "7"},
+    {KEY_KP8, "8"},
+    {KEY_KP9, "9"},
+    {KEY_MINUS, "-", "_"},
+    {KEY_EQUAL, "=", "+"},
+    {KEY_LEFTBRACE, "[", "{"},
+    {KEY_RIGHTBRACE, "]", "}"},
+    {KEY_ENTER, "\r"},
+    {KEY_SEMICOLON, ";", ":"},
+    {KEY_GRAVE, "`", "~"},
+    {KEY_TAB, "\t"},
+    {KEY_APOSTROPHE, "'", "\""},
+    {KEY_SLASH, "/", "?"},
+    {KEY_BACKSLASH, "|"},
+    {KEY_BACKSPACE, "\x7f"},
+    {KEY_KPDOT, "."},
+    {KEY_KPSLASH, "/"},
+    {KEY_KPASTERISK, "*"},
+    {KEY_KPMINUS, "-"},
+    {KEY_KPPLUS, "+"},
+    {KEY_KPENTER, "\n"},
+    {KEY_SPACE, " ", " "},
+    {KEY_LEFT, "\033[D", NULL, "\033[1;5D"},
+    {KEY_UP, "\033[A", NULL, "\033[1;5A"},
+    {KEY_DOWN, "\033[B", NULL, "\033[1;5B"},
+    {KEY_RIGHT, "\033[C", NULL, "\033[1;5C"},
+    {KEY_ESC, "\033"},
 };
 
 struct key_action pt_pt_key_actions[] = {
-    {KEYMAP_KEY_A, "a", "A", "\01"},
-    {KEYMAP_KEY_B, "b", "B", "\02"},
-    {KEYMAP_KEY_C, "c", "C", "\03"},
-    {KEYMAP_KEY_D, "d", "D", "\04"},
-    {KEYMAP_KEY_E, "e", "E", "\05"},
-    {KEYMAP_KEY_F, "f", "F", "\06"},
-    {KEYMAP_KEY_G, "g", "G", "\07"},
-    {KEYMAP_KEY_H, "h", "H", "\010"},
-    {KEYMAP_KEY_I, "i", "I", "\011"},
-    {KEYMAP_KEY_J, "j", "J", "\012"},
-    {KEYMAP_KEY_K, "k", "K", "\013"},
-    {KEYMAP_KEY_L, "l", "L", "\014"},
-    {KEYMAP_KEY_M, "m", "M", "\015"},
-    {KEYMAP_KEY_N, "n", "N", "\016"},
-    {KEYMAP_KEY_O, "o", "O", "\017"},
-    {KEYMAP_KEY_P, "p", "P", "\020"},
-    {KEYMAP_KEY_Q, "q", "Q", "\021"},
-    {KEYMAP_KEY_R, "r", "R", "\022"},
-    {KEYMAP_KEY_S, "s", "S", "\023"},
-    {KEYMAP_KEY_T, "t", "T", "\024"},
-    {KEYMAP_KEY_U, "u", "U", "\025"},
-    {KEYMAP_KEY_V, "v", "V", "\026"},
-    {KEYMAP_KEY_W, "w", "W", "\027"},
-    {KEYMAP_KEY_X, "x", "X", "\030"},
-    {KEYMAP_KEY_Y, "y", "Y", "\031"},
-    {KEYMAP_KEY_Z, "z", "Z", "\032"},
-    {KEYMAP_KEY_0, "0", "=", NULL, "}"},
-    {KEYMAP_KEY_1, "1", "!"},
-    {KEYMAP_KEY_2, "2", "\"", NULL, "@"},
-    {KEYMAP_KEY_3, "3", "#", NULL, "£"},
-    {KEYMAP_KEY_4, "4", "$", NULL, "§"},
-    {KEYMAP_KEY_5, "5", "%", NULL, "€"},
-    {KEYMAP_KEY_6, "6", "&"},
-    {KEYMAP_KEY_7, "7", "/", NULL, "{"},
-    {KEYMAP_KEY_8, "8", "(", NULL, "["},
-    {KEYMAP_KEY_9, "9", ")", NULL, "]"},
-    {KEYMAP_KEY_COMMA, ",", ";"},
-    {KEYMAP_KEY_DOT, ".", ":"},
-    {KEYMAP_KEY_KEYPAD_0, "0"},
-    {KEYMAP_KEY_KEYPAD_1, "1"},
-    {KEYMAP_KEY_KEYPAD_2, "2"},
-    {KEYMAP_KEY_KEYPAD_3, "3"},
-    {KEYMAP_KEY_KEYPAD_4, "4"},
-    {KEYMAP_KEY_KEYPAD_5, "5"},
-    {KEYMAP_KEY_KEYPAD_6, "6"},
-    {KEYMAP_KEY_KEYPAD_7, "7"},
-    {KEYMAP_KEY_KEYPAD_8, "8"},
-    {KEYMAP_KEY_KEYPAD_9, "9"},
-    {KEYMAP_KEY_MINUS, "'", "?"},
-    {KEYMAP_KEY_EQUALS, "«", "»"},
-    {KEYMAP_KEY_LEFTBRACE, "+", "*"},
-    {KEYMAP_KEY_RIGHTBRACE, "´", "`"},
-    {KEYMAP_KEY_ENTER, "\r"},
-    {KEYMAP_KEY_SEMICOLON, "ç", "Ç"},
-    {KEYMAP_KEY_GRAVE, "\\", "|"},
-    {KEYMAP_KEY_TAB, "\t"},
-    {KEYMAP_KEY_APOSTROPHE, "º", "ª"},
-    {KEYMAP_KEY_SLASH, "-", "_"},
-    {KEYMAP_KEY_BACKSLASH, "~", "^"},
-    {KEYMAP_KEY_BACKSPACE, "\x7f"},
-    {KEYMAP_KEY_KEYPAD_DOT, "."},
-    {KEYMAP_KEY_KEYPAD_SLASH, "/"},
-    {KEYMAP_KEY_KEYPAD_ASTERISK, "*"},
-    {KEYMAP_KEY_KEYPAD_MINUS, "-"},
-    {KEYMAP_KEY_KEYPAD_PLUS, "+"},
-    {KEYMAP_KEY_KEYPAD_ENTER, "\n"},
-    {KEYMAP_KEY_SPACE, " ", " "},
-    {KEYMAP_102ND, "<", ">"},
-    {KEYMAP_KEY_ARROW_LEFT, "\033[D", NULL, "\033[1;5D"},
-    {KEYMAP_KEY_ARROW_UP, "\033[A", NULL, "\033[1;5A"},
-    {KEYMAP_KEY_ARROW_DOWN, "\033[B", NULL, "\033[1;5B"},
-    {KEYMAP_KEY_ARROW_RIGHT, "\033[C", NULL, "\033[1;5C"},
-    {KEYMAP_KEY_ESC, "\033"},
+    {KEY_A, "a", "A", "\01"},
+    {KEY_B, "b", "B", "\02"},
+    {KEY_C, "c", "C", "\03"},
+    {KEY_D, "d", "D", "\04"},
+    {KEY_E, "e", "E", "\05"},
+    {KEY_F, "f", "F", "\06"},
+    {KEY_G, "g", "G", "\07"},
+    {KEY_H, "h", "H", "\010"},
+    {KEY_I, "i", "I", "\011"},
+    {KEY_J, "j", "J", "\012"},
+    {KEY_K, "k", "K", "\013"},
+    {KEY_L, "l", "L", "\014"},
+    {KEY_M, "m", "M", "\015"},
+    {KEY_N, "n", "N", "\016"},
+    {KEY_O, "o", "O", "\017"},
+    {KEY_P, "p", "P", "\020"},
+    {KEY_Q, "q", "Q", "\021"},
+    {KEY_R, "r", "R", "\022"},
+    {KEY_S, "s", "S", "\023"},
+    {KEY_T, "t", "T", "\024"},
+    {KEY_U, "u", "U", "\025"},
+    {KEY_V, "v", "V", "\026"},
+    {KEY_W, "w", "W", "\027"},
+    {KEY_X, "x", "X", "\030"},
+    {KEY_Y, "y", "Y", "\031"},
+    {KEY_Z, "z", "Z", "\032"},
+    {KEY_0, "0", "=", NULL, "}"},
+    {KEY_1, "1", "!"},
+    {KEY_2, "2", "\"", NULL, "@"},
+    {KEY_3, "3", "#", NULL, "£"},
+    {KEY_4, "4", "$", NULL, "§"},
+    {KEY_5, "5", "%", NULL, "€"},
+    {KEY_6, "6", "&"},
+    {KEY_7, "7", "/", NULL, "{"},
+    {KEY_8, "8", "(", NULL, "["},
+    {KEY_9, "9", ")", NULL, "]"},
+    {KEY_COMMA, ",", ";"},
+    {KEY_DOT, ".", ":"},
+    {KEY_KP0, "0"},
+    {KEY_KP1, "1"},
+    {KEY_KP2, "2"},
+    {KEY_KP3, "3"},
+    {KEY_KP4, "4"},
+    {KEY_KP5, "5"},
+    {KEY_KP6, "6"},
+    {KEY_KP7, "7"},
+    {KEY_KP8, "8"},
+    {KEY_KP9, "9"},
+    {KEY_MINUS, "'", "?"},
+    {KEY_EQUAL, "«", "»"},
+    {KEY_LEFTBRACE, "+", "*"},
+    {KEY_RIGHTBRACE, "´", "`"},
+    {KEY_ENTER, "\r"},
+    {KEY_SEMICOLON, "ç", "Ç"},
+    {KEY_GRAVE, "\\", "|"},
+    {KEY_TAB, "\t"},
+    {KEY_APOSTROPHE, "º", "ª"},
+    {KEY_SLASH, "-", "_"},
+    {KEY_BACKSLASH, "~", "^"},
+    {KEY_BACKSPACE, "\x7f"},
+    {KEY_KPDOT, "."},
+    {KEY_KPSLASH, "/"},
+    {KEY_KPASTERISK, "*"},
+    {KEY_KPMINUS, "-"},
+    {KEY_KPPLUS, "+"},
+    {KEY_KPENTER, "\n"},
+    {KEY_SPACE, " ", " "},
+    {KEY_102ND, "<", ">"},
+    {KEY_LEFT, "\033[D", NULL, "\033[1;5D"},
+    {KEY_UP, "\033[A", NULL, "\033[1;5A"},
+    {KEY_DOWN, "\033[B", NULL, "\033[1;5B"},
+    {KEY_RIGHT, "\033[C", NULL, "\033[1;5C"},
+    {KEY_ESC, "\033"},
 };
 
 const size_t nr_actions = sizeof(key_actions) / sizeof(key_actions[0]);
@@ -1979,7 +1980,7 @@ static bool is_numpad_code(keycode_t code)
     switch (code)
     {
         /* Ew... Depends on the KEYPAD's enum layout */
-        case KEYMAP_KEY_KEYPAD_7 ... KEYMAP_KEY_KEYPAD_PLUS:
+        case KEY_KP7 ... KEY_KPDOT:
             return true;
         default:
             return false;
@@ -1990,23 +1991,23 @@ static const char *numpad_replacement(keycode_t code, const char *str)
 {
     switch (code)
     {
-        case KEYMAP_KEY_KEYPAD_7:
+        case KEY_KP7:
             return "\033[H";
-        case KEYMAP_KEY_KEYPAD_8:
+        case KEY_KP8:
             return "\033[A";
-        case KEYMAP_KEY_KEYPAD_9:
+        case KEY_KP9:
             return "\033[5~";
-        case KEYMAP_KEY_KEYPAD_4:
+        case KEY_KP4:
             return "\033[D";
-        case KEYMAP_KEY_KEYPAD_5:
+        case KEY_KP5:
             return "\033[E";
-        case KEYMAP_KEY_KEYPAD_6:
+        case KEY_KP6:
             return "\033[C";
-        case KEYMAP_KEY_KEYPAD_1:
+        case KEY_KP1:
             return "\033[F";
-        case KEYMAP_KEY_KEYPAD_2:
+        case KEY_KP2:
             return "\033[B";
-        case KEYMAP_KEY_KEYPAD_3:
+        case KEY_KP3:
             return "\033[6~";
         default:
             return str;
@@ -2020,11 +2021,11 @@ int vterm_handle_key(struct vterm *vt, struct input_device *dev, struct input_ev
         return 0;
 #ifdef CONFIG_SCHED_DUMP_THREADS_MAGIC
     /* Don't have this enabled by default */
-    if (ev->code == KEYMAP_KEY_KEYPAD_NUMLCK)
+    if (ev->code == KEY_NUMLOCK)
         sched_dump_threads();
 #endif
 
-    if (ev->code == KEYMAP_KEY_KEYPAD_NUMLCK)
+    if (ev->code == KEY_NUMLOCK)
         vt->numlck = !vt->numlck;
 
     struct key_action *acts = pt_pt_key_actions;
