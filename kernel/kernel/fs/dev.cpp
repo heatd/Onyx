@@ -718,4 +718,5 @@ __init void devfs_init()
         panic("Could not register devfs");
     devfs_add_dir("shm", 0777);
     devfs_add_dir("pts", 0755);
+    devfs_add_dir("input", 0755);
 }
