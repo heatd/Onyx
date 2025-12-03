@@ -93,10 +93,13 @@ public:
 #define __rcu_cast_to(p) (p)
 #endif
 
-#define rcu_dereference(ptr)                                        \
-    ({                                                              \
-        rcu_check_sparse(ptr);                                      \
-        __rcu_forcecast(__atomic_load_n(&(ptr), __ATOMIC_RELAXED)); \
+#define rcu_dereference_raw(ptr)       __rcu_forcecast(__atomic_load_n(&(ptr), __ATOMIC_RELAXED))
+#define rcu_dereference_raw_check(ptr) rcu_dereference_raw(ptr)
+
+#define rcu_dereference(ptr)      \
+    ({                            \
+        rcu_check_sparse(ptr);    \
+        rcu_dereference_raw(ptr); \
     })
 
 #define rcu_dereference_protected(p, c) \
@@ -104,6 +107,14 @@ public:
         rcu_check_sparse(p);            \
         __rcu_forcecast(p);             \
     })
+
+#define rcu_access_pointer(ptr)   \
+    ({                            \
+        rcu_check_sparse(ptr);    \
+        rcu_dereference_raw(ptr); \
+    })
+
+#define rcu_pointer_handoff(p) (p)
 
 #define rcu_dereference_check(ptr, c) rcu_dereference(ptr)
 
