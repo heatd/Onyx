@@ -40,7 +40,7 @@ __END_CDECLS
         __x > __y ? __x : __y; \
     })
 
-#define align_up2(number, alignment) (((number) + ((alignment) -1)) & -(alignment))
+#define align_up2(number, alignment) (((number) + ((alignment) - 1)) & -(alignment))
 #else
 
 template <typename Type>
@@ -72,8 +72,8 @@ static inline bool array_overflows(size_t n)
 
 #endif
 
-#define __stringify(str) #str
-#define stringify(str)   __stringify(str)
+#define ___stringify(str) #str
+#define stringify(str)    ___stringify(str)
 
 #ifdef __cplusplus
 /**

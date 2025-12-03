@@ -604,10 +604,6 @@ static __always_inline void mas_reset(struct ma_state *mas)
  */
 #define mas_for_each(__mas, __entry, __max) while (((__entry) = mas_find((__mas), (__max))) != NULL)
 
-#if defined(__onyx__)
-#define BUG_ON(x) CHECK(!(x))
-#endif
-
 #ifdef CONFIG_DEBUG_MAPLE_TREE
 enum mt_dump_format
 {
