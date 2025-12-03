@@ -28,7 +28,7 @@ CFLAGS:=$(CFLAGS) -MMD -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-
 -Werror -Wno-error=frame-address -Wno-address-of-packed-member \
 -Wno-error=invalid-offsetof -fno-sanitize=pointer-overflow \
 -Wno-missing-field-initializers -Wstrict-aliasing -fno-unwind-tables -fno-asynchronous-unwind-tables \
--Wframe-larger-than=1280 -Wno-error=frame-larger-than=
+-Wframe-larger-than=1280 -Wno-error=frame-larger-than= -fmax-errors=20
 
 ifneq ($(ONYX_USING_CLANG), yes)
 # TODO: Find suitable alternatives for clang
@@ -330,7 +330,7 @@ kernel/ssp.o: kernel/ssp.cpp $(GENERATED_HEADERS)
 #ifeq ($(RUN_CLANG_TIDY), 1)
 #	$(CLANG_TIDY) $< $(CLANG_TIDY_ARGS)
 #endif
-	@$(CC) -c $< -o $@ -std=c11 $(CFLAGS) $(CPPFLAGS) $(C_ONLY_CFLAGS) -Wno-error=deprecated-declarations
+	@$(CC) -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS) $(C_ONLY_CFLAGS) -Wno-error=deprecated-declarations
 ifeq ($(C), 1)
 	-$(SPARSE) -D__onyx__ -nostdinc -isystem lib/libk/include -std=c11 $(CFLAGS) $(CPPFLAGS) $(C_ONLY_CFLAGS) -Wno-error=deprecated-declarations $<
 endif

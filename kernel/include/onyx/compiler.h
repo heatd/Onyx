@@ -48,6 +48,8 @@
 #define __always_inline inline __attribute__((always_inline))
 #define __noinline      __attribute__((__noinline__))
 #define __packed        __attribute__((packed))
+#define __must_check    __attribute__((__warn_unused_result__))
+#define __no_randomize_layout
 
 #define NO_ASAN __attribute__((no_sanitize_address))
 
