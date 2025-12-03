@@ -11,6 +11,7 @@
 #include <stdbool.h>
 
 #include <onyx/compiler.h>
+#include <onyx/panic.h>
 
 #ifdef __x86_64__
 #include <platform/bug.h>
@@ -24,6 +25,8 @@ __BEGIN_CDECLS
 void generic_warn(const char *filename, int line);
 
 #define __WARN() generic_warn(__FILE__, __LINE__)
+
+#define ___BUG(...) panic("BUG_ON")
 
 #endif
 
@@ -42,6 +45,14 @@ void generic_warn(const char *filename, int line);
         if (unlikely(__cond && !__atomic_exchange_n(&do_once, 1, __ATOMIC_RELAXED))) \
             __WARN();                                                                \
         unlikely(__cond);                                                            \
+    })
+
+#define BUG_ON(cond)           \
+    ({                         \
+        int __cond = !!(cond); \
+        if (unlikely(__cond))  \
+            ___BUG(0);         \
+        unlikely(__cond);      \
     })
 
 __END_CDECLS
