@@ -684,6 +684,15 @@ ENTRY_LOCAL(setup_paging_and_longm)
     lea 0x800000(%ebp), %eax
     or $0x83, %eax
     mov %eax, (%esi, %ebx, 8)
+    inc %ebx
+    lea 0xa00000(%ebp), %eax
+    or $0x83, %eax
+    mov %eax, (%esi, %ebx, 8)
+    inc %ebx
+    lea 0xc00000(%ebp), %eax
+    or $0x83, %eax
+    mov %eax, (%esi, %ebx, 8)
+    inc %ebx
 
     pop %ebp
 
