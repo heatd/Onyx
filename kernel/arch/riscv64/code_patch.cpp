@@ -39,7 +39,7 @@ const u32 cnop_insn = RVC_ADDI;
  * are/aren't serializing. This is all important, as we must not let other CPUs
  * have inconsistent views of the instruction stream or the .text itself.
  */
-mutex hotpatch_lock;
+DECLARE_MUTEX(hotpatch_lock);
 atomic<bool> hotpatch_in_progress;
 atomic<unsigned long> serializing_cpus;
 

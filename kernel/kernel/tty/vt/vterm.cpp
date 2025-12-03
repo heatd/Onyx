@@ -182,7 +182,7 @@ static const unsigned short translations[][256] = {
 #define MAX_ARGS 4
 struct vterm
 {
-    struct mutex vt_lock;
+    struct mutex vt_lock{1};
     unsigned int columns;
     unsigned int rows;
     unsigned int cursor_x, cursor_y;
@@ -199,7 +199,7 @@ struct vterm
     bool multithread_enabled;
     struct thread *render_thread;
     struct cond condvar;
-    struct mutex condvar_mutex;
+    struct mutex condvar_mutex{1};
     struct vterm_message *msgs;
     bool reversed;
     bool flush_all;

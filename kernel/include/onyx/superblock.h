@@ -59,7 +59,11 @@ struct superblock
     dev_t s_devnr;
     unsigned long s_flags;
     unsigned long s_remount_ro_pending;
+#ifdef __cplusplus
+    struct mutex s_rename_lock{1};
+#else
     struct mutex s_rename_lock;
+#endif
     struct rwlock s_lock;
     struct list_head s_mounts;
     struct lru_list s_dcache_lru;

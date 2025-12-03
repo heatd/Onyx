@@ -35,7 +35,7 @@ void __cxa_pure_virtual(void)
 using guard_type = int64_t;
 
 // This should be constexpr
-mutex guard_lock;
+DECLARE_MUTEX(guard_lock);
 // This has no constructor
 cond guard_cvar;
 

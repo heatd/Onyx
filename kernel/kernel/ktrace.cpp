@@ -307,7 +307,7 @@ void ktrace_enable_on_every_cpu(const ktrace_enable &en)
     }
 }
 
-mutex global_tracing_lock;
+DECLARE_MUTEX(global_tracing_lock);
 int __tracing_enabled_counter;
 
 int ktrace_do_enable(struct ktrace_enable *uen)

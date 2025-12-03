@@ -56,7 +56,7 @@ static void jump_label_patch(struct jump_label *label)
  * Note that the current data structure/locking scheme may be slow, but I don't expect static keys
  * to undergo many changes at runtime (hence static).
  */
-static mutex jump_label_mutex;
+static DECLARE_MUTEX(jump_label_mutex);
 
 void jump_label_patch_branch(struct static_key *key, bool en)
 {

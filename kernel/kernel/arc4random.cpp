@@ -154,7 +154,7 @@ static size_t rs_have = 0;
 static size_t rs_count = 0;
 static struct chacha rs_chacha;
 static unsigned char rs_buf[16 * 64];
-static struct mutex random_lock;
+static DECLARE_MUTEX(random_lock);
 
 void arc4random_buf(void* buffer_ptr, size_t size)
 {

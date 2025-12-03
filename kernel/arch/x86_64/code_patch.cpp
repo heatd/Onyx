@@ -45,7 +45,7 @@ static void enable_writeprotect()
  * as we must not let other CPUs have inconsistent views of the instruction stream or the .text
  * itself.
  */
-mutex hotpatch_lock;
+DECLARE_MUTEX(hotpatch_lock);
 atomic<bool> hotpatch_in_progress;
 atomic<unsigned long> serializing_cpus;
 

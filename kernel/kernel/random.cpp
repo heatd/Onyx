@@ -23,7 +23,7 @@
 
 const size_t max_entropy = PAGE_SIZE * 4;
 static char entropy_buffer[PAGE_SIZE * 4] = {};
-struct mutex entropy_lock;
+struct DECLARE_MUTEX(entropy_lock);
 static size_t current_entropy = 0;
 
 void add_entropy(void *ent, size_t size)
