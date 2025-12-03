@@ -16,6 +16,7 @@
 #include <onyx/irq.h>
 #include <onyx/limits.h>
 #include <onyx/mm/slab.h>
+#include <onyx/mutex.h>
 #include <onyx/panic.h>
 #include <onyx/port_io.h>
 #include <onyx/scheduler.h>
@@ -24,6 +25,7 @@
 #include <onyx/timer.h>
 #include <onyx/vm.h>
 
+#include <linux/lockdep.h>
 #include <pci/pci.h>
 
 uint64_t __pci_read(pci::pci_device *dev, uint16_t off, size_t size);
@@ -162,7 +164,7 @@ acpi_status acpi_os_create_mutex(acpi_mutex *out_handle)
     *out_handle = (mutex *) acpi_os_allocate_zeroed(sizeof(struct mutex));
     if (*out_handle == nullptr)
         return AE_NO_MEMORY;
-    mutex_init((mutex *) *out_handle);
+    mutex_init_novalidate((mutex *) *out_handle);
     return AE_OK;
 }
 
@@ -250,10 +252,7 @@ irqstatus_t acpi_sci_irq(struct irq_context *ctx, void *cookie)
 struct driver acpi_driver = {.name = "acpi", .bus_type_node = {&acpi_driver}};
 
 extern bus acpi_bus;
-static struct device acpi_dev
-{
-    "acpi_sci", &acpi_bus, nullptr
-};
+static struct device acpi_dev{"acpi_sci", &acpi_bus, nullptr};
 
 acpi_status acpi_os_install_interrupt_handler(u32 interrupt_level, acpi_osd_handler handler,
                                               void *context)

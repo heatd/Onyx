@@ -27,7 +27,7 @@ static void flush_thr_init(void *arg);
 namespace flush
 {
 
-struct rwlock wbdev_list_lock;
+DEFINE_RWLOCK(wbdev_list_lock);
 DEFINE_LIST(wbdev_list);
 
 /* Run the writeback thread every 10s, if needed */

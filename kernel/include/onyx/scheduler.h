@@ -24,6 +24,8 @@
 #include <onyx/signal.h>
 #include <onyx/spinlock.h>
 
+#include <linux/irqflags_types.h>
+#include <linux/lockdep_types.h>
 #include <platform/syscall.h>
 
 #define NUM_PRIO 40
@@ -91,6 +93,21 @@ typedef struct thread
     struct kcsan_ctx kcsan_ctx;
     int kcsan_stack_depth;
 #endif
+#ifdef CONFIG_LOCKDEP
+#define MAX_LOCK_DEPTH 48UL
+    u64 curr_chain_key;
+    int lockdep_depth;
+    unsigned int lockdep_recursion;
+    struct held_lock held_locks[MAX_LOCK_DEPTH];
+#endif
+#ifdef CONFIG_TRACE_IRQFLAGS
+    struct irqtrace_events irqtrace;
+    unsigned int hardirq_threaded;
+    u64 hardirq_chain_key;
+    int softirqs_enabled;
+    int softirq_context;
+    int irq_config;
+#endif
     /* And arch dependent stuff in this ifdef */
 #ifdef __x86_64__
     void *fs;
@@ -114,6 +131,18 @@ typedef struct thread
 #endif
 #ifdef CONFIG_KCOV
         kcov_data = NULL;
+#endif
+#ifdef CONFIG_LOCKDEP
+        lockdep_recursion = 0;
+        curr_chain_key = 0;
+        lockdep_depth = 0;
+#endif
+#ifdef CONFIG_TRACE_IRQFLAGS
+        memset(&irqtrace, 0, sizeof(irqtrace));
+        irqtrace.hardirq_disable_ip = 0;
+        irqtrace.softirq_enable_ip = 0;
+        softirqs_enabled = 1;
+        softirq_context = 0;
 #endif
         active_mm = NULL;
         pagefault_disabled = 0;

@@ -155,7 +155,7 @@ struct inode
     struct list_head i_dirty_inode_node;
     void *i_flush_dev;
 
-    struct rwlock i_rwlock;
+    struct rwlock i_rwlock LOCKDEP_OK;
     struct list_head i_hash_list_node;
     struct spinlock i_lock;
 

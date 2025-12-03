@@ -17,6 +17,8 @@
 #include <onyx/task_switching.h>
 #include <onyx/thread.h>
 
+#include <linux/lockdep.h>
+
 /*
 struct mutex
 {
@@ -124,7 +126,10 @@ static bool mutex_spin(mutex *lock)
 
 bool mutex_trylock(mutex *lock)
 {
-    return __mutex_trylock_fastpath(lock) || __mutex_trylock(lock);
+    bool success = __mutex_trylock_fastpath(lock) || __mutex_trylock(lock);
+    if (success)
+        mutex_acquire(&lock->dep_map, 0, 1, _THIS_IP_);
+    return success;
 }
 
 static void mutex_prepare_sleep(struct mutex *mutex, int state, struct mutex_waiter *waiter)
@@ -154,7 +159,7 @@ int mutex_lock_slow_path(struct mutex *mutex, int state)
     waiter.flags = 0;
 
     auto owner = mutex_owner(mutex);
-    assert(owner != current);
+    WARN_ON(owner == current);
 
     /* Lock the queue, prepare the sleep, try one more time. If we can't get the lock, sleep. */
     while (true)
@@ -205,7 +210,12 @@ int mutex_lock_slow_path(struct mutex *mutex, int state)
     return ret;
 }
 
-static inline void mutex_postlock(mutex *mtx)
+static __always_inline void mutex_prelock(mutex *mtx, int subclass)
+{
+    mutex_acquire(&mtx->dep_map, subclass, 0, _RET_IP_);
+}
+
+static __always_inline void mutex_postlock(mutex *mtx, int subclass)
 {
 }
 
@@ -214,24 +224,25 @@ static __always_inline int __mutex_lock(struct mutex *mutex, int state, int subc
 {
     MAY_SLEEP();
     int ret = 0;
-    if (!mutex_trylock(mutex)) [[unlikely]]
+    mutex_prelock(mutex, subclass);
+    if (!__mutex_trylock_fastpath(mutex)) [[unlikely]]
         if (!mutex_spin(mutex)) [[unlikely]]
             ret = mutex_lock_slow_path(mutex, state);
 
     if (ret >= 0) [[likely]]
-        mutex_postlock(mutex);
+        mutex_postlock(mutex, subclass);
 
     return ret;
 }
 
 void mutex_lock(struct mutex *mutex)
 {
-    __mutex_lock(mutex, THREAD_UNINTERRUPTIBLE);
+    __mutex_lock(mutex, THREAD_UNINTERRUPTIBLE, 0);
 }
 
 int mutex_lock_interruptible(struct mutex *mutex)
 {
-    return __mutex_lock(mutex, THREAD_INTERRUPTIBLE);
+    return __mutex_lock(mutex, THREAD_INTERRUPTIBLE, 0);
 }
 
 __noinline void mutex_unlock_wake(struct mutex *mutex)
@@ -254,6 +265,7 @@ __noinline void mutex_unlock_wake(struct mutex *mutex)
 void mutex_unlock(struct mutex *mutex) NO_THREAD_SAFETY_ANALYSIS
 {
     unsigned long word = __atomic_and_fetch(&mutex->counter, MUTEX_HAS_WAITERS, __ATOMIC_RELEASE);
+    mutex_release(&mutex->dep_map, _THIS_IP_);
     if (word & MUTEX_HAS_WAITERS) [[unlikely]]
         mutex_unlock_wake(mutex);
 }
@@ -262,6 +274,25 @@ bool mutex_holds_lock(struct mutex *m)
 {
     return m->counter && mutex_owner(m) == get_current_thread();
 }
+
+#ifdef CONFIG_LOCKDEP
+
+void mutex_lockdep_init(struct mutex *mutex, const char *name, struct lock_class_key *key)
+{
+    lockdep_init_map_wait(&mutex->dep_map, name, key, 0, LD_WAIT_SLEEP);
+}
+
+void mutex_lockdep_novalidate(struct mutex *mutex, const char *name)
+{
+    lockdep_set_novalidate_class(mutex);
+}
+
+void mutex_lock_nested(struct mutex *mutex, int subclass)
+{
+    __mutex_lock(mutex, THREAD_UNINTERRUPTIBLE, subclass);
+}
+
+#endif
 
 #ifdef CONFIG_KTEST_MUTEX
 

@@ -16,8 +16,10 @@
 #include <onyx/spinlock.h>
 #include <onyx/utils.h>
 
+#include <linux/lockdep_types.h>
+
 struct mutex;
-CONSTEXPR static inline void mutex_init(struct mutex *mutex);
+CONSTEXPR static inline void __mutex_init(struct mutex *mutex);
 
 struct CAPABILITY("mutex") mutex
 {
@@ -25,10 +27,21 @@ struct CAPABILITY("mutex") mutex
     struct list_head waiters;
     unsigned long counter;
 
+#ifdef CONFIG_LOCKDEP
+    struct lockdep_map dep_map;
+#endif
+
 #ifdef __cplusplus
     constexpr mutex(int a) : llock{}, waiters{}, counter{}
     {
-        mutex_init(this);
+        __mutex_init(this);
+#ifdef CONFIG_LOCKDEP
+        if (a == 0)
+        {
+            dep_map.wait_type_inner = LD_WAIT_SLEEP;
+            dep_map.name = "lockname";
+        }
+#endif
     }
 
     mutex() = delete;
@@ -39,21 +52,26 @@ struct CAPABILITY("mutex") mutex
 #endif
 };
 
-#ifdef __cplusplus
-#define DECLARE_MUTEX(name) mutex name
-
+#ifdef CONFIG_LOCKDEP
+#define __DEP_MAP_MUTEX_INITIALIZER(lockname) \
+    , .dep_map = {                            \
+          .name = #lockname,                  \
+          .wait_type_inner = LD_WAIT_SLEEP,   \
+    }
 #else
+#define __DEP_MAP_MUTEX_INITIALIZER(lockname)
+#endif
 
 #ifdef __cplusplus
 #define DECLARE_MUTEX(name) mutex name{0}
 #else
 #define DECLARE_MUTEX(name) \
-    struct mutex name = {.waiters = LIST_HEAD_INIT(name.waiters);
+    struct mutex name = {.waiters = LIST_HEAD_INIT(name.waiters) __DEP_MAP_MUTEX_INITIALIZER(name)};
 #endif
 
 #define MUTEX_INITIALIZER {.waiters = LIST_HEAD_INIT(waiters)}
 
-CONSTEXPR static inline void mutex_init(struct mutex *mutex)
+CONSTEXPR static inline void __mutex_init(struct mutex *mutex)
 {
     spinlock_init(&mutex->llock);
     mutex->counter = 0;
@@ -68,6 +86,33 @@ int mutex_lock_interruptible(struct mutex *mutex) TRY_ACQUIRE(0, mutex);
 bool mutex_holds_lock(struct mutex *m);
 struct thread *mutex_owner(struct mutex *mtx);
 bool mutex_trylock(struct mutex *lock) TRY_ACQUIRE(true, lock);
+void mutex_lockdep_init(struct mutex *mutex, const char *name, struct lock_class_key *key);
+
+#ifndef CONFIG_LOCKDEP
+#define mutex_init(mutex)                  __mutex_init(mutex)
+#define mutex_init_novalidate(mutex)       mutex_init(mutex)
+#define mutex_lock_nested(mutex, subclass) mutex_lock(mutex)
+#else
+#define mutex_init(mutex)                            \
+    do                                               \
+    {                                                \
+        static struct lock_class_key __key;          \
+                                                     \
+        __mutex_init((mutex));                       \
+        mutex_lockdep_init((mutex), #mutex, &__key); \
+    } while (0)
+
+void mutex_lock_nested(struct mutex *m, int subclass);
+
+void mutex_lockdep_novalidate(struct mutex *mutex, const char *name);
+
+#define mutex_init_novalidate(mutex)               \
+    do                                             \
+    {                                              \
+        __mutex_init((mutex));                     \
+        mutex_lockdep_novalidate((mutex), #mutex); \
+    } while (0)
+#endif
 
 __END_CDECLS
 

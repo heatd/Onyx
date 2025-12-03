@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2025 Pedro Falcato
+ * Copyright (c) 2017 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -15,6 +15,8 @@
 #include <onyx/spinlock.h>
 #include <onyx/thread.h>
 #include <onyx/types.h>
+
+#include <linux/lockdep.h>
 
 #include "primitive_generic.h"
 
@@ -47,7 +49,7 @@ struct rwlock_waiter
     }
 };
 
-int rw_lock_tryread(rwlock *lock)
+static int __rw_lock_tryread(rwlock *lock)
 {
     unsigned long l;
     unsigned long to_insert;
@@ -69,7 +71,17 @@ int rw_lock_tryread(rwlock *lock)
     return 0;
 }
 
-int rw_lock_trywrite(rwlock *lock)
+int rw_lock_tryread(rwlock *lock)
+{
+    int err;
+
+    err = __rw_lock_tryread(lock);
+    if (err == 0)
+        lock_map_acquire_tryread(&lock->dep_map);
+    return err;
+}
+
+static int __rw_lock_trywrite(rwlock *lock)
 {
     unsigned long expected;
     unsigned long write_value;
@@ -86,8 +98,16 @@ int rw_lock_trywrite(rwlock *lock)
             write_value |= RDWR_LOCK_WAITERS;
     } while (!__atomic_compare_exchange_n(&lock->lock, &expected, write_value, false,
                                           __ATOMIC_ACQUIRE, __ATOMIC_RELAXED));
-
     return true;
+}
+
+int rw_lock_trywrite(rwlock *lock)
+{
+    int err = __rw_lock_trywrite(lock);
+
+    if (err)
+        lock_map_acquire_try(&lock->dep_map);
+    return err;
 }
 
 static __always_inline void rwlock_prepare_sleep(rwlock *rwl, rwlock_waiter *w, int state)
@@ -140,7 +160,7 @@ static __always_inline bool rw_lock_spin_write(rwlock *lock)
 
         if ((counter & RDWR_LOCK_COUNTER_MASK) == 0)
         {
-            if (rw_lock_trywrite(lock)) [[likely]]
+            if (__rw_lock_trywrite(lock)) [[likely]]
                 return rwspin_succ++, true;
         }
 
@@ -166,7 +186,7 @@ static __always_inline bool rw_lock_spin_read(rwlock *lock)
 
         if (!(counter & RDWR_LOCK_WRITE))
         {
-            if (rw_lock_tryread(lock) == 0) [[likely]]
+            if (__rw_lock_tryread(lock) == 0) [[likely]]
                 return rwspin_succ++, true;
             continue;
         }
@@ -197,7 +217,7 @@ __noinline int __rw_lock_write_slow(rwlock *lock, int state)
         spin_lock(&lock->llock);
         rwlock_prepare_sleep(lock, &w, state);
 
-        if (rw_lock_trywrite(lock))
+        if (__rw_lock_trywrite(lock))
             break;
 
         if (signals_allowed && signal_is_pending())
@@ -209,7 +229,7 @@ __noinline int __rw_lock_write_slow(rwlock *lock, int state)
         spin_unlock(&lock->llock);
         sched_yield();
 
-        if (rw_lock_trywrite(lock))
+        if (__rw_lock_trywrite(lock))
         {
             // If we must unqueue ourselves, remove
             if (w.flags & RW_WAITER_QUEUED)
@@ -236,11 +256,12 @@ __noinline int __rw_lock_write_slow(rwlock *lock, int state)
     return ret;
 }
 
-static __always_inline int __rw_lock_write(rwlock *lock, int state)
+static __always_inline int __rw_lock_write(rwlock *lock, int state, unsigned int subclass)
 {
     MAY_SLEEP();
+    rwsem_acquire(&lock->dep_map, subclass, 0, _THIS_IP_);
     /* Try once before doing the whole preempt disable loop and all */
-    if (!rw_lock_trywrite(lock) && !rw_lock_spin_write(lock)) [[unlikely]]
+    if (!__rw_lock_trywrite(lock) && !rw_lock_spin_write(lock)) [[unlikely]]
         return __rw_lock_write_slow(lock, state);
     return 0;
 }
@@ -262,7 +283,7 @@ __noinline int __rw_lock_read_slow(rwlock *lock, int state)
         spin_lock(&lock->llock);
         rwlock_prepare_sleep(lock, &w, state);
 
-        if (rw_lock_tryread(lock) == 0)
+        if (__rw_lock_tryread(lock) == 0)
             break;
 
         if (signals_allowed && signal_is_pending())
@@ -274,7 +295,7 @@ __noinline int __rw_lock_read_slow(rwlock *lock, int state)
         spin_unlock(&lock->llock);
         sched_yield();
 
-        if (rw_lock_tryread(lock) == 0)
+        if (__rw_lock_tryread(lock) == 0)
         {
             // If we must unqueue ourselves, remove
             if (w.flags & RW_WAITER_QUEUED)
@@ -299,33 +320,44 @@ __noinline int __rw_lock_read_slow(rwlock *lock, int state)
     return ret;
 }
 
-static __always_inline int __rw_lock_read(rwlock *lock, int state)
+static __always_inline int __rw_lock_read(rwlock *lock, int state, unsigned int subclass)
 {
     MAY_SLEEP();
+    rwsem_acquire_read(&lock->dep_map, subclass, 0, _THIS_IP_);
     /* Try once before doing the whole preempt disable loop and all */
-    if (rw_lock_tryread(lock) < 0 && !rw_lock_spin_read(lock)) [[unlikely]]
+    if (__rw_lock_tryread(lock) < 0 && !rw_lock_spin_read(lock)) [[unlikely]]
         return __rw_lock_read_slow(lock, state);
     return 0;
 }
 
 void rw_lock_write(rwlock *lock)
 {
-    __rw_lock_write(lock, THREAD_UNINTERRUPTIBLE);
+    __rw_lock_write(lock, THREAD_UNINTERRUPTIBLE, 0);
 }
 
 int rw_lock_write_interruptible(rwlock *lock)
 {
-    return __rw_lock_write(lock, THREAD_INTERRUPTIBLE);
+    return __rw_lock_write(lock, THREAD_INTERRUPTIBLE, 0);
 }
 
 void rw_lock_read(rwlock *lock)
 {
-    __rw_lock_read(lock, THREAD_UNINTERRUPTIBLE);
+    __rw_lock_read(lock, THREAD_UNINTERRUPTIBLE, 0);
 }
 
 int rw_lock_read_interruptible(rwlock *lock)
 {
-    return __rw_lock_read(lock, THREAD_INTERRUPTIBLE);
+    return __rw_lock_read(lock, THREAD_INTERRUPTIBLE, 0);
+}
+
+void rw_lock_read_nested(struct rwlock *lock, unsigned int subclass)
+{
+    __rw_lock_read(lock, THREAD_UNINTERRUPTIBLE, subclass);
+}
+
+void rw_lock_write_nested(struct rwlock *lock, unsigned int subclass)
+{
+    __rw_lock_write(lock, THREAD_UNINTERRUPTIBLE, subclass);
 }
 
 void rwlock_wake(rwlock *lock)
@@ -358,6 +390,7 @@ void rw_unlock_read(rwlock *lock)
     /* Implementation note: If we're unlocking a read lock, only wake up a
      * single thread, since the write lock is exclusive, like a mutex.
      */
+    rwsem_release(&lock->dep_map, _THIS_IP_);
     word = __atomic_sub_fetch(&lock->lock, 1, __ATOMIC_RELEASE);
     if (word & RDWR_LOCK_WAITERS)
         rwlock_wake(lock);
@@ -372,6 +405,7 @@ void rw_unlock_write(rwlock *lock)
     /* Implementation note: If we're unlocking a write lock, wake up every single thread
      * because we can have both readers and writers waiting to get woken up.
      */
+    rwsem_release(&lock->dep_map, _THIS_IP_);
     if (has_waiters)
         rwlock_wake(lock);
 }
@@ -383,6 +417,13 @@ void rw_downgrade_write(struct rwlock *lock)
     if (has_waiters)
         rwlock_wake(lock);
 }
+
+#ifdef CONFIG_LOCKDEP
+void rwlock_init_lock_map(struct rwlock *lock, const char *name, struct lock_class_key *key)
+{
+    lockdep_init_map_wait(&lock->dep_map, name, key, 0, LD_WAIT_SLEEP);
+}
+#endif
 
 extern "C"
 {

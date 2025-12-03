@@ -60,6 +60,7 @@
 #include <acpica/acpi.h>
 #include <drivers/rtc.h>
 #include <efi/efi.h>
+#include <linux/lockdep.h>
 #include <uapi/fcntl.h>
 
 struct multiboot_tag_elf_sections *secs;
@@ -182,8 +183,21 @@ static struct multiboot_tag_efi_mmap efi_mmap_tag;
 static void *efi_mmap_ptr;
 static bool efi_mmap_present = false;
 
+static union u {
+    char tmpbuf[sizeof(thread_t)] align(8);
+    thread_t init_thread;
+
+    u()
+    {
+    }
+} u1;
+
 static void x86_very_early_init()
 {
+    u1.init_thread.addr_limit = VM_KERNEL_ADDR_LIMIT;
+    u1.init_thread.id = 1;
+    lockdep_init_task(&u1.init_thread);
+    set_current_thread(&u1.init_thread);
     /* First off, identify the CPU its running on */
     cpu_identify();
 
@@ -394,7 +408,9 @@ extern "C" void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
 
     mb2_init_fb();
     vterm_do_init();
-
+#ifdef CONFIG_LOCKDEP
+    debug_locks = 1;
+#endif
     init_elf_symbols(secs);
 
 #ifdef CONFIG_EFI

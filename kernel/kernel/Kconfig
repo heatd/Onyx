@@ -88,8 +88,105 @@ if KASAN
         help
             Controls the KASAN quarantine size. Has an impact on memory usage. If too
             high (compared to the memory size), you might experience system instability.
-
 endif
+
+config TRACE_IRQFLAGS
+    bool
+
+config PROVE_LOCKING
+	bool "Lock debugging: prove locking correctness"
+	select LOCKDEP
+	select DEBUG_SPINLOCK
+	select DEBUG_MUTEXES if !PREEMPT_RT
+	select DEBUG_RT_MUTEXES if RT_MUTEXES
+	select DEBUG_RWSEMS if !PREEMPT_RT
+	select DEBUG_WW_MUTEX_SLOWPATH
+	select DEBUG_LOCK_ALLOC
+	select PREEMPT_COUNT if !ARCH_NO_PREEMPT
+	select TRACE_IRQFLAGS
+	default n
+	help
+	 This feature enables the kernel to prove that all locking
+	 that occurs in the kernel runtime is mathematically
+	 correct: that under no circumstance could an arbitrary (and
+	 not yet triggered) combination of observed locking
+	 sequences (on an arbitrary number of CPUs, running an
+	 arbitrary number of tasks and interrupt contexts) cause a
+	 deadlock.
+
+	 In short, this feature enables the kernel to report locking
+	 related deadlocks before they actually occur.
+
+	 The proof does not depend on how hard and complex a
+	 deadlock scenario would be to trigger: how many
+	 participant CPUs, tasks and irq-contexts would be needed
+	 for it to trigger. The proof also does not depend on
+	 timing: if a race and a resulting deadlock is possible
+	 theoretically (no matter how unlikely the race scenario
+	 is), it will be proven so and will immediately be
+	 reported by the kernel (once the event is observed that
+	 makes the deadlock theoretically possible).
+
+	 If a deadlock is impossible (i.e. the locking rules, as
+	 observed by the kernel, are mathematically correct), the
+	 kernel reports nothing.
+
+	 NOTE: this feature can also be enabled for rwlocks, mutexes
+	 and rwsems - in which case all dependencies between these
+	 different locking variants are observed and mapped too, and
+	 the proof of observed correctness is also maintained for an
+	 arbitrary combination of these separate locking variants.
+
+	 For more details, see Documentation/locking/lockdep-design.rst.
+
+config LOCKDEP
+	bool
+	select STACKTRACE
+	select KALLSYMS
+	select KALLSYMS_ALL
+
+config LOCKDEP_SMALL
+	bool
+
+config LOCKDEP_BITS
+	int "Size for MAX_LOCKDEP_ENTRIES (as Nth power of 2)"
+	depends on LOCKDEP && !LOCKDEP_SMALL
+	range 10 24
+	default 15
+	help
+	  Try increasing this value if you hit "BUG: MAX_LOCKDEP_ENTRIES too low!" message.
+
+config LOCKDEP_CHAINS_BITS
+	int "Size for MAX_LOCKDEP_CHAINS (as Nth power of 2)"
+	depends on LOCKDEP && !LOCKDEP_SMALL
+	range 10 21
+	default 16
+	help
+	  Try increasing this value if you hit "BUG: MAX_LOCKDEP_CHAINS too low!" message.
+
+config LOCKDEP_STACK_TRACE_BITS
+	int "Size for MAX_STACK_TRACE_ENTRIES (as Nth power of 2)"
+	depends on LOCKDEP && !LOCKDEP_SMALL
+	range 10 26
+	default 19
+	help
+	  Try increasing this value if you hit "BUG: MAX_STACK_TRACE_ENTRIES too low!" message.
+
+config LOCKDEP_STACK_TRACE_HASH_BITS
+	int "Size for STACK_TRACE_HASH_SIZE (as Nth power of 2)"
+	depends on LOCKDEP && !LOCKDEP_SMALL
+	range 10 26
+	default 14
+	help
+	  Try increasing this value if you need large STACK_TRACE_HASH_SIZE.
+
+config LOCKDEP_CIRCULAR_QUEUE_BITS
+	int "Size for elements in circular_queue struct (as Nth power of 2)"
+	depends on LOCKDEP
+	range 10 26
+	default 12
+	help
+	  Try increasing this value if you hit "lockdep bfs error:-1" warning due to __cq_enqueue() failure.
 
 config KCSAN
     bool "Kernel Concurrency Sanitizer (KCSAN)"

@@ -110,7 +110,7 @@ struct vm_object
     /* See fs/buffer.cpp for example usage of these struct members */
     struct spinlock private_lock;
     struct list_head private_list;
-    struct rwlock truncate_lock;
+    struct rwlock truncate_lock LOCKDEP_OK;
 
 #ifdef __cplusplus
 
