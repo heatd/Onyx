@@ -7,6 +7,7 @@
  */
 #include <errno.h>
 
+#include <onyx/bug.h>
 #include <onyx/cpu.h>
 #include <onyx/rwlock.h>
 #include <onyx/scheduler.h>
@@ -14,18 +15,17 @@
 #include <onyx/spinlock.h>
 #include <onyx/thread.h>
 #include <onyx/types.h>
-#include <onyx/bug.h>
 
 #include "primitive_generic.h"
 
-__always_inline unsigned long thread_to_counter(thread *t)
+static __always_inline unsigned long thread_to_counter(thread *t)
 {
     unsigned long c = (unsigned long) t;
     DCHECK((c & 3) == 0);
     return c >> 2;
 }
 
-__always_inline thread *counter_to_thread(unsigned long c)
+static __always_inline thread *counter_to_thread(unsigned long c)
 {
     return (thread *) (c << 2);
 }
@@ -90,7 +90,7 @@ int rw_lock_trywrite(rwlock *lock)
     return true;
 }
 
-__always_inline void rwlock_prepare_sleep(rwlock *rwl, rwlock_waiter *w, int state)
+static __always_inline void rwlock_prepare_sleep(rwlock *rwl, rwlock_waiter *w, int state)
 {
     MUST_HOLD_LOCK(&rwl->llock);
     set_current_state(state);
@@ -112,7 +112,7 @@ __always_inline void rwlock_prepare_sleep(rwlock *rwl, rwlock_waiter *w, int sta
     __atomic_or_fetch(&rwl->lock, RDWR_LOCK_WAITERS, __ATOMIC_ACQUIRE);
 }
 
-__always_inline void dequeue_thread_rwlock(rwlock *lock, rwlock_waiter *w)
+static __always_inline void dequeue_thread_rwlock(rwlock *lock, rwlock_waiter *w)
 {
     MUST_HOLD_LOCK(&lock->llock);
     list_remove(&w->head);
@@ -122,7 +122,7 @@ __always_inline void dequeue_thread_rwlock(rwlock *lock, rwlock_waiter *w)
 int rwspin_succ = 0;
 int rwspin_fail = 0;
 
-__always_inline bool rw_lock_spin_write(rwlock *lock)
+static __always_inline bool rw_lock_spin_write(rwlock *lock)
 {
     /* The algorithm goes like this: Try to always fetch the owner thread,
      * and if there's none try to acquire the lock. If in fact there is a thread,
@@ -151,7 +151,7 @@ __always_inline bool rw_lock_spin_write(rwlock *lock)
     }
 }
 
-__always_inline bool rw_lock_spin_read(rwlock *lock)
+static __always_inline bool rw_lock_spin_read(rwlock *lock)
 {
     /* The algorithm goes like this: Try to always fetch the owner thread,
      * and if there's none try to acquire the lock. If in fact there is a thread,
@@ -236,7 +236,7 @@ __noinline int __rw_lock_write_slow(rwlock *lock, int state)
     return ret;
 }
 
-__always_inline int __rw_lock_write(rwlock *lock, int state)
+static __always_inline int __rw_lock_write(rwlock *lock, int state)
 {
     MAY_SLEEP();
     /* Try once before doing the whole preempt disable loop and all */
@@ -299,7 +299,7 @@ __noinline int __rw_lock_read_slow(rwlock *lock, int state)
     return ret;
 }
 
-__always_inline int __rw_lock_read(rwlock *lock, int state)
+static __always_inline int __rw_lock_read(rwlock *lock, int state)
 {
     MAY_SLEEP();
     /* Try once before doing the whole preempt disable loop and all */
@@ -387,7 +387,7 @@ void rw_downgrade_write(struct rwlock *lock)
 extern "C"
 {
 
-__always_inline bool rwslock_try_read_fast(struct rwslock *lock)
+static __always_inline bool rwslock_try_read_fast(struct rwslock *lock)
 {
     unsigned long word = READ_ONCE(lock->lock);
     if (unlikely(word & RDWR_LOCK_WRITE || word == RDWR_MAX_COUNTER))
@@ -443,7 +443,7 @@ __noinline static void __write_lock_slow(struct rwslock *lock)
                                           __ATOMIC_ACQUIRE, __ATOMIC_RELAXED));
 }
 
-__always_inline bool rwslock_try_write_fast(struct rwslock *lock)
+static __always_inline bool rwslock_try_write_fast(struct rwslock *lock)
 {
     unsigned long expected = 0;
     const unsigned long write_value = RDWR_LOCK_WRITE | get_cpu_nr();

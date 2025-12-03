@@ -45,8 +45,8 @@
 #define _strong_alias_c_name(name, aliasname) \
     extern "C" __typeof(name) aliasname __attribute__((alias(#name)));
 
-#define __always_inline static inline __attribute__((always_inline))
-#define __noinline      __attribute__((noinline))
+#define __always_inline inline __attribute__((always_inline))
+#define __noinline      __attribute__((__noinline__))
 #define __packed        __attribute__((packed))
 
 #define NO_ASAN __attribute__((no_sanitize_address))
@@ -105,7 +105,7 @@ unsigned int count_bits(Type val)
 
 #define COMPILER_BARRIER() __asm__ __volatile__("" ::: "memory")
 #define ilog2(X)           ((unsigned) (8 * sizeof(unsigned long long) - __builtin_clzll((X)) - 1))
-#define ALIGN_TO(x, y)     (((unsigned long) (x) + ((y) -1)) & -(y))
+#define ALIGN_TO(x, y)     (((unsigned long) (x) + ((y) - 1)) & -(y))
 
 #define OPTIMISE_DEBUG __attribute__((optimize("Og")))
 

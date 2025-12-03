@@ -65,7 +65,7 @@ void fd_get(struct file *fd)
     __atomic_add_fetch(&fd->f_refcount, 1, __ATOMIC_ACQUIRE);
 }
 
-__always_inline bool fd_get_rcu(struct file *fd)
+static __always_inline bool fd_get_rcu(struct file *fd)
 {
     // Do cmpxchg and bail if the refcount is 0.
     // If the refcount is 0, this file is on the waiting queue for destruction (or getting
@@ -294,7 +294,7 @@ struct file *__get_file_description(int fd, struct process *p)
     return f;
 }
 
-__always_inline auto_fd __fdget(int fd, u8 extra_flags)
+static __always_inline auto_fd __fdget(int fd, u8 extra_flags)
 {
     struct process *p = get_current_process();
 

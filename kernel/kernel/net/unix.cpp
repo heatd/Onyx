@@ -1470,7 +1470,7 @@ void un_socket::connect_pair(un_socket *sock0, un_socket *sock1)
     sock0->state = sock1->state = UN_CONNECTED;
 }
 
-__always_inline expected<cul::pair<ref_guard<un_socket>, ref_guard<un_socket>>, int>
+static __always_inline expected<cul::pair<ref_guard<un_socket>, ref_guard<un_socket>>, int>
 create_socketpair(int type)
 {
     ref_guard<un_socket> sock = make_refc<un_socket>(type, PROTOCOL_UNIX);

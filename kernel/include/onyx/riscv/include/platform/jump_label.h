@@ -47,7 +47,7 @@ struct static_key;
 #endif
 
 template <bool is_likely>
-__always_inline bool jump_label_branch(struct static_key *key)
+static __always_inline bool jump_label_branch(struct static_key *key)
 {
     __asm__ __volatile__ goto(".option push; .option norvc;\n" RISCV_JUMP_LABEL_BRANCH_SEQ
                               ".option pop\n"
@@ -67,12 +67,12 @@ branch:
 
 size_t jump_label_gen_branch(struct jump_label *label, unsigned char *buf);
 
-__always_inline bool jump_label_polarity(struct jump_label *label)
+static __always_inline bool jump_label_polarity(struct jump_label *label)
 {
     return label->key & 1;
 }
 
-__always_inline struct static_key *jump_label_key(struct jump_label *label)
+static __always_inline struct static_key *jump_label_key(struct jump_label *label)
 {
     return (struct static_key *) (label->key & ~1);
 }

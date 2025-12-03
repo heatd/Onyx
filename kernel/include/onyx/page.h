@@ -313,7 +313,7 @@ static inline struct page *alloc_page(unsigned long flags)
     return alloc_pages(0, flags);
 }
 
-__always_inline unsigned int pages2order(unsigned long pages)
+static __always_inline unsigned int pages2order(unsigned long pages)
 {
     if (pages == 1)
         return 0;
@@ -422,12 +422,12 @@ static inline void page_unpin(struct page *p)
     page_unref(p);
 }
 
-__always_inline void page_set_waiters(struct page *p)
+static __always_inline void page_set_waiters(struct page *p)
 {
     __atomic_fetch_or(&p->flags, PAGE_FLAG_WAITERS, __ATOMIC_ACQUIRE);
 }
 
-__always_inline void page_clear_waiters(struct page *p)
+static __always_inline void page_clear_waiters(struct page *p)
 {
     __atomic_fetch_and(&p->flags, ~PAGE_FLAG_WAITERS, __ATOMIC_RELEASE);
 }
@@ -439,7 +439,7 @@ void page_owner_freed(struct page *p);
 void page_owner_locked(struct page *p);
 void page_owner_unlocked(struct page *p);
 
-__always_inline bool try_lock_page(struct page *p) TRY_ACQUIRE(true, p)
+static __always_inline bool try_lock_page(struct page *p) TRY_ACQUIRE(true, p)
 {
     unsigned long flags = __atomic_fetch_or(&p->flags, PAGE_FLAG_LOCKED, __ATOMIC_ACQUIRE);
 #ifdef CONFIG_PAGE_OWNER
@@ -452,7 +452,7 @@ __always_inline bool try_lock_page(struct page *p) TRY_ACQUIRE(true, p)
 
 int page_wait_bit(struct page *p, unsigned int flags, bool interruptible);
 
-__always_inline void lock_page(struct page *p) ACQUIRE(p) NO_THREAD_SAFETY_ANALYSIS
+static __always_inline void lock_page(struct page *p) ACQUIRE(p) NO_THREAD_SAFETY_ANALYSIS
 {
     if (unlikely(!try_lock_page(p)))
         page_wait_bit(p, PAGE_FLAG_LOCKED, false);
@@ -460,7 +460,7 @@ __always_inline void lock_page(struct page *p) ACQUIRE(p) NO_THREAD_SAFETY_ANALY
 
 void page_wake_bit(struct page *p, unsigned int bit);
 
-__always_inline void unlock_page(struct page *p) RELEASE(p) NO_THREAD_SAFETY_ANALYSIS
+static __always_inline void unlock_page(struct page *p) RELEASE(p) NO_THREAD_SAFETY_ANALYSIS
 {
 #ifdef CONFIG_PAGE_OWNER
     page_owner_unlocked(p);
@@ -470,17 +470,17 @@ __always_inline void unlock_page(struct page *p) RELEASE(p) NO_THREAD_SAFETY_ANA
         page_wake_bit(p, PAGE_FLAG_LOCKED);
 }
 
-__always_inline void folio_lock(struct folio *folio) ACQUIRE(folio)
+static __always_inline void folio_lock(struct folio *folio) ACQUIRE(folio)
 {
     lock_page(folio_to_page(folio));
 }
 
-__always_inline void folio_unlock(struct folio *folio) RELEASE(folio)
+static __always_inline void folio_unlock(struct folio *folio) RELEASE(folio)
 {
     unlock_page(folio_to_page(folio));
 }
 
-__always_inline bool page_test_set_flag(struct page *p, unsigned long flag)
+static __always_inline bool page_test_set_flag(struct page *p, unsigned long flag)
 {
     unsigned long word;
     do
@@ -493,7 +493,7 @@ __always_inline bool page_test_set_flag(struct page *p, unsigned long flag)
     return true;
 }
 
-__always_inline bool page_test_clear_flag(struct page *p, unsigned long flag)
+static __always_inline bool page_test_clear_flag(struct page *p, unsigned long flag)
 {
     unsigned long word;
     do
@@ -506,7 +506,7 @@ __always_inline bool page_test_clear_flag(struct page *p, unsigned long flag)
     return true;
 }
 
-__always_inline bool folio_test_set_flag(struct folio *p, unsigned long flag)
+static __always_inline bool folio_test_set_flag(struct folio *p, unsigned long flag)
 {
     unsigned long word;
     do
@@ -519,7 +519,7 @@ __always_inline bool folio_test_set_flag(struct folio *p, unsigned long flag)
     return true;
 }
 
-__always_inline bool folio_test_clear_flag(struct folio *p, unsigned long flag)
+static __always_inline bool folio_test_clear_flag(struct folio *p, unsigned long flag)
 {
     unsigned long word;
     do
@@ -532,45 +532,45 @@ __always_inline bool folio_test_clear_flag(struct folio *p, unsigned long flag)
     return true;
 }
 
-__always_inline bool page_flag_set(const struct page *p, unsigned long flag)
+static __always_inline bool page_flag_set(const struct page *p, unsigned long flag)
 {
     return READ_ONCE(p->flags) & flag;
 }
 
-__always_inline bool folio_flag_set(const struct folio *folio, unsigned long flag)
+static __always_inline bool folio_flag_set(const struct folio *folio, unsigned long flag)
 {
     return READ_ONCE(folio->flags) & flag;
 }
 
-__always_inline bool page_locked(const struct page *p)
+static __always_inline bool page_locked(const struct page *p)
 {
     return page_flag_set(p, PAGE_FLAG_LOCKED);
 }
 
-__always_inline void page_set_writeback(struct page *p)
+static __always_inline void page_set_writeback(struct page *p)
 {
     __atomic_fetch_or(&p->flags, PAGE_FLAG_WRITEBACK, __ATOMIC_RELEASE);
 }
 
-__always_inline void page_clear_writeback(struct page *p)
+static __always_inline void page_clear_writeback(struct page *p)
 {
     unsigned long flags = __atomic_and_fetch(&p->flags, ~PAGE_FLAG_WRITEBACK, __ATOMIC_RELEASE);
     if (unlikely(flags & PAGE_FLAG_WAITERS))
         page_wake_bit(p, PAGE_FLAG_WRITEBACK);
 }
 
-__always_inline void page_wait_writeback(struct page *p)
+static __always_inline void page_wait_writeback(struct page *p)
 {
     while (page_flag_set(p, PAGE_FLAG_WRITEBACK))
         page_wait_bit(p, PAGE_FLAG_WRITEBACK, false);
 }
 
-__always_inline void page_set_flag(struct page *p, unsigned long flag)
+static __always_inline void page_set_flag(struct page *p, unsigned long flag)
 {
     __atomic_fetch_or(&p->flags, flag, __ATOMIC_RELEASE);
 }
 
-__always_inline void folio_set_flag(struct folio *folio, unsigned long flag)
+static __always_inline void folio_set_flag(struct folio *folio, unsigned long flag)
 {
     __atomic_fetch_or(&folio->flags, flag, __ATOMIC_RELEASE);
 }

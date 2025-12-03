@@ -127,7 +127,7 @@ static PER_CPU_VAR(long kcsan_skip);
 /* For kcsan_prandom_u32_max(). */
 static PER_CPU_VAR(u32 kcsan_rand_state);
 
-__always_inline atomic_long_t *find_watchpoint(unsigned long addr,
+static __always_inline atomic_long_t *find_watchpoint(unsigned long addr,
 						      size_t size,
 						      bool expect_write,
 						      long *encoded_watchpoint)
@@ -195,7 +195,7 @@ insert_watchpoint(unsigned long addr, size_t size, bool is_write)
  *	2. the thread that set up the watchpoint already removed it;
  *	3. the watchpoint was removed and then re-used.
  */
-__always_inline bool
+static __always_inline bool
 try_consume_watchpoint(atomic_long_t *watchpoint, long encoded_watchpoint)
 {
 	return atomic_long_try_cmpxchg_relaxed(watchpoint, &encoded_watchpoint, CONSUMED_WATCHPOINT);
@@ -213,7 +213,7 @@ static inline void remove_watchpoint(atomic_long_t *watchpoint)
 	atomic_long_set(watchpoint, INVALID_WATCHPOINT);
 }
 
-__always_inline struct kcsan_ctx *get_ctx(void)
+static __always_inline struct kcsan_ctx *get_ctx(void)
 {
 	/*
 	 * In interrupts, use raw_cpu_ptr to avoid unnecessary checks, that would
@@ -222,7 +222,7 @@ __always_inline struct kcsan_ctx *get_ctx(void)
 	return (!is_in_interrupt() && get_current_thread()) ? &get_current_thread()->kcsan_ctx : get_per_cpu_ptr(kcsan_cpu_ctx);
 }
 
-__always_inline void
+static __always_inline void
 check_access(const volatile void *ptr, size_t size, int type, unsigned long ip);
 
 /* Check scoped accesses; never inline because this is a slow-path! */
@@ -244,7 +244,7 @@ static noinline void kcsan_check_scoped_accesses(void)
 }
 
 /* Rules for generic atomic accesses. Called from fast-path. */
-__always_inline bool
+static __always_inline bool
 is_atomic(struct kcsan_ctx *ctx, const volatile void *ptr, size_t size, int type)
 {
 	if (type & KCSAN_ACCESS_ATOMIC)
@@ -283,7 +283,7 @@ is_atomic(struct kcsan_ctx *ctx, const volatile void *ptr, size_t size, int type
 	return ctx->atomic_nest_count > 0 || ctx->in_flat_atomic;
 }
 
-__always_inline bool
+static __always_inline bool
 should_watch(struct kcsan_ctx *ctx, const volatile void *ptr, size_t size, int type)
 {
 	/*
@@ -335,7 +335,7 @@ static inline void reset_kcsan_skip(void)
 
 #define READ_ONCE(var) (__atomic_load_n(&(var), __ATOMIC_RELAXED))
 
-__always_inline bool kcsan_is_enabled(struct kcsan_ctx *ctx)
+static __always_inline bool kcsan_is_enabled(struct kcsan_ctx *ctx)
 {
 	return READ_ONCE(kcsan_enabled) && !ctx->disable_count;
 }
@@ -360,7 +360,7 @@ static void delay_access(int type)
  * Reads the instrumented memory for value change detection; value change
  * detection is currently done for accesses up to a size of 8 bytes.
  */
-__always_inline u64 read_instrumented_memory(const volatile void *ptr, size_t size)
+static __always_inline u64 read_instrumented_memory(const volatile void *ptr, size_t size)
 {
 	/*
 	 * In the below we don't necessarily need the read of the location to
@@ -396,7 +396,7 @@ void kcsan_restore_irqtrace(struct task_struct *task)
 
 #define BUILD_BUG()
 
-__always_inline int get_kcsan_stack_depth(void)
+static __always_inline int get_kcsan_stack_depth(void)
 {
 #if CONFIG_KCSAN_WEAK_MEMORY
 	return get_current_thread() ? get_current_thread()->kcsan_stack_depth : 0;
@@ -406,7 +406,7 @@ __always_inline int get_kcsan_stack_depth(void)
 #endif
 }
 
-__always_inline void add_kcsan_stack_depth(int val)
+static __always_inline void add_kcsan_stack_depth(int val)
 {
 #if CONFIG_KCSAN_WEAK_MEMORY
 	if (get_current_thread())
@@ -416,7 +416,7 @@ __always_inline void add_kcsan_stack_depth(int val)
 #endif
 }
 
-__always_inline struct kcsan_scoped_access *get_reorder_access(struct kcsan_ctx *ctx)
+static __always_inline struct kcsan_scoped_access *get_reorder_access(struct kcsan_ctx *ctx)
 {
 #if CONFIG_KCSAN_WEAK_MEMORY
 	return ctx->disable_scoped ? NULL : &ctx->reorder_access;
@@ -425,7 +425,7 @@ __always_inline struct kcsan_scoped_access *get_reorder_access(struct kcsan_ctx 
 #endif
 }
 
-__always_inline bool
+static __always_inline bool
 find_reorder_access(struct kcsan_ctx *ctx, const volatile void *ptr, size_t size,
 		    int type, unsigned long ip)
 {
@@ -743,7 +743,7 @@ out:
 	;
 }
 
-__always_inline void
+static __always_inline void
 check_access(const volatile void *ptr, size_t size, int type, unsigned long ip)
 {
 	atomic_long_t *watchpoint;
@@ -1193,7 +1193,7 @@ EXPORT_SYMBOL(__tsan_init);
  * functions, whose job is to also execute the operation itself.
  */
 
-__always_inline void kcsan_atomic_builtin_memorder(int memorder)
+static __always_inline void kcsan_atomic_builtin_memorder(int memorder)
 {
 	if (memorder == __ATOMIC_RELEASE ||
 	    memorder == __ATOMIC_SEQ_CST ||

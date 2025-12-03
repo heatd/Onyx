@@ -21,27 +21,27 @@ void sched_handle_preempt(bool may_softirq);
 
 extern unsigned long preemption_counter;
 
-__always_inline bool sched_is_preemption_disabled()
+static __always_inline bool sched_is_preemption_disabled()
 {
     return get_per_cpu(preemption_counter) > 0;
 }
 
-__always_inline unsigned long sched_get_preempt_counter()
+static __always_inline unsigned long sched_get_preempt_counter()
 {
     return get_per_cpu(preemption_counter);
 }
 
-__always_inline void __sched_enable_preempt()
+static __always_inline void __sched_enable_preempt()
 {
     dec_per_cpu(preemption_counter);
 }
 
-__always_inline void sched_enable_preempt_no_softirq()
+static __always_inline void sched_enable_preempt_no_softirq()
 {
     __sched_enable_preempt();
 }
 
-__always_inline void sched_enable_preempt()
+static __always_inline void sched_enable_preempt()
 {
     // If preemption is enabled, try to do various tasks
     // softirq, rescheduling, etc
@@ -49,7 +49,7 @@ __always_inline void sched_enable_preempt()
         sched_handle_preempt(true);
 }
 
-__always_inline void sched_disable_preempt()
+static __always_inline void sched_disable_preempt()
 {
     inc_per_cpu(preemption_counter);
 }

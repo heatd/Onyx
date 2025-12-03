@@ -315,7 +315,7 @@ char *strnstr(const char *s1, const char *s2, size_t len)
 	return NULL;
 }
 
-__always_inline size_t str_has_prefix(const char *str, const char *prefix)
+static __always_inline size_t str_has_prefix(const char *str, const char *prefix)
 {
 	size_t len = strlen(prefix);
 	return strncmp(str, prefix, len) == 0 ? len : 0;

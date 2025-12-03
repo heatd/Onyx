@@ -257,7 +257,7 @@ static void rcu_start_batch(struct rcu_pcpublk *rpb, unsigned long new_max)
     rcp.mask = smp::get_online_cpumask();
 }
 
-__always_inline bool rcu_has_callbacks(rcu_pcpublk *rpb)
+static __always_inline bool rcu_has_callbacks(rcu_pcpublk *rpb)
 {
     // Current can be !is_empty for a variety of reasons, including if we tried to start a batch
     // without actually starting it. As such, we can only process callbacks if we have gone through
@@ -265,7 +265,7 @@ __always_inline bool rcu_has_callbacks(rcu_pcpublk *rpb)
     return rcp.curgen > rpb->gen && !rpb->current.is_empty();
 }
 
-__always_inline bool rcu_has_batch(rcu_pcpublk *rpb)
+static __always_inline bool rcu_has_batch(rcu_pcpublk *rpb)
 {
     return rpb->current.is_empty() && !rpb->next.is_empty();
 }

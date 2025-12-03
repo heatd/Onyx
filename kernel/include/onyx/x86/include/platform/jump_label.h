@@ -31,7 +31,7 @@ struct static_key;
 #endif
 
 template <bool is_likely>
-__always_inline bool jump_label_branch(struct static_key *key)
+static __always_inline bool jump_label_branch(struct static_key *key)
 {
     __asm__ __volatile__ goto("%=: .rept 5; int3; .endr\n"
                               ".pushsection .jump_label\n"
@@ -50,7 +50,7 @@ branch:
 
 #define JUMP_LABEL_BRANCH_SIZE 5
 
-__always_inline size_t jump_label_gen_branch(struct jump_label *label, unsigned char *buf)
+static __always_inline size_t jump_label_gen_branch(struct jump_label *label, unsigned char *buf)
 {
     s32 diff = label->dest;
 
@@ -71,12 +71,12 @@ __always_inline size_t jump_label_gen_branch(struct jump_label *label, unsigned 
     }
 }
 
-__always_inline bool jump_label_polarity(struct jump_label *label)
+static __always_inline bool jump_label_polarity(struct jump_label *label)
 {
     return label->key & 1;
 }
 
-__always_inline struct static_key *jump_label_key(struct jump_label *label)
+static __always_inline struct static_key *jump_label_key(struct jump_label *label)
 {
     return (struct static_key *) (label->key & ~1);
 }

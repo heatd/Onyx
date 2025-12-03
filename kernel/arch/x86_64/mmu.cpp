@@ -55,7 +55,7 @@ static const unsigned int x86_max_paging_levels = 5;
 
 #define X86_CACHING_BITS(index) ((((index) &0x3) << 3) | (((index >> 2) & 1) << 7))
 
-#define PML_EXTRACT_ADDRESS(n)  ((n) &0x0FFFFFFFFFFFF000)
+#define PML_EXTRACT_ADDRESS(n)  ((n) & 0x0FFFFFFFFFFFF000)
 #define X86_PAGING_PRESENT      (1 << 0)
 #define X86_PAGING_WRITE        (1 << 1)
 #define X86_PAGING_USER         (1 << 2)
@@ -79,7 +79,7 @@ static const unsigned int x86_max_paging_levels = 5;
      X86_PAGING_DIRTY | X86_PAGING_WRITETHROUGH | X86_PAGING_PCD | X86_PAGING_PAT | \
      X86_PAGING_SPECIAL)
 
-__always_inline bool x86_is_pml5_enabled()
+static __always_inline bool x86_is_pml5_enabled()
 {
     return x86_paging_levels == 5;
 }
@@ -237,7 +237,7 @@ void *x86_placement_map(unsigned long _phys)
 }
 
 #define PA2VA(val) ((unsigned long) (val) + KERNEL_VIRTUAL_BASE - kernel_phys_offset)
-#define VA2PA(val) ((unsigned long) (val) -KERNEL_VIRTUAL_BASE + kernel_phys_offset)
+#define VA2PA(val) ((unsigned long) (val) - KERNEL_VIRTUAL_BASE + kernel_phys_offset)
 
 void x86_setup_placement_mappings(void)
 {
@@ -830,7 +830,7 @@ static inline char *kasan_get_ptr(unsigned long addr)
     return (char *) KASAN_SHADOW_OFFSET + (addr >> 3);
 }
 
-#define PTE_INDEX(virt, level) ((((virt) >> 12) >> (((level) -1) * 9)) & 0x1ff)
+#define PTE_INDEX(virt, level) ((((virt) >> 12) >> (((level) - 1) * 9)) & 0x1ff)
 
 void kasan_remap_shadow_la57(PML *top_pgd, PML *bootpgd)
 {

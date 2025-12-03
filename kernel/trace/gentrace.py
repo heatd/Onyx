@@ -134,7 +134,7 @@ class TraceEvent:
 
         file.write(");\n")
 
-        file.write(f"__always_inline void trace_{self.category}_{self.name}(")
+        file.write(f"static __always_inline void trace_{self.category}_{self.name}(")
         first_arg = True
         for arg in self.args:
             if not first_arg:

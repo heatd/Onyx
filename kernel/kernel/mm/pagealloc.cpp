@@ -45,7 +45,7 @@ static unsigned long min_free_kbytes = 1024;
 size_t page_memory_size;
 cul::atomic_size_t nr_global_pages;
 
-__always_inline unsigned long pow2(unsigned int exp)
+static __always_inline unsigned long pow2(unsigned int exp)
 {
     return (1UL << (unsigned long) exp);
 }
@@ -54,18 +54,18 @@ __always_inline unsigned long pow2(unsigned int exp)
 #define PCPU_REFILL_PAGES 512
 #define PCPU_REFILL_ORDER 9
 
-__always_inline bool page_is_buddy(page *page)
+static __always_inline bool page_is_buddy(page *page)
 {
     return page->flags == PAGE_BUDDY;
 }
 
-__always_inline void page_debuddy(page *page)
+static __always_inline void page_debuddy(page *page)
 {
     page->priv = 0;
     page->flags &= ~PAGE_BUDDY;
 }
 
-__always_inline void page_make_buddy(page *page, unsigned int order)
+static __always_inline void page_make_buddy(page *page, unsigned int order)
 {
     page->priv = order;
     page->flags |= PAGE_BUDDY;
@@ -404,7 +404,8 @@ size_t page_zone_get_used_pages(struct page_zone *zone)
     return zone->used_pages;
 }
 
-__always_inline struct page *get_buddy(struct page *page, unsigned int order, page_zone *zone)
+static __always_inline struct page *get_buddy(struct page *page, unsigned int order,
+                                              page_zone *zone)
 {
     unsigned long pfn = page_to_pfn(page);
     unsigned long pfn2 = pfn ^ (1UL << order);
@@ -792,7 +793,7 @@ struct page *page_node::allocate_pages(size_t nr_pgs, unsigned long flags)
     return plist;
 }
 
-__always_inline bool page_should_poison(unsigned long flags)
+static __always_inline bool page_should_poison(unsigned long flags)
 {
 #ifdef CONFIG_PAGEALLOC_POISON
     return true;
@@ -801,8 +802,8 @@ __always_inline bool page_should_poison(unsigned long flags)
 #endif
 }
 
-__always_inline void prepare_pages_after_alloc(struct page *page, unsigned int order,
-                                               unsigned long flags)
+static __always_inline void prepare_pages_after_alloc(struct page *page, unsigned int order,
+                                                      unsigned long flags)
 {
     struct page *last = nullptr;
     struct page *head = page;

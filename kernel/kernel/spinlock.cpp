@@ -14,21 +14,22 @@
 #include <onyx/spinlock.h>
 #include <onyx/task_switching.h>
 
-__always_inline void post_lock_actions(struct spinlock *lock)
+static __always_inline void post_lock_actions(struct spinlock *lock)
 {
 #ifdef CONFIG_SPINLOCK_DEBUG
     lock->holder = (unsigned long) __builtin_return_address(1);
 #endif
 }
 
-__always_inline void post_release_actions(struct spinlock *lock)
+static __always_inline void post_release_actions(struct spinlock *lock)
 {
 #ifdef CONFIG_SPINLOCK_DEBUG
     lock->holder = 0xDEADBEEFDEADBEEF;
 #endif
 }
 
-__always_inline bool spin_lock_fast_path(struct spinlock *lock, raw_spinlock_t cpu_nr_plus_one)
+static __always_inline bool spin_lock_fast_path(struct spinlock *lock,
+                                                raw_spinlock_t cpu_nr_plus_one)
 {
     raw_spinlock_t expected_val = 0;
     return __atomic_compare_exchange_n(&lock->lock, &expected_val, cpu_nr_plus_one, false,

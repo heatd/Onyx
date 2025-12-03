@@ -148,22 +148,22 @@ static inline bool inode_is_special(struct inode *ino)
         return true;
 }
 
-__always_inline void inode_lock(struct inode *ino)
+static __always_inline void inode_lock(struct inode *ino)
 {
     rw_lock_write(&ino->i_rwlock);
 }
 
-__always_inline void inode_unlock(struct inode *ino)
+static __always_inline void inode_unlock(struct inode *ino)
 {
     rw_unlock_write(&ino->i_rwlock);
 }
 
-__always_inline void inode_lock_shared(struct inode *ino)
+static __always_inline void inode_lock_shared(struct inode *ino)
 {
     rw_lock_read(&ino->i_rwlock);
 }
 
-__always_inline void inode_unlock_shared(struct inode *ino)
+static __always_inline void inode_unlock_shared(struct inode *ino)
 {
     rw_unlock_read(&ino->i_rwlock);
 }
