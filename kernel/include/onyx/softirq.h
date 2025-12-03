@@ -31,7 +31,7 @@ void softirq_handle();
 
 extern bool handling_softirq;
 
-__always_inline __nocov bool softirq_is_handling()
+static __always_inline __nocov bool softirq_is_handling()
 {
     return get_per_cpu(handling_softirq);
 }

@@ -41,7 +41,7 @@ extern "C" BOOT_SECTION void efi_relocate(EFI_SYSTEM_TABLE *table)
 #endif
 }
 
-BOOT_SECTION __always_inline bool efi_guids_equal(const EFI_GUID *a, const EFI_GUID *b)
+BOOT_SECTION static __always_inline bool efi_guids_equal(const EFI_GUID *a, const EFI_GUID *b)
 {
     if (a->data1 != b->data1 || a->data2 != b->data2 || a->data3 != b->data3)
         return false;
@@ -93,7 +93,7 @@ BOOT_SECTION static void efi_get_acpi_smbios_tables(EFI_SYSTEM_TABLE *st, const 
 #define X86_PAGING_PROT_BITS ((PAGE_SIZE - 1) | X86_PAGING_NX)
 
 #define LARGE2MB_SHIFT         21
-#define PTE_INDEX(virt, level) ((((virt) >> 12) >> (((level) -1) * 9)) & 0x1ff)
+#define PTE_INDEX(virt, level) ((((virt) >> 12) >> (((level) - 1) * 9)) & 0x1ff)
 
 static bool check_la57()
 {

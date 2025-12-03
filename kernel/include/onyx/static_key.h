@@ -55,7 +55,7 @@ static inline void __STATIC_BRANCH_DISABLE(struct static_key *k)
 
 #endif
 
-__always_inline void static_branch_enable(struct static_key *key)
+static __always_inline void static_branch_enable(struct static_key *key)
 {
     unsigned long old = __atomic_exchange_n(&key->val, 1, __ATOMIC_RELEASE);
 
@@ -63,7 +63,7 @@ __always_inline void static_branch_enable(struct static_key *key)
         __STATIC_BRANCH_ENABLE(key);
 }
 
-__always_inline void static_branch_disable(struct static_key *key)
+static __always_inline void static_branch_disable(struct static_key *key)
 {
     unsigned long old = __atomic_exchange_n(&key->val, 0, __ATOMIC_RELEASE);
 
@@ -71,7 +71,7 @@ __always_inline void static_branch_disable(struct static_key *key)
         __STATIC_BRANCH_DISABLE(key);
 }
 
-__always_inline void static_branch_inc(struct static_key *key)
+static __always_inline void static_branch_inc(struct static_key *key)
 {
     /* We can use add_fetch and sub_fetch here since we're incrementing. We can skip the cmpxchg
      * loop then, and have a good performance improvement.
@@ -80,13 +80,13 @@ __always_inline void static_branch_inc(struct static_key *key)
         __STATIC_BRANCH_ENABLE(key);
 }
 
-__always_inline void static_branch_dec(struct static_key *key)
+static __always_inline void static_branch_dec(struct static_key *key)
 {
     if (__atomic_sub_fetch(&key->val, 1, __ATOMIC_RELEASE) == 0)
         __STATIC_BRANCH_DISABLE(key);
 }
 
-__always_inline bool static_branch_is_enabled(struct static_key *key)
+static __always_inline bool static_branch_is_enabled(struct static_key *key)
 {
     return __atomic_load_n(&key->val, __ATOMIC_RELAXED) > 0;
 }

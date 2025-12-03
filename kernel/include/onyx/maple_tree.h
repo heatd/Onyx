@@ -253,9 +253,11 @@ struct maple_tree
  * @__flags: The maple tree flags
  *
  */
-#define MTREE_INIT(name, __flags)                                                              \
-    {                                                                                          \
-        .ma_lock = __SPIN_LOCK_UNLOCKED((name).ma_lock), .ma_flags = __flags, .ma_root = NULL, \
+#define MTREE_INIT(name, __flags)                        \
+    {                                                    \
+        .ma_lock = __SPIN_LOCK_UNLOCKED((name).ma_lock), \
+        .ma_flags = __flags,                             \
+        .ma_root = NULL,                                 \
     }
 
 /**
@@ -265,9 +267,11 @@ struct maple_tree
  * @__lock: The external lock
  */
 #ifdef CONFIG_LOCKDEP
-#define MTREE_INIT_EXT(name, __flags, __lock)                                          \
-    {                                                                                  \
-        .ma_external_lock = &(__lock).dep_map, .ma_flags = (__flags), .ma_root = NULL, \
+#define MTREE_INIT_EXT(name, __flags, __lock)  \
+    {                                          \
+        .ma_external_lock = &(__lock).dep_map, \
+        .ma_flags = (__flags),                 \
+        .ma_root = NULL,                       \
     }
 #else
 #define MTREE_INIT_EXT(name, __flags, __lock) MTREE_INIT(name, __flags)
@@ -580,7 +584,7 @@ static inline bool mas_is_err(struct ma_state *mas)
  *
  * Context: Any context.
  */
-__always_inline void mas_reset(struct ma_state *mas)
+static __always_inline void mas_reset(struct ma_state *mas)
 {
     mas->status = ma_start;
     mas->node = NULL;

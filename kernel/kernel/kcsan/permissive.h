@@ -20,7 +20,7 @@
 /*
  * Access ignore rules based on address.
  */
-__always_inline bool kcsan_ignore_address(const volatile void *ptr)
+static __always_inline bool kcsan_ignore_address(const volatile void *ptr)
 {
 #if 0
 	if (!IS_ENABLED(CONFIG_KCSAN_PERMISSIVE))

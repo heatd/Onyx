@@ -63,7 +63,7 @@ struct dcache_str
 
 static inline struct dcache_str dcstr_from_cstr(const char *name)
 {
-    return (struct dcache_str){.str = name, .len = (u32) strlen(name)};
+    return (struct dcache_str) {.str = name, .len = (u32) strlen(name)};
 }
 
 #define D_REF_LOCKED (1UL << 63)
@@ -134,12 +134,12 @@ static inline bool d_is_negative(struct dentry *dentry)
 
 void d_positiveize(struct dentry *dentry, struct inode *inode);
 
-__always_inline bool dentry_is_dir(const struct dentry *d)
+static __always_inline bool dentry_is_dir(const struct dentry *d)
 {
     return S_ISDIR(d->d_inode->i_mode);
 }
 
-__always_inline bool dentry_is_symlink(const struct dentry *d)
+static __always_inline bool dentry_is_symlink(const struct dentry *d)
 {
     return S_ISLNK(d->d_inode->i_mode);
 }
@@ -291,12 +291,12 @@ public:
  */
 void dentry_trim_caches();
 
-__always_inline bool dentry_is_mountpoint(const dentry *dir)
+static __always_inline bool dentry_is_mountpoint(const dentry *dir)
 {
     return dir->d_flags & DENTRY_FLAG_MOUNTPOINT;
 }
 
-__always_inline bool dentry_involved_with_mount(dentry *d)
+static __always_inline bool dentry_involved_with_mount(dentry *d)
 {
     return d->d_flags & (DENTRY_FLAG_MOUNTPOINT | DENTRY_FLAG_MOUNT_ROOT);
 }

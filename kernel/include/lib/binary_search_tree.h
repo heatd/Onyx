@@ -172,7 +172,7 @@ void bst_update_rank_insert(struct bst_root *root, struct bst_node *node,
  * @param parent Parent (if NULL, this is the root node)
  * @param child Node we're linking
  */
-__always_inline void bst_link(struct bst_node **nodep, struct bst_node *parent,
+static __always_inline void bst_link(struct bst_node **nodep, struct bst_node *parent,
                               struct bst_node *child)
 {
     DEBUG_ASSERT(*nodep == NULL);
@@ -237,7 +237,7 @@ static inline bool bst_insert_augmented(struct bst_root *root, struct bst_node *
  * Return: %true if @node was inserted. %false if a node matching @node is
  * already in @root.
  */
-__always_inline bool bst_insert(struct bst_root *root, struct bst_node *node,
+static __always_inline bool bst_insert(struct bst_root *root, struct bst_node *node,
                               bst_compare_t compare)
 {
     return bst_insert_augmented(root, node, compare, NULL);
@@ -261,7 +261,7 @@ void bst_delete_augmented(struct bst_root *root, struct bst_node *node,
  *
  * Delete @node from @root.
  */
-__always_inline void bst_delete(struct bst_root *root, struct bst_node *node)
+static __always_inline void bst_delete(struct bst_root *root, struct bst_node *node)
 {
     bst_delete_augmented(root, node, NULL);
 }

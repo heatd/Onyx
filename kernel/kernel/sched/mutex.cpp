@@ -77,7 +77,7 @@ static bool __mutex_trylock(mutex *lock)
     return true;
 }
 
-__always_inline bool __mutex_trylock_fastpath(mutex *lock)
+static __always_inline bool __mutex_trylock_fastpath(mutex *lock)
 {
     unsigned long expected = 0;
     auto word = thread_to_lock_word(get_current_thread());
@@ -209,7 +209,7 @@ static inline void mutex_postlock(mutex *mtx)
 {
 }
 
-__always_inline int __mutex_lock(struct mutex *mutex, int state)
+static __always_inline int __mutex_lock(struct mutex *mutex, int state, int subclass)
     ACQUIRE(mutex) NO_THREAD_SAFETY_ANALYSIS
 {
     MAY_SLEEP();
@@ -234,7 +234,7 @@ int mutex_lock_interruptible(struct mutex *mutex)
     return __mutex_lock(mutex, THREAD_INTERRUPTIBLE);
 }
 
-[[gnu::noinline]] void mutex_unlock_wake(struct mutex *mutex)
+__noinline void mutex_unlock_wake(struct mutex *mutex)
 {
     scoped_lock g{mutex->llock};
 

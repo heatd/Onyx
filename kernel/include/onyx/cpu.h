@@ -281,7 +281,7 @@ static inline void cpu_sleep(void)
     __asm__ __volatile__("hlt");
 }
 
-__always_inline void serialize_insns()
+static __always_inline void serialize_insns()
 {
     /* We don't cpuid because that's expensive and can cause a VMEXIT under a hypervisor. Instead,
      * we do an iretq. Setup a stack frame on the stack and iretq away.
@@ -312,7 +312,7 @@ static inline void cpu_sleep()
     __asm__ __volatile__("wfi");
 }
 
-__always_inline void serialize_insns()
+static __always_inline void serialize_insns()
 {
     __asm__ __volatile__("fence.i" ::: "memory");
 }

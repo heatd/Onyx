@@ -853,8 +853,8 @@ static inline struct kasan_slab_obj_info *kmem_get_kasan_obj_info(void *object,
     return (struct kasan_slab_obj_info *) ((u8 *) object - (cache->redzone / 2));
 }
 
-__always_inline void kmem_cache_post_alloc_kasan(struct slab_cache *cache, unsigned int flags,
-                                                 void *object)
+static __always_inline void kmem_cache_post_alloc_kasan(struct slab_cache *cache,
+                                                        unsigned int flags, void *object)
 {
     struct kasan_slab_obj_info *info = kmem_get_kasan_obj_info(object, cache);
     unsigned long trace[KASAN_STACK_DEPTH];
@@ -866,7 +866,7 @@ __always_inline void kmem_cache_post_alloc_kasan(struct slab_cache *cache, unsig
     asan_unpoison_shadow((unsigned long) object, cache->actual_objsize);
 }
 
-__always_inline void kasan_register_free(void *ptr, struct slab_cache *cache)
+static __always_inline void kasan_register_free(void *ptr, struct slab_cache *cache)
 {
     struct kasan_slab_obj_info *info = kmem_get_kasan_obj_info(ptr, cache);
     unsigned long trace[KASAN_STACK_DEPTH];
@@ -891,8 +891,8 @@ void kasan_record_kfree_rcu(struct rcu_head *head, size_t off)
 }
 
 #else
-__always_inline void kmem_cache_post_alloc_kasan(struct slab_cache *cache, unsigned int flags,
-                                                 void *object)
+static __always_inline void kmem_cache_post_alloc_kasan(struct slab_cache *cache,
+                                                        unsigned int flags, void *object)
 {
 }
 #endif
@@ -903,14 +903,14 @@ __always_inline void kmem_cache_post_alloc_kasan(struct slab_cache *cache, unsig
  * @param flags Allocation flags
  * @param object Object that was allocated
  */
-__always_inline void kmem_cache_post_alloc(struct slab_cache *cache, unsigned int flags,
-                                           void *object)
+static __always_inline void kmem_cache_post_alloc(struct slab_cache *cache, unsigned int flags,
+                                                  void *object)
 {
     kmem_cache_post_alloc_kasan(cache, flags, object);
 }
 
-__always_inline void kmem_cache_post_alloc_bulk(struct slab_cache *cache, unsigned int flags,
-                                                void **objects, size_t nr)
+static __always_inline void kmem_cache_post_alloc_bulk(struct slab_cache *cache, unsigned int flags,
+                                                       void **objects, size_t nr)
 {
     for (size_t i = 0; i < nr; i++)
         kmem_cache_post_alloc(cache, flags, objects[i]);
@@ -1146,8 +1146,9 @@ void kmem_cache_return_pcpu_batch(struct slab_cache *cache, struct slab_cache_pe
     memmove(pcpu->magazine, &pcpu->magazine[batchsize], (size - pcpu->size) * sizeof(void *));
 }
 
-__always_inline void kmem_cache_free_pcpu_single(struct slab_cache *cache,
-                                                 struct slab_cache_percpu_context *pcpu, void *ptr)
+static __always_inline void kmem_cache_free_pcpu_single(struct slab_cache *cache,
+                                                        struct slab_cache_percpu_context *pcpu,
+                                                        void *ptr)
 {
     DCHECK(pcpu->size < cache->mag_limit);
     struct bufctl *buf = kmem_bufctl_from_ptr(cache, ptr);

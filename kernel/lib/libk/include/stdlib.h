@@ -44,7 +44,7 @@ void *realloc (void *, size_t);
 #ifdef __is_onyx_kernel
 
 __attribute__((malloc))
-__always_inline void *zalloc(size_t len)
+static __always_inline void *zalloc(size_t len)
 {
     return calloc(len, 1);
 }

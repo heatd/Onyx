@@ -91,7 +91,8 @@ static void vma_pre_adjust(struct vm_area_struct *vma);
  * @param addr An address inside the region.
  * @return A pointer to the region, or NULL if it doesn't exist.
  */
-__always_inline struct vm_area_struct *vm_find_region(struct mm_address_space *as, void *addr)
+static __always_inline struct vm_area_struct *vm_find_region(struct mm_address_space *as,
+                                                             void *addr)
     REQUIRES_SHARED(as->vm_lock)
 {
     return vm_search(as, addr, 2);
@@ -1173,7 +1174,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 
 static int vm_expand_brk(struct mm_address_space *as, size_t nr_pages) REQUIRES(as->vm_lock);
 
-__always_inline int do_inc_brk(struct mm_address_space *as, void *oldbrk, void *newbrk)
+static __always_inline int do_inc_brk(struct mm_address_space *as, void *oldbrk, void *newbrk)
     REQUIRES(as->vm_lock)
 {
     void *oldpage = page_align_up(oldbrk);

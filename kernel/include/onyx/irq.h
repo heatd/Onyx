@@ -55,7 +55,7 @@ extern bool in_irq;
 
 __BEGIN_CDECLS
 
-__always_inline __nocov bool is_in_interrupt()
+static __always_inline __nocov bool is_in_interrupt()
 {
     return get_per_cpu(in_irq);
 }

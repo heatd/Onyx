@@ -24,7 +24,7 @@ extern syscall_callback_t syscall_table_64[];
 
 extern "C" void handle_signal(struct registers *regs);
 
-__always_inline bool should_sysret(struct registers *regs)
+static __always_inline bool should_sysret(struct registers *regs)
 {
     /* We can't use sysret on a number of occasions. Most of these would be triggered by ptrace or
      * sigreturn messing about. */
