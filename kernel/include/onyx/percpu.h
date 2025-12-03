@@ -176,6 +176,30 @@
 
 #endif
 
+#define add_and_return_per_cpu(var, val)                \
+    ({                                                  \
+        __typeof__(var) v;                              \
+        switch (sizeof(var))                            \
+        {                                               \
+            case 1:                                     \
+                v = add_and_return_per_cpu_1(var, val); \
+                break;                                  \
+            case 2:                                     \
+                v = add_and_return_per_cpu_2(var, val); \
+                break;                                  \
+            case 4:                                     \
+                v = add_and_return_per_cpu_4(var, val); \
+                break;                                  \
+            case 8:                                     \
+                v = add_and_return_per_cpu_8(var, val); \
+                break;                                  \
+        }                                               \
+        v;                                              \
+    })
+
+#define sub_and_return_per_cpu(var, val) add_and_return_per_cpu(var, -val)
+#define dec_and_return_per_cpu(var)      sub_and_return_per_cpu(var, 1)
+
 #else
 
 extern "C" unsigned long __raw_asm_get_per_cpu(size_t off, size_t size);

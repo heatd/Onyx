@@ -31,6 +31,7 @@
 #include <onyx/x86/msr.h>
 #include <onyx/x86/segments.h>
 
+#include <linux/lockdep.h>
 #include <platform/vm_layout.h>
 
 #include <onyx/atomic.hpp>
@@ -279,7 +280,7 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
     thread_append_to_global_list(new_thread);
 
     new_thread->priority = SCHED_PRIO_NORMAL;
-
+    lockdep_init_task(new_thread);
     if (!is_user)
     {
         // thread_setup_stack makes the entry = %rip, but in this case, it's not true since we're

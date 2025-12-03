@@ -195,7 +195,8 @@ enum maple_type
 
 #define MAPLE_RESERVED_RANGE 4096
 
-#ifdef CONFIG_LOCKDEP
+/* XXX hack */
+#ifdef CONFIG_LOCKDEP__
 typedef struct lockdep_map *lockdep_map_p;
 #define mt_lock_is_held(mt) (!(mt)->ma_external_lock || lock_is_held((mt)->ma_external_lock))
 

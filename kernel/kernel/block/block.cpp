@@ -394,10 +394,12 @@ int blkdev_init(struct blockdev *blk)
     ino->b_inode.i_helper = (void *) blk;
     blk->b_ino = (struct inode *) ino.release();
 
-    mutex_lock(&blk->bdev_lock);
     if (!blkdev_is_partition(blk))
+    {
+        mutex_lock(&blk->bdev_lock);
         partition_setup_disk(blk);
-    mutex_unlock(&blk->bdev_lock);
+        mutex_unlock(&blk->bdev_lock);
+    }
 
     if (blk->actual_blockdev)
     {
@@ -869,7 +871,7 @@ int bdev_do_open(struct blockdev *bdev, bool exclusive) NO_THREAD_SAFETY_ANALYSI
     struct blockdev *disk = bdev->actual_blockdev;
     if (disk)
         mutex_lock(&disk->bdev_lock);
-    mutex_lock(&bdev->bdev_lock);
+    mutex_lock_nested(&bdev->bdev_lock, 1);
 
     if (exclusive && bdev->nr_busy > 0)
         goto out;
@@ -890,7 +892,7 @@ void bdev_release(struct blockdev *bdev) NO_THREAD_SAFETY_ANALYSIS
     struct blockdev *disk = bdev->actual_blockdev;
     if (disk)
         mutex_lock(&disk->bdev_lock);
-    mutex_lock(&bdev->bdev_lock);
+    mutex_lock_nested(&bdev->bdev_lock, 1);
 
     bdev->nr_busy--;
     if (disk)

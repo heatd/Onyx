@@ -32,6 +32,7 @@
 #include <onyx/task_switching.h>
 #include <onyx/vm.h>
 
+#include <linux/debug_locks.h>
 #include <platform/irq.h>
 
 const char *skull = "            _,,,,,,,_\n\
@@ -86,7 +87,7 @@ void panic_start()
     /* Overriden by architectures */
 }
 
-__attribute__((noreturn, noinline)) void panic(const char *msg, ...)
+__attribute__((noreturn, __noinline__)) void panic(const char *msg, ...)
 {
     /* First, disable interrupts */
     irq_disable();
@@ -144,4 +145,23 @@ void __assert_fail(const char *assertion, const char *file, int line, const char
 void abort(void)
 {
     panic("Abort!");
+}
+
+extern "C"
+{
+int debug_locks = 1, debug_locks_silent, oops_in_progress;
+PER_CPU_VAR(int hardirqs_enabled);
+PER_CPU_VAR(int hardirq_context);
+int debug_locks_off(void)
+{
+    if (debug_locks && __debug_locks_off())
+    {
+        if (!debug_locks_silent)
+        {
+            WARN_ON(1);
+            return 1;
+        }
+    }
+    return 0;
+}
 }

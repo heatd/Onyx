@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2025 Pedro Falcato
+ * Copyright (c) 2017 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -13,6 +13,8 @@
 #include <onyx/list.h>
 #include <onyx/lock_annotations.h>
 #include <onyx/spinlock.h>
+
+#include <linux/lockdep_types.h>
 
 #define ULONG_WIDTH (sizeof(unsigned long) * CHAR_BIT)
 
@@ -41,33 +43,78 @@ struct rwlock
     unsigned long lock;
     struct list_head waiting_list;
     struct spinlock llock;
-
+#ifdef CONFIG_LOCKDEP
+    struct lockdep_map dep_map;
+#endif
 #ifdef __cplusplus
-    constexpr rwlock() : lock{0}
+    rwlock() = delete;
+    rwlock(int)
     {
-        spinlock_init(&llock);
-        INIT_LIST_HEAD(&waiting_list);
+#ifdef CONFIG_LOCKDEP
+        dep_map.name = "placeholder_rwlock";
+        dep_map.wait_type_inner = LD_WAIT_SLEEP;
+#endif
     }
+#define LOCKDEP_OK {0}
+#else
+#define LOCKDEP_OK
 #endif
 };
+
+#ifdef CONFIG_LOCKDEP
+#define RWLOCK_LOCKDEP_INIT(lockname)       \
+    , .dep_map = {                          \
+          .name = #lockname,                \
+          .wait_type_inner = LD_WAIT_SLEEP, \
+    }
+#else
+#define RWLOCK_LOCKDEP_INIT(lockname)
+#endif
+
+#define RWLOCK_INITIALIZER(name)                \
+    {.llock = __SPIN_LOCK_UNLOCKED(name.llock), \
+     .waiting_list = LIST_HEAD_INIT(name.waiting_list) RWLOCK_LOCKDEP_INIT(name)}
+
+#ifdef __cplusplus
+#define DEFINE_RWLOCK(name) struct rwlock name LOCKDEP_OK
+#else
+#define DEFINE_RWLOCK(name) struct rwlock name = RWLOCK_INITIALIZER(name)
+#endif
 
 __BEGIN_CDECLS
 
 int rw_lock_tryread(struct rwlock *lock);
 void rw_lock_read(struct rwlock *lock);
 void rw_lock_write(struct rwlock *lock);
+void rw_lock_read_nested(struct rwlock *lock, unsigned int subclass);
+void rw_lock_write_nested(struct rwlock *lock, unsigned int subclass);
 int rw_lock_write_interruptible(struct rwlock *lock);
 int rw_lock_read_interruptible(struct rwlock *lock);
 void rw_unlock_read(struct rwlock *lock);
 void rw_unlock_write(struct rwlock *lock);
 void rw_downgrade_write(struct rwlock *lock);
 
-static inline void rwlock_init(struct rwlock *lock)
+#ifndef __IS_LINUX
+static inline void __rwlock_init(struct rwlock *lock)
 {
     lock->lock = 0;
     INIT_LIST_HEAD(&lock->waiting_list);
     spinlock_init(&lock->llock);
 }
+
+#ifdef CONFIG_LOCKDEP
+void rwlock_init_lock_map(struct rwlock *lock, const char *name, struct lock_class_key *key);
+#define rwlock_init(lock)                          \
+    do                                             \
+    {                                              \
+        static struct lock_class_key __key;        \
+                                                   \
+        __rwlock_init((lock));                     \
+        rwlock_init_lock_map(lock, #lock, &__key); \
+    } while (0)
+#else
+#define rwlock_init(lock) __rwlock_init(lock)
+#endif
 
 __END_CDECLS
 
@@ -158,12 +205,12 @@ public:
         return lock_type == rw_lock::write;
     }
 
-    void lock()
+    void lock(unsigned int subclass = 0)
     {
         if (read())
-            rw_lock_read(&internal_lock);
+            rw_lock_read_nested(&internal_lock, subclass);
         else
-            rw_lock_write(&internal_lock);
+            rw_lock_write_nested(&internal_lock, subclass);
         IsLocked = true;
     }
 
@@ -176,15 +223,9 @@ public:
         IsLocked = false;
     }
 
-    scoped_rwlock(rwlock &lock) : internal_lock(lock)
+    scoped_rwlock(rwlock &lock, unsigned int subclass = 0) : internal_lock(lock)
     {
-        this->lock();
-    }
-
-    scoped_rwlock(rwlock &lock, bool autolock) : internal_lock(lock)
-    {
-        if (autolock)
-            this->lock();
+        this->lock(subclass);
     }
 
     ~scoped_rwlock()

@@ -417,7 +417,7 @@ static int sym_strcmp(void *addr1, void *addr2)
 	return strncmp(buf1, buf2, sizeof(buf1));
 }
 
-static void stack_trace_print(unsigned long stack_entries[], int num_entries, int spaces)
+void stack_trace_print(unsigned long stack_entries[], int num_entries, int spaces)
 {
     for (int i = 0; i < num_entries; i++)
         pr_err(" %pS\n", (void *) stack_entries[i]);

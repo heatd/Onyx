@@ -147,4 +147,18 @@
 #define dec_and_test_pcpu_4(var) dec_and_test_pcpu_internal(var, "l", uint32_t)
 #define dec_and_test_pcpu_8(var) dec_and_test_pcpu_internal(var, "q", uint64_t)
 
+#define add_and_return_pcpu_internal(var, val, suffix, type) \
+    ({                                                       \
+        type __padd_ret_tmp = val;                           \
+        __asm__ __volatile__("xadd" suffix " %0," __PCPU_VAR \
+                             : "+r"(__padd_ret_tmp)          \
+                             : __PCPU_CONSTRAINT(var));      \
+        __padd_ret_tmp + val;                                \
+    })
+
+#define add_and_return_per_cpu_1(var, val) add_and_return_pcpu_internal(var, val, "b", uint8_t)
+#define add_and_return_per_cpu_2(var, val) add_and_return_pcpu_internal(var, val, "w", uint16_t)
+#define add_and_return_per_cpu_4(var, val) add_and_return_pcpu_internal(var, val, "l", uint32_t)
+#define add_and_return_per_cpu_8(var, val) add_and_return_pcpu_internal(var, val, "q", uint64_t)
+
 #endif

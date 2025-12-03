@@ -110,7 +110,7 @@ protected:
     netkernel_object *parent;
     const char *name;
     unsigned int flags;
-    mutable rwlock children_lock;
+    mutable rwlock children_lock LOCKDEP_OK;
     cul::vector<shared_ptr<netkernel_object>> children;
 
 public:
@@ -144,7 +144,7 @@ public:
         return nullptr;
     }
 
-    netkernel_object(const char *name) : parent{}, name{name}, flags{}, children_lock{}, children{}
+    netkernel_object(const char *name) : parent{}, name{name}, flags{}, children{}
     {
         rwlock_init(&children_lock);
     }

@@ -61,10 +61,11 @@ struct superblock
     unsigned long s_remount_ro_pending;
 #ifdef __cplusplus
     struct mutex s_rename_lock{1};
+    struct rwlock s_lock{0};
 #else
     struct mutex s_rename_lock;
-#endif
     struct rwlock s_lock;
+#endif
     struct list_head s_mounts;
     struct lru_list s_dcache_lru;
     union {
