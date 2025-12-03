@@ -26,11 +26,12 @@ struct CAPABILITY("mutex") mutex
     unsigned long counter;
 
 #ifdef __cplusplus
-    constexpr mutex() : llock{}, waiters{}, counter{}
+    constexpr mutex(int a) : llock{}, waiters{}, counter{}
     {
         mutex_init(this);
     }
 
+    mutex() = delete;
     mutex(const mutex &) = delete;
     mutex(mutex &&m) = delete;
     mutex &operator=(const mutex &) = delete;
@@ -43,14 +44,14 @@ struct CAPABILITY("mutex") mutex
 
 #else
 
-#define DECLARE_MUTEX(name) struct mutex name = {.waiters = LIST_HEAD_INIT(name.waiters)};
-
+#ifdef __cplusplus
+#define DECLARE_MUTEX(name) mutex name{0}
+#else
+#define DECLARE_MUTEX(name) \
+    struct mutex name = {.waiters = LIST_HEAD_INIT(name.waiters);
 #endif
 
-#define MUTEX_INITIALIZER                  \
-    {                                      \
-        .waiters = LIST_HEAD_INIT(waiters) \
-    }
+#define MUTEX_INITIALIZER {.waiters = LIST_HEAD_INIT(waiters)}
 
 CONSTEXPR static inline void mutex_init(struct mutex *mutex)
 {

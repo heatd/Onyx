@@ -102,6 +102,8 @@ process::process() : pgrp_node{this}, session_node{this}, thread_list_node{this}
     nr_dirtied = 0;
     nr_dirtied_pause = 32;
     spinlock_init(&alloc_lock);
+    mutex_init(&condvar_mutex);
+    mutex_init(&name_lock);
 }
 
 process::~process()

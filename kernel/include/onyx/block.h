@@ -108,7 +108,7 @@ struct blockdev
     const struct blk_mq_ops *mq_ops;
     unsigned int block_size;
     /* Fun Big Mutex for certain tasks such as partition rescanning and open tracking */
-    struct mutex bdev_lock;
+    struct mutex bdev_lock{1};
     unsigned int nr_open_partitions;
     unsigned int nr_busy;
 
@@ -118,10 +118,11 @@ struct blockdev
         struct list_head partition_head;
     };
 
-    constexpr blockdev() : mq_ops{nullptr}, block_size{}, nr_open_partitions{}, nr_busy{}
+    blockdev() : mq_ops{nullptr}, block_size{}, nr_open_partitions{}, nr_busy{}
     {
         bdev_set_default_queue_properties(bdev_queue_properties);
         INIT_LIST_HEAD(&partition_list);
+        mutex_init(&bdev_lock);
     }
 };
 

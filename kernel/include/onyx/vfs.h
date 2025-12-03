@@ -66,7 +66,11 @@ struct file
         void *private_data;
         struct rcu_head rcuhead;
     };
+#ifdef __cplusplus
+    struct mutex f_seeklock{1};
+#else
     struct mutex f_seeklock;
+#endif
     unsigned int f_flags;
     unsigned int f_flags2;
     const struct file_ops *f_op;

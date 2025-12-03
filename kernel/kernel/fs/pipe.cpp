@@ -93,7 +93,7 @@ private:
     struct page *cached_page{nullptr};
     struct list_head pipe_buffers;
     size_t curr_len{0};
-    mutex pipe_lock;
+    mutex pipe_lock{1};
 
     wait_queue write_queue;
     wait_queue read_queue;
@@ -179,6 +179,7 @@ pipe::pipe() : refcountable(1)
     init_wait_queue_head(&write_queue);
     init_wait_queue_head(&read_queue);
     INIT_LIST_HEAD(&pipe_buffers);
+    mutex_init(&pipe_lock);
 }
 
 pipe::~pipe()

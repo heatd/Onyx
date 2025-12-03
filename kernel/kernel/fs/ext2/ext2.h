@@ -242,8 +242,8 @@ private:
     block_group_desc_t *bgd{};
     auto_block_buf buf{};
     ext2_block_group_no nr;
-    mutex inode_bitmap_lock{};
-    mutex block_bitmap_lock{};
+    mutex inode_bitmap_lock{1};
+    mutex block_bitmap_lock{1};
 
     /* Protects used_dirs, unallocated inodes and blocks */
     spinlock lock_{};

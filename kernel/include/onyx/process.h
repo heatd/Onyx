@@ -139,7 +139,11 @@ struct process
 #endif
     char comm[TASK_COMM_LEN];
 
+#ifdef __cplusplus
+    struct mutex name_lock{1};
+#else
     struct mutex name_lock;
+#endif
 
     unsigned long flags;
 
@@ -192,8 +196,11 @@ struct process
     struct elf_info info CPP_DFLINIT;
 
     struct cond syscall_cond CPP_DFLINIT;
-    struct mutex condvar_mutex CPP_DFLINIT;
-
+#ifdef __cplusplus
+    struct mutex condvar_mutex{1};
+#else
+    struct mutex condvar_mutex;
+#endif
     /* Protected by tasklist_lock */
     struct list_head tasklist_node;
     struct list_head children_head;
