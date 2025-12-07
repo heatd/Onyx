@@ -44,6 +44,8 @@ struct writepages_info
     unsigned int flags;
 };
 
+struct module;
+
 /* Wait for writeback to complete (this is part of sync or fsync) */
 #define WRITEPAGES_SYNC (1 << 0)
 
@@ -55,6 +57,7 @@ struct file_ops
     __ioctl ioctl;
     void *(*mmap)(struct vm_area_struct *area, struct file *node);
     int (*on_open)(struct file *node);
+    int (*open)(struct inode *, struct file *);
     short (*poll)(void *poll_file, short events, struct file *node);
     int (*fallocate)(int mode, off_t offset, off_t len, struct file *node);
     int (*fcntl)(struct file *filp, int cmd, unsigned long arg);
@@ -66,6 +69,7 @@ struct file_ops
     int (*fsyncdata)(struct inode *ino, struct writepages_info *wpinfo);
     ssize_t (*directio)(struct file *file, size_t off, struct iovec_iter *iter, unsigned int flags);
     off_t (*llseek)(struct file *filp, off_t off, int whence);
+    struct module *owner;
 };
 
 struct nameidata;

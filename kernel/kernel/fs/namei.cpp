@@ -787,10 +787,20 @@ static expected<file *, int> complete_open(struct file *filp, unsigned int flags
     filp->f_op = filp->f_ino->i_fops;
     filp->f_mapping = filp->f_ino->i_pages;
 
+    /* Don't support *both* ->on_open and ->open */
+    WARN_ON_ONCE(filp->f_op->on_open && filp->f_op->open);
+
     /* Call the fops on_open. This is required before we call any filesystem methods. */
     if (filp->f_op->on_open)
     {
         err = filp->f_op->on_open(filp);
+        if (err < 0)
+            goto err_free_half;
+    }
+
+    if (filp->f_op->open)
+    {
+        err = filp->f_op->open(filp->f_ino, filp);
         if (err < 0)
             goto err_free_half;
     }
