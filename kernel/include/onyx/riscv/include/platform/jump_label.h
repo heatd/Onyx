@@ -46,24 +46,27 @@ struct static_key;
 #define RISCV_JUMP_LABEL_GOTO_EXTRA_CLOBBER
 #endif
 
-template <bool is_likely>
-static __always_inline bool jump_label_branch(struct static_key *key)
-{
-    __asm__ __volatile__ goto(".option push; .option norvc;\n" RISCV_JUMP_LABEL_BRANCH_SEQ
-                              ".option pop\n"
-                              ".pushsection .jump_label\n"
-                              ".quad %=b\n"
-                              ".quad %0 + %1\n"
-                              ".long %2 - %=b\n"
-                              ".popsection\n" ::"i"(key),
-                              "i"(!is_likely)
-                              : "memory" RISCV_JUMP_LABEL_GOTO_EXTRA_CLOBBER
-                              : branch);
-    return is_likely;
-branch:
-    __unlikely_branch;
-    return !is_likely;
-}
+#define JUMP_LABEL_BRANCH(is_likely)                                                           \
+    static __always_inline bool jump_label_branch_##is_likely(struct static_key *key)          \
+    {                                                                                          \
+        __asm__ __volatile__ goto(".option push; .option norvc;\n" RISCV_JUMP_LABEL_BRANCH_SEQ \
+                                  ".option pop\n"                                              \
+                                  ".pushsection .jump_label\n"                                 \
+                                  ".quad %=b\n"                                                \
+                                  ".quad %0 + %1\n"                                            \
+                                  ".long %2 - %=b\n"                                           \
+                                  ".popsection\n" ::"i"(key),                                  \
+                                  "i"(!is_likely)                                              \
+                                  : "memory" RISCV_JUMP_LABEL_GOTO_EXTRA_CLOBBER               \
+                                  : branch);                                                   \
+        return is_likely;                                                                      \
+    branch:                                                                                    \
+        __unlikely_branch;                                                                     \
+        return !is_likely;                                                                     \
+    }
+
+JUMP_LABEL_BRANCH(true)
+JUMP_LABEL_BRANCH(false)
 
 size_t jump_label_gen_branch(struct jump_label *label, unsigned char *buf);
 
