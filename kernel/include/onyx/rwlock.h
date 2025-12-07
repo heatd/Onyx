@@ -101,6 +101,7 @@ static inline void __rwlock_init(struct rwlock *lock)
     INIT_LIST_HEAD(&lock->waiting_list);
     spinlock_init(&lock->llock);
 }
+#endif
 
 #ifdef CONFIG_LOCKDEP
 void rwlock_init_lock_map(struct rwlock *lock, const char *name, struct lock_class_key *key);
@@ -139,10 +140,17 @@ typedef struct CAPABILITY("rwslock") rwslock
 #endif
 } rwslock_t;
 
+/* for linux compat */
+typedef rwslock_t rwlock_t;
+
 CONSTEXPR static inline void rwslock_init(struct rwslock *rwl)
 {
     rwl->lock = 0;
 }
+
+#ifdef __IS_LINUX
+#define rwlock_init(rwl) rwslock_init(rwl)
+#endif
 
 __BEGIN_CDECLS
 
