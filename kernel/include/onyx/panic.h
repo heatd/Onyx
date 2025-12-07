@@ -24,7 +24,7 @@ void halt();
  */
 
 /* panic - Panics the system (dumps information and halts) */
-__attribute__((noreturn, noinline)) void panic(const char *msg, ...);
+__attribute__((noreturn, __noinline__)) void panic(const char *msg, ...);
 
 void panic_start();
 
