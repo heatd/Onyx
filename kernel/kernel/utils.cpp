@@ -1,22 +1,31 @@
 /*
- * Copyright (c) 2017 Pedro Falcato
+ * Copyright (c) 2017 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 #include <stdlib.h>
 #include <string.h>
 
+#include <onyx/mm/slab.h>
+#include <onyx/page.h>
 #include <onyx/scheduler.h>
 #include <onyx/utils.h>
 #include <onyx/vm.h>
 
-void *memdup(const void *ptr, size_t size)
+void *kmemdup(const void *ptr, size_t size, unsigned int gfp)
 {
-    void *new_ptr = malloc(size);
+    void *new_ptr = kmalloc(size, gfp);
     if (!new_ptr)
         return NULL;
     memcpy(new_ptr, ptr, size);
     return new_ptr;
+}
+
+void *memdup(const void *ptr, size_t size)
+{
+    return kmemdup(ptr, size, GFP_ATOMIC);
 }
 
 void *copy_page_to_page(void *p1, void *p2)
