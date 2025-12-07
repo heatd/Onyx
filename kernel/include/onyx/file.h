@@ -59,10 +59,7 @@ static inline unsigned int open_to_file_access_flags(int open_flgs)
         return FILE_ACCESS_READ | FILE_ACCESS_WRITE;
     else if (last_two_bits == O_WRONLY)
         return FILE_ACCESS_WRITE;
-    else
-    {
-        panic("Unsanitized open flags");
-    }
+    __builtin_unreachable();
 }
 
 bool fd_may_access(struct file *f, unsigned int access);
