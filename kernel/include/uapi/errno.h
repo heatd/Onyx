@@ -156,6 +156,8 @@
 #define ERESTARTNOHAND        514 /* restart if no handler.. */
 #define ENOIOCTLCMD           515 /* No ioctl command */
 #define ERESTART_RESTARTBLOCK 516 /* restart by calling sys_restart_syscall */
+#define EPROBE_DEFER          517 /* Driver requests probe retry */
+#define ENOTSUPP              524 /* Operation is not supported */
 #endif
 
 #define MAX_ERRNO 4095
