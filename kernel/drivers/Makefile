@@ -20,3 +20,4 @@ include drivers/acpi/Makefile
 include drivers/pci/Makefile
 include drivers/ps2/Makefile
 include drivers/irqchip/Makefile
+include drivers/gpu/drm/Makefile
