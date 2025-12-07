@@ -13,5 +13,6 @@ source "drivers/ahci/Kconfig"
 source "drivers/pci/Kconfig"
 source "drivers/bga/Kconfig"
 source "drivers/irqchip/Kconfig"
+source "drivers/gpu/drm/Kconfig"
 
 endmenu
