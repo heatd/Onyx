@@ -2,9 +2,14 @@
 #define _LINUX_TIMEKEEPING_H
 
 #include <linux/time.h>
-#include <onyx/compiler.h>
+#include <linux/ktime.h>
 
-/* TODO: Trivial implementation (monotonic) */
-ktime_t ktime_get(void);
+#include <onyx/compiler.h>
+#include <onyx/clock.h>
+
+static inline ktime_t ktime_get(void)
+{
+    return clocksource_get_time();
+}
 
 #endif

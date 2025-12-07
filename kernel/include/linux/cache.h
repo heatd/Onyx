@@ -3,4 +3,6 @@
 
 #define __read_mostly
 
+#define ARCH_DMA_MINALIGN __alignof__(unsigned long long)
+
 #endif

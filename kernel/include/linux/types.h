@@ -11,6 +11,7 @@
 #include <onyx/types.h>
 // #include <onyx/rcuwait_types.h>
 #include <asm-generic/bitsperlong.h>
+#include <asm-generic/posix_types.h>
 
 typedef s64 ktime_t;
 
@@ -23,6 +24,8 @@ typedef struct {
 typedef struct {
 	s64 counter;
 } atomic64_t;
+
+#define ATOMIC64_INIT(i) { (i) }
 
 struct hlist_node {
 	struct hlist_node *next, **pprev;
@@ -41,5 +44,34 @@ struct hlist_head {
 
 
 typedef off_t loff_t;
+
+/* bsd */
+typedef unsigned char		u_char;
+typedef unsigned short		u_short;
+typedef unsigned int		u_int;
+typedef unsigned long		u_long;
+
+/* sysv */
+typedef unsigned char		unchar;
+typedef unsigned short		ushort;
+typedef unsigned int		uint;
+typedef unsigned long		ulong;
+typedef unsigned long long	ullong;
+
+typedef u64 dma_addr_t;
+typedef u64 phys_addr_t;
+typedef phys_addr_t resource_size_t;
+
+typedef short __poll_t;
+
+typedef void (*swap_r_func_t)(void *a, void *b, int size, const void *priv);
+typedef void (*swap_func_t)(void *a, void *b, int size);
+
+typedef int (*cmp_r_func_t)(const void *a, const void *b, const void *priv);
+typedef int (*cmp_func_t)(const void *a, const void *b);
+
+#include <stdbool.h>
+
+#define __packed __attribute__((packed))
 
 #endif

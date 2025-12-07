@@ -7,6 +7,7 @@
 #include <linux/printk.h>
 #include <linux/instrumentation.h>
 #include <linux/compiler.h>
+#include <linux/bug.h>
 
 struct task_struct;
 

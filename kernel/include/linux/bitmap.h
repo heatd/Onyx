@@ -3,6 +3,9 @@
 
 #include <linux/types.h>
 #include <linux/bits.h>
+#include <linux/bitops.h>
+#include <linux/align.h>
+#include <linux/string.h>
 
 #define BITMAP_FIRST_WORD_MASK(start) (~0UL << ((start) & (BITS_PER_LONG - 1)))
 #define BITMAP_LAST_WORD_MASK(nbits) (~0UL >> (-(nbits) & (BITS_PER_LONG - 1)))
@@ -32,6 +35,31 @@ out:
     return bits;
 }
 
+static inline unsigned long find_next_zero_bit(const unsigned long *bitmap, unsigned long bits,
+    unsigned long start)
+{
+    unsigned long i, tmp;
+
+    if (start > bits)
+        goto out;
+
+    for (i = (start / BITS_PER_LONG); i < BITS_TO_LONGS(bits); i++)
+    {
+        tmp = ~bitmap[i];
+        if (i == (start / BITS_PER_LONG))
+            tmp &= BITMAP_FIRST_WORD_MASK(start);
+        if (tmp == 0)
+            continue;
+        tmp = i * BITS_PER_LONG + (__builtin_ffsl(tmp) - 1);
+        if (tmp >= bits)
+            goto out;
+        return tmp;
+    }
+
+out:
+    return bits;
+}
+
 static inline unsigned long find_first_zero_bit(const unsigned long *bitmap, unsigned long bits)
 {
     unsigned long i, tmp;
@@ -39,7 +67,6 @@ static inline unsigned long find_first_zero_bit(const unsigned long *bitmap, uns
     for (i = 0; i < BITS_TO_LONGS(bits); i++)
     {
         tmp = bitmap[i];
-        /* TODO: properly handle start... */
         if (tmp == -1UL)
             continue;
         tmp = i * BITS_PER_LONG + (__builtin_ffsl(~tmp) - 1);
@@ -51,6 +78,19 @@ static inline unsigned long find_first_zero_bit(const unsigned long *bitmap, uns
 out:
     return bits;
 }
+
+static __always_inline
+bool bitmap_full(const unsigned long *bitmap, unsigned int bits)
+{
+    return find_first_zero_bit(bitmap, bits) == bits;
+}
+
+static __always_inline
+bool bitmap_empty(const unsigned long *bitmap, unsigned int bits)
+{
+    return find_next_bit(bitmap, bits, 0) == bits;
+}
+
 
 static inline unsigned int bitmap_weight(const unsigned long *bitmap, unsigned int bits)
 {
@@ -99,5 +139,45 @@ static inline void bitmap_clear(unsigned long *map, unsigned int start, int len)
 	}
 }
 
+static inline void bitmap_set(unsigned long *map, unsigned int start, int len)
+{
+    unsigned long *p = map + BIT_WORD(start);
+	const unsigned int size = start + len;
+	int bits_to_set = BITS_PER_LONG - (start % BITS_PER_LONG);
+	unsigned long mask_to_set = BITMAP_FIRST_WORD_MASK(start);
+
+	while (len - bits_to_set >= 0) {
+		*p |= mask_to_set;
+		len -= bits_to_set;
+		bits_to_set = BITS_PER_LONG;
+		mask_to_set = ~0UL;
+		p++;
+	}
+	if (len) {
+		mask_to_set &= BITMAP_LAST_WORD_MASK(size);
+		*p |= mask_to_set;
+	}
+}
+
+#define bitmap_size(nbits) (ALIGN(nbits, BITS_PER_LONG) * BITS_PER_BYTE)
+
+static __always_inline void bitmap_zero(unsigned long *dst, unsigned int nbits)
+{
+	unsigned int len = bitmap_size(nbits);
+
+	if (small_const_nbits(nbits))
+		*dst = 0UL;
+	else
+		memset(dst, 0, len);
+}
+static __always_inline void bitmap_fill(unsigned long *dst, unsigned int nbits)
+{
+	unsigned int len = bitmap_size(nbits);
+
+	if (small_const_nbits(nbits))
+		*dst = ~0UL;
+	else
+		memset(dst, 0xff, len);
+}
 
 #endif
