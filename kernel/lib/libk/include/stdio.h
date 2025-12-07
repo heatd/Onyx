@@ -105,6 +105,11 @@ __attribute__((format(printf, 1, 2)))
 int printk(const char *__restrict, ...);
 int printk_loglvl_generic(const char *format, va_list *va, const char *msg, ...);
 
+char *kvasprintf(unsigned int gfp, const char *format, va_list va);
+char *kasprintf(unsigned int gfp, const char *format, ...);
+int vscnprintf(char *buf, size_t size, const char *fmt, va_list args);
+int scnprintf(char *buf, size_t size, const char *fmt, ...);
+
 #define __KERN_SOH '\x01'
 #define KERN_SOH "\x01"
 #define KERN_EMERG KERN_SOH "0"
