@@ -69,7 +69,8 @@ struct CAPABILITY("mutex") mutex
     struct mutex name = {.waiters = LIST_HEAD_INIT(name.waiters) __DEP_MAP_MUTEX_INITIALIZER(name)};
 #endif
 
-#define MUTEX_INITIALIZER {.waiters = LIST_HEAD_INIT(waiters)}
+#define MUTEX_INITIALIZER(name) \
+    {.waiters = LIST_HEAD_INIT((name).waiters) __DEP_MAP_MUTEX_INITIALIZER(name)}
 
 CONSTEXPR static inline void __mutex_init(struct mutex *mutex)
 {
