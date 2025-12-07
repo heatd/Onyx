@@ -907,6 +907,8 @@ static __always_inline void kmem_cache_post_alloc(struct slab_cache *cache, unsi
                                                   void *object)
 {
     kmem_cache_post_alloc_kasan(cache, flags, object);
+    if (flags & __GFP_ZERO)
+        memset(object, 0, cache->objsize);
 }
 
 static __always_inline void kmem_cache_post_alloc_bulk(struct slab_cache *cache, unsigned int flags,
