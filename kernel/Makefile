@@ -28,11 +28,11 @@ CFLAGS:=$(CFLAGS) -MMD -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-
 -Werror -Wno-error=frame-address -Wno-address-of-packed-member \
 -Wno-error=invalid-offsetof -fno-sanitize=pointer-overflow \
 -Wno-missing-field-initializers -Wstrict-aliasing -fno-unwind-tables -fno-asynchronous-unwind-tables \
--Wframe-larger-than=1280 -Wno-error=frame-larger-than= -fmax-errors=20
+-Wframe-larger-than=1280 -Wno-error=frame-larger-than= -D__KERNEL__
 
 ifneq ($(ONYX_USING_CLANG), yes)
 # TODO: Find suitable alternatives for clang
-CFLAGS:=$(CFLAGS) -Wno-format-truncation -Wshadow-compatible-local -Wno-narrowing
+CFLAGS:=$(CFLAGS) -Wno-format-truncation -Wshadow-compatible-local -Wno-narrowing -fmax-errors=20 
 
 # Note: We need to define _GLIBCXX_INCLUDE_NEXT_C_HEADERS so the shenanigans in the
 # compiler (in this case, only GCC)'s stdlib.h C++ wrappers get bypassed. If we let stdlib.h include cstdlib,
@@ -286,6 +286,7 @@ all: onyx-vdso.so.0 vmonyx
 .PHONY: all clean install install-headers install-kernel kernel-modules
 
 include lib/stackdepot/Makefile
+include lib/linuxcompat/Makefile
 kernel-archive-dirs:=lib/stackdepot lib/libk
 kernel-archives:=$(foreach a, $(kernel-archive-dirs), $(a)/$(basename $(notdir $(a))).a)
 LIBS+=$(foreach lib, $(kernel-archive-dirs), $(lib)/$(basename $(notdir $(lib))).a)

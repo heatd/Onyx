@@ -2,7 +2,7 @@
 #define _LINUX_INTERRUPT_H
 
 #include <onyx/irq.h>
-
-#define in_interrupt() (is_in_interrupt())
+#include <linux/preempt.h>
+#include <linux/irqflags.h>
 
 #endif

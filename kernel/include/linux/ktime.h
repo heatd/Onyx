@@ -25,6 +25,7 @@
 #include <linux/jiffies.h>
 #include <linux/time.h>
 #include <linux/types.h>
+#include <linux/timekeeping.h>
 
 /**
  * ktime_set - Set a ktime_t variable from a seconds/nanoseconds value

@@ -1,5 +1,9 @@
-#include <onyx/bug.h>
-/* TODO */
-#define WARN(...) ({false;})
+#ifndef _ASM_BUG_H
+#define _ASM_BUG_H
 
-#define WARN_ONCE(...)
+#include <onyx/bug.h>
+
+#define WARN_ONCE(condition, ...) WARN_ON_ONCE(condition)
+#define BUG() __builtin_trap()
+
+#endif
