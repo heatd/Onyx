@@ -30,23 +30,26 @@ struct static_key;
 #define __unlikely_branch
 #endif
 
-template <bool is_likely>
-static __always_inline bool jump_label_branch(struct static_key *key)
-{
-    __asm__ __volatile__ goto("%=: .rept 5; int3; .endr\n"
-                              ".pushsection .jump_label\n"
-                              ".quad %=b\n"
-                              ".quad %c0 + %c1\n"
-                              ".long %c2 - %=b\n"
-                              ".popsection\n" ::"i"(key),
-                              "i"(!is_likely)
-                              : "memory"
-                              : branch);
-    return is_likely;
-branch:
-    __unlikely_branch;
-    return !is_likely;
-}
+#define JUMP_LABEL_BRANCH(is_likely)                                                  \
+    static __always_inline bool jump_label_branch_##is_likely(struct static_key *key) \
+    {                                                                                 \
+        __asm__ __volatile__ goto("%=: .rept 5; int3; .endr\n"                        \
+                                  ".pushsection .jump_label\n"                        \
+                                  ".quad %=b\n"                                       \
+                                  ".quad %c0 + %c1\n"                                 \
+                                  ".long %c2 - %=b\n"                                 \
+                                  ".popsection\n" ::"i"(key),                         \
+                                  "i"(!is_likely)                                     \
+                                  : "memory"                                          \
+                                  : branch);                                          \
+        return is_likely;                                                             \
+    branch:                                                                           \
+        __unlikely_branch;                                                            \
+        return !is_likely;                                                            \
+    }
+
+JUMP_LABEL_BRANCH(true)
+JUMP_LABEL_BRANCH(false)
 
 #define JUMP_LABEL_BRANCH_SIZE 5
 

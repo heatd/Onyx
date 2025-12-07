@@ -47,8 +47,8 @@ static inline void __STATIC_BRANCH_DISABLE(struct static_key *k)
 
 #else
 
-#define static_branch_likely(key)   jump_label_branch<true>(key)
-#define static_branch_unlikely(key) jump_label_branch<false>(key)
+#define static_branch_likely(key)   jump_label_branch_true(key)
+#define static_branch_unlikely(key) jump_label_branch_false(key)
 
 #define __STATIC_BRANCH_ENABLE(key)  jump_label_patch_branch(key, true)
 #define __STATIC_BRANCH_DISABLE(key) jump_label_patch_branch(key, false)
