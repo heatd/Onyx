@@ -12,6 +12,7 @@
 #define MAJOR_MASK  0xffff0000
 #define MAJOR_SHIFT 16
 #define MINOR_MASK  0x0000ffff
+#define MINORBITS   16
 
 #define MAJOR(x) (unsigned int) ((x & 0xffff0000) >> MAJOR_SHIFT)
 #define MINOR(x) (unsigned int) (x & 0x0000ffff)
