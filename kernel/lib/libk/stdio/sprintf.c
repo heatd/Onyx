@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 Pedro Falcato
+ * Copyright (c) 2024 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -12,7 +12,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <onyx/bug.h>
 #include <onyx/byteswap.h>
+#include <onyx/err.h>
+#include <onyx/mm/slab.h>
 #include <onyx/modules.h>
 #include <onyx/types.h>
 
@@ -769,4 +772,68 @@ int sprintf(char *str, const char *fmt, ...)
     ret = vsnprintf(str, INT_MAX, fmt, list);
     va_end(list);
     return ret;
+}
+
+char *kvasprintf(unsigned int gfp, const char *format, va_list va)
+{
+    va_list second;
+    char *buf;
+    int len, len2;
+
+    va_copy(va, second);
+    len = vsnprintf(NULL, 0, format, second);
+    va_end(second);
+
+    if (len < 0)
+        return ERR_PTR(len);
+
+    buf = kmalloc(len + 1, gfp);
+    if (!buf)
+        return ERR_PTR(-ENOMEM);
+    len2 = vsnprintf(buf, len + 1, format, va);
+    if (WARN_ON(len != len2))
+    {
+        /* Ruh roh. */
+        kfree(buf);
+        return len2 < 0 ? ERR_PTR(len2) : ERR_PTR(-EIO);
+    }
+
+    return buf;
+}
+
+char *kasprintf(unsigned int gfp, const char *format, ...)
+{
+    char *result;
+    va_list va;
+
+    va_start(va, format);
+    result = kvasprintf(gfp, format, va);
+    va_end(va);
+    return result;
+}
+
+int vscnprintf(char *buf, size_t size, const char *fmt, va_list args)
+{
+    int i;
+
+    if (unlikely(!size))
+        return 0;
+
+    i = vsnprintf(buf, size, fmt, args);
+
+    if (likely(i < (int) size))
+        return i;
+
+    return size - 1;
+}
+
+int scnprintf(char *buf, size_t size, const char *fmt, ...)
+{
+    va_list ap;
+    int res;
+
+    va_start(ap, fmt);
+    res = vscnprintf(buf, size, fmt, ap);
+    va_end(ap);
+    return res;
 }
