@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -342,49 +342,126 @@ int putchar(int c)
     return c;
 }
 
-extern "C" int vprintf(const char *__restrict__ format, va_list va)
+struct printk_state
 {
-    unsigned long flags = spin_lock_irqsave(&printk_lock);
-    unsigned int loglevel_off = 0;
-    u8 log_level = __KERN_DEFAULT;
+    char textbuf[MAX_LINE];
+    unsigned int textbuf_len;
+    u8 log_level;
+};
 
-    if (format[0] == __KERN_SOH)
+static struct printk_state _printk_state = {
+    .log_level = __KERN_DEFAULT,
+};
+
+static void reset_printk_state(struct printk_state *state)
+{
+    state->log_level = __KERN_DEFAULT;
+    state->textbuf_len = 0;
+}
+
+static bool printk_parse_soh(const char *buf, struct printk_state *state)
+{
+    bool cont = false;
+
+    if (buf[0] == __KERN_SOH)
     {
-        /* We have a log level, parse it */
-        log_level = format[1] - '0';
-        format += 2;
+        switch (buf[1])
+        {
+            case '0' ... '9':
+                state->log_level = buf[1] - '0';
+                break;
+            case 'c':
+                cont = true;
+                break;
+        }
     }
 
-    char buf[3];
-    va_list vap;
-    va_copy(vap, va);
-    int i = vsnprintf(buf, 3, format, vap);
+    return cont;
+}
+static int printk_append(const char *format, va_list va, struct printk_state *state)
+{
+    bool was_cont;
+    char *buf;
+    int i;
+
+    buf = state->textbuf + state->textbuf_len;
+    i = vsnprintf(buf, MAX_LINE - state->textbuf_len, format, va);
     CHECK(i >= 0);
     CHECK(i <= MAX_LINE);
 
     if (i >= 2 && buf[0] == __KERN_SOH)
     {
-        /* The format string specifies its log level. Play some funny tricks with the buffer (by
-         * offsetting the vsnprintf buf by 2 back, slightly overwriting a bit of the header). */
-        log_level = buf[1] - '0';
-        loglevel_off = 2;
-        i -= loglevel_off;
+        i -= 2;
+        was_cont = printk_parse_soh(buf, state);
+        if (!was_cont && state->textbuf_len > 0)
+        {
+            /* We broke a half-printed print. Don't save any of this, flush the cont buffer out, and
+             * retry. */
+            return -EAGAIN;
+        }
+
+        /* Move the just-copied buffer 2 steps back (we don't need the KERN_* bit) */
+        memmove(buf, buf + 2, i);
     }
 
-    struct printk_header *header = printk_buf.get_buf(sizeof(struct printk_header) + i + 1);
-    header->log_level = log_level;
+    state->textbuf_len += i;
+    return i;
+}
+
+static bool printk_is_finished(struct printk_state *state)
+{
+    return state->textbuf[state->textbuf_len - 1] == '\n';
+}
+
+static bool printk_flush_buf(struct printk_state *state)
+{
+    struct printk_header *header;
+
+    header = printk_buf.get_buf(sizeof(struct printk_header) + state->textbuf_len + 1);
+    header->log_level = state->log_level;
     header->seq = printk_buf.get_seq();
-    DCHECK(header->length >= i + sizeof(struct printk_header));
-    i = vsnprintf(header->data - loglevel_off,
-                  header->length - sizeof(struct printk_header) + loglevel_off, format, va);
-    CHECK(i >= 0);
+    DCHECK(header->length >= state->textbuf_len + sizeof(struct printk_header));
+    memcpy(header->data, state->textbuf, state->textbuf_len);
+    header->data[state->textbuf_len] = '\0';
+
+    reset_printk_state(state);
     /* Only set the timestamp *after we printed* due to loglevel_off overwriting header->timestamp*/
     header->timestamp = clocksource_get_time();
+    return header->log_level <= min_log_level;
+}
+
+extern "C" int vprintf(const char *__restrict__ format, va_list va)
+{
+    unsigned long flags = spin_lock_irqsave(&printk_lock);
+    struct printk_state *state = &_printk_state;
+    bool need_flush = false;
+    va_list vap;
+    int err;
+
+retry:
+    va_copy(vap, va);
+    err = printk_append(format, vap, state);
+    va_end(vap);
+    if (err < 0)
+    {
+        DCHECK(err == -EAGAIN);
+        need_flush |= printk_flush_buf(state);
+        goto retry;
+    }
+
+    if (!printk_is_finished(state))
+    {
+        /* CONT logic. keep it in the buffer and get back to it Later(tm) */
+        spin_unlock_irqrestore(&printk_lock, flags);
+        return err;
+    }
+
+    need_flush |= printk_flush_buf(state);
     spin_unlock_irqrestore(&printk_lock, flags);
 
-    if (log_level <= min_log_level)
+    if (need_flush)
         flush_consoles();
-    return i;
+    return err;
 }
 
 int printk_loglvl_generic(const char *format, va_list *va, const char *msg, ...)
