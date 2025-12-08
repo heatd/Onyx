@@ -120,6 +120,7 @@ int scnprintf(char *buf, size_t size, const char *fmt, ...);
 #define KERN_NOTICE KERN_SOH "5"
 #define KERN_INFO KERN_SOH "6"
 #define KERN_DEBUG KERN_SOH "7"
+#define KERN_CONT KERN_SOH "c"
 
 #ifndef pr_fmt
 #define pr_fmt(fmt) fmt
@@ -133,6 +134,7 @@ int scnprintf(char *buf, size_t size, const char *fmt, ...);
 #define pr_notice(fmt, ...) printk(KERN_NOTICE pr_fmt(fmt), ##__VA_ARGS__)
 #define pr_info(fmt, ...) printk(KERN_INFO pr_fmt(fmt), ##__VA_ARGS__)
 #define pr_debug(fmt, ...) printk(KERN_DEBUG pr_fmt(fmt), ##__VA_ARGS__)
+#define pr_cont(fmt, ...) printk(KERN_CONT pr_fmt(fmt), ##__VA_ARGS__)
 
 #define pr_warn_once(fmt, ...)                                   \
     ({                                                           \
