@@ -355,11 +355,23 @@ acpi_status acpi_os_physical_table_override(acpi_table_header *existing_table,
     return AE_OK;
 }
 
+void acpi_os_vprintf(const char *fmt, va_list args)
+{
+    char buf[512];
+
+    vsnprintf(buf, sizeof(buf), fmt, args);
+
+    if (buf[0] == __KERN_SOH)
+        printk("%s", buf);
+    else
+        printk(KERN_CONT "%s", buf);
+}
+
 void acpi_os_printf(const char *format, ...)
 {
     va_list params;
     va_start(params, format);
-    vprintf(format, params);
+    acpi_os_vprintf(format, params);
     va_end(params);
 }
 
@@ -378,11 +390,6 @@ u64 acpi_os_get_timer(void)
 acpi_status acpi_os_terminate()
 {
     return AE_OK;
-}
-
-void acpi_os_vprintf(const char *fmt, va_list args)
-{
-    vprintf(fmt, args);
 }
 
 acpi_status acpi_os_enter_sleep(u8 sleep_state, u32 rega_value, u32 regb_value)

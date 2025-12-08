@@ -9,6 +9,7 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <onyx/types.h>
+#include <stdio.h>
 
 // TODO: Handle this being different
 #define ACPI_MACHINE_WIDTH 64
@@ -35,6 +36,14 @@ struct spinlock;
 
 #define ACPI_USE_SYSTEM_CLIBRARY
 #undef ACPI_USE_STANDARD_HEADERS
+
+#define ACPI_MSG_ERROR          KERN_ERR "ACPI Error: "
+#define ACPI_MSG_EXCEPTION      KERN_ERR "ACPI Exception: "
+#define ACPI_MSG_WARNING        KERN_WARN "ACPI Warning: "
+#define ACPI_MSG_INFO           KERN_INFO "ACPI: "
+
+#define ACPI_MSG_BIOS_ERROR     KERN_ERR "ACPI BIOS Error (bug): "
+#define ACPI_MSG_BIOS_WARNING   KERN_WARN "ACPI BIOS Warning (bug): "
 
 #include <ctype.h>
 #include <string.h>
