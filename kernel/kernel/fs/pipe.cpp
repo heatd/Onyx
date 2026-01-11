@@ -292,6 +292,7 @@ ssize_t pipe::append_iter(iovec_iter *iter, bool atomic)
             goto out;
         }
 
+        buf->len_ = copied;
         // Append the page_buf to the end of list
         list_add_tail(&buf->list_node, &pipe_buffers);
         ret += copied;
