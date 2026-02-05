@@ -12,10 +12,6 @@
     printf("["       \
            "INFO"    \
            "] " x ": " __VA_ARGS__)
-#define WARN(x, ...) \
-    printf("["       \
-           "WARNING" \
-           "] " x ": " __VA_ARGS__)
 #define ERROR(x, ...) \
     printf("["        \
            "ERROR"    \
@@ -26,11 +22,6 @@
            "] " x ": " __VA_ARGS__)
 
 #define LOG INFO
-#define SUBGPLv2_BUG_REPORT(x)                                                                      \
-    printf("If you want this bug/feature to be fixed, open an issue at the repo's issue "         \
-           "tracker(https://github.com/heatd/Onyx/issues) with a title along the lines of \"%s: " \
-           "Fix x bug\". Thanks!\n",                                                              \
-           x);
 
 #ifdef CONFIG_LOG_BUF_MINIMAL
 #define LOG_BUF_SHIFT 12
