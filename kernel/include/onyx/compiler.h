@@ -181,4 +181,12 @@ inline void write_once(const Type& t, Type val)
 #define __malloc_with_free(func, index) __malloc
 #endif
 
+#ifdef __CHECKER__
+#define __force   __attribute__((force))
+#define __bitwise __attribute__((bitwise))
+#else
+#define __force
+#define __bitwise
+#endif
+
 #endif /* COMPILER_H */
