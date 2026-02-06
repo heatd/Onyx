@@ -163,6 +163,23 @@ static __always_inline void inode_lock_shared(struct inode *ino)
     rw_lock_read(&ino->i_rwlock);
 }
 
+/* Rename needs a rather complex locking scheme.
+ * We need to lock two directories plus the target entry we are moving, if it's a directory.
+ * This last case goes into a separate subclass, per lockdep.
+ */
+
+#define INODE_RWLOCK_RENAME_TARGET 2
+
+static __always_inline void inode_lock_shared_nested(struct inode *ino, unsigned int subclass)
+{
+    rw_lock_read_nested(&ino->i_rwlock, subclass);
+}
+
+static __always_inline void inode_lock_nested(struct inode *ino, unsigned int subclass)
+{
+    rw_lock_write_nested(&ino->i_rwlock, subclass);
+}
+
 static __always_inline void inode_unlock_shared(struct inode *ino)
 {
     rw_unlock_read(&ino->i_rwlock);
