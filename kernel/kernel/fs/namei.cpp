@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2025 Pedro Falcato
+ * Copyright (c) 2020 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -16,6 +16,7 @@
 #include <onyx/user.h>
 #include <onyx/vfs.h>
 
+#include <linux/lockdep.h>
 #include <uapi/fcntl.h>
 
 #include <onyx/memory.hpp>
@@ -1494,22 +1495,76 @@ static struct inode *maybe_lock_target(struct dentry *dst)
     {
         /* If We are looking at a directory rename, we must lock the target directory, to make
          * sure we don't get e.g someone concurrently un-emptying the file. What a mess. */
-        inode_lock_shared(dst_inode);
+        inode_lock_shared_nested(dst_inode, INODE_RWLOCK_RENAME_TARGET);
         return dst_inode;
     }
 
     return NULL;
 }
 
-int do_renameat(struct dentry *dir, struct lookup_path &last, struct dentry *old)
+static void lock_two_directories(struct dentry *dir1, struct dentry *dir2)
+{
+    /* Establish a locking order based on address to avoid deadlocks */
+    if ((unsigned long) dir1 < (unsigned long) dir2)
+    {
+        inode_lock(dir1->d_inode);
+        inode_lock_nested(dir2->d_inode, SINGLE_DEPTH_NESTING);
+    }
+    else if ((unsigned long) dir1 > (unsigned long) dir2)
+    {
+        inode_lock(dir2->d_inode);
+        inode_lock_nested(dir1->d_inode, SINGLE_DEPTH_NESTING);
+    }
+    else
+    {
+        /* Same directory, only lock once */
+        inode_lock(dir1->d_inode);
+    }
+}
+
+static void unlock_two_directories(struct dentry *dir1, struct dentry *dir2)
+{
+    inode_unlock(dir1->d_inode);
+    if (dir1 != dir2)
+        inode_unlock(dir2->d_inode);
+}
+
+int do_renameat(struct dentry *dir, struct lookup_path &last, struct dentry *old_parent,
+                struct lookup_path &old_last)
 {
     std::string_view name = get_token_from_path(last, false);
     if (!name.compare(".") || !name.compare(".."))
         return -EINVAL;
-    // printk("location %s\n", dir->d_name);
-    // printk("last name %.*s\n", (int) name.length(), name.data());
+
+    struct dentry *old, *dest = NULL;
+    struct superblock *sb;
     auto inode = dir->d_inode;
-    struct inode *locked;
+    struct inode *locked = NULL;
+    char _name[NAME_MAX + 1] = {};
+    int err;
+
+    sb = old_parent->d_inode->i_sb;
+
+    /* TODO: optimize this so we don't need to take the lock if it's the same directory. */
+    mutex_lock(&sb->s_rename_lock);
+    lock_two_directories(dir, old_parent);
+
+    old = dentry_lookup_internal(get_token_from_path(old_last, false), old_parent,
+                                 DENTRY_LOOKUP_UNLOCKED);
+    if (IS_ERR(old))
+    {
+        err = PTR_ERR(old);
+        goto out_unlock_rename;
+    }
+    else if (d_is_negative(old))
+    {
+        err = -ENOENT;
+        goto out_unlock_rename;
+    }
+
+    err = -EACCES;
+    if (!inode_can_access(old_parent->d_inode, FILE_ACCESS_WRITE))
+        goto out_put_old;
 
     /* We've got multiple cases to handle here:
      * 1) name exists: We atomically replace them.
@@ -1517,129 +1572,95 @@ int do_renameat(struct dentry *dir, struct lookup_path &last, struct dentry *old
      * 3) Name doesn't exist: just link() the dentry.
      */
 
-    dentry *__dir1, *__dir2;
+    err = -EXDEV;
+    if (dir->d_inode->i_dev != old_parent->d_inode->i_dev)
+        goto out_put_old;
 
-    /* Establish a locking order to avoid deadlocks */
-
-    if ((unsigned long) dir < (unsigned long) old)
-    {
-        __dir1 = dir;
-        __dir2 = old;
-    }
-    else
-    {
-        __dir1 = old;
-        __dir2 = dir;
-    }
-
-    // printk("dir1 %s dir2 %s\n", __dir1->d_name, __dir2->d_name);
-
-    if (dir->d_inode->i_dev != old->d_inode->i_dev)
-        return -EXDEV;
-
+    err = -EINVAL;
     if (old->d_inode == dir->d_inode)
-        return -EINVAL;
+        goto out_put_old;
 
-    auto sb = inode->i_sb;
-
+    err = -EACCES;
     if (!inode_can_access(inode, FILE_ACCESS_WRITE))
-        return -EACCES;
+        goto out_put_old;
 
-    scoped_mutex rename_lock_guard{sb->s_rename_lock};
-
-    char _name[NAME_MAX + 1] = {};
     memcpy(_name, name.data(), name.length());
-
-    dentry *dest = dentry_lookup_internal(name, dir);
+    dest = dentry_lookup_internal(name, dir, DENTRY_LOOKUP_UNLOCKED);
     if (IS_ERR(dest))
-        return PTR_ERR(dest);
+    {
+        err = PTR_ERR(dest);
+        goto out_put_old;
+    }
 
     /* Can't do that... Note that dentry always exists if it's a mountpoint */
+    err = -EBUSY;
     if (dentry_involved_with_mount(dest))
-    {
-        dput(dest);
-        return -EBUSY;
-    }
-
-    scoped_rwlock<rw_lock::write> g{__dir1->d_inode->i_rwlock};
-    scoped_rwlock<rw_lock::write> g2{__dir2->d_inode->i_rwlock};
+        goto out_put_dest;
 
     if (!d_is_negative(dest))
     {
         /* Case 2: dest inode = source inode */
         if (dest->d_inode == old->d_inode)
-            return 0;
+        {
+            err = 0;
+            goto out_unlock_dirs;
+        }
 
         /* Not sure if this is 100% correct */
+        err = -EISDIR;
         if (dentry_is_dir(old) ^ dentry_is_dir(dest))
-        {
-            dput(dest);
-            return -EISDIR;
-        }
-    }
-
-    auto old_parent = __dentry_parent(old);
-
-    if (!old_parent)
-    {
-        dput(dest);
-        return -ENOENT;
+            goto out_unlock_dirs;
     }
 
     /* It's invalid to try to make a directory be a subdirectory of itself */
+    err = -EINVAL;
     if (!dentry_does_not_have_parent(dir, old))
-    {
-        dput(dest);
-        dput(old_parent);
-        return -EINVAL;
-    }
+        goto out_unlock_dirs;
 
+    err = -ENOENT;
     if (IS_DEADDIR(inode))
-    {
-        dput(dest);
-        dput(old_parent);
-        return -ENOENT;
-    }
+        goto out_unlock_dirs;
 
     locked = maybe_lock_target(dest);
 
+    lockdep_assert_held_write(&old_parent->d_inode->i_rwlock);
+    lockdep_assert_held_write(&dir->d_inode->i_rwlock);
     /* Do the actual fs rename */
     /* The overall strategy here is to do everything that may fail first - so, for example,
      * everything that involves I/O or memory allocation. After that, we're left with the
      * bookkeeping, which can't fail.
      */
-    int st = 0;
-    if (old->d_inode->i_op->rename)
-        st = old->d_inode->i_op->rename(old_parent, old, dir, dest);
+    if (old_parent->d_inode->i_op->rename)
+        err = old_parent->d_inode->i_op->rename(old_parent, old, dir, dest);
     else
-        st = -EOPNOTSUPP;
+        err = -EOPNOTSUPP;
 
     if (locked)
         inode_unlock_shared(locked);
 
-    if (st < 0)
-    {
-        dput(dest);
-        dput(old_parent);
-        return st;
-    }
-
+    if (err < 0)
+        goto out_unlock_dirs;
     d_mark_rename(old);
     d_mark_rename(dir);
     d_mark_rename(dest);
 
     dentry_rename(old, _name, dir, dest);
+out_unlock_dirs:
+out_put_dest:
     dput(dest);
-    dput(old_parent);
-    return 0;
+out_put_old:
+    dput(old);
+out_unlock_rename:
+    unlock_two_directories(old_parent, dir);
+    mutex_unlock(&sb->s_rename_lock);
+    return err;
 }
 
 int sys_renameat(int olddirfd, const char *uoldpath, int newdirfd, const char *unewpath)
 {
     user_string oldpath, newpath;
-    struct lookup_path last_name;
-    struct path old;
-    struct path parent;
+    struct lookup_path old_last, last_name;
+    struct path old_parent, parent;
     int st;
 
     if (auto res = oldpath.from_user(uoldpath); res.has_error())
@@ -1648,21 +1669,11 @@ int sys_renameat(int olddirfd, const char *uoldpath, int newdirfd, const char *u
         return res.error();
 
     /* rename operates on the old and new symlinks and not their destination */
-    st = path_openat(olddirfd, oldpath.data(), LOOKUP_NOFOLLOW, &old);
+    st = namei_lookup_parentat(olddirfd, oldpath.data(), LOOKUP_NOFOLLOW, &old_last, &old_parent);
     if (st < 0)
         return st;
 
-    /* Although this doesn't need to be an error, we're considering it as one in the meanwhile
-     */
-    st = -EBUSY;
-    if (dentry_involved_with_mount(old.dentry))
-        goto out_put_old;
-
-    st = -EACCES;
-    if (!inode_can_access(old.dentry->d_inode, FILE_ACCESS_WRITE))
-        goto out_put_old;
-
-    st = mnt_get_write_access(old.mount);
+    st = mnt_get_write_access(old_parent.mount);
     if (st)
         goto out_put_old;
 
@@ -1674,13 +1685,13 @@ int sys_renameat(int olddirfd, const char *uoldpath, int newdirfd, const char *u
     if (st < 0)
         goto out_put;
 
-    st = do_renameat(parent.dentry, last_name, old.dentry);
+    st = do_renameat(parent.dentry, last_name, old_parent.dentry, old_last);
     mnt_put_write(parent.mount);
 out_put:
     path_put(&parent);
-    mnt_put_write(old.mount);
+    mnt_put_write(old_parent.mount);
 out_put_old:
-    path_put(&old);
+    path_put(&old_parent);
     return st;
 }
 
