@@ -541,10 +541,10 @@ void *device::do_mmap(struct vm_area_struct *area, struct file *f)
     return (void *) area->vm_start;
 }
 
-void *photon_mmap(struct vm_area_struct *area, struct file *f)
+static int photon_mmap(struct file *f, struct vm_area_struct *area)
 {
     auto dev = photon_dev_from_file(f);
-    return dev->do_mmap(area, f);
+    return dev->do_mmap(area, f) ? 0 : -ENOMEM;
 }
 
 static atomic<unsigned int> id_num;
