@@ -41,6 +41,24 @@ typedef __u16 u16;
 typedef __u32 u32;
 typedef __u64 u64;
 
+#ifdef __CHECKER__
+#define __bitwise __attribute__((bitwise))
+#else
+#define __bitwise
+#endif
+
+typedef __bitwise __u8 __le8;
+typedef __bitwise __u16 __le16;
+typedef __bitwise __u16 __le16;
+typedef __bitwise __u32 __le32;
+typedef __bitwise __u64 __le64;
+
+typedef __bitwise __u8 __be8;
+typedef __bitwise __u16 __be16;
+typedef __bitwise __u16 __be16;
+typedef __bitwise __u32 __be32;
+typedef __bitwise __u64 __be64;
+
 #endif
 
 #include <uapi/posix-types.h>
