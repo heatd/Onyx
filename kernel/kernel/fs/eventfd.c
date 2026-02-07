@@ -7,6 +7,8 @@
  */
 
 #include <onyx/anon_inode.h>
+#include <onyx/err.h>
+#include <onyx/eventfd.h>
 #include <onyx/file.h>
 #include <onyx/mm/slab.h>
 #include <onyx/poll.h>
@@ -18,6 +20,7 @@ struct eventfd
 {
     struct wait_queue wq;
     u64 val;
+    refcount_t refs;
     int flags;
 };
 
@@ -105,6 +108,12 @@ out:
     return err;
 }
 
+void eventfd_ctx_put(struct eventfd *ev)
+{
+    if (refcount_dec_and_test(&ev->refs))
+        kfree(ev);
+}
+
 static short eventfd_poll(void *poll_file, short events, struct file *filp)
 {
     short avail = 0;
@@ -124,13 +133,15 @@ static short eventfd_poll(void *poll_file, short events, struct file *filp)
 
     if (val < UINT64_MAX - 1)
         avail |= POLLOUT;
+    if (val == UINT64_MAX)
+        avail |= POLLERR;
 
     return avail & events;
 }
 
 static void eventfd_release(struct file *filp)
 {
-    kfree(filp->private_data);
+    eventfd_ctx_put(filp->private_data);
 }
 
 static const struct file_ops eventfd_ops = {
@@ -158,6 +169,7 @@ int sys_eventfd2(unsigned int initval, int flags)
     ev->val = initval;
     init_wait_queue_head(&ev->wq);
     ev->flags = flags;
+    ev->refs = REFCOUNT_INIT(1);
 
     filp = anon_inode_open(S_IFREG, &eventfd_ops, "[eventfd]");
     if (!filp)
@@ -180,4 +192,37 @@ int sys_eventfd2(unsigned int initval, int flags)
 int sys_eventfd(unsigned int initval)
 {
     return sys_eventfd2(initval, 0);
+}
+
+struct eventfd *eventfd_ctx_fdget(int fd)
+{
+    struct eventfd *ev = ERR_PTR(-EINVAL);
+    struct file *filp;
+
+    filp = get_file_description(fd);
+    if (!filp)
+        return ERR_PTR(-EBADF);
+
+    if (filp->f_op == &eventfd_ops)
+    {
+        ev = filp->private_data;
+        refcount_inc(&ev->refs);
+    }
+
+    fd_put(filp);
+    return ev;
+}
+
+void eventfd_signal(struct eventfd *ev)
+{
+    /* We don't support this, for now. Hopefully not required by DRM. */
+    if (WARN_ON(irq_is_disabled()))
+        return;
+
+    spin_lock(&ev->wq.lock);
+    /* Allow it to reach 2^64 but don't allow it to actually overflow. */
+    if (ev->val < UINT64_MAX)
+        ev->val++;
+    __wait_queue_wake(&ev->wq, 0, NULL, ULONG_MAX);
+    spin_unlock(&ev->wq.lock);
 }
