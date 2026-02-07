@@ -1,11 +1,10 @@
 /*
- * Copyright (c) 2018 - 2025 Pedro Falcato
+ * Copyright (c) 2018 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
-
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -15,6 +14,7 @@
 #include <onyx/gen/syscall.h>
 #include <onyx/proc_event.h>
 
+#include <linux/lockdep.h>
 #include <platform/syscall.h>
 
 typedef long (*syscall_callback_t)(unsigned long rdi, unsigned long rsi, unsigned long rdx,
@@ -67,7 +67,8 @@ extern "C" long do_syscall64(struct syscall_frame *frame)
         printk("Error doing syscall %ld = %ld (%s)\n", syscall_nr, ret, strerror(-ret));
 #endif
     proc_event_exit_syscall(ret, syscall_nr);
-
+    /* Can't leave the syscall with locks held */
+    lockdep_assert_once(lockdep_depth(get_current_thread()) == 0);
     context_tracking_exit_kernel();
 
     if (WARN_ON(sched_is_preemption_disabled()))
