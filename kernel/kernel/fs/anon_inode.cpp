@@ -80,3 +80,37 @@ err:
         inode_unref(ino);
     return nullptr;
 }
+
+struct file *anon_inode_getfile(const char *name, const struct file_ops *ops, void *priv, int flags)
+{
+    struct inode *ino = nullptr;
+    struct dentry *dentry = nullptr;
+    struct file *f = nullptr;
+
+    ino = anon_inode_alloc(0);
+    if (!ino)
+        return nullptr;
+
+    ino->i_fops = ops;
+
+    dentry = dentry_create(name, ino, nullptr);
+    if (!dentry)
+        goto err;
+    dget(dentry);
+
+    f = inode_to_file(ino);
+    if (!f)
+        goto err;
+
+    f->f_dentry = dentry;
+    f->f_op = ops;
+    f->f_flags = (flags & (O_ACCMODE | O_NONBLOCK));
+    f->private_data = priv;
+    return f;
+err:
+    if (dentry)
+        dput(dentry);
+    if (ino)
+        inode_unref(ino);
+    return nullptr;
+}

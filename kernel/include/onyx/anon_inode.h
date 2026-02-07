@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Pedro Falcato
+ * Copyright (c) 2023 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -27,7 +27,8 @@ struct inode *anon_inode_alloc(mode_t file_type
 );
 
 struct file *anon_inode_open(mode_t file_type, const struct file_ops *ops, const char *name);
-
+struct file *anon_inode_getfile(const char *name, const struct file_ops *ops, void *priv,
+                                int flags);
 __END_CDECLS
 
 #endif
