@@ -101,21 +101,25 @@ unsigned int fbdev_ioctl(int request, void *argp, struct file *file)
     return -ENOTTY;
 }
 
-void *fbdev_mmap(struct vm_area_struct *area, struct file *node)
+static int fbdev_mmap(struct file *filp, struct vm_area_struct *area)
 {
     area->vm_flags |= VM_PFNMAP;
     area->vm_obj = vmo_create(0x1000, nullptr);
     if (!area->vm_obj)
-        return NULL;
+        return -ENOMEM;
     vmo_assign_mapping(area->vm_obj, area);
     return __map_pages_to_vaddr(area->vm_mm, (void *) area->vm_start,
                                 (void *) primary_fb->framebuffer_phys,
-                                area->vm_end - area->vm_start, area->vm_flags);
+                                area->vm_end - area->vm_start, area->vm_flags)
+               ? 0
+               : -ENOMEM;
 }
 
-const file_ops fbdev_fops = {.read = nullptr, // TODO
-                             .ioctl = fbdev_ioctl,
-                             .mmap = fbdev_mmap};
+const file_ops fbdev_fops = {
+    .read = nullptr, // TODO
+    .ioctl = fbdev_ioctl,
+    .mmap = fbdev_mmap,
+};
 
 /**
  * @brief Initialize fb0

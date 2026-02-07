@@ -745,12 +745,9 @@ static struct vm_area_struct *vma_create(struct vma_iterator *vmi, unsigned int 
                 goto unmap_vma;
             }
 
-            void *ret = file->f_op->mmap(vma, file);
-            if (!ret)
-            {
-                err = -errno;
+            err = file->f_op->mmap(file, vma);
+            if (err)
                 goto unmap_vma;
-            }
 
             inode_update_atime(&file->f_path);
             goto out;

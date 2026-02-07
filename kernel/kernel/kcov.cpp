@@ -288,21 +288,21 @@ void kcov_free_thread(struct thread *thread)
     }
 }
 
-void *kcov_mmap(struct vm_area_struct *area, struct file *node)
+static int kcov_mmap(struct file *filp, struct vm_area_struct *area)
 {
     if (area->vm_offset != 0)
-        return errno = EINVAL, nullptr;
+        return -EINVAL;
     if (!vma_shared(area))
-        return errno = EINVAL, nullptr;
+        return -EINVAL;
 
-    auto data = (struct kcov_data *) node->private_data;
+    auto data = (struct kcov_data *) filp->private_data;
 
     scoped_lock g{data->lock};
 
     if (data->state == KCOV_STATE_OPEN)
     {
         // If we have not initialized the buffer yet, EINVAL
-        return errno = EINVAL, nullptr;
+        return -EINVAL;
     }
 
     area->vm_obj = data->vmo;
@@ -312,11 +312,15 @@ void *kcov_mmap(struct vm_area_struct *area, struct file *node)
 
     vmo_assign_mapping(area->vm_obj, area);
 
-    return (void *) area->vm_start;
+    return 0;
 }
 
 static const file_ops kcov_fops = {
-    .ioctl = kcov_ioctl, .mmap = kcov_mmap, .on_open = kcov_open, .release = kcov_close};
+    .ioctl = kcov_ioctl,
+    .mmap = kcov_mmap,
+    .on_open = kcov_open,
+    .release = kcov_close,
+};
 
 /**
  * @brief Initialize kcov

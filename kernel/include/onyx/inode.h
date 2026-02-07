@@ -55,7 +55,7 @@ struct file_ops
     __write write;
     __getdirent getdirent;
     __ioctl ioctl;
-    void *(*mmap)(struct vm_area_struct *area, struct file *node);
+    int (*mmap)(struct file *filp, struct vm_area_struct *area);
     int (*on_open)(struct file *node);
     int (*open)(struct inode *, struct file *);
     short (*poll)(void *poll_file, short events, struct file *node);
