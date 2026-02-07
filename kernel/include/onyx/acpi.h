@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2025 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -11,7 +11,7 @@
 
 #include <stdint.h>
 
-#include <onyx/dev.h>
+#include <onyx/compiler.h>
 
 #include <acpica/acpi.h>
 
@@ -23,6 +23,8 @@ struct acpi_processor
 #endif
 };
 
+#ifdef __cplusplus
+#include <onyx/dev.h>
 struct acpi_device : public device
 {
     acpi_handle object;
@@ -35,6 +37,8 @@ struct acpi_device : public device
     {
     }
 };
+
+#endif
 
 struct acpi_dev_id
 {
@@ -50,6 +54,10 @@ struct acpi_dev_id
 #define ACPI_POWER_STATE_D2 2
 #define ACPI_POWER_STATE_D3 3
 
+struct acpi_device;
+struct driver;
+
+__BEGIN_CDECLS
 uintptr_t acpi_get_rsdp(void);
 
 int acpi_initialize(void);
@@ -68,11 +76,15 @@ unsigned int acpi_suspend(void);
 
 void acpi_bus_register_driver(struct driver *driver);
 
-acpi_resource *acpi_get_resource(struct acpi_device *device, uint32_t type, unsigned int index);
+struct acpi_resource *acpi_get_resource(struct acpi_device *device, uint32_t type,
+                                        unsigned int index);
 void acpi_set_rsdp(uintptr_t root_pointer);
 
 extern struct clocksource acpi_timer_source;
 
+__END_CDECLS
+
+#ifdef __cplusplus
 namespace acpi
 {
 
@@ -90,4 +102,5 @@ inline bool is_enabled()
 
 } // namespace acpi
 
+#endif
 #endif
