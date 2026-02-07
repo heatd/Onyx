@@ -54,6 +54,17 @@ struct clockevent
 #endif
 };
 
+static inline void clockevent_init(struct clockevent *ev, void (*cb)(struct clockevent *),
+                                   unsigned int flags)
+{
+    spin_lock_init(&ev->lock);
+    ev->deadline = 0;
+    ev->priv = NULL;
+    ev->flags = flags;
+    ev->callback = cb;
+    ev->timer = NULL;
+}
+
 #define TIMER_NEXT_EVENT_NOT_PENDING UINT64_MAX
 
 struct timer
