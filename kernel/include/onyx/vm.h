@@ -62,6 +62,7 @@ __BEGIN_CDECLS
 #define VM_DONTDUMP      (1 << 12)
 #define VM_GROWSDOWN     (1 << 13)
 #define VM_HUGETLB       (1 << 14)
+#define VM_DONTEXPAND    (1 << 15)
 
 /* Internal flags used by the mm code */
 #define __VM_CACHE_TYPE_REGULAR     0
@@ -90,7 +91,7 @@ static inline unsigned long vm_prot_to_cache_type(uint64_t prot)
 #define VM_FULL_ADDRESS_SPACE (1 << 2)
 
 #define PHYS_TO_VIRT(x) (void *) ((uintptr_t) (x) + PHYS_BASE)
-#define VIRT_TO_PHYS(x) ((uintptr_t) (x) -PHYS_BASE)
+#define VIRT_TO_PHYS(x) ((uintptr_t) (x) - PHYS_BASE)
 
 struct vm_object;
 struct vm_pf_context;
@@ -135,6 +136,7 @@ struct vm_area_struct
     struct interval_tree_node vm_objhead;
     struct anon_vma *anon_vma;
     struct list_head anon_vma_node;
+    void *vm_private_data;
 };
 
 static inline unsigned long vma_pages(const struct vm_area_struct *vma)
