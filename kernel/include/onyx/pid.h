@@ -73,9 +73,10 @@ bool pgrp_is_in_session(struct pid *pid, struct pid *session);
 
 void pid_destroy(struct pid *pid);
 
-static inline void get_pid(struct pid *pid)
+static inline struct pid *get_pid(struct pid *pid)
 {
     refcount_inc(&pid->refcount);
+    return pid;
 }
 
 static inline bool get_pid_not_zero(struct pid *pid)
@@ -108,6 +109,7 @@ static inline pid_t pid_nr(struct pid *pid)
     return pid->pid_;
 }
 
+struct process *pid_task(struct pid *pid, enum pid_type type);
 void pid_remove_pid(struct pid *pid, struct process *proc);
 struct process *get_process_from_pid_noref(pid_t pid);
 

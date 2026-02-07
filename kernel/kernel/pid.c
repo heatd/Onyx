@@ -394,3 +394,21 @@ void exchange_leader_pids(struct process *leader, struct process *new_leader)
     rcu_assign_pointer(pid2->proc, leader);
     rcu_assign_pointer(pid1->proc, new_leader);
 }
+
+struct process *pid_task(struct pid *pid, enum pid_type type)
+{
+    struct process *tg_leader = NULL;
+    if (pid)
+    {
+        tg_leader = rcu_dereference(pid->proc);
+        if (type == PIDTYPE_TGID)
+            return tg_leader;
+        else if (type == PIDTYPE_PID)
+            return list_first_or_null_rcu(&tg_leader->sig->thread_list, struct process,
+                                          thread_list_node.__lh);
+        else
+            panic("todo");
+    }
+
+    return NULL;
+}

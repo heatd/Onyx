@@ -61,4 +61,11 @@ static inline bool list_is_empty_rcu(const struct list_head *head)
     return READ_ONCE(head->next) == head;
 }
 
+#define list_first_or_null_rcu(ptr, type, member)                     \
+    ({                                                                \
+        struct list_head *__head = (ptr);                             \
+        struct list_head *next = READ_ONCE(__head->next);             \
+        (next == __head ? NULL : container_of(__head, type, member)); \
+    })
+
 #endif
