@@ -250,7 +250,7 @@ void driver_deregister_device(struct driver *driver, struct device *dev)
     dev->driver_ = nullptr;
 }
 
-int dev_printk(struct device *dev, const char *log_lvl, const char *fmt, ...)
+int dev_printk(const char *log_lvl, const struct device *dev, const char *fmt, ...)
 {
     int err = 0;
     va_list va;
@@ -262,7 +262,7 @@ int dev_printk(struct device *dev, const char *log_lvl, const char *fmt, ...)
     return err;
 }
 
-int bus_printk(struct device *dev, const char *log_lvl, const char *fmt, ...)
+int bus_printk(const char *log_lvl, const struct device *dev, const char *fmt, ...)
 {
     int err = 0;
     va_list va;
