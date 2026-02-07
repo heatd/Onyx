@@ -61,6 +61,7 @@ void seq_release(struct file *);
 int seq_putc(struct seq_file *m, char c);
 int seq_puts(struct seq_file *m, const char *s);
 __attribute__((format(printf, 2, 3))) int seq_printf(struct seq_file *m, const char *s, ...);
+int seq_write(struct seq_file *m, const void *data, size_t len);
 
 struct list_head *seq_list_start(struct list_head *head, off_t pos);
 struct list_head *seq_list_start_head(struct list_head *head, off_t pos);
