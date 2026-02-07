@@ -5,22 +5,17 @@
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
+#include <onyx/folio_batch.h>
 #include <onyx/local_lock.h>
 #include <onyx/mm/page_lru.h>
 #include <onyx/page.h>
 
-struct page_lru_batch
-{
-    unsigned int nr;
-    struct folio *batch[31];
-};
-
 struct percpu_batches
 {
     struct local_lock lock;
-    struct page_lru_batch lru_add;
-    struct page_lru_batch activate;
-    struct page_lru_batch deactivate;
+    struct folio_batch lru_add;
+    struct folio_batch activate;
+    struct folio_batch deactivate;
 };
 
 static PER_CPU_VAR(struct percpu_batches lru_batches);
@@ -30,24 +25,9 @@ static inline int folio_to_state(struct folio *folio)
     return folio_test_anon(folio) ? LRU_ANON_OFF : 0;
 }
 
-static unsigned int folio_batch_add(struct page_lru_batch *batch, struct folio *folio)
-{
-    folio_get(folio);
-    batch->batch[batch->nr++] = folio;
-    return batch->nr - 31;
-}
-
-static void folio_end_batch(struct page_lru_batch *batch)
-{
-    /* No locks should be held. Puts pages and clears the batch */
-    for (unsigned int i = 0; i < batch->nr; i++)
-        folio_put(batch->batch[i]);
-    batch->nr = 0;
-}
-
 #define folio_to_page_lru(folio) (page_to_page_lru(folio_to_page(folio)))
 
-static void folio_batch_add_lru(struct page_lru_batch *batch)
+static void folio_batch_add_lru(struct folio_batch *batch)
 {
     struct page_lru *lru = NULL, *newlru;
     struct folio *folio;
@@ -137,7 +117,7 @@ static void lru_add_folio(struct page_lru *lru, struct folio *folio)
     }
 }
 
-static void folio_batch_activate_lru(struct page_lru_batch *batch)
+static void folio_batch_activate_lru(struct folio_batch *batch)
 {
     struct page_lru *lru = NULL, *newlru;
     struct folio *folio;
@@ -217,7 +197,7 @@ void folio_promote_referenced(struct folio *folio)
     }
 }
 
-static void folio_batch_deactivate_lru(struct page_lru_batch *batch)
+static void folio_batch_deactivate_lru(struct folio_batch *batch)
 {
     struct page_lru *lru = NULL, *newlru;
     struct folio *folio;
