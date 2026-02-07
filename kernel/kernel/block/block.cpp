@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
+ * Copyright (c) 2016 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -27,6 +27,7 @@
 #include <onyx/rwlock.h>
 #include <onyx/softirq.h>
 
+#include <linux/lockdep.h>
 #include <uapi/fcntl.h>
 
 #define HDIO_GETGEO 0x0301
@@ -316,6 +317,8 @@ static const struct vm_object_ops block_vm_obj_ops = {
     .readpage = bbuffer_readpage,
 };
 
+static struct lock_class_key bdev_truncate_lock_key;
+
 /**
  * @brief Create a new blockdev inode
  *
@@ -337,6 +340,8 @@ unique_ptr<block_inode> block_inode::create(const struct blockdev *dev, flush::w
     inode.i_pages->size = inode.i_size;
     inode.i_pages->ops = &block_vm_obj_ops;
     ino->b_wbdev = wbdev;
+    lockdep_set_class_and_name(&inode.i_pages->truncate_lock, &bdev_truncate_lock_key,
+                               "bdev->i_pages->truncate_lock");
 
     superblock_add_inode(bdev_sb, &inode);
     return ino;
