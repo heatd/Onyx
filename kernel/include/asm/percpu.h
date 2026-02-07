@@ -23,4 +23,6 @@
 #define raw_cpu_read(var) this_cpu_read(var)
 
 #define per_cpu(var, cpu) (*(other_cpu_get_ptr(var, cpu)))
+#define this_cpu_ptr(var) (get_per_cpu_ptr(*var))
+
 #endif
