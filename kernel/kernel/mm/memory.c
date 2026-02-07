@@ -903,6 +903,12 @@ int vm_mmu_unmap(struct mm_address_space *mm, void *addr, size_t pages, struct v
     unmap_info.tlbi = &tlbi;
     tlbi_tracker_init(&tlbi);
 
+    if (vma)
+    {
+        DCHECK(virt >= vma->vm_start && virt < vma->vm_end);
+        DCHECK(end > vma->vm_start && end <= vma->vm_end);
+    }
+
     pgd_unmap_range(&unmap_info, pgd_offset(mm, virt), virt, end);
 
     if (tlbi_active(&tlbi))
