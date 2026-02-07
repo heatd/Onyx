@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 - 2025 Pedro Falcato
+ * Copyright (c) 2018 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -255,6 +255,9 @@ static void vm_obj_truncate_out(struct vm_object *obj, struct page *const *batch
     spin_unlock(&obj->page_lock);
 }
 
+extern "C" void unmap_mapping_range(struct vm_object *mapping, loff_t begin, loff_t len,
+                                    int even_cows);
+
 #define VMOBJ_TRUNCATE_BATCH_SIZE 16
 static int vmo_purge_pages(unsigned long start, unsigned long end,
                            struct vm_object *vmo) NO_THREAD_SAFETY_ANALYSIS
@@ -262,6 +265,11 @@ static int vmo_purge_pages(unsigned long start, unsigned long end,
     /* TSA: Clang cries when looking at the batch locking code. It is provably correct */
     struct page *pagebatch[VMOBJ_TRUNCATE_BATCH_SIZE];
     int found = 0;
+
+    /* Do an initial unmap of the pages in memory, before we have to do them one-by-one. This allows
+     * the VM subsystem to efficienty clear these out from the page tables, minimizing lock traffic
+     * and TLB flushes. */
+    unmap_mapping_range(vmo, start, end - start, 1);
     /* We deal with pages, not offsets */
     start >>= PAGE_SHIFT;
     end >>= PAGE_SHIFT;
@@ -288,7 +296,11 @@ static int vmo_purge_pages(unsigned long start, unsigned long end,
             /* Page has been truncated from the page cache, no writeback is ongoing, now unlock
              * and free. */
             struct page *old_p = pagebatch[i];
-            vmo->unmap_page(old_p->pageoff << PAGE_SHIFT);
+
+            /* Only bother unmapping if mapped. It's likely that if they were mapped, we dealt with
+             * them earlier. */
+            if (unlikely(page_mapcount(old_p) > 0))
+                vmo->unmap_page(old_p->pageoff << PAGE_SHIFT);
             if (unlikely(page_test_clear_dirty(old_p)))
                 filemap_unaccount_dirty(old_p, vmo);
 
@@ -333,6 +345,38 @@ void vm_object::unmap_page(size_t offset)
         vm_mmu_unmap(vma->vm_mm, (void *) (vma->vm_start + (offset << PAGE_SHIFT) - vma->vm_offset),
                      1, vma);
     }
+}
+
+static void unmap_vma_file_range(struct vm_area_struct *vma, size_t begin_pgoff, size_t end_pgoff)
+{
+    unsigned long unmap_begin, unmap_end;
+    size_t vma_begin_pgoff = vma->vm_offset >> PAGE_SHIFT;
+    size_t vma_end_pgoff;
+
+    vma_end_pgoff = vma_begin_pgoff + vma_pages(vma);
+    unmap_begin = vma->vm_start + (cul::max(vma_begin_pgoff, begin_pgoff) << PAGE_SHIFT);
+    unmap_end = vma->vm_start + ((min(vma_end_pgoff, end_pgoff + 1)) << PAGE_SHIFT);
+    vm_mmu_unmap(vma->vm_mm, (void *) unmap_begin, (unmap_end - unmap_begin) >> PAGE_SHIFT, vma);
+}
+
+extern "C" void unmap_mapping_range(struct vm_object *mapping, loff_t begin, loff_t len,
+                                    int even_cows)
+{
+    struct vm_area_struct *vma;
+    size_t begin_pgoff = begin >> PAGE_SHIFT;
+    size_t hole_len = begin + cul::align_up2(len, PAGE_SIZE);
+    size_t end_pgoff = begin_pgoff + (hole_len >> PAGE_SHIFT) - 1;
+
+    WARN_ON(!even_cows);
+
+    spin_lock(&mapping->mapping_lock);
+    for_intervals_in_range(&mapping->mappings, vma, struct vm_area_struct, vm_objhead, begin_pgoff,
+                           end_pgoff)
+    {
+        vm_obj_assert_interval_tree(begin_pgoff, vma);
+        unmap_vma_file_range(vma, begin_pgoff, end_pgoff);
+    }
+    spin_unlock(&mapping->mapping_lock);
 }
 
 void vm_obj_try_to_unmap(struct vm_object *obj, struct page *page)
