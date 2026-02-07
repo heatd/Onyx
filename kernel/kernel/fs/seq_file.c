@@ -220,6 +220,19 @@ int seq_printf(struct seq_file *m, const char *s, ...)
     return 0;
 }
 
+int seq_write(struct seq_file *m, const void *data, size_t len)
+{
+    if (m->count + len < m->size)
+    {
+        memcpy(m->buf + m->count, data, len);
+        m->count += len;
+        return 0;
+    }
+
+    seq_set_overflow(m);
+    return -EOVERFLOW;
+}
+
 struct list_head *seq_list_start(struct list_head *head, off_t pos)
 {
     list_for_every (head)
