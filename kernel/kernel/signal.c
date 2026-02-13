@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2025 Pedro Falcato
+ * Copyright (c) 2016 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -82,6 +82,12 @@ void signotset(sigset_t *set)
 {
     for (size_t i = 0; i < SST_SIZE; i++)
         set->__bits[i] = ~set->__bits[i];
+}
+
+void sigandnset(sigset_t *dest, const sigset_t *a, const sigset_t *b)
+{
+    for (size_t i = 0; i < SST_SIZE; i++)
+        dest->__bits[i] = a->__bits[i] & ~b->__bits[i];
 }
 
 bool signal_is_unblockable(int signum)
@@ -177,13 +183,14 @@ dequeue:
     return pend;
 }
 
-static struct sigpending *__signal_dequeue(unsigned int flags, struct sigqueue *queue)
+static struct sigpending *__signal_dequeue(unsigned int flags, struct sigqueue *queue,
+                                           const sigset_t *mask)
 {
     int sig;
     sigset_t pending = queue->pending;
-    sigset_t mask = current->sigmask;
-    signotset(&mask);
-    sigandset(&pending, &pending, &mask);
+    sigset_t inv_mask = *mask;
+    signotset(&inv_mask);
+    sigandset(&pending, &pending, &inv_mask);
 
     if (flags & SIGNAL_PREFER_SYNCHRONOUS)
     {
@@ -210,9 +217,20 @@ static struct sigpending *signal_dequeue(unsigned int flags)
     struct sigpending *pend;
     CHECK(spin_lock_held(&current->sighand->signal_lock));
     /* Try to handle thread signals first, then process-wide ones */
-    pend = __signal_dequeue(flags, &current->sigqueue);
+    pend = __signal_dequeue(flags, &current->sigqueue, &current->sigmask);
     if (!pend)
-        pend = __signal_dequeue(flags, &current->sig->shared_signals);
+        pend = __signal_dequeue(flags, &current->sig->shared_signals, &current->sigmask);
+    return pend;
+}
+
+static struct sigpending *signal_dequeue_mask(unsigned int flags, const sigset_t *mask)
+{
+    struct sigpending *pend;
+    CHECK(spin_lock_held(&current->sighand->signal_lock));
+    /* Try to handle thread signals first, then process-wide ones */
+    pend = __signal_dequeue(flags, &current->sigqueue, mask);
+    if (!pend)
+        pend = __signal_dequeue(flags, &current->sig->shared_signals, mask);
     return pend;
 }
 
@@ -1139,11 +1157,48 @@ long sigtimedwait_forever(struct wait_queue *wq)
     return wait_for_event_interruptible(wq, false);
 }
 
+static void __signal_setmask(const sigset_t *mask)
+{
+    sigset_t newmask = *mask;
+    sanitize_sigmask(&newmask);
+    current->sigmask = newmask;
+    recalc_sigpending();
+}
+
+static void restore_sigwait(const sigset_t *old)
+{
+    /* There's trickyness here. Not only do we need to reset the signal mask, we need to properly
+     * consider dropping signals that were added while they were "masked" (by our fake mask), and
+     * not dropped. */
+    struct sigpending *pend, *next;
+    sigset_t to_drop;
+
+    clear_task_flag(current, TF_SIGWAIT);
+    /* to_drop = (temp & ~mask) */
+    sigandnset(&to_drop, &current->sigmask, old);
+    sigdelmask(&to_drop, SIGMASK(SIGKILL) | SIGMASK(SIGSTOP));
+    __signal_setmask(old);
+
+    list_for_each_entry_safe (pend, next, &current->sigqueue.pending_head, list_node)
+    {
+        if (sigismember(&to_drop, pend->signum) && is_signal_ignored(current, pend->signum))
+        {
+            /* Found one! */
+            list_remove(&pend->list_node);
+            kfree(pend->info);
+            kfree(pend);
+            sigdelset(&current->sigqueue.pending, pend->signum);
+        }
+    }
+}
+
 int sys_rt_sigtimedwait(const sigset_t *set, siginfo_t *info, const struct timespec *utimeout,
                         size_t sigsetlen)
 {
     struct sigpending *pending = NULL;
+    sigset_t old, kset;
     int st = 0;
+    long res;
     struct wait_queue wq;
     struct timespec timeout = {};
 
@@ -1157,58 +1212,61 @@ int sys_rt_sigtimedwait(const sigset_t *set, siginfo_t *info, const struct times
     if (!timespec_valid(&timeout, false))
         return -EINVAL;
 
-    sigset_t kset;
-
     if (copy_from_user(&kset, set, sizeof(kset)) < 0)
         return -EFAULT;
 
-        /* TODO: The implementation is not quite correct */
-#if 0
-	sigset_t old;
-	/* Save the old blocked set */
-	memcpy(&old, &thread->sinfo.sigmask, sizeof(sigset_t));
-	
-	/* Silently ignore all attempts to wait for SIGKILL and SIGSTOP */
-	sigdelset(&kset, SIGKILL);
-	sigdelset(&kset, SIGSTOP);
+    /* Save the old blocked set */
+    old = current->sigmask;
 
-	/* We invert the sigset in order to know what we need to block, and then
-	 * we AND it with the old blocked set so we know what we're actually blocking.
-	 */
-	signotset(&kset);
+    /* Silently ignore all attempts to wait for SIGKILL and SIGSTOP */
+    sigdelset(&kset, SIGKILL);
+    sigdelset(&kset, SIGSTOP);
 
-	{
+    /* We invert the sigset in order to know what we need to block, and then
+     * we AND it with the old blocked set so we know what we're actually blocking.
+     */
+    signotset(&kset);
 
-	scoped_lock g{thread->sinfo.lock};
-	sigandset(&thread->sinfo.sigmask, &old, &kset);
-	thread->sinfo.__update_pending();
-
-	}
-#endif
+    spin_lock(&current->sighand->signal_lock);
+    pending = signal_dequeue_mask(SIGNAL_QUERY_POP, &kset);
+    spin_unlock(&current->sighand->signal_lock);
+    /* Fast path: something is already pending. This case is pretty straightforward. No need to mess
+     * with masks, etc. */
+    if (pending)
+        goto out_pending;
 
     hrtime_t timeout_ns = timespec_to_hrtime(&timeout);
 
-    long res;
+    if (utimeout && timeout_ns == 0)
+    {
+        /* timeout = 0 leads to EAGAIN if no signal is available */
+        return -EAGAIN;
+    }
+
+    /* We're going to need to wait. Things get a bit more complicated. We're going to mess
+     * with the signal mask. */
+    spin_lock(&current->sighand->signal_lock);
+    /* TF_SIGWAIT serves to enforce proper SIG_IGN behaviour when a signal should be
+     * blocked, but isn't. See the corresponding code at the send side ($FUNC_NAME) */
+    set_task_flag(current, TF_SIGWAIT);
+    __signal_setmask(&kset);
+    spin_unlock(&current->sighand->signal_lock);
+
     if (utimeout)
         res = wait_for_event_timeout_interruptible(&wq, false, timeout_ns);
     else
-    {
         res = sigtimedwait_forever(&wq);
-    }
-
-    if (res == -ETIMEDOUT)
-        return -EAGAIN;
 
     spin_lock(&current->sighand->signal_lock);
     /* As in the normal signal handling path, pop the sigpending */
-    pending = signal_dequeue(SIGNAL_QUERY_POP);
+    pending = signal_dequeue_mask(SIGNAL_QUERY_POP, &kset);
+    restore_sigwait(&old);
     spin_unlock(&current->sighand->signal_lock);
-    if (WARN_ON(!pending))
-    {
-        /* Weird? Think about this */
-        return st;
-    }
 
+    if (!pending)
+        return res == -ETIMEDOUT ? -EAGAIN : -EINTR;
+
+out_pending:
     st = pending->signum;
 
     if (copy_to_user(info, pending->info, sizeof(siginfo_t)) < 0)
@@ -1326,10 +1384,7 @@ int raise_sig_curthr(int sig, unsigned int flags, siginfo_t *info)
 void signal_setmask(const sigset_t *mask)
 {
     spin_lock(&current->sighand->signal_lock);
-    sigset_t newmask = *mask;
-    sanitize_sigmask(&newmask);
-    current->sigmask = newmask;
-    recalc_sigpending();
+    __signal_setmask(mask);
     spin_unlock(&current->sighand->signal_lock);
 }
 
