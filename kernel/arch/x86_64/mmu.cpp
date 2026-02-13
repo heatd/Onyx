@@ -22,6 +22,7 @@
 #include <onyx/x86/pat.h>
 
 #include <platform/kasan.h>
+#include <platform/pgtable.h>
 
 #define SUPPORT_LA57
 #ifndef SUPPORT_LA57
@@ -52,8 +53,6 @@ CONST_LA48 unsigned int x86_paging_levels = 4;
 }
 
 static const unsigned int x86_max_paging_levels = 5;
-
-#define X86_CACHING_BITS(index) ((((index) &0x3) << 3) | (((index >> 2) & 1) << 7))
 
 #define PML_EXTRACT_ADDRESS(n)  ((n) & 0x0FFFFFFFFFFFF000)
 #define X86_PAGING_PRESENT      (1 << 0)
@@ -510,8 +509,6 @@ void paging_protect_kernel(void)
     __asm__ __volatile__("movq %0, %%cr3" ::"r"(pml));
 }
 
-unsigned long total_shootdowns = 0;
-
 static void __native_tlb_invalidate_global()
 {
     // Disable IRQs, toggle CR4, enable IRQs is the sequence
@@ -540,10 +537,7 @@ void paging_invalidate(void *page, size_t pages)
     }
 
     for (size_t i = 0; i < pages; i++, p += PAGE_SIZE)
-    {
-        total_shootdowns++;
         __native_tlb_invalidate_page((void *) p);
-    }
 }
 
 void paging_free_pml2(PML *pml)

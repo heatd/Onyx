@@ -10,8 +10,6 @@
 #include <onyx/block/io-queue.h>
 #include <onyx/block/request.h>
 
-int plug_merges = 0;
-
 int blk_mq_submit_request(struct blockdev *dev, struct bio_req *bio)
 {
     if (blkdev_is_partition(dev))
@@ -29,7 +27,6 @@ int blk_mq_submit_request(struct blockdev *dev, struct bio_req *bio)
         /* Attempt to merge this bio to another request */
         if (blk_merge_plug(plug, bio))
         {
-            plug_merges++;
             bio_get(bio);
             return 0;
         }
