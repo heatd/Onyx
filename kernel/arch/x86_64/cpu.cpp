@@ -445,9 +445,9 @@ void cpu_notify(unsigned int cpu_nr)
 
 void cpu_wait_for_msg_ack(volatile struct cpu_message *msg)
 {
-    while (!msg->ack)
+    while (!READ_ONCE(msg->ack))
         cpu_relax();
-    msg->ack = false;
+    WRITE_ONCE(msg->ack, false);
 }
 
 PER_CPU_VAR(struct spinlock msg_queue_lock);
@@ -539,13 +539,13 @@ void cpu_handle_message(struct cpu_message *msg)
     {
         case CPU_KILL:
             str = "CPU_KILL";
-            msg->ack = true;
+            WRITE_ONCE(msg->ack, true);
             cpu_handle_kill();
             break;
         case CPU_TRY_RESCHED:
             str = "CPU_TRY_RESCHED";
             cpu_try_resched();
-            msg->ack = true;
+            WRITE_ONCE(msg->ack, true);
             break;
     }
 
