@@ -440,6 +440,9 @@ static struct dentry *d_destroy(struct dentry *dentry)
             list_remove(&dentry->d_parent_dir_node);
     }
 
+    DCHECK(list_is_empty(&dentry->d_parent_dir_node) ||
+           dentry->d_parent_dir_node.next == LIST_REMOVE_POISON);
+
     if (dentry->d_name_length >= INLINE_NAME_MAX)
         free((void *) dentry->d_name);
 
@@ -543,6 +546,7 @@ dentry *dentry_create(const char *name, inode *inode, dentry *parent, u16 flags)
 
     if (parent) [[likely]]
     {
+        MUST_HOLD_LOCK(&parent->d_lock);
         list_add_tail(&new_dentry->d_parent_dir_node, &parent->d_children_head);
         dget(parent);
     }
@@ -586,10 +590,16 @@ static expected<dentry *, int> dentry_create_pending_lookup(const char *name, in
     }
 
     /* Dentry not found, lets create a lookup. We must be careful as to avoid duplicate dentries */
+    spin_lock(&parent->d_lock);
     dent = dentry_create(name, ino, parent, DENTRY_FLAG_PENDING);
     if (!dent)
+    {
+        spin_unlock(&parent->d_lock);
         return unexpected<int>{-ENOMEM};
+    }
+
     dent->d_ref = 1;
+    spin_unlock(&parent->d_lock);
 
     return dentry_add_to_cache_careful(dent, parent);
 }
