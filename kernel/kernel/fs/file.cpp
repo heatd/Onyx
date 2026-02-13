@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2025 Pedro Falcato
+ * Copyright (c) 2017 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -795,22 +795,12 @@ ssize_t sys_pread(int fd, void *buf, size_t count, off_t offset)
     auto fil = f.get_file();
 
     if (!fd_may_access(fil, FILE_ACCESS_READ))
-    {
         return -EBADF;
-    }
 
-    if (offset < 0)
-    {
+    if (offset < 0 && !file_unsigned_offs(f.get_file()))
         return -EINVAL;
-    }
 
-    ssize_t size = read_vfs(offset, count, (char *) buf, fil);
-    if (size < 0)
-    {
-        return size;
-    }
-
-    return size;
+    return read_vfs(offset, count, (char *) buf, fil);
 }
 
 ssize_t sys_pwrite(int fd, const void *buf, size_t count, off_t offset)
@@ -822,21 +812,12 @@ ssize_t sys_pwrite(int fd, const void *buf, size_t count, off_t offset)
     auto fil = f.get_file();
 
     if (!fd_may_access(fil, FILE_ACCESS_WRITE))
-    {
         return -EBADF;
-    }
 
-    if (offset < 0)
-    {
+    if (offset < 0 && !file_unsigned_offs(f.get_file()))
         return -EINVAL;
-    }
 
-    ssize_t written = write_vfs(offset, count, (void *) buf, fil);
-
-    if (written < 0)
-        return -errno;
-
-    return written;
+    return write_vfs(offset, count, (void *) buf, fil);
 }
 
 void handle_open_flags(struct file *fd, int flags)
@@ -1265,16 +1246,17 @@ off_t generic_file_llseek(struct file *filp, off_t offset, int whence)
     off_t ret;
 
     if (whence == SEEK_CUR)
-    {
-        filp->f_seek += offset;
-        ret = filp->f_seek;
-    }
+        ret = filp->f_seek + offset;
     else if (whence == SEEK_SET)
-        ret = filp->f_seek = offset;
+        ret = offset;
     else if (whence == SEEK_END)
-        ret = filp->f_seek = filp->f_ino->i_size + offset;
+        ret = filp->f_ino->i_size + offset;
     else
-        ret = -EINVAL;
+        return -EINVAL;
+
+    if (ret < 0 && !file_unsigned_offs(filp))
+        return -EINVAL;
+    filp->f_seek = ret;
     return ret;
 }
 

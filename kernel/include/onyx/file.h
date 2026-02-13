@@ -17,6 +17,11 @@ struct ioctx;
 
 __BEGIN_CDECLS
 
+static inline bool file_unsigned_offs(struct file *filp)
+{
+    return filp->f_op->fop_flags & FOP_UNSIGNED_OFFSET;
+}
+
 void file_do_cloexec(struct ioctx *ctx);
 int open_with_vnode(struct file *node, int flags);
 struct file *get_file_description(int fd);

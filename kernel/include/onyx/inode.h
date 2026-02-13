@@ -70,7 +70,10 @@ struct file_ops
     ssize_t (*directio)(struct file *file, size_t off, struct iovec_iter *iter, unsigned int flags);
     off_t (*llseek)(struct file *filp, off_t off, int whence);
     struct module *owner;
+    unsigned int fop_flags;
 };
+
+#define FOP_UNSIGNED_OFFSET (1 << 0)
 
 struct nameidata;
 
