@@ -233,6 +233,14 @@ static void follow_mount_up(struct mount *mnt, struct path *out)
 {
     struct dentry *dentry = mnt->mnt_root, *mountpoint;
 
+    if (unlikely(!mnt->mnt_parent))
+    {
+        out->mount = mnt;
+        out->dentry = mnt->mnt_root;
+        dget(out->dentry);
+        return;
+    }
+
     while (mnt->mnt_parent)
     {
         mountpoint = mnt->mnt_point;
@@ -240,7 +248,7 @@ static void follow_mount_up(struct mount *mnt, struct path *out)
         if (mnt->mnt_root != dentry)
         {
             out->mount = mnt;
-            out->dentry = mountpoint;
+            out->dentry = dentry_parent(mountpoint);
             return;
         }
     }
@@ -255,19 +263,15 @@ static bool finish_mount_up(struct path *path, unsigned int seq)
     smp_mb();
 
     if (path->mount->mnt_flags & MNT_DOOMED)
-    {
-        mnt_put(path->mount);
         goto retry;
-    }
 
-    /* I don't think there's a way this can fail, if we grabbed the mount itself */
-    dget(path->dentry);
-
+    /* follow_mount_up grabbed a dentry reference already. */
     if (read_seqretry(&mount_lock, seq))
         goto retry;
 
     return true;
 retry:
+    path_put(path);
     return false;
 }
 
