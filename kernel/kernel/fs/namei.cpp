@@ -1377,70 +1377,58 @@ int unlink_vfs(const char *path, int flags, int dirfd)
 
     memcpy(_name, name.data(), name.length());
 
-    child = dentry_lookup_internal(name, dentry);
+    inode_lock(inode);
+    child = dentry_lookup_internal(name, dentry, DENTRY_LOOKUP_UNLOCKED);
     if (IS_ERR(child))
     {
         st = PTR_ERR(child);
-        goto out;
+        goto out2;
     }
 
-    if (child)
+    if (d_is_negative(child))
     {
-        if (d_is_negative(child))
-        {
-            st = -ENOENT;
-            dput(child);
-            goto out;
-        }
-        /* Can't do that... Note that dentry always exists if it's a mountpoint */
-        if (dentry_involved_with_mount(child))
-            st = -EBUSY;
-
-        /* Check if AT_REMOVEDIR and it's not a directory */
-        if (flags & AT_REMOVEDIR && !dentry_is_dir(child))
-            st = -ENOTDIR;
-
-        if (st < 0)
-        {
-            dput(child);
-            goto out;
-        }
+        st = -ENOENT;
+        goto out2;
     }
+    /* Can't do that... Note that dentry always exists if it's a mountpoint */
+    if (dentry_involved_with_mount(child))
+        st = -EBUSY;
+
+    /* Check if AT_REMOVEDIR and it's not a directory */
+    if (flags & AT_REMOVEDIR && !dentry_is_dir(child))
+        st = -ENOTDIR;
+
+    if (st < 0)
+        goto out2;
 
     st = mnt_get_write_access(parent.mount);
     if (st)
-        goto out;
+        goto out3;
 
-    rw_lock_write(&inode->i_rwlock);
     /* Do the actual fs unlink */
     st = inode->i_op->unlink(_name, flags, dentry);
-
     if (st < 0)
-    {
-        goto out2;
-    }
+        goto out3;
+
     d_mark_unlink(child);
 
     /* The fs unlink succeeded! Lets change the dcache now that we can't fail! */
-    if (child)
+    spin_lock(&dentry->d_lock);
+    dentry_do_unlink(child);
+    spin_unlock(&dentry->d_lock);
+    if (dentry_is_dir(child))
     {
-        spin_lock(&dentry->d_lock);
-        dentry_do_unlink(child);
-        spin_unlock(&dentry->d_lock);
-        if (dentry_is_dir(child))
-        {
-            child->d_inode->i_flags |= I_DEADDIR;
-            dentry_shrink_subtree(child);
-        }
+        child->d_inode->i_flags |= I_DEADDIR;
+        dentry_shrink_subtree(child);
     }
 
-out2:
+out3:
     mnt_put_write(parent.mount);
-    rw_unlock_write(&inode->i_rwlock);
+out2:
+    inode_unlock(inode);
 
     /* Release the reference that we got from dentry_lookup_internal */
-    if (child)
-        dput(child);
+    dput(child);
 out:
     path_put(&parent);
     return st;
