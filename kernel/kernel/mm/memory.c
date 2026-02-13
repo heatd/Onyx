@@ -1430,7 +1430,7 @@ static bool wp_may_reuse_old(struct page *page)
     /* Check if there are circumstances to use the old page as the new dirtied page. Basically,
      * we want to check for refcount/mapcount while also being careful about the page going away
      * at some point. Page tables are locked. */
-    if (page->ref > 1U + page_test_swap(page))
+    if (READ_ONCE(page->ref) > 1U + page_test_swap(page))
         return false;
     if (page_mapcount(page) > 1)
         return false;
@@ -1438,7 +1438,7 @@ static bool wp_may_reuse_old(struct page *page)
      * the lock. */
     if (!try_lock_page(page))
         return false;
-    if (page->ref > 1U + page_test_swap(page))
+    if (READ_ONCE(page->ref) > 1U + page_test_swap(page))
         goto no_unlock;
     if (page_test_swap(page))
         goto no_unlock;
