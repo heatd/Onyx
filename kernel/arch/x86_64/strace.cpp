@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -128,6 +128,18 @@ __attribute__((no_sanitize_undefined)) void stack_trace_ex(uint64_t *stack)
     }
 }
 
+extern "C" long __get_kernel64_nofault(unsigned long *kaddr, unsigned long *dest);
+
+static long get_kernel64_nofault(unsigned long *kaddr, unsigned long *dest)
+{
+    long err;
+
+    pagefault_disable();
+    err = __get_kernel64_nofault(kaddr, dest);
+    pagefault_enable();
+    return err;
+}
+
 NO_ASAN
 size_t stack_trace_get(unsigned long *stack, unsigned long *pcs, size_t nr_pcs)
 {
@@ -140,35 +152,20 @@ size_t stack_trace_get(unsigned long *stack, unsigned long *pcs, size_t nr_pcs)
 
     unwinds_possible = min(unwinds_possible, nr_pcs);
     uint64_t *rbp = stack;
+    unsigned long ip;
     size_t i;
+
     for (i = 0; i < unwinds_possible; i++)
     {
-        if (thread)
-        {
-            if ((uintptr_t) rbp & 0x7)
-                break;
-
-            unsigned long stack_base = ((unsigned long) thread->kernel_stack_top) - 0x4000;
-
-            if (rbp >= thread->kernel_stack_top)
-                break;
-            if (rbp + 1 >= thread->kernel_stack_top)
-                break;
-            if (rbp < (unsigned long *) stack_base)
-                break;
-        }
-
-        if (!(void *) *(rbp + 1))
+        if (get_kernel64_nofault(rbp + 1, &ip))
             break;
-
-        auto ip = (unsigned long) *(rbp + 1);
         if (ip < VM_HIGHER_HALF)
             break;
 
         pcs[i] = ip;
 
-        rbp = (uint64_t *) *rbp;
-        if (!rbp)
+        if (get_kernel64_nofault(rbp, (unsigned long *) &rbp) ||
+            (unsigned long) rbp < VM_HIGHER_HALF)
         {
             /* So pc termination doesn't zero this entry, increment i */
             i++;
