@@ -4,10 +4,13 @@
 #include <stdbool.h>
 #include <onyx/atomic.h>
 #include <onyx/types.h>
+#include <linux/bits.h>
+
+#include <asm-generic/bitsperlong.h>
 
 static inline bool test_bit(unsigned long nr, const unsigned long *word)
 {
-    return READ_ONCE(*word) & (1UL << nr);
+    return READ_ONCE(word[BIT_WORD(nr)]) & BIT_MASK(nr);
 }
 
 /**
@@ -23,12 +26,12 @@ static inline __u32 rol32(__u32 word, unsigned int shift)
 /* __ variants are not atomic */
 static inline void __set_bit(unsigned long nr, unsigned long *word)
 {
-    *word |= (1UL << nr);
+    word[BIT_WORD(nr)] |= BIT_MASK(nr);
 }
 
 static inline void __clear_bit(unsigned long nr, unsigned long *word)
 {
-    *word &= ~(1UL << nr);
+    word[BIT_WORD(nr)] &= ~BIT_MASK(nr);
 }
 
 #define __ffs(n) (__builtin_ffsl(n) - 1)
@@ -38,21 +41,21 @@ static inline void __clear_bit(unsigned long nr, unsigned long *word)
 
 static inline void clear_bit_unlock(unsigned long nr, unsigned long *word)
 {
-    __atomic_and_fetch(word, ~(1UL << nr), __ATOMIC_RELEASE);
+    __atomic_and_fetch(word + BIT_WORD(nr), ~BIT_MASK(nr), __ATOMIC_RELEASE);
 }
 
 static inline bool __test_and_set_bit(unsigned long nr, unsigned long *word)
 {
-    unsigned long old = *word;
-    *word |= (1UL << nr);
-    return old & (1UL << nr);
+    unsigned long old = word[BIT_WORD(nr)];
+    word[BIT_WORD(nr)] |= BIT_MASK(nr);
+    return old & BIT_MASK(nr);
 }
 
 static inline bool __test_and_clear_bit(unsigned long nr, unsigned long *word)
 {
-    unsigned long old = *word;
-    *word &= ~(1UL << nr);
-    return old & (1UL << nr);
+    unsigned long old = word[BIT_WORD(nr)];
+    word[BIT_WORD(nr)] &= ~BIT_MASK(nr);
+    return old & BIT_MASK(nr);
 }
 
 #endif
