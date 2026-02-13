@@ -1159,10 +1159,11 @@ long sigtimedwait_forever(struct wait_queue *wq)
 
 static void __signal_setmask(const sigset_t *mask)
 {
+    sigset_t old = current->sigmask;
     sigset_t newmask = *mask;
     sanitize_sigmask(&newmask);
     current->sigmask = newmask;
-    recalc_sigpending();
+    sigmask_updated(&old);
 }
 
 static void restore_sigwait(const sigset_t *old)
