@@ -610,6 +610,7 @@ kcsan_setup_watchpoint(const volatile void *ptr, size_t size, int type, unsigned
 	 * To avoid, disable scoped access checking.
 	 */
 	ctx->disable_scoped++;
+	ctx->disable_count++;
 
 	/*
 	 * Save and restore the IRQ state trace touched by KCSAN, since KCSAN's
@@ -733,6 +734,7 @@ out_unlock:
 	if (!interrupt_watcher)
 		irq_restore(irq_flags);
 	//kcsan_restore_irqtrace(current);
+	ctx->disable_count--;
 	ctx->disable_scoped--;
 
 	/*
