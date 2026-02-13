@@ -468,7 +468,7 @@ int bio_submit_req_wait(struct blockdev *dev, struct bio_req *req)
     wait_for(
         &flags,
         [](void *pflags) -> bool {
-            u32 fl = *(u32 *) pflags;
+            u32 fl = *(volatile u32 *) pflags;
             return fl & BIO_REQ_DONE;
         },
         WAIT_FOR_FOREVER, 0);

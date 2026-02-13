@@ -11,6 +11,7 @@
 #include <assert.h>
 #include <stdbool.h>
 
+#include <onyx/atomic.h>
 #include <onyx/compiler.h>
 #include <onyx/preempt.h>
 #include <onyx/smp.h>
@@ -77,7 +78,7 @@ static inline void spin_unlock_irqrestore(struct spinlock *lock, unsigned long o
 
 static inline bool spin_lock_held(struct spinlock *lock)
 {
-    return lock->lock == get_cpu_nr() + 1;
+    return READ_ONCE(lock->lock) == get_cpu_nr() + 1;
 }
 
 static inline void spin_lock(struct spinlock *lock) __ACQUIRE(lock)
