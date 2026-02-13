@@ -65,6 +65,7 @@ __END_CDECLS
 #define TF_RESTORE_SIGMASK (1 << 6)
 #define TF_STOP_PENDING    (1 << 7)
 #define TF_POST_COREDUMP   (1 << 8) /* too far gone in exit(2) to ask for a coredump */
+#define TF_SIGWAIT         (1 << 9)
 
 struct vfork_completion;
 
