@@ -280,6 +280,9 @@ ssize_t read_iter_vfs(struct file *filp, size_t off, iovec_iter *iter, unsigned 
     if (S_ISDIR(ino->i_mode))
         return -EISDIR;
 
+    if ((ssize_t) off < 0 && !file_unsigned_offs(filp))
+        return -EINVAL;
+
     if (filp->f_op->read_iter)
         st = filp->f_op->read_iter(filp, off, iter, flags);
     else if (filp->f_op->read)
