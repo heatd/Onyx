@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
+ * Copyright (c) 2016 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -56,11 +56,19 @@ static int tmpfs_link(struct dentry *old_dentry, struct dentry *new_dentry)
 
 inode *tmpfs_symlink(struct dentry *dentry, const char *dest, struct dentry *dir)
 {
-    const char *link_name = strdup(dest);
+    const char *link_name;
+    tmpfs_inode *new_ino;
+    size_t len;
+
+    len = strlen(dest) + 1;
+    if (len > PAGE_SIZE)
+        return errno = ENAMETOOLONG, nullptr;
+
+    link_name = (const char *) kmemdup(dest, len, GFP_KERNEL);
     if (!link_name)
         return nullptr;
 
-    auto new_ino = tmpfs_create_inode(S_IFLNK | 0777, dir);
+    new_ino = tmpfs_create_inode(S_IFLNK | 0777, dir);
     if (!new_ino)
     {
         free((void *) link_name);
