@@ -262,7 +262,7 @@ static __always_inline bool rcu_has_callbacks(rcu_pcpublk *rpb)
     // Current can be !is_empty for a variety of reasons, including if we tried to start a batch
     // without actually starting it. As such, we can only process callbacks if we have gone through
     // the grace period in ctrlblk.
-    return rcp.curgen > rpb->gen && !rpb->current.is_empty();
+    return READ_ONCE(rcp.curgen) > rpb->gen && !rpb->current.is_empty();
 }
 
 static __always_inline bool rcu_has_batch(rcu_pcpublk *rpb)
@@ -300,7 +300,7 @@ static void rcu_check_quiescent_state(rcu_pcpublk *rpb)
 {
     unsigned int curr = get_cpu_nr();
 
-    if (!rcp.mask.is_cpu_set(curr))
+    if (!rcp.mask.is_cpu_set_atomic(curr))
         return;
 
     scoped_lock g{rcp.lock};
@@ -313,7 +313,7 @@ static void rcu_check_quiescent_state(rcu_pcpublk *rpb)
         TRACE_EVENT(rcu_grace_period_end);
         // Attempt to start a new batch by incrementing the current gen and calling rcu_start_batch
         // with maxgen.
-        rcp.curgen++;
+        WRITE_ONCE(rcp.curgen, rcp.curgen + 1);
         rcu_start_batch(rpb, rcp.maxgen);
     }
 }
@@ -353,7 +353,7 @@ void rcu_do_quiesc()
      * 3) our cpu is set in rcp.mask - we have a quiescent state to process
      */
 
-    if (rcu_has_callbacks(rpb) || rcu_has_batch(rpb) || rcp.mask.is_cpu_set(get_cpu_nr()))
+    if (rcu_has_callbacks(rpb) || rcu_has_batch(rpb) || rcp.mask.is_cpu_set_atomic(get_cpu_nr()))
         softirq_raise(SOFTIRQ_VECTOR_RCU);
 }
 

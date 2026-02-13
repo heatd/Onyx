@@ -8,6 +8,8 @@
 
 #include <string.h>
 
+#include <onyx/atomic.h>
+
 struct cpumask
 {
 #define LONG_SIZE_BITS __LONG_WIDTH__
@@ -65,6 +67,14 @@ struct cpumask
         auto bit_idx = cpu % LONG_SIZE_BITS;
 
         return mask[long_idx] & (1UL << bit_idx);
+    }
+
+    bool is_cpu_set_atomic(unsigned long cpu) const
+    {
+        auto long_idx = cpu / LONG_SIZE_BITS;
+        auto bit_idx = cpu % LONG_SIZE_BITS;
+
+        return READ_ONCE(mask[long_idx]) & (1UL << bit_idx);
     }
 
     constexpr cpumask& operator|=(unsigned long cpu)
