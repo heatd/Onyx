@@ -744,7 +744,7 @@ void free_page(struct page *p)
 {
     assert(p != NULL);
     p = page_compound_head(p);
-    CHECK_PAGE(p->ref != 0, p);
+    CHECK_PAGE(READ_ONCE(p->ref) != 0, p);
 
     if (__page_unref(p) == 0)
     {

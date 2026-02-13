@@ -124,10 +124,10 @@ vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page
 
 #if 1
     if (vmo->ino && !(vmo->flags & VMO_FLAG_DEVICE_MAPPING))
-        vmo->size = cul::max(vmo->size, off + 1);
+        WRITE_ONCE(vmo->size, cul::max(READ_ONCE(vmo->size), off + 1));
 #endif
 
-    if (off >= vmo->size)
+    if (off >= READ_ONCE(vmo->size))
         return VMO_STATUS_BUS_ERROR;
 
     do
