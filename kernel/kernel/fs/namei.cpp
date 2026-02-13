@@ -676,7 +676,11 @@ again:
         }
 
         if (open_flags & O_CREAT)
+        {
+            if (st < 0)
+                goto out;
             st = do_creat(cur, curino, data.cur.dentry, mode, data);
+        }
     }
     else
     {
