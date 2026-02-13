@@ -337,7 +337,9 @@ static inline void reset_kcsan_skip(void)
 
 static __always_inline bool kcsan_is_enabled(struct kcsan_ctx *ctx)
 {
-	return READ_ONCE(kcsan_enabled) && !ctx->disable_count;
+	/* HACK! This is supposed to work with disabled IRQs. However, we
+	 get stack corruption from it, and I'm yet to figure out why. */
+	return READ_ONCE(kcsan_enabled) && !ctx->disable_count && !irq_is_disabled();
 }
 
 
