@@ -421,7 +421,7 @@ struct superblock *tmpfs_mount(struct vfs_mount_info *info)
 
     new_sb->s_devnr = blockdev->dev();
 
-    auto node = new_sb->create_inode(S_IFDIR | 1777);
+    auto node = new_sb->create_inode(S_IFDIR | 01777);
     if (!node)
     {
         dev_unregister_dev(blockdev, true);
