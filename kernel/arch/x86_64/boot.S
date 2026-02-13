@@ -832,7 +832,7 @@ ENTRY_LOCAL(__startup_secondary_64)
     pop %rsi
     pop %rdi
 
-    jmp smpboot_main
+    call smpboot_main
     int3
 END(__startup_secondary_64)
 
