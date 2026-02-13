@@ -665,34 +665,19 @@ ENTRY_LOCAL(setup_paging_and_longm)
     add $PHYS_BASE, %ebp
     and $-0x200000, %ebp
 
-    movl %ebp, %eax
+    xor %edx, %edx
+4:
+    /* Calculate the base address for this PMD entry */
+    movl %edx, %eax
+    shl $21, %eax
+    add %ebp, %eax
+    /* Set the proper bits and set the PMD entry itself */
     or $0x83, %eax
     mov %eax, (%esi, %ebx, 8)
     inc %ebx
-    lea 0x200000(%ebp), %eax
-    or $0x83, %eax
-    mov %eax, (%esi, %ebx, 8)
-    inc %ebx
-    lea 0x400000(%ebp), %eax
-    or $0x83, %eax
-    mov %eax, (%esi, %ebx, 8)
-    inc %ebx
-    lea 0x600000(%ebp), %eax
-    or $0x83, %eax
-    mov %eax, (%esi, %ebx, 8)
-    inc %ebx
-    lea 0x800000(%ebp), %eax
-    or $0x83, %eax
-    mov %eax, (%esi, %ebx, 8)
-    inc %ebx
-    lea 0xa00000(%ebp), %eax
-    or $0x83, %eax
-    mov %eax, (%esi, %ebx, 8)
-    inc %ebx
-    lea 0xc00000(%ebp), %eax
-    or $0x83, %eax
-    mov %eax, (%esi, %ebx, 8)
-    inc %ebx
+    inc %edx
+    cmp $32, %edx
+    jnz 4b
 
     pop %ebp
 
