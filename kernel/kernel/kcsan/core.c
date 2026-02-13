@@ -380,6 +380,7 @@ static __always_inline u64 read_instrumented_memory(const volatile void *ptr, si
 	}
 }
 
+#if 0
 void kcsan_save_irqtrace(struct task_struct *task)
 {
 #ifdef CONFIG_TRACE_IRQFLAGS
@@ -393,6 +394,7 @@ void kcsan_restore_irqtrace(struct task_struct *task)
 	task->irqtrace = task->kcsan_save_irqtrace;
 #endif
 }
+#endif
 
 #define BUILD_BUG()
 
