@@ -254,6 +254,23 @@ ENTRY(get_user64)
 .popsection
 END(get_user64)
 
+ENTRY(__get_kernel64_nofault)
+    # addr in %rdi, dest in %rsi, ret is 0 if good or -EFAULT if we faulted
+1:  movq (%rdi), %rdx
+    movq %rdx, (%rsi)
+    xor %rax, %rax
+2:
+    RET
+3:
+    mov $-14, %rax
+    jmp 2b
+.pushsection .ehtable
+    .quad 1b
+    .quad 3b
+.popsection
+END(get_user64)
+
+
 /**
  * @brief Memsets user spce memory.
  * 
