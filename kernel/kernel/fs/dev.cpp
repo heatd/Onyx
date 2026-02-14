@@ -347,7 +347,7 @@ struct devfs_file
 static constinit struct devfs_file devfs_root = {
     0, S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH, DEVFS_ROOT_INO};
 static list_head global_list = LIST_HEAD_INIT(global_list);
-static spinlock devfs_list_lock;
+static DEFINE_SPINLOCK(devfs_list_lock);
 static ino_t next_inode = DEVFS_RESERVED_INO_END;
 static unsigned long devfs_seq = 0;
 

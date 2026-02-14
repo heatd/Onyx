@@ -138,6 +138,8 @@ public:
         : pid{pid}, handle_table{}, handle_table_lock{}, curr_fake_offset{}, mappings_lock{},
           mapping_list{}
     {
+        spinlock_init(&handle_table_lock);
+        spinlock_init(&mappings_lock);
         (void) pid;
     }
 
@@ -194,6 +196,8 @@ public:
           bus_type(t)
     {
         INIT_LIST_HEAD(&named_list);
+        spinlock_init(&named_list_lock);
+        spinlock_init(&context_lock);
     }
 
     virtual ~device()

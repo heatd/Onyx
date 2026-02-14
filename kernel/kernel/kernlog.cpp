@@ -21,13 +21,15 @@
 #include <onyx/tty.h>
 #include <onyx/vm.h>
 
+#include <linux/lockdep.h>
+
 #define KERN_NVAL      0xff
 #define __KERN_WARN    4
 #define __KERN_NOTICE  5
 #define __KERN_DEFAULT __KERN_NOTICE
 
 static struct console *cur_con __rcu;
-static struct spinlock cur_con_lock;
+static DEFINE_SPINLOCK(cur_con_lock);
 
 static unsigned int min_log_level = __KERN_WARN;
 
@@ -259,7 +261,7 @@ u32 printk_buf::find_and_print(char *buf, size_t *psize, u32 initial_seq, u32 fl
 }
 
 static constinit struct printk_buf printk_buf;
-static struct spinlock printk_lock;
+static DEFINE_SPINLOCK(printk_lock);
 #define MAX_LINE 1024
 static char flush_buf[MAX_LINE];
 
@@ -531,7 +533,10 @@ extern "C" int printf(const char *__restrict__ format, ...)
 
 void bust_printk_lock(void)
 {
-    printk_lock.lock = 0;
+    printk_lock.lock = ARCH_SPIN_LOCK_UNLOCKED;
+#ifdef CONFIG_LOCKDEP
+    debug_locks_off();
+#endif
 }
 
 void kernlog_clear(void)

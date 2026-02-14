@@ -94,6 +94,7 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *tp)
     new_thread->flags = flags;
     new_thread->canary = THREAD_STRUCT_CANARY;
     new_thread->fpu_area = nullptr;
+    spinlock_init(&new_thread->lock);
 
     bool is_user = !(flags & THREAD_KERNEL);
     auto pages = adding_guard_page ? 6 : 4;

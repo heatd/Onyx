@@ -120,6 +120,7 @@ public:
     uart8250_port(uint16_t io_port, unsigned int irq, device *dev)
         : range{io_port}, irq_{irq}, lock_{}, dev_{dev}
     {
+        spinlock_init(&lock_);
     }
 
     uart8250_port(volatile void *mmio, unsigned int irq, device *dev)

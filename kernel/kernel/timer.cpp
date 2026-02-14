@@ -170,7 +170,7 @@ void itimer_init(struct process *p)
         it.which = timer_whichs[i++];
         it.ev = {};
         it.armed = false;
-        it.lock = {};
+        spinlock_init(&it.lock);
         it.interval_delta = 0;
     }
 }

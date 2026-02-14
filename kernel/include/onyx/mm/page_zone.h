@@ -29,8 +29,9 @@ struct page_pcpu_data
     long pagestats[PAGE_STATS_MAX];
 
 #ifdef __cplusplus
-    constexpr page_pcpu_data() : nr_pages{}, nr_fast_path{}, nr_slow_path{}, nr_queue_reclaims{}
+    void init()
     {
+        nr_pages = nr_fast_path = nr_slow_path = nr_queue_reclaims = 0;
         INIT_LIST_HEAD(&page_list);
         for (auto &stat : pagestats)
             stat = 0;
@@ -88,8 +89,8 @@ struct page_zone
 };
 
 #ifdef __cplusplus
-constexpr void page_zone_init(page_zone *zone, const char *name, unsigned long start,
-                              unsigned long end)
+static inline void page_zone_init(page_zone *zone, const char *name, unsigned long start,
+                                  unsigned long end)
 {
     zone->name = name;
     zone->start = start;
@@ -105,6 +106,8 @@ constexpr void page_zone_init(page_zone *zone, const char *name, unsigned long s
     zone->used_pages = 0;
     zone->merges = zone->splits = 0;
     page_lru_init(&zone->zone_lru);
+    for (int i = 0; i < CONFIG_SMP_NR_CPUS; i++)
+        zone->pcpu[i].init();
 }
 #endif
 

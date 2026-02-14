@@ -517,7 +517,9 @@ void apic_update_clock_monotonic()
 void apic_set_oneshot(hrtime_t deadline);
 
 PER_CPU_VAR(unsigned long apic_ticks) = 0;
-PER_CPU_VAR(struct timer lapic_timer);
+PER_CPU_VAR(struct timer lapic_timer) = {
+    .event_list_lock = STATIC_SPINLOCK_INIT(lapic_timer.lapic_timer),
+};
 extern uint32_t sched_quantum;
 
 irqstatus_t apic_timer_irq(struct irq_context *ctx, void *cookie)

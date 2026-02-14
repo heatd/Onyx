@@ -77,6 +77,7 @@ static void ioctx_init(struct ioctx *ctx)
 {
     memset(ctx, 0, sizeof(*ctx));
     ctx->refs = REFCOUNT_INIT(1);
+    spinlock_init(&ctx->fdlock);
 }
 
 static int dup_files(struct process *child)

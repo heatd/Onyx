@@ -246,6 +246,8 @@ extern void lock_sync(struct lockdep_map *lock, unsigned int subclass,
 #define LOCK_STATE_NOT_HELD	0
 #define LOCK_STATE_HELD		1
 
+#ifndef LOCKDEP_DEFINED_IS_HELD
+#define LOCKDEP_DEFINED_IS_HELD 1
 /*
  * Same "read" as for lock_acquire(), except -1 means any.
  */
@@ -255,6 +257,7 @@ static inline int lock_is_held(const struct lockdep_map *lock)
 {
 	return lock_is_held_type(lock, -1);
 }
+#endif
 
 #define lockdep_is_held(lock)		lock_is_held(&(lock)->dep_map)
 #define lockdep_is_held_type(lock, r)	lock_is_held_type(&(lock)->dep_map, (r))

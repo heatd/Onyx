@@ -21,6 +21,9 @@
 #include <onyx/platform.h>
 #include <onyx/seq_file.h>
 
+#include <linux/irqflags_lockdep.h>
+#include <linux/lockdep.h>
+
 struct irq_line irq_lines[NR_IRQ] = {};
 unsigned long rogue_irqs = 0;
 
@@ -130,6 +133,9 @@ void dispatch_irq(unsigned int irq, struct irq_context *context)
 
     // if (perf_probe_is_enabled() && in_kernel_space_regs(context->registers))
     //    perf_probe_do(context->registers);
+#ifdef CONFIG_LOCKDEP
+    inc_per_cpu(hardirq_context);
+#endif
 
     for (struct interrupt_handler *h = line->irq_handlers; h; h = h->next)
     {
@@ -149,6 +155,9 @@ void dispatch_irq(unsigned int irq, struct irq_context *context)
         __atomic_add_fetch(&line->stats.spurious, 1, __ATOMIC_RELAXED);
     }
 
+#ifdef CONFIG_LOCKDEP
+    dec_per_cpu(hardirq_context);
+#endif
     inc_per_cpu(total_irqs);
     write_per_cpu(in_irq, false);
 }

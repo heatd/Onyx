@@ -30,9 +30,10 @@ class bus_type
     }
 
 public:
-    constexpr bus_type(const char *name)
-        : name_{name}, lock_{}, driver_list_{}, bus_list_lock_{}, bus_list_{}
+    bus_type(const char *name) : name_{name}, lock_{}, driver_list_{}, bus_list_lock_{}, bus_list_{}
     {
+        spinlock_init(&lock_);
+        spinlock_init(&bus_list_lock_);
         INIT_LIST_HEAD(&driver_list_);
         INIT_LIST_HEAD(&bus_list_);
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2025 Pedro Falcato
+ * Copyright (c) 2020 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -18,6 +18,11 @@
 socket_table tcp_table;
 
 const inet_proto tcp_proto{"tcp", &tcp_table};
+
+static void tcp_table_init(void)
+{
+    WARN_ON(socket_table_init(&tcp_table, CONFIG_SOCKET_HASHTABLE_SIZE) != 0);
+}
 
 static inline inetsum_t tcp_data_csum(inetsum_t r, struct packetbuf *pbf)
 {
@@ -144,6 +149,7 @@ static __init void tcp_init()
     tcp_cache =
         kmem_cache_create("tcp_socket", sizeof(struct tcp_socket), alignof(struct tcp_socket),
                           SLAB_TYPESAFE_BY_RCU | SLAB_PANIC, NULL);
+    tcp_table_init();
 }
 
 int tcp_bind(struct socket *sock, struct sockaddr *addr, socklen_t addrlen)

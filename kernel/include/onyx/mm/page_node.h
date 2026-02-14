@@ -23,19 +23,6 @@ struct page_node
 
 #ifdef __cplusplus
     struct page_zone *pick_zone(unsigned long page);
-
-    constexpr page_node() : node_lock{}, cpu_list_node{}, used_pages{}, total_pages{}
-    {
-        spinlock_init(&node_lock);
-        page_zone_init(&zones[0], "DMA32", 0, UINT32_MAX);
-        page_zone_init(&zones[1], "Normal", (u64) UINT32_MAX + 1, UINT64_MAX);
-    }
-
-    void init()
-    {
-        INIT_LIST_HEAD(&cpu_list_node);
-    }
-
     void add_region(unsigned long base, size_t size);
     struct page *alloc_order(unsigned int order, unsigned long flags);
     struct page *allocate_pages(unsigned long nr_pages, unsigned long flags);

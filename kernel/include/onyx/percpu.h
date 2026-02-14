@@ -214,7 +214,7 @@ extern "C" void __raw_asm_add_per_cpu(size_t off, unsigned long val, size_t size
 
 #endif
 
-extern unsigned long *percpu_bases;
+extern unsigned long percpu_bases[];
 
 void percpu_init();
 unsigned long percpu_init_for_cpu(unsigned int cpu);

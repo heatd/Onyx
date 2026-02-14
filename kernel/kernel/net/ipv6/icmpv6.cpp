@@ -8,6 +8,7 @@
 #include <errno.h>
 
 #include <onyx/cred.h>
+#include <onyx/init.h>
 #include <onyx/net/icmpv6.h>
 #include <onyx/net/inet_csum.h>
 #include <onyx/net/ip.h>
@@ -23,6 +24,13 @@ namespace icmpv6
 
 socket_table icmp_table;
 const inet_proto icmp6_proto{"icmp6", &icmp_table};
+
+static void icmp6_table_init(void)
+{
+    WARN_ON(socket_table_init(&icmp_table, CONFIG_SOCKET_HASHTABLE_SIZE) != 0);
+}
+
+INIT_LEVEL_CORE_KERNEL_ENTRY(icmp6_table_init);
 
 #define ICMPV6_PACKETBUF_HEADER_SPACE \
     (PACKET_MAX_HEAD_LENGTH + sizeof(ip6hdr) + sizeof(icmpv6_header))

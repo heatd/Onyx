@@ -31,7 +31,7 @@
 namespace ktrace
 {
 
-static struct spinlock old_broken_ktracepoint_lock;
+static DEFINE_SPINLOCK(old_broken_ktracepoint_lock);
 static cul::hashtable<unique_ptr<old_broken_ktracepoint>, 16, fnv_hash_t,
                       old_broken_ktracepoint::hash>
     old_broken_ktracepoint_list;
@@ -284,7 +284,7 @@ struct trace_state
     }
 };
 
-struct spinlock tracing_enable_lock;
+DEFINE_SPINLOCK(tracing_enable_lock);
 PER_CPU_VAR(static struct trace_state *tstate);
 
 #define KTRACE_ENABLE_SUPPORTED_FLAGS (TRACE_EVENT_TIME)

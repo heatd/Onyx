@@ -15,7 +15,7 @@
 #include <onyx/panic.h>
 #include <onyx/sysfs.h>
 
-static struct spinlock bus_list_lock;
+DEFINE_SPINLOCK(bus_list_lock);
 static struct list_head bus_list = LIST_HEAD_INIT(bus_list);
 
 static struct sysfs_object devices_obj;

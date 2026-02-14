@@ -450,7 +450,7 @@ void cpu_wait_for_msg_ack(volatile struct cpu_message *msg)
     WRITE_ONCE(msg->ack, false);
 }
 
-PER_CPU_VAR(struct spinlock msg_queue_lock);
+PER_CPU_VAR(struct spinlock msg_queue_lock) = __SPIN_LOCK_UNLOCKED(msg_queue_lock);
 PER_CPU_VAR(struct list_head message_queue);
 
 void cpu_messages_init(unsigned int cpu)

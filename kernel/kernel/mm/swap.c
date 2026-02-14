@@ -151,7 +151,7 @@ unsigned long swap_total(void)
 
 #define MAX_SWAP_AREAS 16
 
-struct spinlock swap_areas_lock;
+static DEFINE_SPINLOCK(swap_areas_lock);
 static struct swap_area *swap_areas[MAX_SWAP_AREAS];
 struct vm_object *swap_spaces[MAX_SWAP_AREAS];
 

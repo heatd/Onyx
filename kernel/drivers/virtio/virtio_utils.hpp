@@ -35,6 +35,7 @@ public:
     virtio_control_msg_queue(vdev *dev, int vq_nr)
         : control_msgs{}, vq_nr{vq_nr}, list_lock{}, dev{dev}
     {
+        spinlock_init(&list_lock);
         INIT_LIST_HEAD(&control_msgs);
     }
 

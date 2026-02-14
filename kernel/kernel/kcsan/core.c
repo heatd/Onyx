@@ -618,7 +618,7 @@ kcsan_setup_watchpoint(const volatile void *ptr, size_t size, int type, unsigned
 	 * information is lost if dirtied by KCSAN.
 	 */
 	if (!interrupt_watcher)
-		irq_flags = x86_save_flags();
+		irq_flags = arch_save_flags();
 
 	watchpoint = insert_watchpoint((unsigned long)ptr, size, is_write);
 	if (watchpoint == NULL) {

@@ -80,9 +80,9 @@ static void ___sched_append_to_queue(int priority, unsigned int cpu, struct thre
 
 int sched_rbtree_cmp(const void *t1, const void *t2);
 static rb_tree glbl_thread_list = {.cmp_func = sched_rbtree_cmp};
-static spinlock glbl_thread_list_lock;
+static DEFINE_SPINLOCK(glbl_thread_list_lock);
 
-PER_CPU_VAR(spinlock scheduler_lock) = STATIC_SPINLOCK_INIT;
+PER_CPU_VAR(spinlock scheduler_lock) = STATIC_SPINLOCK_INIT(scheduler_lock);
 PER_CPU_VAR(thread *thread_queues_head[NUM_PRIO]);
 PER_CPU_VAR(thread *thread_queues_tail[NUM_PRIO]);
 PER_CPU_VAR(thread *current_thread);
@@ -439,6 +439,7 @@ void sched_load_thread(struct thread *prev, thread *thread, unsigned int cpu)
 {
     struct mm_address_space *mm = prev->active_mm ?: prev->aspace;
 
+    spin_unlock_irqrestore(get_per_cpu_ptr_any(scheduler_lock, cpu), irq_save_and_disable());
     write_per_cpu(current_thread, thread);
     errno = thread->errno_val;
 
@@ -481,8 +482,6 @@ void sched_load_thread(struct thread *prev, thread *thread, unsigned int cpu)
     write_per_cpu(sched_quantum, SCHED_QUANTUM);
 
     cputime_restart_accounting(thread);
-
-    spin_unlock_irqrestore(get_per_cpu_ptr_any(scheduler_lock, cpu), irq_save_and_disable());
 }
 
 extern "C" void asan_unpoison_stack_shadow_ctxswitch(struct registers *regs);
@@ -1242,6 +1241,7 @@ dequeue_thread_generic(sem, semaphore);
 void sem_init(semaphore *sem, long counter)
 {
     sem->counter = 0;
+    spinlock_init(&sem->lock);
 }
 
 static void sem_do_slow_path(semaphore *sem, unsigned long flags)
