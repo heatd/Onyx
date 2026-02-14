@@ -195,8 +195,8 @@ print_tree:
 
 bool vm_insert_region(struct mm_address_space *as, struct vm_area_struct *region)
 {
-    return mtree_insert_range(&as->region_tree, region->vm_start, region->vm_end - 1, region,
-                              GFP_KERNEL) == 0;
+    VMA_ITERATOR(vmi, as, region->vm_start, region->vm_end);
+    return mas_store_gfp(&vmi.mas, region, GFP_KERNEL) == 0;
 }
 
 static unsigned long vm_get_base_address(uint64_t flags, uint32_t type);
@@ -1670,7 +1670,7 @@ void vm_destroy_addr_space(struct mm_address_space *mm)
     mt_for_each (&mm->region_tree, entry, index, -1UL)
         vm_destroy_area(entry, &tlbi);
 
-    mtree_destroy(&mm->region_tree);
+    __mt_destroy(&mm->region_tree);
     assert(mm->resident_set_size == 0);
     assert(mm->shared_set_size == 0);
     if (WARN_ON(mm->virtual_memory_size > 0))
@@ -2266,17 +2266,19 @@ static bool vm_can_expand(struct mm_address_space *as, struct vm_area_struct *re
 static int __vm_expand_mapping(struct vm_area_struct *region, size_t new_size)
 {
     size_t diff = new_size - (region->vm_end - region->vm_start);
+    VMA_ITERATOR(vmi, region->vm_mm, region->vm_start, region->vm_end);
+
     if (!vm_test_vs_rlimit(region->vm_mm, new_size))
+        return -ENOMEM;
+
+    mas_set_range(&vmi.mas, region->vm_start, region->vm_end + diff - 1);
+    if (mas_store_gfp(&vmi.mas, region, GFP_KERNEL) != 0)
         return -ENOMEM;
 
     region->vm_end += diff;
     increment_vm_stat(region->vm_mm, virtual_memory_size, diff);
     if (vma_shared(region))
         increment_vm_stat(region->vm_mm, shared_set_size, diff);
-
-    int st = mtree_store_range(&region->vm_mm->region_tree, region->vm_start, region->vm_end - 1,
-                               region, GFP_KERNEL);
-    CHECK(st == 0);
     validate_mm_tree(region->vm_mm);
     return 0;
 }
@@ -2816,8 +2818,8 @@ static inline void mm_init(struct mm_address_space *mm)
     mm->mm_count = REFCOUNT_INIT(1);
     mm->mm_users = REFCOUNT_INIT(1);
     rwlock_init(&mm->vm_lock);
-    mm->region_tree = (struct maple_tree) MTREE_INIT(mm->region_tree,
-                                                     MT_FLAGS_ALLOC_RANGE | MT_FLAGS_LOCK_EXTERN);
+    mm->region_tree = (struct maple_tree) MTREE_INIT_EXT(
+        mm->region_tree, MT_FLAGS_ALLOC_RANGE | MT_FLAGS_LOCK_EXTERN, mm->vm_lock);
     spin_lock_init(&mm->page_table_lock);
 }
 
