@@ -510,6 +510,14 @@ static bool page_is_initialized = false;
 
 page_node main_node;
 
+static void page_node_init(struct page_node *node)
+{
+    node->used_pages = node->total_pages = 0;
+    spinlock_init(&node->node_lock);
+    page_zone_init(&node->zones[0], "DMA32", 0, UINT32_MAX);
+    page_zone_init(&node->zones[1], "Normal", (u64) UINT32_MAX + 1, UINT64_MAX);
+}
+
 struct page_zone *page_node::pick_zone(unsigned long page)
 {
     if (page < UINT32_MAX)
@@ -616,7 +624,7 @@ static void page_set_watermarks()
 
 void page_init(size_t memory_size, unsigned long maxpfn)
 {
-    main_node.init();
+    page_node_init(&main_node);
 
     printf("page: Memory size: %lu\n", memory_size);
     page_memory_size = memory_size;

@@ -75,7 +75,7 @@ static struct stacktrace *__findstack(unsigned long *entries, unsigned long nr_e
 static u8 *slabs[STACKDEPOT_MAX_SLABS];
 static u32 curr_slab = -1;
 static u32 slab_off = STACKDEPOT_SLAB_SIZE;
-static spinlock slabs_lock;
+static DEFINE_SPINLOCK(slabs_lock);
 
 struct stacktrace *stackdepot_from_handle(depot_stack_handle_t handle)
 {

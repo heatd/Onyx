@@ -127,7 +127,9 @@ struct rcu_ctrlblk
 
 const int onetime_processed_limit = 10000;
 
-static struct rcu_ctrlblk rcp;
+static struct rcu_ctrlblk rcp = {
+    .lock = __SPIN_LOCK_UNLOCKED(rcp.lock),
+};
 
 struct rcu_cblist
 {

@@ -5,10 +5,6 @@
 #include <linux/preempt.h>
 
 /* THIS IS A HACK */
-typedef struct spinlock arch_spinlock_t;
-#define __ARCH_SPIN_LOCK_UNLOCKED {}
-#define arch_spin_lock(lock) spin_lock(lock)
-#define arch_spin_unlock(lock) spin_unlock(lock)
 
 #define spin_lock_bh(lock) spin_lock(lock)
 #define spin_unlock_bh(lock) spin_unlock(lock)

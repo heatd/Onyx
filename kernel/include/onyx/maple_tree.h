@@ -195,9 +195,22 @@ enum maple_type
 
 #define MAPLE_RESERVED_RANGE 4096
 
-/* XXX hack */
-#ifdef CONFIG_LOCKDEP__
+#ifdef CONFIG_LOCKDEP
 typedef struct lockdep_map *lockdep_map_p;
+
+#ifndef LOCKDEP_DEFINED_IS_HELD
+#define LOCKDEP_DEFINED_IS_HELD 1
+/*
+ * Same "read" as for lock_acquire(), except -1 means any.
+ */
+extern int lock_is_held_type(const struct lockdep_map *lock, int read);
+
+static inline int lock_is_held(const struct lockdep_map *lock)
+{
+	return lock_is_held_type(lock, -1);
+}
+#endif
+
 #define mt_lock_is_held(mt) (!(mt)->ma_external_lock || lock_is_held((mt)->ma_external_lock))
 
 #define mt_write_lock_is_held(mt) \

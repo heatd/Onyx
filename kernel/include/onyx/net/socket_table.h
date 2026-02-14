@@ -24,13 +24,12 @@ private:
     cul::hashtable2<struct inet_socket *, CONFIG_SOCKET_HASHTABLE_SIZE, uint32_t,
                     &inet_socket::make_hash>
         socket_hashtable;
-    struct spinlock lock_[CONFIG_SOCKET_HASHTABLE_SIZE];
 
 public:
+    struct spinlock *lock_;
+
     constexpr socket_table() : socket_hashtable{}, lock_{}
     {
-        for (auto &l : lock_)
-            spinlock_init(&l);
     }
 
     ~socket_table() = default;
@@ -57,5 +56,7 @@ public:
     bool add_socket(inet_socket *sock, unsigned int flags);
     bool remove_socket(inet_socket *sock, unsigned int flags);
 };
+
+int socket_table_init(socket_table *table, unsigned int size);
 
 #endif

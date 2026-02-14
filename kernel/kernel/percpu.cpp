@@ -34,15 +34,12 @@ extern "C" int *__errno_location()
 
 bool percpu_inited = false;
 
-unsigned long *percpu_bases = nullptr;
+unsigned long percpu_bases[CONFIG_SMP_NR_CPUS];
 unsigned long nr_bases = 0;
 
 void percpu_add_percpu(unsigned long base)
 {
     nr_bases++;
-    percpu_bases =
-        (unsigned long *) realloc((unsigned long *) percpu_bases, nr_bases * sizeof(unsigned long));
-    assert(percpu_bases != nullptr);
     percpu_bases[nr_bases - 1] = base;
 }
 
@@ -99,4 +96,26 @@ int percpu_map_master_copy()
     auto ret = map_pages_to_vaddr((void *) percpu_virtual_start, (void *) phys_base, nr_pages,
                                   VM_READ | VM_WRITE);
     return ret ? 0 : -1;
+}
+
+extern "C" bool __is_kernel_percpu_address(unsigned long addr, unsigned long *can_addr)
+{
+    size_t percpu_size = (unsigned long) &__percpu_end - (unsigned long) &__percpu_start;
+
+    for (unsigned long i = 0; i < nr_bases; i++)
+    {
+        if (addr >= percpu_bases[i] && addr < percpu_bases[i] + percpu_size)
+        {
+            if (can_addr)
+            {
+                addr -= percpu_bases[i];
+                addr += percpu_bases[0];
+                *can_addr = addr;
+            }
+
+            return true;
+        }
+    }
+
+    return false;
 }

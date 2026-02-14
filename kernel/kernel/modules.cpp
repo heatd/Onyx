@@ -38,7 +38,7 @@ extern char _ro_end;
 
 struct module core_kernel;
 
-static struct spinlock module_list_lock;
+static DEFINE_SPINLOCK(module_list_lock);
 static struct module *module_list = NULL;
 static struct module *tail = NULL;
 

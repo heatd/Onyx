@@ -13,8 +13,8 @@
 #include <onyx/id.h>
 #include <onyx/spinlock.h>
 
-struct ids *list;
-static struct spinlock list_lock;
+static struct ids *list;
+DEFINE_SPINLOCK(list_lock);
 static void append_to_list(struct ids *p)
 {
     spin_lock(&list_lock);

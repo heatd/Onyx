@@ -83,6 +83,7 @@ public:
         : function_name(function_name), ring_buffer{nullptr}, read_pointer{0}, write_pointer{0},
           nr_overruns{0}, buf_lock{}, sym(sym), mcount_call_addr{}, return_call_addr{}
     {
+        spinlock_init(&buf_lock);
     }
 
     bool find_call_addrs();

@@ -22,7 +22,7 @@
 
 #include <uapi/ioctls.h>
 
-static struct spinlock netif_list_lock = {};
+static DEFINE_SPINLOCK(netif_list_lock);
 cul::vector<netif *> netif_list;
 
 unsigned int netif_ioctl(int request, void *argp, struct file *f)
@@ -265,7 +265,9 @@ struct rx_queue_percpu
     struct spinlock lock;
 };
 
-PER_CPU_VAR(rx_queue_percpu rx_queue);
+PER_CPU_VAR(rx_queue_percpu rx_queue) = {
+    .lock = __SPIN_LOCK_UNLOCKED(rx_queue.lock),
+};
 
 static void init_rx_queues(unsigned int cpu)
 {

@@ -19,7 +19,7 @@
  * (pqueue_lock). Note that this obviously doesn't scale. It may be a good idea to get a percpu
  * thing, or maybe some other scheme.
  */
-static spinlock pqueue_lock = STATIC_SPINLOCK_INIT;
+static DEFINE_SPINLOCK(pqueue_lock);
 static list_head pqueue = LIST_HEAD_INIT(pqueue);
 
 /**

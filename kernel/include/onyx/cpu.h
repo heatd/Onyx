@@ -18,6 +18,7 @@
 
 #ifdef __x86_64__
 #include <onyx/tss.h>
+#include <onyx/x86/segments.h>
 #endif
 
 __BEGIN_CDECLS

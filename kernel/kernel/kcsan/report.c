@@ -124,7 +124,7 @@ static struct report_time report_times[REPORT_TIMES_SIZE];
  * it could make sense to have a finer-grained locking story for @other_infos,
  * report generation needs to be serialized either way, so not much is gained.
  */
-static struct spinlock report_lock;
+static DEFINE_SPINLOCK(report_lock);
 
 /*
  * Checks if the race identified by thread frames frame1 and frame2 has

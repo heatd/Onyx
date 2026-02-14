@@ -87,10 +87,11 @@ static __always_inline struct static_key *jump_label_key(struct jump_label *labe
 #define JUMP_LABEL_JMP_IF_TRUE  (1)
 #define JUMP_LABEL_JMP_IF_FALSE (0)
 
+__BEGIN_CDECLS
 void jump_label_init();
 void jump_label_patch_key(struct static_key *key);
 void jump_label_patch_branch(struct static_key *key, bool en);
-
+__END_CDECLS
 #define ARCH_HAS_JUMP_LABEL 1
 
 #endif

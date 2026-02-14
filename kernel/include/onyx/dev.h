@@ -447,6 +447,7 @@ struct bus
         : name{name}, bus_lock{}, device_list_head{}, bus_sysfs{}, shutdown_bus{}, suspend_bus{},
           resume_bus{}, bus_list_node{this}, bus_type_node{this}, child_buses_node{this}
     {
+        spinlock_init(&bus_lock);
         INIT_LIST_HEAD(&device_list_head);
         INIT_LIST_HEAD(&child_buses);
         bus_init(this);

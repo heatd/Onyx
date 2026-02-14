@@ -21,7 +21,9 @@ struct vmalloc_tree
     struct spinlock lock;
     unsigned long start;
     unsigned long length;
-} vmalloc_tree;
+} vmalloc_tree = {
+    .lock = __SPIN_LOCK_UNLOCKED(vmalloc_tree.lock),
+};
 
 #define VM_STACK (1U << 31)
 

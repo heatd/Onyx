@@ -20,7 +20,7 @@
 #include <onyx/seq_file.h>
 
 static list_head fs_mount_list = LIST_HEAD_INIT(fs_mount_list);
-static spinlock fs_mount_list_lock;
+static DEFINE_SPINLOCK(fs_mount_list_lock);
 
 /**
  * @brief Add a fs mount object to the kernel's registry

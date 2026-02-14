@@ -218,6 +218,7 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
     new_thread->id = curr_id++;
     new_thread->flags = flags;
     new_thread->canary = THREAD_STRUCT_CANARY;
+    spinlock_init(&new_thread->lock);
 
     bool is_user = !(flags & THREAD_KERNEL);
     void *original_entry = (void *) regs->rip;

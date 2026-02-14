@@ -25,6 +25,7 @@
 #include <onyx/x86/apic.h>
 #include <onyx/x86/idt.h>
 #include <onyx/x86/isr.h>
+#include <onyx/bug.h>
 
 int platform_install_irq(unsigned int irqn, struct interrupt_handler *h)
 {

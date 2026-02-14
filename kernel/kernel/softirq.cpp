@@ -45,7 +45,9 @@ void softirq_handle()
     write_per_cpu(handling_softirq, true);
 
     sched_disable_preempt();
-
+#ifdef CONFIG_LOCKDEP
+    get_current_thread()->softirq_context++;
+#endif
     bool is_disabled = irq_is_disabled();
     /* Disable irqs, get a snapshot of the pending vectors, and clear them. Then reenable irqs. This
      * deals with races, because no one can interrupt us between us getting and us clearing the
@@ -95,6 +97,9 @@ void softirq_handle()
     if (is_disabled)
         irq_disable();
 
+#ifdef CONFIG_LOCKDEP
+    get_current_thread()->softirq_context--;
+#endif
     sched_enable_preempt_no_softirq();
 
     write_per_cpu(handling_softirq, false);

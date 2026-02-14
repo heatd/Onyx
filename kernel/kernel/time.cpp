@@ -83,11 +83,10 @@ void register_clock_source(struct clocksource *clk)
      * If so, just set the clockevent to the furthest possible time
      * (UINT64_MAX - 1, because UINT64_MAX is used as TIMER_NEXT_EVENT_NOT_PENDING). */
 
+    clockevent_init(ev, clocksource_unidle, CLOCKEVENT_FLAG_ATOMIC | CLOCKEVENT_FLAG_PULSE);
     if (__builtin_add_overflow(clocksource_get_time(), clk->max_idle_ns, &ev->deadline))
         ev->deadline = TIMER_NEXT_EVENT_NOT_PENDING - 1;
     ev->priv = clk;
-    ev->callback = clocksource_unidle;
-    ev->flags = CLOCKEVENT_FLAG_ATOMIC | CLOCKEVENT_FLAG_PULSE;
 
     timer_queue_clockevent(ev);
 

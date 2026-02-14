@@ -34,7 +34,7 @@ struct page_lru
     struct spinlock lock;
 };
 
-CONSTEXPR static inline void page_lru_init(struct page_lru *lru)
+static inline void page_lru_init(struct page_lru *lru)
 {
     for (int i = 0; i < NR_LRU_LISTS; i++)
         INIT_LIST_HEAD(&lru->lru_lists[i]);

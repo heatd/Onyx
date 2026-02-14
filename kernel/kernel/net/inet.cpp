@@ -179,3 +179,21 @@ void inet_socket::copy_addr_to_sockaddr(const inet_sock_address &addr, sockaddr 
         *len = sizeof(sk_addr);
     }
 }
+
+int socket_table_init(socket_table *table, unsigned int size)
+{
+    struct spinlock *locks;
+    unsigned int i;
+
+    if (WARN_ON(size != CONFIG_SOCKET_HASHTABLE_SIZE))
+        return -EINVAL;
+
+    locks = (struct spinlock *) kvmalloc(sizeof(struct spinlock) * size, GFP_KERNEL);
+    if (!locks)
+        return -ENOMEM;
+
+    table->lock_ = locks;
+    for (i = 0; i < size; i++)
+        spinlock_init(&table->lock_[i]);
+    return 0;
+}

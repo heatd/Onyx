@@ -16,6 +16,7 @@
 #include <onyx/byteswap.h>
 #include <onyx/compiler.h>
 #include <onyx/dev.h>
+#include <onyx/init.h>
 #include <onyx/net/icmp.h>
 #include <onyx/net/inet_proto.h>
 #include <onyx/net/ip.h>
@@ -35,6 +36,13 @@
 socket_table udp_socket_table;
 
 const inet_proto udp_proto{"udp", &udp_socket_table};
+
+static void udp_table_init(void)
+{
+    WARN_ON(socket_table_init(&udp_socket_table, CONFIG_SOCKET_HASHTABLE_SIZE) != 0);
+}
+
+INIT_LEVEL_CORE_KERNEL_ENTRY(udp_table_init);
 
 uint16_t udpv4_calculate_checksum(struct udphdr *header, uint32_t srcip, uint32_t dstip,
                                   bool do_rest_of_packet = true)

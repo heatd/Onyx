@@ -17,7 +17,7 @@
 
 #include <onyx/atomic.hpp>
 
-static struct spinlock input_dev_list_lock;
+static DEFINE_SPINLOCK(input_dev_list_lock);
 static struct list_head input_dev_list = LIST_HEAD_INIT(input_dev_list);
 static atomic<unsigned int> input_id = 0;
 

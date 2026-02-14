@@ -13,7 +13,7 @@ namespace pci
 
 constexpr uint16_t CONFIG_ADDRESS = 0xcf8;
 constexpr uint16_t CONFIG_DATA = 0xcfc;
-struct spinlock pci_lock;
+DEFINE_SPINLOCK(pci_lock);
 
 // TODO: Clean all this up
 
@@ -160,20 +160,20 @@ public:
         uint64_t val = 0;
         switch (size)
         {
-        case sizeof(uint16_t):
-            val = __pci_config_read_word(addr.bus, addr.device, addr.function, off);
-            break;
-        case sizeof(uint32_t):
-            val = __pci_config_read_dword(addr.bus, addr.device, addr.function, off);
-            break;
-        case sizeof(uint64_t):
-            val = __pci_config_read_dword(addr.bus, addr.device, addr.function, off);
-            break;
-        case sizeof(uint8_t):
-            val = __pci_read_byte(addr.bus, addr.device, addr.function, off);
-            break;
-        default:
-            __builtin_unreachable();
+            case sizeof(uint16_t):
+                val = __pci_config_read_word(addr.bus, addr.device, addr.function, off);
+                break;
+            case sizeof(uint32_t):
+                val = __pci_config_read_dword(addr.bus, addr.device, addr.function, off);
+                break;
+            case sizeof(uint64_t):
+                val = __pci_config_read_dword(addr.bus, addr.device, addr.function, off);
+                break;
+            case sizeof(uint8_t):
+                val = __pci_read_byte(addr.bus, addr.device, addr.function, off);
+                break;
+            default:
+                __builtin_unreachable();
         }
 
         return val;
@@ -189,20 +189,20 @@ public:
 
         switch (size)
         {
-        case sizeof(uint8_t):
-            __pci_write_byte(addr.bus, addr.device, addr.function, off, (uint8_t) value);
-            break;
-        case sizeof(uint16_t):
-            __pci_write_word(addr.bus, addr.device, addr.function, off, (uint16_t) value);
-            break;
-        case sizeof(uint32_t):
-            __pci_write_dword(addr.bus, addr.device, addr.function, off, (uint32_t) value);
-            break;
-        case sizeof(uint64_t):
-            __pci_write_qword(addr.bus, addr.device, addr.function, off, value);
-            break;
-        default:
-            __builtin_unreachable();
+            case sizeof(uint8_t):
+                __pci_write_byte(addr.bus, addr.device, addr.function, off, (uint8_t) value);
+                break;
+            case sizeof(uint16_t):
+                __pci_write_word(addr.bus, addr.device, addr.function, off, (uint16_t) value);
+                break;
+            case sizeof(uint32_t):
+                __pci_write_dword(addr.bus, addr.device, addr.function, off, (uint32_t) value);
+                break;
+            case sizeof(uint64_t):
+                __pci_write_qword(addr.bus, addr.device, addr.function, off, value);
+                break;
+            default:
+                __builtin_unreachable();
         }
     }
 };

@@ -580,7 +580,7 @@ void (*const int_handlers[])(struct registers *ctx) = {div0_exception,
                                                        security_exception,
                                                        exception_panic};
 
-PER_CPU_VAR(struct spinlock isr_lock);
+PER_CPU_VAR(struct spinlock isr_lock) = __SPIN_LOCK_UNLOCKED(isr_lock);
 uint32_t in_isr = 0;
 
 static void exit_isr_handler(void)

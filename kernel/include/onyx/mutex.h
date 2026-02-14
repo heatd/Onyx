@@ -19,7 +19,7 @@
 #include <linux/lockdep_types.h>
 
 struct mutex;
-CONSTEXPR static inline void __mutex_init(struct mutex *mutex);
+static inline void __mutex_init(struct mutex *mutex);
 
 struct CAPABILITY("mutex") mutex
 {
@@ -32,7 +32,7 @@ struct CAPABILITY("mutex") mutex
 #endif
 
 #ifdef __cplusplus
-    constexpr mutex(int a) : llock{}, waiters{}, counter{}
+    mutex(int a) : llock{}, waiters{}, counter{}
     {
         __mutex_init(this);
 #ifdef CONFIG_LOCKDEP
@@ -72,7 +72,7 @@ struct CAPABILITY("mutex") mutex
 #define MUTEX_INITIALIZER(name) \
     {.waiters = LIST_HEAD_INIT((name).waiters) __DEP_MAP_MUTEX_INITIALIZER(name)}
 
-CONSTEXPR static inline void __mutex_init(struct mutex *mutex)
+static inline void __mutex_init(struct mutex *mutex)
 {
     spinlock_init(&mutex->llock);
     mutex->counter = 0;

@@ -70,8 +70,8 @@ struct neighbour
     struct list_head packet_queue;
 
     explicit neighbour(int _domain, const neigh_proto_addr& addr)
-        : refcount{1},
-          hwaddr_len{}, domain{_domain}, flags{NEIGHBOUR_FLAG_UNINITIALISED}, neigh_ops{}
+        : refcount{1}, hwaddr_len{}, domain{_domain}, flags{NEIGHBOUR_FLAG_UNINITIALISED},
+          neigh_ops{}
     {
         if (_domain == AF_INET)
             proto_addr.in4addr.s_addr = addr.in4addr.s_addr;
@@ -79,7 +79,7 @@ struct neighbour
             memcpy(&proto_addr.in6addr, &addr.in6addr, sizeof(in6_addr));
         else
             __builtin_unreachable();
-        neigh_seqlock = {};
+        seqlock_init(&neigh_seqlock);
         INIT_LIST_HEAD(&packet_queue);
     }
 

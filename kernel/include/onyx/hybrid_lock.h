@@ -27,13 +27,18 @@ bool sock_needs_work(struct socket *sock);
 struct hybrid_lock
 {
     struct spinlock lock_;
-    raw_spinlock_t owned;
+    unsigned int owned;
     struct wait_queue wq;
 
 #ifdef __cplusplus
     void __wait_for_owned()
     {
         wait_for_event_locked(&wq, owned == 0, &lock_);
+    }
+
+    hybrid_lock()
+    {
+        spinlock_init(&lock_);
     }
 
     void lock()

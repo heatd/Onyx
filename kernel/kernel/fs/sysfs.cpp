@@ -238,7 +238,7 @@ int sysfs_object_init(const char *name, struct sysfs_object *obj)
         return -ENOMEM;
 
     object_init(&obj->obj, sysfs_release);
-
+    spinlock_init(&obj->dentry_lock);
     obj->name = namedup;
 
     /* TODO: Init obj->inode properly, without address leaks */
