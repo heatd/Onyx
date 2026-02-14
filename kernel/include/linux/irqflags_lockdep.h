@@ -15,6 +15,7 @@
 #include <linux/irqflags_types.h>
 #include <asm/percpu.h>
 
+__BEGIN_CDECLS
 struct thread;
 
 /* Currently lockdep_softirqs_on/off is used only by lockdep */
@@ -40,7 +41,6 @@ struct thread;
 
 DECLARE_PER_CPU(int, hardirqs_enabled);
 DECLARE_PER_CPU(int, hardirq_context);
-
 extern void trace_hardirqs_on_prepare(void);
 extern void trace_hardirqs_off_finish(void);
 extern void trace_hardirqs_on(void);
@@ -138,4 +138,5 @@ do {						\
 # define lockdep_softirq_enter()		do { } while (0)
 # define lockdep_softirq_exit()			do { } while (0)
 #endif
+__END_CDECLS
 #endif

@@ -10,15 +10,14 @@
 #define _ONYX_RISCV_PLATFORM_IRQ_H
 
 #include <onyx/registers.h>
-#include <onyx/riscv/intrinsics.h>
+
+#include <platform/irqflags.h>
 
 // TODO: Correct values
 #define NR_IRQ                   223
 #define PCI_MSI_BASE_ADDRESS     0xFEE00000
 #define PCI_MSI_APIC_ID_SHIFT    12
 #define PCI_MSI_REDIRECTION_HINT (1 << 3)
-
-#define CPU_FLAGS_NO_IRQ 0
 
 struct irq_context
 {
@@ -27,36 +26,5 @@ struct irq_context
 };
 
 void softirq_try_handle(void);
-
-static inline unsigned long irq_save_and_disable()
-{
-    unsigned long status = riscv_read_csr(RISCV_SSTATUS);
-    riscv_clear_csr(RISCV_SSTATUS, RISCV_SSTATUS_SIE);
-    return status;
-}
-
-static inline void irq_restore(unsigned long flags)
-{
-    if (flags & RISCV_SSTATUS_SIE)
-        riscv_or_csr(RISCV_SSTATUS, RISCV_SSTATUS_SIE);
-    else
-        riscv_clear_csr(RISCV_SSTATUS, RISCV_SSTATUS_SIE);
-}
-
-static inline void irq_enable(void)
-{
-    riscv_or_csr(RISCV_SSTATUS, RISCV_SSTATUS_SIE);
-}
-
-static inline void irq_disable(void)
-{
-    riscv_clear_csr(RISCV_SSTATUS, RISCV_SSTATUS_SIE);
-}
-
-inline bool irq_is_disabled()
-{
-    unsigned long status = riscv_read_csr(RISCV_SSTATUS);
-    return !(status & RISCV_SSTATUS_SIE);
-}
 
 #endif

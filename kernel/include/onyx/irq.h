@@ -17,6 +17,8 @@
 #include <onyx/x86/apic.h>
 #endif
 
+#include <onyx/irqflags.h>
+
 #include <platform/irq.h>
 
 #define IRQ_HANDLED   0
