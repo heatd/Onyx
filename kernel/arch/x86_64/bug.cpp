@@ -32,8 +32,9 @@ static struct bug *find_bug(unsigned long ip)
 
 static void print_splat(struct bug *bug, struct registers *ctx, const char *lvl)
 {
-    pr_warn("WARNING: CPU: %u PID: %d at %s:%u %pS\n", get_cpu_nr(),
-            get_current_process() ? get_current_process()->pid_ : 0, bug->file, bug->line,
+    pr_warn("WARNING: CPU: %u PID: %d (%s) at %s:%u %pS\n", get_cpu_nr(),
+            get_current_process() ? get_current_process()->pid_ : 0,
+            get_current_process() ? get_current_process()->comm : "kernel", bug->file, bug->line,
             (void *) bug->addr);
     printk("%srax: %016lx  rbx: %016lx  rcx: %016lx  rdx: %016lx\n", lvl, ctx->rax, ctx->rbx,
            ctx->rcx, ctx->rdx);
