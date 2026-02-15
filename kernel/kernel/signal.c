@@ -122,7 +122,7 @@ static inline int sigffs(sigset_t *set)
 {
     if (set->__bits[0] == 0)
         return -1;
-    return __builtin_ffs(set->__bits[0]);
+    return __builtin_ffsl(set->__bits[0]);
 }
 
 int signal_find(thread_t *unsed)
