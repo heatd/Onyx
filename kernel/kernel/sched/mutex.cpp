@@ -16,6 +16,7 @@
 #include <onyx/scoped_lock.h>
 #include <onyx/task_switching.h>
 #include <onyx/thread.h>
+#include <onyx/bug.h>
 
 #include <linux/lockdep.h>
 
