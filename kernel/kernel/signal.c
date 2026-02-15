@@ -147,6 +147,7 @@ static void recalc_sigpending(void)
 
 #define SIGNAL_QUERY_POP          (1 << 0)
 #define SIGNAL_PREFER_SYNCHRONOUS (1 << 1)
+#define SIGNAL_QUERY_TEST         (1 << 2)
 
 static struct sigpending *__signal_query_pending(int signum, unsigned int flags,
                                                  struct sigqueue *info)
@@ -168,13 +169,16 @@ static struct sigpending *__signal_query_pending(int signum, unsigned int flags,
         }
     }
 
-    WARN_ON(1);
+    /* We might be recursing as a way to make sure there's no more signal with this number. Don't
+     * warn in that case. */
+    if (!(flags & SIGNAL_QUERY_TEST))
+        WARN_ON(1);
     return NULL;
 dequeue:
     /* We'll clear it from the pending set if 1) it's realtime and there are no further signals or
      * 2) it's a standard signal (these don't queue) */
 
-    if (!is_realtime_signal || !__signal_query_pending(signum, 0, info))
+    if (!is_realtime_signal || !__signal_query_pending(signum, SIGNAL_QUERY_TEST, info))
     {
         sigdelset(&info->pending, signum);
         recalc_sigpending();
