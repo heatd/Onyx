@@ -37,7 +37,7 @@ static struct slab_cache *dentry_cache;
 /* rename_lock is held (write!) throughout a *dcache-level* rename. This protects against hashtable
  * entries going bad, and against ->d_parent being changed. It's held in read-mode when traversing
  * the dcache hashtable. */
-seqlock_t rename_lock;
+DEFINE_SEQLOCK(rename_lock);
 
 fnv_hash_t hash_dentry(dentry *&d)
 {
