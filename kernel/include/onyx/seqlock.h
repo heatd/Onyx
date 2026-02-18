@@ -64,4 +64,10 @@ static inline void seqlock_init(seqlock_t *sl)
     spinlock_init(&sl->lock);
 }
 
+#define DEFINE_SEQLOCK(name)                     \
+    seqlock_t name = {                           \
+        .lock = STATIC_SPINLOCK_INIT(name.lock), \
+        .seqcount = 0,                           \
+    }
+
 #endif
