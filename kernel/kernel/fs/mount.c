@@ -42,7 +42,7 @@ static struct list_head mount_hashtable[MT_HASH_SIZE];
 static struct list_head mp_hashtable[MT_HASH_SIZE];
 static DEFINE_LIST(mount_list);
 
-seqlock_t mount_lock;
+DEFINE_SEQLOCK(mount_lock);
 
 static void mnt_init(struct mount *mnt, unsigned long flags)
 {
