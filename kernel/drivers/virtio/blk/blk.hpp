@@ -55,7 +55,8 @@ enum class blk_features
     flush = 9,
     topology = 10,
     wce = 11,
-    discard = 12,
+    mq = 12,
+    discard = 13,
     write_zeroes = 14
 };
 
@@ -90,7 +91,7 @@ private:
     size_t size_max, seg_max;
 
 public:
-    unique_ptr<vdev_queue> request_queue;
+    cul::vector<unique_ptr<vdev_queue>> request_queues;
 
     blk_vdev(pci::pci_device *d) : vdev(d), block_size{512}, disk_size{}, size_max{0}, seg_max{0}
     {
