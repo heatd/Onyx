@@ -24,3 +24,9 @@ unsigned long wait_for_completion_timeout(struct completion *comp, unsigned long
     ret = (deadline - clocksource_get_time()) / NS_PER_MS;
     return max(ret, 1UL);
 }
+
+void complete_all(struct completion *comp)
+{
+    WRITE_ONCE(comp->done, 1);
+    wait_queue_wake_all(&comp->wait);
+}
