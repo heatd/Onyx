@@ -1,8 +1,11 @@
 /*
- * Copyright (c) 2018-2020 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the MIT License
+ * Copyright (c) 2020 - 2026 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  */
+
 #include "virtio.hpp"
 
 #include <assert.h>
@@ -16,6 +19,7 @@
 #include <onyx/dma.h>
 #include <onyx/driver.h>
 
+#include <linux/scatterlist.h>
 #include <pci/pci.h>
 
 #include "virtio_utils.hpp"
@@ -342,6 +346,29 @@ void virtq::allocate_descriptors(virtio_allocation_info &info, bool irq_context)
     irq_restore(flags);
 }
 
+/**
+ * @brief Try to allocate descriptors
+ * Try to allocate and reserve descriptors. This function
+ * does not block.
+ *
+ * @param nr Number of descriptors that we require
+ * @param sgtable Scatterlist table
+ * @param out_sgls Number of SGLs being "written" to the device
+ * @return 0 on success, negative error code
+ */
+int virtq::try_alloc_descs(unsigned int nr, struct scatterlist *sgtable, unsigned int out_sgls)
+{
+    unsigned long flags;
+    unsigned int st = -EAGAIN;
+
+    flags = spin_lock_irqsave(&desc_alloc_lock);
+    if (has_available_descriptors(nr))
+        st = allocate_buffer_list2(nr, sgtable, out_sgls);
+
+    spin_unlock_irqrestore(&desc_alloc_lock, flags);
+    return st;
+}
+
 unsigned int virtq::alloc_descriptor_internal()
 {
     unsigned long desc;
@@ -349,6 +376,51 @@ unsigned int virtq::alloc_descriptor_internal()
     avail_descs--;
 
     return (unsigned int) desc;
+}
+
+/**
+ * @brief Allocates buffers in the queue and sets up the linked list
+ * Note: This function runs with desc_alloc_lock held and with avail_descs >= nr_descs.
+ *
+ * @param nr Number of buffers we need
+ * @param sgtable scatterlist table
+ * @param out_sgls Number of sgls being "written" to the device
+ * @return First descriptor
+ */
+unsigned int virtq_split::allocate_buffer_list2(unsigned int nr, struct scatterlist *sgtable,
+                                                unsigned int out_sgls)
+{
+    MUST_HOLD_LOCK(&desc_alloc_lock);
+    uint16_t desc_head = 0;
+    uint16_t seq = 0;
+    uint16_t index = alloc_descriptor_internal();
+    struct scatterlist *sg = sgtable;
+
+    for (unsigned int i = 0; i < nr; i++, sg = sg_next(sg))
+    {
+        if (seq++ == 0)
+            desc_head = index;
+
+        virtq_desc *desc = descs + index;
+
+        desc->paddr = (unsigned long) page_to_phys(sg_page(sg)) + sg->offset;
+        desc->length = sg->length;
+
+        bool has_next_desc = i + 1 != nr;
+
+        desc->flags =
+            (has_next_desc ? VIRTQ_DESC_F_NEXT : 0) | ((i >= out_sgls) ? VIRTQ_DESC_F_WRITE : 0);
+
+        if (has_next_desc)
+        {
+            index = alloc_descriptor_internal();
+            desc->next = index;
+        }
+        else
+            desc->next = 0;
+    }
+
+    return desc_head;
 }
 
 void virtq_split::allocate_buffer_list(virtio_allocation_info &info)
@@ -409,11 +481,11 @@ void virtq_split::allocate_buffer_list(virtio_allocation_info &info)
         info.completion->descs_pending = info.nr_vecs;
 }
 
-void virtq_split::put_buffer(const virtio_allocation_info &info, bool should_notify)
+void virtq_split::put_buffer(unsigned int first_desc, bool should_notify)
 {
     write_memory_barrier();
 
-    avail->ring[avail->idx % this->queue_size] = info.first_desc;
+    avail->ring[avail->idx % this->queue_size] = first_desc;
     avail->idx++;
 
     write_memory_barrier();
@@ -424,10 +496,7 @@ void virtq_split::put_buffer(const virtio_allocation_info &info, bool should_not
 
 void virtq::resubmit_buffer(uint32_t desc, bool should_notify)
 {
-    virtio_allocation_info info;
-    info.first_desc = desc;
-
-    put_buffer(info, should_notify);
+    put_buffer(desc, should_notify);
 }
 
 void virtq_split::notify()

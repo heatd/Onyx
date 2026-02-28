@@ -120,7 +120,7 @@ int network_vdev::send_packet(packetbuf *buf)
 
     transmit->allocate_descriptors(info, true);
 
-    transmit->put_buffer(info, true);
+    transmit->put_buffer(info.first_desc, true);
 
     // arghhh, busy sleeping... we can't do a wait in networking code
     // FIXME: Redesign?
@@ -167,7 +167,7 @@ bool network_vdev::setup_rx()
         bool is_last = i == qsize - 1;
 
         /* Only notify the buffer if it's the last one, as to avoid redudant notifications */
-        vq->put_buffer(info, is_last);
+        vq->put_buffer(info.first_desc, is_last);
     }
 
     return true;
