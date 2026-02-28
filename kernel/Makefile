@@ -287,7 +287,7 @@ all: onyx-vdso.so.0 vmonyx
 
 include lib/stackdepot/Makefile
 include lib/linuxcompat/Makefile
-kernel-archive-dirs:=lib/stackdepot lib/libk
+kernel-archive-dirs:=lib/stackdepot lib/linuxcompat lib/libk
 kernel-archives:=$(foreach a, $(kernel-archive-dirs), $(a)/$(basename $(notdir $(a))).a)
 LIBS+=$(foreach lib, $(kernel-archive-dirs), $(lib)/$(basename $(notdir $(lib))).a)
 
