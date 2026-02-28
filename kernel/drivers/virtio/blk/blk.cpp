@@ -20,7 +20,7 @@ namespace virtio
 static blk_features supported_features[] = {
     blk_features::size_max, blk_features::seg_max,      blk_features::geometry,
     blk_features::ro,       blk_features::blk_size,     blk_features::topology,
-    blk_features::discard,  blk_features::write_zeroes,
+    blk_features::discard,  blk_features::write_zeroes, blk_features::mq,
 };
 
 static uint32_t bio_req_to_virtio_blk_type(uint8_t op)
@@ -144,7 +144,9 @@ out_err:
 
 static struct io_queue *vdev_pick_queue(struct blockdev *bdev)
 {
-    return reinterpret_cast<virtio::blk_vdev *>(bdev->device_info)->request_queue.get();
+    return reinterpret_cast<virtio::blk_vdev *>(bdev->device_info)
+        ->request_queues[get_cpu_nr()]
+        .get();
 }
 
 const static struct blk_mq_ops vdev_mq_ops = {
@@ -154,6 +156,7 @@ const static struct blk_mq_ops vdev_mq_ops = {
 bool blk_vdev::perform_subsystem_initialization()
 {
     struct queue_properties *qp;
+    unsigned int nr_queues = 1;
 
     for (auto f : supported_features)
     {
@@ -167,18 +170,31 @@ bool blk_vdev::perform_subsystem_initialization()
         return false;
     }
 
-    // Create the requestq queue
-    if (!create_virtqueue(0, get_max_virtq_size(0)))
-    {
-        set_failure();
-        return false;
-    }
+    /* If the device supports MQ, use nr_cpus as the baseline for queues */
+    if (has_feature((int) blk_features::mq))
+        nr_queues = get_nr_cpus();
 
-    request_queue = make_unique<vdev_queue>(virtqueue_list[0].get(), this);
-    if (!request_queue)
+    // Create the requestq queue
+    for (unsigned int i = 0; i < nr_queues; i++)
     {
-        set_failure();
-        return false;
+        if (!create_virtqueue(i, get_max_virtq_size(0)))
+        {
+            set_failure();
+            return false;
+        }
+
+        auto request_queue = make_unique<vdev_queue>(virtqueue_list[i].get(), this);
+        if (!request_queue)
+        {
+            set_failure();
+            return false;
+        }
+
+        if (!request_queues.push_back(cul::move(request_queue)))
+        {
+            set_failure();
+            return false;
+        }
     }
 
     finalise_driver_init();
@@ -206,7 +222,8 @@ bool blk_vdev::perform_subsystem_initialization()
         qp->max_sgls_per_request =
             min((u32) qp->max_sgls_per_request, read<u32>((int) blk_registers::seg_max));
 
-    pr_info("virtio_blk: device %s capacity %lu\n", dev->name.c_str(), dev->nr_sectors);
+    pr_info("virtio_blk: device %s capacity %lu %u queues\n", dev->name.c_str(), dev->nr_sectors,
+            nr_queues);
     if (blkdev_init(dev.get()) < 0)
         return false;
 
