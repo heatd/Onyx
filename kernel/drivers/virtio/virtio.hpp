@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the MIT License
+ * Copyright (c) 2020 - 2026 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 
 #ifndef _VIRTIO_HPP_
@@ -31,6 +33,8 @@
 #include <onyx/slice.hpp>
 
 #define MPRINTF(...) printf("virtio: " __VA_ARGS__)
+
+struct scatterlist;
 
 namespace virtio
 {
@@ -163,7 +167,7 @@ protected:
     unsigned int nr;
     /* Descriptor bitmap */
     Bitmap<0, false> desc_bitmap;
-    cul::vector<virtio_completion *> completions;
+    cul::vector<void *> completions;
     /* Number of available descriptors - can only be touched when desc_alloc_lock is held */
     size_t avail_descs;
     /* Descriptor allocation lock */
@@ -176,6 +180,17 @@ protected:
 public:
     void allocate_descriptors(virtio_allocation_info &info, bool irq_context);
 
+    /**
+     * @brief Try to allocate descriptors
+     * Try to allocate and reserve descriptors. This function
+     * does not block.
+     *
+     * @param nr Number of descriptors that we require
+     * @param sgtable Scatterlist table
+     * @param out_sgls Number of SGLs being "written" to the device
+     * @return 0 on success, negative error code
+     */
+    int try_alloc_descs(unsigned int nr, struct scatterlist *sgtable, unsigned int out_sgls);
     virtual unsigned int get_queue_size() = 0;
     virtq(vdev *dev, unsigned int nr)
         : device{dev}, nr{nr}, desc_bitmap{}, avail_descs(), desc_alloc_lock{}
@@ -196,6 +211,17 @@ public:
      * @param info Allocation info [in and out parameter]
      */
     virtual void allocate_buffer_list(virtio_allocation_info &info) = 0;
+    /**
+     * @brief Allocates buffers in the queue and sets up the linked list
+     * Note: This function runs with desc_alloc_lock held and with avail_descs >= nr_descs.
+     *
+     * @param nr Number of buffers we need
+     * @param sgtable scatterlist table
+     * @param out_sgls Number of sgls being "written" to the device
+     * @return First descriptor
+     */
+    virtual unsigned int allocate_buffer_list2(unsigned int nr, struct scatterlist *sgtable,
+                                               unsigned int out_sgls) = 0;
     virtual void notify() = 0;
     virtual void handle_irq() = 0;
     unsigned int get_nr() const
@@ -205,7 +231,7 @@ public:
     virtual cul::pair<unsigned long, size_t> get_buf_from_id(uint16_t id) const = 0;
     virtual void disable_interrupts() = 0;
     virtual void enable_interrupts() = 0;
-    virtual void put_buffer(const virtio_allocation_info &info, bool notify) = 0;
+    virtual void put_buffer(unsigned int first_desc, bool notify) = 0;
 
     /**
      * @brief Get the completion object
@@ -215,7 +241,12 @@ public:
      */
     virtio_completion *get_completion(unsigned int index)
     {
-        return completions[index];
+        return (virtio_completion *) completions[index];
+    }
+
+    void set_completion(unsigned int index, void *ptr)
+    {
+        completions[index] = ptr;
     }
 
     void reset_completion(unsigned int index)
@@ -267,7 +298,7 @@ public:
     }
 
     bool init() override;
-    void put_buffer(const virtio_allocation_info &info, bool notify) override;
+    void put_buffer(unsigned int first_desc, bool notify) override;
 
     unsigned int get_queue_size() override
     {
@@ -275,7 +306,17 @@ public:
     }
 
     void allocate_buffer_list(virtio_allocation_info &info) override;
-
+    /**
+     * @brief Allocates buffers in the queue and sets up the linked list
+     * Note: This function runs with desc_alloc_lock held and with avail_descs >= nr_descs.
+     *
+     * @param nr Number of buffers we need
+     * @param sgtable scatterlist table
+     * @param out_sgls Number of sgls being "written" to the device
+     * @return First descriptor
+     */
+    unsigned int allocate_buffer_list2(unsigned int nr, struct scatterlist *sgtable,
+                                       unsigned int out_sgls) override;
     void notify() override;
 
     void handle_irq() override;
@@ -320,14 +361,15 @@ public:
         {
             switch (sizeof(T))
             {
-            case 1:
-                return inb((uint16_t) (unsigned long) bar + eoff);
-            case 2:
-                return inw((uint16_t) (unsigned long) bar + eoff);
-            case 4:
-                return inl((uint16_t) (unsigned long) bar + eoff);
-            case 8:
-                __builtin_unreachable();
+                case 1:
+                    return inb((uint16_t) (unsigned long) bar + eoff);
+                case 2:
+                    return inw((uint16_t) (unsigned long) bar + eoff);
+                case 4:
+                    return inl((uint16_t) (unsigned long) bar + eoff);
+                case 8:
+                    WARN_ON_ONCE(1);
+                    return -1;
             }
         }
         else
@@ -346,17 +388,17 @@ public:
         {
             switch (sizeof(T))
             {
-            case 1:
-                outb((uint16_t) (unsigned long) bar + eoff, val);
-                break;
-            case 2:
-                outw((uint16_t) (unsigned long) bar + eoff, val);
-                break;
-            case 4:
-                outl((uint16_t) (unsigned long) bar + eoff, val);
-                break;
-            case 8:
-                __builtin_unreachable();
+                case 1:
+                    outb((uint16_t) (unsigned long) bar + eoff, val);
+                    break;
+                case 2:
+                    outw((uint16_t) (unsigned long) bar + eoff, val);
+                    break;
+                case 4:
+                    outl((uint16_t) (unsigned long) bar + eoff, val);
+                    break;
+                case 8:
+                    __builtin_unreachable();
             }
         }
         else
