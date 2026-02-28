@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 - 2024 Pedro Falcato
+ * Copyright (c) 2022 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -17,6 +17,12 @@
 struct bio_req;
 
 #define IO_QUEUE_PENDING_SOFTIRQ (1 << 0)
+
+/**
+ * @brief queue failed submission previously, make sure we try to restart it
+ * whenever more IO completes.
+ */
+#define IO_QUEUE_FAILED_SUBMIT (1 << 1)
 
 /**
  * @brief Represents a hardware block IO queue
@@ -84,6 +90,17 @@ public:
      */
     int submit_request(struct request *req);
 
+    /**
+     * @brief Set the failed submit flag
+     *
+     */
+    void set_failed_submit();
+
+    /**
+     * @brief Clear the failed submit flag
+     *
+     */
+    void clear_failed_submit();
     /**
      * @brief Set an io_queue as holding pending completed requests.
      * This queues it in a percpu queue and raises a softirq, if needed.

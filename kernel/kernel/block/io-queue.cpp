@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 - 2024 Pedro Falcato
+ * Copyright (c) 2022 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -27,13 +27,20 @@ void io_queue::complete_request(struct request *req)
  */
 int io_queue::submit_request(struct request *req)
 {
+    int err;
     scoped_lock<spinlock, true> g{lock_};
     req->r_queue = this;
 
     if (used_entries_ < nr_entries_ && list_is_empty(&req_list_))
     {
         used_entries_++;
-        return device_io_submit(req);
+        err = device_io_submit(req);
+        if (err)
+            used_entries_--;
+        if (err != -EAGAIN && err != -ENOMEM)
+            return err;
+        /* We failed to submit, fallthrough */
+        set_failed_submit();
     }
 
     list_add_tail(&req->r_queue_list_node, &req_list_);
@@ -50,6 +57,24 @@ void io_queue::set_pending()
     if (!(__atomic_fetch_or(&flags_, IO_QUEUE_PENDING_SOFTIRQ, __ATOMIC_RELEASE) &
           IO_QUEUE_PENDING_SOFTIRQ))
         block_queue_pending_io_queue(this);
+}
+
+/**
+ * @brief Set the failed submit flag
+ *
+ */
+void io_queue::set_failed_submit()
+{
+    __atomic_fetch_or(&flags_, IO_QUEUE_FAILED_SUBMIT, __ATOMIC_RELAXED);
+}
+
+/**
+ * @brief Clear the failed submit flag
+ *
+ */
+void io_queue::clear_failed_submit()
+{
+    __atomic_fetch_and(&flags_, ~IO_QUEUE_FAILED_SUBMIT, __ATOMIC_RELAXED);
 }
 
 /**
@@ -81,7 +106,10 @@ void io_queue::restart_sq()
 void io_queue::__restart_queue()
 {
     if (pull_sq() == 0)
+    {
+        clear_failed_submit();
         return;
+    }
 
     u32 free_entries = nr_entries_ - used_entries_;
 
@@ -97,13 +125,15 @@ void io_queue::__restart_queue()
         int st = device_io_submit(req);
         if (st < 0)
         {
-            DCHECK(st == -EAGAIN);
-            /* TODO: Try again later? Is this even a good idea? */
+            DCHECK(st == -EAGAIN || st == -ENOMEM);
             list_add(&req->r_queue_list_node, &req_list_);
+            set_failed_submit();
             used_entries_--;
             return;
         }
     }
+
+    clear_failed_submit();
 }
 
 /**
