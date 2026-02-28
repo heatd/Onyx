@@ -32,6 +32,8 @@ static uint32_t bio_req_to_virtio_blk_type(uint8_t op)
             return VIRTIO_BLK_T_IN;
         case BIO_REQ_WRITE_OP:
             return VIRTIO_BLK_T_OUT;
+        case BIO_REQ_FLUSH_OP:
+            return VIRTIO_BLK_T_FLUSH;
         default:
             return (uint32_t) -1;
     }
