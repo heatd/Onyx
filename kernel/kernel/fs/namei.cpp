@@ -1617,6 +1617,13 @@ int do_renameat(struct dentry *dir, struct lookup_path &last, struct dentry *old
     if (IS_DEADDIR(inode))
         goto out_unlock_dirs;
 
+    err = -ENOTEMPTY;
+    if (old_parent == dest)
+    {
+        /* rename("aaaa/bbbb", "aaaa") is illegal */
+        goto out_unlock_dirs;
+    }
+
     locked = maybe_lock_target(dest);
 
     lockdep_assert_held_write(&old_parent->d_inode->i_rwlock);
