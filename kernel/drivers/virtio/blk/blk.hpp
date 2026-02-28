@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2021 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the MIT License
+ * Copyright (c) 2021 - 2026 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 
 #ifndef _VIRTIO_BLK_HPP
@@ -10,6 +12,7 @@
 #include <stdint.h>
 
 #include <onyx/block.h>
+#include <onyx/block/io-queue.h>
 
 #include "../virtio.hpp"
 #include <onyx/memory.hpp>
@@ -56,6 +59,29 @@ enum class blk_features
     write_zeroes = 14
 };
 
+class blk_vdev;
+
+struct vdev_queue final : public io_queue
+{
+private:
+    virtq *vq;
+    blk_vdev *dev;
+
+public:
+    vdev_queue(virtq *vq, blk_vdev *dev) : io_queue{vq->get_queue_size()}, vq{vq}, dev{dev}
+    {
+    }
+    /**
+     * @brief Submits IO to a device
+     *
+     * @param req struct request to submit
+     * @return 0 on sucess, negative error codes
+     */
+    int device_io_submit(struct request *req) override;
+
+    void do_complete(struct request *req) override;
+};
+
 class blk_vdev : public vdev
 {
 private:
@@ -64,6 +90,8 @@ private:
     size_t size_max, seg_max;
 
 public:
+    unique_ptr<vdev_queue> request_queue;
+
     blk_vdev(pci::pci_device *d) : vdev(d), block_size{512}, disk_size{}, size_max{0}, seg_max{0}
     {
     }
