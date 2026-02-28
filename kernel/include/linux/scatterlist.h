@@ -6,6 +6,8 @@
 
 #define CONFIG_NEED_SG_DMA_LENGTH
 
+__BEGIN_CDECLS
+
 struct scatterlist
 {
 	unsigned long	page_link;
@@ -57,14 +59,48 @@ static inline bool sg_end(struct scatterlist *sg)
 	return sg_flags(sg) == SG_END;
 }
 
-static inline bool sg_chain(struct scatterlist *sg)
+static inline void sg_mark_end(struct scatterlist *sg)
+{
+	sg->page_link |= SG_END;
+	sg->page_link &= ~SG_CHAIN;
+}
+
+static inline bool sg_is_chain(struct scatterlist *sg)
 {
 	return sg_flags(sg) == SG_CHAIN;
+}
+
+static inline void sg_chain(struct scatterlist *sg, unsigned int previous_nents, struct scatterlist *next)
+{
+	sg[previous_nents - 1].page_link = ((unsigned long) next) | SG_CHAIN;
 }
 
 static inline struct scatterlist *sg_chain_ptr(struct scatterlist *sg)
 {
 	return (struct scatterlist *) (sg->page_link & ~SG_PAGE_LINK_MASK);
+}
+
+static inline void sg_assign_page(struct scatterlist *sg, struct page *page)
+{
+	unsigned long page_link = sg->page_link & (SG_CHAIN | SG_END);
+
+	sg->page_link = page_link | (unsigned long) page;
+}
+
+static inline void sg_set_page(struct scatterlist *sg, struct page *page,
+			       unsigned int len, unsigned int offset)
+{
+	sg_assign_page(sg, page);
+	sg->length = len;
+	sg->offset = offset;
+}
+
+static inline void sg_set_buf(struct scatterlist *sg, const void *buf,
+			      unsigned int buflen)
+{
+	sg_assign_page(sg, phys_to_page(VIRT_TO_PHYS(buf)));
+	sg->length = buflen;
+	sg->offset = ((unsigned long) buf) & (PAGE_SIZE - 1);
 }
 
 struct sg_table {
@@ -178,13 +214,15 @@ int sg_alloc_table_from_pages_segment(struct sg_table *sgt, struct page **pages,
 				unsigned long size, unsigned int max_segment,
 				gfp_t gfp_mask);
 
+int sg_alloc_table(struct sg_table *table, unsigned int nents, gfp_t gfp);
+
 static inline struct scatterlist *sg_next(struct scatterlist *sg)
 {
 	if (unlikely(sg_end(sg)))
 		return NULL;
 
 	sg++;
-	if (unlikely(sg_chain(sg)))
+	if (unlikely(sg_is_chain(sg)))
 		return sg_chain_ptr(sg);
 	return sg;
 }
@@ -203,4 +241,5 @@ static inline struct scatterlist *sg_next(struct scatterlist *sg)
 #define for_each_sgtable_dma_sg(sgt, sg, i)	\
 	for_each_sg((sgt)->sgl, sg, (sgt)->nents, i)
 
+__END_CDECLS
 #endif

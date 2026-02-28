@@ -4,7 +4,7 @@
 
 // #include <uapi/asm-generic/bitsperlong.h>
 
-#if defined(CONFIG_X86) || defined(CONFIG_RISCV64)
+#if defined(CONFIG_X86) || defined(CONFIG_RISCV)
 #define BITS_PER_LONG 64
 #else
 #define BITS_PER_LONG 32
