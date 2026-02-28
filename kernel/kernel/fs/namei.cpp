@@ -1382,13 +1382,13 @@ int unlink_vfs(const char *path, int flags, int dirfd)
     if (IS_ERR(child))
     {
         st = PTR_ERR(child);
-        goto out2;
+        goto out_unlock;
     }
 
     if (d_is_negative(child))
     {
         st = -ENOENT;
-        goto out2;
+        goto out_dput;
     }
     /* Can't do that... Note that dentry always exists if it's a mountpoint */
     if (dentry_involved_with_mount(child))
@@ -1399,16 +1399,16 @@ int unlink_vfs(const char *path, int flags, int dirfd)
         st = -ENOTDIR;
 
     if (st < 0)
-        goto out2;
+        goto out_dput;
 
     st = mnt_get_write_access(parent.mount);
     if (st)
-        goto out3;
+        goto out_release_write;
 
     /* Do the actual fs unlink */
     st = inode->i_op->unlink(_name, flags, dentry);
     if (st < 0)
-        goto out3;
+        goto out_release_write;
 
     d_mark_unlink(child);
 
@@ -1422,13 +1422,13 @@ int unlink_vfs(const char *path, int flags, int dirfd)
         dentry_shrink_subtree(child);
     }
 
-out3:
+out_release_write:
     mnt_put_write(parent.mount);
-out2:
-    inode_unlock(inode);
-
+out_dput:
     /* Release the reference that we got from dentry_lookup_internal */
     dput(child);
+out_unlock:
+    inode_unlock(inode);
 out:
     path_put(&parent);
     return st;
