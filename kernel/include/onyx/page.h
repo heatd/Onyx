@@ -907,6 +907,9 @@ static inline void folio_get_many(struct folio *folio, unsigned int refs)
 
 #define FOLIO_TO_VIRT(folio) ((void *) ((unsigned long) folio_to_phys(folio) + PHYS_BASE))
 
+void *alloc_system_hashtable(const char *name, size_t chain_size, unsigned int scale,
+                             unsigned int flags, unsigned int *log2, unsigned long *mask);
+
 __END_CDECLS
 
 #endif
