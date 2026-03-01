@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2025 Pedro Falcato
+ * Copyright (c) 2017 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -1221,4 +1221,77 @@ unsigned long page_reclaim_target(gfp_t gfp, unsigned int order)
      */
     free_target = (nr_global_pages / 66) * cul::max(order, 3U);
     return free_target;
+}
+
+static struct page *alloc_exact_pages(size_t nr_pages, unsigned int order, gfp_t gfp)
+{
+    size_t order_pages = (1UL << order);
+    struct page *pages;
+
+    pages = alloc_pages(order, gfp);
+    if (!pages)
+        return NULL;
+    for (size_t i = nr_pages; i < order_pages; i++)
+        free_page(&pages[i]);
+    return pages;
+}
+
+void *alloc_system_hashtable(const char *name, size_t chain_size, unsigned int scale,
+                             unsigned int flags, unsigned int *log2, unsigned long *mask)
+{
+    unsigned long nr_entries, log, bytes;
+    unsigned int nr_pages;
+    struct page *page;
+    void *ret = NULL;
+    int order;
+    /* scale = amount of system memory bytes per chain */
+
+    nr_entries = nr_global_pages;
+    if (scale > PAGE_SHIFT)
+    {
+        /* scale is larger than page shift, we have to divide (shift right) by scale - PAGE_SHIFT */
+        nr_entries >>= (scale - PAGE_SHIFT);
+    }
+    else if (scale < PAGE_SHIFT)
+    {
+        /* scale is lesser than page shift, we have to multiply (shift left) by PAGE_SHIFT - scale
+         */
+        nr_entries <<= (PAGE_SHIFT - scale);
+    }
+
+    /* Round-up to the next power of 2 */
+    nr_entries = 1UL << (ilog2(nr_entries - 1) + 1);
+    log = ilog2(nr_entries);
+
+    do
+    {
+        /* Try to allocate it with the page allocator, then with vmalloc. If we fail, halve the size
+         * and try again. */
+        nr_entries = 1UL << log;
+        bytes = chain_size * nr_entries;
+        nr_pages = vm_size_to_pages(bytes);
+        order = pages2order(nr_pages);
+
+        if (order <= MAX_ORDER)
+        {
+            page = alloc_exact_pages(nr_pages, order, GFP_KERNEL | PAGE_ALLOC_NO_ZERO);
+            if (page)
+                ret = PAGE_TO_VIRT(page);
+        }
+
+        /* TODO: vmalloc hugepages... */
+        if (!ret)
+            ret = vmalloc(nr_pages, VM_TYPE_REGULAR, VM_WRITE | VM_READ,
+                          GFP_KERNEL | PAGE_ALLOC_NO_ZERO);
+    } while (!ret && --log > 0);
+
+    if (!ret)
+        panic("Failed to allocate hashtable %s\n", name);
+    pr_info("pagealloc: Allocated hashtable %s, %lu entries (%lu bytes) via %s\n", name, nr_entries,
+            bytes, page ? "page allocator" : "vmalloc");
+    if (log2)
+        *log2 = log;
+    if (mask)
+        *mask = nr_entries - 1;
+    return ret;
 }
