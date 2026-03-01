@@ -44,6 +44,7 @@ extern "C"
 #endif
 
 void __spin_lock(struct spinlock *lock) __ACQUIRE(lock);
+void __spin_lock_nested(struct spinlock *lock, unsigned int subclass) __ACQUIRE(lock);
 void __spin_unlock(struct spinlock *lock) __RELEASE(lock);
 int spin_try_lock(struct spinlock *lock);
 
@@ -104,6 +105,12 @@ static inline void spin_unlock_irqrestore(struct spinlock *lock, unsigned long o
 static inline bool spin_lock_held(struct spinlock *lock)
 {
     return READ_ONCE(lock->lock.lock) == get_cpu_nr() + 1;
+}
+
+static inline void spin_lock_nested(struct spinlock *lock, unsigned int subclass) __ACQUIRE(lock)
+{
+    sched_disable_preempt();
+    __spin_lock_nested(lock, subclass);
 }
 
 static inline void spin_lock(struct spinlock *lock) __ACQUIRE(lock)

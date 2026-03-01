@@ -71,6 +71,13 @@ void __spin_lock(struct spinlock *lock)
     post_lock_actions(lock);
 }
 
+void __spin_lock_nested(struct spinlock *lock, unsigned int subclass)
+{
+    spin_acquire(&lock->dep_map, subclass, 0, _RET_IP_);
+    arch_spin_lock(&lock->lock);
+    post_lock_actions(lock);
+}
+
 void arch_spin_unlock(arch_spinlock_t *lock)
 {
     __atomic_store_n(&lock->lock, 0, __ATOMIC_RELEASE);
