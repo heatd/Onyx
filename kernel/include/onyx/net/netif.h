@@ -144,7 +144,6 @@ __BEGIN_CDECLS
 void netif_register_if(struct netif *netif);
 int netif_unregister_if(struct netif *netif);
 struct netif *netif_choose(void);
-void netif_get_ipv4_addr(struct sockaddr_in *s, struct netif *netif);
 struct netif *netif_from_if(uint32_t oif);
 struct netif *netif_from_name(const char *name);
 int netif_do_rx(void);
