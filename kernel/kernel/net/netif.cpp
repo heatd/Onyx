@@ -237,11 +237,6 @@ int netif_send_packet(netif *netif, packetbuf *buf)
     return -ENODEV;
 }
 
-void netif_get_ipv4_addr(struct sockaddr_in *s, struct netif *netif)
-{
-    memcpy(&s, &netif->local_ip, sizeof(struct sockaddr));
-}
-
 netif *netif_from_name(const char *name)
 {
     scoped_lock g{netif_list_lock};
