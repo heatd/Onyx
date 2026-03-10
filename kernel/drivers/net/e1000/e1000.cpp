@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the MIT License
+ * Copyright (c) 2016 - 2026 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 
 #include "e1000.h"
@@ -811,6 +813,7 @@ int e1000_probe(struct device *__dev)
     n->rx_end = e1000_rxend;
     nicdev->nic_netif = n;
     n->dll_ops = &eth_ops;
+    n->tx_queue_len = number_tx_desc;
     memcpy(n->mac_address, nicdev->e1000_internal_mac_address, 6);
     netif_register_if(n);
 
@@ -830,5 +833,5 @@ int e1000_init(void)
 
 MODULE_INIT(e1000_init);
 MODULE_INSERT_VERSION();
-MODULE_LICENSE(MODULE_LICENSE_MIT);
+MODULE_LICENSE(MODULE_LICENSE_GPL2);
 MODULE_AUTHOR("Pedro Falcato");
