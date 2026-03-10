@@ -1,9 +1,9 @@
 /*
- * Copyright (c) 2021 - 2022 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the MIT License
+ * Copyright (c) 2021 - 2026 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 
 #include "rtl8168.h"
@@ -549,6 +549,7 @@ int rtl8168_device::init()
     n->rx_end = rtl8168_rx_end;
     netif_ = n;
     n->dll_ops = &eth_ops;
+    n->tx_queue_len = number_tx_desc;
     memcpy(n->mac_address, mac_, 6);
     netif_register_if(n);
 
@@ -618,5 +619,5 @@ int rtl8168_init(void)
 
 MODULE_INIT(rtl8168_init);
 MODULE_INSERT_VERSION();
-MODULE_LICENSE(MODULE_LICENSE_MIT);
+MODULE_LICENSE(MODULE_LICENSE_GPL2);
 MODULE_AUTHOR("Pedro Falcato");
