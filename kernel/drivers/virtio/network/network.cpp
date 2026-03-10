@@ -1,10 +1,11 @@
 /*
- * Copyright (c) 2020 - 2022 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the MIT License
+ * Copyright (c) 2020 - 2026 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-2.0-only
  */
+
 #include "network.hpp"
 
 #include <stdio.h>
@@ -310,6 +311,7 @@ bool network_vdev::perform_subsystem_initialization()
     nif->poll_rx = virtio::network_vdev::__poll_rx;
     nif->rx_end = virtio::network_vdev::__rx_end;
     nif->dll_ops = &eth_ops;
+    nif->tx_queue_len = get_max_virtq_size(network_transmitq);
 
     cul::slice<uint8_t, 6> m{nif->mac_address, 6};
     get_mac(m);

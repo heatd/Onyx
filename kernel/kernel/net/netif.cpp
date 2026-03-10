@@ -510,7 +510,8 @@ static int netif_dump_if(struct packetbuf *pbf, struct netif *iff, pid_t pid, u3
 
     if (nla_put(pbf, IFLA_ADDRESS, 6, iff->mac_address) ||
         nla_put(pbf, IFLA_BROADCAST, 6, brdcast) || nla_put_u32(pbf, IFLA_MTU, iff->mtu) ||
-        nla_put(pbf, IFLA_STATS, sizeof(fake_stats), &fake_stats))
+        nla_put(pbf, IFLA_STATS, sizeof(fake_stats), &fake_stats) ||
+        nla_put_u32(pbf, IFLA_TXQLEN, iff->tx_queue_len))
         return -EMSGSIZE;
     nlh->nlmsg_len = pbf->tail - (unsigned char *) nlh;
     return 0;
