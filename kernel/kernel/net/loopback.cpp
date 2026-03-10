@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2022 Pedro Falcato
+ * Copyright (c) 2020 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -91,7 +91,7 @@ void loopback_init()
     n->poll_rx = loopback_pollrx;
     n->rx_end = [](netif *nif) {}; // rx_end does nothing for us, as we do not have interrupts.
     n->dll_ops = &eth_ops;
-
+    n->tx_queue_len = 1024;
     netif_register_if(n);
 
     if_inet6_addr addr;
