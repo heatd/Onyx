@@ -10,7 +10,7 @@ ALL_MODULES:=$(PROJECTS) $(SOURCE_PACKAGES) $(patsubst %, usystem/%, $(USYSTEM_P
 $(SOURCE_PACKAGES) build-cleanup musl
 
 export DESTDIR:=$(PWD)/sysroot
-export HOST?=$(shell scripts/arch-to-host.sh $(ONYX_ARCH))
+export HOST:=$(shell scripts/arch-to-host.sh $(ONYX_ARCH))
 export BUILDPKG_BIN?=$(PWD)/buildpkg/buildpkg
 export BUILDPKG_BIN_PY_WRAPPER?=$(PWD)/buildpkg/buildpkg_gn_wrapper
 
