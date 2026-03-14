@@ -351,6 +351,11 @@ static inline bool pmd_huge(pmd_t pmd)
     return pmd_val(pmd) & _PAGE_HUGE;
 }
 
+static inline pmd_t pmd_mkpmd_huge(u64 phys, pgprot_t prot)
+{
+    return __pmd(phys | pgprot_val(prot) | _PAGE_HUGE);
+}
+
 static inline bool pud_user(pud_t pud)
 {
     return pud_val(pud) & _PAGE_USER;
@@ -424,6 +429,11 @@ static inline pte_t pte_wrprotect(pte_t pte)
     return __pte(pte_val(pte) | _PAGE_READONLY);
 }
 
+static inline pmd_t pmd_wrprotect(pmd_t pmd)
+{
+    return __pmd(pmd_val(pmd) | _PAGE_READONLY);
+}
+
 #define PGPROT_VM_MASK      (VM_READ | VM_WRITE | VM_EXEC | VM_USER)
 #define ARM64_MAX_NR_PGPROT (PGPROT_VM_MASK + 1)
 extern const pgprotval_t arm64_pgprot[ARM64_MAX_NR_PGPROT];
@@ -440,6 +450,12 @@ static inline bool pte_protnone(pte_t pte)
 {
     return (pte_val(pte) & (_PAGE_PRESENT | _PAGE_PROTNONE)) == _PAGE_PROTNONE;
 }
+
+static inline bool pmd_protnone(pmd_t pmd)
+{
+    return (pmd_val(pmd) & (_PAGE_PRESENT | _PAGE_PROTNONE)) == _PAGE_PROTNONE;
+}
+
 
 #define ARCH_SWAP_NR_TYPES  16
 #define ARCH_SWP_TYPE_SHIFT 60
