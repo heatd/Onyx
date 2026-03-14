@@ -90,6 +90,8 @@ extern "C" int do_machine_suspend(unsigned int flags)
 
 void cpu_send_resched(unsigned int cpu)
 {
+    if (cpu == get_cpu_nr())
+        return;
     UNIMPLEMENTED;
 }
 
