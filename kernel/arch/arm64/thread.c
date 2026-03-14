@@ -32,7 +32,6 @@ void thread_setup_stack(struct thread *thread, bool is_user, const registers_t *
         kregs->sp = (uint64_t) thread->kernel_stack;
     }
 
-    pr_warn("pc: %lx\n", kregs->pc);
     thread->kernel_stack = (uint64_t *) kregs;
 }
 
