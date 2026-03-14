@@ -51,7 +51,7 @@ int main(int argc, char **argv)
     int page_size = sysconf(_SC_PAGE_SIZE);
     int flag;
 
-    while ((flag = getopt_long(argc, argv, "vhp", long_options, &indexptr)) != -1)
+    while ((flag = getopt_long(argc, argv, "vhp:", long_options, &indexptr)) != -1)
     {
         switch (flag)
         {
