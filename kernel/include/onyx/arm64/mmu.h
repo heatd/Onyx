@@ -38,7 +38,7 @@
 #define TCR_IRGN1_WRITE_BACK_ALLOCATE (1 << 24)
 #define TCR_ORGN1_WRITE_BACK_ALLOCATE (1 << 26)
 #define TCR_SH1_INNER_SHAREABLE       (3 << 28)
-#define TCR_TG1_4KB_GRANULE           (0 << 30) // 4KB granule for the TTBR
+#define TCR_TG1_4KB_GRANULE           (2 << 30) // 4KB granule for the TTBR
 #define TCR_IPS_40_BITS               (2UL << 32)
 #define TCR_IPS_ASID_SIZE_16_BIT      (1UL << 36)
 #define TCR_TBI0                      (1UL << 37) // Top byte ignore
