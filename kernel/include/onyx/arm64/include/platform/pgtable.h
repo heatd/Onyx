@@ -500,7 +500,7 @@ static inline void set_pte(pte_t *pte, pte_t val)
          * Note that this is not an issue for user PTEs because those are either harmless (we get a
          * spurious fault), or we'll flush the TLB (and do this anyway).
          */
-        dsb();
+        dsb(sy);
         isb();
     }
 }

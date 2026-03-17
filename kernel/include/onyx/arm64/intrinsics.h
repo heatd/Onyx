@@ -35,5 +35,5 @@ static inline void mov_non_temporal(volatile Type *p, Type val)
 #define REG_CNTPCT "cntvct_el0"
 #define REG_CNTFRQ "cntfrq_el0"
 
-#define dsb() __asm__ __volatile__("dsb sy" ::: "memory")
+#define dsb(mode) __asm__ __volatile__("dsb " #mode ::: "memory")
 #endif
