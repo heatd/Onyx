@@ -51,6 +51,11 @@ static inline void __native_tlb_invalidate_page(void *addr)
     dsb();
 }
 
+void flush_tlb_page(struct vm_area_struct *vma, unsigned long addr)
+{
+    __native_tlb_invalidate_page((void *) addr);
+}
+
 static bool pte_empty(uint64_t pte)
 {
     return pte == 0;

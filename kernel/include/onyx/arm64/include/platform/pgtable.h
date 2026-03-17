@@ -334,7 +334,7 @@ static inline pte_t pte_mkyoung(pte_t pte)
 
 static inline pte_t pte_mkwrite(pte_t pte)
 {
-    return __pte(pte_val(pte) & ~_PAGE_READONLY);
+    return __pte((pte_val(pte) | _PAGE_DIRTY) & ~_PAGE_READONLY);
 }
 
 /* PML4-level hugepages not supported on x86, for now... */
@@ -426,7 +426,7 @@ static inline bool p4d_folded(void)
 
 static inline pte_t pte_wrprotect(pte_t pte)
 {
-    return __pte(pte_val(pte) | _PAGE_READONLY);
+    return __pte((pte_val(pte) & ~_PAGE_DIRTY) | _PAGE_READONLY);
 }
 
 static inline pmd_t pmd_wrprotect(pmd_t pmd)
@@ -504,8 +504,20 @@ static inline void set_pte(pte_t *pte, pte_t val)
         isb();
     }
 }
-
 #define set_pte set_pte
+
+void flush_tlb_page(struct vm_area_struct *vma, unsigned long addr);
+
+static inline void set_pte_over(struct vm_area_struct *vma, unsigned long addr, pte_t *pte,
+                                pte_t val)
+{
+    /* We need a BBM sequence when mapping over the pte, changing
+     * the OA */ 
+    set_pte(pte, __pte(0));
+    flush_tlb_page(vma, addr);
+    set_pte(pte, val);
+}
+#define set_pte_over set_pte_over
 
 __END_CDECLS
 
