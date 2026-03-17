@@ -61,7 +61,16 @@ static void set_pte(pte_t *pte, pte_t val)
 {
     WRITE_ONCE(pte_val(*pte), pte_val(val));
 }
-#define set_pgd set_pgd
+#define set_pte set_pte
+#endif
+
+#ifndef set_pte_over
+static inline void set_pte_over(struct vm_area_struct *vma, unsigned long addr, pte_t *pte,
+                                pte_t val)
+{
+    set_pte(pte, val);
+}
+#define set_pte_over
 #endif
 
 static inline bool pte_cmpxchg(pte_t *pte, pte_t *expected, pte_t desired)
