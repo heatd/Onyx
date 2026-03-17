@@ -31,7 +31,7 @@ struct thread *process_fork_thread(thread_t *src, struct process *dest, unsigned
 {
     registers_t regs;
     struct syscall_frame *ctx = task_curr_syscall_frame();
-    unsigned long new_tls = src->tpidr;
+    unsigned long new_tls = mrs("tpidr_el0");
 
     /* Setup the registers on the stack */
     memcpy(&regs, &ctx->regs, sizeof(regs));
