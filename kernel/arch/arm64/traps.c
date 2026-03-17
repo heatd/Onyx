@@ -85,7 +85,7 @@ struct vm_area_struct *vm_search(struct mm_address_space *mm, void *addr, size_t
     REQUIRES_SHARED(mm->vm_lock);
 
 #define dumpprint printk
-struct mutex dumplock;
+DECLARE_MUTEX(dumplock);
 
 static void attempt_map_pointer(unsigned long word)
 {
