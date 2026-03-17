@@ -46,6 +46,7 @@ static const unsigned int arm64_max_paging_levels = 5;
 static inline void __native_tlb_invalidate_page(void *addr)
 {
     // TODO: ASIDs
+    dsb();
     __asm__ __volatile__("tlbi vaae1is, %0" ::"r"((unsigned long) addr >> PAGE_SHIFT));
     dsb();
 }
@@ -139,7 +140,10 @@ unsigned long placement_mappings_start = 0xffffffffffc00000;
 
 void __native_tlb_invalidate_all()
 {
+    dsb();
     __asm__ __volatile__("tlbi vmalle1is");
+    dsb();
+    isb();
 }
 
 PML *arm64_get_kernel_page_table()
@@ -197,8 +201,8 @@ int paging_clone_as(mm_address_space *addr_space, mm_address_space *original)
 void paging_load_el0_pt(PML *pml)
 {
     msr("ttbr0_el1", pml);
-    isb();
     dsb();
+    isb();
     __native_tlb_invalidate_all();
 }
 
@@ -303,7 +307,9 @@ void paging_invalidate(void *page, size_t pages)
 
     if (pages > 128)
     {
+        dsb();
         __native_tlb_invalidate_all();
+        dsb();
         return;
     }
 
