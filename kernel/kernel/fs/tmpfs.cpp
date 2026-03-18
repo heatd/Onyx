@@ -486,3 +486,49 @@ const struct super_ops tmpfs_sb_ops = {
     .shutdown = sb_generic_shutdown,
     .free_inode = tmpfs_free_inode,
 };
+
+static tmpfs_superblock *shmemfs_sb;
+
+__init void shmem_init()
+{
+    shmemfs_sb = new tmpfs_superblock(0);
+    CHECK(shmemfs_sb);
+}
+
+/**
+ * @brief Create a new shmem file
+ *
+ * @param len Length, in bytes
+ * @return Opened struct file, or NULL
+ */
+struct file *anon_get_shmem(size_t len)
+{
+    struct dentry *dentry;
+    struct file *f;
+    tmpfs_inode *ino = shmemfs_sb->alloc_inode(0777 | S_IFREG, 0);
+    if (!ino)
+        return nullptr;
+    ino->i_size = -1UL;
+
+    /* Note for future me: While this solution basically works, it does not properly work if we care
+     * about merging of MAP_SHARED or mremap. That will take some more annoying codepaths that e.g
+     * properly adjust the length of the inode.
+     */
+    dentry = dentry_create("[anon_shmem]", ino, nullptr);
+    if (!dentry)
+        goto err;
+    dget(dentry);
+
+    f = inode_to_file(ino);
+    if (!f)
+        goto err;
+
+    f->f_dentry = dentry;
+    return f;
+err:
+    if (dentry)
+        dput(dentry);
+    if (ino)
+        inode_unref(ino);
+    return nullptr;
+}
