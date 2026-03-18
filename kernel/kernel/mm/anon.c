@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 - 2024 Pedro Falcato
+ * Copyright (c) 2023 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -9,20 +9,22 @@
 #include <onyx/dentry.h>
 #include <onyx/mm/page_lru.h>
 #include <onyx/mm/shmem.h>
+#include <onyx/page.h>
 #include <onyx/rmap.h>
-#include <onyx/tmpfs.h>
 #include <onyx/vm.h>
 #include <onyx/vm_fault.h>
 
 int vm_anon_fault(struct vm_pf_context *ctx);
 
-const struct vm_operations anon_vmops = {.fault = vm_anon_fault};
+const struct vm_operations anon_vmops = {
+    .fault = vm_anon_fault,
+};
 
 int vm_anon_fault(struct vm_pf_context *ctx)
 {
     struct vm_area_struct *vma = ctx->entry;
     struct fault_info *info = ctx->info;
-    struct page *page = nullptr;
+    struct page *page = NULL;
     pte_t *ptep;
     struct spinlock *lock;
 
