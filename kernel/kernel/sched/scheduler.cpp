@@ -190,13 +190,12 @@ unsigned long sched_lock(thread *thread)
 
     /* 1st - Lock the per-cpu scheduler */
     /* 2nd - Lock the thread */
-
-    assert(thread->cpu < percpu_get_nr_bases());
     unsigned long cpu_flags, _;
 
     for (;;)
     {
         unsigned int cpu = READ_ONCE(thread->cpu);
+        assert(cpu < get_nr_cpus());
         struct spinlock *l = get_per_cpu_ptr_any(scheduler_lock, cpu);
         cpu_flags = spin_lock_irqsave(l);
         _ = spin_lock_irqsave(&thread->lock);
@@ -1311,10 +1310,11 @@ void sched_handle_preempt(bool may_softirq)
     if (may_softirq && softirq_pending()) [[unlikely]]
         softirq_handle();
     auto curr = get_current_thread();
-    if (curr && curr->flags & THREAD_NEEDS_RESCHED && curr->status == THREAD_RUNNABLE) [[unlikely]]
+    if (curr && READ_ONCE(curr->flags) & THREAD_NEEDS_RESCHED &&
+        READ_ONCE(curr->status) == THREAD_RUNNABLE) [[unlikely]]
     {
         sched_yield();
-        curr->flags &= ~THREAD_NEEDS_RESCHED;
+        atomic_and_relaxed(curr->flags, ~THREAD_NEEDS_RESCHED);
     }
 }
 
