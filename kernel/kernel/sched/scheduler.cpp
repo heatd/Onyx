@@ -246,11 +246,12 @@ static thread_t *sched_steal_job(unsigned int cpu)
                     continue;
                 /* Advance the queue by one */
                 thread_queues[j] = ret->next_prio;
-                if (thread_queues[j])
-                    ret->prev_prio = nullptr;
+                ret->prev_prio = nullptr;
                 ret->next_prio = nullptr;
                 other_cpu_add(tasks_in_queues, -1, i);
                 add_per_cpu(tasks_in_queues, 1);
+                WARN_ON(ret->cpu != i);
+                SCHED_DEBUG_WARN_ON(!(READ_ONCE(ret->flags) & THREAD_IN_QUEUE));
                 ret->cpu = cpu;
                 atomic_or_relaxed(ret->flags, THREAD_SNOOPED);
                 spin_unlock(sched_lock);
@@ -313,10 +314,8 @@ thread_t *__sched_find_next(unsigned int cpu)
 
             /* Advance the queue by one */
             thread_queues[i] = ret->next_prio;
-            if (thread_queues[i])
-                ret->prev_prio = nullptr;
+            ret->prev_prio = nullptr;
             ret->next_prio = nullptr;
-
             return ret;
         }
     }

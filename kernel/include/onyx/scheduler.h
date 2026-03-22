@@ -177,13 +177,17 @@ typedef struct thread
 #define THREAD_RUNNING       (1 << 5)
 
 #ifdef CONFIG_DEBUG_SCHEDULER
-#define THREAD_IN_QUEUE (1 << 6)
-#define THREAD_SNOOPED  (1 << 7)
-#define THREAD_FASTWAKE (1 << 8)
+#define THREAD_IN_QUEUE           (1 << 6)
+#define THREAD_SNOOPED            (1 << 7)
+#define THREAD_FASTWAKE           (1 << 8)
+#define SCHED_DEBUG_WARN_ON(cond) (WARN_ON(cond))
 #else
 #define THREAD_IN_QUEUE 0
 #define THREAD_SNOOPED  0
 #define THREAD_FASTWAKE 0
+// clang-format off
+#define SCHED_DEBUG_WARN_ON(cond) do {} while(0)
+// clang-format on
 #endif
 
 int sched_init(void);
