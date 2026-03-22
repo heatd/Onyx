@@ -52,9 +52,9 @@ void stack_trace_user(uintptr_t *stack)
     printk("Stack trace ended.\n");
 }
 
-extern "C" size_t stack_trace_get(unsigned long *stack, unsigned long *pcs, size_t nr_pcs)
+static size_t __stack_trace_get(unsigned long *stack, struct thread *thread, unsigned long *pcs,
+                                size_t nr_pcs)
 {
-    thread_t *thread = get_current_thread();
     size_t unwinds_possible = 0;
     if (!thread) // We're still in single tasking mode, just use a safe default
         unwinds_possible = DEFAULT_UNWIND_NUMBER; // Early kernel functions don't nest a lot
@@ -97,6 +97,20 @@ extern "C" size_t stack_trace_get(unsigned long *stack, unsigned long *pcs, size
         pcs[i] = 0;
 
     return i;
+}
+
+extern "C" size_t stack_trace_get(unsigned long *stack, unsigned long *pcs, size_t nr_pcs)
+{
+    return __stack_trace_get(stack, get_current_thread(), pcs, nr_pcs);
+}
+
+extern "C" NO_ASAN void stack_trace_thread(struct thread *thread)
+{
+    unsigned long pcs[32];
+    const size_t nr =
+        __stack_trace_get(thread->kernel_stack, thread, pcs, sizeof(pcs) / sizeof(unsigned long));
+    for (size_t i = 0; i < nr; i++)
+        printk(" %pS\n", (void *) pcs[i]);
 }
 
 char *resolve_sym(void *address);

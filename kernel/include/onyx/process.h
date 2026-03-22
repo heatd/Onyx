@@ -223,6 +223,8 @@ struct process
     unsigned long nvcsw;
     unsigned long nivcsw;
 
+    hrtime_t last_switch_time;
+
     unsigned long nr_dirtied;
     unsigned long nr_dirtied_pause;
 
@@ -493,6 +495,7 @@ static inline mode_t do_umask(mode_t mode)
 pid_t process_get_active_processes();
 
 extern rwslock_t tasklist_lock;
+extern struct list_head tasklist;
 
 /* Supposed to be used with rcu_dereference_check and rcu_dereference_protected. NOP while we don't
  * have lockdep. */

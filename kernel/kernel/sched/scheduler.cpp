@@ -576,6 +576,7 @@ extern "C" void *sched_schedule(void *last_stack)
                 current->nvcsw++;
             else
                 current->nivcsw++;
+            current->last_switch_time = clocksource_get_time();
         }
 
         curr_thread->flags &= ~THREAD_ACTIVE;
