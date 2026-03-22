@@ -36,6 +36,14 @@ config DEBUG_MAPLE_TREE
 
         If in doubt, say N.
 
+config DEBUG_SCHEDULER
+    bool "Scheduler debugging checks"
+    help
+        Enable scheduler debugging checks. These can be useful
+        to track problems in the scheduler.
+
+        If in doubt, say N.
+
 config DEBUG_ADDRESS_SPACE_ACCT
     bool "Address space accounting checks"
     help

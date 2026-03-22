@@ -176,6 +176,16 @@ typedef struct thread
 #define THREAD_ACTIVE        (1 << 4)
 #define THREAD_RUNNING       (1 << 5)
 
+#ifdef CONFIG_DEBUG_SCHEDULER
+#define THREAD_IN_QUEUE (1 << 6)
+#define THREAD_SNOOPED  (1 << 7)
+#define THREAD_FASTWAKE (1 << 8)
+#else
+#define THREAD_IN_QUEUE 0
+#define THREAD_SNOOPED  0
+#define THREAD_FASTWAKE 0
+#endif
+
 int sched_init(void);
 
 thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void *args);
