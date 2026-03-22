@@ -88,6 +88,44 @@ static char buffer[1000];
 
 #endif
 
+extern "C" NO_ASAN void stack_trace_thread(struct thread *thread)
+{
+    // Get all the unwinds possible using threading structures
+    size_t unwinds_possible = 0;
+    if (!thread) // We're still in single tasking mode, just use a safe default
+        unwinds_possible = DEFAULT_UNWIND_NUMBER; // Early kernel functions don't nest a lot
+    else
+        unwinds_possible = 1024; /* It's safe to say the stack won't grow larger than this */
+
+    uint64_t *rbp = (uint64_t *) ((struct registers *) thread->kernel_stack)->rbp;
+    for (size_t i = 0; i < unwinds_possible; i++)
+    {
+        if (thread)
+        {
+            if ((uintptr_t) rbp & 0x7)
+                break;
+
+            unsigned long stack_base = ((unsigned long) thread->kernel_stack_top) - 0x4000;
+
+            if (rbp >= thread->kernel_stack_top)
+                break;
+            if (rbp + 1 >= thread->kernel_stack_top)
+                break;
+            if (rbp < (unsigned long *) stack_base)
+                break;
+        }
+
+        unsigned long ip = *(rbp + 1);
+        if (!is_kernel_ip(ip))
+            break;
+
+        pr_emerg(" %pS\n", (void *) ip);
+        rbp = (uint64_t *) *rbp;
+        if (!rbp)
+            break;
+    }
+}
+
 NO_ASAN
 __attribute__((no_sanitize_undefined)) void stack_trace_ex(uint64_t *stack)
 {
