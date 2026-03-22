@@ -125,7 +125,6 @@ static void folio_batch_activate_lru(struct folio_batch *batch)
     for (unsigned int i = 0; i < batch->nr; i++)
     {
         folio = batch->batch[i];
-        CHECK(!folio_test_lru(folio));
         newlru = folio_to_page_lru(folio);
         if (lru != newlru)
         {
@@ -134,6 +133,10 @@ static void folio_batch_activate_lru(struct folio_batch *batch)
             spin_lock(&newlru->lock);
             lru = newlru;
         }
+
+        /* Someone added it to an LRU just now? It's possible. Just ignore, then. */
+        if (folio_test_lru(folio))
+            continue;
 
         folio_set_lru(folio);
 
