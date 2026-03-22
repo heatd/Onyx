@@ -140,7 +140,7 @@ int scnprintf(char *buf, size_t size, const char *fmt, ...);
     ({                                                           \
         static bool do_once = 0;                                 \
         if (!__atomic_exchange_n(&do_once, 1, __ATOMIC_RELAXED)) \
-            pr_warn(fmt, __VA_ARGS__);                           \
+            pr_warn(fmt, ##__VA_ARGS__);                         \
     })
 
 int fprintf(FILE *__restrict, const char *__restrict, ...);
