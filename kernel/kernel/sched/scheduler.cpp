@@ -252,6 +252,7 @@ static thread_t *sched_steal_job(unsigned int cpu)
                 other_cpu_add(tasks_in_queues, -1, i);
                 add_per_cpu(tasks_in_queues, 1);
                 ret->cpu = cpu;
+                atomic_or_relaxed(ret->flags, THREAD_SNOOPED);
                 spin_unlock(sched_lock);
                 return ret;
             }
@@ -335,6 +336,8 @@ thread_t *sched_find_runnable(void)
     {
         panic("sched_find_runnable: no runnable thread");
     }
+    atomic_and_relaxed(thread->flags, ~THREAD_IN_QUEUE);
+    WARN_ON(thread->cpu != get_cpu_nr());
     return thread;
 }
 
@@ -650,6 +653,10 @@ static void ___sched_append_to_queue(int priority, unsigned int cpu, struct thre
         queue->next_prio = thread;
         thread->prev_prio = queue;
     }
+
+    thread->next_prio = NULL;
+    atomic_or_relaxed(thread->flags, THREAD_IN_QUEUE);
+    atomic_and_relaxed(thread->flags, ~(THREAD_SNOOPED | THREAD_FASTWAKE));
 }
 
 static void __sched_append_to_queue(int priority, unsigned int cpu, struct thread *thread)
