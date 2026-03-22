@@ -218,6 +218,7 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
     new_thread->id = curr_id++;
     new_thread->flags = flags;
     new_thread->canary = THREAD_STRUCT_CANARY;
+    new_thread->on_cpu = 0;
     spinlock_init(&new_thread->lock);
 
     bool is_user = !(flags & THREAD_KERNEL);
@@ -316,8 +317,7 @@ thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void *
     return t;
 }
 
-extern "C" [[noreturn]] void x86_context_switch(thread *prev, unsigned char *stack,
-                                                bool needs_to_kill_prev);
+extern "C" [[noreturn]] void x86_context_switch(thread *prev, unsigned char *stack);
 
 namespace native
 {
@@ -364,8 +364,7 @@ void arch_load_process(struct process *process, struct thread *thread, unsigned 
 
 [[noreturn]] void arch_context_switch(thread *prev, thread *next)
 {
-    bool is_last_dead = prev && prev->status == THREAD_DEAD;
-    x86_context_switch(prev, (unsigned char *) next->kernel_stack, is_last_dead);
+    x86_context_switch(prev, (unsigned char *) next->kernel_stack);
 }
 
 int arch_transform_into_user_thread(thread *thread)
@@ -384,8 +383,3 @@ int arch_transform_into_user_thread(thread *thread)
 }
 
 } // namespace native
-
-extern "C" void x86_thread_put(thread *t)
-{
-    thread_put(t);
-}

@@ -62,6 +62,7 @@ typedef struct thread
     int status;
     int priority;
     unsigned int cpu;
+    unsigned int on_cpu;
     struct thread *next;
     struct thread *prev_prio, *next_prio;
     unsigned char *fpu_area;
