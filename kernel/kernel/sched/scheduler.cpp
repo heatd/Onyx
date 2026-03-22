@@ -366,15 +366,11 @@ unsigned long nrun = 0;
 
 unsigned long sched_get_runnable(void)
 {
-    unsigned long nr_runnable = 0, nr_runnable2 = 0;
+    unsigned long nr_runnable = 0;
 
     for (unsigned int i = 0; i < get_nr_cpus(); i++)
-    {
         nr_runnable += other_cpu_get(runnable_delta, i);
-        nr_runnable2 += other_cpu_get(tasks_in_queues, i);
-    }
 
-    DCHECK(nr_runnable == nr_runnable2);
     return nr_runnable;
 }
 
