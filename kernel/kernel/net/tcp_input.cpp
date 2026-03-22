@@ -801,8 +801,8 @@ static void tcp_do_synack_retransmit(struct clockevent *ce)
 static void tcp_setup_synack_retransmit(struct tcp_connreq *conn)
 {
     struct clockevent *ce = &conn->retransmit_timer;
-    ce->callback = tcp_do_synack_retransmit;
-    ce->flags = 0;
+
+    clockevent_init(ce, tcp_do_synack_retransmit, 0);
     ce->deadline = clocksource_get_time() + TCP_SYNACK_RTO_NS;
     ce->priv = conn;
     timer_queue_clockevent(&conn->retransmit_timer);

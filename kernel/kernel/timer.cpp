@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2022 Pedro Falcato
+ * Copyright (c) 2019 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -256,12 +256,9 @@ int itimer::arm(hrtime_t interval, hrtime_t initial)
     }
 
     interval_delta = interval;
-    ev.callback = itimer_callback;
+    clockevent_init(&ev, itimer_callback, (interval_delta ? CLOCKEVENT_FLAG_PULSE : 0));
     ev.priv = this;
-    ev.flags = (interval_delta ? CLOCKEVENT_FLAG_PULSE : 0);
-    ev.timer = nullptr;
     ev.deadline = clocksource_get_time() + initial;
-
     timer_queue_clockevent(&ev);
 
     armed = true;

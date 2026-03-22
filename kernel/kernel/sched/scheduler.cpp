@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2025 Pedro Falcato
+ * Copyright (c) 2016 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -736,11 +736,9 @@ void sched_init_cpu(unsigned int cpu)
 void sched_enable_pulse(void)
 {
     clockevent *ev = get_per_cpu(sched_pulse);
-    ev->callback = sched_decrease_quantum;
-    ev->deadline = clocksource_get_time() + NS_PER_MS;
-    ev->flags = CLOCKEVENT_FLAG_ATOMIC | CLOCKEVENT_FLAG_PULSE;
-    ev->priv = NULL;
 
+    clockevent_init(ev, sched_decrease_quantum, CLOCKEVENT_FLAG_ATOMIC | CLOCKEVENT_FLAG_PULSE);
+    ev->deadline = clocksource_get_time() + NS_PER_MS;
     timer_queue_clockevent(ev);
 }
 
@@ -818,7 +816,10 @@ hrtime_t sched_sleep(unsigned long ns)
     thread_t *current = get_current_thread();
 
     clockevent ev;
-    ev.callback = sched_sleep_unblock;
+    /* This clockevent can run atomically because it's a simple thread_wake_up,
+     * which is safe to call from atomic/interrupt context.
+     */
+    clockevent_init(&ev, sched_sleep_unblock, CLOCKEVENT_FLAG_ATOMIC);
     ev.priv = current;
 
     /* This is a bit of a hack but we need this in cases where we have timeout but we're not
@@ -832,10 +833,6 @@ hrtime_t sched_sleep(unsigned long ns)
         status = THREAD_INTERRUPTIBLE;
     }
 
-    /* This clockevent can run atomically because it's a simple thread_wake_up,
-     * which is safe to call from atomic/interrupt context.
-     */
-    ev.flags = CLOCKEVENT_FLAG_ATOMIC;
     ev.deadline = clocksource_get_time() + ns;
     timer_queue_clockevent(&ev);
 

@@ -480,8 +480,7 @@ static void tcp_out_timeout(clockevent *ev)
 
 void tcp_start_retransmit_timer(struct tcp_socket *sock, hrtime_t timeout)
 {
-    sock->retransmit_timer.callback = tcp_out_timeout;
-    sock->retransmit_timer.flags = 0;
+    clockevent_init(&sock->retransmit_timer, tcp_out_timeout, 0);
     sock->retransmit_timer.deadline = clocksource_get_time() + timeout;
     sock->retransmit_timer.priv = sock;
     timer_queue_clockevent(&sock->retransmit_timer);
@@ -1222,6 +1221,12 @@ void tcp_destroy_sock(struct tcp_socket *sock)
         pbf_free(pbf);
     }
 
+    /* HACK. The TCP code wants to cancel the timer, if active. We *may* be executed by a timer
+     * right now. Which makes our life complicated, and deadlocks trying to kill it. Such is life.
+     * Make sure we do not try to cancel it.
+     */
+    sock->retransmit_timer.timer = NULL;
+
     WARN_ON(sock->sk_send_queued > 0);
     if (WARN_ON(sock->sk_rmem > 0))
         pr_warn("tcp: socket with leftover sk_rmem %u\n", sock->sk_rmem);
@@ -1565,8 +1570,7 @@ void tcp_time_wait(struct tcp_socket *sock)
     /* We can't actually do this CHECK because the FIN packet is still in on_wire_queue */
     // CHECK(list_is_empty(&sock->on_wire_queue));
     tcp_stop_retransmit(sock);
-    sock->retransmit_timer.callback = tcp_do_time_wait_close;
-    sock->retransmit_timer.flags = 0;
+    clockevent_init(&sock->retransmit_timer, tcp_do_time_wait_close, 0);
     sock->retransmit_timer.deadline = clocksource_get_time() + TCP_MSL * NS_PER_SEC;
     sock->retransmit_timer.priv = sock;
     timer_queue_clockevent(&sock->retransmit_timer);

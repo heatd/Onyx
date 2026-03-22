@@ -93,10 +93,9 @@ struct neighbour
             /* TODO: This API is clunky and we could and should have something like what userspace
              * has. */
             /* A better API would come in handy for TCP retransmissions */
+            clockevent_init(&expiry_timer, neighbour_revalidate, CLOCKEVENT_FLAG_PULSE);
             expiry_timer.deadline = clocksource_get_time() + validity * NS_PER_MS;
             expiry_timer.priv = this;
-            expiry_timer.flags = CLOCKEVENT_FLAG_PULSE;
-            expiry_timer.callback = neighbour_revalidate;
             timer_queue_clockevent(&expiry_timer);
         }
 
