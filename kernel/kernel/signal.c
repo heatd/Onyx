@@ -569,16 +569,11 @@ void signal_interrupt_task(struct process *task, int signal)
 {
     struct thread *thr = task->thr;
     set_task_flag(task, TF_SIGPENDING);
-    /* XXX: This smp_mb _does not work_. This is broken af and doesn't really order it with
-     * anything other than the wakeup. We need to take care of it inside the scheduler. */
-    smp_mb();
 
     /* We're only waking the thread up for two reasons: It's either in an interruptible sleep
      * OR it's stopped and we're SIGCONT'ing it */
-    if (thr->status == THREAD_INTERRUPTIBLE ||
-        (thr->status == THREAD_STOPPED && signal_may_wake(signal)))
-        thread_wake_up(thr);
-    else if (thr->status == THREAD_RUNNABLE && get_thread_for_cpu(thr->cpu) == thr)
+    if (!thread_wake_up_try(thr, THREAD_INTERRUPTIBLE,
+                            signal_may_wake(signal) ? TWU_TOLERATE_STOPPED : 0))
         cpu_send_resched(thr->cpu);
 }
 
