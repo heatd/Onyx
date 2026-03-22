@@ -66,15 +66,18 @@ public:
         spinlock_init(&__lock);
         INIT_LIST_HEAD(&dirty_inodes);
         wb_flags = 0;
-        delayed_wake.priv = this;
-        delayed_wake.callback = [](struct clockevent *ev) {
-            writeback_dev *wbdev = (writeback_dev *) ev->priv;
+        clockevent_init(
+            &delayed_wake,
+            [](struct clockevent *ev) {
+                writeback_dev *wbdev = (writeback_dev *) ev->priv;
 
-            wbdev->lock();
-            wbdev->wb_flags &= ~WB_FLAG_DELAYED_QUEUED;
-            wbdev->wake();
-            wbdev->unlock();
-        };
+                wbdev->lock();
+                wbdev->wb_flags &= ~WB_FLAG_DELAYED_QUEUED;
+                wbdev->wake();
+                wbdev->unlock();
+            },
+            0);
+        delayed_wake.priv = this;
     }
 
     ~writeback_dev() = default;

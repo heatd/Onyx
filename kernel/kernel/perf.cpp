@@ -109,14 +109,15 @@ static int perf_probe_enable()
     }
 
     auto ev = ce;
-    ev->callback = [](clockevent *ev_) {
+    clockevent_init(
+        ev,
+        [](clockevent *ev_) {
 #ifdef __x86_64__
-        apic_send_ipi_all(0, X86_PERFPROBE);
+            apic_send_ipi_all(0, X86_PERFPROBE);
 #endif
-        ev_->deadline = clocksource_get_time() + NS_PER_MS;
-    };
-    ev->deadline = clocksource_get_time() + 1 * NS_PER_MS;
-    ev->flags = CLOCKEVENT_FLAG_ATOMIC | CLOCKEVENT_FLAG_PULSE;
+            ev_->deadline = clocksource_get_time() + NS_PER_MS;
+        },
+        CLOCKEVENT_FLAG_ATOMIC | CLOCKEVENT_FLAG_PULSE);
     timer_queue_clockevent(ev);
 
     perf_probe_enabled = true;
