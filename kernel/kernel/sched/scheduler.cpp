@@ -1046,34 +1046,46 @@ void thread_set_state(thread_t *thread, int state)
         sched_try_to_resched(thread);
 }
 
-void __thread_wake_up(thread *thread, unsigned int cpu)
+static bool __thread_wake_up(thread *thread, unsigned int cpu, unsigned int state,
+                             unsigned int flags)
 {
+    unsigned int new_cpu;
+    unsigned int status;
+
     MUST_HOLD_LOCK(&thread->lock);
     MUST_HOLD_LOCK(get_per_cpu_ptr_any(scheduler_lock, cpu));
-    unsigned int new_cpu;
+    smp_mb__after_spinlock();
 
+    status = READ_ONCE(thread->status);
+    if ((status != state && state != -1U) || status == THREAD_RUNNABLE)
+    {
+        /* Not the state we were expecting. oops. */
+        /* XXX task state tech debt makes us so we need to special case stopped... */
+        if (!(flags & TWU_TOLERATE_STOPPED) || status != THREAD_STOPPED)
+            return false;
+    }
     /* 1st case: The thread we're "waking up" is running.
      * In this case, just set the status and return, nothing else needed.
      * Note: This can happen when in a scheduler primitive, like a mutex.
      */
     if (get_thread_for_cpu(cpu) == thread)
     {
-        thread->status = THREAD_RUNNABLE;
-        return;
+        atomic_or_relaxed(thread->flags, THREAD_FASTWAKE);
+        WRITE_ONCE(thread->status, THREAD_RUNNABLE);
+        return true;
     }
 
-    if (thread->status == THREAD_RUNNABLE)
-        return;
-
     new_cpu = sched_allocate_processor();
-    thread->status = THREAD_RUNNABLE;
+    WRITE_ONCE(thread->status, THREAD_RUNNABLE);
     if (new_cpu != cpu)
     {
         /* Release the locks and reacquire them in proper order, then reappend to the queue. */
-        sched_unlock(thread, CPU_FLAGS_NO_IRQ);
         thread->cpu = new_cpu;
+        spin_unlock_irqrestore(&thread->lock, CPU_FLAGS_NO_IRQ);
+        spin_unlock_irqrestore(get_per_cpu_ptr_any(scheduler_lock, cpu), CPU_FLAGS_NO_IRQ);
         unsigned long _ = sched_lock(thread);
         (void) _;
+        WARN_ON(thread->cpu != new_cpu);
         cpu = new_cpu;
     }
 
@@ -1096,13 +1108,23 @@ void __thread_wake_up(thread *thread, unsigned int cpu)
             cpu_send_resched(thread->cpu);
         }
     }
+
+    return true;
+}
+
+bool thread_wake_up_try(thread_t *thread, unsigned int state, unsigned int flags)
+{
+    bool did;
+
+    unsigned long f = sched_lock(thread);
+    did = __thread_wake_up(thread, thread->cpu, state, flags);
+    sched_unlock(thread, f);
+    return did;
 }
 
 void thread_wake_up(thread_t *thread)
 {
-    unsigned long f = sched_lock(thread);
-    __thread_wake_up(thread, thread->cpu);
-    sched_unlock(thread, f);
+    thread_wake_up_try(thread, -1, 0);
 }
 
 void sched_block_self(thread *thread, unsigned long fl)

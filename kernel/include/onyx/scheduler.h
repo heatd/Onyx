@@ -217,10 +217,10 @@ void thread_destroy(thread_t *t);
 void thread_set_state(thread_t *thread, int state);
 
 void thread_wake_up(thread_t *thread);
+#define TWU_TOLERATE_STOPPED (1 << 0)
+bool thread_wake_up_try(thread_t *thread, unsigned int state, unsigned int flags);
 
 void sched_sleep_until_wake(void);
-
-void thread_wake_up_ftx(thread_t *thread);
 
 void thread_reset_futex_state(thread_t *thread);
 
