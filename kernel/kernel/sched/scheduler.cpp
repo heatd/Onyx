@@ -436,8 +436,8 @@ void sched_load_thread(struct thread *prev, thread *thread, unsigned int cpu)
 {
     struct mm_address_space *mm = prev->active_mm ?: prev->aspace;
 
-    spin_unlock_irqrestore(get_per_cpu_ptr_any(scheduler_lock, cpu), irq_save_and_disable());
     write_per_cpu(current_thread, thread);
+    spin_unlock_irqrestore(get_per_cpu_ptr_any(scheduler_lock, cpu), irq_save_and_disable());
     errno = thread->errno_val;
 
     native::arch_load_thread(thread, cpu);
