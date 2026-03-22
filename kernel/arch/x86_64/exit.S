@@ -84,22 +84,16 @@ END(__cxa_atexit)
 
 /* extern "C" 
 [[noreturn]]
-void x86_context_switch(thread *prev **%rdi** , unsigned char *stack **%rsi**, bool needs_to_kill_prev **%dx**);
+void x86_context_switch(thread *prev **%rdi** , unsigned char *stack **%rsi**);
 */
 ENTRY(x86_context_switch)
     cli
     /* First thing to do: switch the %rsp */
-    /* Then we can try to put the thread */
+    /* Then we can try to release the thread */
     mov %rsi, %rsp
     INTERRUPT_STACK_ALIGN
-    cmp $1, %dx
-    je 2f
-1:
-    jmp x86_interrupt_ret
-
-2:
     /* note that prev is already in %rdi, no need to move it in */
     /* We also don't need to preserve any registers */
-    call x86_thread_put
-    jmp 1b
+    call finish_switch
+    jmp x86_interrupt_ret
 END(x86_context_switch)

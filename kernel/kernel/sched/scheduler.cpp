@@ -242,7 +242,7 @@ static thread_t *sched_steal_job(unsigned int cpu)
             if (thread_queues[j])
             {
                 thread_t *ret = thread_queues[j];
-                if (ret->entry == sched_idle)
+                if (ret->entry == sched_idle || __atomic_load_n(&ret->on_cpu, __ATOMIC_ACQUIRE))
                     continue;
                 /* Advance the queue by one */
                 thread_queues[j] = ret->next_prio;
@@ -440,6 +440,7 @@ void sched_load_thread(struct thread *prev, thread *thread, unsigned int cpu)
     spin_unlock_irqrestore(get_per_cpu_ptr_any(scheduler_lock, cpu), irq_save_and_disable());
     errno = thread->errno_val;
 
+    WRITE_ONCE(thread->on_cpu, 1);
     native::arch_load_thread(thread, cpu);
 
     if (!(thread->flags & THREAD_KERNEL))
@@ -518,6 +519,15 @@ NO_ASAN void sched_load_finish(thread *prev_thread, thread *next_thread)
 
     CHECK(irq_is_disabled());
     native::arch_context_switch(prev_thread, next_thread);
+}
+
+extern "C" void finish_switch(struct thread *prev)
+{
+    if (!prev)
+        return;
+    __atomic_store_n(&prev->on_cpu, 0, __ATOMIC_RELEASE);
+    if (prev->status == THREAD_DEAD)
+        thread_put(prev);
 }
 
 extern "C" void *sched_schedule(void *last_stack)

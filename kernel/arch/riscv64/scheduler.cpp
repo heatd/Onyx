@@ -94,6 +94,7 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *tp)
     new_thread->flags = flags;
     new_thread->canary = THREAD_STRUCT_CANARY;
     new_thread->fpu_area = nullptr;
+    new_thread->on_cpu = 0;
     spinlock_init(&new_thread->lock);
 
     bool is_user = !(flags & THREAD_KERNEL);
@@ -246,8 +247,7 @@ void arch_load_process(process *process, thread *thread, unsigned int cpu)
     vm_load_aspace(thread->get_aspace(), cpu);
 }
 
-extern "C" [[noreturn]] void riscv_context_switch(thread *prev, unsigned char *stack,
-                                                  bool needs_to_kill_prev);
+extern "C" [[noreturn]] void riscv_context_switch(thread *prev, unsigned char *stack);
 [[noreturn]] void arch_context_switch(thread *prev, thread *next)
 {
     // riscv_context_switch wants interrupts to be disabled
@@ -260,8 +260,7 @@ extern "C" [[noreturn]] void riscv_context_switch(thread *prev, unsigned char *s
     if (in_kernel_space_regs(next_regs))
         next_regs->tp = riscv_get_tp();
 
-    bool is_last_dead = prev && prev->status == THREAD_DEAD;
-    riscv_context_switch(prev, (unsigned char *) next->kernel_stack, is_last_dead);
+    riscv_context_switch(prev, (unsigned char *) next->kernel_stack);
 }
 
 int arch_transform_into_user_thread(thread *thread)
@@ -280,8 +279,3 @@ int arch_transform_into_user_thread(thread *thread)
 }
 
 } // namespace native
-
-extern "C" void riscv_thread_put(thread *t)
-{
-    thread_put(t);
-}

@@ -163,28 +163,20 @@ riscv_trap_entry:
 
 /* extern "C" 
 [[noreturn]]
-void riscv_context_switch(thread *prev **%a0** , unsigned char *stack **%a1**, bool needs_to_kill_prev **%a2**);
+void riscv_context_switch(thread *prev **%a0** , unsigned char *stack **%a1**);
 */
 .global riscv_context_switch
 .type riscv_context_switch, @function
 riscv_context_switch:
-	/* First thing to do: switch the sp */
-	/* Then we can try to put the thread */
-	mv sp, a1
-    
-	bnez a2, 2f 
-1:
-	RISCV_RESTORE_CONTEXT
-    sret
+    /* First thing to do: switch the sp */
+    mv sp, a1
 
-2:
-	/* note that prev is already in %rdi, no need to move it in */
-	/* We also don't need to preserve any registers */
-	mv s0, sp
+    mv s0, sp
     and sp, sp, -16
-	call riscv_thread_put
-	mv sp, s0
-	j 1b
+    call finish_switch
+    mv sp, s0
+    RISCV_RESTORE_CONTEXT
+    sret
 
 .global get_kernel_gp
 .type get_kernel_gp,@function
