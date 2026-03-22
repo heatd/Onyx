@@ -34,6 +34,7 @@ void timer_queue_clockevent(struct clockevent *ev)
 
     list_add_tail(&ev->list_node, &timer->event_list);
 
+    atomic_and_relaxed(ev->flags, ~CLOCKEVENT_FLAG_PENDING);
     ev->flags |= CLOCKEVENT_FLAG_POISON;
 
     if (timer->next_event > ev->deadline)
@@ -78,6 +79,7 @@ void timer_handle_events(struct timer *t)
             {
                 ev->flags &= ~CLOCKEVENT_FLAG_POISON;
                 list_remove(&ev->list_node);
+                ev->timer = NULL;
             }
             else
             {
@@ -86,13 +88,12 @@ void timer_handle_events(struct timer *t)
         }
         else if (!atomic_context)
         {
-            ev->timer = nullptr;
+            ev->flags |= CLOCKEVENT_FLAG_PENDING;
             list_remove(&ev->list_node);
             list_add_tail(&ev->list_node, &to_handle);
         }
         else
         {
-            ev->flags |= CLOCKEVENT_FLAG_PENDING;
             if (!has_raised_softirq)
             {
                 has_raised_softirq = true;
@@ -121,42 +122,82 @@ void timer_handle_events(struct timer *t)
         {
             struct clockevent *ev = container_of(l, struct clockevent, list_node);
             list_remove(&ev->list_node);
-            ev->flags &= ~(CLOCKEVENT_FLAG_PENDING | CLOCKEVENT_FLAG_POISON);
-            ev->timer = nullptr;
             ev->callback(ev);
 
             if (ev->flags & CLOCKEVENT_FLAG_PULSE)
             {
                 ev->flags &= ~CLOCKEVENT_FLAG_POISON;
                 timer_queue_clockevent(ev);
-                lowest = lowest < ev->deadline ? lowest : ev->deadline;
+            }
+            else
+            {
+                WRITE_ONCE(ev->timer, NULL);
+                atomic_and_relaxed(ev->flags, ~(CLOCKEVENT_FLAG_PENDING | CLOCKEVENT_FLAG_POISON));
             }
         }
     }
 }
 
+static struct timer *lock_timer(struct clockevent *ev, unsigned long *cpu_flags)
+{
+    struct timer *timer;
+
+    for (;;)
+    {
+        timer = READ_ONCE(ev->timer);
+        /* No timer? we're good. */
+        if (!timer)
+            return NULL;
+        *cpu_flags = spin_lock_irqsave(&timer->event_list_lock);
+        if (ev->timer == timer)
+            break;
+        spin_unlock_irqrestore(&timer->event_list_lock, *cpu_flags);
+    }
+
+    return timer;
+}
+
+static bool timer_cancel_event_try(struct clockevent *ev)
+{
+    struct timer *timer;
+    unsigned long cpu_flags;
+    bool ret = false;
+
+    timer = lock_timer(ev, &cpu_flags);
+    if (!timer)
+        return true;
+
+    /* Pending? We can't touch it. Interested callers can spin on this bit. */
+    if (!(READ_ONCE(ev->flags) & CLOCKEVENT_FLAG_PENDING))
+    {
+        if (READ_ONCE(ev->timer))
+        {
+            atomic_and_relaxed(ev->flags, ~CLOCKEVENT_FLAG_POISON);
+            list_remove(&ev->list_node);
+            ev->timer = NULL;
+            ret = true;
+        }
+    }
+
+    spin_unlock_irqrestore(&timer->event_list_lock, cpu_flags);
+    return ret;
+}
+
+static void timer_spin_pending(struct clockevent *ev)
+{
+    while (__atomic_load_n(&ev->flags, __ATOMIC_ACQUIRE) & CLOCKEVENT_FLAG_PENDING)
+        cpu_relax();
+}
+
 void timer_cancel_event(struct clockevent *ev)
 {
-    scoped_lock<spinlock, true> g{ev->lock};
-    auto timer = ev->timer;
-
-    /* ev->timer is set after list_remove up there, therefore we check first
-     * if ev->timer is nullptr. If so, it's not in there and we don't need to lock.
-     * If it's set, we lock the event list, and recheck for CLOCKEVENT_POISON; if it's set,
-     * the event is still in there and we need to list_remove it.
-     */
-    if (timer != nullptr && ev->flags & CLOCKEVENT_FLAG_POISON)
+    bool done;
+    do
     {
-        unsigned long cpu_flags = spin_lock_irqsave(&timer->event_list_lock);
-
-        if (ev->flags & CLOCKEVENT_FLAG_POISON)
-        {
-            list_remove(&ev->list_node);
-            ev->flags &= ~CLOCKEVENT_FLAG_POISON;
-        }
-
-        spin_unlock_irqrestore(&timer->event_list_lock, cpu_flags);
-    }
+        done = timer_cancel_event_try(ev);
+        if (!done)
+            timer_spin_pending(ev);
+    } while (!done);
 }
 
 void itimer_init(struct process *p)
