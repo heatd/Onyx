@@ -99,7 +99,7 @@ ssize_t seq_read_iter(struct file *filp, size_t off, struct iovec_iter *iter, un
 
         shown = seq->op->show(seq, ptr);
         if (shown < 0)
-            goto out;
+            goto err;
         if (shown > 0)
         {
             seq->count = 0;
