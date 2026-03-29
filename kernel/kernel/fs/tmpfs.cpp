@@ -17,6 +17,7 @@
 #include <onyx/filemap.h>
 #include <onyx/fs_mount.h>
 #include <onyx/log.h>
+#include <onyx/mm/shmem.h>
 #include <onyx/mount.h>
 #include <onyx/mutex.h>
 #include <onyx/page.h>
