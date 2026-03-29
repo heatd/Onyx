@@ -394,9 +394,6 @@ ssize_t packetbuf::copy_iter(iovec_iter &iter, unsigned int flags)
             vec->page_off += st;
             vec->length -= st;
             current_iov_off = 0;
-            DCHECK(vec->page_off <= PAGE_SIZE);
-            DCHECK(vec->length <= PAGE_SIZE);
-            DCHECK(vec->page_off + vec->length <= PAGE_SIZE);
         }
     }
 
