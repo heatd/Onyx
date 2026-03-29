@@ -141,43 +141,30 @@ static unsigned int pty_ioctl(int request, void *argp, struct tty *tty)
     return -ENOTTY;
 }
 
-/* yuck yuck yuck yuck yuck */
-#define DEFINE_NEW_HACKY_FILE(filp)       \
-    struct inode _ino;                    \
-    struct file _f;                       \
-    _ino.i_helper = (filp)->private_data; \
-    _f.f_ino = &_ino;                     \
-    _f.private_data = (filp)->private_data;
-
 static size_t ptydevfs_write(size_t offset, size_t len, void *ubuffer, struct file *f)
 {
-    DEFINE_NEW_HACKY_FILE(f);
-    return ttydevfs_write(offset, len, ubuffer, &_f);
+    return ttydevfs_write(offset, len, ubuffer, f);
 }
 
 static size_t ptydevfs_read(size_t offset, size_t count, void *buffer, struct file *this_)
 {
-    DEFINE_NEW_HACKY_FILE(this_);
-    return ttydevfs_read(offset, count, buffer, &_f);
+    return ttydevfs_read(offset, count, buffer, this_);
 }
 
 static ssize_t ptydevfs_read_iter(struct file *filp, size_t offset, struct iovec_iter *iter,
                                   unsigned int flags)
 {
-    DEFINE_NEW_HACKY_FILE(filp);
-    return ttydevfs_read_iter(&_f, offset, iter, flags);
+    return ttydevfs_read_iter(filp, offset, iter, flags);
 }
 
 static unsigned int pty_ioctl_redir(int request, void *argp, struct file *dev)
 {
-    DEFINE_NEW_HACKY_FILE(dev);
-    return tty_ioctl(request, argp, &_f);
+    return tty_ioctl(request, argp, dev);
 }
 
 static short pty_poll(void *poll_file, short events, struct file *f)
 {
-    DEFINE_NEW_HACKY_FILE(f);
-    return tty_poll(poll_file, events, &_f);
+    return tty_poll(poll_file, events, f);
 }
 
 /* TODO: It's hacky that we need to define all these file ops. And that we need to redirect the pty
