@@ -2679,7 +2679,7 @@ int get_phys_pages(void *_addr, unsigned int flags, struct page **pages, size_t 
     {
         struct vm_area_struct *reg = vm_find_region(mm, (void *) addr);
 
-        if (!reg)
+        if (!reg || reg->vm_flags & VM_PFNMAP)
         {
             ret = GPP_ACCESS_FAULT;
             goto out;
