@@ -239,7 +239,6 @@ static ssize_t netlink_recvmsg(struct socket *sock_, struct kernel_msghdr *msg, 
     if (msg->msg_name)
         nl_fill_name(msg);
 
-    msg->msg_controllen = 0;
 out_unlock:
     __unlock_sock(&sock_->socket_lock, sock_);
     return ret;
