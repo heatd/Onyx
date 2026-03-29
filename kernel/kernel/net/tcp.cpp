@@ -1094,7 +1094,6 @@ static ssize_t tcp_recvmsg(struct socket *sock_, struct kernel_msghdr *msg, int 
         tcp_update_rmem_window(sock, bytes_read);
     }
 
-    msg->msg_controllen = 0;
     return bytes_read;
 }
 

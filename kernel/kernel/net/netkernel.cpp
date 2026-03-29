@@ -260,8 +260,6 @@ ssize_t netkernel_socket::recvmsg(struct kernel_msghdr *msg, int flags)
     if (was_read != iovlen)
         return was_read < 0 ? was_read : -EFAULT;
 
-    msg->msg_controllen = 0;
-
     if (!(flags & MSG_PEEK))
     {
         if (buf->length() == 0)

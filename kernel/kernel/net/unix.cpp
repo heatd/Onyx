@@ -1232,7 +1232,6 @@ static int unix_put_cmsg(struct unix_pbf_info *pbf, struct kernel_msghdr *msg)
 
     if (!unix_has_anciliary(pbf))
     {
-        msg->msg_controllen = 0;
         return 0;
     }
 
@@ -1354,8 +1353,6 @@ ssize_t un_socket::recvmsg_dgram(struct kernel_msghdr *msg, int flags)
             }
         }
     }
-
-    msg->msg_controllen = 0;
 
     return read;
 }
