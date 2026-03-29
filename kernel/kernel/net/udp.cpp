@@ -600,8 +600,6 @@ ssize_t udp_socket::recvmsg(kernel_msghdr *msg, int flags)
     if (was_read < 0)
         return was_read;
 
-    msg->msg_controllen = 0;
-
     if (!(flags & MSG_PEEK))
     {
         list_remove(&buf->list_node);
