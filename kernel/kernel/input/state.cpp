@@ -8,7 +8,7 @@
 
 static constexpr unsigned int keys_per_long = (sizeof(unsigned long) * CHAR_BIT);
 
-void input_state_set_key_state(keycode_t key, bool pressed, struct input_state *is)
+void input_state_set_key_state(unsigned key, bool pressed, struct input_state *is)
 {
     unsigned int idx = key / keys_per_long;
     unsigned int bit_idx = key % keys_per_long;

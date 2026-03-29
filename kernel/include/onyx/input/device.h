@@ -30,6 +30,8 @@ struct input_device
     unsigned long feature_bits;
     unsigned long key_bits[BITS_TO_LONGS(KEY_CNT)];
     unsigned long properties[BITS_TO_LONGS(INPUT_PROP_CNT)];
+    unsigned long leds;
+    unsigned long switch_bits;
     struct evdev_client __rcu *grab;
 };
 

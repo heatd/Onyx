@@ -35,6 +35,8 @@ void input_device_register(struct input_device *dev)
     dev->name = n;
     INIT_LIST_HEAD(&dev->client_list);
     spinlock_init(&dev->client_list_lock);
+    memset(&dev->leds, 0, sizeof(dev->leds));
+    memset(&dev->switch_bits, 0, sizeof(dev->switch_bits));
 
     auto ex = dev_register_chardevs(0, 1, 0, &evdev_fops, n);
     auto cdev = ex.unwrap();
@@ -68,6 +70,10 @@ void input_device_submit_event(struct input_device *dev, struct input_event *ev)
     evdev_ev.value = pressed ? 1 : 0;
     clock_gettime_kernel(CLOCK_REALTIME, &ts);
     TIMESPEC_TO_TIMEVAL(&evdev_ev.time, &ts);
+    evdev_submit_event(dev, &evdev_ev);
+    evdev_ev.code = SYN_REPORT;
+    evdev_ev.type = EV_SYN;
+    evdev_ev.value = 1;
     evdev_submit_event(dev, &evdev_ev);
     /* TODO: Should this be vterm-specific code? GUI apps probably
      * just want the keypresses.

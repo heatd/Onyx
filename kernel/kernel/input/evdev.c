@@ -111,7 +111,7 @@ static ssize_t evdev_read_iter(struct file *filp, size_t offset, struct iovec_it
 
     for (;;)
     {
-        if (client->read == client->write && (flags & O_NONBLOCK))
+        if (client->read == client->write && (filp->f_flags & O_NONBLOCK))
             return -EAGAIN;
 
         while (iter->bytes >= sizeof(struct evdev_input_event) && evdev_consume_event(client, &ev))
@@ -182,11 +182,17 @@ static int do_eviocgbit(struct input_device *dev, unsigned int ev_type, void *bu
             bits = dev->key_bits;
             len = sizeof(dev->key_bits);
             break;
+        case EV_SW:
+            bits = &dev->switch_bits;
+            len = sizeof(dev->switch_bits);
+            break;
+        case EV_LED:
+            bits = &dev->leds;
+            len = sizeof(dev->leds);
+            break;
         case EV_REL:
         case EV_ABS:
         case EV_MSC:
-        case EV_SW:
-        case EV_LED:
         case EV_SND:
         case EV_REP:
         case EV_FF:
@@ -297,7 +303,7 @@ static unsigned int evdev_ioctl(int request, void *argp, struct file *file)
     }
 
         /* yuck */
-#define _IOC_RAWSIZMASK      (_IOC_SIZEMASK << 16)
+#define _IOC_RAWSIZMASK      ((int) (_IOC_SIZEMASK << 16))
 #define _IOC_NOSIZE(request) ((request) & ~_IOC_RAWSIZMASK)
     iocsize = _IOC_SIZE(request);
     switch (_IOC_NOSIZE(request))
@@ -312,6 +318,10 @@ static unsigned int evdev_ioctl(int request, void *argp, struct file *file)
             return evdev_copy_str("", iocsize, argp);
         case EVIOCGKEY(0):
             return do_eviocgkey(dev, client, iocsize, argp);
+        case EVIOCGLED(0):
+            return evdev_copy_bits(argp, &dev->leds, iocsize, sizeof(dev->leds));
+        case EVIOCGSW(0):
+            return evdev_copy_bits(argp, &dev->switch_bits, iocsize, sizeof(dev->switch_bits));
     }
 
     /* yuck x2 */
@@ -319,7 +329,6 @@ static unsigned int evdev_ioctl(int request, void *argp, struct file *file)
         return -EINVAL;
     if ((_IOC_NR(request) & ~EV_MAX) == _IOC_NR(EVIOCGBIT(0, 0)))
         return do_eviocgbit(dev, _IOC_NR(request) & EV_MAX, argp, iocsize);
-
     return -ENOTTY;
 }
 

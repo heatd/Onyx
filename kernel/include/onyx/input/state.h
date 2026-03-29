@@ -20,7 +20,7 @@ struct input_state
     unsigned long keys_pressed[4];
 };
 
-void input_state_set_key_state(keycode_t key, bool pressed, struct input_state *is);
+void input_state_set_key_state(unsigned key, bool pressed, struct input_state *is);
 bool input_state_key_is_pressed(keycode_t key, struct input_state *is);
 bool input_state_toggle_key(keycode_t key, struct input_state *is);
 

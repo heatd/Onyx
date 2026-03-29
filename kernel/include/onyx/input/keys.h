@@ -115,6 +115,7 @@ typedef enum key
     KEYMAP_KEY_PAUSE,
     KEYMAP_102ND,
     KEYMAP_NOT_MAPPED,
+    KEYMAP_MAX = 0x300,
 } keycode_t;
 
 struct keymap
