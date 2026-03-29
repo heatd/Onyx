@@ -425,8 +425,6 @@ ssize_t icmp6_socket::recvmsg(kernel_msghdr *msg, int flags)
         err != to_read)
         return err < 0 ? err : -EFAULT;
 
-    msg->msg_controllen = 0;
-
     if (!(flags & MSG_PEEK))
     {
         list_remove(&buf->list_node);

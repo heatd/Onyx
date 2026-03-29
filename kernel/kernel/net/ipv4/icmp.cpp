@@ -421,7 +421,6 @@ ssize_t icmp_socket::recvmsg(kernel_msghdr *msg, int flags)
     if (ssize_t err = buf->copy_iter(*msg->msg_iter, flags & MSG_PEEK ? PBF_COPY_ITER_PEEK : 0);
         err != to_read)
         return err < 0 ? err : -EFAULT;
-    msg->msg_controllen = 0;
 
     if (!(flags & MSG_PEEK))
     {
