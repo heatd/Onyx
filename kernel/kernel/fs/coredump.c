@@ -124,7 +124,7 @@ static int coredump_collect_vmas(struct core_state *core)
             }
         }
 
-        if (cvma->flags & VM_DONTDUMP)
+        if (cvma->flags & (VM_DONTDUMP | VM_PFNMAP))
             cvma->dump_len = 0;
 
         nr_vmas++;
