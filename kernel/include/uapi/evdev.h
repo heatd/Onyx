@@ -58,12 +58,14 @@ struct input_id
 #define EVIOCGKEYCODE_V2 _IOR('E', 0x04, struct input_keymap_entry)
 #define EVIOCSKEYCODE    _IOW('E', 0x04, unsigned int[2]) /* set keycode */
 #define EVIOCSKEYCODE_V2 _IOW('E', 0x04, struct input_keymap_entry)
-#define EVIOCGKEY(len)   _IOR('E', 0x18, len) /* get global key state */
+#define EVIOCGKEY(len)   _IOC(_IOC_READ, 'E', 0x18, len) /* get global key state */
 
 #define EVIOCGNAME(len) _IOC(_IOC_READ, 'E', 0x06, len) /* get device name */
 #define EVIOCGPHYS(len) _IOC(_IOC_READ, 'E', 0x07, len) /* get physical location */
 #define EVIOCGUNIQ(len) _IOC(_IOC_READ, 'E', 0x08, len) /* get unique identifier */
 #define EVIOCGPROP(len) _IOC(_IOC_READ, 'E', 0x09, len) /* get device properties */
+#define EVIOCGLED(len)  _IOC(_IOC_READ, 'E', 0x19, len)
+#define EVIOCGSW(len)   _IOC(_IOC_READ, 'E', 0x1b, len)
 
 #define EVIOCGBIT(ev, len) _IOC(_IOC_READ, 'E', 0x20 + (ev), len) /* get event bits */
 
