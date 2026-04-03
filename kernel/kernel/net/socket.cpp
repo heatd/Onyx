@@ -1404,7 +1404,7 @@ ssize_t socket_recvmsg(socket *sock, msghdr *umsg, int flags)
 
     if (msg.msg_control)
     {
-        if (copy_to_user(msg.msg_control, g.msg_control, kmsg.msg_controllen) < 0)
+        if (copy_to_user(msg.msg_control, g.msg_control, msg.msg_controllen) < 0)
             return -EFAULT;
     }
 
