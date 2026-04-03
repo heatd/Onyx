@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 - 2025 Pedro Falcato
+ * Copyright (c) 2022 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -994,8 +994,6 @@ static int unix_scm_rights(struct unix_pbf_info *info, struct cmsghdr *cmsg)
 static int unix_pbf_init(packetbuf *pbf, const struct kernel_msghdr *msg)
 {
     struct unix_pbf_info *info = pbf_to_unix(pbf);
-    info->nfiles = 0;
-    info->rights = nullptr;
 
     if (!msg)
         return 0;
@@ -1103,6 +1101,9 @@ ssize_t un_socket::queue_data(const struct kernel_msghdr *msg)
         if (!pbuf)
             return -ENOBUFS;
 
+        /* Pre-initialize the AF_UNIX pbf info (used for SCM_RIGHTS, etc). This makes sure buffer
+         * concatenation doesn't have to deal with weird state. */
+        memset(pbf_to_unix(pbuf.get()), 0, sizeof(struct unix_pbf_info));
         size_t length = cul::min(PACKETBUF_MAX_NR_PAGES << PAGE_SHIFT, iovec_iter_bytes(iter));
         if (!pbuf->allocate_space(length))
             return -ENOBUFS;
