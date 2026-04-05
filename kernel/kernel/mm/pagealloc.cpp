@@ -863,7 +863,7 @@ static __always_inline void prepare_pages_after_alloc(struct page *page, unsigne
     }
 }
 
-#define PAGE_ALLOC_MAX_RECLAIM_ATTEMPT 5
+#define PAGE_ALLOC_MAX_RECLAIM_ATTEMPT 16
 void stack_trace();
 
 static void pagestats_accumulate_for_zone(struct page_zone *zone,
