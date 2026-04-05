@@ -270,7 +270,8 @@ static enum lru_result shrink_page(struct reclaim_data *data,
      * will know to demote the page back to INACTIVE head, so we look at it again (hopefully
      * clean). */
 
-    rmap_try_to_unmap(page);
+    if (page_mapcount(page) > 0)
+        rmap_try_to_unmap(page);
 
     if (page_mapcount(page) > 0)
     {
