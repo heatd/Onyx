@@ -423,6 +423,8 @@ static void isolate_pages(struct page_lru *lru, enum lru_state list, struct list
             continue;
         }
 
+        WARN_ON(page_flag_set(page, PAGE_BUDDY));
+
         if (!page_test_lru(page))
         {
             /* We *cannot* remove a page off the LRU if flag-wise it's not even there. That will
