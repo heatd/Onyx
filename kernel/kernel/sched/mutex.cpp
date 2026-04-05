@@ -137,7 +137,6 @@ static void mutex_prepare_sleep(struct mutex *mutex, int state, struct mutex_wai
 {
     MUST_HOLD_LOCK(&mutex->llock);
     set_current_state(state);
-    DCHECK(!(waiter->flags & MUTEX_WAITER_QUEUED));
 
     if (!(waiter->flags & MUTEX_WAITER_QUEUED))
     {
