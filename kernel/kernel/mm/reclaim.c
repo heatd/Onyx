@@ -431,9 +431,10 @@ static void isolate_pages(struct page_lru *lru, enum lru_state list, struct list
             continue;
         }
 
-        /* Not sure if we need a page_try_get here... */
-        page_ref(page);
-        DCHECK(page->ref > 1);
+        /* It's possible to be on the LRU with 0 references, since removing from the LRU is part of
+         * the process of whacking a folio/page. */
+        if (!page_try_get(page))
+            continue;
         page_clear_lru(page);
         list_remove(&page->lru_node);
         dec_page_stat(page, NR_INACTIVE_FILE + page_to_state(page));
