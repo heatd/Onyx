@@ -401,7 +401,7 @@ int nvme_device::setup_prp(struct request *breq, nvme_namespace *ns)
             // allocate another page
             if (!current_list_page || (list_index == prp_entries - 1 && has_next))
             {
-                current_list_page = alloc_page(PAGE_ALLOC_NO_ZERO);
+                current_list_page = alloc_page(GFP_ATOMIC | PAGE_ALLOC_NO_ZERO);
                 if (!current_list_page)
                 {
                     st = -ENOMEM;
