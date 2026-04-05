@@ -227,6 +227,8 @@ static int vm_obj_get_pages(struct vm_object *obj, unsigned long start, unsigned
         if (!batchlen--)
             break;
         struct page *page = (struct page *) cursor.get();
+        /* Invariant: While page_lock is held, the refcount is consistent. */
+        DCHECK_PAGE(page->ref > 0, page);
         batch[batchidx++] = page;
         page_ref(page);
         cursor.advance();
@@ -286,6 +288,7 @@ static int vmo_purge_pages(unsigned long start, unsigned long end,
         for (int i = 0; i < found; i++)
         {
             lock_page(pagebatch[i]);
+            CHECK_PAGE(pagebatch[i]->owner == vmo, pagebatch[i]);
             page_wait_writeback(pagebatch[i]);
         }
 
