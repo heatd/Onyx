@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 - 2024 Pedro Falcato
+ * Copyright (c) 2023 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -109,10 +109,7 @@ struct page_flag
 };
 
 /* 10 = strlen(PAGE_FLAG_) */
-#define X(macro)                          \
-    {                                     \
-        .val = macro, .name = #macro + 10 \
-    }
+#define X(macro) {.val = macro, .name = #macro + 10}
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
@@ -231,7 +228,6 @@ static enum lru_result shrink_page(struct reclaim_data *data,
         goto rotate;
     }
 
-    DCHECK_PAGE(page->owner, page);
     struct vm_object *obj;
     unsigned int vm_flags = 0;
 
@@ -290,6 +286,7 @@ static enum lru_result shrink_page(struct reclaim_data *data,
     obj = page_vmobj(page);
     if (page_flag_set(page, PAGE_FLAG_DIRTY))
     {
+        DCHECK_PAGE(obj, page);
         enum pageout_result res = pageout(data, page, obj);
         switch (res)
         {
@@ -327,7 +324,7 @@ static enum lru_result shrink_page(struct reclaim_data *data,
     /* This should be a stable reference. TODO: What if truncation? What if the inode goes away
      * after the unlock? */
     // pr_info("removing page %p\n", page);
-    if (!vm_obj_remove_page(obj, page))
+    if (!obj || !vm_obj_remove_page(obj, page))
     {
         /* If we failed to remove the page, it's busy */
         unlock_page(page);
