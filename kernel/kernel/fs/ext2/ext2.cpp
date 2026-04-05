@@ -438,7 +438,7 @@ int ext2_open(struct dentry *dir, const char *name, struct dentry *dentry)
 
     struct inode *inode = ext2_get_inode(fs, inode_num);
     if (!inode)
-        return -errno;
+        return -ENOMEM;
     d_finish_lookup(dentry, inode);
     return 0;
 }

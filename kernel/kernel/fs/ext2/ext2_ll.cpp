@@ -428,7 +428,7 @@ int ext2_retrieve_dirent(inode *inode, const char *name, ext2_superblock *fs,
 
         if (read_res < 0)
         {
-            st = -errno;
+            st = read_res;
             goto out;
         }
 
