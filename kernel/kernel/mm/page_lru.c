@@ -208,7 +208,9 @@ static void folio_batch_deactivate_lru(struct folio_batch *batch)
     for (unsigned int i = 0; i < batch->nr; i++)
     {
         folio = batch->batch[i];
-        CHECK(!folio_test_lru(folio));
+        /* Someone added it to an LRU just now? It's possible. Just ignore, then. */
+        if (folio_test_lru(folio))
+            continue;
         newlru = folio_to_page_lru(folio);
         if (lru != newlru)
         {
