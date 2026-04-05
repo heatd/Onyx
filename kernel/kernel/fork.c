@@ -381,7 +381,7 @@ err_put_fs:
 err_put_files:
     exit_files(child);
 err_put_pid:
-    put_pid(child->pid_struct);
+    pid_remove_pid(child->pid_struct, child);
 free_proc:
     kfree(child);
     return err;
