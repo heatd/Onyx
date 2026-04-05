@@ -224,7 +224,7 @@ static long rmap_get_page_refs_anon(struct page *page, unsigned int *vm_flags)
     struct refs_info info = {};
     info.vm_flags = vm_flags;
     int st =
-        rmap_walk_anon(&(struct rmap_walk_info){.walk_one = rmap_get_page_refs_one, &info}, page);
+        rmap_walk_anon(&(struct rmap_walk_info) {.walk_one = rmap_get_page_refs_one, &info}, page);
     if (st < 0)
         return st;
     return info.references;
@@ -234,6 +234,9 @@ long rmap_get_page_references(struct page *page, unsigned int *vm_flags)
 {
     if (page_flag_set(page, PAGE_FLAG_ANON))
         return rmap_get_page_refs_anon(page, vm_flags);
+    /* Truncated? _has_ to have 0 references.*/
+    if (!page->owner)
+        return 0;
     return vm_obj_get_page_references(page->owner, page, vm_flags);
 }
 
