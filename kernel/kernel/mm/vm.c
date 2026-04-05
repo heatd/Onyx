@@ -1647,9 +1647,9 @@ int vm_handle_page_fault(struct fault_info *info)
     }
 
     if (sched_is_preemption_disabled())
-        panic("Page fault while preemption was disabled\n");
+        panic("Page fault at %pS while preemption was disabled\n", info->ip);
     if (irq_is_disabled())
-        panic("Page fault while IRQs were disabled\n");
+        panic("Page fault at %pS while IRQs were disabled\n", info->ip);
 
     /* Surrender immediately if there's no user address space */
     if (!as)
