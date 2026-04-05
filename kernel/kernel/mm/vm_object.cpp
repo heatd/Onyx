@@ -612,19 +612,25 @@ void vm_obj_clean_page(struct vm_object *obj, struct page *page)
 
 bool vm_obj_remove_page(struct vm_object *obj, struct page *page)
 {
+    bool success = false;
     DCHECK_PAGE(page_locked(page), page);
     DCHECK_PAGE(page_vmobj(page) == obj, page);
     DCHECK_PAGE(page->ref != 0, page);
+    DCHECK_PAGE(page_mapcount(page) == 0, page);
 
     unsigned int expected_refs = 2 + (page_mapcount(page) > 0);
-    if (!page_ref_freeze(page, expected_refs))
-        return false;
 
+    spin_lock(&obj->page_lock);
+    if (!page_ref_freeze(page, expected_refs))
+        goto out;
     obj->vm_pages.store(page_pgoff(page), 0);
     if (page_test_swap(page))
         swap_unset_swapcache(swpval_to_swp_entry(page->priv));
     page->owner = NULL;
-    return true;
+    success = true;
+out:
+    spin_unlock(&obj->page_lock);
+    return success;
 }
 
 long vm_obj_get_page_references(struct vm_object *obj, struct page *page, unsigned int *vm_flags)
