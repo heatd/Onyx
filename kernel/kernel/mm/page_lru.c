@@ -69,11 +69,13 @@ static void folio_batch_add_lru(struct folio_batch *batch)
 
 void folio_add_lru(struct folio *folio)
 {
-    struct percpu_batches *batches = get_per_cpu_ptr(lru_batches);
-    local_lock(&batches->lock);
+    struct percpu_batches *batches;
+
+    local_lock(&lru_batches.lock);
+    batches = get_per_cpu_ptr(lru_batches);
     if (!folio_batch_add(&batches->lru_add, folio))
         folio_batch_add_lru(&batches->lru_add);
-    local_unlock(&batches->lock);
+    local_unlock(&lru_batches.lock);
 }
 
 void folio_remove_lru(struct folio *folio)
@@ -158,7 +160,7 @@ static void folio_batch_activate_lru(struct folio_batch *batch)
 
 static void folio_activate(struct folio *folio)
 {
-    struct percpu_batches *batches = get_per_cpu_ptr(lru_batches);
+    struct percpu_batches *batches;
 
     if (!folio_test_clear_lru(folio))
     {
@@ -168,10 +170,11 @@ static void folio_activate(struct folio *folio)
         return;
     }
 
-    local_lock(&batches->lock);
+    local_lock(&lru_batches.lock);
+    batches = get_per_cpu_ptr(lru_batches);
     if (!folio_batch_add(&batches->activate, folio))
         folio_batch_activate_lru(&batches->activate);
-    local_unlock(&batches->lock);
+    local_unlock(&lru_batches.lock);
 }
 
 static void folio_set_active_local(struct folio *folio)
@@ -253,7 +256,7 @@ static void folio_batch_deactivate_lru(struct folio_batch *batch)
 
 void page_lru_demote_reclaim(struct folio *folio)
 {
-    struct percpu_batches *batches = get_per_cpu_ptr(lru_batches);
+    struct percpu_batches *batches;
 
     if (folio_test_dirty(folio) || folio_test_locked(folio))
         return;
@@ -261,8 +264,9 @@ void page_lru_demote_reclaim(struct folio *folio)
     if (!folio_test_clear_lru(folio))
         return;
 
-    local_lock(&batches->lock);
+    local_lock(&lru_batches.lock);
+    batches = get_per_cpu_ptr(lru_batches);
     if (!folio_batch_add(&batches->deactivate, folio))
         folio_batch_deactivate_lru(&batches->deactivate);
-    local_unlock(&batches->lock);
+    local_unlock(&lru_batches.lock);
 }
