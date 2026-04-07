@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 - 2025 Pedro Falcato
+ * Copyright (c) 2024 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -174,6 +174,26 @@ static void folio_activate(struct folio *folio)
     local_unlock(&batches->lock);
 }
 
+static void folio_set_active_local(struct folio *folio)
+{
+    struct percpu_batches *batches;
+    unsigned int i;
+
+    local_lock(&lru_batches.lock);
+    batches = get_per_cpu_ptr(lru_batches);
+
+    for (i = 0; i < batches->lru_add.nr; i++)
+    {
+        if (batches->lru_add.batch[i] == folio)
+        {
+            folio_set_active(folio);
+            break;
+        }
+    }
+
+    local_unlock(&lru_batches.lock);
+}
+
 void folio_promote_referenced(struct folio *folio)
 {
     /* Promote a page in the page LRUs. We go from (considering Active, Referenced) (0,0) -> (0, 1)
@@ -194,9 +214,9 @@ void folio_promote_referenced(struct folio *folio)
     }
     else
     {
-        /* We're in a page batch (or bound to be added by someone else). Just set the active bit and
-         * they'll take care of it. */
-        folio_set_active(folio);
+        /* We're in a page batch. Just set the active bit and the LRU add logic will take care of
+         * it. But we can only do it to ourselves without racing. */
+        folio_set_active_local(folio);
     }
 }
 
