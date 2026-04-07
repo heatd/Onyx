@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2024 Pedro Falcato
+ * Copyright (c) 2020 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -600,93 +600,100 @@ extern const struct file_ops buffer_ops = {
     .directio = buffer_directio,
 };
 
-struct block_buf *sb_read_block(const struct superblock *sb, unsigned long block)
+static int folio_create_buffers(struct folio *folio, unsigned long start_block,
+                                unsigned long block_size, struct blockdev *blkdev)
 {
-    struct blockdev *dev = sb->s_bdev;
-    size_t real_off = sb->s_block_size * block;
-    size_t aligned_off = real_off & -PAGE_SIZE;
+    size_t nr_blocks = PAGE_SIZE / block_size;
+    struct page *page = folio_to_page(folio);
+    unsigned long nblocks;
+    size_t curr_off = 0;
+    WARN_ON(!folio_test_locked(folio));
+    WARN_ON(folio_test_buffer(folio));
+    WARN_ON(folio->priv != 0);
 
-    struct page *page;
+    nblocks = blkdev->nr_sectors / (block_size / blkdev->sector_size);
 
-    int st = filemap_find_page(dev->b_ino, real_off >> PAGE_SHIFT, 0, &page, nullptr);
-
-    if (st < 0)
-        return nullptr;
-
-    auto buf = reinterpret_cast<block_buf *>(page->priv);
-
-    while (buf && buf->block_nr != block)
+    for (size_t i = 0; i < nr_blocks; i++)
     {
+        struct block_buf *b;
+        if (!(b = page_add_blockbuf(page, curr_off)))
+        {
+            page_destroy_block_bufs(page);
+            return -ENOMEM;
+        }
+
+        b->block_nr = start_block + i;
+        if (b->block_nr >= nblocks)
+            bb_test_and_set(b, BLOCKBUF_FLAG_HOLE | BLOCKBUF_FLAG_UPTODATE);
+        b->block_size = block_size;
+        b->dev = blkdev;
+        curr_off += block_size;
+    }
+
+    folio_set_buffer(folio);
+    return 0;
+}
+
+static struct block_buf *find_or_create_buffers(struct folio *folio, unsigned long block,
+                                                unsigned long block_size, struct blockdev *bdev)
+{
+    unsigned long start_block;
+    struct block_buf *buf;
+    int err;
+
+    if (!folio_test_buffer(folio))
+    {
+        start_block = (folio->pageoff * PAGE_SIZE) / block_size;
+        err = folio_create_buffers(folio, start_block, block_size, bdev);
+        if (err)
+            return NULL;
+    }
+
+    buf = (struct block_buf *) folio->priv;
+    DCHECK(buf != NULL);
+
+    while (buf)
+    {
+        if (buf->block_nr == block)
+        {
+            block_buf_get(buf);
+            return buf;
+        }
+
         buf = buf->next;
     }
 
-    if (unlikely(!buf))
-    {
-        size_t page_off = real_off - aligned_off;
-        sector_t aligned_block = aligned_off / sb->s_block_size;
-#if 0
-		printk("Aligned block: %lx\n", aligned_block);
-		printk("Aligned off %lx real off %lx\n", aligned_off, real_off);
-#endif
-        sector_t block_nr = aligned_block + ((real_off - aligned_off) / sb->s_block_size);
+    /* Not supposed to happen */
+    WARN_ON_ONCE(1);
+    return NULL;
+}
 
-        if (!(buf = page_add_blockbuf(page, page_off)))
-        {
-            page_unref(page);
-            return nullptr;
-        }
+static struct block_buf *__read_block_cache(struct blockdev *bdev, unsigned int block_size,
+                                            unsigned long block)
+{
+    size_t real_off = block_size * block;
+    struct block_buf *buf = NULL;
+    struct folio *folio;
 
-        buf->block_nr = block_nr;
-        buf->block_size = sb->s_block_size;
-        buf->dev = sb->s_bdev;
-    }
+    int st = filemap_find_folio(bdev->b_ino, real_off >> PAGE_SHIFT,
+                                FIND_PAGE_LOCK | FIND_PAGE_ACTIVATE, &folio, nullptr);
+    if (st < 0)
+        return nullptr;
 
-    block_buf_get(buf);
-
-    page_unref(page);
-
+    buf = find_or_create_buffers(folio, block, block_size, bdev);
+    folio_unlock(folio);
+    folio_put(folio);
     return buf;
+}
+
+struct block_buf *sb_read_block(const struct superblock *sb, unsigned long block)
+{
+    return __read_block_cache(sb->s_bdev, sb->s_block_size, block);
 }
 
 struct block_buf *bdev_read_block(struct blockdev *bdev, unsigned long block)
 {
-    size_t real_off = bdev->block_size * block;
-    size_t aligned_off = real_off & -PAGE_SIZE;
-
-    struct page *page;
-
-    int st = filemap_find_page(bdev->b_ino, real_off >> PAGE_SHIFT, 0, &page, nullptr);
-
-    if (st < 0)
-        return nullptr;
-
-    auto buf = reinterpret_cast<block_buf *>(page->priv);
-
-    while (buf && buf->block_nr != block)
-        buf = buf->next;
-
-    if (unlikely(!buf))
-    {
-        size_t page_off = real_off - aligned_off;
-        sector_t aligned_block = aligned_off / bdev->block_size;
-        sector_t block_nr = aligned_block + ((real_off - aligned_off) / bdev->block_size);
-
-        if (!(buf = page_add_blockbuf(page, page_off)))
-        {
-            page_unref(page);
-            return nullptr;
-        }
-
-        buf->block_nr = block_nr;
-        buf->block_size = bdev->block_size;
-        buf->dev = bdev;
-    }
-
-    block_buf_get(buf);
-
-    page_unref(page);
-
-    return buf;
+    return __read_block_cache(bdev, bdev->block_size, block);
 }
 
 void block_buf_dirty(block_buf *buf)
@@ -701,6 +708,7 @@ void block_buf_dirty(block_buf *buf)
 
 void page_remove_block_buf(struct page *page, size_t offset, size_t end)
 {
+    WARN_ON(!page_locked(page));
     block_buf **pp = (block_buf **) &page->priv;
 
     while (*pp != nullptr)
