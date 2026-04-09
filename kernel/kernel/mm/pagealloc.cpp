@@ -871,8 +871,7 @@ static void pagestats_accumulate_for_zone(struct page_zone *zone,
 {
     for (unsigned int i = 0; i < PAGE_STATS_MAX; i++)
     {
-        for (unsigned int j = 0; j < CONFIG_SMP_NR_CPUS; j++)
-            pagestats[i] += zone->pcpu[i].pagestats[i];
+        pagestats[i] += zone->pagestats[i];
     }
 }
 
@@ -1122,20 +1121,59 @@ static struct page_zone *folio_to_zone(struct folio *folio)
     return main_node.pick_zone((unsigned long) folio_to_phys(folio));
 }
 
-void inc_folio_stat(struct folio *folio, enum page_stat stat)
+static __noinline long sync_stat_pcpu(struct page_zone *zone, enum page_stat stat)
+{
+    long to_add;
+    long result = 0;
+
+    for (unsigned int i = 0; i < get_nr_cpus(); i++)
+    {
+        to_add = __atomic_exchange_n(&zone->pcpu[i].pagestats[stat], 0, __ATOMIC_RELAXED);
+        result = __atomic_add_fetch(&zone->pagestats[stat], to_add, __ATOMIC_RELAXED);
+    }
+
+    return result;
+}
+
+static __noinline void inc_stat_slowpath(struct page_zone *zone, struct page_pcpu_data *pcpu,
+                                         enum page_stat stat)
+{
+    long to_add = __atomic_exchange_n(&pcpu->pagestats[stat], 0, __ATOMIC_RELAXED);
+    long res;
+
+    /* Add to_add to the zonestats */
+    res = __atomic_add_fetch(&zone->pagestats[stat], to_add, __ATOMIC_RELAXED);
+    if (unlikely(res < 0))
+    {
+        /* Something is off here, but it can happen. Recalculate everything and warn if we actually
+         * went negative. This is not supposed to happen. */
+        WARN_ON_ONCE(sync_stat_pcpu(zone, stat) < 0);
+    }
+}
+
+#define STAT_THRESHOLD 32
+
+static void mod_folio_stat(struct folio *folio, enum page_stat stat, long off)
 {
     struct page_zone *zone = folio_to_zone(folio);
+    struct page_pcpu_data *pcpu;
+
     sched_disable_preempt();
-    zone->pcpu[get_cpu_nr()].pagestats[stat] += folio_nr_pages(folio);
+    pcpu = &zone->pcpu[get_cpu_nr()];
+    __atomic_add_fetch(&pcpu->pagestats[stat], off, __ATOMIC_RELAXED);
+    if (pcpu->pagestats[stat] > STAT_THRESHOLD || pcpu->pagestats[stat] < -STAT_THRESHOLD)
+        inc_stat_slowpath(zone, pcpu, stat);
     sched_enable_preempt();
+}
+
+void inc_folio_stat(struct folio *folio, enum page_stat stat)
+{
+    mod_folio_stat(folio, stat, folio_nr_pages(folio));
 }
 
 void dec_folio_stat(struct folio *folio, enum page_stat stat)
 {
-    struct page_zone *zone = folio_to_zone(folio);
-    sched_disable_preempt();
-    zone->pcpu[get_cpu_nr()].pagestats[stat] -= folio_nr_pages(folio);
-    sched_enable_preempt();
+    mod_folio_stat(folio, stat, -folio_nr_pages(folio));
 }
 
 void inc_page_stat(struct page *page, enum page_stat stat)
@@ -1155,12 +1193,8 @@ void page_accumulate_stats(unsigned long pages[PAGE_STATS_MAX])
 
     for_every_node([&pages](page_node &node) {
         node.for_every_zone([&pages](struct page_zone *zone) {
-            for (auto &pcpu : zone->pcpu)
-            {
-                for (unsigned int j = 0; j < PAGE_STATS_MAX; j++)
-                    pages[j] += pcpu.pagestats[j];
-            }
-
+            for (unsigned int j = 0; j < PAGE_STATS_MAX; j++)
+                pages[j] += zone->pagestats[j];
             return true;
         });
 

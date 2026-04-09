@@ -85,6 +85,7 @@ struct page_zone
     unsigned long merges;
     struct page_lru zone_lru;
     struct spinlock lock;
+    long pagestats[PAGE_STATS_MAX];
     struct page_pcpu_data pcpu[CONFIG_SMP_NR_CPUS] __align_cache;
 };
 
@@ -108,6 +109,8 @@ static inline void page_zone_init(page_zone *zone, const char *name, unsigned lo
     page_lru_init(&zone->zone_lru);
     for (int i = 0; i < CONFIG_SMP_NR_CPUS; i++)
         zone->pcpu[i].init();
+    for (int i = 0; i < PAGE_STATS_MAX; i++)
+        zone->pagestats[i] = 0;
 }
 #endif
 
