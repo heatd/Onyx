@@ -702,8 +702,8 @@ static int __vfprintf(struct stream *stream, const char *s, va_list va)
         ret += st;
         continue;
     print_str:
-        st = printf_do_string(stream, va_arg(va, const char *), spec.fwidth, spec.precision,
-                              spec.flags);
+        st = printf_do_string(stream, va_arg(va, const char *) ?: "(null)", spec.fwidth,
+                              spec.precision, spec.flags);
         if (st < 0)
         {
             ret = st;
