@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2025 Pedro Falcato
+ * Copyright (c) 2020 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -758,6 +758,7 @@ static int tcp_drop_connreq(struct tcp_connreq *conn)
     {
         parent->socket_lock.unlock_bh();
         spin_unlock(&conn->tc_lock);
+        parent->unref();
         return -ESTALE;
     }
     else
@@ -998,6 +999,7 @@ static int tcp_input_conn(struct tcp_connreq *conn, struct packetbuf *pbf)
     if (!parent->ref_not_zero())
     {
         tcp_set_state(sock, TCP_STATE_CLOSED);
+        rcu_read_unlock();
         sock->unref();
         return 0;
     }
