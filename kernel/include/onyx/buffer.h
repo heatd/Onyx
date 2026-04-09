@@ -171,6 +171,7 @@ ssize_t buffer_writepage(struct vm_object *obj, struct page *page, size_t offset
 ssize_t bbuffer_readpage(struct page *p, size_t off, struct inode *ino);
 
 int buffer_readpages(struct readpages_state *state, struct inode *ino);
+bool buffer_release_folio(struct folio *folio, gfp_t gfp);
 
 __END_CDECLS
 

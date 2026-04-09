@@ -243,11 +243,11 @@ void page_destroy_block_bufs(struct page *page)
     while (b)
     {
         next = b->next;
-
         block_buf_free(b);
-
         b = next;
     }
+
+    page->priv = 0;
 }
 
 /* Hmmm - I don't like this. Like linux, We're limiting ourselves to
@@ -851,7 +851,34 @@ void block_buf_forget_inode(struct block_buf *buf)
 
 void buffer_free_page(struct vm_object *vmo, struct page *page)
 {
-    if (page_flag_set(page, PAGE_FLAG_BUFFER))
-        page_destroy_block_bufs(page);
+    WARN_ON(page_test_buffer(page));
+    WARN_ON(page->priv != 0);
     free_page(page);
+}
+
+bool buffer_release_folio(struct folio *folio, gfp_t gfp)
+{
+    struct block_buf *buf;
+
+    /* In no way should folios in this state reach us */
+    WARN_ON(!folio_test_locked(folio));
+    WARN_ON(folio_test_dirty(folio) || folio_test_writeback(folio));
+
+    /* We are excluded against grabbing refs by the folio lock */
+    if (!folio_test_buffer(folio))
+        return true;
+
+    buf = (struct block_buf *) folio->priv;
+    while (buf)
+    {
+        /* Refcount incremented? Can't do it */
+        if (buf->refc > 1)
+            return false;
+        buf = buf->next;
+    }
+
+    /* We can free these buffers, lets give it a shot. */
+    page_destroy_block_bufs(folio_to_page(folio));
+    folio_clear_buffer(folio);
+    return true;
 }
