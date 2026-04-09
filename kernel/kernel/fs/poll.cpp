@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2019 Pedro Falcato
+ * Copyright (c) 2019 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 
 #include <errno.h>
@@ -313,7 +315,7 @@ int sys_pselect(int nfds, fd_set *ureadfds, fd_set *uwritefds, fd_set *uexceptfd
     if (nfds < 0)
         return -EINVAL;
 
-    if (nfds >= FD_SETSIZE)
+    if (nfds > FD_SETSIZE)
         return -EINVAL;
 
     bool infinite_sleep = true;
