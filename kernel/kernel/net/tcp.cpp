@@ -643,8 +643,6 @@ int tcp_connect(struct socket *sock_, struct sockaddr *addr, socklen_t addrlen, 
 int tcp_getsockname(struct socket *sock_, sockaddr *addr, socklen_t *len)
 {
     struct tcp_socket *sock = TCP_SOCK(sock_);
-    if (!sock->bound)
-        return -EINVAL;
 
     sock->copy_addr_to_sockaddr(sock->src_addr, addr, len);
     return 0;
