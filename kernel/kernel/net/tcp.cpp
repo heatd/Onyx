@@ -1014,8 +1014,9 @@ static struct packetbuf *tcp_get_segment(struct tcp_socket *sock, int flags)
         if (list_is_empty(&sock->read_queue) && sock->shutdown_state & SHUTDOWN_RD)
             return NULL;
 
-        st = wait_for_event_socklocked_interruptible_2(&sock->rx_wq,
-                                                       !list_is_empty(&sock->read_queue), sock);
+        st = wait_for_event_socklocked_interruptible_2(
+            &sock->rx_wq, !list_is_empty(&sock->read_queue) || sock->shutdown_state & SHUTDOWN_RD,
+            sock);
     }
 
     return buf;
