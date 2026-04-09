@@ -1136,7 +1136,10 @@ static bool __thread_wake_up(thread *thread, unsigned int cpu, unsigned int stat
         return true;
     }
 
-    new_cpu = sched_allocate_processor();
+    if (__atomic_load_n(&thread->on_cpu, __ATOMIC_ACQUIRE) > 0)
+        new_cpu = cpu;
+    else
+        new_cpu = sched_allocate_processor();
     WRITE_ONCE(thread->status, THREAD_RUNNABLE);
     if (new_cpu != cpu)
     {
