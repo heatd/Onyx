@@ -322,6 +322,24 @@ static enum lru_result shrink_page(struct reclaim_data *data,
         }
     }
 
+    if (page_flag_set(page, PAGE_FLAG_WRITEBACK))
+    {
+        /* No can do. */
+        unlock_page(page);
+        return LRU_ACTIVATE;
+    }
+
+    if (obj && page_test_buffer(page))
+    {
+        WARN_ON(!obj->ops->release_folio);
+        if (!obj->ops->release_folio(page_folio(page), GFP_NOFS))
+        {
+            /* Can't free, oops. */
+            unlock_page(page);
+            return LRU_ROTATE;
+        }
+    }
+
     /* This should be a stable reference. TODO: What if truncation? What if the inode goes away
      * after the unlock? */
     // pr_info("removing page %p\n", page);

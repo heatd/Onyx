@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2025 Pedro Falcato
+ * Copyright (c) 2016 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -453,6 +453,7 @@ static const struct vm_object_ops ext2_vm_obj_ops = {
     .readpages = ext2_readpages,
     .readpage = ext2_readpage,
     .prepare_write = ext2_prepare_write,
+    .release_folio = buffer_release_folio,
 };
 
 struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
