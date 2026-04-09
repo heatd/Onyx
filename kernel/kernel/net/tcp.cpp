@@ -872,7 +872,7 @@ static int tcp_append_to_segment(struct tcp_socket *tp, struct packetbuf *pbf,
         tcp_add_pbf_frag(pbf, &pf);
         pbf->total_len += pf.len;
         len += pf.len;
-        write_space -= len;
+        write_space -= pf.len;
         pbf->tpi.seq_len += pf.len;
     }
 
