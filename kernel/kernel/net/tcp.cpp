@@ -505,6 +505,11 @@ void tcp_stop_retransmit(struct tcp_socket *sock)
     sock->retrans_pending = 0;
 }
 
+static void tcp_stop_timers(struct tcp_socket *sock)
+{
+    timer_cancel_event(&sock->retransmit_timer);
+}
+
 static bool tcp_snd_wnd_check(struct tcp_socket *tp, struct packetbuf *pbf)
 {
     CHECK(pbf->tpi.seq == 0);
@@ -1197,6 +1202,7 @@ void tcp_destroy_sock(struct tcp_socket *sock)
     struct packetbuf *pbf, *next;
     DCHECK(sock->dead);
     tcp_stop_retransmit(sock);
+    tcp_stop_timers(sock);
 
     list_for_each_entry_safe (pbf, next, &sock->on_wire_queue, list_node)
     {
@@ -1219,11 +1225,7 @@ void tcp_destroy_sock(struct tcp_socket *sock)
         pbf_free(pbf);
     }
 
-    /* HACK. The TCP code wants to cancel the timer, if active. We *may* be executed by a timer
-     * right now. Which makes our life complicated, and deadlocks trying to kill it. Such is life.
-     * Make sure we do not try to cancel it.
-     */
-    sock->retransmit_timer.timer = NULL;
+    WARN_ON(clockevent_active(&sock->retransmit_timer));
 
     WARN_ON(sock->sk_send_queued > 0);
     if (WARN_ON(sock->sk_rmem > 0))
