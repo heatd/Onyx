@@ -59,7 +59,7 @@ bool pbf_allocate_space(struct packetbuf *pbf, size_t length)
 
     auto nr_pages = vm_size_to_pages(length);
 
-    page *pages = alloc_page_list(nr_pages, PAGE_ALLOC_NO_ZERO);
+    page *pages = alloc_page_list(nr_pages, GFP_ATOMIC | PAGE_ALLOC_NO_ZERO);
     if (!pages)
         return false;
 
@@ -190,7 +190,7 @@ packetbuf *packetbuf_clone(packetbuf *original)
 
 static int allocate_page_vec(page_iov &v)
 {
-    page *p = alloc_page(0);
+    page *p = alloc_page(GFP_KERNEL);
 
     if (!p)
         return -ENOMEM;
