@@ -93,6 +93,7 @@ ssize_t buffer_writepage(struct vm_object *obj, struct page *page, size_t offset
 
     if (bio_submit_request(blkdev, r) < 0)
     {
+        page_end_writeback(page);
         bio_put(r);
         return -EIO;
     }
@@ -203,8 +204,16 @@ void block_buf_sync(struct block_buf *buf)
 {
     /* TODO: Only write *this* buffer, instead of the whole page */
     struct page *page = buf->this_page;
+    ssize_t err;
+
     lock_page(page);
-    buffer_writepage(page->owner, page, page->pageoff << PAGE_SHIFT);
+    err = buffer_writepage(page->owner, page, page->pageoff << PAGE_SHIFT);
+    if (err < 0)
+    {
+        pr_warn("buffer(%s): failed to sync buffer for block %lu: %zd\n", buf->dev->name.c_str(),
+                buf->block_nr, err);
+    }
+
     page_wait_writeback(page);
 }
 
