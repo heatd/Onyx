@@ -315,6 +315,7 @@ static const struct vm_object_ops block_vm_obj_ops = {
     .writepages = filemap_writepages,
     .readpages = buffer_readpages,
     .readpage = bbuffer_readpage,
+    .release_folio = buffer_release_folio,
 };
 
 static struct lock_class_key bdev_truncate_lock_key;

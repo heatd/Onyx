@@ -307,6 +307,12 @@ static int vmo_purge_pages(unsigned long start, unsigned long end,
             if (unlikely(page_test_clear_dirty(old_p)))
                 filemap_unaccount_dirty(old_p, vmo);
 
+            if (page_test_buffer(old_p))
+            {
+                /* This is not supposed to happen... */
+                WARN_ON(!vmo->ops->release_folio(page_folio(old_p), GFP_KERNEL));
+            }
+
             unlock_page(old_p);
             /* Unref it twice, once for the vm_obj_get_pages, and another for the page cache
              * reference */

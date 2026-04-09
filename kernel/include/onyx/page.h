@@ -826,6 +826,8 @@ FOLIOFLAG_OPS(head, HEAD);
 FOLIOFLAG_OPS(readahead, READAHEAD);
 FOLIOFLAG_OPS(locked, LOCKED);
 FOLIOFLAG_OPS(anon, ANON);
+FOLIOFLAG_OPS(buffer, BUFFER);
+FOLIOFLAG_OPS(writeback, WRITEBACK);
 
 struct vm_object *page_vmobj(struct page *page);
 struct vm_object *folio_vmobj(struct folio *folio);

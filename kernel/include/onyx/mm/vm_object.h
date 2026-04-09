@@ -66,6 +66,7 @@ struct vm_object_ops
     ssize_t (*readpage)(struct page *page, size_t offset, struct inode *ino);
     int (*prepare_write)(struct inode *ino, struct page *page, size_t page_off, size_t offset,
                          size_t len);
+    bool (*release_folio)(struct folio *folio, gfp_t gfp);
 };
 
 #define VMO_FLAG_LOCK_FUTURE_PAGES (1 << 0)
