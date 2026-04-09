@@ -611,6 +611,11 @@ static inline struct file *get_task_exe(struct process *task)
     return filp;
 }
 
+static inline bool fatal_signal_pending(void)
+{
+    return signal_is_pending() && sigismember(&get_current_process()->sigqueue.pending, SIGKILL);
+}
+
 __END_CDECLS
 
 #ifdef __cplusplus

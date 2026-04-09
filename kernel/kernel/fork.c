@@ -305,6 +305,13 @@ static pid_t kernel_clone(struct clone_args *args)
     write_lock(&tasklist_lock);
     spin_lock(&child->sighand->signal_lock);
 
+    if (fatal_signal_pending())
+    {
+        /* Someone's racing a zap with this clone. Error out. */
+        err = -EINTR;
+        goto err_free_thread;
+    }
+
     if (flags & (CLONE_THREAD | CLONE_PARENT))
     {
         /* Our parent (if CLONE_THREAD or CLONE_PARENT) is the current's parent. Regular UNIX
@@ -370,6 +377,10 @@ static pid_t kernel_clone(struct clone_args *args)
     }
 
     return pid;
+err_free_thread:
+    spin_unlock(&child->sighand->signal_lock);
+    write_unlock(&tasklist_lock);
+    thread_put(new_thread);
 err_put_mm:
     mmput(child->address_space);
 err_put_signal:
