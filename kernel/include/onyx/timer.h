@@ -84,4 +84,9 @@ struct timer *platform_get_timer(void);
 void timer_queue_clockevent(struct clockevent *ev);
 void timer_handle_events(struct timer *t);
 
+static inline bool clockevent_active(struct clockevent *ev)
+{
+    return READ_ONCE(ev->timer) != NULL;
+}
+
 #endif
