@@ -782,7 +782,7 @@ void sched_init_cpu(unsigned int cpu)
 
     t->priority = SCHED_PRIO_VERY_LOW;
     t->cpu = cpu;
-
+    t->on_cpu = 1;
     write_per_cpu_any(current_thread, t, cpu);
     write_per_cpu_any(sched_quantum, SCHED_QUANTUM, cpu);
     write_per_cpu_any(preemption_counter, 0, cpu);
@@ -817,6 +817,7 @@ int sched_init(void)
     assert(t != NULL);
 
     t->priority = SCHED_PRIO_NORMAL;
+    t->on_cpu = 1;
     // sched_start_thread_for_cpu(t, get_cpu_nr());
 
     write_per_cpu(sched_quantum, SCHED_QUANTUM);
