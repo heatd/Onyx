@@ -144,7 +144,7 @@ static void pagedaemon(void * /*arg*/)
     }
 }
 
-static void do_direct_reclaim(int order, int attempt, unsigned int gfp_flags)
+static int do_direct_reclaim(int order, int attempt, unsigned int gfp_flags)
 {
     struct reclaim_data data;
     data.attempt = attempt;
@@ -153,7 +153,7 @@ static void do_direct_reclaim(int order, int attempt, unsigned int gfp_flags)
     data.mode = RECLAIM_MODE_DIRECT;
     pr_info("pagealloc: Doing direct reclaim: order %d, attempt %d, gfp_flags %x\n", order, attempt,
             gfp_flags);
-    page_do_reclaim(&data);
+    return page_do_reclaim(&data);
 }
 
 static struct page *page_zone_alloc_core(page_zone *zone, unsigned int gfp_flags,
@@ -925,10 +925,20 @@ static void dump_oom_log(void)
     pr_warn("%lu pages RAM\n", nr_global_pages.load());
 }
 
+static void try_continue_alloc(unsigned int order, unsigned int *attempt, int progress)
+{
+    /* For high order, always assume that we may not have made forward progress. */
+    if (order > 0 || !progress)
+        (*attempt)++;
+    else
+        *attempt = 0;
+}
+
 struct page *page_node::alloc_order(unsigned int order, unsigned long flags)
 {
     struct page *page = nullptr;
     unsigned int attempt = 0;
+    int progress = 1;
 
     if (flags & __GFP_MAY_RECLAIM && !(flags & (__GFP_NOWAIT | __GFP_ATOMIC)))
     {
@@ -961,7 +971,7 @@ struct page *page_node::alloc_order(unsigned int order, unsigned long flags)
             break;
 
         if (flags & __GFP_DIRECT_RECLAIM)
-            do_direct_reclaim(order, attempt, flags);
+            progress = do_direct_reclaim(order, attempt, flags) >= 0;
         else if (flags & __GFP_WAKE_PAGEDAEMON)
         {
             unsigned long cur_seq = wake_up_pagedaemon(order, attempt);
@@ -975,7 +985,7 @@ struct page *page_node::alloc_order(unsigned int order, unsigned long flags)
         else
             goto failure; /* No reclaim, just fail */
 
-        attempt++;
+        try_continue_alloc(order, &attempt, progress);
     }
 
     if (unlikely(!page))
@@ -1228,7 +1238,7 @@ unsigned long page_reclaim_target(gfp_t gfp, unsigned int order)
     bool may = false;
     unsigned long free_target = pages_under_high_watermark();
     if (free_target > 0)
-        return free_target;
+        return free_target > 32 ? free_target : 32;
 
     /* Everything is over the high watermark. Check if we indeed can accomplish this allocation.
      * This does a slight emulation of alloc_page logic paths.
