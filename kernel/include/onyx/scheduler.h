@@ -86,6 +86,10 @@ typedef struct thread
 
     struct registers *regs;
     unsigned int pagefault_disabled;
+#ifdef CONFIG_DEBUG_SCHEDULER
+    hrtime_t last_finish;
+    hrtime_t last_switch_in;
+#endif
 
 #ifdef CONFIG_KCOV
     struct kcov_data *kcov_data;
@@ -122,6 +126,10 @@ typedef struct thread
         : refcount{}, canary{}, kernel_stack{}, kernel_stack_top{}, owner{}, entry{}, flags{}, id{},
           status{}, priority{}, cpu{}, next{}, prev_prio{}, next_prio{}, fpu_area{}, sem_prev{},
           sem_next{}, lock{}, errno_val{}, addr_limit{}, ctid{}, cputime_info{}, aspace{}, plug{}
+#ifdef CONFIG_DEBUG_SCHEDULER
+          ,
+          last_finish{}, last_switch_in{}
+#endif
 #ifdef __x86_64__
           ,
           fs{}, gs{}
