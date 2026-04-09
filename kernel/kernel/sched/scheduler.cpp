@@ -328,6 +328,8 @@ thread_t *sched_find_next()
     return __sched_find_next(get_cpu_nr());
 }
 
+static void dump_thread(struct thread *thread);
+
 thread_t *sched_find_runnable(void)
 {
     thread_t *thread = sched_find_next();
@@ -337,6 +339,11 @@ thread_t *sched_find_runnable(void)
     }
     atomic_and_relaxed(thread->flags, ~THREAD_IN_QUEUE);
     WARN_ON(thread->cpu != get_cpu_nr());
+    if (get_current_thread() != thread)
+    {
+        if (WARN_ON(thread->on_cpu))
+            dump_thread(thread);
+    }
     return thread;
 }
 
@@ -432,15 +439,53 @@ void sched_decrease_quantum(clockevent *ev)
     ev->deadline = clocksource_get_time() + NS_PER_MS;
 }
 
+static void dump_thread(struct thread *thread)
+{
+    struct registers *regs;
+
+    pr_warn("thread id %u entry %pS status %u flags %u\n", thread->id, thread->entry,
+            thread->status, thread->flags);
+    if (thread->owner)
+        pr_warn("belonging to %s[%d], last switched %lu ms ago\n", thread->owner->comm,
+                thread->owner->pid_,
+                (clocksource_get_time() - thread->owner->last_switch_time) / NS_PER_MS);
+    regs = (struct registers *) thread->kernel_stack;
+#ifdef CONFIG_DEBUG_SCHEDULER
+    pr_warn("last seen at ip %pS, last switch-in %lu ms ago, last finish "
+            "switch %lu ms ago\n",
+            (void *) regs->rip, (clocksource_get_time() - thread->last_switch_in) / NS_PER_MS,
+            (clocksource_get_time() - thread->last_finish) / NS_PER_MS);
+    pr_warn("raw ts: in %lu swtch %lu finish %lu\n", thread->last_switch_in / NS_PER_US,
+            thread->owner ? thread->owner->last_switch_time / NS_PER_US : 0,
+            thread->last_finish / NS_PER_US);
+#endif
+}
+
 void sched_load_thread(struct thread *prev, thread *thread, unsigned int cpu)
 {
     struct mm_address_space *mm = prev->active_mm ?: prev->aspace;
+
+    CHECK(prev->on_cpu);
+    if (prev != thread)
+    {
+        CHECK(thread != get_current_thread());
+        if (WARN_ON(thread->on_cpu))
+        {
+            pr_warn("thread %p has on_cpu %d for cpu %u (curr %u)\n", thread, thread->on_cpu,
+                    thread->cpu, cpu);
+            dump_thread(thread);
+        }
+    }
 
     write_per_cpu(current_thread, thread);
     spin_unlock_irqrestore(get_per_cpu_ptr_any(scheduler_lock, cpu), irq_save_and_disable());
     errno = thread->errno_val;
 
     WRITE_ONCE(thread->on_cpu, 1);
+#ifdef CONFIG_DEBUG_SCHEDULER
+    thread->last_switch_in = clocksource_get_time();
+    prev->last_finish = clocksource_get_time();
+#endif
     native::arch_load_thread(thread, cpu);
 
     if (!(thread->flags & THREAD_KERNEL))
@@ -454,12 +499,6 @@ void sched_load_thread(struct thread *prev, thread *thread, unsigned int cpu)
             native::arch_load_process(thread->owner, thread, cpu);
             cpumask_unset_atomic(&mm->active_mask, cpu);
         }
-
-        if (prev->active_mm)
-        {
-            mmdrop(mm);
-            prev->active_mm = NULL;
-        }
     }
     else
     {
@@ -469,12 +508,13 @@ void sched_load_thread(struct thread *prev, thread *thread, unsigned int cpu)
             CHECK(thread->active_mm == NULL);
             thread->active_mm = mm;
             mmgrab(mm);
-            if (prev->active_mm)
-            {
-                mmdrop(mm);
-                prev->active_mm = NULL;
-            }
         }
+    }
+
+    if (thread != prev && prev->active_mm)
+    {
+        mmdrop(mm);
+        prev->active_mm = NULL;
     }
 
     write_per_cpu(sched_quantum, SCHED_QUANTUM);
@@ -525,6 +565,10 @@ extern "C" void finish_switch(struct thread *prev)
 {
     if (!prev)
         return;
+
+#ifdef CONFIG_DEBUG_SCHEDULER
+    prev->last_finish = clocksource_get_time();
+#endif
     __atomic_store_n(&prev->on_cpu, 0, __ATOMIC_RELEASE);
     if (prev->status == THREAD_DEAD)
         thread_put(prev);
