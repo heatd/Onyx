@@ -642,6 +642,13 @@ extern "C" void *sched_schedule(void *last_stack)
         trace_sched_slice_begin(curr_thread->id, curr_thread->owner ? curr_thread->owner->pid_ : 0,
                                 curr_thread->owner ? curr_thread->owner->comm : NULL);
     }
+    else
+    {
+        write_per_cpu(sched_quantum, SCHED_QUANTUM);
+        sched_unlock(curr_thread, CPU_FLAGS_NO_IRQ);
+        irq_enable();
+        return last_stack;
+    }
 
     sched_load_finish(source_thread, curr_thread);
     __builtin_unreachable();
