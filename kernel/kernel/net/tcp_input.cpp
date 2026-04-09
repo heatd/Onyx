@@ -785,7 +785,6 @@ static void tcp_do_synack_retransmit(struct clockevent *ce)
     spin_lock(&conn->tc_lock);
     if (conn->retry == TCP_SYNACK_RETRIES)
     {
-        ce->flags &= ~CLOCKEVENT_FLAG_PULSE;
         tcp_drop_connreq(conn);
         rcu_read_unlock();
         return;
@@ -794,7 +793,7 @@ static void tcp_do_synack_retransmit(struct clockevent *ce)
     tcp_send_synack(conn);
     conn->retry++;
     ce->deadline = clocksource_get_time() + (TCP_SYNACK_RTO_NS << conn->retry);
-    ce->flags |= CLOCKEVENT_FLAG_PULSE;
+    timer_queue_clockevent(ce);
     spin_unlock(&conn->tc_lock);
     rcu_read_unlock();
 }
