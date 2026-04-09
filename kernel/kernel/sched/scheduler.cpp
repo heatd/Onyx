@@ -563,9 +563,7 @@ NO_ASAN void sched_load_finish(thread *prev_thread, thread *next_thread)
 
 extern "C" void finish_switch(struct thread *prev)
 {
-    if (!prev)
-        return;
-
+    WARN_ON(prev == get_current_thread());
 #ifdef CONFIG_DEBUG_SCHEDULER
     prev->last_finish = clocksource_get_time();
 #endif
