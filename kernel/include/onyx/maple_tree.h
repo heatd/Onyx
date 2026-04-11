@@ -207,7 +207,7 @@ extern int lock_is_held_type(const struct lockdep_map *lock, int read);
 
 static inline int lock_is_held(const struct lockdep_map *lock)
 {
-	return lock_is_held_type(lock, -1);
+    return lock_is_held_type(lock, -1);
 }
 #endif
 
@@ -771,7 +771,7 @@ static inline void __mas_set_range(struct ma_state *mas, unsigned long start, un
 {
     /* Ensure the range starts within the current slot */
     // Onyx patch - remove when WARN_ON is properly implemented.
-    // MAS_WARN_ON(mas, mas_is_active(mas) && (mas->index > start || mas->last < start));
+    MAS_WARN_ON(mas, mas_is_active(mas) && (mas->index > start || mas->last < start));
     mas->index = start;
     mas->last = last;
 }
@@ -862,7 +862,7 @@ static inline void mt_clear_in_rcu(struct maple_tree *mt)
 
     if (mt_external_lock(mt))
     {
-        // WARN_ON(!mt_lock_is_held(mt));
+        WARN_ON(!mt_lock_is_held(mt));
         mt->ma_flags &= ~MT_FLAGS_USE_RCU;
     }
     else
@@ -884,7 +884,7 @@ static inline void mt_set_in_rcu(struct maple_tree *mt)
 
     if (mt_external_lock(mt))
     {
-        // WARN_ON(!mt_lock_is_held(mt));
+        WARN_ON(!mt_lock_is_held(mt));
         mt->ma_flags |= MT_FLAGS_USE_RCU;
     }
     else
