@@ -246,7 +246,7 @@ static int block_write_begin(struct file *filp, struct vm_object *vm_obj, off_t 
                              struct page **ppage) NO_THREAD_SAFETY_ANALYSIS
 {
     struct page *page;
-    int st = filemap_find_page(filp->f_ino, offset >> PAGE_SHIFT,
+    int st = filemap_find_page(filp->f_mapping->ino, offset >> PAGE_SHIFT,
                                FIND_PAGE_ACTIVATE | FIND_PAGE_NO_READPAGE | FIND_PAGE_LOCK, &page,
                                &filp->f_ra_state);
     if (st < 0)
