@@ -839,8 +839,16 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
     {
         if (flags & MAP_FIXED)
             __vm_munmap(mm, addr, pages << PAGE_SHIFT);
+        else
+        {
+            vma = mas_find(&vmi.mas, ULONG_MAX);
+            if (vma && vma->vm_start < virt + aligned_len)
+                virt = 0;
+            vma = NULL;
+        }
     }
-    else
+
+    if (!virt)
     {
         if (vm_alloc_address(&vmi, VM_ADDRESS_USER | extra_flags, aligned_len, VM_TYPE_REGULAR) < 0)
             goto enomem;
