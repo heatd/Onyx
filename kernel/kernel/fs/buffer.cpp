@@ -266,6 +266,8 @@ void page_destroy_block_bufs(struct page *page)
 ssize_t bbuffer_readpage(struct page *p, size_t off, struct inode *ino)
 {
     auto blkdev = reinterpret_cast<blockdev *>(ino->i_helper);
+    u64 nblocks = blkdev->nr_sectors;
+
     DCHECK(blkdev != nullptr);
 
     sector_t sec_nr = off / blkdev->sector_size;
@@ -277,18 +279,19 @@ ssize_t bbuffer_readpage(struct page *p, size_t off, struct inode *ino)
     }
 
     auto block_size = blkdev->block_size;
+    auto nr_blocks = PAGE_SIZE / block_size;
 
     struct bio_req *r = bio_alloc(GFP_NOIO, 1);
     if (!r)
         return -EIO;
+    struct page_iov &vec = r->vec[0];
+
     r->sector_number = sec_nr;
     r->flags = BIO_REQ_READ_OP;
-    struct page_iov &vec = r->vec[0];
-    vec.length = PAGE_SIZE;
+    vec.length = (sec_nr + nr_blocks > nblocks ? nblocks - sec_nr : nr_blocks) * block_size;
     vec.page = p;
     vec.page_off = 0;
 
-    auto nr_blocks = PAGE_SIZE / block_size;
     size_t starting_block_nr = off / block_size;
 
     size_t curr_off = 0;
@@ -311,6 +314,8 @@ ssize_t bbuffer_readpage(struct page *p, size_t off, struct inode *ino)
         }
 
         b->block_nr = starting_block_nr + i;
+        if (b->block_nr >= nblocks)
+            bb_test_and_set(b, BLOCKBUF_FLAG_HOLE | BLOCKBUF_FLAG_UPTODATE);
         b->block_size = block_size;
         b->dev = blkdev;
 
