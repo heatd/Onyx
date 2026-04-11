@@ -169,9 +169,8 @@ static void validate_mm_tree(struct mm_address_space *mm)
 print_tree:
     pr_err("mm: dumping vmas for mm %p...\n", mm);
     mas_set(&vmi.mas, 0);
-    mas_for_each(&vmi.mas, entry_, -1UL)
+    mas_for_each(&vmi.mas, vma, -1UL)
     {
-        struct vm_area_struct *vma = (struct vm_area_struct *) entry_;
         const char *name = "[anon]";
         if (vma->vm_file)
             name = vma->vm_file->f_dentry->d_name;
