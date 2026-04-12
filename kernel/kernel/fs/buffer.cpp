@@ -888,6 +888,9 @@ bool buffer_release_folio(struct folio *folio, gfp_t gfp)
         /* Refcount incremented? Can't do it */
         if (buf->refc > 1)
             return false;
+        /* Being read async? Can't do it */
+        if (bb_test_flag(buf, BLOCKBUF_FLAG_AREAD))
+            return false;
         buf = buf->next;
     }
 
