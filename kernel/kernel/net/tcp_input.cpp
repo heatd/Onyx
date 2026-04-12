@@ -101,10 +101,53 @@ static void tcp_eat_head(struct packetbuf *pbf, unsigned int len)
     CHECK(pbf->tpi.seq_len > 0);
 }
 
+static u32 tcp_do_slow_start(struct tcp_socket *tp, u32 acked)
+{
+    u32 new_cwnd;
+
+    /* Two notes here:
+     * 1) We get @acked here so, with this information, we can properly handle stretch ACKs (ACKs
+     * that handle more than 2 segments). Theoretically, TCP ABC (Appropriate byte count) would
+     * solve this, but Linux does not implement this, I assume for some good reason.
+     * 2) We have to return the number of non-acked segments, in case we get more acks than
+     * ssthresh. In that case we want to handle things as if we are not in slow-start.
+     */
+    new_cwnd = min(tp->snd_cwnd + acked, tp->ssthresh);
+    acked -= (new_cwnd - tp->snd_cwnd);
+    tp->snd_cwnd = new_cwnd;
+    return new_cwnd;
+}
+
+static void tcp_do_cong_avoid(struct tcp_socket *tp, u32 acked)
+{
+    u32 cwnd = tp->snd_cwnd;
+    tp->snd_cwnd_ca += acked;
+
+    if (unlikely(tp->snd_cwnd_ca >= cwnd))
+    {
+        /* We're over the credits, increment snd_cwnd by snd_cwnd units */
+        tp->snd_cwnd += tp->snd_cwnd_ca / cwnd;
+        tp->snd_cwnd_ca %= cwnd;
+    }
+}
+
+static void tcp_cong_control_ack(struct tcp_socket *tp, u32 acked)
+{
+    if (tcp_in_slow_start(tp))
+        acked = tcp_do_slow_start(tp, acked);
+    tcp_do_cong_avoid(tp, acked);
+}
+
+static void tcp_fast_retransmit(struct tcp_socket *tp)
+{
+}
+
 static int tcp_ack(struct tcp_socket *sock, struct packetbuf *pbuf, struct tcp_header *tcphdr)
 {
     u32 ack = tcphdr->ack_number;
     u32 seq = pbuf->tpi.seq;
+    u32 acked = 0;
+    u32 old_win;
     bool attempt_output = false;
 
     /* If the segment acks something not yet sent, send an ACK */
@@ -114,6 +157,7 @@ static int tcp_ack(struct tcp_socket *sock, struct packetbuf *pbuf, struct tcp_h
         return TCP_DROP_ACK_UNSENT;
     }
 
+    old_win = sock->snd_wnd;
     /* If SND.UNA =< SEG.ACK =< SND.NXT, the send window should be updated. */
     if (!after(sock->snd_una, ack))
     {
@@ -131,7 +175,19 @@ static int tcp_ack(struct tcp_socket *sock, struct packetbuf *pbuf, struct tcp_h
 
     /* If SND.UNA < SEG.ACK =< SND.NXT, then set SND.UNA <- SEG.ACK */
     if (!after(ack, sock->snd_una))
+    {
+        /* This is definitely a dup ack, now check for a "DUPLICATE ACKNOWLEDGMENT" as defined by
+         * RFC5681. Note that seq_len == 0 implies !SYN and !FIN, as per TCP */
+        if (!list_is_empty(&sock->on_wire_queue) && pbuf->tpi.seq_len == 0 &&
+            sock->snd_una == ack && sock->snd_wnd == old_win)
+        {
+            sock->dupacks++;
+            if (sock->dupacks == 3)
+                tcp_fast_retransmit(sock);
+        }
+
         return TCP_DROP_ACK_DUP;
+    }
 
     struct packetbuf *pbf, *next;
     list_for_each_entry_safe (pbf, next, &sock->on_wire_queue, list_node)
@@ -165,14 +221,17 @@ static int tcp_ack(struct tcp_socket *sock, struct packetbuf *pbuf, struct tcp_h
         {
             list_remove(&pbf->list_node);
             pbf_put_ref(pbf);
+            acked++;
         }
     }
 
     sock->snd_una = ack;
+    sock->dupacks = 0;
 
     if (list_is_empty(&sock->on_wire_queue))
         tcp_stop_retransmit(sock);
 
+    tcp_cong_control_ack(sock, acked);
     if (attempt_output)
         tcp_output(sock);
     return 0;
@@ -293,6 +352,7 @@ static int tcp_input_syn_sent(struct tcp_socket *sock, struct packetbuf *pbf)
         /* ACK is cromulent, and this is a SYN-ACK. Good. */
         sock->rcv_next = hdr->sequence_number + 1;
         sock->rcv_wup = sock->rcv_next;
+        tcp_init_congestion_control(sock);
         tcp_ack(sock, pbf, hdr);
         /* Window size on SYN and SYN ACK segments is never scaled. */
         sock->snd_wnd = ntohs(hdr->window_size);
@@ -960,6 +1020,7 @@ static int tcp_input_conn(struct tcp_connreq *conn, struct packetbuf *pbf)
     }
 
     sock->mss = min(sock->send_mss, sock->rcv_mss);
+    tcp_init_congestion_control(sock);
 
     /* We'll put our state as SYN_RECEIVED. The generic receive code will take care of moving our
      * state forwards. */
