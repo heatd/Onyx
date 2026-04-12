@@ -38,6 +38,8 @@ typedef struct star_header
 #define TAR_TYPE_CHAR_SPECIAL  '3'
 #define TAR_TYPE_BLOCK_SPECIAL '4'
 #define TAR_TYPE_DIR           '5'
+#define TAR_TYPE_LONGNAME      'L'
+#define TAR_TYPE_LONGLINK      'K'
 
 static inline size_t tar_get_size(const char *in)
 {
