@@ -3087,6 +3087,61 @@
         "abi": "c"
     },
     {
+        "name": "mlock",
+        "nr": 176,
+        "nr_args": 2,
+        "args": [
+            [
+                "const void *",
+                "addr"
+            ],
+            [
+                "size_t",
+                "len"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "munlock",
+        "nr": 177,
+        "nr_args": 2,
+        "args": [
+            [
+                "const void *",
+                "addr"
+            ],
+            [
+                "size_t",
+                "len"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "mlockall",
+        "nr": 178,
+        "nr_args": 1,
+        "args": [
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "munlockall",
+        "nr": 179,
+        "nr_args": 0,
+        "args": [],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
         "name": "listxattr",
         "nr": 194,
         "nr_args": 3,
