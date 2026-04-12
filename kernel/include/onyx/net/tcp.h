@@ -70,15 +70,15 @@ struct tcp_header
 
 #define MAX_TCP_HEADER_LENGTH (PACKET_MAX_HEAD_LENGTH + 60)
 
-#define TCP_FLAG_FIN          (uint16_t)(1 << 0)
-#define TCP_FLAG_SYN          (uint16_t)(1 << 1)
-#define TCP_FLAG_RST          (uint16_t)(1 << 2)
-#define TCP_FLAG_PSH          (uint16_t)(1 << 3)
-#define TCP_FLAG_ACK          (uint16_t)(1 << 4)
-#define TCP_FLAG_URG          (uint16_t)(1 << 5)
-#define TCP_FLAG_ECE          (uint16_t)(1 << 6)
-#define TCP_FLAG_CWR          (uint16_t)(1 << 7)
-#define TCP_FLAG_NS           (uint16_t)(1 << 8)
+#define TCP_FLAG_FIN          (uint16_t) (1 << 0)
+#define TCP_FLAG_SYN          (uint16_t) (1 << 1)
+#define TCP_FLAG_RST          (uint16_t) (1 << 2)
+#define TCP_FLAG_PSH          (uint16_t) (1 << 3)
+#define TCP_FLAG_ACK          (uint16_t) (1 << 4)
+#define TCP_FLAG_URG          (uint16_t) (1 << 5)
+#define TCP_FLAG_ECE          (uint16_t) (1 << 6)
+#define TCP_FLAG_CWR          (uint16_t) (1 << 7)
+#define TCP_FLAG_NS           (uint16_t) (1 << 8)
 #define TCP_DATA_OFFSET_SHIFT (12)
 #define TCP_DATA_OFFSET_MASK  (0xf)
 
@@ -184,10 +184,24 @@ struct tcp_socket : public inet_socket
     /* rcv_next at the time of the last window update */
     u32 rcv_wup;
 
+    /* Congestion window, in MSS units. This estimates and controls how much data we can send, on
+     * our side. */
+    u32 snd_cwnd;
+
+    /* Accumulated snd_cwnd_ca until now. This serves as a counter so we can linearly increment cwnd
+     * over time. Every time snd_cwnd_ca reaches snd_cwnd, we increment snd_cwnd and reset this. */
+    u32 snd_cwnd_ca;
+
+    /* Slow-side threshold. Controls whether we are in slow start or congestion avoidance. */
+    u32 ssthresh;
+
     /* Segment sequence number used for last window update */
     u32 snd_wl1;
     /* Segment ack number used for last window update */
     u32 snd_wl2;
+
+    /* Duplicate ack count, as maintained for TCP fast retransmit purposes */
+    u32 dupacks;
 
     bool nagle_enabled : 1;
     bool retrans_active : 1 {0};
@@ -309,6 +323,13 @@ static inline u32 tcp_wnd_end(struct tcp_socket *tp)
 static inline u32 tcp_pbf_end_seq(struct packetbuf *pbf)
 {
     return pbf->tpi.seq + pbf->tpi.seq_len - pbf->tpi.fin;
+}
+
+void tcp_init_congestion_control(struct tcp_socket *tp);
+
+static inline bool tcp_in_slow_start(struct tcp_socket *tp)
+{
+    return tp->snd_cwnd < tp->ssthresh;
 }
 
 #endif
