@@ -22,6 +22,7 @@
 #include <onyx/panic.h>
 #include <onyx/percpu.h>
 #include <onyx/pgtable.h>
+#include <onyx/registers.h>
 #include <onyx/vm.h>
 #include <onyx/vm_layout.h>
 
@@ -235,7 +236,7 @@ void kasan_fail(unsigned long addr, size_t size, bool write, unsigned char b)
     panic(buffer);
 }
 
-#define KASAN_MISALIGNMENT(x) ((x) &KASAN_N_MASK)
+#define KASAN_MISALIGNMENT(x) ((x) & KASAN_N_MASK)
 
 void kasan_check_memory_fast(unsigned long addr, size_t size, bool write)
 {
