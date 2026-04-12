@@ -54,6 +54,7 @@ void timer_handle_events(struct timer *t)
 {
     bool atomic_context = irq_is_disabled();
     bool has_raised_softirq = false;
+    bool is_pulse;
     struct list_head to_handle;
     INIT_LIST_HEAD(&to_handle);
 
@@ -122,17 +123,28 @@ void timer_handle_events(struct timer *t)
         {
             struct clockevent *ev = container_of(l, struct clockevent, list_node);
             list_remove(&ev->list_node);
+            is_pulse = ev->flags & CLOCKEVENT_FLAG_PULSE;
+            cpu_flags = spin_lock_irqsave(&t->event_list_lock);
+            /* Pulse clockevents are guaranteed to stay alive after the callback. Others aren't. */
+            if (!is_pulse)
+            {
+                /* Cancel it, cancel it now! */
+                WRITE_ONCE(ev->timer, NULL);
+                atomic_and_relaxed(ev->flags, ~(CLOCKEVENT_FLAG_PENDING | CLOCKEVENT_FLAG_POISON));
+            }
+
+            t->executing = ev;
+            spin_unlock_irqrestore(&t->event_list_lock, cpu_flags);
             ev->callback(ev);
 
-            if (ev->flags & CLOCKEVENT_FLAG_PULSE)
+            cpu_flags = spin_lock_irqsave(&t->event_list_lock);
+            t->executing = NULL;
+            spin_unlock_irqrestore(&t->event_list_lock, cpu_flags);
+
+            if (is_pulse && ev->flags & CLOCKEVENT_FLAG_PULSE)
             {
                 ev->flags &= ~CLOCKEVENT_FLAG_POISON;
                 timer_queue_clockevent(ev);
-            }
-            else
-            {
-                WRITE_ONCE(ev->timer, NULL);
-                atomic_and_relaxed(ev->flags, ~(CLOCKEVENT_FLAG_PENDING | CLOCKEVENT_FLAG_POISON));
             }
         }
     }
