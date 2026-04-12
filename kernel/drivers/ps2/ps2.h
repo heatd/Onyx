@@ -1,9 +1,9 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the MIT License
+ * Copyright (c) 2016 - 2026 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 
 #ifndef _ONYX_PS2_H
@@ -28,6 +28,7 @@
 
 #define PS2_STATUS_OUTPUT_BUFFER_FULL (1 << 0)
 #define PS2_STATUS_INPUT_BUFFER_FULL  (1 << 1)
+#define PS2_STATUS_AUX                (1 << 5)
 
 #define PS2_CMD_DISABLE_SECOND_PORT 0xa7
 #define PS2_CMD_ENABLE_SECOND_PORT  0xa8
@@ -74,6 +75,7 @@ struct ps2_controller
 };
 
 void ps2_keyboard_init(struct ps2_port *port);
+void ps2_mouse_init(struct ps2_port *port);
 uint8_t ps2_send_command_to_device(struct ps2_port *port, uint8_t command, bool get_response,
                                    uint8_t *response);
 void ps2_wait_for_input_buffer(struct ps2_controller *controller);
