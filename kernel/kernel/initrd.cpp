@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2025 Pedro Falcato
+ * Copyright (c) 2016 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -40,15 +40,45 @@ unsigned int parse_perms_from_tar(tar_header_t *entry)
         .unwrap();
 }
 
+static char tar_longname[PATH_MAX];
+static unsigned int longname_len;
+static bool has_longname;
+static char tar_longlink[PATH_MAX];
+static unsigned int longlink_len;
+static bool has_longlink;
+
 void tar_handle_entry(tar_header_t *entry, onx::stream &str)
 {
     char *full_filename;
     if (memcmp(entry->magic, "ustar ", 5))
         panic("Tar entry with invalid magic value");
+
     auto filenamelen = strnlen(entry->filename, 100);
     size_t len;
 
-    if (entry->prefix[0] != '\0')
+    if (entry->typeflag == TAR_TYPE_LONGNAME)
+    {
+        longname_len = tar_get_size(entry->size);
+        str.read(cul::slice<unsigned char>{(unsigned char *) tar_longname, longname_len}).unwrap();
+        has_longname = true;
+        return;
+    }
+    else if (entry->typeflag == TAR_TYPE_LONGLINK)
+    {
+        longlink_len = tar_get_size(entry->size);
+        str.read(cul::slice<unsigned char>{(unsigned char *) tar_longlink, longlink_len}).unwrap();
+        has_longlink = true;
+        tar_longlink[longlink_len] = '\0';
+        return;
+    }
+
+    if (has_longname)
+    {
+        full_filename = (char *) memdup(tar_longname, longname_len + 1);
+        len = longname_len;
+        has_longname = false;
+    }
+    else if (entry->prefix[0] != '\0')
     {
         auto prefixlen = strnlen(entry->prefix, 155);
         full_filename = (char *) malloc(prefixlen + filenamelen + 2); // Additional char for /
@@ -112,7 +142,6 @@ void tar_handle_entry(tar_header_t *entry, onx::stream &str)
         auto ex = vfs_open(AT_FDCWD, full_filename, O_RDWR | O_CREAT, perms);
         if (ex.has_error())
             panic("Could not create file from initrd - errno %d", ex.error());
-
         filp = ex.value();
         size_t size = tar_get_size(entry->size);
         str.splice(size, filp).unwrap();
@@ -126,6 +155,11 @@ void tar_handle_entry(tar_header_t *entry, onx::stream &str)
     else if (entry->typeflag == TAR_TYPE_SYMLNK)
     {
         char *buffer = (char *) entry->linkname;
+        if (has_longlink)
+        {
+            buffer = tar_longlink;
+            has_longlink = false;
+        }
         int st = symlink_vfs(full_filename, buffer, AT_FDCWD);
         CHECK(st == 0);
     }
