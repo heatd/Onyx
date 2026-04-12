@@ -139,6 +139,12 @@ static void tcp_init_sock(struct tcp_socket *sock)
     /* Default the send buf to 4MiB, and the rcv buf to 16MiB */
     sock->sk_sndbuf = 0x400000;
     sock->sk_rcvbuf = 0x1000000;
+
+    /* ssthresh is initialized to a very high value (recommended as the most we can have
+     * outstanding), and subsequently lowered later on. */
+    sock->ssthresh = INT_MAX;
+    sock->snd_cwnd = sock->snd_cwnd_ca = 0;
+    sock->dupacks = 0;
 }
 
 static __init void tcp_init()
@@ -428,6 +434,30 @@ int tcp_send_ack(struct tcp_socket *sock)
 
 static void tcp_start_retransmit_timer(struct tcp_socket *sock, hrtime_t timeout);
 
+static void tcp_enter_loss(struct tcp_socket *tp)
+{
+    /* Something funny happens here, wrt ssthresh. RFC5681 mentions the following:
+     * "When a TCP sender detects segment loss using the retransmission timer
+     *  and the given segment has not yet been resent by way of the [...]
+     *  ssthresh = max (FlightSize / 2, 2*SMSS)"
+     * So, per the RFCs we need to maintain the count of segments in flight. It also
+     * explicitly mentions: "An easy mistake to make is to simply use cwnd,
+     * rather than FlightSize, which in some implementations may
+     * incidentally increase well beyond rwnd"
+     * Ok. This explicitly wants us to maintain the count of in-flight segments.
+     * However. It turns out there is plenty of literature out there that mentions the
+     * correct calculation as "ssthresh = max (cwnd / 2, 2*SMSS)", including several pages
+     * online, wikipedia, TCP/IP Illustrated, Volume 1: The Protocols, and the Linux code itself.
+     * NetBSD/OpenBSD/DragonflyBSD TCP Reno seems to take the minimum of (snd_wnd, cwnd). Solaris
+     * (well, illumos) uses snd_next - snd_una. FreeBSD does not seem to implement anything
+     * old-school enough for this to matter.
+     *
+     * For interoperability with most systems (aka Linux), we'll just use cwnd.
+     */
+    tp->ssthresh = cul::max(tp->snd_cwnd / 2, 2U);
+    tp->snd_cwnd = 1;
+}
+
 static void tcp_retransmit_segments(struct tcp_socket *sock)
 {
     struct packetbuf *pbf;
@@ -440,6 +470,12 @@ static void tcp_retransmit_segments(struct tcp_socket *sock)
         wait_queue_wake_all(&sock->rx_wq);
         sock->retrans_active = false;
         return;
+    }
+
+    if (sock->retransmit_try == 0)
+    {
+        /* First try. Enter loss, if required */
+        tcp_enter_loss(sock);
     }
 
     /* Go through pending out, resubmit, and reschedule a new timer */
@@ -1649,4 +1685,12 @@ static int tcp_setsockopt(struct socket *sock_, int level, int optname, const vo
 
     sock->socket_lock.unlock_sock(sock);
     return st;
+}
+
+void tcp_init_congestion_control(struct tcp_socket *tp)
+{
+    /* This must be called _after_ mss is set up. */
+    DCHECK(tp->mss > 0);
+    /* Set up the initial window as suggested by RFC6928. */
+    tp->snd_cwnd = 10;
 }
