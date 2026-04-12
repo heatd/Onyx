@@ -1,9 +1,9 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the MIT License
+ * Copyright (c) 2016 - 2026 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 #include <onyx/acpi.h>
 #include <onyx/cpu.h>
@@ -21,14 +21,19 @@ extern void send_event_to_kernel(unsigned char keycode);
 
 irqstatus_t ps2_irq(struct irq_context *ctx, void *cookie)
 {
+    struct ps2_controller *controller;
+    struct ps2_port *port;
     unsigned char status;
 
-    struct ps2_port *port = (ps2_port *) cookie;
+    port = (struct ps2_port *) cookie;
+    controller = port->controller;
 
-    status = inb(port->controller->command_port);
+    status = inb(controller->command_port);
 
     if (status & PS2_STATUS_OUTPUT_BUFFER_FULL)
     {
+        /* The real port comes from looking at the status */
+        port = &controller->ports[(status & PS2_STATUS_AUX) != 0];
         if (port->on_byte)
             port->on_byte(port);
     }
@@ -137,7 +142,7 @@ void ps2_wait_for_input_buffer(struct ps2_controller *controller)
 
 void ps2_wait_for_byte(struct ps2_controller *controller)
 {
-    while (inb(controller->command_port) & PS2_STATUS_OUTPUT_BUFFER_FULL)
+    while (!(inb(controller->command_port) & PS2_STATUS_OUTPUT_BUFFER_FULL))
         cpu_relax();
 }
 
@@ -269,7 +274,7 @@ int ps2_reset_device(struct ps2_port *port)
     {
         /* The mouse outputs another byte */
         ps2_wait_for_byte(port->controller);
-        inb(port->controller->data_port);
+        pr_info("ps2: mouse type %u\n", inb(port->controller->data_port));
     }
 
     port->has_device = true;
@@ -387,6 +392,8 @@ int ps2_probe(struct device *device)
 
     if (controller->ports[0].has_device)
         ps2_keyboard_init(&controller->ports[0]);
+    if (controller->ports[1].has_device)
+        ps2_mouse_init(&controller->ports[1]);
 
     if (ps2_enable_irqs(controller) < 0)
         printf("ps2: Could not enable irqs\n");
@@ -425,9 +432,10 @@ struct driver ps2_mouse_driver = {.name = "ps2mouse",
 
 struct driver ps2_platform_driver = {.name = "ps2", .bus_type_node = {&ps2_platform_driver}};
 
-struct device ps2_platform_device
-{
-    "ps2", nullptr, nullptr
+struct device ps2_platform_device{
+    "ps2",
+    nullptr,
+    nullptr,
 };
 
 int ps2_probe_keyboard(device *device)
