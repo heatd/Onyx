@@ -74,6 +74,7 @@ struct timer
     void *priv;
     struct list_head event_list;
     struct spinlock event_list_lock;
+    struct clockevent *executing;
     void (*set_oneshot)(hrtime_t in_future);
     void (*set_periodic)(unsigned long freq);
     void (*disable_timer)(void);
