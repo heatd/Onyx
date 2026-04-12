@@ -3208,6 +3208,168 @@
         "abi": "c"
     },
     {
+        "name": "setxattr",
+        "nr": 188,
+        "nr_args": 5,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ],
+            [
+                "const char *",
+                "name"
+            ],
+            [
+                "const void *",
+                "value"
+            ],
+            [
+                "size_t",
+                "size"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "lsetxattr",
+        "nr": 189,
+        "nr_args": 5,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ],
+            [
+                "const char *",
+                "name"
+            ],
+            [
+                "const void *",
+                "value"
+            ],
+            [
+                "size_t",
+                "size"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "fsetxattr",
+        "nr": 190,
+        "nr_args": 5,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "const char *",
+                "name"
+            ],
+            [
+                "const void *",
+                "value"
+            ],
+            [
+                "size_t",
+                "size"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "getxattr",
+        "nr": 191,
+        "nr_args": 5,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ],
+            [
+                "const char *",
+                "name"
+            ],
+            [
+                "void *",
+                "value"
+            ],
+            [
+                "size_t",
+                "size"
+            ]
+        ],
+        "return_type": "ssize_t",
+        "abi": "c"
+    },
+    {
+        "name": "lgetxattr",
+        "nr": 192,
+        "nr_args": 5,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ],
+            [
+                "const char *",
+                "name"
+            ],
+            [
+                "void *",
+                "value"
+            ],
+            [
+                "size_t",
+                "size"
+            ]
+        ],
+        "return_type": "ssize_t",
+        "abi": "c"
+    },
+    {
+        "name": "fgetxattr",
+        "nr": 193,
+        "nr_args": 5,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "const char *",
+                "name"
+            ],
+            [
+                "void *",
+                "value"
+            ],
+            [
+                "size_t",
+                "size"
+            ]
+        ],
+        "return_type": "ssize_t",
+        "abi": "c"
+    },
+    {
         "name": "llistxattr",
         "nr": 195,
         "nr_args": 3,
@@ -3226,6 +3388,57 @@
             ]
         ],
         "return_type": "ssize_t",
+        "abi": "c"
+    },
+    {
+        "name": "removexattr",
+        "nr": 197,
+        "nr_args": 2,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ],
+            [
+                "const char *",
+                "name"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "lremovexattr",
+        "nr": 198,
+        "nr_args": 2,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ],
+            [
+                "const char *",
+                "name"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "fremovexattr",
+        "nr": 199,
+        "nr_args": 2,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "const char *",
+                "name"
+            ]
+        ],
+        "return_type": "int",
         "abi": "c"
     }
 ]
