@@ -115,11 +115,9 @@ static void buffer_write_readpages_endio(struct bio_req *bio) NO_THREAD_SAFETY_A
     for (size_t i = 0; i < bio->nr_vecs; i++)
     {
         struct page_iov *iov = &bio->vec[i];
-        DCHECK(page_locked(iov->page));
         struct block_buf *head = (struct block_buf *) iov->page->priv;
 
         spin_lock(&head->pagestate_lock);
-        bool uptodate = true;
 
         for (struct block_buf *b = head; b != nullptr; b = b->next)
         {
@@ -130,19 +128,47 @@ static void buffer_write_readpages_endio(struct bio_req *bio) NO_THREAD_SAFETY_A
                 wake_address(b);
                 continue;
             }
-
-            if (!bb_test_flag(b, BLOCKBUF_FLAG_UPTODATE))
-                uptodate = false;
         }
 
         spin_unlock(&head->pagestate_lock);
+    }
+}
 
-        if (uptodate)
+static int wait_pending_areads(struct page *page, struct block_buf *head)
+{
+    struct block_buf *buf;
+    bool all_uptodate;
+    int err;
+
+retry:
+    spin_lock(&head->pagestate_lock);
+    all_uptodate = true;
+    buf = head;
+    for (; buf; buf = buf->next)
+    {
+        if (bb_test_flag(buf, BLOCKBUF_FLAG_AREAD))
         {
-            if ((bio->flags & BIO_STATUS_MASK) == BIO_REQ_DONE)
-                page_set_uptodate(iov->page);
+            spin_unlock(&head->pagestate_lock);
+            wait_for(
+                buf,
+                [](void *ptr) -> bool {
+                    struct block_buf *b = (struct block_buf *) ptr;
+                    return !bb_test_flag(b, BLOCKBUF_FLAG_AREAD);
+                },
+                0, 0);
+            goto retry;
+        }
+        else if (!bb_test_flag(buf, BLOCKBUF_FLAG_UPTODATE))
+        {
+            all_uptodate = false;
         }
     }
+
+    if (all_uptodate)
+        page_set_uptodate(page);
+    err = 0;
+    spin_unlock(&head->pagestate_lock);
+    return err;
 }
 
 static int block_readpage_write(struct vm_object *vm_obj, off_t offset, size_t len,
@@ -224,20 +250,7 @@ skip_setup:
         }
     }
 
-    for (struct block_buf *buf = (struct block_buf *) page->priv; buf; buf = buf->next)
-    {
-        if (bb_test_flag(buf, BLOCKBUF_FLAG_AREAD))
-            wait_for(
-                buf,
-                [](void *ptr) -> bool {
-                    struct block_buf *b = (struct block_buf *) ptr;
-                    return !bb_test_flag(b, BLOCKBUF_FLAG_AREAD);
-                },
-                0, 0);
-    }
-
-    return 0;
-
+    return wait_pending_areads(page, (struct block_buf *) page->priv);
 out_err:
     return st;
 }
