@@ -1434,6 +1434,13 @@ int sched_transition_to_user_thread(thread *thread)
 
     thread->flags &= ~THREAD_KERNEL;
     thread->set_aspace(thread->owner->get_aspace());
+    vm_load_aspace(thread->owner->get_aspace(), get_cpu_nr());
+    if (thread->active_mm)
+    {
+        mmdrop(thread->active_mm);
+        thread->active_mm = NULL;
+    }
+
     return st;
 }
 
