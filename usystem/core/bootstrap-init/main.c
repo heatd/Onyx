@@ -41,13 +41,6 @@ int insmod(const char *path, const char *name)
     return syscall(SYS_insmod, path, name);
 }
 
-int fmount(int fd, char *path)
-{
-    if (syscall(SYS_fmount, fd, path))
-        return -1;
-    return 0;
-}
-
 #define MODULE_PREFIX "/usr/lib/modules/"
 #define MODULE_EXT    ".ko"
 
@@ -212,15 +205,6 @@ int main(int argc, char **argv)
     if (option_verbose)
         fprintf(stderr, "bootstrap-init: Mounting root filesystem %s...\n", root_blockdev);
 
-    int devfd = open("/dev", O_RDONLY | O_CLOEXEC);
-    int sysfsfd = open("/sys", O_RDONLY | O_CLOEXEC);
-
-    if (devfd < 0 || sysfsfd < 0)
-    {
-        perror("Failed opening old mounts");
-        return 1;
-    }
-
     st = mount_autodetect(root_blockdev, "/");
 
     free((void *) root_blockdev);
@@ -233,14 +217,10 @@ int main(int argc, char **argv)
     }
 
     if (option_verbose)
-        fprintf(stderr, "bootstrap-init: root mounted, remounting dev and sysfs\n");
+        fprintf(stderr, "bootstrap-init: root mounted, remounting dev\n");
 
-    if (fmount(devfd, "/dev") < 0 || fmount(sysfsfd, "/sys") < 0)
-    {
-        perror("fmount");
-        fprintf(stderr, "bootstrap-init: Mounting devfs and sysfs failed\n");
-        return 1;
-    }
+    if (mount("none", "/dev", "devfs", 0, NULL) < 0)
+        return 2;
 
     if (option_verbose)
         fprintf(stderr, "bootstrap-init: root mounting done, exec'ing the new init\n");
