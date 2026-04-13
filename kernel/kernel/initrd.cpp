@@ -34,9 +34,19 @@ bool is_tar(void *initrd)
     return !memcmp(header->magic, "ustar ", 5);
 }
 
+size_t strlen_space(const char *buf)
+{
+    const char *s = buf;
+    size_t len = 0;
+
+    while (*s && *s != ' ')
+        s++, len++;
+    return len;
+}
+
 unsigned int parse_perms_from_tar(tar_header_t *entry)
 {
-    return parser::parse_number_from_string<unsigned int>({entry->mode, strlen(entry->mode)})
+    return parser::parse_number_from_string<unsigned int>({entry->mode, strlen_space(entry->mode)})
         .unwrap();
 }
 
