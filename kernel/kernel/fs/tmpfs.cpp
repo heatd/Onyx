@@ -16,6 +16,7 @@
 #include <onyx/dev.h>
 #include <onyx/filemap.h>
 #include <onyx/fs_mount.h>
+#include <onyx/libfs.h>
 #include <onyx/log.h>
 #include <onyx/mm/shmem.h>
 #include <onyx/mount.h>
@@ -184,13 +185,6 @@ ssize_t tmpfs_readpage(struct page *page, size_t offset, struct inode *ino)
     return PAGE_SIZE;
 }
 
-ssize_t tmpfs_writepage(struct vm_object *obj, struct page *page, size_t offset) REQUIRES(page)
-    RELEASE(page)
-{
-    unlock_page(page);
-    return PAGE_SIZE;
-}
-
 int tmpfs_open(struct dentry *dir, const char *name, struct dentry *dentry)
 {
     /* This a no-op, since names are either cached or non-existent in our tmpfs */
@@ -291,7 +285,7 @@ const struct file_ops tmpfs_fops = {
     .fallocate = nullptr,
     .read_iter = filemap_read_iter,
     .write_iter = filemap_write_iter,
-    .fsyncdata = filemap_writepages,
+    .fsyncdata = noop_fsyncdata,
 };
 
 const struct inode_operations tmpfs_ino_ops = {
@@ -317,7 +311,6 @@ static void tmpfs_free_page(struct vm_object *vmo, struct page *page)
 
 const static vm_object_ops tmpfs_vmops = {
     .free_page = tmpfs_free_page,
-    .writepage = tmpfs_writepage,
     .readpage = tmpfs_readpage,
     .prepare_write = tmpfs_prepare_write,
 };

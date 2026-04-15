@@ -85,12 +85,14 @@ static inline int libfs_no_unlink(const char *name, int flags, struct dentry *di
     return -EROFS;
 }
 
+struct writepages_info;
+
 off_t libfs_put_dots(struct dirent *buf, off_t off, struct dentry *dent);
 void put_dir(const char *name, off_t off, ino_t ino, unsigned int dtype, struct dirent *buf);
 
 int default_stat(struct stat *buf, const struct path *path);
 off_t generic_file_llseek(struct file *filp, off_t offset, int whence);
-
+int noop_fsyncdata(struct inode *ino, struct writepages_info *wpinfo);
 __END_CDECLS
 
 #endif

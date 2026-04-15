@@ -47,3 +47,8 @@ void put_dir(const char *name, off_t off, ino_t ino, unsigned int dtype, struct 
     buf->d_type = dtype;
     buf->d_reclen = sizeof(struct dirent) - (256 - (len + 1));
 }
+
+int noop_fsyncdata(struct inode *ino, struct writepages_info *wpinfo)
+{
+    return 0;
+}
