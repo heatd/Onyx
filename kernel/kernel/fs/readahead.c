@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 Pedro Falcato
+ * Copyright (c) 2024 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -176,4 +176,26 @@ int filemap_do_readahead_async(struct inode *inode, struct readahead_state *ra_s
     if (window < RA_MAX_WINDOW)
         WRITE_ONCE(ra_state->ra_window, window * 2);
     return filemap_do_readahead(inode, ra_state, READ_ONCE(ra_state->ra_start) + window * 2);
+}
+
+void do_force_readahead(struct inode *ino, off_t offset, size_t len)
+{
+    size_t chunk;
+
+    /* Do readahead in 4MB chunks - it's not desirable to do everything at once, or too much memory
+     * may be pinned at the same time. */
+    while (len)
+    {
+        chunk = min(len, 0x400000ul);
+        unsigned long pgoff = offset >> PAGE_SHIFT;
+        struct readahead_state ra = {
+            .ra_window = ((offset + chunk) >> PAGE_SHIFT) - pgoff,
+        };
+
+        /* If RA or the filesystem says stop, we stop */
+        if (filemap_do_readahead(ino, &ra, pgoff) < 0)
+            break;
+        len -= chunk;
+        offset += chunk;
+    }
 }
