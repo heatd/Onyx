@@ -2360,7 +2360,6 @@ static bool limits_are_contained(struct vm_area_struct *reg, unsigned long start
 void *sys_mremap(void *old_address, size_t old_size, size_t new_size, int flags, void *new_address)
 {
     // TODO: This is broken.
-    WARN_ON_ONCE(1);
     return (void *) -ENOSYS;
     /* Check http://man7.org/linux/man-pages/man2/mremap.2.html for documentation */
     bool may_move = flags & MREMAP_MAYMOVE;
