@@ -31,6 +31,9 @@ static void check_for_hung_tasks(void)
     rcu_read_lock();
     list_for_each_entry_rcu (task, &tasklist, tasklist_node)
     {
+        /* Hasn't switched yet, that's fine. */
+        if (task->last_switch_time == 0)
+            continue;
         /* Not its time, yet. */
         if (task->last_switch_time + TIMEOUT > now)
             continue;
