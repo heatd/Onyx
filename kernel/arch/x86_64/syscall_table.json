@@ -3440,5 +3440,30 @@
         ],
         "return_type": "int",
         "abi": "c"
+    },
+    {
+        "name": "fadvise64",
+        "nr": 221,
+        "nr_args": 4,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "off_t",
+                "offset"
+            ],
+            [
+                "size_t",
+                "len"
+            ],
+            [
+                "int",
+                "advice"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
     }
 ]
