@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2025 Pedro Falcato
+ * Copyright (c) 2016 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -31,6 +31,7 @@
 #include <onyx/framebuffer.h>
 #include <onyx/id.h>
 #include <onyx/init.h>
+#include <onyx/mm/slab.h>
 #include <onyx/mutex.h>
 #include <onyx/panic.h>
 #include <onyx/poll.h>
@@ -302,20 +303,38 @@ void tty_write_string_kernel(const char *data)
 size_t ttydevfs_write(size_t offset, size_t len, void *ubuffer, struct file *f)
 {
     struct tty *tty = (struct tty *) f->private_data;
+    ssize_t written = 0, err, to_write;
 
-    char *buffer = (char *) malloc(len);
+    char *buffer = (char *) kmalloc(PAGE_SIZE, GFP_KERNEL);
     if (!buffer)
         return (size_t) -ENOMEM;
 
-    if (copy_from_user(buffer, ubuffer, len) < 0)
+    while (len > 0)
     {
-        free(buffer);
-        return -EFAULT;
+        to_write = min(PAGE_SIZE, len);
+        if (copy_from_user(buffer, (char *) ubuffer + written, to_write) < 0)
+        {
+            written = written ?: -EFAULT;
+            break;
+        }
+
+        err = tty_write(buffer, to_write, tty);
+        if (err < 0)
+        {
+            written = written ?: err;
+            break;
+        }
+
+        /* zero? */
+        if (WARN_ON(err == 0))
+            break;
+
+        written += err;
+        len -= err;
     }
 
-    len = tty_write(buffer, len, tty);
     free(buffer);
-    return len;
+    return written;
 }
 
 size_t strnewlinelen(const char *str, unsigned int _len)
