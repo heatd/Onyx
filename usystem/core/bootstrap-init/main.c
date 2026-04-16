@@ -16,6 +16,7 @@
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 int mount_autodetect(const char *dev, const char *mpoint)
@@ -122,6 +123,69 @@ static void drop_to_rescue_sh()
         perror("exec");
 }
 
+static int do_fsck(const char *bdev)
+{
+    /* No support for anything else right now */
+    const char *filesystems[] = {"ext2", "ext3", "ext4"};
+    char buf[64];
+    int exec = 0;
+    int wstatus;
+    pid_t pid;
+
+    for (unsigned int i = 0; i < sizeof(filesystems) / sizeof(filesystems[0]); i++)
+    {
+        sprintf(buf, "/sbin/fsck.%s", filesystems[i]);
+        if (access(buf, X_OK) == 0)
+        {
+            /* Ok, it's here, let's exec */
+            pid = fork();
+            if (pid == 0)
+            {
+                /* -p = no questions */
+                if (execl(buf, buf, "-p", bdev, NULL) < 0)
+                {
+                    perror("exec");
+                    exit(1);
+                }
+            }
+            else if (pid < 0)
+            {
+                perror("fork");
+                return -1;
+            }
+
+            exec = 1;
+            break;
+        }
+    }
+
+    if (!exec)
+    {
+        printf("fsck not found, continuing\n");
+        return 0;
+    }
+
+    if (wait(&wstatus) < 0)
+    {
+        perror("wait");
+        return 1;
+    }
+
+    if (!WIFEXITED(wstatus))
+    {
+        if (WIFSIGNALED(wstatus))
+            printf("%s exited with signal %d\n", buf, WTERMSIG(wstatus));
+        return -1;
+    }
+
+    /* Now we get to interpret the exit code. We can tolerate 0 or 1 - anything else should drop to
+     * a rescue shell (0 = clean, 1 = corrected) */
+    if (WEXITSTATUS(wstatus) == 0 || WEXITSTATUS(wstatus) == 1)
+        return 0;
+    printf("%s exited with error code %d\n", buf, WEXITSTATUS(wstatus));
+    return -1;
+}
+
 int main(int argc, char **argv)
 {
     // Ok so our job is to load initial modules and mount root
@@ -204,6 +268,14 @@ int main(int argc, char **argv)
 
     if (option_verbose)
         fprintf(stderr, "bootstrap-init: Mounting root filesystem %s...\n", root_blockdev);
+
+    /* fsck the root block device */
+    st = do_fsck(root_blockdev);
+    if (st)
+    {
+        drop_to_rescue_sh();
+        return 1;
+    }
 
     st = mount_autodetect(root_blockdev, "/");
 
