@@ -899,6 +899,7 @@ struct superblock *ext2_mount_partition(struct vfs_mount_info *info)
 error:
     if (b)
         block_buf_put(b);
+    shrinker_unregister(&sb->s_shrinker);
     delete sb;
 
     return (struct superblock *) ERR_PTR(err);
