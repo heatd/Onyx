@@ -459,15 +459,14 @@ static unsigned long translate_mount_flags(unsigned long flags)
 int do_mount(const char *source, const char *target, const char *fstype, unsigned long flags,
              const void *data)
 {
-    struct fs_mount *fs;
+    struct fs_mount *fs = NULL;
     struct mount *mnt;
     unsigned long mnt_flags;
     unsigned int sb_flags;
 
     /* Find the fstype's handler */
-    fs = fs_mount_get(fstype);
-    if (!fs)
-        return -ENODEV;
+    if (fstype)
+        fs = fs_mount_get(fstype);
 
     if (flags & ~VALID_MOUNT_FLAGS)
         return -EINVAL;
@@ -478,7 +477,11 @@ int do_mount(const char *source, const char *target, const char *fstype, unsigne
     if ((flags & (MS_REMOUNT | MS_BIND)) == MS_REMOUNT)
         mnt = do_remount(target, sb_flags, mnt_flags, data);
     else
+    {
+        if (!fs)
+            return -ENODEV;
         mnt = do_mount_internal(source, target, fs, mnt_flags, sb_flags, data);
+    }
     if (IS_ERR(mnt))
         return PTR_ERR(mnt);
     return 0;
@@ -509,11 +512,14 @@ int sys_mount(const char *usource, const char *utarget, const char *ufilesystemt
         goto out;
     }
 
-    filesystemtype = strcpy_from_user(ufilesystemtype);
-    if (!filesystemtype)
+    if (ufilesystemtype != NULL)
     {
-        ret = -errno;
-        goto out;
+        filesystemtype = strcpy_from_user(ufilesystemtype);
+        if (!filesystemtype)
+        {
+            ret = -errno;
+            goto out;
+        }
     }
 
     ret = do_mount(source, target, filesystemtype, mountflags, data);
