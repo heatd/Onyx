@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 - 2025 Pedro Falcato
+ * Copyright (c) 2024 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -441,11 +441,13 @@ out:
     return err ? ERR_PTR(err) : mnt;
 }
 
-#define VALID_MOUNT_FLAGS \
-    (MS_RDONLY | MS_SILENT | MS_RELATIME | MS_REMOUNT | MS_BIND | MS_STRICTATIME | MS_NOATIME)
+#define VALID_MOUNT_FLAGS                                                                \
+    (MS_RDONLY | MS_NODEV | MS_NOSUID | MS_SILENT | MS_RELATIME | MS_REMOUNT | MS_BIND | \
+     MS_STRICTATIME | MS_NOATIME)
 
 /* These flags have the same bits internally as in the argument */
-#define SAME_FLAGS_MASK (MNT_STRICTATIME | MNT_NOATIME | MNT_NODIRATIME | MNT_READONLY)
+#define SAME_FLAGS_MASK \
+    (MNT_STRICTATIME | MNT_NOATIME | MNT_NODIRATIME | MNT_READONLY | MNT_NODEV | MNT_NOSUID)
 
 static unsigned long translate_mount_flags(unsigned long flags)
 {
@@ -647,6 +649,8 @@ static void mounts_print_flags(struct seq_file *m, struct mount *mnt)
 {
     unsigned int flags = READ_ONCE(mnt->mnt_flags);
     unsigned int i;
+
+    // clang-format off
     static const struct
     {
         unsigned int flag;
@@ -655,7 +659,10 @@ static void mounts_print_flags(struct seq_file *m, struct mount *mnt)
         {MNT_NOATIME, "noatime"},
         {MNT_STRICTATIME, "strictatime"},
         {MNT_NODIRATIME, "nodiratime"},
+        {MNT_NODEV, "nodev"},
+        {MNT_NOSUID, "nosuid"},
     };
+    // clang-format on
 
     seq_puts(m, mnt_rdonly(mnt) ? "ro" : "rw");
 
