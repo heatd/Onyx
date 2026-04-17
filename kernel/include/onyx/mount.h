@@ -8,6 +8,8 @@
 #ifndef _ONYX_MOUNT_H
 #define _ONYX_MOUNT_H
 
+#include <sys/mount.h>
+
 #include <onyx/list.h>
 #include <onyx/rcupdate.h>
 #include <onyx/seqlock_types.h>
@@ -16,6 +18,8 @@ struct dentry;
 struct superblock;
 
 #define MNT_READONLY    (1U << 0)
+#define MNT_NOSUID      MS_NOSUID
+#define MNT_NODEV       MS_NODEV
 #define MNT_STRICTATIME MS_STRICTATIME
 #define MNT_NOATIME     MS_NOATIME
 #define MNT_NODIRATIME  MS_NODIRATIME

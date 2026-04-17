@@ -803,6 +803,8 @@ bool apply_sugid_permissions(file *f)
     auto ino = f->f_ino;
     bool changed = false;
 
+    if (f->f_path.mount->mnt_flags & MNT_NOSUID)
+        return false;
     if (!(ino->i_mode & (S_ISGID | S_ISUID)))
         return false;
 

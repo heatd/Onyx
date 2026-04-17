@@ -76,6 +76,8 @@ static int dev_do_open(struct file *filp)
     struct inode *ino = filp->f_ino;
     gendev *dev;
 
+    if (filp->f_path.mount->mnt_flags & MNT_NODEV)
+        return -EACCES;
     dev = S_ISBLK(ino->i_mode) ? (gendev *) dev_find_block(ino->i_rdev)
                                : (gendev *) dev_find_chr(ino->i_rdev);
     if (!dev)
