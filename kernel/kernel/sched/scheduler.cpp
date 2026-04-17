@@ -542,8 +542,6 @@ NO_ASAN void sched_load_finish(thread *prev_thread, thread *next_thread)
 #endif
     sched_load_thread(prev_thread, next_thread, get_cpu_nr());
 
-    rcu_do_quiesc();
-
     inc_per_cpu(nr_ctx_switches);
     if (prev_thread)
         atomic_and_relaxed(prev_thread->flags, ~THREAD_RUNNING);
@@ -628,6 +626,8 @@ extern "C" void *sched_schedule(void *last_stack)
 
         do_cputime_accounting();
     }
+
+    rcu_do_quiesc();
 
     thread *source_thread = curr_thread;
     irq_save_and_disable();
