@@ -94,6 +94,7 @@ private:
     struct list_head pipe_buffers;
     size_t curr_len{0};
     mutex pipe_lock{1};
+    unsigned long wr_seq;
 
     wait_queue write_queue;
     wait_queue read_queue;
@@ -180,6 +181,7 @@ pipe::pipe() : refcountable(1)
     init_wait_queue_head(&read_queue);
     INIT_LIST_HEAD(&pipe_buffers);
     mutex_init(&pipe_lock);
+    wr_seq = 0;
 }
 
 pipe::~pipe()
@@ -367,6 +369,7 @@ void pipe::close_write_end()
     {
         wake_all(&read_queue);
     }
+    wr_seq++;
 }
 
 void pipe::close_read_end()
@@ -394,7 +397,7 @@ short pipe::poll(struct file *filp, void *poll_file, short events)
                 revents |= (events & (POLLIN | POLLRDNORM));
         }
 
-        if (writer_count == 0)
+        if (writer_count == 0 && (unsigned long) filp->private_data != wr_seq)
             revents |= POLLHUP;
     }
 
@@ -927,6 +930,7 @@ int pipe::open_named(struct file *filp)
     else if ((filp->f_flags & O_RDWRMASK) == O_WRONLY)
     {
         writer_count++;
+        wr_seq++;
         wake_all(&read_queue);
         COMPILER_BARRIER();
         // Use a lambda to go around the multiple wait_for_event problem
@@ -941,6 +945,7 @@ int pipe::open_named(struct file *filp)
         // POSIX leaves this undefined, we peer with ourselves.
         writer_count++;
         reader_count++;
+        wr_seq++;
         st = 0;
     }
     else
@@ -952,11 +957,15 @@ int pipe::open_named(struct file *filp)
     {
         // Remove ourselves from the count if we got a signal
         if (filp->f_flags & O_WRONLY)
+        {
             writer_count--;
+            wr_seq++;
+        }
         else
             reader_count--;
     }
 
+    filp->private_data = (void *) wr_seq;
     return st;
 }
 
