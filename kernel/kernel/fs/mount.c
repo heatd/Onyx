@@ -469,7 +469,11 @@ int do_mount(const char *source, const char *target, const char *fstype, unsigne
         fs = fs_mount_get(fstype);
 
     if (flags & ~VALID_MOUNT_FLAGS)
+    {
+        pr_warn_once("mount: unknown flags %lx mounting %s (%s)\n", flags & ~VALID_MOUNT_FLAGS,
+                     source, fstype);
         return -EINVAL;
+    }
 
     mnt_flags = translate_mount_flags(flags);
     sb_flags = flags & (SB_RDONLY | SB_SILENT);
