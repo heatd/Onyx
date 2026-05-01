@@ -100,6 +100,25 @@ static char task_state(struct process *task)
     return '?';
 }
 
+static void task_sigign_sigcatch(struct process *task, sigset_t *ign, sigset_t *catch)
+{
+    void (*handler)(int);
+    int signal;
+
+    spin_lock(&task->sighand->signal_lock);
+
+    for (signal = 1; signal < _NSIG; signal++)
+    {
+        handler = task->sighand->sigtable[signal].sa_handler;
+        if (handler == SIG_IGN)
+            sigaddset(ign, signal);
+        else if (handler != SIG_DFL)
+            sigaddset(catch, signal);
+    }
+
+    spin_unlock(&task->sighand->signal_lock);
+}
+
 static int proc_pid_stat_show(struct seq_file *m, void *v)
 {
     unsigned long minflt, majflt, cminflt, cmajflt;
@@ -113,7 +132,8 @@ static int proc_pid_stat_show(struct seq_file *m, void *v)
     unsigned long vsize, rss, rsslim;
     unsigned long startcode, endcode, startstack;
     unsigned long kstkesp, kstkeip;
-    unsigned int pending, blocked, ignored, catched;
+    unsigned int pending, blocked;
+    sigset_t ignored, catched;
     unsigned long wchan;
     unsigned long startdata, enddata;
     unsigned long start_brk;
@@ -220,9 +240,9 @@ static int proc_pid_stat_show(struct seq_file *m, void *v)
     pending = READ_ONCE(task->sigqueue.pending.__bits[0]);
     blocked = READ_ONCE(task->sigmask.__bits[0]);
 
-    /* TODO: More todo (counting SIG_IGN and !SIG_DFL...)*/
-    ignored = 0;
-    catched = 0;
+    sigemptyset(&ignored);
+    sigemptyset(&catched);
+    task_sigign_sigcatch(task, &ignored, &catched);
 
     /* TODO: 0 0 for priority, nice. 0 0 for itrealvalue, starttime. 0 0 for
      * nswap, cnswap. 0 0 0 0 0 for (40 - 44 in the manpage). */
@@ -234,9 +254,10 @@ static int proc_pid_stat_show(struct seq_file *m, void *v)
                pid_nr(task_session(task)), tty_num, tty_pgrp, (unsigned int) task->flags, minflt,
                cminflt, majflt, cmajflt, utime / NS_PER_MS, stime / NS_PER_MS, cutime / NS_PER_MS,
                cstime / NS_PER_MS, (unsigned long) READ_ONCE(sig->nr_threads), vsize, rss, rsslim,
-               startcode, endcode, startstack, kstkesp, kstkeip, pending, blocked, ignored, catched,
-               wchan, SIGCHLD, task->thr->cpu, startdata, enddata, start_brk, arg_start, arg_end,
-               env_start, env_end, exit_code);
+               startcode, endcode, startstack, kstkesp, kstkeip, pending, blocked,
+               (unsigned int) ignored.__bits[0], (unsigned int) catched.__bits[0], wchan, SIGCHLD,
+               task->thr->cpu, startdata, enddata, start_brk, arg_start, arg_end, env_start,
+               env_end, exit_code);
 
     rcu_read_unlock();
     if (mm)
