@@ -326,10 +326,7 @@ void superblock_add_inode_unlocked(struct superblock *sb, struct inode *inode)
 
     scoped_lock g{sb->s_ilock};
     list_add_tail(&inode->i_sb_list_node, &sb->s_inodes);
-    __atomic_add_fetch(&sb->s_ref, 1, __ATOMIC_ACQUIRE);
-
     i_set_hashed(inode);
-
     spin_unlock(&inode_hashtable_locks[index]);
 }
 
@@ -357,8 +354,6 @@ void superblock_remove_inode(struct superblock *sb, struct inode *inode)
     list_remove(&inode->i_hash_list_node);
 
     i_unhash(inode);
-
-    __atomic_sub_fetch(&sb->s_ref, 1, __ATOMIC_RELAXED);
 }
 
 void superblock_kill(struct superblock *sb)

@@ -340,6 +340,8 @@ static struct mount *do_mount_internal(const char *source, const char *target, s
         goto out3;
     }
 
+    mnt->mnt_sb->s_root = root_dentry;
+    dget(root_dentry);
     list_add_tail(&mnt->mnt_sb_node, &mnt->mnt_sb->s_mounts);
     bdev = NULL;
     mnt->mnt_root = root_dentry;
@@ -456,6 +458,47 @@ static unsigned long translate_mount_flags(unsigned long flags)
     return mflags;
 }
 
+static struct mount *do_bind_mount(const char *source, const char *target, unsigned int sb_flags,
+                                   unsigned long mnt_flags, const void *data)
+{
+    struct mount *mnt;
+    struct path path;
+    int err;
+
+    err = path_openat(AT_FDCWD, source, 0, &path);
+    if (err)
+        return ERR_PTR(err);
+
+    mnt = kmalloc(sizeof(*mnt), GFP_KERNEL);
+    if (!mnt)
+        goto out;
+    mnt_init(mnt, mnt_flags);
+
+    mnt->mnt_sb = path.mount->mnt_sb;
+    super_get(mnt->mnt_sb);
+    list_add_tail(&mnt->mnt_sb_node, &mnt->mnt_sb->s_mounts);
+    mnt->mnt_root = path.dentry;
+    mnt->mnt_devname = source;
+
+    WARN_ON(!sb_check_callbacks(mnt->mnt_sb));
+
+    if (!check_created_mnt(mnt))
+    {
+        err = -EIO;
+        goto out2;
+    }
+
+    err = mnt_commit(mnt, target);
+    if (err == 0)
+        return mnt;
+out2:
+    list_remove(&mnt->mnt_sb_node);
+    kfree(mnt);
+out:
+    path_put(&path);
+    return ERR_PTR(err);
+}
+
 int do_mount(const char *source, const char *target, const char *fstype, unsigned long flags,
              const void *data)
 {
@@ -480,6 +523,8 @@ int do_mount(const char *source, const char *target, const char *fstype, unsigne
 
     if ((flags & (MS_REMOUNT | MS_BIND)) == MS_REMOUNT)
         mnt = do_remount(target, sb_flags, mnt_flags, data);
+    else if ((flags & (MS_REMOUNT | MS_BIND)) == (MS_BIND))
+        mnt = do_bind_mount(source, target, sb_flags, mnt_flags, data);
     else
     {
         if (!fs)
@@ -581,9 +626,12 @@ static bool attempt_disconnect(struct mount *mount)
 
 static int do_umount_path(struct path *path, int flags)
 {
-    int err = -EINVAL;
     struct mount *mount = path->mount;
+    struct superblock *sb;
+    int err = -EINVAL;
+    bool sb_dead;
 
+    sb = mount->mnt_sb;
     /* Check if the path given is actually a mountpoint */
     if (path->mount->mnt_root != path->dentry)
         goto out_put_path;
@@ -596,19 +644,26 @@ static int do_umount_path(struct path *path, int flags)
      * this. */
     path_put(path);
 
-    if (mount->mnt_sb->s_ops->umount)
-        mount->mnt_sb->s_ops->umount(mount);
+    sb_dead = super_put(sb);
+
+    /* If we were holding the last reference to the superblock, lets start sb killing procedures.
+     * Call ->umount(), then shrink the subtree. mnt_root should have a refcount of 1 at this point.
+     */
+    if (sb_dead)
+    {
+        if (sb->s_ops->umount)
+            sb->s_ops->umount(mount);
+    }
 
     dentry_shrink_subtree(mount->mnt_root);
     dput(mount->mnt_point);
-
-    WARN_ON(mount->mnt_root->d_ref != 1);
 
     /* Finally, put our root */
     dput(mount->mnt_root);
 
     /* Now shutdown the superblock */
-    sb_shutdown(mount->mnt_sb);
+    if (sb_dead)
+        sb_shutdown(sb);
     kfree_rcu(mount, mnt_rcu);
     return 0;
 out_put_path:
