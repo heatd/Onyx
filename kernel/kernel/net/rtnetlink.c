@@ -39,7 +39,6 @@ static int do_handle_rtnl(struct netlink_sock *nlsk, struct packetbuf *pbf, stru
     int type, err;
 
     type = nlh->nlmsg_type;
-    pr_warn("rtnl send %u flags %x\n", type, nlh->nlmsg_flags);
     if (type > RTM_MAX)
         return -EOPNOTSUPP;
 
@@ -62,14 +61,11 @@ static int do_handle_rtnl(struct netlink_sock *nlsk, struct packetbuf *pbf, stru
     if (err < 0)
     {
         pbf_free(new_pbf);
-        pr_warn("err %d\n", err);
         return err;
     }
 
-    pr_warn("pbf len %u\n", pbf_length(new_pbf));
     list_add_tail(&new_pbf->list_node, &nlsk->buf_list);
     wait_queue_wake_all(&nlsk->wq);
-    pr_warn("done yay\n");
     return err;
 }
 
