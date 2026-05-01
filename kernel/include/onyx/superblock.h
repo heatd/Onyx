@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2025 Pedro Falcato
+ * Copyright (c) 2017 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -16,6 +16,7 @@
 #include <onyx/mm/shrinker.h>
 #include <onyx/mutex.h>
 #include <onyx/rcupdate.h>
+#include <onyx/ref.h>
 #include <onyx/rwlock.h>
 #include <onyx/spinlock.h>
 #include <onyx/types.h>
@@ -51,9 +52,9 @@ struct superblock
 {
     struct list_head s_inodes;
     struct spinlock s_ilock;
-    unsigned long s_ref;
     void *s_helper;
     unsigned int s_block_size;
+    refcount_t s_refs;
     const struct super_ops *s_ops;
     struct blockdev *s_bdev;
     dev_t s_devnr;
@@ -73,6 +74,7 @@ struct superblock
         struct rcu_head s_rcu;
     };
     struct fs_mount *s_type;
+    struct dentry *s_root;
 };
 
 __BEGIN_CDECLS
@@ -98,6 +100,16 @@ int sb_write_bio(struct superblock *sb, struct page_iov *vec, size_t nr_vecs, si
                  void (*endio)(struct bio_req *), void *b_private);
 
 bool sb_check_callbacks(struct superblock *sb);
+
+static inline void super_get(struct superblock *sb)
+{
+    refcount_inc(&sb->s_refs);
+}
+
+static inline bool super_put(struct superblock *sb)
+{
+    return refcount_dec_and_test(&sb->s_refs);
+}
 
 __END_CDECLS
 

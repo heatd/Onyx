@@ -51,8 +51,6 @@ struct pseudo_mount *pseudo_create_mount(const char *mountpath, int mode)
 		return NULL;
 	}
 
-	sb->s_ref = 1;
-
 	m->sb = sb;
 
 	struct file *inode = pseudo_to_inode(m->root);

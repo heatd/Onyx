@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2025 Pedro Falcato
+ * Copyright (c) 2017 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -19,11 +19,12 @@ void superblock_init(struct superblock *sb, unsigned int sb_flags)
 {
     INIT_LIST_HEAD(&sb->s_inodes);
     INIT_LIST_HEAD(&sb->s_mounts);
-    sb->s_ref = 1;
+    sb->s_refs = REFCOUNT_INIT(1);
     spinlock_init(&sb->s_ilock);
     sb->s_flags = sb_flags;
     sb->s_remount_ro_pending = 0;
     sb->s_bdev = NULL;
+    sb->s_root = NULL;
     rwlock_init(&sb->s_lock);
     mutex_init(&sb->s_rename_lock);
     lru_list_init(&sb->s_dcache_lru);
@@ -137,6 +138,11 @@ static void sb_reap_inodes(struct superblock *sb)
 
 int sb_generic_shutdown(struct superblock *sb)
 {
+    WARN_ON(!sb->s_root);
+    dentry_shrink_subtree(sb->s_root);
+    WARN_ON(sb->s_root->d_ref != 1);
+    dput(sb->s_root);
+    sb->s_root = NULL;
     sb_reap_inodes(sb);
     return 0;
 }
@@ -149,7 +155,7 @@ void sb_shutdown(struct superblock *sb)
 
     shrinker_unregister(&sb->s_shrinker);
     WARN_ON(!list_is_empty(&sb->s_inodes));
-    WARN_ON(sb->s_ref != 1);
+    WARN_ON(refcount_read(&sb->s_refs) != 0);
     kfree_rcu(sb, s_rcu);
 }
 
