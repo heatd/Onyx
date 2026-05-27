@@ -198,7 +198,7 @@ void e1000_detect_eeprom(struct e1000_device *dev)
         uint32_t test = e1000_read(REG_EEPROM, dev);
         if (test & 0x10)
         {
-            INFO("e1000", "confirmed eeprom exists at spin %d\n", i);
+            dev_info(dev->nicdev, "confirmed eeprom exists at spin %d\n", i);
             dev->eeprom_exists = true;
             break;
         }
@@ -438,10 +438,6 @@ int e1000_init_descs(struct e1000_device *dev)
 void e1000_enable_interrupts(struct e1000_device *dev)
 {
     dev->irq_nr = dev->nicdev->get_intn();
-
-    // Get the IRQ number and install its handler
-    INFO("e1000", "using IRQ number %u\n", dev->irq_nr);
-
     assert(install_irq(dev->irq_nr, e1000_irq, (struct device *) dev->nicdev, IRQ_FLAG_REGULAR,
                        dev) == 0);
 
@@ -756,17 +752,17 @@ int e1000_probe(struct device *__dev)
 
     auto addr = dev->addr();
 
-    INFO("e1000",
-         "Found suitable e1000 device at %04x:%02x:%02x:%02x\n"
-         "ID %04x:%04x\n",
-         addr.segment, addr.bus, addr.device, addr.function, dev->vid(), dev->did());
+    dev_info(__dev,
+             "Found suitable e1000 device at %04x:%02x:%02x:%02x\n"
+             "ID %04x:%04x\n",
+             addr.segment, addr.bus, addr.device, addr.function, dev->vid(), dev->did());
 
     char *mem_space = (char *) dev->map_bar(0, VM_NOCACHE);
     if (!mem_space)
     {
-        ERROR("e1000",
-              "Sorry! This driver only supports e1000 register access through MMIO, "
-              "and sadly your card needs the legacy I/O port method of accessing registers\n");
+        dev_err(__dev,
+                "Sorry! This driver only supports e1000 register access through MMIO, "
+                "and sadly your card needs the legacy I/O port method of accessing registers\n");
         return -1;
     }
 
@@ -780,10 +776,7 @@ int e1000_probe(struct device *__dev)
     nicdev->mmio_space = mem_space;
     nicdev->nicdev = dev;
 
-    INFO("e1000", "mmio mode\n");
-
     e1000_reset_device(nicdev);
-
     e1000_detect_eeprom(nicdev);
 
     if (e1000_read_mac_address(nicdev))
@@ -791,7 +784,7 @@ int e1000_probe(struct device *__dev)
 
     if (e1000_init_descs(nicdev))
     {
-        ERROR("e1000", "failed to initialize!\n");
+        dev_err(dev, "failed to initialize!\n");
         return -1;
     }
 
