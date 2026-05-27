@@ -84,6 +84,9 @@ SECTIONS
 		__init_level8_start = .;
 		*(.init.level8)
 		__init_level8_end = .;
+		__init_level9_start = .;
+		*(.init.level9)
+		__init_level9_end = .;
 		__start_testcases = .;
 		*(.testcases*)
 		__end_testcases = .;
