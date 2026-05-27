@@ -51,7 +51,6 @@ struct e1000_device
     unsigned int tx_cur{0};
     unsigned int tx_used{0};
     mutable spinlock tx_lock{};
-    mutable wait_queue tx_queue{};
 
     e1000_rx_desc *rx_descs;
     unsigned char *tx_descs;
@@ -75,7 +74,6 @@ struct e1000_device
     e1000_device()
     {
         spinlock_init(&tx_lock);
-        init_wait_queue_head(&tx_queue);
     }
 
     unsigned int nr_tx_descs_available() const
@@ -86,13 +84,6 @@ struct e1000_device
     bool has_nr_tx_descs_available(unsigned int descs) const
     {
         return nr_tx_descs_available() >= descs;
-    }
-
-    void wait_for_tx_descs(unsigned int descs) const
-    {
-        spin_lock(&tx_lock);
-
-        wait_for_event_locked(&tx_queue, has_nr_tx_descs_available(descs), &tx_lock);
     }
 
     int send_packet_legacy_tx(packetbuf *buf);
@@ -110,12 +101,6 @@ struct e1000_device
         scoped_lock g{tx_lock};
 
         tx_used -= to_free;
-
-        /* 2 descs should be useful for ~1 caller */
-        if (tx_used < 3)
-            wait_queue_wake(&tx_queue);
-        else
-            wait_queue_wake_all(&tx_queue);
     }
 
     void increment_tx_cur()
@@ -538,7 +523,12 @@ int e1000_device::send_packet_legacy_tx(packetbuf *buf)
 {
     unsigned int needed_descs = calc_packetbuf_descs(buf);
 
-    wait_for_tx_descs(needed_descs);
+    spin_lock(&tx_lock);
+    if (!has_nr_tx_descs_available(needed_descs))
+    {
+        spin_unlock(&tx_lock);
+        return -EIO;
+    }
 
     auto old_cur = prepare_legacy_descs(buf);
 
@@ -639,7 +629,12 @@ int e1000_device::send_packet_extended_tx(packetbuf *buf)
 
     unsigned int needed_descs = calc_packetbuf_descs(buf) + 1;
 
-    wait_for_tx_descs(needed_descs);
+    spin_lock(&tx_lock);
+    if (!has_nr_tx_descs_available(needed_descs))
+    {
+        spin_unlock(&tx_lock);
+        return -EIO;
+    }
 
     prepare_context_desc(buf);
 
