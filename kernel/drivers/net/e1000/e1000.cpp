@@ -742,10 +742,13 @@ void e1000_reset_device(struct e1000_device *dev)
     dev->nicdev->enable_irq();
 }
 
-struct pci::pci_id e1000_pci_ids[] = {{PCI_ID_DEVICE(INTEL_VENDOR, E1000_DEV, NULL)},
-                                      {PCI_ID_DEVICE(INTEL_VENDOR, E1000_I217, NULL)},
-                                      {PCI_ID_DEVICE(INTEL_VENDOR, E1000_82577LM, NULL)},
-                                      {0}};
+static struct pci::pci_id e1000_pci_ids[] = {
+    {PCI_ID_DEVICE(INTEL_VENDOR, E1000_DEV, NULL)},
+    {PCI_ID_DEVICE(INTEL_VENDOR, E1000_I217, NULL)},
+    {PCI_ID_DEVICE(INTEL_VENDOR, E1000_82577LM, NULL)},
+    {PCI_ID_DEVICE(INTEL_VENDOR, E1000E_DEV, NULL)},
+    {0},
+};
 
 int e1000_probe(struct device *__dev)
 {
