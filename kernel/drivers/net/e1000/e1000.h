@@ -56,6 +56,11 @@
 
 #define REG_TIPG 0x0410 /* Transmit Inter Packet Gap */
 
+#define REG_RAL 0x05400
+#define REG_RAH 0x05404
+
+#define RAH_ADDRESS_VALID (1U << 31)
+
 #define RCTL_EN            (1 << 1)  // Receiver Enable
 #define RCTL_SBP           (1 << 2)  // Store Bad Packets
 #define RCTL_UPE           (1 << 3)  // Unicast Promiscuous Enabled

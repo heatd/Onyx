@@ -226,8 +226,11 @@ uint32_t e1000_eeprom_read(uint8_t addr, struct e1000_device *dev)
     return data;
 }
 
-int e1000_read_mac_address(struct e1000_device *dev)
+static int e1000_read_mac_address(struct e1000_device *dev)
 {
+    u32 low;
+    u16 high;
+
     if (dev->eeprom_exists)
     {
         uint32_t temp;
@@ -242,21 +245,17 @@ int e1000_read_mac_address(struct e1000_device *dev)
         dev->e1000_internal_mac_address[5] = temp >> 8;
         return 0;
     }
-    else
-    {
-        uint8_t *mem_base_mac_8 = (uint8_t *) (dev->mmio_space + 0x5400);
-        uint32_t *mem_base_mac_32 = (uint32_t *) (dev->mmio_space + 0x5400);
-        if (mem_base_mac_32[0] != 0)
-        {
-            for (int i = 0; i < 6; i++)
-            {
-                dev->e1000_internal_mac_address[i] = mem_base_mac_8[i];
-            }
-            return 0;
-        }
-    }
 
-    return 1;
+    low = e1000_read(REG_RAL, dev);
+    high = e1000_read(REG_RAH, dev) & 0xffff;
+
+    /* Nothing set? probably not present. */
+    if (!low)
+        return 1;
+
+    memcpy(dev->e1000_internal_mac_address, &low, sizeof(low));
+    memcpy(dev->e1000_internal_mac_address + 4, &high, sizeof(high));
+    return 0;
 }
 
 struct page_frag_alloc_info
