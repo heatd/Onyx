@@ -792,8 +792,6 @@ int e1000_probe(struct device *__dev)
         return -1;
     }
 
-    e1000_enable_interrupts(nicdev);
-
     netif *n = new netif;
     if (!n)
         return -1;
@@ -811,6 +809,7 @@ int e1000_probe(struct device *__dev)
     n->tx_queue_len = number_tx_desc;
     memcpy(n->mac_address, nicdev->e1000_internal_mac_address, 6);
     netif_register_if(n);
+    e1000_enable_interrupts(nicdev);
 
     return 0;
 }
