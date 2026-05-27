@@ -193,7 +193,7 @@ uint32_t e1000_read(uint16_t addr, const e1000_device *dev)
 void e1000_detect_eeprom(struct e1000_device *dev)
 {
     e1000_write(REG_EEPROM, 0x1, dev);
-    for (int i = 0; i < 1000000; i++)
+    for (int i = 0; i < 100000; i++)
     {
         uint32_t test = e1000_read(REG_EEPROM, dev);
         if (test & 0x10)
