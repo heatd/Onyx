@@ -18,10 +18,10 @@ void driver_init(void)
     uintptr_t *end = _driver_init_end;
     while (ptr != end)
     {
-        void (*func)(void) = (void (*)(void)) * ptr;
+        void (*func)(void) = (void (*)(void)) *ptr;
         func();
         ptr++;
     }
 }
 
-INIT_LEVEL_CORE_KERNEL_ENTRY(driver_init);
+INIT_LEVEL_CORE_DEVICE_ENTRY(driver_init);
