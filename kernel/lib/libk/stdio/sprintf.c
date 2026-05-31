@@ -780,7 +780,7 @@ char *kvasprintf(unsigned int gfp, const char *format, va_list va)
     char *buf;
     int len, len2;
 
-    va_copy(va, second);
+    va_copy(second, va);
     len = vsnprintf(NULL, 0, format, second);
     va_end(second);
 
