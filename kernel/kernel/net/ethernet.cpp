@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2022 Pedro Falcato
+ * Copyright (c) 2016 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -104,4 +104,27 @@ extern "C" int eth_dll_ops::rx_packet(netif *netif, packetbuf *buf)
     }
 
     return 0;
+}
+
+static int eth_counter = 0;
+
+struct netif *alloc_ether_netif(int nr_rx_queues, int nr_tx_queues)
+{
+    struct netif *n;
+
+    n = (struct netif *) kmalloc(sizeof(*n), GFP_KERNEL);
+    if (!n)
+        return NULL;
+    new (n) netif;
+
+    n->name = kasprintf(GFP_KERNEL, "eth%d", __atomic_fetch_add(&eth_counter, 1, __ATOMIC_RELAXED));
+    if (!n->name)
+    {
+        kfree(n);
+        return NULL;
+    }
+
+    n->mtu = 1500;
+    n->dll_ops = &eth_ops;
+    return n;
 }

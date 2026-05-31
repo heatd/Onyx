@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 
 #ifndef _ONYX_NET_ETHERNET_H
@@ -9,7 +11,9 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
 #include <onyx/net/dll.h>
+#endif
 #include <onyx/net/netif.h>
 #include <onyx/packetbuf.h>
 
@@ -32,6 +36,7 @@ typedef struct
     uint32_t crc32;
 } __attribute__((packed)) ethernet_footer_t;
 
+#ifdef __cplusplus
 class eth_dll_ops : public data_link_layer_ops
 {
 public:
@@ -41,5 +46,9 @@ public:
 };
 
 extern eth_dll_ops eth_ops;
+#endif
 
+__BEGIN_CDECLS
+struct netif *alloc_ether_netif(int nr_rx_queues, int nr_tx_queues);
+__END_CDECLS
 #endif
