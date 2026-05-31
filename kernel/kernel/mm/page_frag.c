@@ -45,7 +45,7 @@ int page_frag_alloc(struct page_frag_info *pfi, unsigned int len, gfp_t gfp, str
     frag->offset = pfi->offset;
     pfi->offset += len;
 
-    if (pfi->offset == len)
+    if (pfi->offset == pfi->len)
     {
         /* Release our ref if someone ate the whole thing. */
         page_unref(pfi->page);
