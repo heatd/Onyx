@@ -315,10 +315,10 @@ int netif_do_rx()
     {
         struct netif *nif = list_first_entry(&queue->to_rx_list, struct netif, rx_queue_node);
         list_remove(&nif->rx_queue_node);
+        atomic_and_relaxed(nif->flags, ~NETIF_SCHEDULED);
         spin_unlock_irqrestore(&queue->lock, flags);
         netif_do_rxpoll(nif);
         flags = spin_lock_irqsave(&queue->lock);
-        atomic_and_relaxed(nif->flags, ~NETIF_SCHEDULED);
     }
 
     spin_unlock_irqrestore(&queue->lock, flags);
