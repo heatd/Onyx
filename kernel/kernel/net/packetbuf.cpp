@@ -460,6 +460,24 @@ struct pbf_pcpu_rx_data
 static PER_CPU_VAR(struct pbf_pcpu_rx_data pcpu_rx_data);
 static struct local_lock pcpu_rx_lock;
 
+int netdev_alloc_frag_rx(gfp_t gfp, unsigned int len, struct page_frag *pf)
+{
+    struct pbf_pcpu_rx_data *rx;
+
+    local_lock(&pcpu_rx_lock);
+    rx = get_per_cpu_ptr(pcpu_rx_data);
+
+    len = ALIGN_TO(len, 4);
+    if (page_frag_alloc(&rx->pfi, len, gfp, pf) < 0)
+    {
+        local_unlock(&pcpu_rx_lock);
+        return -ENOMEM;
+    }
+
+    local_unlock(&pcpu_rx_lock);
+    return 0;
+}
+
 struct packetbuf *pbf_alloc_rx(gfp_t gfp, unsigned int len)
 {
     struct page_frag f;
@@ -494,6 +512,28 @@ struct packetbuf *pbf_alloc_rx(gfp_t gfp, unsigned int len)
     pbf->total_len = sizeof(struct packetbuf) + f.len;
     pbf->nr_vecs = 1;
 
+    return pbf;
+}
+
+struct packetbuf *pbf_alloc_rx_nocopy(gfp_t gfp, struct page *page, unsigned int off,
+                                      unsigned int len)
+{
+    struct packetbuf *pbf;
+
+    pbf = pbf_alloc(gfp);
+    if (!pbf)
+        return NULL;
+
+    pbf->page_vec[0].page = page;
+    pbf->page_vec[0].page_off = off;
+    pbf->page_vec[0].length = len;
+
+    pbf->buffer_start = (char *) PAGE_TO_VIRT(page) + off;
+    pbf->net_header = pbf->transport_header = NULL;
+    pbf->data = (unsigned char *) pbf->buffer_start;
+    pbf->end = pbf->tail = (unsigned char *) pbf->buffer_start + len;
+    pbf->total_len = sizeof(struct packetbuf) + len;
+    pbf->nr_vecs = 1;
     return pbf;
 }
 

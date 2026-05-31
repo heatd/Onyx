@@ -450,10 +450,14 @@ static inline void pbf_put_ref(struct packetbuf *pbf)
 }
 
 typedef unsigned int gfp_t;
+struct page_frag;
 
 struct packetbuf *pbf_alloc(gfp_t gfp);
 struct packetbuf *pbf_alloc_sk(gfp_t gfp, struct socket *sock, unsigned int len);
 struct packetbuf *pbf_alloc_rx(gfp_t gfp, unsigned int len);
+struct packetbuf *pbf_alloc_rx_nocopy(gfp_t gfp, struct page *page, unsigned int off,
+                                      unsigned int len);
+int netdev_alloc_frag_rx(gfp_t gfp, unsigned int len, struct page_frag *pf);
 ssize_t copy_to_pbf(struct packetbuf *pbf, struct iovec_iter *iter);
 ssize_t copy_from_pbf(struct packetbuf *pbf, struct iovec_iter *iter, unsigned int flags);
 __END_CDECLS
