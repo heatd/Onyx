@@ -39,9 +39,9 @@ char *strncpy(char *dest, const char *src, size_t count)
 #define ALIGN      (sizeof(size_t) - 1)
 #define ONES       ((size_t) -1 / UCHAR_MAX)
 #define HIGHS      (ONES * (UCHAR_MAX / 2 + 1))
-#define HASZERO(x) ((x) -ONES & ~(x) &HIGHS)
+#define HASZERO(x) ((x) - ONES & ~(x) & HIGHS)
 
-size_t strlcpy(char *d, const char *s, size_t n)
+NO_ASAN size_t strlcpy(char *d, const char *s, size_t n)
 {
     char *d0 = d;
     size_t *wd;
