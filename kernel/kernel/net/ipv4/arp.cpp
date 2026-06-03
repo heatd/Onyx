@@ -70,7 +70,7 @@ static int arp_do_request(netif *netif, packetbuf *packet, arp_request_t *arp_hd
         st < 0)
         return st;
 
-    return netif_send_packet(netif, buf.get());
+    return netif_send_packet(netif, buf.release());
 }
 
 static int arp_resolve(struct neighbour *neigh, struct netif *netif);
@@ -152,7 +152,7 @@ static int arp_resolve(struct neighbour *neigh, struct netif *netif)
         st < 0)
         return st;
 
-    return netif_send_packet(netif, buf.get());
+    return netif_send_packet(netif, buf.release());
 }
 
 struct neighbour *arp_resolve_in(uint32_t ip, struct netif *netif)
