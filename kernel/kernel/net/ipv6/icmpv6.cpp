@@ -181,17 +181,11 @@ int icmp6_socket::connect(sockaddr *addr, socklen_t len, int flags)
 
     ipv4_on_inet6 = false;
 
-    connected = true;
-
     auto route_result = get_proto_fam()->route(src_addr, dest_addr, res.second);
-
-    /* If we've got an error, ignore it. Is this correct/sane behavior? */
     if (route_result.has_error())
-    {
-        connected = false;
-        return 0;
-    }
+        return route_result.error();
 
+    connected = true;
     route_cache = route_result.value();
     route_cache_valid = 1;
 
