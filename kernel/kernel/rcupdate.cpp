@@ -18,6 +18,8 @@
 #include <onyx/spinlock.h>
 #include <onyx/wait.h>
 
+#include <linux/lockdep.h>
+
 // clang-format off
 /* Implementation of classic RCU as in OLS2001 ("Read-Copy Update"), Paul McKenney's RCU
  * dissertation and various early RCU articles on lwn
@@ -107,6 +109,54 @@
 #define TRACE_EVENT(...)
 #undef TRACE_EVENT_DURATION
 #define TRACE_EVENT_DURATION(...)
+#endif
+
+#ifdef CONFIG_LOCKDEP
+extern "C"
+{
+static struct lock_class_key rcu_lock_key;
+struct lockdep_map rcu_lock_map = {
+    .key = &rcu_lock_key,
+    .name = "rcu_read_lock",
+    .wait_type_outer = LD_WAIT_FREE,
+    .wait_type_inner = LD_WAIT_CONFIG, /* PREEMPT_RT implies PREEMPT_RCU */
+};
+
+// Tell lockdep when RCU callbacks are being invoked.
+static struct lock_class_key rcu_callback_key;
+struct lockdep_map rcu_callback_map = STATIC_LOCKDEP_MAP_INIT("rcu_callback", &rcu_callback_key);
+}
+
+bool rcu_read_lock_held(void)
+{
+    return lock_is_held(&rcu_lock_map);
+}
+
+static inline void rcu_lock_acquire(struct lockdep_map *map)
+{
+    lock_acquire(map, 0, 0, 2, 0, NULL, _RET_IP_);
+}
+
+static inline void rcu_try_lock_acquire(struct lockdep_map *map)
+{
+    lock_acquire(map, 0, 1, 2, 0, NULL, _RET_IP_);
+}
+
+static inline void rcu_lock_release(struct lockdep_map *map)
+{
+    lock_release(map, _RET_IP_);
+}
+
+void lockdep_rcu_read_lock(void)
+{
+    rcu_lock_acquire(&rcu_lock_map);
+}
+
+void lockdep_rcu_read_unlock(void)
+{
+    rcu_lock_release(&rcu_lock_map);
+}
+
 #endif
 
 /**

@@ -668,15 +668,6 @@ extern void lockdep_assert_in_softirq_func(void);
 
 #endif
 
-#ifdef CONFIG_LOCKDEP
-void lockdep_rcu_suspicious(const char *file, const int line, const char *s);
-#else
-static inline void
-lockdep_rcu_suspicious(const char *file, const int line, const char *s)
-{
-}
-#endif
-
 __END_CDECLS
 
 #endif /* __LINUX_LOCKDEP_H */

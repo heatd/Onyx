@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 - 2025 Pedro Falcato
+ * Copyright (c) 2023 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 license.
  *
  * SPDX-License-Identifier: GPL-2.0-only
@@ -10,10 +10,8 @@
 #include <stddef.h>
 
 #include <onyx/atomic.h>
+#include <onyx/bug.h>
 #include <onyx/preempt.h>
-
-#define rcu_read_lock()   sched_disable_preempt()
-#define rcu_read_unlock() sched_enable_preempt()
 
 __BEGIN_CDECLS
 
@@ -54,7 +52,53 @@ void rcu_do_quiesc();
  */
 void rcu_work();
 
+#define RCU_ASSERT_LOCKDEP(cond, str)                                              \
+    do                                                                             \
+    {                                                                              \
+        static int do_once = 0;                                                    \
+        if (unlikely(cond && !__atomic_exchange_n(&do_once, 1, __ATOMIC_RELAXED))) \
+            lockdep_rcu_suspicious(__FILE__, __LINE__, str);                       \
+    } while (0)
+
+#ifdef CONFIG_LOCKDEP
+bool rcu_read_lock_held(void);
+void lockdep_rcu_suspicious(const char *file, const int line, const char *s);
+void lockdep_rcu_read_lock(void);
+void lockdep_rcu_read_unlock(void);
+#else
+static inline bool rcu_read_lock_held(void)
+{
+    return true;
+}
+
+static inline void lockdep_rcu_suspicious(const char *file, const int line, const char *s)
+{
+}
+
+static inline void lockdep_rcu_read_lock(void)
+{
+}
+
+static inline void lockdep_rcu_read_unlock(void)
+{
+}
+
+#endif
 __END_CDECLS
+
+#define rcu_read_lock()          \
+    do                           \
+    {                            \
+        sched_disable_preempt(); \
+        lockdep_rcu_read_lock(); \
+    } while (0)
+
+#define rcu_read_unlock()          \
+    do                             \
+    {                              \
+        sched_enable_preempt();    \
+        lockdep_rcu_read_unlock(); \
+    } while (0)
 
 #ifdef __cplusplus
 
@@ -96,16 +140,19 @@ public:
 #define rcu_dereference_raw(ptr)       __rcu_forcecast(__atomic_load_n(&(ptr), __ATOMIC_RELAXED))
 #define rcu_dereference_raw_check(ptr) rcu_dereference_raw(ptr)
 
-#define rcu_dereference(ptr)      \
-    ({                            \
-        rcu_check_sparse(ptr);    \
-        rcu_dereference_raw(ptr); \
+#define rcu_dereference(ptr)                                                                  \
+    ({                                                                                        \
+        rcu_check_sparse(ptr);                                                                \
+        RCU_ASSERT_LOCKDEP(!rcu_read_lock_held(), "suspicious RCU usage in rcu_dereference"); \
+        rcu_dereference_raw(ptr);                                                             \
     })
 
-#define rcu_dereference_protected(p, c) \
-    ({                                  \
-        rcu_check_sparse(p);            \
-        __rcu_forcecast(p);             \
+#define rcu_dereference_protected(p, c)                                          \
+    ({                                                                           \
+        rcu_check_sparse(p);                                                     \
+        RCU_ASSERT_LOCKDEP(!(rcu_read_lock_held() || (c)),                       \
+                           "suspicious RCU usage in rcu_dereference_protected"); \
+        __rcu_forcecast(p);                                                      \
     })
 
 #define rcu_access_pointer(ptr)   \
@@ -116,7 +163,13 @@ public:
 
 #define rcu_pointer_handoff(p) (p)
 
-#define rcu_dereference_check(ptr, c) rcu_dereference(ptr)
+#define rcu_dereference_check(ptr, c)                                        \
+    ({                                                                       \
+        rcu_check_sparse(ptr);                                               \
+        RCU_ASSERT_LOCKDEP(!(rcu_read_lock_held() || (c)),                   \
+                           "suspicious RCU usage in rcu_dereference_check"); \
+        rcu_dereference_raw(ptr);                                            \
+    })
 
 #define RCU_INITIALIZER(v) (__rcu_cast_to(v))
 
