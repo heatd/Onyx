@@ -1507,7 +1507,7 @@ bool notify_process_stop_cont(struct process *task, unsigned int exit_code)
 
     /* Take the parent's signal_lock. We're going to atomically check if need to send a signal or
      * wake it up, etc */
-    spin_lock(&sighand->signal_lock);
+    spin_lock_nested(&sighand->signal_lock, 1);
     act = &sighand->sigtable[sig];
 
     if (act->sa_handler == SIG_IGN || act->sa_flags & SA_NOCLDSTOP)
