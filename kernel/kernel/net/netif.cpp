@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2025 Pedro Falcato
+ * Copyright (c) 2017 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -13,6 +13,7 @@
 #include <onyx/byteswap.h>
 #include <onyx/dev.h>
 #include <onyx/init.h>
+#include <onyx/mutex.h>
 #include <onyx/net/ip.h>
 #include <onyx/net/netif.h>
 #include <onyx/net/netkernel.h>
@@ -21,15 +22,59 @@
 #include <onyx/spinlock.h>
 #include <onyx/vector.h>
 
+#include <linux/lockdep.h>
 #include <uapi/ioctls.h>
 
+static DECLARE_MUTEX(__rtnl_lock);
 static DEFINE_SPINLOCK(netif_list_lock);
 cul::vector<netif *> netif_list;
 
-unsigned int netif_ioctl(int request, void *argp, struct file *f)
+void rtnl_lock(void)
+{
+    mutex_lock(&__rtnl_lock);
+}
+
+void rtnl_unlock(void)
+{
+    mutex_unlock(&__rtnl_lock);
+}
+
+int netif_add_inet(in_addr_t in_addr, in_addr_t mask, struct netif *netif)
+{
+    struct netif_inet_addr *addr;
+    struct inet4_route route;
+
+    lockdep_assert_held(&__rtnl_lock);
+    addr = (struct netif_inet_addr *) kmalloc(sizeof(*addr), GFP_KERNEL);
+    if (!addr)
+        return -ENOMEM;
+
+    addr->addr = in_addr;
+    addr->broadcast = in_addr | ~mask;
+    addr->cacheinfo = {};
+    addr->ifa_flags = 0;
+    addr->ifa_scope = 254;
+    addr->prefix_len = count_bits(mask);
+    list_add_tail_rcu(&addr->node, &netif->inet_addr_list);
+
+    route.mask = mask;
+    route.dest = in_addr;
+    route.dest &= route.mask;
+    route.gateway = 0;
+    route.nif = netif;
+    route.metric = 1000;
+    route.flags = INET4_ROUTE_FLAG_SCOPE_LOCAL;
+    assert(ip::v4::add_route(route) == true);
+    return 0;
+}
+
+static unsigned int netif_ioctl(int request, void *argp, struct file *f)
 {
     auto netif = static_cast<struct netif *>(f->f_ino->i_helper);
+    int err;
+
     assert(netif != nullptr);
+
     switch (request)
     {
         case SIOSETINET4: {
@@ -38,15 +83,15 @@ unsigned int netif_ioctl(int request, void *argp, struct file *f)
             struct if_config_inet i;
             if (copy_from_user(&i, c, sizeof(struct if_config_inet)) < 0)
                 return -EFAULT;
-            auto local = &netif->local_ip;
-            memcpy(&local->sin_addr, &i.address, sizeof(struct in_addr));
-            netif->ipv4_submask = i.subnet.s_addr;
-            return 0;
+            rtnl_lock();
+            err = netif_add_inet(i.address.s_addr, i.subnet.s_addr, netif);
+            rtnl_unlock();
+            return err;
         }
         case SIOGETINET4: {
             struct if_config_inet *c = static_cast<if_config_inet *>(argp);
-            auto local = &netif->local_ip;
-            if (copy_to_user(&c->address, &local->sin_addr, sizeof(struct in_addr)) < 0)
+            in_addr_t local = netif_primary_inet_addr(netif);
+            if (copy_to_user(&c->address, &local, sizeof(struct in_addr)) < 0)
                 return -EFAULT;
             return 0;
         }
@@ -93,21 +138,6 @@ atomic<uint32_t> next_if = 1;
 
 const struct file_ops netif_fops = {.ioctl = netif_ioctl};
 
-void netif_register_loopback_route4(struct netif *netif)
-{
-    struct inet4_route route;
-
-    route.mask = htonl(0xff000000);
-    route.dest = htonl(INADDR_LOOPBACK);
-    route.dest &= route.mask;
-    route.gateway = 0;
-    route.nif = netif;
-    route.metric = 1000;
-    route.flags = INET4_ROUTE_FLAG_SCOPE_LOCAL;
-
-    assert(ip::v4::add_route(route) == true);
-}
-
 void netif_register_loopback_route6(struct netif *netif)
 {
     struct inet6_route route;
@@ -143,14 +173,6 @@ void netif_register_if(struct netif *netif)
     assert(netif_list.push_back(netif) != false);
 
     spin_unlock(&netif_list_lock);
-
-    bool is_loopback = netif->flags & NETIF_LOOPBACK;
-
-    if (is_loopback)
-    {
-        netif_register_loopback_route4(netif);
-        netif_register_loopback_route6(netif);
-    }
 }
 
 int netif_unregister_if(struct netif *netif)
@@ -194,26 +216,48 @@ netif *netif_from_if(uint32_t oif)
     return nullptr;
 }
 
+struct netif_inet_addr *netif_find_inet_addr(struct netif *netif, in_addr_t in_addr)
+{
+    struct netif_inet_addr *addr;
+
+    list_for_each_entry_rcu (addr, &netif->inet_addr_list, node)
+    {
+        if (addr->addr == in_addr)
+            return addr;
+    }
+
+    return NULL;
+}
+
+in_addr_t netif_primary_inet_addr(struct netif *netif)
+{
+    struct netif_inet_addr *addr;
+    in_addr_t ret = 0;
+
+    rcu_read_lock();
+    addr = list_first_or_null_rcu(&netif->inet_addr_list, struct netif_inet_addr, node);
+    if (likely(addr))
+        ret = addr->addr;
+    rcu_read_unlock();
+    return ret;
+}
+
 netif *netif_get_from_addr(const inet_sock_address &s, int domain)
 {
     scoped_lock g{netif_list_lock};
 
-    // printk("trying to find %x\n", in->sin_addr.s_addr);
-
+    rcu_read_lock();
     for (auto n : netif_list)
     {
-        // printk("local %x\n", n->local_ip.sin_addr.s_addr);
-        if (domain == AF_INET && n->local_ip.sin_addr.s_addr == s.in4.s_addr)
+        if ((domain == AF_INET && netif_find_inet_addr(n, s.in4.s_addr)) ||
+            (domain == AF_INET6 && netif_find_v6_address(n, s.in6)))
         {
-            return n;
-        }
-
-        if (domain == AF_INET6 && netif_find_v6_address(n, s.in6))
-        {
+            rcu_read_unlock();
             return n;
         }
     }
 
+    rcu_read_unlock();
     return nullptr;
 }
 
@@ -535,7 +579,8 @@ static int netif_getlink(struct netlink_sock *nlsk, struct packetbuf *pbf, struc
     return err || nl_done(pbf, nlsk->pid, nlh->nlmsg_seq, 0);
 }
 
-static int dump_v4_addr(struct packetbuf *pbf, struct netif *iff, pid_t pid, u32 seq)
+static int dump_v4_addr(struct packetbuf *pbf, struct netif *iff, pid_t pid, u32 seq,
+                        struct netif_inet_addr *addr)
 {
     struct ifaddrmsg *msg;
     struct nlmsghdr *nlh;
@@ -549,14 +594,14 @@ static int dump_v4_addr(struct packetbuf *pbf, struct netif *iff, pid_t pid, u32
     msg->ifa_family = AF_INET;
     msg->ifa_flags = IFA_F_PERMANENT;
     msg->ifa_scope = 0;
-    msg->ifa_prefixlen = count_bits(iff->ipv4_submask);
+    msg->ifa_prefixlen = addr->prefix_len;
     msg->ifa_index = iff->if_id;
 
     err = nla_put_str(pbf, IFA_LABEL, iff->name);
     if (err)
         return err;
 
-    if (nla_put_u32(pbf, IFA_ADDRESS, iff->local_ip.sin_addr.s_addr))
+    if (nla_put_u32(pbf, IFA_ADDRESS, addr->addr))
         return -EMSGSIZE;
     nlh->nlmsg_len = pbf->tail - (unsigned char *) nlh;
     return 0;
@@ -600,13 +645,15 @@ static int dump_v6_addr(struct packetbuf *pbf, struct netif *iff, pid_t pid, u32
 static int netif_dump_ifaddr(struct packetbuf *pbf, struct netif *iff, pid_t pid, u32 seq,
                              int family)
 {
+    struct netif_inet_addr *addr;
     int err;
 
     if (family == AF_INET || family == AF_UNSPEC)
     {
-        if (iff->local_ip.sin_addr.s_addr != 0)
+        list_for_each_entry (addr, &iff->inet_addr_list, node)
         {
-            err = dump_v4_addr(pbf, iff, pid, seq);
+
+            err = dump_v4_addr(pbf, iff, pid, seq, addr);
             if (err)
                 return -EMSGSIZE;
         }
@@ -633,6 +680,7 @@ static int netif_getaddr(struct netlink_sock *nlsk, struct packetbuf *pbf, struc
 {
     int err = 0;
 
+    rtnl_lock();
     spin_lock(&netif_list_lock);
 
     for (auto &nif : netif_list)
@@ -643,7 +691,14 @@ static int netif_getaddr(struct netlink_sock *nlsk, struct packetbuf *pbf, struc
     }
 
     spin_unlock(&netif_list_lock);
+    rtnl_unlock();
     return err || nl_done(pbf, nlsk->pid, nlh->nlmsg_seq, 0);
+}
+
+static int do_rtm_newaddr(struct netlink_sock *nlsk, struct packetbuf *pbf, struct nlmsghdr *nlh,
+                          struct rtgenmsg *rth)
+{
+    return -EOPNOTSUPP;
 }
 
 void netif_init_netkernel()
@@ -660,6 +715,7 @@ void netif_init_netkernel()
     assert(nif_member->add_child(generic_nt));
     rtnl_register(RTM_GETLINK, netif_getlink);
     rtnl_register(RTM_GETADDR, netif_getaddr);
+    rtnl_register(RTM_NEWADDR, do_rtm_newaddr);
 }
 
 INIT_LEVEL_CORE_KERNEL_ENTRY(netif_init_netkernel);

@@ -12,6 +12,7 @@
 #include <onyx/net/ethernet.h>
 #include <onyx/net/netif.h>
 #include <onyx/net/network.h>
+#include <onyx/net/rtnetlink.h>
 #include <onyx/packetbuf.h>
 
 /*
@@ -86,7 +87,6 @@ void loopback_init()
     n->flags = NETIF_LINKUP | NETIF_LOOPBACK;
     n->name = "lo";
     n->mtu = UINT16_MAX;
-    n->local_ip.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     n->sendpacket = loopback_send_packet;
     n->poll_rx = loopback_pollrx;
     n->rx_end = [](netif *nif) {}; // rx_end does nothing for us, as we do not have interrupts.
@@ -94,12 +94,17 @@ void loopback_init()
     n->tx_queue_len = 1024;
     netif_register_if(n);
 
+    rtnl_lock();
+    netif_add_inet(htonl(INADDR_LOOPBACK), htonl(0xff000000), n);
+
     if_inet6_addr addr;
     addr.address = in6addr_loopback;
     addr.flags = INET6_ADDR_GLOBAL;
     addr.prefix_len = 0;
 
     assert(netif_add_v6_address(n, addr) == 0);
+    netif_register_loopback_route6(n);
+    rtnl_unlock();
 }
 
 INIT_LEVEL_CORE_KERNEL_ENTRY(loopback_init);
