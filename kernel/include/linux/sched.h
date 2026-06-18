@@ -1,3 +1,4 @@
+#ifndef __IS_LOCKDEP__
 #ifndef _LINUX_SCHED_H
 #define _LINUX_SCHED_H
 
@@ -30,6 +31,11 @@ static inline pid_t task_pid_nr(struct task_struct *tsk)
 {
 	return tsk->pid_;
 }
+#else
+static inline pid_t task_pid_nr(struct task_struct *tsk)
+{
+	return tsk->pid_;
+}
 #endif
 
 #define task_pid_vnr(task) task_pid_nr(task)
@@ -51,4 +57,5 @@ static inline int wake_up_process(struct task_struct *tsk)
 	return 1;
 }
 
+#endif
 #endif
