@@ -31,19 +31,21 @@ static constexpr unsigned long arp_validity_time_ms = 1200000;
 static int arp_do_request(netif *netif, packetbuf *packet, arp_request_t *arp_hdr)
 {
     auto target_addr = arp_hdr->target_proto_address;
+    struct netif_inet_addr *found;
     uint8_t hw_address[6];
 
     /* TODO */
     (void) arp_validity_time_ms;
     (void) arp_response_timeout;
 
-    if (netif->local_ip.sin_addr.s_addr == target_addr)
-    {
-        memcpy(hw_address, netif->mac_address, 6);
-    }
-    else
-        return 0; // Don't handle it
+    rcu_read_lock();
+    found = netif_find_inet_addr(netif, target_addr);
+    rcu_read_unlock();
 
+    if (!found)
+        return 0;
+
+    memcpy(hw_address, netif->mac_address, 6);
     auto buf = make_unique<packetbuf>();
     if (!buf)
         return -ENOMEM;
@@ -145,7 +147,7 @@ static int arp_resolve(struct neighbour *neigh, struct netif *netif)
     arp->target_hw_address[3] = 0xFF;
     arp->target_hw_address[4] = 0xFF;
     arp->target_hw_address[5] = 0xFF;
-    arp->sender_proto_address = netif->local_ip.sin_addr.s_addr;
+    arp->sender_proto_address = netif_primary_inet_addr(netif);
     arp->target_proto_address = neigh->proto_addr.in4addr.s_addr;
     if (int st = netif->dll_ops->setup_header(buf.get(), tx_type::broadcast, tx_protocol::arp,
                                               netif, nullptr);

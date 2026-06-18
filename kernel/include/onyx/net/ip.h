@@ -140,7 +140,8 @@ inline T *inet_resolve_socket(in_addr_t src, in_port_t port_src, in_port_t port_
     auto flags = (!ign_dst ? GET_SOCKET_DSTADDR_VALID : 0);
 
     const inet_sock_address socket_dst{__src, port_src};
-    const inet_sock_address socket_src{nif->local_ip.sin_addr, port_dst};
+    /* TODO: primary_inet_addr not correct */
+    const inet_sock_address socket_src{in_addr{netif_primary_inet_addr(nif)}, port_dst};
 
     const socket_id id(proto, AF_INET, socket_src, socket_dst);
 

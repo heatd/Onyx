@@ -231,6 +231,7 @@ int do_siocgifname(struct ifreq *req)
 
 int do_siocgifconf(struct ifconf *uconf)
 {
+    struct netif_inet_addr *addr;
     struct ifconf conf;
 
     if (copy_from_user(&conf, uconf, sizeof(conf)) < 0)
@@ -243,50 +244,51 @@ int do_siocgifconf(struct ifconf *uconf)
 
     for (auto &nif : netif_list)
     {
-        // only exit on n_entries == 0 if we're actually copying stuff
-        if (conf.ifc_buf && n_entries == 0)
-            break;
-
-        if (!nif->local_ip.sin_addr.s_addr)
-            continue;
-
-        struct ifreq req;
-
-        char *ubuf = conf.ifc_buf + off;
-
-        if (conf.ifc_buf == nullptr)
+        list_for_each_entry_rcu (addr, &nif->inet_addr_list, node)
         {
-            // We're only getting the number of bytes we need
+            struct ifreq req;
+
+            char *ubuf = conf.ifc_buf + off;
+
+            // only exit on n_entries == 0 if we're actually copying stuff
+            if (conf.ifc_buf && n_entries == 0)
+                goto out;
+
+            if (conf.ifc_buf == nullptr)
+            {
+                // We're only getting the number of bytes we need
+                off += sizeof(struct ifreq);
+                continue;
+            }
+
+            if (copy_from_user(&req, conf.ifc_buf + off, sizeof(req)) < 0)
+            {
+                netif_unlock_list();
+                return -EFAULT;
+            }
+
+            // We only return AF_INET addresses because of compatibility issues
+            sockaddr_in in;
+            in.sin_family = AF_INET;
+            in.sin_port = 0;
+            memset(in.sin_zero, 0, sizeof(in.sin_zero));
+            in.sin_addr.s_addr = addr->addr;
+            memcpy(&req.ifr_addr, &in, sizeof(in));
+
+            strlcpy(req.ifr_name, nif->name, IF_NAMESIZE);
+
+            if (copy_to_user(ubuf, &req, sizeof(req)) < 0)
+            {
+                netif_unlock_list();
+                return -EFAULT;
+            }
+
             off += sizeof(struct ifreq);
-            continue;
+            n_entries--;
         }
-
-        if (copy_from_user(&req, conf.ifc_buf + off, sizeof(req)) < 0)
-        {
-            netif_unlock_list();
-            return -EFAULT;
-        }
-
-        // We only return AF_INET addresses because of compatibility issues
-        sockaddr_in in;
-        in.sin_family = AF_INET;
-        in.sin_port = 0;
-        memset(in.sin_zero, 0, sizeof(in.sin_zero));
-        in.sin_addr.s_addr = nif->local_ip.sin_addr.s_addr;
-        memcpy(&req.ifr_addr, &in, sizeof(in));
-
-        strlcpy(req.ifr_name, nif->name, IF_NAMESIZE);
-
-        if (copy_to_user(ubuf, &req, sizeof(req)) < 0)
-        {
-            netif_unlock_list();
-            return -EFAULT;
-        }
-
-        off += sizeof(struct ifreq);
-        n_entries--;
     }
 
+out:
     conf.ifc_len = off;
 
     netif_unlock_list();
@@ -296,7 +298,9 @@ int do_siocgifconf(struct ifconf *uconf)
 
 unsigned int do_siocgifaddr(struct ifreq *ureq)
 {
+    in_addr_t addr;
     struct ifreq req;
+
     if (copy_from_user(&req, ureq, sizeof(req)) < 0)
         return -EFAULT;
 
@@ -308,14 +312,15 @@ unsigned int do_siocgifaddr(struct ifreq *ureq)
     if (!nif)
         return -ENODEV;
 
-    if (nif->local_ip.sin_addr.s_addr == 0)
+    addr = netif_primary_inet_addr(nif);
+    if (addr == 0)
         return -EADDRNOTAVAIL;
 
     sockaddr_in in;
     in.sin_family = AF_INET;
     in.sin_port = 0;
     memset(in.sin_zero, 0, sizeof(in.sin_zero));
-    in.sin_addr.s_addr = nif->local_ip.sin_addr.s_addr;
+    in.sin_addr.s_addr = addr;
 
     memcpy(&req.ifr_addr, &in, sizeof(in));
 
@@ -324,7 +329,12 @@ unsigned int do_siocgifaddr(struct ifreq *ureq)
 
 unsigned int do_siocsifaddr(struct ifreq *ureq)
 {
-    struct ifreq req;
+    // struct inet4_route route;
+    // struct ifreq req;
+
+    pr_warn_once("not implemented\n");
+    return -EOPNOTSUPP;
+#if 0
     if (copy_from_user(&req, ureq, sizeof(req)) < 0)
         return -EFAULT;
 
@@ -336,7 +346,7 @@ unsigned int do_siocsifaddr(struct ifreq *ureq)
     if (!nif)
         return -ENODEV;
 
-    sockaddr_in in;
+    struct sockaddr_in in;
     memcpy(&in, &req.ifr_addr, sizeof(in));
 
     if (in.sin_family != AF_INET)
@@ -344,9 +354,18 @@ unsigned int do_siocsifaddr(struct ifreq *ureq)
 
     nif->local_ip.sin_addr.s_addr = in.sin_addr.s_addr;
 
-    memcpy(&req.ifr_addr, &in, sizeof(in));
+    route.mask = htonl(0xffffff00);
+    route.dest = in.sin_addr.s_addr;
+    route.dest &= route.mask;
+    route.gateway = 0;
+    route.nif = nif;
+    route.metric = 1000;
+    route.flags = INET4_ROUTE_FLAG_SCOPE_LOCAL;
 
+    assert(ip::v4::add_route(route) == true);
+    memcpy(&req.ifr_addr, &in, sizeof(in));
     return copy_to_user(ureq, &req, sizeof(req));
+#endif
 }
 
 static unsigned int do_generic_getioctl(struct ifreq *ureq, int request)
@@ -378,6 +397,7 @@ static unsigned int do_generic_getioctl(struct ifreq *ureq, int request)
                 req.ifr_flags |= IFF_LOOPBACK;
             break;
         }
+#if 0
         case SIOCGIFNETMASK: {
             struct sockaddr_in in = {};
             in.sin_family = AF_INET;
@@ -385,6 +405,7 @@ static unsigned int do_generic_getioctl(struct ifreq *ureq, int request)
             memcpy(&req.ifr_netmask, &in, sizeof(in));
             break;
         }
+#endif
     }
 
     return copy_to_user(ureq, &req, sizeof(req));
@@ -407,11 +428,13 @@ static unsigned int do_generic_setioctl(struct ifreq *ureq, int request)
         case SIOCSIFMTU:
             nif->mtu = req.ifr_mtu;
             break;
-        case SIOCSIFNETMASK:
+#if 0
+            case SIOCSIFNETMASK:
             struct sockaddr_in mask;
             memcpy(&mask, &req.ifr_netmask, sizeof(mask));
             nif->ipv4_submask = mask.sin_addr.s_addr;
             break;
+#endif
     }
 
     return 0;

@@ -315,10 +315,7 @@ int send_packet(const iflow &flow, packetbuf *buf, const cul::slice<ip_option> &
     size_t payload_size = buf->length();
     auto netif = flow.nif;
 
-    struct send_info sinfo
-    {
-        flow.route
-    };
+    struct send_info sinfo{flow.route};
     /* Dest ip and sender ip are already in network order */
     sinfo.ttl = flow.ttl;
     sinfo.type = flow.protocol;
@@ -678,7 +675,8 @@ expected<inet_route, int> route(const inet_sock_address &from, const inet_sock_a
     r.dst_addr.in4 = to.in4;
     r.nif = best_route->nif;
     r.mask.in4.s_addr = best_route->mask;
-    r.src_addr.in4.s_addr = r.nif->local_ip.sin_addr.s_addr;
+    /* TODO: source address selection isn't correct here... */
+    r.src_addr.in4.s_addr = netif_primary_inet_addr(r.nif);
     r.flags = best_route->flags;
     r.gateway_addr.in4.s_addr = best_route->gateway;
 

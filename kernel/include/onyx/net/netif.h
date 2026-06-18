@@ -19,6 +19,9 @@ struct netif;
 #include <onyx/vector.h>
 #endif
 
+#include <onyx/rculist.h>
+
+#include <uapi/if_addr.h>
 #include <uapi/netinet.h>
 #include <uapi/socket.h>
 
@@ -33,6 +36,18 @@ struct netif;
 #define NETIF_SCHEDULED             (1 << 8)
 
 struct packetbuf;
+
+struct netif_inet_addr
+{
+    in_addr_t addr;
+    in_addr_t broadcast;
+    u8 prefix_len;
+    u8 ifa_flags;
+    u8 ifa_scope;
+    struct ifa_cacheinfo cacheinfo;
+    struct list_head node;
+    struct rcu_head rcu;
+};
 
 struct netif_inet6_addr
 {
@@ -75,11 +90,9 @@ struct netif
     unsigned int tx_queue_len;
     unsigned char mac_address[6];
 
-    struct sockaddr_in local_ip;
-    in_addr_t ipv4_submask;
-
     struct rwslock inet6_addr_list_lock;
     struct list_head inet6_addr_list;
+    struct list_head inet_addr_list;
 
     int (*sendpacket)(struct packetbuf *buf, struct netif *nif);
     int (*poll_rx)(struct netif *nif);
@@ -95,10 +108,11 @@ struct netif
 
 #ifdef __cplusplus
     netif()
-        : name{}, device_file{}, priv{}, if_id{}, flags{}, mtu{}, mac_address{}, local_ip{},
+        : name{}, device_file{}, priv{}, if_id{}, flags{}, mtu{}, mac_address{},
           inet6_addr_list_lock{}, inet6_addr_list{}, sendpacket{}, poll_rx{}, rx_end{}, list_node{},
           rx_queue_node{}, dll_ops{}
     {
+        INIT_LIST_HEAD(&inet_addr_list);
         INIT_LIST_HEAD(&inet6_addr_list);
     }
 #endif
@@ -142,6 +156,7 @@ struct netif *netif_get_from_addr(const inet_sock_address &s, int domain);
 
 __BEGIN_CDECLS
 
+struct netif_inet_addr *netif_find_inet_addr(struct netif *netif, in_addr_t in_addr);
 void netif_register_if(struct netif *netif);
 int netif_unregister_if(struct netif *netif);
 struct netif *netif_choose(void);
@@ -151,6 +166,9 @@ int netif_do_rx(void);
 void netif_signal_rx(struct netif *nif);
 int netif_process_pbuf(struct netif *nif, struct packetbuf *buf);
 int netif_send_packet(struct netif *netif, struct packetbuf *buf);
+void netif_register_loopback_route6(struct netif *netif);
+int netif_add_inet(in_addr_t in_addr, in_addr_t mask, struct netif *netif);
+in_addr_t netif_primary_inet_addr(struct netif *netif);
 __END_CDECLS
 
 #endif

@@ -22,5 +22,8 @@ int nla_put(struct packetbuf *pbf, u16 type, u16 len, const void *data);
 int nla_put_str(struct packetbuf *pbf, u16 type, const char *str);
 int nla_put_u32(struct packetbuf *pbf, u16 type, u32 data);
 
+void rtnl_lock(void);
+void rtnl_unlock(void);
+
 __END_CDECLS
 #endif
