@@ -30,6 +30,7 @@
 #include <onyx/vfs.h>
 #include <onyx/vm.h>
 
+#include <linux/lockdep.h>
 #include <uapi/fcntl.h>
 #include <uapi/flock.h>
 #include <uapi/posix-types.h>
@@ -306,11 +307,11 @@ static __always_inline auto_fd __fdget(int fd, u8 extra_flags)
         return auto_fd{__get_file_description(fd, p), extra_flags | FDGET_SHARED};
 
     /* Cheap single threaded array access */
-    struct fd_table *table = rcu_dereference(ctx->table);
+    struct fd_table *table = rcu_dereference_raw(ctx->table);
     if (!validate_fd_number(fd, table))
         return errno = EBADF, auto_fd{nullptr, false};
 
-    struct file *f = rcu_dereference(table->file_desc[fd]);
+    struct file *f = rcu_dereference_raw(table->file_desc[fd]);
     if (!f)
         return errno = EBADF, auto_fd{nullptr, false};
 
@@ -380,8 +381,10 @@ extern "C" struct file *fdget_remote_next(struct process *task, unsigned int fd,
     struct file *filp = NULL;
     *out = -2;
     read_lock(&tasklist_lock);
+    rcu_read_lock();
     if (task->ctx)
         filp = __fdget_remote_next(fd, out, task);
+    rcu_read_unlock();
     read_unlock(&tasklist_lock);
     return filp;
 }
@@ -935,7 +938,7 @@ int sys_dup23_internal(int oldfd, int newfd, int dupflags, unsigned int flags)
     scoped_lock g{ioctx->fdlock};
 
 retry:
-    table = rcu_dereference(ioctx->table);
+    table = rcu_dereference_protected(ioctx->table, lockdep_is_held(&ioctx->fdlock));
     if ((unsigned int) newfd >= ioctx->table->file_desc_entries)
     {
         int st = enlarge_fdtable(current, (unsigned int) newfd + 1);
@@ -953,7 +956,7 @@ retry:
             return st;
         }
 
-        table = rcu_dereference(ioctx->table);
+        table = rcu_dereference_protected(ioctx->table, lockdep_is_held(&ioctx->fdlock));
     }
 
     if (oldfd == newfd)
