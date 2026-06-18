@@ -44,7 +44,7 @@ kernel_param("verbose", verbose_param);
 void con_register(struct console *con)
 {
     scoped_lock g{cur_con_lock};
-    struct console *old = rcu_dereference(cur_con);
+    struct console *old = rcu_dereference_protected(cur_con, lockdep_is_held(&cur_con_lock));
     if (old)
     {
         if (old->flags & CONSOLE_FLAG_VTERM && !(con->flags & CONSOLE_FLAG_VTERM))
