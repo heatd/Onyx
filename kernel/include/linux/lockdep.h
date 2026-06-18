@@ -438,7 +438,7 @@ enum xhlock_context_t {
  * Note that _name must not be NULL.
  */
 #define STATIC_LOCKDEP_MAP_INIT(_name, _key) \
-	{ .name = (_name), .key = (void *)(_key), }
+	{ .key = (_key), .name = (_name), }
 
 static inline void lockdep_invariant_state(bool force) {}
 static inline void lockdep_free_task(struct thread *task) {}
