@@ -149,6 +149,7 @@ CONSTEXPR static inline void rwslock_init(struct rwslock *rwl)
 }
 
 #ifdef __IS_LINUX
+#undef rwlock_init
 #define rwlock_init(rwl) rwslock_init(rwl)
 #endif
 
