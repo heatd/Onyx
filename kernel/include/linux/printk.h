@@ -10,9 +10,11 @@ __BEGIN_CDECLS
 
 extern int oops_in_progress;
 
+void do_stack_trace(void);
+
 static inline void dump_stack(void)
 {
-    pr_err("todo dump stack\n");
+    do_stack_trace();
 }
 
 #define KERN_WARNING KERN_WARN
