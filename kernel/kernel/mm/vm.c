@@ -50,6 +50,7 @@
 #include <onyx/vm_fault.h>
 #include <onyx/vm_layout.h>
 
+#include <linux/lockdep.h>
 #include <uapi/fcntl.h>
 #include <uapi/memstat.h>
 
@@ -488,6 +489,10 @@ int vm_fork_address_space(struct mm_address_space *addr_space) EXCLUDES(addr_spa
     int err = 0;
     rw_lock_write(&current_mm->vm_lock);
 
+    rwlock_init(&addr_space->vm_lock);
+
+    rw_lock_write_nested(&addr_space->vm_lock, SINGLE_DEPTH_NESTING);
+
 #ifdef CONFIG_DEBUG_ADDRESS_SPACE_ACCT
     mmu_verify_address_space_accounting(get_current_address_space());
 #endif
@@ -531,9 +536,9 @@ int vm_fork_address_space(struct mm_address_space *addr_space) EXCLUDES(addr_spa
     mmu_verify_address_space_accounting(addr_space);
 #endif
 
-    rwlock_init(&addr_space->vm_lock);
     validate_mm_tree(addr_space);
 out:
+    rw_unlock_write(&addr_space->vm_lock);
     rw_unlock_write(&current_mm->vm_lock);
     return err;
 }
