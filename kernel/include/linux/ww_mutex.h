@@ -41,8 +41,8 @@ static inline bool ww_mutex_is_locked(struct ww_mutex *ww)
 
 #define WW_CLASS_INITIALIZER(name) .txid = ATOMIC_INIT(0)
 
-#define DEFINE_WW_CLASS(name) struct ww_class name = {WW_CLASS_INITIALIZER}
-#define DEFINE_WD_CLASS(name) struct ww_class name = {WW_CLASS_INITIALIZER, .wait_die = true,}
+#define DEFINE_WW_CLASS(name) struct ww_class name = {WW_CLASS_INITIALIZER(name)}
+#define DEFINE_WD_CLASS(name) struct ww_class name = {WW_CLASS_INITIALIZER(name), .wait_die = true,}
 
 static inline void ww_mutex_init(struct ww_mutex *mtx, struct ww_class *class_)
 {
@@ -55,7 +55,7 @@ static inline void ww_mutex_init(struct ww_mutex *mtx, struct ww_class *class_)
 
 __BEGIN_CDECLS
 
-int __must_check ww_mutex_lock(struct ww_mutex *ww, struct ww_acquire_ctx *ctx);
+int ww_mutex_lock(struct ww_mutex *ww, struct ww_acquire_ctx *ctx);
 int __must_check ww_mutex_lock_interruptible(struct ww_mutex *ww, struct ww_acquire_ctx *ctx);
 
 static void ww_mutex_lock_slow(struct ww_mutex *ww, struct ww_acquire_ctx *ctx)

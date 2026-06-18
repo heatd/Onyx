@@ -103,7 +103,7 @@
 #define __compiletime_error(msg)
 #endif
 
-#define __same_type(a, b) __builtin_types_compatible_p(typeof(a), typeof(b))
+#define __same_type(a, b) __builtin_types_compatible_p(__typeof__(a), __typeof__(b))
 
 /* &a[0] degrades to a pointer: a different type from an array */
 #define __is_array(a)		(!__same_type((a), &(a)[0]))

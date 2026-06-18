@@ -9,6 +9,7 @@
 #include <linux/errno.h>
 #include <linux/gfp.h>
 #include <linux/compiler.h>
+#include <linux/args.h>
 
 /**
  * memset_startat - Set a value starting at a member to the end of a struct
