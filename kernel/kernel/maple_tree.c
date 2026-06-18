@@ -63,10 +63,14 @@
 /* #include <onyx/export.h> */
 #define EXPORT_SYMBOL_GPL(s)
 
+extern struct lockdep_map rcu_callback_map;
+
 #include <onyx/atomic.h>
 #include <onyx/limits.h>
 #include <onyx/mm/slab.h>
 #include <onyx/page.h>
+
+#include <linux/lockdep.h>
 
 #define MA_ROOT_PARENT 1
 
@@ -775,8 +779,6 @@ static inline void __rcu **ma_slots(struct maple_node *mn, enum maple_type mt)
 
     return NULL;
 }
-
-#define lockdep_is_held(l) 1
 
 static inline bool mt_write_locked(const struct maple_tree *mt)
 {
@@ -5862,8 +5864,6 @@ int mas_expected_entries(struct ma_state *mas, unsigned long nr_entries)
     return ret;
 }
 EXPORT_SYMBOL_GPL(mas_expected_entries);
-
-#define fallthrough __attribute__((__fallthrough__))
 
 static bool mas_next_setup(struct ma_state *mas, unsigned long max, void **entry)
 {
