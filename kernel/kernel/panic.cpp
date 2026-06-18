@@ -50,6 +50,11 @@ int panicing = 0;
 
 void stack_trace(void);
 
+void do_stack_trace(void)
+{
+    stack_trace();
+}
+
 void page_print_shared(void);
 
 void vterm_panic(void);
