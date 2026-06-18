@@ -643,7 +643,7 @@ extern "C" void *sched_schedule(void *last_stack)
     else
     {
         write_per_cpu(sched_quantum, SCHED_QUANTUM);
-        sched_unlock(curr_thread, CPU_FLAGS_NO_IRQ);
+        spin_unlock_irqrestore(get_per_cpu_ptr(scheduler_lock), CPU_FLAGS_NO_IRQ);
         irq_enable();
         return last_stack;
     }
