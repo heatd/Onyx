@@ -432,11 +432,6 @@ static inline bool same_thread_group(struct process *task1, struct process *task
     return task1->sig == task2->sig;
 }
 
-static inline bool thread_group_leader(struct process *task)
-{
-    return rcu_dereference(task->sig->tg_leader) == task;
-}
-
 static inline bool task_zombie(struct process *task)
 {
     return test_task_flag(task, PROCESS_ZOMBIE);
@@ -501,6 +496,11 @@ extern struct list_head tasklist;
  * have lockdep. */
 #define lockdep_tasklist_lock_held()       (true)
 #define lockdep_tasklist_lock_held_write() (true)
+
+static inline bool thread_group_leader(struct process *task)
+{
+    return rcu_dereference_check(task->sig->tg_leader, lockdep_tasklist_lock_held()) == task;
+}
 
 /* The _locked variants here can only be used if we hold tasklist_lock */
 static inline struct pid *task_pgrp_locked(struct process *task)
