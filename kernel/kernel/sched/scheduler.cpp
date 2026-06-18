@@ -44,6 +44,7 @@
 #include <onyx/worker.h>
 
 #include <libdict/rb_tree.h>
+#include <linux/lockdep.h>
 
 #include "primitive_generic.h"
 
@@ -465,6 +466,7 @@ static void dump_thread(struct thread *thread)
 void sched_load_thread(struct thread *prev, thread *thread, unsigned int cpu)
 {
     struct mm_address_space *mm = prev->active_mm ?: prev->aspace;
+    struct spinlock *lock = get_per_cpu_ptr(scheduler_lock);
 
     CHECK(prev->on_cpu);
     if (prev != thread)
@@ -478,7 +480,9 @@ void sched_load_thread(struct thread *prev, thread *thread, unsigned int cpu)
         }
     }
 
+    spin_release(&lock->dep_map, _THIS_IP_);
     write_per_cpu(current_thread, thread);
+    spin_acquire(&lock->dep_map, 0, 0, _THIS_IP_);
     spin_unlock_irqrestore(get_per_cpu_ptr_any(scheduler_lock, cpu), irq_save_and_disable());
     errno = thread->errno_val;
 
