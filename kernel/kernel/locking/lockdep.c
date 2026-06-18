@@ -27,6 +27,8 @@
  * mapping lock dependencies runtime.
  */
 #define DISABLE_BRANCH_PROFILING
+#define __IS_LOCKDEP__
+#include <onyx/process.h>
 #include <linux/mutex.h>
 #include <linux/sched.h>
 #include <linux/sched/clock.h>
@@ -823,7 +825,7 @@ static void lockdep_print_held_locks(struct task_struct *p)
 	 * It's not reliable to print a task's held locks if it's not sleeping
 	 * and it's not the current task.
 	 */
-	if (p != current && task_is_running(p))
+	if (p != current && (READ_ONCE(p->status) == THREAD_RUNNABLE))
 		return;
 	for (i = 0; i < depth; i++) {
 		printk(" #%d: ", i);
@@ -6920,6 +6922,35 @@ void lockdep_rcu_suspicious(const char *file, const int line, const char *s)
 }
 EXPORT_SYMBOL_GPL(lockdep_rcu_suspicious);
 #endif
+
+#define rcu_lockdep_current_cpu_online() (true)
+
+void lockdep_rcu_suspicious(const char *file, const int line, const char *s)
+{
+	struct task_struct *curr = current;
+	int dl = READ_ONCE(debug_locks);
+
+	/* Note: the following can be executed concurrently, so be careful. */
+	nbcon_cpu_emergency_enter();
+	pr_warn("\n");
+	pr_warn("=============================\n");
+	pr_warn("WARNING: suspicious RCU usage\n");
+	print_kernel_ident();
+	pr_warn("-----------------------------\n");
+	pr_warn("%s:%d %s!\n", file, line, s);
+	pr_warn("\nother info that might help us debug this:\n\n");
+	pr_warn("\n%s debug_locks = %d\n%s",
+	       !rcu_lockdep_current_cpu_online()
+			? "RCU used illegally from offline CPU!\n"
+			: "",
+	       dl,
+	       dl ? "" : "Possible false positive due to lockdep disabling via debug_locks = 0\n");
+
+	lockdep_print_held_locks(curr);
+	pr_warn("\nstack backtrace:\n");
+	dump_stack();
+	nbcon_cpu_emergency_exit();
+}
 
 void debug_show_all_locks(void)
 {
