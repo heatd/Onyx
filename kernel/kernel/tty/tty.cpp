@@ -798,13 +798,14 @@ int ttyopen_try_to_set_ctty(tty *tty)
     auto current = get_current_process();
 
     read_lock(&tasklist_lock);
+    rcu_read_lock();
     if (current->is_session_leader_unlocked() && !current->sig->ctty && !tty->session)
     {
         // If we're a session leader without a tty, and this tty has no session
         // set our ctty to this one
         tty_set_ctty_unlocked(tty);
     }
-
+    rcu_read_unlock();
     read_unlock(&tasklist_lock);
     return 0;
 }
