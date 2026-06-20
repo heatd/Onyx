@@ -228,11 +228,7 @@ bool thread_wake_up_try(thread_t *thread, unsigned int state, unsigned int flags
 
 void sched_sleep_until_wake(void);
 
-void thread_reset_futex_state(thread_t *thread);
-
 void sched_start_thread(thread_t *thread);
-
-void sched_wake_up_available_threads(void);
 
 void sched_block(struct thread *thread);
 
