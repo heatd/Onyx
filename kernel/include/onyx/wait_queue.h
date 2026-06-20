@@ -211,6 +211,10 @@ bool signal_is_pending();
     __wait_for_event(wq, cond, THREAD_UNINTERRUPTIBLE, spin_unlock(lock); sched_yield(); \
                      spin_lock(lock))
 
+#define wait_for_event_locked_irqsave(wq, cond, lock, flags)                                \
+    __wait_for_event(wq, cond, THREAD_UNINTERRUPTIBLE, spin_unlock_irqrestore(lock, flags); \
+                     sched_yield(); flags = spin_lock_irqsave(lock))
+
 #define wait_for_event_locked_interruptible(wq, cond, lock)                            \
     __wait_for_event(wq, cond, THREAD_INTERRUPTIBLE, spin_unlock(lock); sched_yield(); \
                      spin_lock(lock))
