@@ -579,10 +579,11 @@ static void dump_thread(struct thread *thread)
 #endif
 }
 
-void sched_load_thread(struct thread *prev, thread *thread, unsigned int cpu)
+static void sched_load_thread(struct thread *prev, struct thread *thread)
 {
     struct mm_address_space *mm = prev->active_mm ?: prev->aspace;
-    struct sched_rq *rq = sched_rq_for(cpu);
+    unsigned int cpu = get_cpu_nr();
+    struct sched_rq *rq = this_rq();
 
     CHECK(prev->on_cpu);
     if (prev != thread)
@@ -654,13 +655,13 @@ unsigned long sched_total_ctx_switches(void)
     return total;
 }
 
-NO_ASAN void sched_load_finish(thread *prev_thread, thread *next_thread)
+static NO_ASAN void sched_load_finish(thread *prev_thread, thread *next_thread)
 {
     CHECK(irq_is_disabled());
 #ifdef CONFIG_KASAN
     asan_unpoison_stack_shadow_ctxswitch((struct registers *) prev_thread->kernel_stack);
 #endif
-    sched_load_thread(prev_thread, next_thread, get_cpu_nr());
+    sched_load_thread(prev_thread, next_thread);
 
     inc_per_cpu(nr_ctx_switches);
     if (prev_thread)
