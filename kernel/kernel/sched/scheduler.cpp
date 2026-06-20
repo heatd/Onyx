@@ -1095,38 +1095,6 @@ bool sched_may_resched(void)
     return !(is_in_interrupt() || irq_is_disabled() || sched_is_preemption_disabled());
 }
 
-void sched_try_to_resched(thread *thread)
-{
-    auto current = get_current_thread();
-    if (!current)
-        return;
-
-    if (current == thread)
-        return;
-
-    if (thread->cpu == current->cpu && thread->priority > current->priority)
-    {
-        if (!sched_may_resched())
-        {
-            current->flags |= THREAD_NEEDS_RESCHED;
-            return;
-        }
-
-        /* Just yield, we'll get to execute the thread eventually */
-        sched_yield();
-    }
-    else
-    {
-        auto other_thread = get_thread_for_cpu(thread->cpu);
-        int other_prio = other_thread->priority;
-        if (other_prio < thread->priority)
-        {
-            /* Send a CPU message asking for a resched */
-            cpu_send_resched(thread->cpu);
-        }
-    }
-}
-
 static bool __thread_wake_up(thread *thread, unsigned int cpu, unsigned int state,
                              unsigned int flags)
 {
@@ -1396,17 +1364,6 @@ void sem_signal(semaphore *sem)
         wake_up(sem);
 
     spin_unlock_irqrestore(&sem->lock, cpu_flags);
-}
-
-void sched_try_to_resched_if_needed()
-{
-    thread *current = get_current_thread();
-
-    if (current && sched_needs_resched(current) && sched_may_resched())
-    {
-        sched_yield();
-        current->flags &= ~THREAD_NEEDS_RESCHED;
-    }
 }
 
 void sched_handle_preempt(bool may_softirq)
