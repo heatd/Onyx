@@ -254,19 +254,19 @@ PER_CPU_VAR(long runnable_delta) = 0;
 
 extern void sched_idle(void *);
 
-static thread_t *sched_steal_job(unsigned int cpu)
+static struct thread *sched_steal_job(struct sched_rq *curr_rq)
 {
-    struct sched_rq *rq, *curr_rq;
+    unsigned int curr_cpu = get_cpu_nr();
+    struct sched_rq *rq;
     struct thread *thr;
 
-    curr_rq = this_rq();
     lockdep_assert_sched_lock();
 
     for (unsigned int i = 0; i < get_nr_cpus(); i++)
     {
-        if (i == cpu)
-            continue;
         rq = sched_rq_for(i);
+        if (rq == curr_rq)
+            continue;
         if (READ_ONCE(rq->tasks_in_queues) <= 1)
             continue;
         if (spin_try_lock(&rq->lock))
@@ -277,7 +277,7 @@ static thread_t *sched_steal_job(unsigned int cpu)
             /* If this queue has a thread, we found a runnable thread! */
             for_each_thr_in_prio(thr, rq, j)
             {
-                if (!cpumask_is_set(&thr->task_affinity, cpu))
+                if (!cpumask_is_set(&thr->task_affinity, curr_cpu))
                     continue;
                 if (thr->entry == sched_idle || __atomic_load_n(&thr->on_cpu, __ATOMIC_ACQUIRE))
                     continue;
@@ -287,7 +287,7 @@ static thread_t *sched_steal_job(unsigned int cpu)
                 curr_rq->tasks_in_queues++;
                 WARN_ON(thr->cpu != i);
                 SCHED_DEBUG_WARN_ON(!(READ_ONCE(thr->flags) & THREAD_IN_QUEUE));
-                thr->cpu = cpu;
+                thr->cpu = curr_cpu;
                 atomic_or_relaxed(thr->flags, THREAD_SNOOPED);
                 spin_unlock(&rq->lock);
                 return thr;
@@ -407,19 +407,19 @@ static bool sched_requeue_task(struct thread *curr)
     return sched_do_migrate(curr);
 }
 
-thread_t *__sched_find_next(unsigned int cpu)
+static struct thread *sched_find_next(void)
 {
-    struct sched_rq *rq = sched_rq_for(cpu);
-    thread_t *current_thread = get_current_thread();
+    struct sched_rq *rq = this_rq();
+    struct thread *curr = get_current_thread();
 
-    lockdep_assert_not_held(&current_thread->lock);
+    lockdep_assert_not_held(&curr->lock);
 
     /* Note: These locks are unlocked in sched_load_thread, after loading the thread */
     unsigned long _ = spin_lock_irqsave(&rq->lock);
-    _ = spin_lock_irqsave(&current_thread->lock);
+    _ = spin_lock_irqsave(&curr->lock);
     (void) _;
 
-    if (!sched_requeue_task(current_thread))
+    if (!sched_requeue_task(curr))
         rq->tasks_in_queues--;
 
     lockdep_assert_held(&rq->lock);
@@ -433,7 +433,7 @@ thread_t *__sched_find_next(unsigned int cpu)
 
             if (ret->entry == sched_idle)
             {
-                thread_t *stolen = sched_steal_job(cpu);
+                struct thread *stolen = sched_steal_job(rq);
                 if (stolen)
                     return stolen;
             }
@@ -446,20 +446,14 @@ thread_t *__sched_find_next(unsigned int cpu)
     return nullptr;
 }
 
-thread_t *sched_find_next()
-{
-    return __sched_find_next(get_cpu_nr());
-}
-
 static void dump_thread(struct thread *thread);
 
-thread_t *sched_find_runnable(void)
+static struct thread *sched_find_runnable(void)
 {
-    thread_t *thread = sched_find_next();
+    struct thread *thread = sched_find_next();
     if (!thread)
-    {
         panic("sched_find_runnable: no runnable thread");
-    }
+
     atomic_and_relaxed(thread->flags, ~THREAD_IN_QUEUE);
     WARN_ON(thread->cpu != get_cpu_nr());
     if (get_current_thread() != thread)
