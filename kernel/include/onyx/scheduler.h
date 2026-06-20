@@ -232,8 +232,6 @@ void sched_start_thread(thread_t *thread);
 
 void sched_block(struct thread *thread);
 
-void __sched_block(struct thread *thread, unsigned long cpuflags);
-
 void thread_exit();
 
 struct thread *get_thread_for_cpu(unsigned int cpu);
