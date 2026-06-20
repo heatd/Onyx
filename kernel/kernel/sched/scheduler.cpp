@@ -69,10 +69,9 @@ static const u64 cexp[3] = {
 
 static bool is_initialized = false;
 
-void sched_append_to_queue(int priority, unsigned int cpu, thread_t *thread);
 void sched_block(thread *thread);
-static void __sched_append_to_queue(int priority, unsigned int cpu, thread_t *thread);
-static void ___sched_append_to_queue(int priority, unsigned int cpu, struct thread *thread);
+static void rq_insert_task(struct sched_rq *rq, struct thread *thread);
+static void __rq_insert_task(struct sched_rq *rq, struct thread *thread);
 unsigned int sched_allocate_processor(struct cpumask mask);
 
 int sched_rbtree_cmp(const void *t1, const void *t2);
@@ -358,7 +357,7 @@ retry:
     if (!cpumask_equal(&mask, &curr->task_affinity))
         goto retry;
     /* Great! target is indeed part of mask. mask is stabilized. Add it to the queue and unlock. */
-    __sched_append_to_queue(curr->priority, target, curr);
+    rq_insert_task(rq, curr);
     curr->cpu = target;
     /* No point in kicking ourselves, kick remote only. */
     if (target != get_cpu_nr())
@@ -379,13 +378,14 @@ retry:
  * @brief (Attempt to) requeue the thread
  *
  * @param curr Thread to requeue (must be current)
+ * @param this_rq Runqueue for the current CPU
  * @return True if requeued back to the current CPU, else false (can be on another CPU).
  */
-static bool sched_requeue_task(struct thread *curr)
+static bool sched_requeue_task(struct thread *curr, struct sched_rq *rq)
 {
     unsigned int curr_cpu = get_cpu_nr();
 
-    lockdep_assert_sched_lock();
+    lockdep_assert_held(&rq->lock);
     lockdep_assert_held(&curr->lock);
 
     if (curr->status != THREAD_RUNNABLE)
@@ -399,7 +399,7 @@ static bool sched_requeue_task(struct thread *curr)
      * bail. */
     if (likely(cpumask_is_set(&curr->task_affinity, curr_cpu)))
     {
-        ___sched_append_to_queue(curr->priority, curr_cpu, curr);
+        __rq_insert_task(rq, curr);
         spin_unlock_irqrestore(&curr->lock, CPU_FLAGS_NO_IRQ);
         return true;
     }
@@ -419,7 +419,7 @@ static struct thread *sched_find_next(void)
     _ = spin_lock_irqsave(&curr->lock);
     (void) _;
 
-    if (!sched_requeue_task(curr))
+    if (!sched_requeue_task(curr, rq))
         rq->tasks_in_queues--;
 
     lockdep_assert_held(&rq->lock);
@@ -802,10 +802,8 @@ void sched_idle(void *ptr)
     }
 }
 
-static void ___sched_append_to_queue(int priority, unsigned int cpu, struct thread *thread)
+static void __rq_insert_task(struct sched_rq *rq, struct thread *thread)
 {
-    struct sched_rq *rq = sched_rq_for(cpu);
-
     lockdep_assert_held(&rq->lock);
     assert(READ_ONCE(thread->status) == THREAD_RUNNABLE);
 
@@ -814,20 +812,10 @@ static void ___sched_append_to_queue(int priority, unsigned int cpu, struct thre
     atomic_and_relaxed(thread->flags, ~(THREAD_SNOOPED | THREAD_FASTWAKE));
 }
 
-static void __sched_append_to_queue(int priority, unsigned int cpu, struct thread *thread)
+static void rq_insert_task(struct sched_rq *rq, struct thread *thread)
 {
-    sched_rq_for(cpu)->tasks_in_queues++;
-    ___sched_append_to_queue(priority, cpu, thread);
-}
-
-void sched_append_to_queue(int priority, unsigned int cpu, thread_t *thread)
-{
-    struct sched_rq *rq = sched_rq_for(cpu);
-    unsigned long flags = spin_lock_irqsave(&rq->lock);
-
-    __sched_append_to_queue(priority, cpu, thread);
-    spin_unlock_irqrestore(&rq->lock, flags);
-    add_per_cpu(runnable_delta, 1);
+    rq->tasks_in_queues++;
+    __rq_insert_task(rq, thread);
 }
 
 unsigned int sched_allocate_processor(struct cpumask mask)
@@ -855,12 +843,20 @@ unsigned int sched_allocate_processor(struct cpumask mask)
 static void thread_add(thread_t *thread, unsigned int cpu_num)
 {
     struct thread *remote;
+    struct sched_rq *rq;
+    unsigned long flags;
 
     thread->cpu = cpu_num;
+    rq = sched_rq_for(cpu_num);
     trace_sched_cpu_assign(thread->id, thread->owner ? thread->owner->pid_ : 0,
                            thread->owner ? thread->owner->comm : NULL, thread->cpu);
+
     /* Append the thread to the queue */
-    sched_append_to_queue(thread->priority, cpu_num, thread);
+    flags = spin_lock_irqsave(&rq->lock);
+    rq_insert_task(rq, thread);
+    add_per_cpu(runnable_delta, 1);
+    spin_unlock_irqrestore(&rq->lock, flags);
+
     rcu_read_lock();
     remote = get_thread_for_cpu(cpu_num);
     if (remote && remote->priority < thread->priority)
@@ -1207,9 +1203,10 @@ static bool __thread_wake_up(thread *thread, unsigned int cpu, unsigned int stat
         (void) _;
         WARN_ON(thread->cpu != new_cpu);
         cpu = new_cpu;
+        rq = sched_rq_for(cpu);
     }
 
-    __sched_append_to_queue(thread->priority, cpu, thread);
+    rq_insert_task(rq, thread);
     add_per_cpu(runnable_delta, 1);
 
     if (cpu == get_cpu_nr())
