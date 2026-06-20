@@ -778,18 +778,9 @@ void *sched_preempt_thread(void *current_stack)
 {
     thread *t = get_current_thread();
 
-    if (t)
-        t->flags |= THREAD_ACTIVE;
-
-    COMPILER_BARRIER();
-
+    atomic_or_relaxed(t->flags, THREAD_ACTIVE);
     void *ret = sched_schedule(current_stack);
-
-    if (t)
-        t->flags &= ~THREAD_ACTIVE;
-
-    COMPILER_BARRIER();
-
+    atomic_and_relaxed(t->flags, ~THREAD_ACTIVE);
     return ret;
 }
 
