@@ -1046,51 +1046,6 @@ hrtime_t sched_sleep(unsigned long ns)
     return -rem;
 }
 
-int __sched_remove_thread_from_execution(thread_t *thread, unsigned int cpu)
-{
-    struct sched_rq *rq = sched_rq_for(cpu);
-
-    for (thread_t *t = rq->thread_queues_head[thread->priority]; t; t = t->next_prio)
-    {
-        if (t == thread)
-        {
-            if (t->prev_prio)
-                t->prev_prio->next_prio = t->next_prio;
-            else
-            {
-                rq->thread_queues_head[thread->priority] = t->next_prio;
-            }
-
-            if (t->next_prio)
-                t->next_prio->prev_prio = t->prev_prio;
-            t->prev_prio = NULL;
-            t->next_prio = NULL;
-
-            return 0;
-        }
-    }
-
-    return -1;
-}
-
-int sched_remove_thread_from_execution(thread_t *thread)
-{
-    /* XXX DO WE NEED THIS??? */
-    unsigned int cpu = thread->cpu;
-    struct sched_rq *rq = sched_rq_for(cpu);
-
-    unsigned long cpu_flags = spin_lock_irqsave(&rq->lock);
-    int st = __sched_remove_thread_from_execution(thread, cpu);
-    spin_unlock_irqrestore(&rq->lock, cpu_flags);
-    return st;
-}
-
-void sched_remove_thread(thread_t *thread)
-{
-    sched_remove_thread_from_execution(thread);
-    thread_set_state(thread, THREAD_DEAD);
-}
-
 void set_current_thread(thread_t *t)
 {
     write_per_cpu(current_thread, t);
@@ -1156,8 +1111,7 @@ void thread_destroy(struct thread *thread)
         proc->remove_thread(thread);
     }
 
-    /* Remove the thread from the queue */
-    sched_remove_thread(thread);
+    WARN_ON(thread->status != THREAD_DEAD);
     call_rcu(&thread->rcu_head, thread_finish_destruction);
 }
 
@@ -1221,27 +1175,6 @@ void sched_try_to_resched(thread *thread)
             cpu_send_resched(thread->cpu);
         }
     }
-}
-
-void thread_set_state(thread_t *thread, int state)
-{
-    bool try_resched = false;
-    assert(thread != NULL);
-
-    unsigned long cpu_flags = spin_lock_irqsave(&thread->lock);
-
-    if (thread->status == state)
-    {
-        spin_unlock_irqrestore(&thread->lock, cpu_flags);
-        return;
-    }
-
-    thread->status = state;
-
-    spin_unlock_irqrestore(&thread->lock, cpu_flags);
-
-    if (try_resched)
-        sched_try_to_resched(thread);
 }
 
 static bool __thread_wake_up(thread *thread, unsigned int cpu, unsigned int state,

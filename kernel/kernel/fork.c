@@ -380,6 +380,10 @@ static pid_t kernel_clone(struct clone_args *args)
 err_free_thread:
     spin_unlock(&child->sighand->signal_lock);
     write_unlock(&tasklist_lock);
+    /* new_thread was created but never started, so it never went through its own exit path.
+     * thread_destroy() asserts threads are THREAD_DEAD by the time they're torn down, so mark it
+     * as such ourselves before dropping the last reference. */
+    WRITE_ONCE(new_thread->status, THREAD_DEAD);
     thread_put(new_thread);
 err_put_mm:
     mmput(child->address_space);
