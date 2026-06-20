@@ -64,7 +64,7 @@ typedef struct thread
     unsigned int cpu;
     unsigned int on_cpu;
     struct thread *next;
-    struct thread *prev_prio, *next_prio;
+    struct list_head list_node;
     unsigned char *fpu_area;
     struct thread *sem_prev;
     struct thread *sem_next;
@@ -125,9 +125,8 @@ typedef struct thread
 #ifdef __cplusplus
     thread()
         : refcount{}, canary{}, kernel_stack{}, kernel_stack_top{}, owner{}, entry{}, flags{}, id{},
-          status{}, priority{}, cpu{}, next{}, prev_prio{}, next_prio{}, fpu_area{}, sem_prev{},
-          sem_next{}, lock{}, errno_val{}, addr_limit{}, ctid{}, data{}, cputime_info{}, aspace{},
-          plug{}
+          status{}, priority{}, cpu{}, next{}, list_node{}, fpu_area{}, sem_prev{}, sem_next{},
+          lock{}, errno_val{}, addr_limit{}, ctid{}, data{}, cputime_info{}, aspace{}, plug{}
 #ifdef CONFIG_DEBUG_SCHEDULER
           ,
           last_finish{}, last_switch_in{}

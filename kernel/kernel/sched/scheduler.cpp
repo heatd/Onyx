@@ -25,6 +25,7 @@
 #include <onyx/elf.h>
 #include <onyx/fpu.h>
 #include <onyx/gen/trace_sched.h>
+#include <onyx/init.h>
 #include <onyx/irq.h>
 #include <onyx/kcov.h>
 #include <onyx/mm/kasan.h>
@@ -101,6 +102,30 @@ static inline struct sched_rq *this_rq(void)
 static inline struct sched_rq *sched_rq_for(unsigned int cpu)
 {
     return get_per_cpu_ptr_any(cpu_rq, cpu);
+}
+
+static void sched_rq_init(unsigned int cpu)
+{
+    struct sched_rq *rq = sched_rq_for(cpu);
+
+    for (int i = 0; i < NUM_PRIO; i++)
+        INIT_LIST_HEAD(&rq->task_queues[i]);
+}
+INIT_LEVEL_CORE_PERCPU_CTOR(sched_rq_init);
+
+#define for_each_thr_in_prio(thread, rq, prio) \
+    list_for_each_entry (thread, &(rq)->task_queues[prio], list_node)
+
+static inline bool rq_has_prio(struct sched_rq *rq, int prio)
+{
+    return !list_is_empty(&rq->task_queues[prio]);
+}
+
+static inline struct thread *rq_prio_head(struct sched_rq *rq, int prio)
+{
+    if (!rq_has_prio(rq, prio))
+        return NULL;
+    return list_first_entry(&rq->task_queues[prio], struct thread, list_node);
 }
 
 void thread_append_to_global_list(thread *t)
@@ -239,6 +264,7 @@ extern void sched_idle(void *);
 static thread_t *sched_steal_job(unsigned int cpu)
 {
     struct sched_rq *rq, *curr_rq;
+    struct thread *thr;
 
     curr_rq = this_rq();
     lockdep_assert_sched_lock();
@@ -256,20 +282,14 @@ static thread_t *sched_steal_job(unsigned int cpu)
         for (int j = NUM_PRIO - 1; j >= 0; j--)
         {
             /* If this queue has a thread, we found a runnable thread! */
-            for (struct thread *thr = rq->thread_queues_head[j]; thr != NULL; thr = thr->next_prio)
+            for_each_thr_in_prio(thr, rq, j)
             {
                 if (!cpumask_is_set(&thr->task_affinity, cpu))
                     continue;
                 if (thr->entry == sched_idle || __atomic_load_n(&thr->on_cpu, __ATOMIC_ACQUIRE))
                     continue;
                 /* Advance the queue by one */
-                if (thr->prev_prio)
-                    thr->prev_prio->next_prio = thr->next_prio;
-                else
-                    rq->thread_queues_head[j] = thr->next_prio;
-                if (thr->next_prio)
-                    thr->next_prio->prev_prio = thr->prev_prio;
-                thr->prev_prio = thr->next_prio = NULL;
+                list_remove(&thr->list_node);
                 rq->tasks_in_queues--;
                 curr_rq->tasks_in_queues++;
                 WARN_ON(thr->cpu != i);
@@ -414,9 +434,9 @@ thread_t *__sched_find_next(unsigned int cpu)
     for (int i = NUM_PRIO - 1; i >= 0; i--)
     {
         /* If this queue has a thread, we found a runnable thread! */
-        if (rq->thread_queues_head[i])
+        if (rq_has_prio(rq, i))
         {
-            thread_t *ret = rq->thread_queues_head[i];
+            thread_t *ret = rq_prio_head(rq, i);
 
             if (ret->entry == sched_idle)
             {
@@ -425,11 +445,7 @@ thread_t *__sched_find_next(unsigned int cpu)
                     return stolen;
             }
 
-            /* Advance the queue by one */
-            rq->thread_queues_head[i] = ret->next_prio;
-            if (rq->thread_queues_head[i])
-                rq->thread_queues_head[i]->prev_prio = nullptr;
-            ret->next_prio = ret->prev_prio = nullptr;
+            list_remove(&ret->list_node);
             return ret;
         }
     }
@@ -806,25 +822,7 @@ static void ___sched_append_to_queue(int priority, unsigned int cpu, struct thre
     lockdep_assert_held(&rq->lock);
     assert(READ_ONCE(thread->status) == THREAD_RUNNABLE);
 
-    thread_t *queue = rq->thread_queues_head[priority];
-    if (!queue)
-        rq->thread_queues_head[priority] = thread;
-    else
-    {
-        while (queue->next_prio)
-        {
-            assert(queue != thread);
-            assert(queue != queue->next_prio);
-            queue = queue->next_prio;
-        }
-
-        assert(queue != thread);
-
-        queue->next_prio = thread;
-        thread->prev_prio = queue;
-    }
-
-    thread->next_prio = NULL;
+    list_add_tail(&thread->list_node, &rq->task_queues[thread->priority]);
     atomic_or_relaxed(thread->flags, THREAD_IN_QUEUE);
     atomic_and_relaxed(thread->flags, ~(THREAD_SNOOPED | THREAD_FASTWAKE));
 }
