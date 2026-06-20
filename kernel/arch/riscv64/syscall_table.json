@@ -3399,5 +3399,25 @@
         ],
         "return_type": "int",
         "abi": "c"
+    },
+    {
+        "name": "getcpu",
+        "nr": 309,
+        "nr_args": 3,
+        "args": [
+            [
+                "unsigned int *",
+                "cpu"
+            ],
+            [
+                "unsigned int *",
+                "node"
+            ],
+            [
+                "void *",
+                "cache"
+            ]
+        ],
+        "return_type": "int"
     }
 ]
