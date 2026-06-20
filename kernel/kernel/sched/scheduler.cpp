@@ -197,24 +197,6 @@ void sched_dump_threads(void)
     spin_unlock(&glbl_thread_list_lock);
 }
 
-thread *thread_get_from_tid(int tid)
-{
-    spin_lock(&glbl_thread_list_lock);
-
-    void **pp = rb_tree_search(&glbl_thread_list, (const void *) (unsigned long) tid);
-
-    thread *t = NULL;
-    if (pp)
-    {
-        t = (thread *) *pp;
-        thread_get(t);
-    }
-
-    spin_unlock(&glbl_thread_list_lock);
-
-    return t;
-}
-
 FUNC_NO_DISCARD
 unsigned long sched_lock(thread *thread)
 {
