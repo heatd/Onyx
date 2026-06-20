@@ -89,8 +89,6 @@ static PER_CPU_VAR(struct sched_rq cpu_rq) = {
     .lock = STATIC_SPINLOCK_INIT(cpu_rq.lock),
 };
 
-PER_CPU_VAR(thread *thread_queues_head[NUM_PRIO]);
-PER_CPU_VAR(thread *thread_queues_tail[NUM_PRIO]);
 PER_CPU_VAR(thread *current_thread);
 PER_CPU_VAR(unsigned int tasks_in_queues);
 
@@ -250,14 +248,13 @@ static thread_t *sched_steal_job(unsigned int cpu)
         if (other_cpu_get(tasks_in_queues, i) <= 1)
             continue;
         rq = sched_rq_for(i);
-        thread **thread_queues = (thread **) get_per_cpu_ptr_any(thread_queues_head, i);
         if (spin_try_lock(&rq->lock))
             continue;
 
         for (int j = NUM_PRIO - 1; j >= 0; j--)
         {
             /* If this queue has a thread, we found a runnable thread! */
-            for (struct thread *thr = thread_queues[j]; thr != NULL; thr = thr->next_prio)
+            for (struct thread *thr = rq->thread_queues_head[j]; thr != NULL; thr = thr->next_prio)
             {
                 if (!cpumask_is_set(&thr->task_affinity, cpu))
                     continue;
@@ -267,7 +264,7 @@ static thread_t *sched_steal_job(unsigned int cpu)
                 if (thr->prev_prio)
                     thr->prev_prio->next_prio = thr->next_prio;
                 else
-                    thread_queues[j] = thr->next_prio;
+                    rq->thread_queues_head[j] = thr->next_prio;
                 if (thr->next_prio)
                     thr->next_prio->prev_prio = thr->prev_prio;
                 thr->prev_prio = thr->next_prio = NULL;
@@ -404,10 +401,6 @@ thread_t *__sched_find_next(unsigned int cpu)
 
     /* Note: These locks are unlocked in sched_load_thread, after loading the thread */
     unsigned long _ = spin_lock_irqsave(&rq->lock);
-    (void) _;
-
-    thread **thread_queues = (thread **) get_per_cpu_ptr_any(thread_queues_head, cpu);
-
     _ = spin_lock_irqsave(&current_thread->lock);
     (void) _;
 
@@ -419,9 +412,9 @@ thread_t *__sched_find_next(unsigned int cpu)
     for (int i = NUM_PRIO - 1; i >= 0; i--)
     {
         /* If this queue has a thread, we found a runnable thread! */
-        if (thread_queues[i])
+        if (rq->thread_queues_head[i])
         {
-            thread_t *ret = thread_queues[i];
+            thread_t *ret = rq->thread_queues_head[i];
 
             if (ret->entry == sched_idle)
             {
@@ -431,9 +424,9 @@ thread_t *__sched_find_next(unsigned int cpu)
             }
 
             /* Advance the queue by one */
-            thread_queues[i] = ret->next_prio;
-            if (thread_queues[i])
-                thread_queues[i]->prev_prio = nullptr;
+            rq->thread_queues_head[i] = ret->next_prio;
+            if (rq->thread_queues_head[i])
+                rq->thread_queues_head[i]->prev_prio = nullptr;
             ret->next_prio = ret->prev_prio = nullptr;
             return ret;
         }
@@ -811,12 +804,9 @@ static void ___sched_append_to_queue(int priority, unsigned int cpu, struct thre
     lockdep_assert_held(&rq->lock);
     assert(READ_ONCE(thread->status) == THREAD_RUNNABLE);
 
-    auto thread_queues = (struct thread **) get_per_cpu_ptr_any(thread_queues_head, cpu);
-    thread_t *queue = thread_queues[priority];
+    thread_t *queue = rq->thread_queues_head[priority];
     if (!queue)
-    {
-        thread_queues[priority] = thread;
-    }
+        rq->thread_queues_head[priority] = thread;
     else
     {
         while (queue->next_prio)
@@ -1056,9 +1046,9 @@ hrtime_t sched_sleep(unsigned long ns)
 
 int __sched_remove_thread_from_execution(thread_t *thread, unsigned int cpu)
 {
-    auto thread_queues = (struct thread **) get_per_cpu_ptr_any(thread_queues_head, cpu);
+    struct sched_rq *rq = sched_rq_for(cpu);
 
-    for (thread_t *t = thread_queues[thread->priority]; t; t = t->next_prio)
+    for (thread_t *t = rq->thread_queues_head[thread->priority]; t; t = t->next_prio)
     {
         if (t == thread)
         {
@@ -1066,7 +1056,7 @@ int __sched_remove_thread_from_execution(thread_t *thread, unsigned int cpu)
                 t->prev_prio->next_prio = t->next_prio;
             else
             {
-                thread_queues[thread->priority] = t->next_prio;
+                rq->thread_queues_head[thread->priority] = t->next_prio;
             }
 
             if (t->next_prio)
