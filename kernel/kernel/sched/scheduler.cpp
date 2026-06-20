@@ -74,7 +74,7 @@ static void rq_insert_task(struct sched_rq *rq, struct thread *thread);
 static void __rq_insert_task(struct sched_rq *rq, struct thread *thread);
 unsigned int sched_allocate_processor(struct cpumask mask);
 
-int sched_rbtree_cmp(const void *t1, const void *t2);
+static int sched_rbtree_cmp(const void *t1, const void *t2);
 static rb_tree glbl_thread_list = {.cmp_func = sched_rbtree_cmp};
 static DEFINE_SPINLOCK(glbl_thread_list_lock);
 
@@ -870,7 +870,7 @@ void sched_enable_pulse(void)
     timer_queue_clockevent(ev);
 }
 
-int sched_rbtree_cmp(const void *t1, const void *t2)
+static int sched_rbtree_cmp(const void *t1, const void *t2)
 {
     int tid0 = (int) (unsigned long) t1;
     int tid1 = (int) (unsigned long) t2;
@@ -946,7 +946,7 @@ void sched_yield(void)
     }
 }
 
-void sched_sleep_unblock(clockevent *v)
+static void sched_sleep_unblock(clockevent *v)
 {
     thread *t = (thread *) v->priv;
     thread_wake_up(t);
@@ -1090,11 +1090,6 @@ thread *get_thread_for_cpu(unsigned int cpu)
     return get_per_cpu_any(current_thread, cpu);
 }
 
-bool sched_may_resched(void)
-{
-    return !(is_in_interrupt() || irq_is_disabled() || sched_is_preemption_disabled());
-}
-
 static bool __thread_wake_up(thread *thread, unsigned int cpu, unsigned int state,
                              unsigned int flags)
 {
@@ -1181,49 +1176,25 @@ void thread_wake_up(thread_t *thread)
     thread_wake_up_try(thread, -1, 0);
 }
 
-void sched_block_self(thread *thread, unsigned long fl)
+/* XXX this is trash, we need to remove it (and fix sem/condvar). */
+static void __sched_block(thread *thread, unsigned long fl)
 {
+    auto current = get_current_thread();
+    CHECK(current == thread);
+
     lockdep_assert_sched_lock();
 
     thread->status = THREAD_UNINTERRUPTIBLE;
-
     spin_unlock_irqrestore(&thread->lock, CPU_FLAGS_NO_IRQ);
     spin_unlock_irqrestore(&this_rq()->lock, fl);
     sched_yield();
-}
-
-void sched_block_other(thread *thread)
-{
-    panic("not implemented");
-}
-
-/* Note: __sched_block returns with everything unlocked */
-void __sched_block(thread *thread, unsigned long fl)
-{
-    auto current = get_current_thread();
-
-    if (current == thread)
-    {
-        sched_block_self(thread, fl);
-    }
-    else
-    {
-        sched_block_other(thread);
-    }
-}
-
-void sched_block(thread *thread)
-{
-    unsigned long f = sched_lock(thread);
-
-    __sched_block(thread, f);
 }
 
 void sched_sleep_until_wake(void)
 {
     thread *thread = get_current_thread();
 
-    sched_block(thread);
+    __sched_block(thread, sched_lock(thread));
 }
 
 void sched_start_thread(thread_t *thread)
