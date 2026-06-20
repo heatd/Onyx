@@ -479,7 +479,7 @@ unsigned long sched_get_runnable(void)
     return nr_runnable;
 }
 
-void calc_avenrun()
+static void calc_avenrun(void)
 {
     unsigned long nr_runnable = sched_get_runnable();
     if ((long) nr_runnable < 0)
@@ -498,7 +498,7 @@ static void sched_acct_system(hrtime_t time)
     kcputime_add(type, time);
 }
 
-void sched_decrease_quantum(clockevent *ev)
+static void sched_decrease_quantum(clockevent *ev)
 {
     unsigned int quantum = get_per_cpu(sched_quantum);
     if (quantum > 0)
