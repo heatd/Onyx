@@ -1887,6 +1887,18 @@ struct key_action key_actions[] = {
     {KEY_DOWN, "\033[B", NULL, "\033[1;5B"},
     {KEY_RIGHT, "\033[C", NULL, "\033[1;5C"},
     {KEY_ESC, "\033"},
+    {KEY_F1, "\033[[A"},
+    {KEY_F2, "\033[[B"},
+    {KEY_F3, "\033[[C"},
+    {KEY_F4, "\033[[D"},
+    {KEY_F5, "\033[[E"},
+    {KEY_F6, "\033[17~"},
+    {KEY_F7, "\033[18~"},
+    {KEY_F8, "\033[19~"},
+    {KEY_F9, "\033[20~"},
+    {KEY_F10, "\033[21~"},
+    {KEY_F11, "\033[23~"},
+    {KEY_F12, "\033[24~"},
 };
 
 struct key_action pt_pt_key_actions[] = {
@@ -1963,6 +1975,18 @@ struct key_action pt_pt_key_actions[] = {
     {KEY_DOWN, "\033[B", NULL, "\033[1;5B"},
     {KEY_RIGHT, "\033[C", NULL, "\033[1;5C"},
     {KEY_ESC, "\033"},
+    {KEY_F1, "\033[[A"},
+    {KEY_F2, "\033[[B"},
+    {KEY_F3, "\033[[C"},
+    {KEY_F4, "\033[[D"},
+    {KEY_F5, "\033[[E"},
+    {KEY_F6, "\033[17~"},
+    {KEY_F7, "\033[18~"},
+    {KEY_F8, "\033[19~"},
+    {KEY_F9, "\033[20~"},
+    {KEY_F10, "\033[21~"},
+    {KEY_F11, "\033[23~"},
+    {KEY_F12, "\033[24~"},
 };
 
 const size_t nr_actions = sizeof(key_actions) / sizeof(key_actions[0]);
