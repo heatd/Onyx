@@ -47,6 +47,7 @@
 #include <linux/lockdep.h>
 
 #include "primitive_generic.h"
+#include "scheduler_priv.h"
 
 /*
  * Scale factor for scaled integers used to count %cpu time and load avgs.
@@ -84,11 +85,26 @@ int sched_rbtree_cmp(const void *t1, const void *t2);
 static rb_tree glbl_thread_list = {.cmp_func = sched_rbtree_cmp};
 static DEFINE_SPINLOCK(glbl_thread_list_lock);
 
-PER_CPU_VAR(spinlock scheduler_lock) = STATIC_SPINLOCK_INIT(scheduler_lock);
+static PER_CPU_VAR(struct sched_rq cpu_rq) = {
+    .lock = STATIC_SPINLOCK_INIT(cpu_rq.lock),
+};
+
 PER_CPU_VAR(thread *thread_queues_head[NUM_PRIO]);
 PER_CPU_VAR(thread *thread_queues_tail[NUM_PRIO]);
 PER_CPU_VAR(thread *current_thread);
 PER_CPU_VAR(unsigned int tasks_in_queues);
+
+static inline struct sched_rq *this_rq(void)
+{
+    return get_per_cpu_ptr(cpu_rq);
+}
+
+#define lockdep_assert_sched_lock() lockdep_assert_held(&this_rq()->lock)
+
+static inline struct sched_rq *sched_rq_for(unsigned int cpu)
+{
+    return get_per_cpu_ptr_any(cpu_rq, cpu);
+}
 
 void thread_append_to_global_list(thread *t)
 {
@@ -193,19 +209,20 @@ unsigned long sched_lock(thread *thread)
     /* 1st - Lock the per-cpu scheduler */
     /* 2nd - Lock the thread */
     unsigned long cpu_flags, _;
+    struct sched_rq *rq;
 
     for (;;)
     {
         unsigned int cpu = READ_ONCE(thread->cpu);
         assert(cpu < get_nr_cpus());
-        struct spinlock *l = get_per_cpu_ptr_any(scheduler_lock, cpu);
-        cpu_flags = spin_lock_irqsave(l);
+        rq = sched_rq_for(cpu);
+        cpu_flags = spin_lock_irqsave(&rq->lock);
         _ = spin_lock_irqsave(&thread->lock);
         if (thread->cpu == cpu)
             break;
         (void) _;
         spin_unlock_irqrestore(&thread->lock, CPU_FLAGS_NO_IRQ);
-        spin_unlock_irqrestore(l, cpu_flags);
+        spin_unlock_irqrestore(&rq->lock, cpu_flags);
     }
 
     return cpu_flags;
@@ -213,12 +230,9 @@ unsigned long sched_lock(thread *thread)
 
 void sched_unlock(thread *thread, unsigned long cpu_flags)
 {
-    spinlock *l = get_per_cpu_ptr_any(scheduler_lock, thread->cpu);
-
     /* Do the reverse of the above */
-
     spin_unlock_irqrestore(&thread->lock, CPU_FLAGS_NO_IRQ);
-    spin_unlock_irqrestore(l, cpu_flags);
+    spin_unlock_irqrestore(&sched_rq_for(thread->cpu)->lock, cpu_flags);
 }
 
 PER_CPU_VAR(long runnable_delta) = 0;
@@ -227,15 +241,17 @@ extern void sched_idle(void *);
 
 static thread_t *sched_steal_job(unsigned int cpu)
 {
+    struct sched_rq *rq;
+
     for (unsigned int i = 0; i < get_nr_cpus(); i++)
     {
         if (i == cpu)
             continue;
         if (other_cpu_get(tasks_in_queues, i) <= 1)
             continue;
-        struct spinlock *sched_lock = get_per_cpu_ptr_any(scheduler_lock, i);
+        rq = sched_rq_for(i);
         thread **thread_queues = (thread **) get_per_cpu_ptr_any(thread_queues_head, i);
-        if (spin_try_lock(sched_lock))
+        if (spin_try_lock(&rq->lock))
             continue;
 
         for (int j = NUM_PRIO - 1; j >= 0; j--)
@@ -261,12 +277,12 @@ static thread_t *sched_steal_job(unsigned int cpu)
                 SCHED_DEBUG_WARN_ON(!(READ_ONCE(thr->flags) & THREAD_IN_QUEUE));
                 thr->cpu = cpu;
                 atomic_or_relaxed(thr->flags, THREAD_SNOOPED);
-                spin_unlock(sched_lock);
+                spin_unlock(&rq->lock);
                 return thr;
             }
         }
 
-        spin_unlock(sched_lock);
+        spin_unlock(&rq->lock);
     }
 
     return nullptr;
@@ -297,15 +313,15 @@ static void maybe_kick_cpu(struct thread *thread)
  */
 static bool sched_do_migrate(struct thread *curr)
 {
-    struct spinlock *curr_sched_lock;
+    struct sched_rq *rq;
     struct cpumask mask;
     unsigned int target;
     unsigned long flags;
 
-    curr_sched_lock = get_per_cpu_ptr(scheduler_lock);
+    rq = this_rq();
 
 retry:
-    lockdep_assert_held(curr_sched_lock);
+    lockdep_assert_held(&rq->lock);
     lockdep_assert_held(&curr->lock);
 
     /* Ugh. This is annoying. Lets take a snapshot of the mask, and calculate a target CPU for that.
@@ -320,11 +336,11 @@ retry:
         target = sched_allocate_processor(mask);
     /* Unlock locks. */
     spin_unlock_irqrestore(&curr->lock, CPU_FLAGS_NO_IRQ);
-    spin_unlock_irqrestore(curr_sched_lock, CPU_FLAGS_NO_IRQ);
+    spin_unlock_irqrestore(&rq->lock, CPU_FLAGS_NO_IRQ);
 
     /* Re-lock sched locks for the new CPU */
-    curr_sched_lock = get_per_cpu_ptr_any(scheduler_lock, target);
-    flags = spin_lock_irqsave(curr_sched_lock);
+    rq = sched_rq_for(target);
+    flags = spin_lock_irqsave(&rq->lock);
     flags = spin_lock_irqsave(&curr->lock);
 
     if (!cpumask_equal(&mask, &curr->task_affinity))
@@ -339,8 +355,8 @@ retry:
 
     if (target != get_cpu_nr())
     {
-        spin_unlock_irqrestore(curr_sched_lock, CPU_FLAGS_NO_IRQ);
-        flags = spin_lock_irqsave(get_per_cpu_ptr(scheduler_lock));
+        spin_unlock_irqrestore(&rq->lock, CPU_FLAGS_NO_IRQ);
+        flags = spin_lock_irqsave(&this_rq()->lock);
     }
 
     (void) flags;
@@ -357,7 +373,7 @@ static bool sched_requeue_task(struct thread *curr)
 {
     unsigned int curr_cpu = get_cpu_nr();
 
-    lockdep_assert_held(get_per_cpu_ptr(scheduler_lock));
+    lockdep_assert_sched_lock();
     lockdep_assert_held(&curr->lock);
 
     if (curr->status != THREAD_RUNNABLE)
@@ -381,13 +397,13 @@ static bool sched_requeue_task(struct thread *curr)
 
 thread_t *__sched_find_next(unsigned int cpu)
 {
+    struct sched_rq *rq = sched_rq_for(cpu);
     thread_t *current_thread = get_current_thread();
 
     lockdep_assert_not_held(&current_thread->lock);
 
     /* Note: These locks are unlocked in sched_load_thread, after loading the thread */
-    spinlock *sched_lock = get_per_cpu_ptr_any(scheduler_lock, cpu);
-    unsigned long _ = spin_lock_irqsave(sched_lock);
+    unsigned long _ = spin_lock_irqsave(&rq->lock);
     (void) _;
 
     thread **thread_queues = (thread **) get_per_cpu_ptr_any(thread_queues_head, cpu);
@@ -398,7 +414,7 @@ thread_t *__sched_find_next(unsigned int cpu)
     if (!sched_requeue_task(current_thread))
         add_per_cpu(tasks_in_queues, -1);
 
-    lockdep_assert_held(sched_lock);
+    lockdep_assert_held(&rq->lock);
     /* Go through the different queues, from the highest to lowest */
     for (int i = NUM_PRIO - 1; i >= 0; i--)
     {
@@ -568,7 +584,7 @@ static void dump_thread(struct thread *thread)
 void sched_load_thread(struct thread *prev, thread *thread, unsigned int cpu)
 {
     struct mm_address_space *mm = prev->active_mm ?: prev->aspace;
-    struct spinlock *lock = get_per_cpu_ptr(scheduler_lock);
+    struct sched_rq *rq = sched_rq_for(cpu);
 
     CHECK(prev->on_cpu);
     if (prev != thread)
@@ -582,10 +598,10 @@ void sched_load_thread(struct thread *prev, thread *thread, unsigned int cpu)
         }
     }
 
-    spin_release(&lock->dep_map, _THIS_IP_);
+    spin_release(&rq->lock.dep_map, _THIS_IP_);
     write_per_cpu(current_thread, thread);
-    spin_acquire(&lock->dep_map, 0, 0, _THIS_IP_);
-    spin_unlock_irqrestore(get_per_cpu_ptr_any(scheduler_lock, cpu), irq_save_and_disable());
+    spin_acquire(&rq->lock.dep_map, 0, 0, _THIS_IP_);
+    spin_unlock_irqrestore(&rq->lock, irq_save_and_disable());
     errno = thread->errno_val;
 
     WRITE_ONCE(thread->on_cpu, 1);
@@ -748,7 +764,7 @@ extern "C" void *sched_schedule(void *last_stack)
     else
     {
         write_per_cpu(sched_quantum, SCHED_QUANTUM);
-        spin_unlock_irqrestore(get_per_cpu_ptr(scheduler_lock), CPU_FLAGS_NO_IRQ);
+        spin_unlock_irqrestore(&this_rq()->lock, CPU_FLAGS_NO_IRQ);
         irq_enable();
         return last_stack;
     }
@@ -790,8 +806,9 @@ void sched_idle(void *ptr)
 
 static void ___sched_append_to_queue(int priority, unsigned int cpu, struct thread *thread)
 {
-    MUST_HOLD_LOCK(get_per_cpu_ptr_any(scheduler_lock, cpu));
+    struct sched_rq *rq = sched_rq_for(cpu);
 
+    lockdep_assert_held(&rq->lock);
     assert(READ_ONCE(thread->status) == THREAD_RUNNABLE);
 
     auto thread_queues = (struct thread **) get_per_cpu_ptr_any(thread_queues_head, cpu);
@@ -828,12 +845,11 @@ static void __sched_append_to_queue(int priority, unsigned int cpu, struct threa
 
 void sched_append_to_queue(int priority, unsigned int cpu, thread_t *thread)
 {
-    unsigned long flags = spin_lock_irqsave(get_per_cpu_ptr_any(scheduler_lock, cpu));
+    struct sched_rq *rq = sched_rq_for(cpu);
+    unsigned long flags = spin_lock_irqsave(&rq->lock);
 
     __sched_append_to_queue(priority, cpu, thread);
-
-    spin_unlock_irqrestore(get_per_cpu_ptr_any(scheduler_lock, cpu), flags);
-
+    spin_unlock_irqrestore(&rq->lock, flags);
     add_per_cpu(runnable_delta, 1);
 }
 
@@ -1067,15 +1083,13 @@ int __sched_remove_thread_from_execution(thread_t *thread, unsigned int cpu)
 
 int sched_remove_thread_from_execution(thread_t *thread)
 {
+    /* XXX DO WE NEED THIS??? */
     unsigned int cpu = thread->cpu;
+    struct sched_rq *rq = sched_rq_for(cpu);
 
-    spinlock *s = get_per_cpu_ptr_any(scheduler_lock, cpu);
-    unsigned long cpu_flags = spin_lock_irqsave(s);
-
+    unsigned long cpu_flags = spin_lock_irqsave(&rq->lock);
     int st = __sched_remove_thread_from_execution(thread, cpu);
-
-    spin_unlock_irqrestore(s, cpu_flags);
-
+    spin_unlock_irqrestore(&rq->lock, cpu_flags);
     return st;
 }
 
@@ -1241,11 +1255,12 @@ void thread_set_state(thread_t *thread, int state)
 static bool __thread_wake_up(thread *thread, unsigned int cpu, unsigned int state,
                              unsigned int flags)
 {
+    struct sched_rq *rq = sched_rq_for(cpu);
     unsigned int new_cpu;
     unsigned int status;
 
     MUST_HOLD_LOCK(&thread->lock);
-    MUST_HOLD_LOCK(get_per_cpu_ptr_any(scheduler_lock, cpu));
+    lockdep_assert_held(&rq->lock);
     smp_mb__after_spinlock();
 
     status = READ_ONCE(thread->status);
@@ -1277,7 +1292,7 @@ static bool __thread_wake_up(thread *thread, unsigned int cpu, unsigned int stat
         /* Release the locks and reacquire them in proper order, then reappend to the queue. */
         thread->cpu = new_cpu;
         spin_unlock_irqrestore(&thread->lock, CPU_FLAGS_NO_IRQ);
-        spin_unlock_irqrestore(get_per_cpu_ptr_any(scheduler_lock, cpu), CPU_FLAGS_NO_IRQ);
+        spin_unlock_irqrestore(&rq->lock, CPU_FLAGS_NO_IRQ);
         unsigned long _ = sched_lock(thread);
         (void) _;
         WARN_ON(thread->cpu != new_cpu);
@@ -1324,13 +1339,12 @@ void thread_wake_up(thread_t *thread)
 
 void sched_block_self(thread *thread, unsigned long fl)
 {
-    MUST_HOLD_LOCK(get_per_cpu_ptr_any(scheduler_lock, thread->cpu));
+    lockdep_assert_sched_lock();
 
     thread->status = THREAD_UNINTERRUPTIBLE;
 
     spin_unlock_irqrestore(&thread->lock, CPU_FLAGS_NO_IRQ);
-    spin_unlock_irqrestore(get_per_cpu_ptr_any(scheduler_lock, thread->cpu), fl);
-
+    spin_unlock_irqrestore(&this_rq()->lock, fl);
     sched_yield();
 }
 
@@ -1530,13 +1544,6 @@ void sched_handle_preempt(bool may_softirq)
         sched_yield();
         atomic_and_relaxed(curr->flags, ~THREAD_NEEDS_RESCHED);
     }
-}
-
-void __sched_kill_other(thread *thread, unsigned int cpu)
-{
-    MUST_HOLD_LOCK(get_per_cpu_ptr_any(scheduler_lock, thread->cpu));
-
-    cpu_send_message(cpu, CPU_KILL_THREAD, NULL, false);
 }
 
 pid_t sys_gettid()
