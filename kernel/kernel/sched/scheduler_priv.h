@@ -12,5 +12,5 @@ struct sched_rq
     struct spinlock lock;
     struct thread *thread_queues_head[NUM_PRIO];
     struct thread *thread_queues_tail[NUM_PRIO];
-    // unsigned int tasks_in_queues;
+    unsigned int tasks_in_queues;
 };
