@@ -70,6 +70,7 @@ extern struct lockdep_map rcu_callback_map;
 #include <onyx/mm/slab.h>
 #include <onyx/page.h>
 
+#include <linux/compiler.h>
 #include <linux/lockdep.h>
 
 #define MA_ROOT_PARENT 1
