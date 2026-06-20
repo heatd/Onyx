@@ -1065,13 +1065,11 @@ void thread_destroy(struct thread *thread)
     call_rcu(&thread->rcu_head, thread_finish_destruction);
 }
 
-void thread_exit()
+void thread_exit(void)
 {
-    // printk("tid %u(%p) dying\n", get_current_thread()->id, get_current_thread()->entry);
+    struct thread *curr_thr = get_current_thread();
 
-    thread *current = get_current_thread();
-
-    kcov_free_thread(current);
+    kcov_free_thread(curr_thr);
     sched_disable_preempt();
 
     /* We need to switch to the fallback page directory while we can, because
@@ -1079,7 +1077,7 @@ void thread_exit()
      */
     vm_switch_to_fallback_pgd();
 
-    WRITE_ONCE(current->status, THREAD_DEAD);
+    WRITE_ONCE(curr_thr->status, THREAD_DEAD);
 
     sched_enable_preempt();
     sched_yield();
