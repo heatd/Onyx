@@ -1714,3 +1714,23 @@ int sys_sched_getaffinity(pid_t pid, size_t cpusetsize, void *cpu_set)
 
     return sizeof(cpumask);
 }
+
+int sys_getcpu(unsigned int *cpu, unsigned int *node, void *cache)
+{
+    unsigned int curcpu = get_cpu_nr();
+
+    /* The syscall itself has this cache argument, which has been ignored in Linux (since 2.6.x).
+     * Let's also not use it. */
+    (void) cache;
+    if (cpu && copy_to_user(cpu, &curcpu, sizeof(curcpu)))
+        return -EFAULT;
+
+    if (node)
+    {
+        /* No NUMA support yet. everything is node 0 */
+        unsigned int n = 0;
+        if (copy_to_user(node, &n, sizeof(n)))
+            return -EFAULT;
+    }
+    return 0;
+}
