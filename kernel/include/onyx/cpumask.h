@@ -247,4 +247,23 @@ static inline bool cpumask_is_set(struct cpumask* mask, unsigned long cpu)
     return mask->mask[long_idx] & (1UL << bit_idx);
 }
 
+static inline struct cpumask cpumask_one(unsigned long cpu)
+{
+    struct cpumask c;
+    memset((void*) &c, 0, sizeof(c));
+    c.mask[cpu / LONG_SIZE_BITS] |= (1UL << (cpu % LONG_SIZE_BITS));
+    return c;
+}
+
+static inline bool cpumask_equal(struct cpumask* m1, struct cpumask* m2)
+{
+    for (int i = 0; i < CPUMASK_SIZE; i++)
+    {
+        if (m1->mask[i] != m2->mask[i])
+            return false;
+    }
+
+    return true;
+}
+
 #endif

@@ -617,7 +617,6 @@ extern "C" void *sched_schedule(void *last_stack)
                 curr_thread->flags &= ~THREAD_ACTIVE;
                 return last_stack;
             }
-
             trace_sched_block();
         }
 
@@ -855,6 +854,7 @@ extern "C" void platform_yield(void);
 
 void sched_yield(void)
 {
+    struct thread *curr = get_current_thread();
     if (sched_is_preemption_disabled())
     {
         panic("Thread tried to sleep with preemption disabled (preemption counter %ld)",
@@ -862,23 +862,34 @@ void sched_yield(void)
     }
 
     struct flame_graph_entry *fge = nullptr;
-    int curstatus = READ_ONCE(get_current_thread()->status);
+    int curstatus = READ_ONCE(curr->status);
     const bool waiting = curstatus == THREAD_INTERRUPTIBLE || curstatus == THREAD_UNINTERRUPTIBLE;
 
-    /* Flush the plug if we're going to sleep */
-    if (waiting && get_current_thread()->plug)
-        blk_flush_plug(get_current_thread()->plug);
-
-    if (perf_probe_is_enabled_wait() && waiting)
+    if (waiting)
     {
-        fge = (struct flame_graph_entry *) alloca(sizeof(*fge));
-        perf_probe_setup_wait(fge);
+        /* Flush the plug if we're going to sleep */
+        if (curr->plug)
+            blk_flush_plug(curr->plug);
+
+        if (perf_probe_is_enabled_wait())
+        {
+            fge = (struct flame_graph_entry *) alloca(sizeof(*fge));
+            perf_probe_setup_wait(fge);
+        }
+
+        if (curr->flags & THREAD_WORKQUEUE)
+            wq_worker_sleeping(curr);
     }
 
     platform_yield();
 
     if (fge)
         perf_probe_commit_wait(fge);
+    if (waiting)
+    {
+        if (curr->flags & THREAD_WORKQUEUE)
+            wq_worker_running(curr);
+    }
 }
 
 void sched_sleep_unblock(clockevent *v)

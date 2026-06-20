@@ -1,4 +1,4 @@
-sched-y:= mutex.o scheduler.o rwlock.o wait.o
+sched-y:= mutex.o scheduler.o rwlock.o wait.o workqueue.o
 
 obj-y+= $(patsubst %, kernel/sched/%, $(sched-y))
 

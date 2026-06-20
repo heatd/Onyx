@@ -76,7 +76,7 @@ typedef struct thread
      * and it's used to futex_wake any threads blocked by join.
      */
     void *ctid;
-
+    void *data;
     struct thread_cputime_info cputime_info;
     struct mm_address_space *aspace;
     struct mm_address_space *active_mm;
@@ -126,7 +126,8 @@ typedef struct thread
     thread()
         : refcount{}, canary{}, kernel_stack{}, kernel_stack_top{}, owner{}, entry{}, flags{}, id{},
           status{}, priority{}, cpu{}, next{}, prev_prio{}, next_prio{}, fpu_area{}, sem_prev{},
-          sem_next{}, lock{}, errno_val{}, addr_limit{}, ctid{}, cputime_info{}, aspace{}, plug{}
+          sem_next{}, lock{}, errno_val{}, addr_limit{}, ctid{}, data{}, cputime_info{}, aspace{},
+          plug{}
 #ifdef CONFIG_DEBUG_SCHEDULER
           ,
           last_finish{}, last_switch_in{}
@@ -200,6 +201,7 @@ typedef struct thread
 #define SCHED_DEBUG_WARN_ON(cond) do {} while(0)
 // clang-format on
 #endif
+#define THREAD_WORKQUEUE (1 << 9)
 
 int sched_init(void);
 
@@ -345,6 +347,9 @@ static inline struct cpumask task_curr_affinity(void)
 
 unsigned long sched_total_ctx_switches(void);
 unsigned long sched_get_runnable(void);
+
+void wq_worker_sleeping(struct thread *thread);
+void wq_worker_running(struct thread *thread);
 
 /**
  * @brief Check if we can sleep (to be used by debugging functions)

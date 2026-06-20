@@ -26,6 +26,8 @@
  * Thanks to Arjan van de Ven for coming up with the initial idea of
  * mapping lock dependencies runtime.
  */
+#undef task_struct
+#define task_struct thread
 #define DISABLE_BRANCH_PROFILING
 #define __IS_LOCKDEP__
 #include <onyx/process.h>
@@ -80,8 +82,6 @@
 #define trace_lock_release(...)
 
 #undef current
-#undef task_struct
-#define task_struct thread
 /* We _definitely_ need current to point to the current thread here. */
 #define current get_current_thread()
 
@@ -6803,6 +6803,20 @@ void debug_check_no_locks_held(void)
 }
 EXPORT_SYMBOL_GPL(debug_check_no_locks_held);
 
+/*
+ * Careful: only use this function if you are sure that
+ * the task cannot run in parallel!
+ */
+void debug_show_held_locks(struct task_struct *task)
+{
+	if (unlikely(!debug_locks)) {
+		printk("INFO: lockdep is turned off.\n");
+		return;
+	}
+	lockdep_print_held_locks(task);
+}
+EXPORT_SYMBOL_GPL(debug_show_held_locks);
+
 #if 0
 #ifdef __KERNEL__
 void debug_show_all_locks(void)
@@ -6830,20 +6844,6 @@ void debug_show_all_locks(void)
 }
 EXPORT_SYMBOL_GPL(debug_show_all_locks);
 #endif
-
-/*
- * Careful: only use this function if you are sure that
- * the task cannot run in parallel!
- */
-void debug_show_held_locks(struct task_struct *task)
-{
-	if (unlikely(!debug_locks)) {
-		printk("INFO: lockdep is turned off.\n");
-		return;
-	}
-	lockdep_print_held_locks(task);
-}
-EXPORT_SYMBOL_GPL(debug_show_held_locks);
 
 asmlinkage __visible void lockdep_sys_exit(void)
 {
