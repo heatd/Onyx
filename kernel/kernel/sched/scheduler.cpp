@@ -90,7 +90,6 @@ static PER_CPU_VAR(struct sched_rq cpu_rq) = {
 };
 
 PER_CPU_VAR(thread *current_thread);
-PER_CPU_VAR(unsigned int tasks_in_queues);
 
 static inline struct sched_rq *this_rq(void)
 {
@@ -239,15 +238,18 @@ extern void sched_idle(void *);
 
 static thread_t *sched_steal_job(unsigned int cpu)
 {
-    struct sched_rq *rq;
+    struct sched_rq *rq, *curr_rq;
+
+    curr_rq = this_rq();
+    lockdep_assert_sched_lock();
 
     for (unsigned int i = 0; i < get_nr_cpus(); i++)
     {
         if (i == cpu)
             continue;
-        if (other_cpu_get(tasks_in_queues, i) <= 1)
-            continue;
         rq = sched_rq_for(i);
+        if (READ_ONCE(rq->tasks_in_queues) <= 1)
+            continue;
         if (spin_try_lock(&rq->lock))
             continue;
 
@@ -268,8 +270,8 @@ static thread_t *sched_steal_job(unsigned int cpu)
                 if (thr->next_prio)
                     thr->next_prio->prev_prio = thr->prev_prio;
                 thr->prev_prio = thr->next_prio = NULL;
-                other_cpu_add(tasks_in_queues, -1, i);
-                add_per_cpu(tasks_in_queues, 1);
+                rq->tasks_in_queues--;
+                curr_rq->tasks_in_queues++;
                 WARN_ON(thr->cpu != i);
                 SCHED_DEBUG_WARN_ON(!(READ_ONCE(thr->flags) & THREAD_IN_QUEUE));
                 thr->cpu = cpu;
@@ -405,7 +407,7 @@ thread_t *__sched_find_next(unsigned int cpu)
     (void) _;
 
     if (!sched_requeue_task(current_thread))
-        add_per_cpu(tasks_in_queues, -1);
+        rq->tasks_in_queues--;
 
     lockdep_assert_held(&rq->lock);
     /* Go through the different queues, from the highest to lowest */
@@ -829,7 +831,7 @@ static void ___sched_append_to_queue(int priority, unsigned int cpu, struct thre
 
 static void __sched_append_to_queue(int priority, unsigned int cpu, struct thread *thread)
 {
-    add_per_cpu_any(tasks_in_queues, 1, cpu);
+    sched_rq_for(cpu)->tasks_in_queues++;
     ___sched_append_to_queue(priority, cpu, thread);
 }
 
@@ -853,7 +855,7 @@ unsigned int sched_allocate_processor(struct cpumask mask)
 
     mask &= smp::get_online_cpumask();
     mask.for_every_cpu([&dest_cpu, &active_threads_min](unsigned int i) -> bool {
-        unsigned long active_threads_for_cpu = get_per_cpu_any(tasks_in_queues, i);
+        unsigned long active_threads_for_cpu = READ_ONCE(sched_rq_for(i)->tasks_in_queues);
         if (active_threads_for_cpu < active_threads_min)
         {
             dest_cpu = i;
