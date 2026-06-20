@@ -78,6 +78,7 @@ void sched_append_to_queue(int priority, unsigned int cpu, thread_t *thread);
 void sched_block(thread *thread);
 static void __sched_append_to_queue(int priority, unsigned int cpu, thread_t *thread);
 static void ___sched_append_to_queue(int priority, unsigned int cpu, struct thread *thread);
+unsigned int sched_allocate_processor(struct cpumask mask);
 
 int sched_rbtree_cmp(const void *t1, const void *t2);
 static rb_tree glbl_thread_list = {.cmp_func = sched_rbtree_cmp};
@@ -271,12 +272,118 @@ static thread_t *sched_steal_job(unsigned int cpu)
     return nullptr;
 }
 
+static void maybe_kick_cpu(struct thread *thread)
+{
+    unsigned int cpu = thread->cpu;
+    struct thread *remote;
+
+    rcu_read_lock();
+    remote = get_thread_for_cpu(cpu);
+    if (READ_ONCE(remote->priority) < thread->priority)
+    {
+        if (cpu == get_cpu_nr())
+            sched_should_resched();
+        else
+            cpu_send_resched(cpu);
+    }
+    rcu_read_unlock();
+}
+
+/**
+ * @brief Migrate a thread
+ *
+ * @param curr Thread to migrate
+ * @return true if we stayed on the same CPU, else false.
+ */
+static bool sched_do_migrate(struct thread *curr)
+{
+    struct spinlock *curr_sched_lock;
+    struct cpumask mask;
+    unsigned int target;
+    unsigned long flags;
+
+    curr_sched_lock = get_per_cpu_ptr(scheduler_lock);
+
+retry:
+    lockdep_assert_held(curr_sched_lock);
+    lockdep_assert_held(&curr->lock);
+
+    /* Ugh. This is annoying. Lets take a snapshot of the mask, and calculate a target CPU for that.
+     * Holding the current scheduler locks stabilizes the affinity.
+     */
+    mask = curr->task_affinity;
+
+    /* Prefer current. */
+    if (cpumask_is_set(&mask, get_cpu_nr()))
+        target = get_cpu_nr();
+    else
+        target = sched_allocate_processor(mask);
+    /* Unlock locks. */
+    spin_unlock_irqrestore(&curr->lock, CPU_FLAGS_NO_IRQ);
+    spin_unlock_irqrestore(curr_sched_lock, CPU_FLAGS_NO_IRQ);
+
+    /* Re-lock sched locks for the new CPU */
+    curr_sched_lock = get_per_cpu_ptr_any(scheduler_lock, target);
+    flags = spin_lock_irqsave(curr_sched_lock);
+    flags = spin_lock_irqsave(&curr->lock);
+
+    if (!cpumask_equal(&mask, &curr->task_affinity))
+        goto retry;
+    /* Great! target is indeed part of mask. mask is stabilized. Add it to the queue and unlock. */
+    __sched_append_to_queue(curr->priority, target, curr);
+    curr->cpu = target;
+    /* No point in kicking ourselves, kick remote only. */
+    if (target != get_cpu_nr())
+        maybe_kick_cpu(curr);
+    spin_unlock_irqrestore(&curr->lock, CPU_FLAGS_NO_IRQ);
+
+    if (target != get_cpu_nr())
+    {
+        spin_unlock_irqrestore(curr_sched_lock, CPU_FLAGS_NO_IRQ);
+        flags = spin_lock_irqsave(get_per_cpu_ptr(scheduler_lock));
+    }
+
+    (void) flags;
+    return false;
+}
+
+/**
+ * @brief (Attempt to) requeue the thread
+ *
+ * @param curr Thread to requeue (must be current)
+ * @return True if requeued back to the current CPU, else false (can be on another CPU).
+ */
+static bool sched_requeue_task(struct thread *curr)
+{
+    unsigned int curr_cpu = get_cpu_nr();
+
+    lockdep_assert_held(get_per_cpu_ptr(scheduler_lock));
+    lockdep_assert_held(&curr->lock);
+
+    if (curr->status != THREAD_RUNNABLE)
+    {
+        add_per_cpu(runnable_delta, -1);
+        spin_unlock_irqrestore(&curr->lock, CPU_FLAGS_NO_IRQ);
+        return false;
+    }
+
+    /* This is likely - the cpu is currently in the CPU mask. In which case, just re-append and
+     * bail. */
+    if (likely(cpumask_is_set(&curr->task_affinity, curr_cpu)))
+    {
+        ___sched_append_to_queue(curr->priority, curr_cpu, curr);
+        spin_unlock_irqrestore(&curr->lock, CPU_FLAGS_NO_IRQ);
+        return true;
+    }
+
+    return sched_do_migrate(curr);
+}
+
 thread_t *__sched_find_next(unsigned int cpu)
 {
     thread_t *current_thread = get_current_thread();
 
-    if (current_thread)
-        assert(spin_lock_held(&current_thread->lock) == false);
+    lockdep_assert_not_held(&current_thread->lock);
 
     /* Note: These locks are unlocked in sched_load_thread, after loading the thread */
     spinlock *sched_lock = get_per_cpu_ptr_any(scheduler_lock, cpu);
@@ -285,24 +392,13 @@ thread_t *__sched_find_next(unsigned int cpu)
 
     thread **thread_queues = (thread **) get_per_cpu_ptr_any(thread_queues_head, cpu);
 
-    if (current_thread)
-    {
-        unsigned long cpu_flags = spin_lock_irqsave(&current_thread->lock);
+    _ = spin_lock_irqsave(&current_thread->lock);
+    (void) _;
 
-        if (current_thread->status == THREAD_RUNNABLE)
-        {
-            /* Re-append the last thread to the queue */
-            ___sched_append_to_queue(current_thread->priority, cpu, current_thread);
-        }
-        else
-        {
-            add_per_cpu(runnable_delta, -1);
-            add_per_cpu(tasks_in_queues, -1);
-        }
+    if (!sched_requeue_task(current_thread))
+        add_per_cpu(tasks_in_queues, -1);
 
-        spin_unlock_irqrestore(&current_thread->lock, cpu_flags);
-    }
-
+    lockdep_assert_held(sched_lock);
     /* Go through the different queues, from the highest to lowest */
     for (int i = NUM_PRIO - 1; i >= 0; i--)
     {
@@ -1501,8 +1597,19 @@ static int copy_cpumask_from_user(const void *cpu_set, size_t cpusetsize, struct
     return 0;
 }
 
+/**
+ * @brief Set a task's affinity
+ *
+ * @param thread Task for which to set affinity
+ * @param mask Affinity mask.
+ * @return 0 on success, negative error numbers.
+ * In case the caller needs to sched_yield() (e.g we need to migrate ourselves), this function
+ * returns 1 (which should be passed back to userspace as 0).
+ */
 int task_set_affinity(struct thread *thread, struct cpumask mask)
 {
+    bool migrating_current = thread == get_current_thread();
+    bool migrating;
     unsigned long flags;
 
     mask &= smp::get_online_cpumask();
@@ -1511,9 +1618,16 @@ int task_set_affinity(struct thread *thread, struct cpumask mask)
 
     flags = sched_lock(thread);
     thread->task_affinity = mask;
-    /* TODO: Migrate thread if they're scheduleable */
+    migrating = !cpumask_is_set(&mask, thread->cpu);
+    if (!migrating)
+        migrating_current = false;
+    /* Ugh, we can't migrate immediately if it isn't running, but is runnable. yuck. fix? */
+    if (migrating && !migrating_current && thread->on_cpu)
+        cpu_send_resched(thread->cpu);
     sched_unlock(thread, flags);
-    return 0;
+
+    /* Hint that the caller needs to sched_yield() */
+    return migrating && migrating_current;
 }
 
 static bool task_may_set_affinity(struct process *current, struct process *target)
@@ -1551,6 +1665,12 @@ int sys_sched_setaffinity(pid_t pid, size_t cpusetsize, const void *cpu_set)
         err = task_set_affinity(task->thr, new_mask);
 out:
     rcu_read_unlock();
+    if (err == 1)
+    {
+        sched_yield();
+        err = 0;
+    }
+
     return err;
 }
 
