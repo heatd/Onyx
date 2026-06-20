@@ -3401,6 +3401,30 @@
         "abi": "c"
     },
     {
+        "name": "clock_nanosleep",
+        "nr": 230,
+        "nr_args": 4,
+        "args": [
+            [
+                "clockid_t",
+                "clock"
+            ],
+            [
+                "int",
+                "flags"
+            ],
+            [
+                "const struct timespec *",
+                "req"
+            ],
+            [
+                "struct timespec *",
+                "rem"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
         "name": "getcpu",
         "nr": 309,
         "nr_args": 3,

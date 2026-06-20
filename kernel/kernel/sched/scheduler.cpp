@@ -1126,6 +1126,14 @@ int sys_nanosleep(const timespec *req, timespec *rem)
     return 0;
 }
 
+int sys_clock_nanosleep(clockid_t clock, int flags, const struct timespec *req,
+                        struct timespec *rem)
+{
+    if (clock != CLOCK_MONOTONIC)
+        return -ENOSYS;
+    return sys_nanosleep(req, rem);
+}
+
 extern "C" void thread_finish_destruction(struct rcu_head *);
 
 void thread_destroy(struct thread *thread)
