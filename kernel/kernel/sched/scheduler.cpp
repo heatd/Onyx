@@ -20,10 +20,6 @@
 #include <onyx/block/blk_plug.h>
 #include <onyx/clock.h>
 #include <onyx/condvar.h>
-#include <onyx/cpu.h>
-#include <onyx/dpc.h>
-#include <onyx/elf.h>
-#include <onyx/fpu.h>
 #include <onyx/gen/trace_sched.h>
 #include <onyx/init.h>
 #include <onyx/irq.h>
@@ -40,9 +36,6 @@
 #include <onyx/spinlock.h>
 #include <onyx/task_switching.h>
 #include <onyx/timer.h>
-#include <onyx/tss.h>
-#include <onyx/vm.h>
-#include <onyx/worker.h>
 
 #include <libdict/rb_tree.h>
 #include <linux/lockdep.h>
