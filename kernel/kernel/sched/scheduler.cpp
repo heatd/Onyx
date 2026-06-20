@@ -448,7 +448,7 @@ static struct thread *sched_find_runnable(void)
 
 PER_CPU_VAR(unsigned long preemption_counter) = 0;
 
-void sched_save_thread(thread *thread, void *stack)
+static void sched_save_thread(thread *thread, void *stack)
 {
     thread->kernel_stack = (uintptr_t *) stack;
 #ifdef CONFIG_KASAN
@@ -456,7 +456,6 @@ void sched_save_thread(thread *thread, void *stack)
                          (char *) stack - (char *) __builtin_frame_address(0));
 #endif
     thread->errno_val = errno;
-
     native::arch_save_thread(thread, stack);
 }
 
@@ -676,71 +675,67 @@ extern "C" void finish_switch(struct thread *prev)
 
 extern "C" void *sched_schedule(void *last_stack)
 {
+    struct thread *curr_thread, *next;
+    struct process *current;
+    bool thread_blocked;
+    int status;
+
     if (!is_initialized)
     {
         add_per_cpu(sched_quantum, 1);
         return last_stack;
     }
 
-    thread_t *curr_thread = get_per_cpu(current_thread);
+    curr_thread = get_per_cpu(current_thread);
 
     if (sched_is_preemption_disabled())
     {
         add_per_cpu(sched_quantum, 1);
-        if (likely(curr_thread))
-            sched_needs_resched(curr_thread);
+        sched_needs_resched(curr_thread);
         return last_stack;
     }
 
     if (perf_probe_is_enabled_wait())
         perf_probe_try_wait_trace((struct registers *) last_stack);
 
-    if (likely(curr_thread))
+    current = curr_thread->owner;
+    status = READ_ONCE(curr_thread->status);
+    thread_blocked = status == THREAD_INTERRUPTIBLE || status == THREAD_UNINTERRUPTIBLE ||
+                     status == THREAD_STOPPED;
+
+    if (thread_blocked)
     {
-        struct process *current = curr_thread->owner;
-        int status = READ_ONCE(curr_thread->status);
-        bool thread_blocked = status == THREAD_INTERRUPTIBLE || status == THREAD_UNINTERRUPTIBLE ||
-                              status == THREAD_STOPPED;
-
-        if (thread_blocked)
+        if (curr_thread->flags & THREAD_ACTIVE)
         {
-            if (curr_thread->flags & THREAD_ACTIVE)
-            {
-                write_per_cpu(sched_quantum, 1);
-                curr_thread->flags &= ~THREAD_ACTIVE;
-                return last_stack;
-            }
-            trace_sched_block();
+            write_per_cpu(sched_quantum, 1);
+            curr_thread->flags &= ~THREAD_ACTIVE;
+            return last_stack;
         }
-
-        if (current)
-        {
-            if (thread_blocked)
-                current->nvcsw++;
-            else
-                current->nivcsw++;
-            current->last_switch_time = clocksource_get_time();
-        }
-
-        curr_thread->flags &= ~THREAD_ACTIVE;
-
-        sched_save_thread(curr_thread, last_stack);
-
-        do_cputime_accounting();
+        trace_sched_block();
     }
+
+    if (current)
+    {
+        if (thread_blocked)
+            current->nvcsw++;
+        else
+            current->nivcsw++;
+        current->last_switch_time = clocksource_get_time();
+    }
+
+    atomic_and_relaxed(curr_thread->flags, ~THREAD_ACTIVE);
+    sched_save_thread(curr_thread, last_stack);
+    do_cputime_accounting();
 
     rcu_do_quiesc();
 
-    thread *source_thread = curr_thread;
     irq_save_and_disable();
-
-    curr_thread = sched_find_runnable();
-
-    if (source_thread != curr_thread)
+    next = sched_find_runnable();
+    if (next != curr_thread)
     {
         trace_sched_slice_end();
-        trace_sched_slice_begin(curr_thread->id, curr_thread->owner ? curr_thread->owner->pid_ : 0,
-                                curr_thread->owner ? curr_thread->owner->comm : NULL);
+        trace_sched_slice_begin(next->id, next->owner ? next->owner->pid_ : 0,
+                                next->owner ? next->owner->comm : NULL);
     }
     else
     {
@@ -750,7 +745,7 @@ extern "C" void *sched_schedule(void *last_stack)
         return last_stack;
     }
 
-    sched_load_finish(source_thread, curr_thread);
+    sched_load_finish(curr_thread, next);
     __builtin_unreachable();
 
     panic("sched_load_finish returned");
