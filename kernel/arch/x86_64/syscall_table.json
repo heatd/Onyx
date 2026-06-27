@@ -1307,7 +1307,8 @@
                 "addr2"
             ]
         ],
-        "return_type": "long"
+        "return_type": "long",
+        "abi": "c"
     },
     {
         "name": "ppoll",
