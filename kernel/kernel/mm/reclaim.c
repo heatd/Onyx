@@ -541,6 +541,7 @@ static unsigned long shrink_page_list(struct reclaim_data *data, struct page_lru
         inc_page_stat(page, NR_ACTIVE_FILE + page_to_state(page));
         page_clear_referenced(page);
         list_add_tail(&page->lru_node, &lru->lru_lists[LRU_ACTIVE_FILE + page_to_state(page)]);
+        page_set_lru(page);
         if (page_batch_add(&free_batch, page))
         {
             spin_unlock(&lru->lock);
