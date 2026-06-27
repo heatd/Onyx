@@ -224,16 +224,6 @@ void signal_setmask(const sigset_t *mask);
  */
 bool parent_notify(unsigned int exit_code);
 
-/**
- * @brief Notify this task's parent that we're stopping/continuing
- * We have to be careful and check if we need to, e.g, not send anything. tasklist read_lock needs
- * to be held when calling.
- *
- * @param exit_code Stop code to notify with
- * @retval true If task was woken up
- */
-bool notify_process_stop_cont(struct process *task, unsigned int exit_code);
-
 void force_sigsegv(int sig);
 
 /* Used when forcing signals, such that no one racing with us can change this signal while another
