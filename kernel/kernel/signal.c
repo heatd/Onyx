@@ -24,6 +24,7 @@
 
 #include <uapi/signal.h>
 
+static bool notify_process_stop_cont(struct process *task, unsigned int code);
 static int send_signal_to_task(int signal, struct process *task, unsigned int flags,
                                siginfo_t *info, enum pid_type type);
 
@@ -310,7 +311,7 @@ static void do_signal_stop(int signo)
         /* Ok, group stop finished (either we're a single thread, or the last thread in the group
          * stop). Notify the parent */
         read_lock(&tasklist_lock);
-        notify_process_stop_cont(current, sig->signal_group_exit_code);
+        notify_process_stop_cont(current, CLD_STOPPED);
         read_unlock(&tasklist_lock);
     }
 
@@ -329,7 +330,7 @@ static void do_sigcont_notify(void)
 
     if (sig->signal_group_flags & SIGNAL_GROUP_CONT_PENDING)
     {
-        notify_process_stop_cont(current, W_CONTINUED);
+        notify_process_stop_cont(current, CLD_CONTINUED);
         did = true;
     }
 
@@ -1477,10 +1478,11 @@ bool parent_notify(unsigned int exit_code)
  * We have to be careful and check if we need to, e.g, not send anything. tasklist read_lock needs
  * to be held when calling.
  *
- * @param exit_code Stop code to notify with
+ * @param task task that's stopping
+ * @param code si_code (CLD_*)
  * @retval true If task was woken up
  */
-bool notify_process_stop_cont(struct process *task, unsigned int exit_code)
+static bool notify_process_stop_cont(struct process *task, unsigned int code)
 {
     struct process *parent = rcu_dereference_protected(task->parent, lockdep_tasklist_lock_held());
     struct sighand_struct *sighand = parent->sighand;
@@ -1494,15 +1496,21 @@ bool notify_process_stop_cont(struct process *task, unsigned int exit_code)
     info.si_uid = task->cred.ruid;
     tg_cputime_clock_t(current, &info.si_utime, &info.si_stime);
 
-    if (WIFEXITED(exit_code))
+    info.si_code = code;
+    switch (code)
     {
-        info.si_code = CLD_EXITED;
-        info.si_status = WEXITSTATUS(exit_code);
-    }
-    else if (WIFSIGNALED(exit_code))
-    {
-        info.si_code = CLD_KILLED;
-        info.si_status = WTERMSIG(exit_code);
+        case CLD_STOPPED:
+            info.si_status = task->sig->signal_group_exit_code;
+            break;
+        case CLD_CONTINUED:
+            info.si_status = SIGCONT;
+            break;
+        case CLD_TRAPPED:
+            info.si_status = task->exit_code;
+            break;
+        default:
+            WARN_ON(1);
+            break;
     }
 
     /* Take the parent's signal_lock. We're going to atomically check if need to send a signal or
