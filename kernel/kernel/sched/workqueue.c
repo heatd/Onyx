@@ -243,6 +243,7 @@ static struct pool_workqueue *queue_pick_pwq(struct workqueue_struct *wq, int cp
 
 static void pool_queue_inactive(struct pool_workqueue *pwq, struct work_struct *work)
 {
+    work->data = (unsigned long) pwq | WORK_DATA_QUEUED;
     list_add_tail(&work->list, &pwq->inactive_list);
 }
 
