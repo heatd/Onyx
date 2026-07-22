@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 - 2025 Pedro Falcato
+ * Copyright (c) 2022 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -43,17 +43,41 @@ static const unsigned int arm64_max_paging_levels = 5;
 #define PML_EXTRACT_PERMS(n) ((n) & ARM64_MMU_PERM_MASK)
 // clang-format on
 
-static inline void __native_tlb_invalidate_page(void *addr)
+static inline void __flush_tlb_page_el1(unsigned long addr)
 {
-    // TODO: ASIDs
+    __asm__ __volatile__("tlbi vaae1is, %0" ::"r"(addr >> PAGE_SHIFT));
+}
+
+static inline void __flush_tlb_page_mm(unsigned long addr, struct mm_address_space *mm)
+{
+    u16 asid = arm64_mm_get_asid(&mm->arch_mmu);
+    __asm__ __volatile__("tlbi vae1is, %0" ::"r"((((u64) asid) << 48) | (addr >> PAGE_SHIFT)));
+}
+
+static inline void flush_tlb_page_mm(unsigned long addr, struct mm_address_space *mm)
+{
     dsb(ishst);
-    __asm__ __volatile__("tlbi vaae1is, %0" ::"r"((unsigned long) addr >> PAGE_SHIFT));
+    __flush_tlb_page_mm(addr, mm);
     dsb(ish);
+}
+
+static inline void local_flush_tlb_page_mm(unsigned long addr, struct mm_address_space *mm)
+{
+    dsb(nshst);
+    __flush_tlb_page_mm(addr, mm);
+    dsb(nsh);
 }
 
 void flush_tlb_page(struct vm_area_struct *vma, unsigned long addr)
 {
-    __native_tlb_invalidate_page((void *) addr);
+    flush_tlb_page_mm(addr, vma->vm_mm);
+}
+
+void flush_tlb_asid(u16 asid)
+{
+    dsb(ishst);
+    __asm__ __volatile__("tlbi aside1is, %0" ::"r"(((u64) asid) << 48));
+    dsb(ish);
 }
 
 static bool pte_empty(uint64_t pte)
@@ -200,15 +224,15 @@ int paging_clone_as(mm_address_space *addr_space, mm_address_space *original)
     addr_space->page_tables_size = PAGE_SIZE;
 
     addr_space->arch_mmu.top_pt = new_pml;
+    asid_allocate(&addr_space->arch_mmu, false);
     return 0;
 }
 
-void paging_load_el0_pt(PML *pml)
+void paging_load_el0(unsigned long pgd, u16 asid)
 {
-    msr("ttbr0_el1", pml);
+    msr("ttbr0_el1", pgd | ((u64) asid) << 48);
     dsb(ish);
     isb();
-    __native_tlb_invalidate_all();
 }
 
 void paging_load_top_pt(PML *pml)
@@ -304,25 +328,43 @@ void paging_protect_kernel()
     paging_load_top_pt(pml);
 }
 
-unsigned long total_shootdowns = 0;
+/* At what point does it become advantageous to flush the whole TLB? I don't know. Lets start with
+ * this. */
+#define INDIVIDUAL_FLUSH_LIMIT 128
 
-void paging_invalidate(void *page, size_t pages)
+static void flush_tlb_kernel(unsigned long page, size_t pages)
 {
-    uintptr_t p = (uintptr_t) page;
-
-    if (pages > 128)
+    /* Note that the kernel page tables do not have an ASID, so use global flushes. */
+    if (pages > INDIVIDUAL_FLUSH_LIMIT)
     {
-        dsb(ishst);
         __native_tlb_invalidate_all();
-        dsb(ish);
         return;
     }
 
-    for (size_t i = 0; i < pages; i++, p += PAGE_SIZE)
+    /* First issue the dsb ishst to ensure the page walker sees the new page table changes. */
+    dsb(ishst);
+    /* note that __flush_tlb_page_mm does not issue a memory barrier, for performance's sake. */
+    for (size_t i = 0; i < pages; i++)
+        __flush_tlb_page_el1(page + i * PAGE_SIZE);
+    /* and wait for it to end. */
+    dsb(ish);
+}
+
+static void flush_tlb_user(struct mm_address_space *mm, unsigned long page, size_t pages)
+{
+    if (pages > INDIVIDUAL_FLUSH_LIMIT)
     {
-        total_shootdowns++;
-        __native_tlb_invalidate_page((void *) p);
+        flush_tlb_asid(arm64_mm_get_asid(&mm->arch_mmu));
+        return;
     }
+
+    /* First issue the dsb ishst to ensure the page walker sees the new page table changes. */
+    dsb(ishst);
+    /* note that __flush_tlb_page_mm does not issue a memory barrier, for performance's sake. */
+    for (size_t i = 0; i < pages; i++)
+        __flush_tlb_page_mm(page + i * PAGE_SIZE, mm);
+    /* and wait for it to end. */
+    dsb(ish);
 }
 
 void paging_free_pml2(PML *pml)
@@ -383,6 +425,7 @@ void paging_free_page_tables(struct mm_address_space *mm)
  */
 void vm_free_arch_mmu(struct arch_mm_address_space *mm)
 {
+    arm64_free_asid(mm);
     free_page(phys_to_page((unsigned long) mm->top_pt));
 }
 
@@ -393,7 +436,7 @@ void vm_free_arch_mmu(struct arch_mm_address_space *mm)
  */
 void vm_load_arch_mmu(struct arch_mm_address_space *mm)
 {
-    paging_load_el0_pt((PML *) mm->top_pt);
+    arm64_switch_mm(mm);
 }
 
 /**
@@ -414,30 +457,6 @@ static inline bool is_higher_half(unsigned long address)
 PER_CPU_VAR(unsigned long tlb_nr_invals) = 0;
 PER_CPU_VAR(unsigned long nr_tlb_shootdowns) = 0;
 
-struct mm_shootdown_info
-{
-    unsigned long addr;
-    size_t pages;
-    mm_address_space *mm;
-};
-
-void arm64_invalidate_tlb(void *context)
-{
-    auto info = (mm_shootdown_info *) context;
-    auto addr = info->addr;
-    auto pages = info->pages;
-    auto addr_space = info->mm;
-
-    auto curr_thread = get_current_thread();
-
-    if (is_higher_half(addr) ||
-        (curr_thread->owner && curr_thread->owner->get_aspace() == addr_space))
-    {
-        paging_invalidate((void *) addr, pages);
-        add_per_cpu(tlb_nr_invals, 1);
-    }
-}
-
 /**
  * @brief Invalidates a memory range.
  *
@@ -445,25 +464,13 @@ void arm64_invalidate_tlb(void *context)
  * @param pages The size of the memory range, in pages.
  * @param mm The target address space.
  */
-void mmu_invalidate_range(unsigned long addr, size_t pages, mm_address_space *mm)
+void mmu_invalidate_range(unsigned long addr, size_t pages, struct mm_address_space *mm)
 {
     add_per_cpu(nr_tlb_shootdowns, 1);
-    mm_shootdown_info info{addr, pages, mm};
-
-    auto our_cpu = get_cpu_nr();
-    cpumask mask;
-
-    if (addr >= VM_HIGHER_HALF)
-    {
-        mask = cpumask::all_but_one(our_cpu);
-    }
+    if (is_higher_half(addr))
+        flush_tlb_kernel(addr, pages);
     else
-    {
-        mask = mm->active_mask;
-        mask.remove_cpu(our_cpu);
-    }
-
-    smp::sync_call_with_local(arm64_invalidate_tlb, &info, mask, arm64_invalidate_tlb, &info);
+        flush_tlb_user(mm, addr, pages);
 }
 
 /**
@@ -485,8 +492,7 @@ void mmu_verify_address_space_accounting(mm_address_space *as)
 void tlbi_upgrade_pte_prots(struct mm_address_space *mm, unsigned long virt)
 {
     /* Dodge the IPIs and just paging_invalidate */
-    paging_invalidate((void *) virt, 1);
-    add_per_cpu(tlb_nr_invals, 1);
+    local_flush_tlb_page_mm(virt, mm);
 }
 
 /**
@@ -497,6 +503,5 @@ void tlbi_upgrade_pte_prots(struct mm_address_space *mm, unsigned long virt)
  */
 void tlbi_handle_spurious_fault_pte(struct mm_address_space *mm, unsigned long virt)
 {
-    paging_invalidate((void *) virt, 1);
-    add_per_cpu(tlb_nr_invals, 1);
+    local_flush_tlb_page_mm(virt, mm);
 }

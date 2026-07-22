@@ -130,12 +130,12 @@ static inline pgd_t *pgd_offset(struct mm_address_space *mm, unsigned long addr)
 #define pte_val(x)    ((x).pte)
 #define pgprot_val(x) ((x).pgprot)
 
-#define __pgd(x)    ((pgd_t){(x)})
-#define __p4d(x)    ((p4d_t){(x)})
-#define __pud(x)    ((pud_t){(x)})
-#define __pmd(x)    ((pmd_t){(x)})
-#define __pte(x)    ((pte_t){(x)})
-#define __pgprot(x) ((pgprot_t){(x)})
+#define __pgd(x)    ((pgd_t) {(x)})
+#define __p4d(x)    ((p4d_t) {(x)})
+#define __pud(x)    ((pud_t) {(x)})
+#define __pmd(x)    ((pmd_t) {(x)})
+#define __pte(x)    ((pte_t) {(x)})
+#define __pgprot(x) ((pgprot_t) {(x)})
 
 static inline unsigned long p4d_index(unsigned long addr)
 {
@@ -456,7 +456,6 @@ static inline bool pmd_protnone(pmd_t pmd)
     return (pmd_val(pmd) & (_PAGE_PRESENT | _PAGE_PROTNONE)) == _PAGE_PROTNONE;
 }
 
-
 #define ARCH_SWAP_NR_TYPES  16
 #define ARCH_SWP_TYPE_SHIFT 60
 #define ARCH_SWP_OFF_SHIFT  11
@@ -469,9 +468,9 @@ static inline bool pmd_protnone(pmd_t pmd)
 #define SWP_TYPE(entry)   ((entry).swp >> ARCH_SWP_TYPE_SHIFT)
 #define SWP_OFFSET(entry) (((entry).swp & ARCH_SWP_OFF_MASK) >> ARCH_SWP_OFF_SHIFT)
 #define SWP_ENTRY(type, offset) \
-    ((swp_entry_t){.swp = (type) << ARCH_SWP_TYPE_SHIFT | (offset) << ARCH_SWP_OFF_SHIFT})
+    ((swp_entry_t) {.swp = (type) << ARCH_SWP_TYPE_SHIFT | (offset) << ARCH_SWP_OFF_SHIFT})
 
-#define pte_to_swp_entry(pte) ((swp_entry_t){.swp = pte_val(pte)})
+#define pte_to_swp_entry(pte) ((swp_entry_t) {.swp = pte_val(pte)})
 
 /**
  * @brief Invalidate the TLB after upgrading PTE protection
@@ -507,12 +506,13 @@ static inline void set_pte(pte_t *pte, pte_t val)
 #define set_pte set_pte
 
 void flush_tlb_page(struct vm_area_struct *vma, unsigned long addr);
+void flush_tlb_asid(u16 asid);
 
 static inline void set_pte_over(struct vm_area_struct *vma, unsigned long addr, pte_t *pte,
                                 pte_t val)
 {
     /* We need a BBM sequence when mapping over the pte, changing
-     * the OA */ 
+     * the OA */
     set_pte(pte, __pte(0));
     flush_tlb_page(vma, addr);
     set_pte(pte, val);

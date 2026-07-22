@@ -14,7 +14,19 @@
 struct arch_mm_address_space
 {
     void *top_pt;
+    u64 context_id;
 };
+
+#define ASID_GEN_INCREMENT (1UL << 16)
+
+#define ctx2asid(ctx)       ((ctx) & (ASID_GEN_INCREMENT - 1))
+#define ctx2gen(ctx)        ((ctx) & -ASID_GEN_INCREMENT)
+#define asid2ctx(asid, gen) ((gen) | (asid))
+
+static inline u16 arm64_mm_get_asid(struct arch_mm_address_space *arch_mmu)
+{
+    return ctx2asid(arch_mmu->context_id);
+}
 
 #define vm_get_pgd(arch_mmu)          (arch_mmu)->top_pt
 #define vm_set_pgd(arch_mmu, new_pgd) (arch_mmu)->top_pt = new_pgd
