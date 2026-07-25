@@ -179,8 +179,7 @@ gid_t sys_getgid(void)
 
 int sys_get_uids(uid_t *ruid, uid_t *euid, uid_t *suid)
 {
-    creds_guard<CGType::Read> g;
-    auto c = g.get();
+    auto c = &current->cred;
 
     if (ruid && copy_to_user(ruid, &c->ruid, sizeof(uid_t)) < 0)
         return -EFAULT;
@@ -196,8 +195,7 @@ int sys_get_uids(uid_t *ruid, uid_t *euid, uid_t *suid)
 
 int sys_getresuid(uid_t *ruid, uid_t *euid, uid_t *suid)
 {
-    creds_guard<CGType::Read> g;
-    auto c = g.get();
+    auto c = &current->cred;
 
     if (copy_to_user(ruid, &c->ruid, sizeof(uid_t)) < 0)
         return -EFAULT;
@@ -210,8 +208,7 @@ int sys_getresuid(uid_t *ruid, uid_t *euid, uid_t *suid)
 
 int sys_getresgid(gid_t *rgid, gid_t *egid, gid_t *sgid)
 {
-    creds_guard<CGType::Read> g;
-    auto c = g.get();
+    auto c = &current->cred;
 
     if (copy_to_user(rgid, &c->rgid, sizeof(gid_t)) < 0)
         return -EFAULT;
@@ -224,8 +221,7 @@ int sys_getresgid(gid_t *rgid, gid_t *egid, gid_t *sgid)
 
 int sys_get_gids(gid_t *rgid, gid_t *egid, gid_t *sgid)
 {
-    creds_guard<CGType::Read> g;
-    auto c = g.get();
+    auto c = &current->cred;
 
     if (rgid && copy_to_user(rgid, &c->rgid, sizeof(gid_t)) < 0)
         return -EFAULT;
