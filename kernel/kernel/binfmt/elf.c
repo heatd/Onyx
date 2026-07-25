@@ -489,7 +489,10 @@ static int fill_prpsinfo(struct elf_core_notes *notes)
     psinfo->pr_psargs[args_len] = '\0';
     psinfo->pr_pid = task_tgid(current);
     rcu_read_lock();
-    psinfo->pr_ppid = task_tgid(task_parent(current));
+    if (!task_parent(current))
+        psinfo->pr_ppid = 0;
+    else
+        psinfo->pr_ppid = task_tgid(task_parent(current));
     psinfo->pr_pgrp = pid_nr(task_pgrp(current));
     psinfo->pr_pgrp = pid_nr(task_session(current));
     rcu_read_unlock();
@@ -530,7 +533,10 @@ static void fill_notes_for_thread(struct core_state *core, struct elf_core_notes
     prs->pr_fpvalid = 1;
     prs->pr_pid = pid_nr(task_pid(thread));
     rcu_read_lock();
-    prs->pr_ppid = task_tgid(task_parent(thread));
+    if (!task_parent(thread))
+        prs->pr_ppid = 0;
+    else
+        prs->pr_ppid = task_tgid(task_parent(thread));
     prs->pr_pgrp = pid_nr(task_pgrp(thread));
     prs->pr_pgrp = pid_nr(task_session(thread));
     rcu_read_unlock();

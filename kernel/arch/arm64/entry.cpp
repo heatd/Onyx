@@ -25,12 +25,12 @@ extern char percpu_base;
 void time_init();
 void riscv_cpu_init();
 void plic_init();
-void arm64_setup_trap_handling();
+extern "C" void arm64_setup_trap_handling();
 
 extern "C" void kernel_entry(void *fdt)
 {
     write_per_cpu(__cpu_base, (unsigned long) &percpu_base);
-    paging_init();
+    vm_init();
     arm64_setup_trap_handling();
 
     platform_serial_init();
@@ -45,12 +45,25 @@ extern "C" void kernel_entry(void *fdt)
     platform_serial_write("Done MMU protection\n", sizeof("Done MMU protection\n"));
 
     vm_late_init();
-
 #ifdef CONFIG_KASAN
     kasan_init();
 #endif
 
-    console_init();
-
     device_tree::enumerate();
+
+    smp::set_number_of_cpus(1);
+    smp::set_online(0);
 }
+
+static void init_arch_vdso()
+{
+    vdso_init();
+}
+
+static void init_arch()
+{
+    do_init_level_percpu(INIT_LEVEL_CORE_PERCPU_CTOR, 0);
+}
+
+INIT_LEVEL_EARLY_CORE_KERNEL_ENTRY(init_arch_vdso);
+INIT_LEVEL_EARLY_PLATFORM_ENTRY(init_arch);

@@ -1523,7 +1523,7 @@ int do_wp_page(struct vm_pf_context *context)
 
     phys = (u64) folio_to_phys(new_folio);
     folio_add_mapcount(new_folio);
-    set_pte(ptep, pte_mkpte(phys, calc_pgprot(phys, context->entry->vm_flags)));
+    set_pte_over(context->entry, context->vpage, ptep, pte_mkpte(phys, calc_pgprot(phys, context->entry->vm_flags)));
     tlbi_remove_page(&tlbi, context->vpage, !was_zeropage ? oldp : NULL);
     folio_put(new_folio);
 out:

@@ -37,7 +37,7 @@ const struct option long_options[] = {
 int main(int argc, char **argv)
 {
     int indexptr = 0;
-    char flag;
+    int flag;
 
     while ((flag = getopt_long(argc, argv, "vh", long_options, &indexptr)) != -1)
     {

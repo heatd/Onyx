@@ -845,7 +845,7 @@ static int filemap_fault(struct vm_pf_context *ctx) NO_THREAD_SAFETY_ANALYSIS
             increment_vm_stat(vma->vm_mm, resident_set_size, PAGE_SIZE);
 
         page_add_mapcount(page);
-        set_pte(ptep, pte_mkpte((u64) page_to_phys(page),
+        set_pte_over(vma, ctx->vpage, ptep, pte_mkpte((u64) page_to_phys(page),
                                 calc_pgprot((u64) page_to_phys(page), ctx->page_rwx)));
 
         if (unlikely(pte_present(oldpte) && !pte_special(oldpte)))

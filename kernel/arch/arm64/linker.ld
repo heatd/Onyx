@@ -43,8 +43,12 @@ SECTIONS
 		*(.fini_array*)
 		*(.dtors)
 		PROVIDE_HIDDEN(__fini_array_end = .);
+		PROVIDE_HIDDEN(__start_kparam = .);
+		*(.rodata.kparam*);
+		PROVIDE_HIDDEN(__end_kparam = .);
 		*(.rodata*)
 		*(.gnu.linkonce.r*)
+		. = ALIGN(8);
 		_driver_init_start = .;
 		*(.driver.init*)
 		_driver_init_end = .;

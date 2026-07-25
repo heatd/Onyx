@@ -10,7 +10,7 @@ ALL_MODULES:=$(PROJECTS) $(SOURCE_PACKAGES) $(patsubst %, usystem/%, $(USYSTEM_P
 $(SOURCE_PACKAGES) build-cleanup musl
 
 export DESTDIR:=$(PWD)/sysroot
-export HOST?=$(shell scripts/arch-to-host.sh $(ONYX_ARCH))
+export HOST:=$(shell scripts/arch-to-host.sh $(ONYX_ARCH))
 export BUILDPKG_BIN?=$(PWD)/buildpkg/buildpkg
 export BUILDPKG_BIN_PY_WRAPPER?=$(PWD)/buildpkg/buildpkg_gn_wrapper
 
@@ -146,9 +146,9 @@ qemu-riscv: fullbuild-plus-full-initrd
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) -kernel kernel/vmonyx -m 512M -machine virt \
 	-serial stdio -s -initrd initrd.tar -smp 4
 
-qemu-arm64: fullbuild-plus-initrd
+qemu-arm64: fullbuild-plus-full-initrd
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) -kernel kernel/vmonyx -m 512M -machine virt \
-	-monitor stdio -cpu cortex-a53 -d int -s -no-shutdown -no-reboot -initrd initrd.tar
+	-monitor stdio -cpu cortex-a53 -d int -s -no-shutdown -no-reboot -initrd initrd.tar -append verbose
 
 qemu: iso
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) \

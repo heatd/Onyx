@@ -98,6 +98,8 @@ void smp_boot_cpus();
  */
 void smp_sync_call(sync_call_func f, void *context, const struct cpumask *mask, unsigned int flags);
 
+struct cpumask smp_online_cpumask(void);
+
 #ifdef __cplusplus
 }
 #endif

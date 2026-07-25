@@ -1,4 +1,6 @@
-arm64-y:= image.o fpu.o copy_user.o stubs.o vdso_helper.o mmu.o early_mmu.o virt-uart.o entry.o traps.o interrupts.o
+arm64-y:= elf.o image.o fpu.o copy_user.o stubs.o vdso_helper.o mmu.o \
+early_mmu.o virt-uart.o entry.o traps.o interrupts.o pgtable.o usercopy.o \
+thread.o switch.o timer.o irq.o syscall.o process.o signal.o asid.o
 
 obj-y+= $(patsubst %, arch/arm64/%, $(arm64-y))
 

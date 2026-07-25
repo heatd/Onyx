@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Pedro Falcato
+ * Copyright (c) 2022 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -7,6 +7,11 @@
  */
 #ifndef _ONYX_ARM64_MMU_H
 #define _ONYX_ARM64_MMU_H
+
+#include <stdbool.h>
+
+#include <onyx/compiler.h>
+#include <onyx/types.h>
 
 #define ARM64_MMU_VALID           (1UL << 0)
 #define ARM64_MMU_TABLE           (1UL << 1)
@@ -38,7 +43,7 @@
 #define TCR_IRGN1_WRITE_BACK_ALLOCATE (1 << 24)
 #define TCR_ORGN1_WRITE_BACK_ALLOCATE (1 << 26)
 #define TCR_SH1_INNER_SHAREABLE       (3 << 28)
-#define TCR_TG1_4KB_GRANULE           (0 << 30) // 4KB granule for the TTBR
+#define TCR_TG1_4KB_GRANULE           (2 << 30) // 4KB granule for the TTBR
 #define TCR_IPS_40_BITS               (2UL << 32)
 #define TCR_IPS_ASID_SIZE_16_BIT      (1UL << 36)
 #define TCR_TBI0                      (1UL << 37) // Top byte ignore
@@ -86,4 +91,12 @@
     (MMU_MAIR_ATTR0 | MMU_MAIR_ATTR1 | MMU_MAIR_ATTR2 | MMU_MAIR_ATTR3 | MMU_MAIR_ATTR4 | \
      MMU_MAIR_ATTR5 | MMU_MAIR_ATTR6 | MMU_MAIR_ATTR7)
 
+__BEGIN_CDECLS
+
+struct arch_mm_address_space;
+void arm64_switch_mm(struct arch_mm_address_space *to);
+void arm64_free_asid(struct arch_mm_address_space *mm);
+void paging_load_el0(unsigned long pgd, u16 asid);
+void asid_allocate(struct arch_mm_address_space *mm, bool set);
+__END_CDECLS
 #endif

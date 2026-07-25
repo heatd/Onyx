@@ -40,6 +40,11 @@ cpumask get_online_cpumask()
     return online_cpus;
 }
 
+extern "C" struct cpumask smp_online_cpumask(void)
+{
+    return online_cpus;
+}
+
 unsigned int nr_cpus = 1;
 unsigned int nr_online_cpus = 0;
 #if __x86_64__

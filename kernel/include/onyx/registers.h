@@ -138,15 +138,17 @@ static inline bool in_kernel_space_regs(struct registers *regs)
 
 typedef struct registers
 {
-    unsigned long x[32];
+    unsigned long x[31];
     unsigned long sp;
     unsigned long pc;
     unsigned long pstate;
+    unsigned long orig_x0;
+    unsigned long syscall_nr;
 } registers_t;
 
 static inline bool in_kernel_space_regs(struct registers *regs)
 {
-    return true;
+    return (regs->pstate & 0b1111) == 0b0101;
 }
 
 #endif
