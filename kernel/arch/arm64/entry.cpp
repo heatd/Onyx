@@ -45,7 +45,6 @@ extern "C" void kernel_entry(void *fdt)
     platform_serial_write("Done MMU protection\n", sizeof("Done MMU protection\n"));
 
     vm_late_init();
-
 #ifdef CONFIG_KASAN
     kasan_init();
 #endif
@@ -55,3 +54,10 @@ extern "C" void kernel_entry(void *fdt)
     smp::set_number_of_cpus(1);
     smp::set_online(0);
 }
+
+static void init_arch_vdso()
+{
+    vdso_init();
+}
+
+INIT_LEVEL_EARLY_CORE_KERNEL_ENTRY(init_arch_vdso);
