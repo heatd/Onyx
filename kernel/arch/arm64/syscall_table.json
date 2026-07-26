@@ -3024,5 +3024,414 @@
         "nr_args": 0,
         "args": [],
         "return_type": "gid_t"
+    },
+    {
+        "name": "eventfd",
+        "nr": 174,
+        "nr_args": 1,
+        "args": [
+            [
+                "unsigned int",
+                "initval"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "eventfd2",
+        "nr": 175,
+        "nr_args": 2,
+        "args": [
+            [
+                "unsigned int",
+                "initval"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "mlock",
+        "nr": 176,
+        "nr_args": 2,
+        "args": [
+            [
+                "const void *",
+                "addr"
+            ],
+            [
+                "size_t",
+                "len"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "munlock",
+        "nr": 177,
+        "nr_args": 2,
+        "args": [
+            [
+                "const void *",
+                "addr"
+            ],
+            [
+                "size_t",
+                "len"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "mlockall",
+        "nr": 178,
+        "nr_args": 1,
+        "args": [
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "munlockall",
+        "nr": 179,
+        "nr_args": 0,
+        "args": [],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "listxattr",
+        "nr": 194,
+        "nr_args": 3,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ],
+            [
+                "char *",
+                "list"
+            ],
+            [
+                "size_t",
+                "size"
+            ]
+        ],
+        "return_type": "ssize_t",
+        "abi": "c"
+    },
+    {
+        "name": "setxattr",
+        "nr": 188,
+        "nr_args": 5,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ],
+            [
+                "const char *",
+                "name"
+            ],
+            [
+                "const void *",
+                "value"
+            ],
+            [
+                "size_t",
+                "size"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "lsetxattr",
+        "nr": 189,
+        "nr_args": 5,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ],
+            [
+                "const char *",
+                "name"
+            ],
+            [
+                "const void *",
+                "value"
+            ],
+            [
+                "size_t",
+                "size"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "fsetxattr",
+        "nr": 190,
+        "nr_args": 5,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "const char *",
+                "name"
+            ],
+            [
+                "const void *",
+                "value"
+            ],
+            [
+                "size_t",
+                "size"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "getxattr",
+        "nr": 191,
+        "nr_args": 5,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ],
+            [
+                "const char *",
+                "name"
+            ],
+            [
+                "void *",
+                "value"
+            ],
+            [
+                "size_t",
+                "size"
+            ]
+        ],
+        "return_type": "ssize_t",
+        "abi": "c"
+    },
+    {
+        "name": "lgetxattr",
+        "nr": 192,
+        "nr_args": 5,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ],
+            [
+                "const char *",
+                "name"
+            ],
+            [
+                "void *",
+                "value"
+            ],
+            [
+                "size_t",
+                "size"
+            ]
+        ],
+        "return_type": "ssize_t",
+        "abi": "c"
+    },
+    {
+        "name": "fgetxattr",
+        "nr": 193,
+        "nr_args": 5,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "const char *",
+                "name"
+            ],
+            [
+                "void *",
+                "value"
+            ],
+            [
+                "size_t",
+                "size"
+            ]
+        ],
+        "return_type": "ssize_t",
+        "abi": "c"
+    },
+    {
+        "name": "llistxattr",
+        "nr": 195,
+        "nr_args": 3,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ],
+            [
+                "char *",
+                "list"
+            ],
+            [
+                "size_t",
+                "size"
+            ]
+        ],
+        "return_type": "ssize_t",
+        "abi": "c"
+    },
+    {
+        "name": "removexattr",
+        "nr": 197,
+        "nr_args": 2,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ],
+            [
+                "const char *",
+                "name"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "lremovexattr",
+        "nr": 198,
+        "nr_args": 2,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ],
+            [
+                "const char *",
+                "name"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "fremovexattr",
+        "nr": 199,
+        "nr_args": 2,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "const char *",
+                "name"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "fadvise64",
+        "nr": 221,
+        "nr_args": 4,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "off_t",
+                "offset"
+            ],
+            [
+                "size_t",
+                "len"
+            ],
+            [
+                "int",
+                "advice"
+            ]
+        ],
+        "return_type": "int",
+        "abi": "c"
+    },
+    {
+        "name": "clock_nanosleep",
+        "nr": 230,
+        "nr_args": 4,
+        "args": [
+            [
+                "clockid_t",
+                "clock"
+            ],
+            [
+                "int",
+                "flags"
+            ],
+            [
+                "const struct timespec *",
+                "req"
+            ],
+            [
+                "struct timespec *",
+                "rem"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "getcpu",
+        "nr": 309,
+        "nr_args": 3,
+        "args": [
+            [
+                "unsigned int *",
+                "cpu"
+            ],
+            [
+                "unsigned int *",
+                "node"
+            ],
+            [
+                "void *",
+                "cache"
+            ]
+        ],
+        "return_type": "int"
     }
 ]
