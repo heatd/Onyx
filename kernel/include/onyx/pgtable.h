@@ -70,7 +70,7 @@ static inline void set_pte_over(struct vm_area_struct *vma, unsigned long addr, 
 {
     set_pte(pte, val);
 }
-#define set_pte_over
+#define set_pte_over set_pte_over
 #endif
 
 static inline bool pte_cmpxchg(pte_t *pte, pte_t *expected, pte_t desired)
