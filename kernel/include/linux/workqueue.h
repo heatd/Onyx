@@ -15,6 +15,8 @@
 struct workqueue_struct;
 struct work_struct;
 
+__BEGIN_CDECLS
+
 typedef void (*work_func_t)(struct work_struct *work);
 
 struct work_struct
@@ -74,5 +76,7 @@ struct workqueue_struct *alloc_workqueue(const char *fmt,
 						int max_active, ...);
 
 void destroy_workqueue(struct workqueue_struct *wq);
+
+__END_CDECLS
 
 #endif

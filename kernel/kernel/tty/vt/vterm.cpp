@@ -14,7 +14,6 @@
 #include <string.h>
 
 #include <onyx/console.h>
-#include <onyx/dpc.h>
 #include <onyx/font.h>
 #include <onyx/framebuffer.h>
 #include <onyx/init.h>
@@ -1327,6 +1326,7 @@ void vterm::process_escape_char(char c)
     }
 }
 
+#undef clamp
 template <typename T>
 static inline T clamp(T val, T min, T max)
 {
@@ -1793,17 +1793,6 @@ struct vterm *get_current_vt(void)
     return &primary_vterm;
 }
 
-int vterm_receive_input(char *c)
-{
-    struct vterm *vt = get_current_vt();
-    if (!vt)
-        return -1;
-
-    tty_received_characters(vt->tty, c);
-
-    return 0;
-}
-
 struct key_action
 {
     unsigned int key;
@@ -1991,12 +1980,6 @@ struct key_action pt_pt_key_actions[] = {
 
 const size_t nr_actions = sizeof(key_actions) / sizeof(key_actions[0]);
 
-void __vterm_receive_input(void *p)
-{
-    char *s = (char *) p;
-    vterm_receive_input(s);
-}
-
 void sched_dump_threads(void);
 
 static bool is_numpad_code(keycode_t code)
@@ -2093,13 +2076,7 @@ int vterm_handle_key(struct vterm *vt, struct input_device *dev, struct input_ev
         action_string = numpad_replacement(ev->code, action_string);
 
     if (likely(action_string))
-    {
-        struct dpc_work w;
-        w.context = (void *) action_string;
-        w.funcptr = __vterm_receive_input;
-        dpc_schedule_work(&w, DPC_PRIORITY_MEDIUM);
-    }
-
+        tty_input_push_bytes(vt->tty, action_string, strlen(action_string));
     return 0;
 }
 

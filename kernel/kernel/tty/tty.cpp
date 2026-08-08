@@ -120,6 +120,110 @@ extern struct tty_line_disc ntty_disc;
 void tty_create_dev(tty *tty, const char *override_name = nullptr);
 void tty_create_dev_console(tty *tty);
 
+static void tty_buf_init(struct tty_buf *buf)
+{
+    buf->page = NULL;
+    buf->rpos = 0;
+    buf->wpos = 0;
+}
+
+static bool tty_buf_full(struct tty_buf *buf)
+{
+    return buf->wpos - buf->rpos == PAGE_SIZE;
+}
+
+static bool tty_buf_empty(struct tty_buf *buf)
+{
+    return buf->wpos == READ_ONCE(buf->rpos);
+}
+
+static bool tty_nobufs(struct tty *tty)
+{
+    struct tty_buf *buf = &tty->raw_inpbuf;
+
+    lockdep_assert_held(&tty->buf_lock);
+    if (!buf->page)
+    {
+        /* No page? Lets try to allocate something */
+        buf->page = alloc_page(GFP_ATOMIC);
+        if (!buf->page)
+            return false;
+        buf->rpos = buf->wpos = 0;
+    }
+
+    if (tty_buf_full(buf))
+        return false;
+    return true;
+}
+
+static u8 *tty_buf_ptr(struct tty_buf *buf)
+{
+    return (u8 *) PAGE_TO_VIRT(buf->page);
+}
+
+#define TTYBUF_MASK (PAGE_SIZE - 1)
+
+size_t tty_input_push_bytes(struct tty *tty, const char *string, size_t len)
+{
+    unsigned long flags = spin_lock_irqsave(&tty->buf_lock);
+    size_t written = 0, may_write, copy;
+    struct tty_buf *buf;
+    u32 wpos;
+
+    if (unlikely(!tty_nobufs(tty)))
+        goto out;
+
+    buf = &tty->raw_inpbuf;
+    wpos = buf->wpos;
+    while (len > 0)
+    {
+        const size_t wr_index = wpos & TTYBUF_MASK;
+        const size_t rd_index = buf->rpos & TTYBUF_MASK;
+
+        if (tty_buf_full(buf))
+            break;
+        /* Write until the first obstacle */
+        may_write = rd_index > wr_index ? rd_index - wr_index : PAGE_SIZE - wr_index;
+        copy = cul::min(may_write, len);
+        memcpy(tty_buf_ptr(buf) + wr_index, string, copy);
+        len -= copy;
+        string += copy;
+        wpos += copy;
+        written += copy;
+    }
+
+    smp_wmb();
+    WRITE_ONCE(buf->wpos, wpos);
+    queue_work(system_dfl_wq, &tty->input_work);
+out:
+    spin_unlock_irqrestore(&tty->buf_lock, flags);
+    return written;
+}
+
+static void tty_ldisc_input(struct work_struct *work)
+{
+    struct tty *tty = container_of(work, struct tty, input_work);
+    struct tty_buf *buf = &tty->raw_inpbuf;
+    char c;
+    u32 rpos;
+
+    /* Safety: only one work can be running at any given time. */
+    rpos = buf->rpos;
+    smp_rmb();
+
+    rw_lock_read(&tty->termio_lock);
+    while (rpos != buf->wpos)
+    {
+        c = *(tty_buf_ptr(buf) + (rpos & TTYBUF_MASK));
+        tty->ldisc->ops->receive_input(c, tty);
+        rpos++;
+    }
+    rw_unlock_read(&tty->termio_lock);
+
+    smp_wmb();
+    WRITE_ONCE(buf->rpos, rpos);
+}
+
 /**
  * @brief Create a TTY device
  *
@@ -146,6 +250,9 @@ struct tty *tty_init(void *priv, void (*ctor)(struct tty *tty), unsigned int fla
     mutex_init(&tty->lock);
     mutex_init(&tty->input_lock);
     rwlock_init(&tty->termio_lock);
+    tty_buf_init(&tty->raw_inpbuf);
+    spinlock_init(&tty->buf_lock);
+    INIT_WORK(&tty->input_work, tty_ldisc_input);
     tty->response = nullptr;
 
     tty->tty_num = idm_get_id(tty_ids);
