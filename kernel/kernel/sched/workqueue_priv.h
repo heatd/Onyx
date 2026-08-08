@@ -68,7 +68,9 @@ struct worker
     struct list_head node;
     struct worker_pool *pool;
     struct thread *thread;
+    struct work_struct *running_work;
     bool running : 1;
+    struct list_head pending_next;
 };
 
 #define WORK_DATA_QUEUED (1 << 0)
