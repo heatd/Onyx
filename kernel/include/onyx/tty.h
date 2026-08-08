@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2024 Pedro Falcato
+ * Copyright (c) 2016 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -17,6 +17,8 @@
 #include <onyx/mutex.h>
 #include <onyx/rwlock.h>
 #include <onyx/wait_queue.h>
+
+#include <linux/workqueue.h>
 
 #ifdef __cplusplus
 #include <onyx/pid.h>
@@ -49,6 +51,13 @@ struct tty_ops
     void (*finish_read)(struct tty *tty);
 };
 
+struct tty_buf
+{
+    struct page *page;
+    unsigned int rpos;
+    unsigned int wpos;
+};
+
 #define TTY_FLAG_LOCKED_PTY (1 << 0)
 #define TTY_FLAG_MASTER_PTY (1 << 1)
 
@@ -77,6 +86,9 @@ struct tty
     struct mutex input_lock;
     char input_buf[2048];
     unsigned int input_buf_pos;
+    struct spinlock buf_lock;
+    struct tty_buf raw_inpbuf;
+    struct work_struct input_work;
     unsigned int flags;
 
     char *response;
@@ -168,6 +180,13 @@ void process_clear_tty(struct tty *tty);
 
 unsigned int tty_write_room(struct tty *tty);
 void tty_finish_read(struct tty *tty);
+
+size_t tty_input_push_bytes(struct tty *tty, const char *string, size_t len);
+
+static inline size_t tty_input_push_byte(struct tty *tty, char c)
+{
+    return tty_input_push_bytes(tty, &c, 1);
+}
 
 __END_CDECLS
 
