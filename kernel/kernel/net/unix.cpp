@@ -1034,8 +1034,15 @@ static void unix_pbf_free(packetbuf *pbf)
     }
 }
 
-static ssize_t fill_pbuf(packetbuf *pbuf, struct iovec_iter *iter, const struct kernel_msghdr *msg)
+struct unix_sendmsg_data
 {
+    const struct kernel_msghdr *msg;
+};
+
+static ssize_t fill_pbuf(packetbuf *pbuf, struct iovec_iter *iter,
+                         struct unix_sendmsg_data *sendmsg_data)
+{
+    const struct kernel_msghdr *msg = sendmsg_data->msg;
     struct unix_pbf_info *info = pbf_to_unix(pbuf);
     ssize_t written = 0;
 
@@ -1050,7 +1057,8 @@ static ssize_t fill_pbuf(packetbuf *pbuf, struct iovec_iter *iter, const struct 
     /* We only do CMSG stuff after possible earlier failure, to avoid contrived error paths. */
     if (int err = unix_pbf_init(pbuf, msg); err < 0)
         return err;
-
+    /* Consume the ancillary data */
+    sendmsg_data->msg = NULL;
     return written;
 }
 
@@ -1065,7 +1073,7 @@ ssize_t un_socket::queue_data(const struct kernel_msghdr *msg)
     bool looked_at_tail = false;
     struct iovec_iter *iter = msg->msg_iter;
     ssize_t len = iovec_iter_bytes(iter);
-    bool has_cmsg = msg->msg_control != nullptr;
+    struct unix_sendmsg_data sendmsg_data = {.msg = msg};
 
     scoped_hybrid_lock g{socket_lock, this};
 
@@ -1088,9 +1096,8 @@ ssize_t un_socket::queue_data(const struct kernel_msghdr *msg)
             if (l)
             {
                 packetbuf *tail = container_of(l, packetbuf, list_node);
-                if (auto st = fill_pbuf(tail, iter, has_cmsg ? msg : nullptr); st < 0)
+                if (auto st = fill_pbuf(tail, iter, &sendmsg_data); st < 0)
                     return st;
-                has_cmsg = false;
             }
 
             continue;
@@ -1108,10 +1115,9 @@ ssize_t un_socket::queue_data(const struct kernel_msghdr *msg)
         if (!pbuf->allocate_space(length))
             return -ENOBUFS;
 
-        if (auto st = fill_pbuf(pbuf.get(), iter, has_cmsg ? msg : nullptr); st < 0)
+        if (auto st = fill_pbuf(pbuf.get(), iter, &sendmsg_data); st < 0)
             return st;
 
-        has_cmsg = false;
         list_add_tail(&pbuf->list_node, &inbuf_list);
         wait_queue_wake_all(&inbuf_wq);
         pbuf.release();
