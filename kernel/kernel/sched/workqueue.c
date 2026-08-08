@@ -32,7 +32,8 @@ DEFINE_LIST(workqueue_list);
 static struct worker_pool *pcpu_pools[CONFIG_SMP_NR_CPUS * NR_VARIANTS];
 static struct worker_pool *unbound_pool[NR_VARIANTS];
 
-static unsigned long do_work(struct worker_pool *pool, struct work_struct *work)
+static void do_work(struct worker_pool *pool, struct work_struct *work, struct worker *worker,
+                    unsigned long *irq_flags)
 {
     struct thread *curr = get_current_thread();
     struct pool_workqueue *pwq;
@@ -45,6 +46,8 @@ static unsigned long do_work(struct worker_pool *pool, struct work_struct *work)
     pwq = (struct pool_workqueue *) (READ_ONCE(work->data) & ~WORK_DATA_QUEUED);
     smp_store_mb(work->data, 0);
 
+    worker->running_work = work;
+    spin_unlock_irqrestore(&pool->lock, *irq_flags);
     lockdep_depth = lockdep_depth(curr);
     fn = work->func;
     fn(work);
@@ -61,6 +64,13 @@ static unsigned long do_work(struct worker_pool *pool, struct work_struct *work)
 
     flags = spin_lock_irqsave(&pool->lock);
 
+    worker->running_work = NULL;
+    if (!list_is_empty(&worker->pending_next))
+    {
+        /* Something requeued work we were executing, lets append it to the active list. */
+        list_move(&pool->work_list, &worker->pending_next);
+    }
+
     to_queue = pwq->owner->max_active - __atomic_sub_fetch(&pwq->nr_active, 1, __ATOMIC_RELEASE);
     /* If we need to, queue inactive work onto our worker pool */
     if (unlikely(to_queue > 0 && !list_is_empty(&pwq->inactive_list)))
@@ -76,7 +86,7 @@ static unsigned long do_work(struct worker_pool *pool, struct work_struct *work)
         }
     }
 
-    return flags;
+    *irq_flags = flags;
 }
 
 static bool worker_pool_needs_more(struct worker_pool *pool)
@@ -151,6 +161,24 @@ static void worker_pool_create_more(struct worker_pool *pool, unsigned long *irq
     }
 }
 
+static bool maybe_reassign_work(struct worker_pool *pool, struct work_struct *work)
+{
+    struct worker *worker;
+    /* Go through all workers in the pool and check if we're executing this work struct. If so, add
+     * it to the worker's pending_next queue. It will be requeued.
+     * TODO: going through every worker might be expensive. */
+    list_for_each_entry (worker, &pool->worker_list, node)
+    {
+        if (worker->running_work == work)
+        {
+            list_add_tail(&work->list, &worker->pending_next);
+            return true;
+        }
+    }
+
+    return false;
+}
+
 static void do_work_loop(struct worker *worker, struct worker_pool *pool, unsigned long *irq_flags)
 {
     struct work_struct *work;
@@ -163,8 +191,9 @@ static void do_work_loop(struct worker *worker, struct worker_pool *pool, unsign
     {
         work = list_first_entry(&pool->work_list, struct work_struct, list);
         list_remove(&work->list);
-        spin_unlock_irqrestore(&pool->lock, *irq_flags);
-        *irq_flags = do_work(pool, work);
+        if (maybe_reassign_work(pool, work))
+            continue;
+        do_work(pool, work, worker, irq_flags);
     }
 
     WARN_ON(!worker->running);
@@ -309,6 +338,8 @@ static bool worker_pool_create_worker(struct worker_pool *pool, unsigned long *i
     worker->thread->data = worker;
     worker->pool = pool;
     worker->running = false;
+    worker->running_work = NULL;
+    INIT_LIST_HEAD(&worker->pending_next);
 
     *irq_flags = spin_lock_irqsave(&pool->lock);
     list_add_tail(&worker->node, &pool->worker_list);
