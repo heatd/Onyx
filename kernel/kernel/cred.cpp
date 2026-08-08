@@ -126,13 +126,13 @@ int sys_setgid(gid_t gid)
     int st = 0;
     struct creds *c = creds_get_write();
 
-    if (c->egid != 0 && (gid != c->rgid && gid != c->sgid))
+    if (c->euid != 0 && (gid != c->rgid && gid != c->sgid))
     {
         st = -EPERM;
         goto out;
     }
 
-    if (c->egid == 0)
+    if (c->euid == 0)
     {
         c->egid = gid;
         c->rgid = gid;
