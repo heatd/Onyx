@@ -220,7 +220,8 @@ static void tty_ldisc_input(struct work_struct *work)
     while (rpos != buf->wpos)
     {
         c = *(tty_buf_ptr(buf) + (rpos & TTYBUF_MASK));
-        tty->ldisc->ops->receive_input(c, tty);
+        if (tty->ldisc->ops->receive_input(c, tty))
+            break;
         rpos++;
     }
     rw_unlock_read(&tty->termio_lock);
@@ -259,6 +260,7 @@ struct tty *tty_init(void *priv, void (*ctor)(struct tty *tty), unsigned int fla
     spinlock_init(&tty->buf_lock);
     INIT_WORK(&tty->input_work, tty_ldisc_input);
     tty->response = nullptr;
+    tty->input_flags = 0;
 
     tty->tty_num = idm_get_id(tty_ids);
 
@@ -459,6 +461,15 @@ size_t strnewlinelen(const char *str, unsigned int _len)
 
 void tty_finish_read(struct tty *tty)
 {
+    lockdep_assert_held(&tty->input_lock);
+
+    if (tty->input_flags & TTY_INPUT_N_TTY_HAS_MORE)
+    {
+        /* We consumed some bytes, and the input layer has more for n_tty. Lets take a look. */
+        tty->input_flags &= ~TTY_INPUT_N_TTY_HAS_MORE;
+        queue_work(system_dfl_wq, &tty->input_work);
+    }
+
     if (tty->ops->finish_read)
         tty->ops->finish_read(tty);
 }

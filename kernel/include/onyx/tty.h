@@ -61,6 +61,8 @@ struct tty_buf
 #define TTY_FLAG_LOCKED_PTY (1 << 0)
 #define TTY_FLAG_MASTER_PTY (1 << 1)
 
+#define TTY_INPUT_N_TTY_HAS_MORE (1 << 0)
+
 struct tty
 {
     /* Read only members */
