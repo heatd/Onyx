@@ -80,25 +80,22 @@ int get_input(std::string &str)
 
 bool compare_passwords(struct spwd *spwd, std::string &password)
 {
-    /* Hash format: $algorithm$salt$hash */
-    std::string password_hash(spwd->sp_pwdp);
-
-    std::size_t algo_pos = password_hash.find('$');
-    auto salt_pos = password_hash.find('$', algo_pos + 1);
-    auto hash_pos = password_hash.find('$', salt_pos + 1);
-    if (algo_pos == std::string::npos || salt_pos == std::string::npos ||
-        hash_pos == std::string::npos)
+    /* Hash format: $algorithm$[params$]salt$hash. Fields between the algorithm
+     * and the final hash (e.g. sha512crypt's "rounds=N") vary, so don't try to
+     * re-derive the salt by hand. crypt() understands its own settings string,
+     * so just hand it the whole stored hash and let it stop wherever the salt
+     * for that algorithm actually ends. */
+    if (spwd->sp_pwdp[0] != '$')
     {
         printf("Malformed shadow file.\n");
         return false;
     }
 
-    std::string salt;
-    salt.assign(password_hash, algo_pos, hash_pos - algo_pos);
+    const char *resulting_hash = crypt(password.c_str(), spwd->sp_pwdp);
+    if (!resulting_hash)
+        return false;
 
-    const char *resulting_hash = crypt(password.c_str(), salt.c_str());
-
-    return strcmp(password_hash.c_str(), resulting_hash) == 0;
+    return strcmp(spwd->sp_pwdp, resulting_hash) == 0;
 }
 
 static void self_exec(const std::string &name)
