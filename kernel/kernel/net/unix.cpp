@@ -984,7 +984,11 @@ static int unix_scm_rights(struct unix_pbf_info *info, struct cmsghdr *cmsg)
     {
         struct file *file = get_file_description(fds[i]);
         if (!file)
+        {
+            /* Truncate nfiles so no one looks past the !NULL's */
+            info->nfiles = i;
             return -EBADF;
+        }
         info->rights[i] = file;
     }
 
@@ -1111,6 +1115,7 @@ ssize_t un_socket::queue_data(const struct kernel_msghdr *msg)
         /* Pre-initialize the AF_UNIX pbf info (used for SCM_RIGHTS, etc). This makes sure buffer
          * concatenation doesn't have to deal with weird state. */
         memset(pbf_to_unix(pbuf.get()), 0, sizeof(struct unix_pbf_info));
+        pbuf->dtor = unix_pbf_free;
         size_t length = cul::min(PACKETBUF_MAX_NR_PAGES << PAGE_SHIFT, iovec_iter_bytes(iter));
         if (!pbuf->allocate_space(length))
             return -ENOBUFS;
@@ -1311,7 +1316,6 @@ ssize_t un_socket::recvmsg_stream(struct kernel_msghdr *msg, int flags)
             if (buf->length() == 0)
             {
                 list_remove(&buf->list_node);
-                unix_pbf_free(buf);
                 buf->unref();
             }
         }
@@ -1355,7 +1359,6 @@ ssize_t un_socket::recvmsg_dgram(struct kernel_msghdr *msg, int flags)
             if (buf->length() == 0)
             {
                 list_remove(&buf->list_node);
-                unix_pbf_free(buf);
                 buf->unref();
             }
         }
