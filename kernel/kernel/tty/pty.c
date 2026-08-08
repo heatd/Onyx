@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 Pedro Falcato
+ * Copyright (c) 2024 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -20,9 +20,9 @@
 static ssize_t pty_write(const void *buffer, size_t size, struct tty *tty)
 {
     struct tty *slave = tty->priv;
+
     size = min(tty_write_room(tty), size);
-    ssize_t err = tty_received_buf(slave, buffer, size);
-    return err;
+    return tty_input_push_bytes(slave, buffer, size);
 }
 
 static const struct file_ops pty_slave_ops;

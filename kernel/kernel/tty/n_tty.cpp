@@ -282,27 +282,35 @@ static size_t do_opost_write(const char *s, size_t length, struct tty *tty)
 
 static ssize_t n_tty_write_out(const char *s, size_t length, struct tty *tty) REQUIRES(tty->lock)
 {
-    size_t i = 0;
+    ssize_t written = 0, err;
     struct wait_queue_token token;
     init_wq_token(&token);
     token.thread = get_current_thread();
 
-    while (i < length)
+    err = 0;
+    while (length > 0)
     {
-#if 0
         if (signal_is_pending())
-            return i ?: -ERESTARTSYS;
-#endif
-        if (TTY_OFLAG(tty, OPOST))
-            i += do_opost_write(s + i, length - i, tty);
-        else
-            i += tty->ops->write(s + i, length - i, tty);
+        {
+            err = -ERESTARTSYS;
+            break;
+        }
 
-        if (i == length)
+        if (TTY_OFLAG(tty, OPOST))
+            err = do_opost_write(s, length, tty);
+        else
+            err = tty->ops->write(s, length, tty);
+
+        if (err < 0)
             break;
 
-        /* XXX A bunch of this needs to be fixed, properly. Thus the printk. */
-        pr_warn("blocking with i %zu length %zu write room %u\n", i, length, tty_write_room(tty));
+        length -= err;
+        s += err;
+        written += err;
+        if (!length)
+            break;
+
+        // pr_info("blocking with length %zu write room %u\n", length, tty_write_room(tty));
         set_current_state(THREAD_INTERRUPTIBLE);
         wait_queue_add(&tty->write_queue, &token);
         mutex_unlock(&tty->lock);
@@ -313,5 +321,5 @@ static ssize_t n_tty_write_out(const char *s, size_t length, struct tty *tty) RE
         wait_queue_remove(&tty->write_queue, &token);
     }
 
-    return i;
+    return written > 0 ? written : err;
 }

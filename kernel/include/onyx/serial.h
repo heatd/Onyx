@@ -30,9 +30,6 @@ private:
     unsigned int allocate_serial_index();
 
 protected:
-    spinlock bytebuf_lock;
-    uint8_t byte_buf[100];
-    size_t byte_buf_size;
     tty *tty_;
     /**
      * @brief Sets the baud rate
@@ -49,13 +46,10 @@ protected:
     void receive_byte(uint8_t byte);
 
 public:
-    serial_port() : byte_buf_size{}, tty_{}
+    serial_port() : tty_{}
     {
         nr = allocate_serial_index();
-        spinlock_init(&bytebuf_lock);
     }
-
-    void dispatch();
 
     /**
      * @brief Initialises the serial port
