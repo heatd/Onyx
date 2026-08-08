@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2024 Pedro Falcato
+ * Copyright (c) 2020 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -128,6 +128,7 @@ static ssize_t n_tty_receive_input(char c, struct tty *tty)
 
     if (2048 - tty->input_buf_pos == 0)
     {
+        tty->input_flags |= TTY_INPUT_N_TTY_HAS_MORE;
         mutex_unlock(&tty->input_lock);
         return -ENOSPC;
     }
