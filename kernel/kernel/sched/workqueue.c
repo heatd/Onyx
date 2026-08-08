@@ -52,8 +52,8 @@ static void do_work(struct worker_pool *pool, struct work_struct *work, struct w
     fn = work->func;
     fn(work);
 
-    if (WARN_ON_ONCE(irq_is_disabled() || lockdep_depth(curr) != lockdep_depth ||
-                     sched_is_preemption_disabled() || rcu_read_lock_held()))
+    if (debug_locks && WARN_ON_ONCE(irq_is_disabled() || lockdep_depth(curr) != lockdep_depth ||
+                                    sched_is_preemption_disabled() || rcu_read_lock_held()))
     {
         pr_err("workqueue: workqueue item leaked lock, preempt counter or RCU read lock\n");
         pr_err("           irqs:%u lockdep depth:%u preempt:%lu rcu:%u\n", irq_is_disabled(),
