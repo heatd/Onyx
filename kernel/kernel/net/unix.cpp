@@ -1334,6 +1334,7 @@ ssize_t un_socket::recvmsg_dgram(struct kernel_msghdr *msg, int flags)
 {
     // TODO: Merge stream and dgram paths? I'm still not sure...
     struct iovec_iter *iter = msg->msg_iter;
+    unsigned int pbuf_len;
     scoped_hybrid_lock g{socket_lock, this};
 
     CONSUME_SOCK_ERR;
@@ -1347,6 +1348,7 @@ ssize_t un_socket::recvmsg_dgram(struct kernel_msghdr *msg, int flags)
     }
 
     packetbuf *buf = ex.value();
+    pbuf_len = buf->length();
     ssize_t read = buf->copy_iter(*iter, flags & MSG_PEEK ? PBF_COPY_ITER_PEEK : 0);
 
     if (read >= 0)
@@ -1361,6 +1363,12 @@ ssize_t un_socket::recvmsg_dgram(struct kernel_msghdr *msg, int flags)
         }
     }
 
+    if (read != pbuf_len)
+    {
+        if (flags & MSG_TRUNC)
+            read = pbuf_len;
+        msg->msg_flags |= MSG_TRUNC;
+    }
     return read;
 }
 
