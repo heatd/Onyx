@@ -17,6 +17,7 @@
 #include <onyx/panic.h>
 #include <onyx/pid.h>
 #include <onyx/process.h>
+#include <onyx/ptrace.h>
 #include <onyx/signal.h>
 #include <onyx/task_switching.h>
 #include <onyx/vm.h>
@@ -24,9 +25,10 @@
 
 #include <uapi/signal.h>
 
-static bool notify_process_stop_cont(struct process *task, unsigned int code);
 static int send_signal_to_task(int signal, struct process *task, unsigned int flags,
                                siginfo_t *info, enum pid_type type);
+static int __send_signal_to_task(int signal, struct process *task, unsigned int flags,
+                                 siginfo_t *info, enum pid_type type);
 
 /* Wide-enough type to contain all signals. In theory we have sigset_t, but this type is nicer to
  * work with */
@@ -349,6 +351,39 @@ static void free_sigpending(struct sigpending *pend)
     kfree(pend);
 }
 
+static bool ptrace_sig(struct sigpending *pending)
+{
+    int sig;
+
+    sig = __ptrace_stop(pending->signum, 0, pending->info);
+    if (!sig)
+        return false;
+
+    /* Signal changed, pretend it came directly from userspace, kill-like */
+    if (sig != pending->signum)
+    {
+        memset(pending->info, 0, sizeof(siginfo_t));
+        rcu_read_lock();
+        pending->info->si_code = SI_USER;
+        pending->info->si_signo = sig;
+        pending->info->si_uid = current->tracer->cred.euid;
+        pending->info->si_pid = task_tgid(current->tracer);
+        rcu_read_unlock();
+        pending->signum = sig;
+    }
+
+    /* If its masked for us, requeue it properly. */
+    if (sigismember(&current->sigmask, sig))
+    {
+        /* XXX ugh, we have to know what the pidtype is here... it should be trivial to figure out
+         * from signal_dequeue */
+        __send_signal_to_task(sig, current, 0, pending->info, PIDTYPE_PID);
+        return false;
+    }
+
+    return true;
+}
+
 bool find_signal(struct arch_siginfo *sinfo)
 {
     struct sigpending *pending;
@@ -390,6 +425,18 @@ bool find_signal(struct arch_siginfo *sinfo)
         }
 
         ksa = &current->sighand->sigtable[pending->signum];
+
+        /* We're being traced? ptracer has the chance of intercepting the signal. Except if SIGKILL
+         * or SA_IMMUTABLE (IMMUTABLE means we're effectively force-killing from a trap). */
+        if (unlikely(current->tracer) && pending->signum != SIGKILL &&
+            !(ksa->sa_flags & SA_IMMUTABLE))
+        {
+            if (!ptrace_sig(pending))
+            {
+                free_sigpending(pending);
+                continue;
+            }
+        }
 
         /* Handle basic signal dispositions. */
         if (ksa->sa_handler == SIG_IGN)
@@ -1413,6 +1460,14 @@ void signal_restore_sigmask(void)
     clear_task_flag(current, TF_RESTORE_SIGMASK);
 }
 
+static inline struct process *task_sigparent(void)
+{
+    /* In various signal-related cases, redirect these notifications towards our tracer. */
+    if (current->tracer)
+        return rcu_dereference_protected(current->tracer, lockdep_tasklist_lock_held());
+    return rcu_dereference_protected(current->parent, lockdep_tasklist_lock_held());
+}
+
 /**
  * @brief Notify this task's parent that we're exiting
  * We have to be careful and check if we need to, e.g, autoreap. write_lock needs to be held when
@@ -1424,8 +1479,7 @@ void signal_restore_sigmask(void)
 bool parent_notify(unsigned int exit_code)
 {
     bool autoreap = false;
-    struct process *parent =
-        rcu_dereference_protected(current->parent, lockdep_tasklist_lock_held_write());
+    struct process *parent = task_sigparent();
     struct sighand_struct *sighand = parent->sighand;
     struct k_sigaction *act;
     int sig = SIGCHLD;
@@ -1482,9 +1536,9 @@ bool parent_notify(unsigned int exit_code)
  * @param code si_code (CLD_*)
  * @retval true If task was woken up
  */
-static bool notify_process_stop_cont(struct process *task, unsigned int code)
+bool notify_process_stop_cont(struct process *task, unsigned int code)
 {
-    struct process *parent = rcu_dereference_protected(task->parent, lockdep_tasklist_lock_held());
+    struct process *parent = task_sigparent();
     struct sighand_struct *sighand = parent->sighand;
     struct k_sigaction *act;
     int sig = SIGCHLD;

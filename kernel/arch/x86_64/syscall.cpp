@@ -5,6 +5,7 @@
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
+#define DEFINE_CURRENT
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -13,6 +14,7 @@
 #include <onyx/cpu.h>
 #include <onyx/gen/syscall.h>
 #include <onyx/proc_event.h>
+#include <onyx/ptrace.h>
 
 #include <linux/lockdep.h>
 #include <platform/syscall.h>
@@ -45,12 +47,21 @@ static __always_inline bool should_sysret(struct registers *regs)
     return true;
 }
 
+static void do_syscall_work(void)
+{
+    clear_task_flag(current, TF_SYSCALL_WORK);
+    ptrace_syscall();
+}
+
 extern "C" long do_syscall64(struct syscall_frame *frame)
 {
     context_tracking_enter_kernel();
     CHECK(frame == task_curr_syscall_frame());
     unsigned long syscall_nr = frame->rax;
     long ret = 0;
+
+    if (unlikely(test_task_flag(current, TF_SYSCALL_WORK)))
+        do_syscall_work();
 
     proc_event_enter_syscall(frame, frame->rax);
 
@@ -79,6 +90,9 @@ extern "C" long do_syscall64(struct syscall_frame *frame)
     }
 
     frame->rax = ret;
+    if (unlikely(test_task_flag(current, TF_SYSCALL_WORK)))
+        do_syscall_work();
+
     if (signal_is_pending())
         handle_signal((struct registers *) frame);
     return likely(should_sysret((struct registers *) frame));
