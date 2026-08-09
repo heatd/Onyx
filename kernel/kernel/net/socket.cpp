@@ -772,6 +772,12 @@ int net_autodetect_protocol(int type, int domain)
             else
                 return -1;
         }
+
+        case SOCK_SEQPACKET: {
+            if (domain == AF_UNIX)
+                return PROTOCOL_UNIX;
+            return -1;
+        }
     }
 
     return -1;
