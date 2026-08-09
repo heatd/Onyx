@@ -1356,11 +1356,8 @@ ssize_t un_socket::recvmsg_dgram(struct kernel_msghdr *msg, int flags)
 
         if (!(flags & MSG_PEEK))
         {
-            if (buf->length() == 0)
-            {
-                list_remove(&buf->list_node);
-                buf->unref();
-            }
+            list_remove(&buf->list_node);
+            buf->unref();
         }
     }
 
