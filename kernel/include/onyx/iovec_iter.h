@@ -82,6 +82,16 @@ struct iovec_iter
 #endif
 };
 
+static inline void iovec_iter_init_uiov(struct iovec_iter *iter, struct iovec *vec, unsigned int n,
+                                        size_t total)
+{
+    iter->pos_ = 0;
+    iter->bytes = total;
+    iter->nr_vecs = n;
+    iter->vec = vec;
+    iter->type = IOVEC_USER;
+}
+
 static inline ssize_t iovec_count_length(struct iovec *vec, unsigned int n)
 {
     ssize_t length = 0;
