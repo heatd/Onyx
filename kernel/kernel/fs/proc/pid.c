@@ -94,6 +94,8 @@ static char task_state(struct process *task)
             return 'D';
         case THREAD_STOPPED:
             return 'T';
+        case THREAD_TRACED:
+            return 't';
     }
 
     WARN_ON_ONCE(1);

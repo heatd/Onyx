@@ -135,7 +135,7 @@ struct sigqueue
 
 static inline void sigqueue_init(struct sigqueue *queue)
 {
-    queue->pending = (sigset_t){};
+    queue->pending = (sigset_t) {};
     INIT_LIST_HEAD(&queue->pending_head);
 }
 
@@ -229,6 +229,17 @@ void force_sigsegv(int sig);
 /* Used when forcing signals, such that no one racing with us can change this signal while another
  * thread is trying to catch a fault */
 #define SA_IMMUTABLE 0x00800000
+
+/**
+ * @brief Notify this task's parent that we're stopping/continuing
+ * We have to be careful and check if we need to, e.g, not send anything. tasklist read_lock needs
+ * to be held when calling.
+ *
+ * @param task task that's stopping
+ * @param code si_code (CLD_*)
+ * @retval true If task was woken up
+ */
+bool notify_process_stop_cont(struct process *task, unsigned int code);
 
 __END_CDECLS
 
