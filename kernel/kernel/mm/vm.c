@@ -2725,11 +2725,11 @@ static int __get_phys_pages(struct vm_area_struct *vma, unsigned long addr, unsi
  * @return A bitmask of GPP_ACCESS_* flags; see the documentation for those
  *         for more information.
  */
-int get_phys_pages(void *_addr, unsigned int flags, struct page **pages, size_t nr_pgs)
+int get_phys_pages_remote(struct mm_address_space *mm, void *_addr, unsigned int flags,
+                          struct page **pages, size_t nr_pgs)
 {
     int ret = GPP_ACCESS_OK;
     bool had_shared_pages = false;
-    struct mm_address_space *mm = get_current_address_space();
 
     unsigned long addr = (unsigned long) _addr;
 
@@ -2787,6 +2787,61 @@ out:
     if (ret & GPP_ACCESS_OK && had_shared_pages)
         ret |= GPP_ACCESS_SHARED;
     rw_unlock_read(&mm->vm_lock);
+    return ret;
+}
+
+/**
+ * @brief Gets the physical pages that map to a virtual region.
+ * This function also handles COW.
+ *
+ * @param addr The desired virtual address.
+ * @param flags Flags (see GPP_READ, WRITE and USER).
+ * @param pages A pointer to an array of struct page *.
+ * @param nr The number of pages of the virtual address range.
+ * @return A bitmask of GPP_ACCESS_* flags; see the documentation for those
+ *         for more information.
+ */
+int get_phys_pages(void *_addr, unsigned int flags, struct page **pages, size_t nr_pgs)
+{
+    return get_phys_pages_remote(get_current_address_space(), _addr, flags, pages, nr_pgs);
+}
+
+ssize_t access_remote_mm(struct mm_address_space *mm, unsigned long addr, struct iovec_iter *iter,
+                         bool to)
+{
+    ssize_t ret = 0, copied;
+    unsigned long off_in_page;
+    unsigned int gpp_flags;
+    struct page *page;
+    int err;
+
+    gpp_flags = to ? GPP_WRITE : GPP_READ;
+    while (!iovec_iter_empty(iter))
+    {
+        err = get_phys_pages_remote(mm, (void *) addr, gpp_flags, &page, 1);
+        if (!(err & GPP_ACCESS_OK))
+        {
+            ret = ret ?: -EFAULT;
+            break;
+        }
+
+        off_in_page = (addr & (PAGE_SIZE - 1));
+        if (to)
+            copied = copy_from_iter(iter, PAGE_TO_VIRT(page) + off_in_page,
+                                    min(iovec_iter_bytes(iter), PAGE_SIZE - off_in_page));
+        else
+            copied = copy_to_iter(iter, PAGE_TO_VIRT(page) + off_in_page,
+                                  min(iovec_iter_bytes(iter), PAGE_SIZE - off_in_page));
+        page_unref(page);
+        if (copied < 0)
+        {
+            ret = ret ?: -EFAULT;
+            break;
+        }
+        addr += copied;
+        ret += copied;
+    }
+
     return ret;
 }
 
