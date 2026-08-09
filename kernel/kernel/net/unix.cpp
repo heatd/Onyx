@@ -394,6 +394,9 @@ public:
     ssize_t sendmsg_dgram(const struct kernel_msghdr *msg, int flags);
     ssize_t recvmsg_dgram(struct kernel_msghdr *msg, int flags);
 
+    ssize_t sendmsg_seqpacket(const struct kernel_msghdr *msg, int flags);
+    ssize_t recvmsg_seqpacket(struct kernel_msghdr *msg, int flags);
+
     static void connect_pair(un_socket *sock0, un_socket *sock1);
 
     int shutdown(int how);
@@ -789,9 +792,14 @@ expected<un_socket *, int> un_socket::connect_to(un_socket *client)
     return r.server_sock;
 }
 
+static bool unix_connection_oriented(un_socket *socket)
+{
+    return socket->type == SOCK_STREAM || socket->type == SOCK_SEQPACKET;
+}
+
 int un_socket::connect(sockaddr *addr, socklen_t addrlen, int flags)
 {
-    if (type == SOCK_STREAM && state != UN_CLOSED)
+    if (unix_connection_oriented(this) && state != UN_CLOSED)
         return -EINVAL;
 
     if (connected)
@@ -806,14 +814,14 @@ int un_socket::connect(sockaddr *addr, socklen_t addrlen, int flags)
     if (!peer)
         return -ECONNREFUSED;
 
-    if (peer->type != type || (type == SOCK_STREAM && !peer->listening()))
+    if (peer->type != type || (unix_connection_oriented(this) && !peer->listening()))
     {
         // Incompatible sockets or the peer isn't listening (when SOCK_STREAM)
         peer->unref();
         return -ECONNREFUSED;
     }
 
-    if (type == SOCK_STREAM)
+    if (unix_connection_oriented(this))
     {
         // Let's queue ourselves on the peer
         auto expect = peer->connect_to(this);
@@ -843,7 +851,7 @@ int un_socket::connect(sockaddr *addr, socklen_t addrlen, int flags)
  */
 expected<un_socket *, int> un_socket::create_accept_socket(un_socket *peer)
 {
-    ref_guard<un_socket> sock{new un_socket{SOCK_STREAM, PROTOCOL_UNIX}};
+    ref_guard<un_socket> sock{new un_socket{peer->type, PROTOCOL_UNIX}};
     if (!sock)
         return unexpected<int>{-ENOMEM};
 
@@ -860,7 +868,7 @@ socket *un_socket::accept(int flags)
 {
     scoped_hybrid_lock hlock{socket_lock, this};
 
-    if (type != SOCK_STREAM || state != UN_LISTENING)
+    if (!unix_connection_oriented(this) || state != UN_LISTENING)
         return errno = EINVAL, nullptr;
 
     int st = wait_for_event_socklocked_interruptible(
@@ -1158,6 +1166,31 @@ ssize_t un_socket::sendmsg_stream(const struct kernel_msghdr *msg, int flags)
     return peer->queue_data(msg);
 }
 
+ssize_t un_socket::sendmsg_seqpacket(const struct kernel_msghdr *msg, int flags)
+{
+    scoped_hybrid_lock g{socket_lock, this};
+
+    if (shutdown_state & SHUTDOWN_WR)
+    {
+        if (!(flags & MSG_NOSIGNAL))
+            kernel_raise_signal(SIGPIPE, get_current_process(), 0, nullptr);
+        return -EPIPE;
+    }
+
+    if (!connected)
+        return -ENOTCONN;
+
+    if (msg->msg_name)
+        return -EISCONN;
+
+    CONSUME_SOCK_ERR;
+
+    auto peer = dst_;
+    g.unlock();
+    /* queue_data knows not to merge seqpacket messages */
+    return peer->queue_data(msg);
+}
+
 ssize_t un_socket::sendmsg_dgram(const struct kernel_msghdr *msg, int flags)
 {
     scoped_hybrid_lock g{socket_lock, this};
@@ -1207,6 +1240,8 @@ ssize_t un_socket::sendmsg(const struct kernel_msghdr *msg, int flags)
 {
     if (type == SOCK_STREAM)
         return sendmsg_stream(msg, flags);
+    else if (type == SOCK_SEQPACKET)
+        return sendmsg_seqpacket(msg, flags);
     return sendmsg_dgram(msg, flags);
 }
 
@@ -1372,10 +1407,53 @@ ssize_t un_socket::recvmsg_dgram(struct kernel_msghdr *msg, int flags)
     return read;
 }
 
+ssize_t un_socket::recvmsg_seqpacket(struct kernel_msghdr *msg, int flags)
+{
+    struct iovec_iter *iter = msg->msg_iter;
+    unsigned int pbuf_len;
+    scoped_hybrid_lock g{socket_lock, this};
+
+    CONSUME_SOCK_ERR;
+    auto ex = get_data(flags);
+
+    if (ex.has_error())
+    {
+        if (ex.error() == -EPIPE)
+            return 0;
+        return ex.error();
+    }
+
+    packetbuf *buf = ex.value();
+    pbuf_len = buf->length();
+    ssize_t read = buf->copy_iter(*iter, flags & MSG_PEEK ? PBF_COPY_ITER_PEEK : 0);
+
+    if (read >= 0)
+    {
+        if (int err = unix_put_cmsg(pbf_to_unix(buf), msg); err < 0)
+            return read;
+
+        if (!(flags & MSG_PEEK))
+        {
+            list_remove(&buf->list_node);
+            buf->unref();
+        }
+    }
+
+    if (read != pbuf_len)
+    {
+        if (flags & MSG_TRUNC)
+            read = pbuf_len;
+        msg->msg_flags |= MSG_TRUNC;
+    }
+    return read;
+}
+
 ssize_t un_socket::recvmsg(struct kernel_msghdr *msg, int flags)
 {
     if (type == SOCK_STREAM)
         return recvmsg_stream(msg, flags);
+    else if (type == SOCK_SEQPACKET)
+        return recvmsg_seqpacket(msg, flags);
     return recvmsg_dgram(msg, flags);
 }
 
@@ -1445,7 +1523,7 @@ int un_socket::shutdown(int how)
         wait_queue_wake_all(&inbuf_wq);
     }
 
-    if (how & SHUTDOWN_WR && type == SOCK_STREAM)
+    if (how & SHUTDOWN_WR && unix_connection_oriented(this))
     {
         auto peer = dst_;
         if (peer)
