@@ -133,6 +133,8 @@ static int dup_sighand(struct process *child)
     return 0;
 }
 
+#define TF_FLAGS_NOFORK (TF_SYSCALL_WORK)
+
 static int dup_signal(struct process *child)
 {
     int i;
@@ -170,7 +172,7 @@ static int dup_signal(struct process *child)
 
     sig->core_state = NULL;
     itimer_init(child);
-    child->flags = current->flags;
+    child->flags = READ_ONCE(current->flags) & ~TF_FLAGS_NOFORK;
     return 0;
 }
 

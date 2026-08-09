@@ -66,6 +66,7 @@ __END_CDECLS
 #define TF_STOP_PENDING    (1 << 7)
 #define TF_POST_COREDUMP   (1 << 8) /* too far gone in exit(2) to ask for a coredump */
 #define TF_SIGWAIT         (1 << 9)
+#define TF_SYSCALL_WORK    (1 << 10)
 
 struct vfork_completion;
 
@@ -192,6 +193,15 @@ struct process
     struct proc_event_sub *sub_queue;
     unsigned long nr_subs;
     unsigned long nr_acks;
+
+    /* ptrace state */
+    struct process __rcu *tracer;
+    unsigned long ptrace_flags;
+    unsigned long ptrace_message;
+    siginfo_t *ptrace_siginfo;
+    /* list of tasks we're ptracing */
+    struct list_head ptraced;
+    struct list_head ptrace_node;
 
     void *interp_base;
     void *image_base;

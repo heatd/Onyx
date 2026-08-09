@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2025 Pedro Falcato
+ * Copyright (c) 2016 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -84,6 +84,8 @@ static void exit_mmap(void)
     vm_set_aspace(&kernel_address_space);
     mmput(mm);
 }
+
+void exit_ptrace(void);
 
 static struct process *reaper_process(struct process *task) REQUIRES(tasklist_lock)
 {
@@ -280,6 +282,7 @@ __attribute__((noreturn)) void do_exit(unsigned int exit_code)
     }
 
     write_lock(&tasklist_lock);
+    exit_ptrace();
     task_make_zombie(current);
     exit_reparent_children(current, &reap);
 
@@ -401,7 +404,7 @@ static void wait_info_init(struct wait_info *winfo, pid_t pid, unsigned int opti
      * pid = 0: matches processes with pgid = process' pgid.
      * pid > 0: matches processes with pid = pid.
      */
-    *winfo = (struct wait_info){};
+    *winfo = (struct wait_info) {};
     winfo->status = -ECHILD;
     winfo->pid = pid;
     if (pid == -1)
@@ -640,35 +643,56 @@ no:
     return false;
 }
 
-static bool process_wait_stop(struct process *child, struct wait_info *winfo)
+static bool task_has_stop(struct process *child, bool ptrace)
+{
+    struct signal_struct *sig = child->sig;
+
+    if (ptrace && READ_ONCE(child->thr->status) == THREAD_TRACED)
+        return true;
+    return sig->signal_group_flags & SIGNAL_GROUP_STOPPED;
+}
+
+static bool process_wait_stop(struct process *child, struct wait_info *winfo, bool ptrace)
     REQUIRES(tasklist_lock)
 {
     struct signal_struct *sig = child->sig;
-    if (!(sig->signal_group_flags & SIGNAL_GROUP_STOPPED))
+    unsigned int wstatus;
+
+    if (!task_has_stop(child, ptrace))
         return false;
 
     spin_lock(&child->sighand->signal_lock);
 
-    if (!(sig->signal_group_flags & SIGNAL_GROUP_STOPPED))
+    if (!task_has_stop(child, ptrace))
         goto no;
 
     if (sig->signal_group_flags & SIGNAL_GROUP_EXIT)
         goto no;
 
-    if (!(winfo->options & WSTOPPED))
+    if (!ptrace && !(winfo->options & WSTOPPED))
         goto no;
 
     /* We use exit_code = 0 to know it has been reaped */
-    if (!sig->signal_group_exit_code)
-        goto no;
+    if (ptrace)
+    {
+        if (!child->exit_code)
+            goto no;
+        wstatus = W_STOPPED_SIG(child->exit_code);
+        if (wait_should_reap(winfo))
+            child->exit_code = 0;
+    }
+    else
+    {
+        if (!sig->signal_group_exit_code)
+            goto no;
+        wstatus = sig->signal_group_exit_code;
+        if (wait_should_reap(winfo))
+            sig->signal_group_exit_code = 0;
+    }
 
     do_getrusage(RUSAGE_BOTH, &winfo->usage, child);
     winfo->pid = task_tgid(child);
-    winfo->wstatus = sig->signal_group_exit_code;
-
-    if (wait_should_reap(winfo))
-        sig->signal_group_exit_code = 0;
-
+    winfo->wstatus = wstatus;
     spin_unlock(&child->sighand->signal_lock);
     return true;
 no:
@@ -719,7 +743,8 @@ static bool wait_handle_processes(struct process *proc, struct wait_info *winfo)
             continue;
 
         winfo->status = 0;
-        if (!process_wait_exit(child, winfo) && !process_wait_stop(child, winfo) &&
+        if (!process_wait_exit(child, winfo) &&
+            !process_wait_stop(child, winfo, rcu_access_pointer(child->tracer) == proc) &&
             !process_wait_cont(child, winfo))
             continue;
 

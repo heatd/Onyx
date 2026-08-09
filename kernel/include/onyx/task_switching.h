@@ -19,5 +19,6 @@
 #define THREAD_DEAD            4
 #define THREAD_UNINTERRUPTIBLE 5
 #define THREAD_STOPPED         6
+#define THREAD_TRACED          7
 
 #endif

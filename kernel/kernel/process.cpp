@@ -93,6 +93,10 @@ process::process() : pgrp_node{this}, session_node{this}, thread_list_node{this}
     spinlock_init(&sub_queue_lock);
     sub_queue = nullptr;
     nr_acks = nr_subs = 0;
+    tracer = NULL;
+    ptrace_flags = 0;
+    ptrace_message = 0;
+    INIT_LIST_HEAD(&ptraced);
     interp_base = image_base = nullptr;
     INIT_LIST_HEAD(&children_head);
     ctid = NULL;
