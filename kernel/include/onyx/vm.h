@@ -705,6 +705,10 @@ public:
  */
 int get_phys_pages(void *addr, unsigned int flags, struct page **pages, size_t nr);
 
+struct iovec_iter;
+ssize_t access_remote_mm(struct mm_address_space *mm, unsigned long addr, struct iovec_iter *iter,
+                         bool to);
+
 /**
  * @brief Loads the fallback paging tables.
  *
@@ -777,7 +781,9 @@ unsigned long vm_pick_stack_location(void);
 
 struct vma_iterator;
 int vm_find_free_area(struct vma_iterator *vmi, unsigned long min, size_t size, size_t alignment);
-
+struct iovec_iter;
+ssize_t access_remote_mm(struct mm_address_space *mm, unsigned long addr, struct iovec_iter *iter,
+                         bool to);
 __END_CDECLS
 
 #ifdef __cplusplus
