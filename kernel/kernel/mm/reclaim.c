@@ -413,6 +413,7 @@ static void shrink_active_list(struct page_node *node, enum lru_state lru_list,
 
         list_remove(&page->lru_node);
         list_add_tail(&page->lru_node, &lru->lru_lists[inactive]);
+        page_clear_active(page);
         dec_page_stat(page, NR_INACTIVE_FILE + lru_list);
         inc_page_stat(page, NR_INACTIVE_FILE + inactive);
     }
