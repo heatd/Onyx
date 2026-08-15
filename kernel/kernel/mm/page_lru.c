@@ -250,7 +250,8 @@ static void folio_batch_deactivate_lru(struct folio_batch *batch)
         lru_add_folio(lru, folio);
     }
 
-    spin_unlock(&lru->lock);
+    if (likely(lru))
+        spin_unlock(&lru->lock);
     folio_end_batch(batch);
 }
 
