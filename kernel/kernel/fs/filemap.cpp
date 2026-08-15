@@ -528,6 +528,7 @@ static int filemap_get_tagged_pages(struct inode *inode, unsigned int mark, unsi
         struct page *page = (struct page *) cursor.get();
         batch[batchidx++] = page;
         page_ref(page);
+        cursor.advance();
     }
 
     return batchidx;
@@ -845,8 +846,9 @@ static int filemap_fault(struct vm_pf_context *ctx) NO_THREAD_SAFETY_ANALYSIS
             increment_vm_stat(vma->vm_mm, resident_set_size, PAGE_SIZE);
 
         page_add_mapcount(page);
-        set_pte_over(vma, ctx->vpage, ptep, pte_mkpte((u64) page_to_phys(page),
-                                calc_pgprot((u64) page_to_phys(page), ctx->page_rwx)));
+        set_pte_over(vma, ctx->vpage, ptep,
+                     pte_mkpte((u64) page_to_phys(page),
+                               calc_pgprot((u64) page_to_phys(page), ctx->page_rwx)));
 
         if (unlikely(pte_present(oldpte) && !pte_special(oldpte)))
             oldp = phys_to_page(pte_addr(oldpte));
