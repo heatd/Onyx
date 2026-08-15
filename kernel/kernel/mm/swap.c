@@ -141,7 +141,7 @@ bool swap_is_available(void)
 
 unsigned long swap_free(void)
 {
-    return READ_ONCE(swap_usage.counter);
+    return total_swap - READ_ONCE(swap_usage.counter);
 }
 
 unsigned long swap_total(void)

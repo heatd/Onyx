@@ -45,7 +45,7 @@ static int proc_meminfo_show(struct seq_file *m, void *ptr)
     seq_printf(m, "LowTotal: %lu kB\n", PGTOKB(memstat.total_pages));
     seq_printf(m, "LowFree: %lu kB\n", PGTOKB(free));
     seq_printf(m, "SwapTotal: %lu kB\n", PGTOKB(swap_total()));
-    seq_printf(m, "SwapTotal: %lu kB\n", PGTOKB(swap_free()));
+    seq_printf(m, "SwapFree: %lu kB\n", PGTOKB(swap_free()));
     seq_printf(m, "Dirty: %lu kB\n", PGTOKB(pagestats[NR_DIRTY]));
     seq_printf(m, "Writeback: %lu kB\n", PGTOKB(pagestats[NR_WRITEBACK]));
     seq_printf(m, "AnonPages: %lu kB\n", PGTOKB(pagestats[NR_ANON]));
