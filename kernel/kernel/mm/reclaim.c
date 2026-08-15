@@ -464,7 +464,7 @@ static void isolate_pages(struct page_lru *lru, enum lru_state list, struct list
             break;
     }
 
-    list_splice(&rotate_list, &lru->lru_lists[list]);
+    list_splice_tail(&rotate_list, &lru->lru_lists[list]);
 }
 
 struct pagebatch
