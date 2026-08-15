@@ -18,14 +18,14 @@ struct folio_batch
 
 static inline void folio_batch_init(struct folio_batch *batch)
 {
-    batch->nr = 31;
+    batch->nr = 0;
 }
 
-static unsigned int folio_batch_add(struct folio_batch *batch, struct folio *folio)
+static inline unsigned int folio_batch_add(struct folio_batch *batch, struct folio *folio)
 {
     folio_get(folio);
     batch->batch[batch->nr++] = folio;
-    return batch->nr - 31;
+    return 31 - batch->nr;
 }
 
 static void folio_end_batch(struct folio_batch *batch)
@@ -38,7 +38,7 @@ static void folio_end_batch(struct folio_batch *batch)
 
 static inline unsigned int folio_batch_count(struct folio_batch *batch)
 {
-    return batch->nr - 31;
+    return 31 - batch->nr;
 }
 
 #endif
