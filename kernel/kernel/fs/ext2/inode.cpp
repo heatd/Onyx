@@ -337,7 +337,10 @@ int ext2_truncate_branch(ext2_block_no block, ext2_block_coords &curr_coords, st
         if (st < 0)
             return st;
         else if (st == EXT2_TRUNCATED_FULLY)
+        {
             ind_block_data[i] = 0;
+            block_buf_dirty_inode(buf, ino);
+        }
         else if (st == EXT2_TRUNCATED_PARTIALLY)
         {
             partial_block = true;
