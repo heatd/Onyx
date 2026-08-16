@@ -347,7 +347,7 @@ ssize_t read_vfs(size_t offset, size_t len, void *buffer, struct file *file)
     return read_iter_vfs(file, offset, &iter, 0);
 }
 
-int ioctl_vfs(int request, char *argp, struct file *file)
+int ioctl_vfs(int fd, int request, char *argp, struct file *file)
 {
     switch (request)
     {
@@ -362,6 +362,14 @@ int ioctl_vfs(int request, char *argp, struct file *file)
             else
                 file->f_flags &= ~O_NONBLOCK;
 
+            return 0;
+        }
+        case FIOCLEX: {
+            set_cloexec(fd, 1);
+            return 0;
+        }
+        case FIONCLEX: {
+            set_cloexec(fd, 0);
             return 0;
         }
     }
