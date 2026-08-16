@@ -1555,6 +1555,7 @@ int do_renameat(struct dentry *dir, struct lookup_path &last, struct dentry *old
     else if (d_is_negative(old))
     {
         err = -ENOENT;
+        dput(old);
         goto out_unlock_rename;
     }
 
@@ -1682,7 +1683,7 @@ int sys_renameat(int olddirfd, const char *uoldpath, int newdirfd, const char *u
 
     st = namei_lookup_parentat(newdirfd, newpath.data(), LOOKUP_NOFOLLOW, &last_name, &parent);
     if (st < 0)
-        return st;
+        goto out_put_write;
 
     st = mnt_get_write_access(parent.mount);
     if (st < 0)
@@ -1692,6 +1693,7 @@ int sys_renameat(int olddirfd, const char *uoldpath, int newdirfd, const char *u
     mnt_put_write(parent.mount);
 out_put:
     path_put(&parent);
+out_put_write:
     mnt_put_write(old_parent.mount);
 out_put_old:
     path_put(&old_parent);
