@@ -186,13 +186,14 @@ static void exit_reparent_children(struct process *task, struct list_head *reap)
     }
 }
 
-static void exit_do_ctid(void)
+void do_cleartid(void)
 {
     if (current->ctid)
     {
         pid_t to_write = 0;
         copy_to_user(current->ctid, &to_write, sizeof(to_write));
         futex_wake((int *) current->ctid, INT_MAX);
+        current->ctid = NULL;
     }
 }
 
@@ -254,7 +255,7 @@ __attribute__((noreturn)) void do_exit(unsigned int exit_code)
     current->flags |= PROCESS_EXITING;
 
     exit_coredump();
-    exit_do_ctid();
+    do_cleartid();
     exit_files(current);
     exit_fs(current);
     exit_mmap();
