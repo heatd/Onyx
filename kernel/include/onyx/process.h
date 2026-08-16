@@ -616,6 +616,8 @@ static inline bool fatal_signal_pending(void)
     return signal_is_pending() && sigismember(&get_current_process()->sigqueue.pending, SIGKILL);
 }
 
+void do_cleartid(void);
+
 __END_CDECLS
 
 #ifdef __cplusplus

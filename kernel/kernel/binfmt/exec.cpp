@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2025 Pedro Falcato
+ * Copyright (c) 2020 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -297,6 +297,10 @@ int flush_old_exec(struct binfmt_args *args)
     st = zap_threads_exec();
     if (st < 0)
         return st;
+
+    /* Do cleartid here as well (it's not supposed to be done _just_ at exit, but also at exec mm
+     * switch time), before we ditch the mm. */
+    do_cleartid();
 
     rcu_assign_pointer(state->new_address_space->mm_exe, args->file);
     fd_get(args->file);
