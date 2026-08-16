@@ -5,7 +5,7 @@
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
-
+#define DEFINE_CURRENT
 #include <assert.h>
 #include <errno.h>
 #include <libgen.h>
@@ -676,8 +676,6 @@ void exit_files(struct process *process)
 
 int alloc_fd(int fdbase)
 {
-    auto current = get_current_process();
-
     if (fdbase < 0 || fdbase == INT_MAX ||
         (unsigned int) fdbase >= current->get_rlimit(RLIMIT_NOFILE).rlim_cur)
         return -EBADF;
@@ -920,7 +918,6 @@ out_error:
 int sys_dup23_internal(int oldfd, int newfd, int dupflags, unsigned int flags)
 {
     // printk("pid %d oldfd %d newfd %d\n", get_current_process()->pid, oldfd, newfd);
-    struct process *current = get_current_process();
     struct ioctx *ioctx = current->ctx;
     struct fd_table *table;
 
@@ -1196,7 +1193,7 @@ int sys_ioctl(int fd, int request, char *argp)
         return -errno;
     }
 
-    int ret = ioctl_vfs(request, argp, f);
+    int ret = ioctl_vfs(fd, request, argp, f);
 
     fd_put(f);
     return ret;
@@ -1526,7 +1523,6 @@ int sys_chdir(const char *upath)
         return -errno;
 
     int st = 0;
-    struct process *current;
     struct fsctx *ctx;
     struct path newdir, old;
     st = path_openat(AT_FDCWD, path, LOOKUP_MUST_BE_DIR, &newdir);
@@ -1541,7 +1537,6 @@ int sys_chdir(const char *upath)
         goto out;
     }
 
-    current = get_current_process();
     ctx = current->fs;
 
     spin_lock(&ctx->cwd_lock);
@@ -1582,10 +1577,7 @@ int sys_fchdir(int fildes)
         goto out;
     }
 
-    struct process *current;
     struct fsctx *ctx;
-
-    current = get_current_process();
     ctx = current->fs;
 
     spin_lock(&ctx->cwd_lock);
@@ -1858,7 +1850,6 @@ ssize_t sys_readlink(const char *pathname, char *buf, size_t bufsiz)
 
 mode_t sys_umask(mode_t mask)
 {
-    struct process *current = get_current_process();
     spin_lock(&current->fs->cwd_lock);
     mode_t old = current->fs->umask;
     WRITE_ONCE(current->fs->umask, mask & 0777);
@@ -2204,6 +2195,17 @@ int sys_fstatfs(int fd, struct statfs *ubuf)
         return -errno;
 
     return core_statfs(f.get_file()->f_ino, ubuf);
+}
+
+void set_cloexec(int fd, int on)
+{
+    struct ioctx *ctx = current->ctx;
+    struct fd_table *table;
+
+    spin_lock(&ctx->fdlock);
+    table = rcu_dereference_protected(ctx->table, lockdep_is_held(&ctx->fdlock));
+    fd_set_cloexec(fd, on, table);
+    spin_unlock(&ctx->fdlock);
 }
 
 static struct slab_cache *file_cache = nullptr;

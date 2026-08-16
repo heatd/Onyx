@@ -100,7 +100,7 @@ void close_vfs(struct inode *ino);
 int getdents_vfs(unsigned int count, putdir_t putdir, struct dirent *dirp, off_t off,
                  struct getdents_ret *ret, struct file *file);
 
-int ioctl_vfs(int request, char *argp, struct file *file);
+int ioctl_vfs(int fd, int request, char *argp, struct file *file);
 
 int stat_vfs(struct stat *buf, const struct path *path);
 

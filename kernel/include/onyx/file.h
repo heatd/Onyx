@@ -69,6 +69,8 @@ static inline unsigned int open_to_file_access_flags(int open_flgs)
 
 bool fd_may_access(struct file *f, unsigned int access);
 
+void set_cloexec(int fd, int on);
+
 __END_CDECLS
 
 #ifdef __cplusplus
