@@ -1403,7 +1403,7 @@ int unlink_vfs(const char *path, int flags, int dirfd)
 
     st = mnt_get_write_access(parent.mount);
     if (st)
-        goto out_release_write;
+        goto out_dput;
 
     /* Do the actual fs unlink */
     st = inode->i_op->unlink(_name, flags, dentry);
