@@ -221,12 +221,14 @@ static enum pageout_result pageout(struct reclaim_data *data, struct page *page,
 }
 
 static enum lru_result shrink_page(struct reclaim_data *data,
-                                   struct page *page) NO_THREAD_SAFETY_ANALYSIS
+                                   struct folio *folio) NO_THREAD_SAFETY_ANALYSIS
 {
-    if (!try_lock_page(page))
+    struct page *page = folio_to_page(folio);
+
+    if (!folio_try_lock(folio))
         return LRU_ROTATE;
 
-    if (page_test_swap(page) && !page->owner)
+    if (folio_test_swap(folio) && !folio->owner)
     {
         /* Huh. Incomplete swapcache page? Skip. */
         goto rotate;
@@ -239,7 +241,7 @@ static enum lru_result shrink_page(struct reclaim_data *data,
     /* Always activate executable pages or (actively) shared pages */
     if (vm_flags & VM_EXEC || refs > 1)
     {
-        unlock_page(page);
+        folio_unlock(folio);
         return LRU_ACTIVATE;
     }
 
@@ -250,20 +252,20 @@ static enum lru_result shrink_page(struct reclaim_data *data,
     if (refs > 0)
     {
         /* Activate a referenced page with pte refs, or reference it if not referenced yet */
-        unlock_page(page);
-        if (page_test_referenced(page))
+        folio_unlock(folio);
+        if (folio_test_referenced(folio))
             return LRU_ACTIVATE;
-        page_set_referenced(page);
+        folio_set_referenced(folio);
         return LRU_ROTATE;
     }
 
-    if (page_test_referenced(page))
+    if (folio_test_referenced(folio))
     {
-        page_clear_referenced(page);
+        folio_clear_referenced(folio);
         goto rotate;
     }
 
-    if (page_flag_set(page, PAGE_FLAG_ANON) && !page_test_swap(page))
+    if (folio_test_anon(folio) && !folio_test_swap(folio))
     {
         int err = swap_add(page);
         if (err < 0)
@@ -274,24 +276,24 @@ static enum lru_result shrink_page(struct reclaim_data *data,
      * will know to demote the page back to INACTIVE head, so we look at it again (hopefully
      * clean). */
 
-    if (page_mapcount(page) > 0)
+    if (folio_mapcount(folio) > 0)
         rmap_try_to_unmap(page);
 
-    if (page_mapcount(page) > 0)
+    if (folio_mapcount(folio) > 0)
     {
         /* We failed to unmap it all :( Rotate the page */
         goto rotate;
     }
 
-    if (page_flag_set(page, PAGE_FLAG_ANON))
-        WARN_ON(!page_test_swap(page));
+    if (folio_test_anon(folio))
+        WARN_ON(!folio_test_swap(folio));
 
     page_set_reclaim(page);
 
     obj = page_vmobj(page);
-    if (page_flag_set(page, PAGE_FLAG_DIRTY))
+    if (folio_test_dirty(folio))
     {
-        DCHECK_PAGE(obj, page);
+        DCHECK_FOLIO(obj, folio);
         enum pageout_result res = pageout(data, page, obj);
         switch (res)
         {
@@ -300,24 +302,23 @@ static enum lru_result shrink_page(struct reclaim_data *data,
             }
 
             case PAGE_ACTIVATE: {
-                unlock_page(page);
+                folio_unlock(folio);
                 return LRU_ACTIVATE;
             }
 
             case PAGE_WRITTEN: {
                 /* Check if the write was synchronous, or if it somehow has completed already. If
                  * so, try to reclaim it synchronously. */
-                if (page_flag_set(page, PAGE_FLAG_DIRTY))
+                if (folio_test_dirty(folio))
                     goto rotate_unlocked;
-                if (page_flag_set(page, PAGE_FLAG_WRITEBACK))
+                if (folio_test_writeback(folio))
                     goto rotate_unlocked;
 
-                if (!try_lock_page(page))
+                if (!folio_try_lock(folio))
                     goto rotate_unlocked;
 
                 /* Repeat these checks */
-                if (page_flag_set(page, PAGE_FLAG_DIRTY) ||
-                    page_flag_set(page, PAGE_FLAG_WRITEBACK))
+                if (folio_test_dirty(folio) || folio_test_writeback(folio))
                     goto rotate;
 
                 /* We can reclaim it, keep going! */
@@ -326,20 +327,20 @@ static enum lru_result shrink_page(struct reclaim_data *data,
         }
     }
 
-    if (page_flag_set(page, PAGE_FLAG_WRITEBACK))
+    if (folio_test_writeback(folio))
     {
         /* No can do. */
-        unlock_page(page);
+        folio_unlock(folio);
         return LRU_ACTIVATE;
     }
 
-    if (obj && page_test_buffer(page))
+    if (obj && folio_test_buffer(folio))
     {
         WARN_ON(!obj->ops->release_folio);
-        if (!obj->ops->release_folio(page_folio(page), GFP_NOFS))
+        if (!obj->ops->release_folio(folio, GFP_NOFS))
         {
             /* Can't free, oops. */
-            unlock_page(page);
+            folio_unlock(folio);
             return LRU_ROTATE;
         }
     }
@@ -350,27 +351,27 @@ static enum lru_result shrink_page(struct reclaim_data *data,
     if (!obj || !vm_obj_remove_page(obj, page))
     {
         /* If we failed to remove the page, it's busy */
-        unlock_page(page);
+        folio_unlock(folio);
         return LRU_ROTATE;
     }
 
-    unlock_page(page);
-    DCHECK(page->ref == 0);
+    folio_unlock(folio);
+    DCHECK(folio->ref == 0);
     /* One ref for "us". ideally we would be able to free frozen pages, but we can't. */
     page_ref_unfreeze(page, 1);
-    if (!page_flag_set(page, PAGE_FLAG_ANON))
-        dec_page_stat(page, NR_FILE);
+    if (!folio_test_anon(folio))
+        dec_folio_stat(folio, NR_FILE);
 
-    list_remove(&page->lru_node);
-    page_clear_lru(page);
-    page_clear_swap(page);
+    list_remove(&folio->lru_node);
+    folio_clear_lru(folio);
+    folio_clear_swap(folio);
     if (obj->ops->free_page)
         obj->ops->free_page(obj, page);
     else
         free_page(page);
     return LRU_SHRINK;
 rotate:
-    unlock_page(page);
+    folio_unlock(folio);
 rotate_unlocked:
     return LRU_ROTATE;
 }
@@ -495,7 +496,7 @@ static unsigned long shrink_page_list(struct reclaim_data *data, struct page_lru
         DCHECK_FOLIO(!folio_test_lru(folio), folio);
 
         folio_size = folio_nr_pages(folio);
-        enum lru_result res = shrink_page(data, folio_to_page(folio));
+        enum lru_result res = shrink_page(data, folio);
         if (res == LRU_ROTATE)
         {
             list_remove(&folio->lru_node);
