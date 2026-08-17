@@ -8,6 +8,7 @@
 #include <stdio.h>
 
 #include <onyx/filemap.h>
+#include <onyx/folio_batch.h>
 #include <onyx/mm/kasan.h>
 #include <onyx/mm/page_node.h>
 #include <onyx/mm/reclaim.h>
@@ -180,6 +181,9 @@ void bug_on_page(struct page *page, const char *expr, const char *file, unsigned
 #define DCHECK_PAGE(expr, page) \
     if (unlikely(!(expr)))      \
         bug_on_page(page, #expr, __FILE__, __LINE__, __func__);
+#define DCHECK_FOLIO(expr, folio) \
+    if (unlikely(!(expr)))        \
+        bug_on_page(folio_to_page(folio), #expr, __FILE__, __LINE__, __func__);
 
 enum pageout_result
 {
@@ -430,25 +434,30 @@ static inline int page_to_state(struct page *page)
     return page_flag_set(page, PAGE_FLAG_ANON) ? LRU_ANON_OFF : 0;
 }
 
+static inline int folio_to_state(struct folio *folio)
+{
+    return folio_test_anon(folio) ? LRU_ANON_OFF : 0;
+}
+
 static void isolate_pages(struct page_lru *lru, enum lru_state list, struct list_head *page_list,
                           unsigned long nr_pages)
 {
     DEFINE_LIST(rotate_list);
     list_for_every_safe (&lru->lru_lists[list])
     {
-        struct page *page = container_of(l, struct page, lru_node);
-        if (page_flag_set(page, PAGE_FLAG_REFERENCED))
+        struct folio *folio = container_of(l, struct folio, lru_node);
+        if (folio_test_referenced(folio))
         {
             /* Rotate it (dont even attempt to isolate the page) */
-            page_clear_referenced(page);
-            list_remove(&page->lru_node);
-            list_add_tail(&page->lru_node, &rotate_list);
+            folio_clear_referenced(folio);
+            list_remove(&folio->lru_node);
+            list_add_tail(&folio->lru_node, &rotate_list);
             continue;
         }
 
-        WARN_ON(page_flag_set(page, PAGE_BUDDY));
+        WARN_ON(folio_flag_set(folio, PAGE_BUDDY));
 
-        if (!page_test_lru(page))
+        if (!folio_test_lru(folio))
         {
             /* We *cannot* remove a page off the LRU if flag-wise it's not even there. That will
              * cause problems with the page batching logic. Note that this does not race because we
@@ -458,12 +467,12 @@ static void isolate_pages(struct page_lru *lru, enum lru_state list, struct list
 
         /* It's possible to be on the LRU with 0 references, since removing from the LRU is part of
          * the process of whacking a folio/page. */
-        if (!page_try_get(page))
+        if (!page_try_get(folio_to_page(folio)))
             continue;
-        page_clear_lru(page);
-        list_remove(&page->lru_node);
-        dec_page_stat(page, NR_INACTIVE_FILE + page_to_state(page));
-        list_add_tail(&page->lru_node, page_list);
+        folio_clear_lru(folio);
+        list_remove(&folio->lru_node);
+        dec_folio_stat(folio, NR_INACTIVE_FILE + folio_to_state(folio));
+        list_add_tail(&folio->lru_node, page_list);
         if (--nr_pages == 0)
             break;
     }
@@ -471,51 +480,33 @@ static void isolate_pages(struct page_lru *lru, enum lru_state list, struct list
     list_splice_tail(&rotate_list, &lru->lru_lists[list]);
 }
 
-struct pagebatch
-{
-    struct page *batch[32];
-    int nr;
-};
-
-static bool page_batch_add(struct pagebatch *batch, struct page *page)
-{
-    batch->batch[batch->nr++] = page;
-    return batch->nr == 32;
-}
-
-static void page_unref_batch(struct pagebatch *batch)
-{
-    /* LRU lock *is not held* */
-    for (int i = 0; i < batch->nr; i++)
-        page_unref(batch->batch[i]);
-    batch->nr = 0;
-}
-
 static unsigned long shrink_page_list(struct reclaim_data *data, struct page_lru *lru,
                                       struct list_head *page_list)
 {
     DEFINE_LIST(rotate_list);
     DEFINE_LIST(activate_list);
-    struct pagebatch free_batch;
-    unsigned long freedp = 0;
+    struct folio_batch free_batch;
+    unsigned long freedp = 0, folio_size;
 
-    free_batch.nr = 0;
+    folio_batch_init(&free_batch);
     list_for_every_safe (page_list)
     {
-        struct page *page = container_of(l, struct page, lru_node);
-        DCHECK_PAGE(!page_flag_set(page, PAGE_FLAG_LRU), page);
-        enum lru_result res = shrink_page(data, page);
+        struct folio *folio = container_of(l, struct folio, lru_node);
+        DCHECK_FOLIO(!folio_test_lru(folio), folio);
+
+        folio_size = folio_nr_pages(folio);
+        enum lru_result res = shrink_page(data, folio_to_page(folio));
         if (res == LRU_ROTATE)
         {
-            list_remove(&page->lru_node);
-            list_add_tail(&page->lru_node, &rotate_list);
+            list_remove(&folio->lru_node);
+            list_add_tail(&folio->lru_node, &rotate_list);
         }
         else if (res == LRU_SHRINK)
-            freedp++;
+            freedp += folio_size;
         else if (res == LRU_ACTIVATE)
         {
-            list_remove(&page->lru_node);
-            list_add_tail(&page->lru_node, &activate_list);
+            list_remove(&folio->lru_node);
+            list_add_tail(&folio->lru_node, &activate_list);
         }
     }
 
@@ -525,38 +516,40 @@ static unsigned long shrink_page_list(struct reclaim_data *data, struct page_lru
     spin_lock(&lru->lock);
     list_for_every_safe (&rotate_list)
     {
-        struct page *page = container_of(l, struct page, lru_node);
-        list_remove(&page->lru_node);
-        list_add_tail(&page->lru_node, &lru->lru_lists[LRU_INACTIVE_FILE + page_to_state(page)]);
-        page_set_lru(page);
-        inc_page_stat(page, NR_INACTIVE_FILE + page_to_state(page));
-        if (page_batch_add(&free_batch, page))
+        struct folio *folio = container_of(l, struct folio, lru_node);
+
+        list_remove(&folio->lru_node);
+        list_add_tail(&folio->lru_node, &lru->lru_lists[LRU_INACTIVE_FILE + folio_to_state(folio)]);
+        folio_set_lru(folio);
+        inc_folio_stat(folio, NR_INACTIVE_FILE + folio_to_state(folio));
+        if (!folio_batch_add(&free_batch, folio))
         {
             spin_unlock(&lru->lock);
-            page_unref_batch(&free_batch);
+            folio_end_batch(&free_batch);
             spin_lock(&lru->lock);
         }
     }
 
     list_for_every_safe (&activate_list)
     {
-        struct page *page = container_of(l, struct page, lru_node);
-        list_remove(&page->lru_node);
-        page_set_flag(page, PAGE_FLAG_ACTIVE);
-        inc_page_stat(page, NR_ACTIVE_FILE + page_to_state(page));
-        page_clear_referenced(page);
-        list_add_tail(&page->lru_node, &lru->lru_lists[LRU_ACTIVE_FILE + page_to_state(page)]);
-        page_set_lru(page);
-        if (page_batch_add(&free_batch, page))
+        struct folio *folio = container_of(l, struct folio, lru_node);
+
+        list_remove(&folio->lru_node);
+        folio_set_active(folio);
+        inc_folio_stat(folio, NR_ACTIVE_FILE + folio_to_state(folio));
+        folio_clear_referenced(folio);
+        list_add_tail(&folio->lru_node, &lru->lru_lists[LRU_ACTIVE_FILE + folio_to_state(folio)]);
+        folio_set_lru(folio);
+        if (!folio_batch_add(&free_batch, folio))
         {
             spin_unlock(&lru->lock);
-            page_unref_batch(&free_batch);
+            folio_end_batch(&free_batch);
             spin_lock(&lru->lock);
         }
     }
 
     spin_unlock(&lru->lock);
-    page_unref_batch(&free_batch);
+    folio_end_batch(&free_batch);
 out:
     return freedp;
 }
