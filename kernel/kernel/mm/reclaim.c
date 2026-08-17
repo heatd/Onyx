@@ -393,29 +393,33 @@ static void shrink_active_list(struct page_node *node, enum lru_state lru_list,
     /* Attempt to shrink the active list such that we hit target_inactive */
     struct page_lru *lru = &zone->zone_lru;
     enum lru_state inactive = lru_list - 1;
-    spin_lock(&lru->lock);
-    DCHECK(target_inactive > pagestats[NR_INACTIVE_FILE + inactive]);
     unsigned long to_move = target_inactive - pagestats[NR_INACTIVE_FILE + inactive];
+    struct folio *folio;
+
+    DCHECK(target_inactive > pagestats[NR_INACTIVE_FILE + inactive]);
+    spin_lock(&lru->lock);
+
     list_for_every_safe (&lru->lru_lists[lru_list])
     {
-        if (to_move-- == 0)
+        if (to_move == 0)
             break;
-        struct page *page = container_of(l, struct page, lru_node);
+        folio = container_of(l, struct folio, lru_node);
+        to_move -= min(folio_nr_pages(folio), to_move);
         /* Referenced? rotate it back to the list's tail. If we're really desperate for inactive
          * pages, we'll be able to fetch again, no problem. */
-        if (page_flag_set(page, PAGE_FLAG_REFERENCED))
+        if (folio_test_referenced(folio))
         {
-            page_clear_referenced(page);
-            list_remove(&page->lru_node);
-            list_add_tail(&page->lru_node, &lru->lru_lists[lru_list]);
+            folio_clear_referenced(folio);
+            list_remove(&folio->lru_node);
+            list_add_tail(&folio->lru_node, &lru->lru_lists[lru_list]);
             continue;
         }
 
-        list_remove(&page->lru_node);
-        list_add_tail(&page->lru_node, &lru->lru_lists[inactive]);
-        page_clear_active(page);
-        dec_page_stat(page, NR_INACTIVE_FILE + lru_list);
-        inc_page_stat(page, NR_INACTIVE_FILE + inactive);
+        list_remove(&folio->lru_node);
+        list_add_tail(&folio->lru_node, &lru->lru_lists[inactive]);
+        folio_clear_active(folio);
+        dec_folio_stat(folio, NR_INACTIVE_FILE + lru_list);
+        inc_folio_stat(folio, NR_INACTIVE_FILE + inactive);
     }
 
     spin_unlock(&lru->lock);
