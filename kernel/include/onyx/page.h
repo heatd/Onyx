@@ -482,6 +482,11 @@ static __always_inline void folio_unlock(struct folio *folio) RELEASE(folio)
     unlock_page(folio_to_page(folio));
 }
 
+static __always_inline bool folio_try_lock(struct folio *folio) TRY_ACQUIRE(true, folio)
+{
+    return try_lock_page(folio_to_page(folio));
+}
+
 static __always_inline bool page_test_set_flag(struct page *p, unsigned long flag)
 {
     unsigned long word;
@@ -786,6 +791,11 @@ static inline void page_sub_mapcount(struct page *page)
 {
     if (__atomic_sub_fetch(&page->mapcount, 1, __ATOMIC_RELAXED) == -1U)
         page_unref(page);
+}
+
+static inline unsigned int folio_mapcount(struct folio *folio)
+{
+    return READ_ONCE(folio->mapcount) + 1;
 }
 
 void bug_on_page(struct page *page, const char *expr, const char *file, unsigned int line,
