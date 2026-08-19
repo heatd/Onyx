@@ -295,8 +295,8 @@ static int proc_statm_show(struct seq_file *m, void *ptr)
 
     /* Various TODO:s here. Resident shared pages isn't implemented, text pages isn't implemented,
      * data + stack pages isn't implemented. Pls fix. */
-    seq_printf(m, "%lu %lu %lu 0 0 0 0\n", READ_ONCE(mm->virtual_memory_size) / 1024,
-               READ_ONCE(mm->resident_set_size) / 1024, 0UL);
+    seq_printf(m, "%lu %lu %lu 0 0 0 0\n", READ_ONCE(mm->virtual_memory_size) >> PAGE_SHIFT,
+               READ_ONCE(mm->resident_set_size) >> PAGE_SHIFT, 0UL);
 
 out_nomm:
     process_put(task);
