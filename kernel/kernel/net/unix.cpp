@@ -917,7 +917,10 @@ void un_socket::disconnect_peer()
     }
 
     if (dst)
+    {
+        dst->signal_peer_nowr();
         dst->unref();
+    }
 }
 
 void un_socket::close()
