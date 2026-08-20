@@ -317,11 +317,11 @@ static int ext2_readpages(struct readpages_state *state,
     {
         const unsigned long pgoff = page->pageoff;
 
+        nr_ios = 0;
         if (st = ext2_map_page(page, pgoff << PAGE_SHIFT, ino); st < 0)
             goto out_err;
 
         DCHECK(page->priv != 0);
-        nr_ios = 0;
 
         for (struct block_buf *b = (struct block_buf *) page->priv; b != nullptr; b = b->next)
         {
