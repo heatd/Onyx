@@ -321,7 +321,7 @@ class un_socket : public socket
             return unexpected<int>{st};
 
         if (list_is_empty(&inbuf_list) && (shutdown_state & SHUTDOWN_RD || peer_nowr))
-            return unexpected<int>{-EPIPE};
+            return unexpected<int>{0};
 
         auto list_head = list_first_element(&inbuf_list);
         return container_of(list_head, packetbuf, list_node);
