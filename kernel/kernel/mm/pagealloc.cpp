@@ -834,6 +834,10 @@ static __always_inline void prepare_pages_after_alloc(struct page *page, unsigne
         page->flags = 0;
         page->priv = 0;
         page->next_un.next_allocation = nullptr;
+        /* Reset __head and __nr_pages. This makes sure order-0 (or !compound) allocations don't get
+         * stale heads from previous allocations. */
+        page->__head = 0;
+        page->__nr_pages = 0;
 
         if (flags & __GFP_COMP && order > 0)
         {
@@ -853,7 +857,6 @@ static __always_inline void prepare_pages_after_alloc(struct page *page, unsigne
         {
             if (last)
                 last->next_un.next_allocation = page;
-            page->owner = NULL;
         }
 
 #ifdef CONFIG_PAGE_OWNER
