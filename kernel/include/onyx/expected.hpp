@@ -17,6 +17,41 @@
 #define panic(...) abort()
 #endif
 
+#if __has_include(<source_location>)
+#include <source_location>
+using source_location = std::source_location;
+#else
+/* Polyfill a bogus source_location */
+class source_location
+{
+public:
+    static source_location current()
+    {
+        return {};
+    }
+
+    constexpr uint_least32_t line() const
+    {
+        return 0;
+    }
+
+    constexpr uint_least32_t column() const
+    {
+        return 0;
+    }
+
+    constexpr const char* file_name() const
+    {
+        return "placeholder";
+    }
+
+    constexpr const char* function_name() const
+    {
+        return "placeholder";
+    }
+};
+#endif
+
 #include <onyx/compiler.h>
 
 #include <onyx/utility.hpp>
@@ -123,10 +158,12 @@ public:
         return unlikely(!_has_value);
     }
 
-    constexpr _Type&& unwrap()
+    constexpr _Type&& unwrap(const source_location location = source_location::current())
     {
         if (has_error())
-            panic("Expected %p does not have a value\n", this);
+            panic("Expected %p (@ %s, %s:%u:%u) does not have a value\n", this,
+                  location.function_name(), location.file_name(), location.line(),
+                  location.column());
         return cul::move(t);
     }
 
