@@ -547,6 +547,9 @@ int vmo_truncate(vm_object *vmo, unsigned long size, unsigned long flags)
 {
     scoped_lock g{vmo->page_lock};
 
+    if (size == vmo->size)
+        return 0;
+
     if (size < vmo->size)
     {
         /* Truncating down. Release pages from the page cache */
