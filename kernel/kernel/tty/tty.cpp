@@ -1011,6 +1011,7 @@ static int console_open(struct file *f)
 }
 
 const file_ops console_fops = {.on_open = console_open};
+dev_t console_devnr;
 
 void tty_create_dev_console(tty *tty)
 {
@@ -1021,6 +1022,7 @@ void tty_create_dev_console(tty *tty)
 
     auto dev = ex.value();
     dev->private_ = (void *) tty;
+    console_devnr = dev->dev();
 
     dev->show(0666);
 }

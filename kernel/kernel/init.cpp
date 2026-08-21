@@ -46,6 +46,7 @@
 #include <onyx/ktrace.h>
 #include <onyx/log.h>
 #include <onyx/modules.h>
+#include <onyx/namei.h>
 #include <onyx/page.h>
 #include <onyx/pagecache.h>
 #include <onyx/paging.h>
@@ -106,6 +107,8 @@ static int try_exec_for(const char *init_path, const char **argv, const char **e
     return 0;
 }
 
+extern dev_t console_devnr;
+
 int find_and_exec_init(const char **argv, const char **envp)
 {
     struct process *proc = process_create("kernel", nullptr, nullptr);
@@ -125,20 +128,22 @@ int find_and_exec_init(const char **argv, const char **envp)
     sched_transition_to_user_thread(current_thread);
 
     proc->thr = current_thread;
-    // TODO: Should we open some sort of logging device (akin to /dev/console) by default?
-#if 0
-	/* Setup standard file descriptors (STDIN(0), STDOUT(1), STDERR(2)) */
-	
-	unsigned int flags[3] = {O_RDONLY, O_WRONLY, O_WRONLY};
+    dput(mknod_vfs("/console", S_IFCHR | 0755, console_devnr, AT_FDCWD).unwrap());
+    /* Setup standard file descriptors (STDIN(0), STDOUT(1), STDERR(2)) */
+    unsigned int flags[3] = {O_RDONLY, O_WRONLY, O_WRONLY};
 
-	for(int i = 0; i < 3; i++)
-	{
-		struct file *streams = open_vfs(get_fs_root(), "/dev/tty");
-	
-		assert(open_with_vnode(streams, flags[i]) == i);
-		fd_put(streams);
-	}
-#endif
+    for (int i = 0; i < 3; i++)
+    {
+        auto ex = vfs_open(AT_FDCWD, "/console", O_RDWR, 0);
+        if (ex.has_error())
+            panic("failed to open /dev/console: %d\n", ex.error());
+        struct file *streams = ex.value();
+
+        assert(open_with_vnode(streams, flags[i]) == i);
+        fd_put(streams);
+    }
+    unlink_vfs("/console", 0, AT_FDCWD);
+
     proc->fs->cwd = get_filesystem_root();
 
     if (init_prog)
