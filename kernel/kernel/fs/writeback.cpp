@@ -57,7 +57,6 @@ static int writeback_inode(struct inode *inode, unsigned int sync_flags)
     if (sync_flags & WB_FLAG_SYNC)
         winfo.flags |= WRITEPAGES_SYNC;
 
-    CHECK(inode->i_pages->ops->writepages != nullptr);
     unsigned int flags;
 
     DCHECK(inode->i_flags & I_WRITEBACK);
@@ -72,6 +71,8 @@ static int writeback_inode(struct inode *inode, unsigned int sync_flags)
     if (flags & I_DATADIRTY)
     {
         int st;
+
+        CHECK(inode->i_pages->ops->writepages != nullptr);
         if (sync_flags & WB_FLAG_SYNC)
             st = inode->i_fops->fsyncdata(inode, &winfo);
         else
