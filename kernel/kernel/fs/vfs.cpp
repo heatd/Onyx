@@ -724,13 +724,8 @@ int inode_init(struct inode *inode, bool is_cached)
     memset((void *) inode, 0, sizeof(struct inode));
 
     inode->i_refc = 1;
-    if (is_cached)
-    {
-        if (inode_create_vmo(inode) < 0)
-        {
-            return -ENOMEM;
-        }
-    }
+    if (inode_create_vmo(inode) < 0)
+        return -ENOMEM;
 
     spinlock_init(&inode->i_lock);
     rwlock_init(&inode->i_rwlock);
