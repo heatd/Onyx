@@ -306,6 +306,7 @@ int flush_old_exec(struct binfmt_args *args)
     fd_get(args->file);
     vm_set_aspace(state->new_address_space);
     curr->address_space = cul::move(state->new_address_space);
+    state->new_address_space = NULL;
     if (mm != &kernel_address_space)
         mmput(mm);
 
