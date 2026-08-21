@@ -52,6 +52,8 @@ public:
 };
 #endif
 
+#include <type_traits>
+
 #include <onyx/compiler.h>
 
 #include <onyx/utility.hpp>
@@ -161,9 +163,20 @@ public:
     constexpr _Type&& unwrap(const source_location location = source_location::current())
     {
         if (has_error())
-            panic("Expected %p (@ %s, %s:%u:%u) does not have a value\n", this,
-                  location.function_name(), location.file_name(), location.line(),
-                  location.column());
+        {
+            if constexpr (std::is_same_v<_ErrorType, int>)
+            {
+                panic("Expected %p (@ %s, %s:%u:%u) has error code %d\n", this,
+                      location.function_name(), location.file_name(), location.line(),
+                      location.column(), e);
+            }
+            else
+            {
+                panic("Expected %p (@ %s, %s:%u:%u) does not have a value\n", this,
+                      location.function_name(), location.file_name(), location.line(),
+                      location.column());
+            }
+        }
         return cul::move(t);
     }
 
