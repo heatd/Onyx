@@ -300,11 +300,16 @@ void kernel_multitasking(void *arg)
     vm_sysfs_init();
 
     /* Pass the root partition to init */
-    auto root = cul::string("--root=");
-    root.append(root_dev);
-    if (!root)
-        panic("out of memory in early boot");
-    const char *args[] = {(char *) "", root.c_str(), nullptr};
+    cul::string root;
+    if (root_dev)
+    {
+        root = cul::string("--root=");
+        root.append(root_dev);
+        if (!root)
+            panic("out of memory in early boot");
+    }
+
+    const char *args[] = {(char *) "", root.empty() ? nullptr : root.c_str(), nullptr};
     const char *envp[] = {"PATH=/bin:/usr/bin:/sbin:/usr/sbin:", "TERM=linux", "LANG=C", "PWD=/",
                           nullptr};
 
