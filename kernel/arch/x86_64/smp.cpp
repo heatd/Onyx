@@ -59,7 +59,18 @@ void boot(unsigned int cpu)
     s->thread_stack = (unsigned long) thread_stack;
 
     if (apic_wake_up_processor(static_cast<uint8_t>(cpu2lapicid(cpu)), s))
-        smp::set_online(cpu);
+    {
+        hrtime_t start = clocksource_get_time();
+        while (!smp::get_online_cpumask().is_cpu_set_atomic(cpu))
+        {
+            if (start + NS_PER_SEC < clocksource_get_time())
+            {
+                pr_err("x86/smp: waiting for cpu%u to come online timed out...\n", cpu);
+                break;
+            }
+            cpu_relax();
+        }
+    }
 
     inited_cpus.set_cpu(cpu);
 }
