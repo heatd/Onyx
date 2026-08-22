@@ -49,10 +49,14 @@ else
 #     use quite often.
 # -Wno-missing-braces: Seems broken? At least it started spitting out weird ones for IPv6 code(IN6ADDR_ALL_NODES)
 #	  in onyx/net/ipv6.h
+# -Wno-return-type-c-linkage: This is horrible. It started to show up on smp.h;
+#   smp_online_cpumask() is extern "C" and passes a non-POD (struct cpumask) across it;
+#   this is super smelly. It can change ABI. It seems to work. Disable it For Now.
 CFLAGS:=$(CFLAGS) -Wno-null-pointer-arithmetic -Wno-unknown-attributes -Wno-error=unused-private-field \
 	-Wno-missing-braces -Wno-c99-designator -Wthread-safety -Wno-thread-safety-precise \
 	-Wno-include-angled-in-module-purview -Wno-c++11-narrowing-const-reference \
-	-Wno-single-bit-bitfield-constant-conversion -Wno-error=thread-safety-analysis
+	-Wno-single-bit-bitfield-constant-conversion -Wno-error=thread-safety-analysis \
+	-Wno-return-type-c-linkage
 endif
 
 # NOTE: I don't think pointer-overflow works with kernel pointers
