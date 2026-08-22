@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Pedro Falcato
+ * Copyright (c) 2025 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -24,6 +24,8 @@ int nla_put_u32(struct packetbuf *pbf, u16 type, u32 data);
 
 void rtnl_lock(void);
 void rtnl_unlock(void);
+struct packetbuf *rtnl_start_broadcast(u32 group);
+void rtnl_end_broadcast(struct packetbuf *pbf, u32 group);
 
 __END_CDECLS
 #endif

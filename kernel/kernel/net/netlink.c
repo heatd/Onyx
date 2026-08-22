@@ -75,6 +75,9 @@ static void netlink_destroy(struct socket *sock)
         spin_unlock(&nlhash_lock);
     }
 
+    if (nlsk->groups > 0)
+        do_rtnetlink_unbind(nlsk, nlsk->groups);
+
     list_for_each_entry_safe (pbf, next, &nlsk->buf_list, list_node)
     {
         list_remove(&pbf->list_node);
@@ -342,11 +345,27 @@ static int netlink_bind(struct socket *sock, struct sockaddr *addr, socklen_t ad
 
     nlsk = container_of(sock, struct netlink_sock, sock);
     nlsk->pid = nladdr->nl_pid;
+
+    if (nladdr->nl_groups > 0)
+    {
+        if (!is_root_user())
+        {
+            err = -EPERM;
+            goto out;
+        }
+
+        if (nlsk->sock.proto == NETLINK_ROUTE)
+        {
+            err = do_rtnetlink_bind(nlsk, nladdr);
+            if (err)
+                goto out;
+        }
+    }
+
     nlsk->groups = nladdr->nl_groups;
     list_add_tail(&nlsk->bind_node, &nlhash[nl_pid_hash(nlsk->pid)]);
     err = 0;
     sock->bound = true;
-    /* TODO: handle groups */
 out:
     spin_unlock(&nlhash_lock);
     return err;
@@ -373,6 +392,35 @@ out:
     return err;
 }
 
+static void netlink_rx_dtor(struct packetbuf *pbf)
+{
+    sock_discharge_rmem_pbf(pbf->sock, pbf);
+}
+
+void netlink_rcv_pbf(struct netlink_sock *nlsk, struct packetbuf *pbf)
+{
+    /* Make sure we charge rmem and add a dtor */
+    if (!sock_charge_rmem_pbf(&nlsk->sock, pbf))
+        return;
+    pbf->sock = &nlsk->sock;
+    pbf->dtor = netlink_rx_dtor;
+
+    list_add_tail(&pbf->list_node, &nlsk->buf_list);
+    wait_queue_wake_all(&nlsk->wq);
+}
+
+static void netlink_handle_backlog(struct socket *sock)
+{
+    struct netlink_sock *nlsk = (struct netlink_sock *) sock;
+    struct packetbuf *pbf, *next;
+
+    list_for_each_entry_safe (pbf, next, &sock->socket_backlog, list_node)
+    {
+        list_remove(&pbf->list_node);
+        netlink_rcv_pbf(nlsk, pbf);
+    }
+}
+
 static const struct socket_ops netlink_ops = {
     .destroy = netlink_destroy,
     .listen = sock_default_listen,
@@ -388,6 +436,7 @@ static const struct socket_ops netlink_ops = {
     .shutdown = sock_default_shutdown,
     .close = sock_default_close,
     .poll = netlink_poll,
+    .handle_backlog = netlink_handle_backlog,
 };
 
 struct socket *netlink_create_socket(int type)
