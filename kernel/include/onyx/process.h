@@ -117,6 +117,8 @@ struct signal_struct
     unsigned long nivcsw;
     unsigned long cnvcsw;
     unsigned long cnivcsw;
+    unsigned long maxrss;
+    unsigned long cmaxrss;
     struct core_state *core_state;
 };
 
@@ -573,6 +575,8 @@ void process_append_to_global_list(struct process *p);
 
 void exit_fs(struct process *p);
 void exit_sighand(struct process *p);
+
+void mm_save_maxrss(struct mm_address_space *mm);
 
 /**
  * @brief Zap the current process' threads and swap pids

@@ -64,9 +64,20 @@ void exit_sighand(struct process *p)
         kfree(s);
 }
 
+void mm_save_maxrss(struct mm_address_space *mm)
+{
+    unsigned long maxrss;
+
+    maxrss = max(READ_ONCE(mm->hiwater_rss), mm->resident_set_size);
+    if (maxrss > current->sig->maxrss)
+        current->sig->maxrss = maxrss;
+}
+
 static void exit_mmap(void)
 {
     struct mm_address_space *mm = current->address_space;
+
+    mm_save_maxrss(mm);
     spin_lock(&current->alloc_lock);
     current->address_space = &kernel_address_space;
     spin_unlock(&current->alloc_lock);
@@ -475,6 +486,7 @@ static int do_getrusage(int who, struct rusage *usage, struct process *proc)
 {
     struct process *task;
     struct signal_struct *sig = proc->sig;
+    struct mm_address_space *mm;
     hrtime_t utime = 0;
     hrtime_t stime = 0;
     unsigned int seq = 0;
@@ -482,6 +494,7 @@ static int do_getrusage(int who, struct rusage *usage, struct process *proc)
 retry:
     read_seqbegin_or_lock(&sig->stats_lock, &seq);
     memset(usage, 0, sizeof(struct rusage));
+    mm = get_remote_mm(proc);
     utime = 0;
     stime = 0;
     switch (who)
@@ -493,6 +506,7 @@ retry:
             usage->ru_minflt = proc->sig->cminflt;
             usage->ru_nvcsw = proc->sig->cnvcsw;
             usage->ru_nivcsw = proc->sig->cnivcsw;
+            usage->ru_maxrss = sig->cmaxrss;
             if (who == RUSAGE_CHILDREN)
                 break;
 
@@ -504,6 +518,17 @@ retry:
             usage->ru_minflt += READ_ONCE(sig->minflt);
             usage->ru_nvcsw += sig->nvcsw;
             usage->ru_nivcsw += sig->nivcsw;
+            usage->ru_maxrss = max((long) sig->maxrss, usage->ru_maxrss);
+            if (mm)
+            {
+                /* if the mm is still alive, grab the max of:
+                 * 1) whatever is stored in sig->maxrss (e.g past dead mm)
+                 * 2) whatever is possibly the highest rss we've seen
+                 * 3) current rss
+                 */
+                usage->ru_maxrss = max((long) READ_ONCE(mm->hiwater_rss), usage->ru_maxrss);
+                usage->ru_maxrss = max((long) READ_ONCE(mm->resident_set_size), usage->ru_maxrss);
+            }
             rcu_read_lock();
             for_each_thread (proc, task)
             {
@@ -518,9 +543,13 @@ retry:
             break;
 
         default:
+            if (mm)
+                mmput(mm);
             return -EINVAL;
     }
 
+    if (mm)
+        mmput(mm);
     if (read_seqretry(&sig->stats_lock, seq))
     {
         seq = 1;
@@ -530,6 +559,8 @@ retry:
     done_seqretry(&sig->stats_lock, seq);
     hrtime_to_timeval(utime, &usage->ru_utime);
     hrtime_to_timeval(stime, &usage->ru_stime);
+    /* We keep maxrss around in bytes; userspace wants kilobytes */
+    usage->ru_maxrss >>= 10;
     return 0;
 }
 
@@ -550,6 +581,10 @@ int sys_getrusage(int who, struct rusage *user_usage)
 static void process_accumulate_rusage(struct process *child, const struct rusage *usage)
 {
     struct signal_struct *sig = current->sig;
+    unsigned long maxrss;
+
+    /* ru_maxrss is in KB, we want bytes */
+    maxrss = usage->ru_maxrss << 10;
     write_seqlock(&sig->stats_lock);
     sig->cstime += timeval_to_hrtime(&usage->ru_stime);
     sig->cutime += timeval_to_hrtime(&usage->ru_utime);
@@ -557,6 +592,8 @@ static void process_accumulate_rusage(struct process *child, const struct rusage
     sig->cminflt += usage->ru_minflt;
     sig->cnivcsw += usage->ru_nivcsw;
     sig->cnvcsw += usage->ru_nvcsw;
+    if (maxrss > sig->cmaxrss)
+        sig->cmaxrss = maxrss;
     write_sequnlock(&sig->stats_lock);
 }
 
