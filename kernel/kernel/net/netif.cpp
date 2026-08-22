@@ -544,7 +544,7 @@ static int netif_dump_if(struct packetbuf *pbf, struct netif *iff, pid_t pid, u3
     msg->ifi_flags = 0;
 
     if (iff->flags & NETIF_LINKUP)
-        msg->ifi_flags |= IFF_UP;
+        msg->ifi_flags |= IFF_UP | IFF_RUNNING;
     if (iff->flags & NETIF_LOOPBACK)
         msg->ifi_flags |= IFF_LOOPBACK;
 
@@ -699,6 +699,25 @@ static int do_rtm_newaddr(struct netlink_sock *nlsk, struct packetbuf *pbf, stru
                           struct rtgenmsg *rth)
 {
     return -EOPNOTSUPP;
+}
+
+void net_link_status_notify(struct work_struct *work)
+{
+    struct netif *netif = container_of(work, struct netif, link_status_work);
+    struct packetbuf *pbf;
+    int err = 0;
+
+    rtnl_lock();
+    pbf = rtnl_start_broadcast(RTNLGRP_LINK);
+    err = netif_dump_if(pbf, netif, 0, 0);
+    if (err)
+    {
+        pbf_free(pbf);
+        goto out;
+    }
+    rtnl_end_broadcast(pbf, RTNLGRP_LINK);
+out:
+    rtnl_unlock();
 }
 
 void netif_init_netkernel()

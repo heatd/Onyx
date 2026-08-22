@@ -21,6 +21,8 @@ struct netif;
 
 #include <onyx/rculist.h>
 
+#include <linux/workqueue.h>
+#undef clamp
 #include <uapi/if_addr.h>
 #include <uapi/netinet.h>
 #include <uapi/socket.h>
@@ -77,6 +79,8 @@ struct if_inet6_addr
 
 #define INET6_ADDR_DEFINED_MASK (INET6_ADDR_LOCAL | INET6_ADDR_GLOBAL)
 
+void net_link_status_notify(struct work_struct *work);
+
 struct netif
 {
     const char *name;
@@ -105,6 +109,7 @@ struct netif
 #else
     void *__dll_ops;
 #endif
+    struct work_struct link_status_work;
 
 #ifdef __cplusplus
     netif()
@@ -114,6 +119,7 @@ struct netif
     {
         INIT_LIST_HEAD(&inet_addr_list);
         INIT_LIST_HEAD(&inet6_addr_list);
+        INIT_WORK(&link_status_work, net_link_status_notify);
     }
 #endif
 };
