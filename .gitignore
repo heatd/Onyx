@@ -2,7 +2,7 @@
 *.lo
 *.img
 daemon
-*.map
+Kernel.map
 kernel/vmonyx-*
 *.iso
 isodir

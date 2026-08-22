@@ -1,0 +1,32 @@
+import("//build/app.gni")
+
+config("libmnl_config") {
+  include_dirs = [ "include" ]
+}
+
+config("libmnl_sover") {
+  ldflags = [ "-Wl,--version-script=" +
+              rebase_path("src/libmnl.map", root_build_dir) ]
+}
+
+source_set("libmnl_sources") {
+  sources = [
+    "src/attr.c",
+    "src/callback.c",
+    "src/nlmsg.c",
+    "src/socket.c",
+  ]
+  public_configs = [ ":libmnl_config" ]
+}
+
+static_library("libmnl_static") {
+  deps = [ ":libmnl_sources" ]
+  output_name = "libmnl"
+}
+
+app_shared_library("libmnl") {
+  package_name = "libmnl"
+  output_name = "libmnl"
+  public_deps = [ ":libmnl_sources" ]
+  configs = [ ":libmnl_sover" ]
+}
