@@ -1,10 +1,11 @@
 /*
- * Copyright (c) 2020 - 2022 Pedro Falcato
- * This file is part of Onyx, and is released under the terms of the MIT License
+ * Copyright (c) 2020 - 2026 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
- * SPDX-License-Identifier: MIT
+ * SPDX-License-Identifier: GPL-2.0-only
  */
+
 #include <arpa/inet.h>
 #include <netinet/icmp6.h>
 #include <poll.h>
@@ -60,7 +61,7 @@ void configure_address_mac(netctl::instance &inst, in6_addr &addr)
     for (int i = 0; i < 3; i++)
         addr.s6_addr[13 + i] = mac[i + 3];
 
-        /* Then, we flip MSB bit 7 of the mac address */
+    /* Then, we flip MSB bit 7 of the mac address */
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
     addr.s6_addr[8] ^= (1 << 7);
 #else

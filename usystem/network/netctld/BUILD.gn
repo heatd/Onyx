@@ -11,7 +11,7 @@ app_executable("netctld_bin") {
               "src/v6/addrcfg.cpp" ]
     sys_dir = "/sbin"
 
-    deps = ["//json"]
+    deps = ["//json", "//lib/libmnl"]
 }
 
 copy("netctld_rule") {
