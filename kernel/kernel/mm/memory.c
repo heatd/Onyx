@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 - 2025 Pedro Falcato
+ * Copyright (c) 2024 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -594,6 +594,12 @@ static void tlbi_update_page_prots_huge_pmd(struct tlbi_tracker *tlbi, unsigned 
     tlbi_remove_page(tlbi, addr, NULL);
 }
 
+static void mm_calculate_hiwater_rss(struct mm_address_space *mm)
+{
+    if (mm->hiwater_rss < mm->resident_set_size)
+        mm->hiwater_rss = mm->resident_set_size;
+}
+
 static enum unmap_result pte_unmap_range(struct unmap_info *uinfo, pte_t *pte, unsigned long start,
                                          unsigned long end)
 {
@@ -860,6 +866,9 @@ static void pgd_unmap_range(struct unmap_info *uinfo, pgd_t *pgd, unsigned long 
                             unsigned long end)
 {
     unsigned long next_start;
+
+    if (!uinfo->kernel)
+        mm_calculate_hiwater_rss(uinfo->mm);
     for (; start < end; pgd++, start = next_start)
     {
         next_start = min(pgd_addr_end(start), end);
@@ -1323,6 +1332,7 @@ int try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 
     tlbi_tracker_init(&tlbi);
 
+    mm_calculate_hiwater_rss(mm);
     pte = ptep_get_locked(vma->vm_mm, addr, &lock);
     if (!pte)
         return 0;

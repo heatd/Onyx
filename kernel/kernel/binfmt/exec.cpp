@@ -302,6 +302,11 @@ int flush_old_exec(struct binfmt_args *args)
      * switch time), before we ditch the mm. */
     do_cleartid();
 
+    /* Save the old mm's peak RSS before we ditch it. maxrss is a property of the process, not of
+     * the mm, and must survive the exec. */
+    if (mm != &kernel_address_space)
+        mm_save_maxrss(mm);
+
     rcu_assign_pointer(state->new_address_space->mm_exe, args->file);
     fd_get(args->file);
     vm_set_aspace(state->new_address_space);

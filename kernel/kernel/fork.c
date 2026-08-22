@@ -160,6 +160,7 @@ static int dup_signal(struct process *child)
     sig->cutime = sig->cstime = sig->stime = sig->utime = 0;
     sig->majflt = sig->minflt = sig->cmajflt = sig->cminflt = 0;
     sig->nivcsw = sig->nvcsw = sig->cnivcsw = sig->cnvcsw = 0;
+    sig->maxrss = sig->cmaxrss = 0;
 
     /* Note: We don't dupe pgrp, session and pgrp here, because we don't hold the tasklist_lock */
     read_lock(&curr->rlimit_lock);

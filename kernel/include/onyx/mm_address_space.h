@@ -57,6 +57,7 @@ struct mm_address_space
     size_t shared_set_size;
     size_t page_faults;
     size_t page_tables_size;
+    size_t hiwater_rss;
 
     unsigned long arg_start;
     unsigned long arg_end;
@@ -86,6 +87,7 @@ struct mm_address_space
         page_tables_size = as.page_tables_size;
         arch_mmu = as.arch_mmu;
         active_mask = cul::move(as.active_mask);
+        hiwater_rss = as.hiwater_rss;
         rcu_assign_pointer(mm_exe, rcu_dereference(as.mm_exe));
         return *this;
     }
