@@ -30,11 +30,14 @@ struct nl_extack
 };
 
 void do_rtnetlink_send(struct netlink_sock *nlsk, struct packetbuf *pbf, struct nl_extack *extack);
+int do_rtnetlink_bind(struct netlink_sock *nlsk, struct sockaddr_nl *nladdr);
+void do_rtnetlink_unbind(struct netlink_sock *nlsk, u32 groups);
 
 struct nlmsghdr *nl_put(struct packetbuf *pbf, pid_t pid, u32 seq, u16 type, u16 flags, u32 len);
 int nl_done(struct packetbuf *pbf, pid_t pid, u32 seq, int err);
 void netlink_ack(struct netlink_sock *nlsk, struct packetbuf *in_pbf, struct nlmsghdr *msg, int err,
                  struct nl_extack *extack);
+void netlink_rcv_pbf(struct netlink_sock *nlsk, struct packetbuf *pbf);
 __END_CDECLS
 
 #endif
