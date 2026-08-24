@@ -143,8 +143,6 @@ int sys_arch_prctl(int code, unsigned long *addr)
     return 0;
 }
 
-constexpr bool adding_guard_page = false;
-
 struct pcpu_stack_cache
 {
     unsigned long stack[16];
@@ -180,22 +178,17 @@ static void *thread_alloc_stack(void)
     }
 
     sched_enable_preempt();
-    auto pages = adding_guard_page ? 6 : 4;
+    auto pages = 4;
     return vmalloc(pages, VM_TYPE_STACK, VM_READ | VM_WRITE, GFP_KERNEL);
 }
 
 extern "C" void thread_finish_destruction(struct rcu_head *head)
 {
     thread *thread = container_of(head, struct thread, rcu_head);
-
-#if 1
-    /* Destroy the kernel stack */
     unsigned long stack_base = ((unsigned long) thread->kernel_stack_top) - kernel_stack_size;
-    if (adding_guard_page)
-        stack_base -= PAGE_SIZE;
 
+    /* Destroy the kernel stack */
     thread_free_stack(stack_base);
-#endif
     /* Free the fpu area */
     free(thread->fpu_area);
 
@@ -228,16 +221,12 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
     if (is_user)
     {
         new_thread->fpu_area = (unsigned char *) fpu_allocate_state();
-
         if (!new_thread->fpu_area)
             goto error;
 
         memset(new_thread->fpu_area, 0, fpu_get_save_size());
-
         setup_fpu_area(new_thread->fpu_area);
-
         new_thread->addr_limit = VM_USER_ADDR_LIMIT;
-
         new_thread->owner = get_current_process();
         new_thread->set_aspace(get_current_address_space());
     }
@@ -258,19 +247,7 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
 
     new_thread->kernel_stack = thr_stack_alloc;
     if (!new_thread->kernel_stack)
-    {
         goto error;
-    }
-
-    if (adding_guard_page)
-    {
-        unsigned char *p = (unsigned char *) new_thread->kernel_stack;
-
-        // TODO: FIx, we can't mprotect in vmalloc
-        // vm_mprotect(&kernel_address_space, new_thread->kernel_stack, PAGE_SIZE, 0);
-        // vm_mprotect(&kernel_address_space, p + PAGE_SIZE + kernel_stack_size, PAGE_SIZE, 0);
-        new_thread->kernel_stack = (uintptr_t *) (p + PAGE_SIZE);
-    }
 
     new_thread->kernel_stack =
         reinterpret_cast<uintptr_t *>(((char *) new_thread->kernel_stack + kernel_stack_size));
