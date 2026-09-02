@@ -175,6 +175,11 @@ int nla_put_u32(struct packetbuf *pbf, u16 type, u32 data)
     return nla_put(pbf, type, sizeof(u32), &data);
 }
 
+int nla_put_in6(struct packetbuf *pbf, u16 type, struct in6_addr *addr)
+{
+    return nla_put(pbf, type, sizeof(struct in6_addr), addr);
+}
+
 static void free_rtnl_sub(u32 group, struct netlink_sock *nlsk)
 {
     struct rtnl_group_member *memb;
