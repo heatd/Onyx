@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2025 Pedro Falcato
+ * Copyright (c) 2020 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -15,6 +15,7 @@
 #include <onyx/net/udp.h>
 #include <onyx/random.h>
 
+#include <uapi/rtnetlink.h>
 #include <uapi/socket.h>
 
 namespace ip
@@ -196,4 +197,19 @@ int socket_table_init(socket_table *table, unsigned int size)
     for (i = 0; i < size; i++)
         spinlock_init(&table->lock_[i]);
     return 0;
+}
+
+int inet_getroute(struct netlink_sock *nlsk, struct packetbuf *pbf, struct nlmsghdr *nlh,
+                  struct rtgenmsg *rth)
+{
+    int err = 0;
+
+    if (rth->rtgen_family == AF_INET || rth->rtgen_family == AF_UNSPEC)
+        err = ip::v4::getroute(nlsk, pbf, nlh, rth);
+    if (err)
+        return err;
+
+    if (rth->rtgen_family == AF_INET6 || rth->rtgen_family == AF_UNSPEC)
+        err = ip::v6::getroute(nlsk, pbf, nlh, rth);
+    return err;
 }

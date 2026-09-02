@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 
 #ifndef _ONYX_NET_IPV6_H
@@ -17,6 +19,9 @@
 
 #include <onyx/pair.hpp>
 #include <onyx/tuple.hpp>
+
+struct netlink_sock;
+struct rtgenmsg;
 
 struct ip6hdr
 {
@@ -37,14 +42,8 @@ struct ip6hdr
     in6_addr dst_addr;
 } __attribute__((packed));
 
-#define IN6ADDR_ALL_ROUTERS                                  \
-    {                                                        \
-        0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2 \
-    }
-#define IN6ADDR_ALL_NODES                                    \
-    {                                                        \
-        0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 \
-    }
+#define IN6ADDR_ALL_ROUTERS {0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}
+#define IN6ADDR_ALL_NODES   {0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
 
 #define IPV6_EXT_HEADER_HOP_BY_HOP 0
 
@@ -119,6 +118,9 @@ bool add_route(inet6_route &route);
 int netif_addrcfg(netif *nif, const in6_addr &if_id);
 
 const struct inet_proto_family *get_v6_proto();
+
+int getroute(struct netlink_sock *nlsk, struct packetbuf *pbf, struct nlmsghdr *nlh_,
+             struct rtgenmsg *rth);
 } // namespace ip::v6
 
 int ip6_finish_output(struct neighbour *neigh, struct packetbuf *pbf, struct netif *nif);
