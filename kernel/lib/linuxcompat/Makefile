@@ -8,6 +8,10 @@ linuxcompat-y:=lib/linuxcompat/completion.o \
 			   lib/linuxcompat/sched.o \
 			   lib/linuxcompat/seq_buf.o \
 			   lib/linuxcompat/radix-tree.o \
-			   lib/linuxcompat/scatterlist.o
+			   lib/linuxcompat/scatterlist.o \
+			   lib/linuxcompat/sync_file.o \
+			   lib/linuxcompat/dma-fence.o \
+			   lib/linuxcompat/stubs.o
 
 $(linuxcompat-y): CFLAGS+=-Wno-error=sign-compare
+$(linuxcompat-y): CPPFLAGS+=-D__IS_LINUX

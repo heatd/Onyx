@@ -720,3 +720,13 @@ __init void devfs_init()
     devfs_add_dir("pts", 0755);
     devfs_add_dir("input", 0755);
 }
+
+extern "C" int c_dev_register_chardevs(dev_t dev, unsigned int nr_devices, unsigned int flags,
+                                       const struct file_ops *fops, const char *name)
+{
+    cul::string str{name};
+
+    if (!str)
+        return -ENOMEM;
+    return dev_register_gendevs(chardevs, dev, nr_devices, flags, fops, cul::move(str)).error_or(0);
+}
