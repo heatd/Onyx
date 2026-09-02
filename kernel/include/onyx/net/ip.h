@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2016-2020 Pedro Falcato
+ * Copyright (c) 2016 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
  */
 #ifndef _ONYX_NET_IP_H
 #define _ONYX_NET_IP_H
@@ -22,7 +24,10 @@
 #include <onyx/packetbuf.h>
 
 #include <uapi/netinet.h>
+#include <uapi/rtnetlink.h>
 #include <uapi/socket.h>
+
+struct netlink_sock;
 
 struct ip_header
 {
@@ -86,6 +91,9 @@ inline constexpr cul::pair<inet_sock_address, int> sockaddr4_to_isa(const sockad
 }
 
 const inet_proto_family *get_v4_proto();
+
+int getroute(struct netlink_sock *nlsk, struct packetbuf *pbf, struct nlmsghdr *nlh,
+             struct rtgenmsg *rth);
 
 }; // namespace v4
 
@@ -233,5 +241,6 @@ constexpr size_t inet_header_size(int domain)
 }
 
 int ip_finish_output(struct neighbour *n, struct packetbuf *pbf, struct netif *nif);
-
+int inet_getroute(struct netlink_sock *nlsk, struct packetbuf *pbf, struct nlmsghdr *nlh,
+                  struct rtgenmsg *rth);
 #endif

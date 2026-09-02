@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2025 Pedro Falcato
+ * Copyright (c) 2016 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -21,6 +21,7 @@
 #include <onyx/net/ip.h>
 #include <onyx/net/netif.h>
 #include <onyx/net/network.h>
+#include <onyx/net/rtnetlink.h>
 #include <onyx/net/socket_table.h>
 #include <onyx/net/tcp.h>
 #include <onyx/net/udp.h>
@@ -707,6 +708,68 @@ bool add_route(inet4_route &route)
     memcpy(ptr.get(), &route, sizeof(route));
 
     return routing_table.push_back(ptr);
+}
+
+int getroute(struct netlink_sock *nlsk, struct packetbuf *pbf, struct nlmsghdr *nlh_,
+             struct rtgenmsg *rth)
+{
+    struct rtmsg *msg;
+    struct nlmsghdr *nlh;
+    int err = 0;
+
+    routing_table_lock.lock_read();
+
+    for (shared_ptr<inet4_route> &r : routing_table)
+    {
+        err = -EMSGSIZE;
+        nlh = nl_put(pbf, nlsk->pid, nlh_->nlmsg_seq, RTM_NEWROUTE, NLM_F_MULTI, sizeof(*msg));
+        if (!nlh)
+            break;
+
+        msg = (struct rtmsg *) NLMSG_DATA(nlh);
+        msg->rtm_dst_len = count_bits(r->mask);
+        msg->rtm_family = AF_INET;
+        msg->rtm_type = RTN_UNSPEC;
+        msg->rtm_src_len = 0;
+#if 0
+        if (r->flags & INET4_ROUTE_FLAG_SCOPE_LOCAL)
+            msg->rtm_type = RTN_LOCAL;
+        else
+#endif
+        if (r->flags & INET4_ROUTE_FLAG_BROADCAST)
+            msg->rtm_type = RTN_BROADCAST;
+        else if (r->flags & INET4_ROUTE_FLAG_MULTICAST)
+            msg->rtm_type = RTN_MULTICAST;
+        else
+            msg->rtm_type = RTN_UNICAST;
+        msg->rtm_protocol = RTPROT_UNSPEC;
+        msg->rtm_scope = RT_SCOPE_UNIVERSE;
+        msg->rtm_flags = 0;
+        msg->rtm_tos = 0;
+        msg->rtm_table = RT_TABLE_MAIN;
+#if 0
+        if (nla_put_u32(pbf, RTA_SRC, r->dest))
+            break;
+#endif
+        if (nla_put_u32(pbf, RTA_DST, r->dest))
+            break;
+
+        if (r->flags & INET4_ROUTE_FLAG_GATEWAY)
+        {
+            if (nla_put_u32(pbf, RTA_GATEWAY, r->gateway))
+                break;
+        }
+
+        if (nla_put_u32(pbf, RTA_PRIORITY, r->metric))
+            break;
+        if (nla_put_u32(pbf, RTA_OIF, r->nif->if_id))
+            break;
+        nlh->nlmsg_len = pbf->tail - (unsigned char *) nlh;
+        err = 0;
+    }
+
+    routing_table_lock.unlock_read();
+    return err;
 }
 
 static const struct inet_proto_family v4_protocol = {
