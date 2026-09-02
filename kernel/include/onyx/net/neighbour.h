@@ -20,6 +20,7 @@
 #include <onyx/seqlock.h>
 #include <onyx/timer.h>
 
+#include <uapi/neighbour.h>
 #include <uapi/socket.h>
 
 #define NEIGHBOUR_VALIDITY_STATIC (~0UL)
@@ -30,11 +31,6 @@ void neighbour_revalidate(clockevent* ev);
 #define NEIGHBOUR_FLAG_BADENTRY      (1 << 1)
 #define NEIGHBOUR_FLAG_HAS_RESPONSE  (1 << 2)
 #define NEIGHBOUR_FLAG_BROADCAST     (1 << 3)
-#define NUD_REACHABLE                (1 << 4)
-#define NUD_INCOMPLETE               (1 << 5)
-#define NUD_STALE                    (1 << 6)
-#define NUD_PROBE                    (1 << 7)
-#define NUD_FAILED                   (1 << 8)
 
 struct neighbour_table;
 
@@ -61,7 +57,9 @@ struct neighbour
     int domain;
     struct clockevent expiry_timer;
     unsigned long validity_ms;
-    unsigned int flags;
+    struct netif* netif;
+    u16 flags;
+    u16 state;
     struct neighbour_table* table;
     union neigh_proto_addr proto_addr;
     const struct neigh_ops* neigh_ops;
@@ -69,9 +67,9 @@ struct neighbour
     seqlock_t neigh_seqlock;
     struct list_head packet_queue;
 
-    explicit neighbour(int _domain, const neigh_proto_addr& addr)
-        : refcount{1}, hwaddr_len{}, domain{_domain}, flags{NEIGHBOUR_FLAG_UNINITIALISED},
-          neigh_ops{}
+    explicit neighbour(int _domain, const neigh_proto_addr& addr, struct netif* netif)
+        : refcount{1}, hwaddr_len{}, domain{_domain}, netif{netif},
+          flags{NEIGHBOUR_FLAG_UNINITIALISED}, state{0}, neigh_ops{}
     {
         if (_domain == AF_INET)
             proto_addr.in4addr.s_addr = addr.in4addr.s_addr;
@@ -132,7 +130,7 @@ static inline bool neigh_needs_resolve(struct neighbour* neigh)
 {
     /* Only bother trying to resolve neighbours if they're not yet resolved, or if there are no
      * requests pending. */
-    return !(READ_ONCE(neigh->flags) & (NUD_PROBE | NUD_REACHABLE | NUD_INCOMPLETE));
+    return !(READ_ONCE(neigh->state) & (NUD_PROBE | NUD_REACHABLE | NUD_INCOMPLETE));
 }
 
 void neigh_start_resolve(struct neighbour* neigh, struct netif* nif);
@@ -143,8 +141,8 @@ static inline void __neigh_complete_lookup(struct neighbour* neigh, const void* 
 {
     memcpy(neigh->hwaddr, hwaddr, len);
     neigh->hwaddr_len = len;
-    neigh->flags &= ~(NUD_PROBE | NUD_INCOMPLETE | NUD_FAILED | NUD_STALE);
-    neigh->flags |= NUD_REACHABLE;
+    neigh->state &= ~(NUD_PROBE | NUD_INCOMPLETE | NUD_FAILED | NUD_STALE);
+    neigh->state |= NUD_REACHABLE;
     neigh_output_queued(neigh);
 }
 
@@ -183,9 +181,11 @@ struct neighbour_table
 
 typedef unsigned int gfp_t;
 
-struct neighbour* neigh_find(struct neighbour_table* table, const union neigh_proto_addr* addr);
+struct neighbour* neigh_find(struct neighbour_table* table, const union neigh_proto_addr* addr,
+                             struct netif* netif);
 struct neighbour* neigh_add(struct neighbour_table* table, const union neigh_proto_addr* addr,
-                            gfp_t gfp, const struct neigh_ops* ops, int* added);
+                            struct netif* netif, gfp_t gfp, const struct neigh_ops* ops,
+                            int* added);
 void neigh_remove(struct neighbour_table* table, struct neighbour* neigh);
 void neigh_clear(struct neighbour_table* table);
 void neigh_free(struct neighbour* neigh);
@@ -222,5 +222,8 @@ static inline void neigh_set_ops(struct neighbour* neigh, struct neigh_ops* ops)
 {
     WRITE_ONCE(neigh->neigh_ops, ops);
 }
+
+int do_getneigh(struct netlink_sock* nlsk, struct packetbuf* pbf, struct nlmsghdr* nlh_,
+                struct rtgenmsg* rth);
 
 #endif

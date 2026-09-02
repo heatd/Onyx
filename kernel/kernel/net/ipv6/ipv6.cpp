@@ -557,7 +557,7 @@ int ip6_finish_output(struct neighbour *neigh, struct packetbuf *pbf, struct net
     int st = 0;
     const void *hwaddr = nullptr;
 
-    if (neigh->flags & NUD_FAILED)
+    if (neigh->state & NUD_FAILED)
         return -EHOSTUNREACH;
     hwaddr = neigh->hwaddr;
 

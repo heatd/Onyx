@@ -695,6 +695,23 @@ static int netif_getaddr(struct netlink_sock *nlsk, struct packetbuf *pbf, struc
     return err || nl_done(pbf, nlsk->pid, nlh->nlmsg_seq, 0);
 }
 
+static int netif_getneigh(struct netlink_sock *nlsk, struct packetbuf *pbf, struct nlmsghdr *nlh,
+                          struct rtgenmsg *rth)
+{
+    int err;
+
+    rtnl_lock();
+    err = -EINVAL;
+    if (rth->rtgen_family != AF_UNSPEC && rth->rtgen_family != AF_INET &&
+        rth->rtgen_family != AF_INET6)
+        goto out;
+
+    err = do_getneigh(nlsk, pbf, nlh, rth);
+out:
+    rtnl_unlock();
+    return err || nl_done(pbf, nlsk->pid, nlh->nlmsg_seq, 0);
+}
+
 static int do_rtm_newaddr(struct netlink_sock *nlsk, struct packetbuf *pbf, struct nlmsghdr *nlh,
                           struct rtgenmsg *rth)
 {
@@ -735,6 +752,7 @@ void netif_init_netkernel()
     rtnl_register(RTM_GETLINK, netif_getlink);
     rtnl_register(RTM_GETADDR, netif_getaddr);
     rtnl_register(RTM_NEWADDR, do_rtm_newaddr);
+    rtnl_register(RTM_GETNEIGH, netif_getneigh);
 }
 
 INIT_LEVEL_CORE_KERNEL_ENTRY(netif_init_netkernel);

@@ -41,7 +41,7 @@ struct icmp6_source_link_layer_opt
 
 /* FIXME: The ndp table should be per interface */
 
-static neighbour_table ndp_table{AF_INET6};
+neighbour_table ndp_table{AF_INET6};
 
 int ndp_submit_request(struct neighbour *neigh, struct netif *netif);
 
@@ -67,7 +67,7 @@ int ndp_handle_na(netif *netif, packetbuf *buf)
     neigh_proto_addr addr;
     addr.in6addr = ndp->nd_na_target;
 
-    struct neighbour *neigh = neigh_add(&ndp_table, &addr, GFP_ATOMIC, &ndp_ops, &added);
+    struct neighbour *neigh = neigh_add(&ndp_table, &addr, netif, GFP_ATOMIC, &ndp_ops, &added);
     if (!neigh)
         return -ENOMEM;
 
@@ -227,7 +227,7 @@ struct neighbour *ndp_resolve(const in6_addr &ip, struct netif *netif)
     union neigh_proto_addr addr;
     addr.in6addr = ip;
 
-    neigh = neigh_add(&ndp_table, &addr, GFP_ATOMIC, &ndp_ops, &added);
+    neigh = neigh_add(&ndp_table, &addr, netif, GFP_ATOMIC, &ndp_ops, &added);
     if (!neigh)
         return (struct neighbour *) ERR_PTR(-ENOMEM);
 
