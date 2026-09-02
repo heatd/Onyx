@@ -23,6 +23,7 @@ struct ww_acquire_ctx
 #ifdef CONFIG_DEBUG_WW_MUTEX
     struct ww_class *class_;
 #endif
+    struct lockdep_map dep_map;
 };
 
 struct ww_mutex
