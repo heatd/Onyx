@@ -15,6 +15,7 @@
 #include <chrono>
 #include <iostream>
 #include <random>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -40,6 +41,10 @@ using namespace std::chrono;
 
 static constexpr unsigned int DupAddrDetectTransmits = 1;
 static constexpr auto RetransTimerMs = 1000ms;
+/* rfc4861 constants */
+static constexpr auto MAX_RTR_SOLICITATIONS = 3;
+static constexpr auto RTR_SOLICITATION_INTERVAL = 4s;
+static constexpr auto MAX_RTR_SOLICITATION_DELAY = 1000ms;
 
 void configure_address_mac(netctl::instance &inst, in6_addr &addr)
 {
@@ -289,7 +294,9 @@ void parse_rt_advertisement(const nd_router_advert *adv, size_t len,
     }
 }
 
-void solicit_router(const in6_addr &addr, int sockfd, instance &inst)
+static nd_router_advert *send_rs(const in6_addr &addr, int sockfd, instance &inst,
+                                 std::span<std::byte> buffer, size_t *plen,
+                                 struct sockaddr_in6 *router_addr)
 {
     constexpr size_t source_link_layer_opt = sizeof(icmp6_source_link_layer_opt) + 6;
     char buf[sizeof(nd_router_solicit) + source_link_layer_opt];
@@ -316,10 +323,10 @@ void solicit_router(const in6_addr &addr, int sockfd, instance &inst)
     nd_router_advert *adv = nullptr;
     ssize_t len = 0;
 
-    struct sockaddr_in6 router_addr;
-    char buffer[200];
-    socklen_t ra_len = sizeof(router_addr);
-
+    socklen_t ra_len = sizeof(struct sockaddr_in6);
+    auto deadline =
+        std::chrono::steady_clock::now() +
+        std::chrono::duration_cast<std::chrono::milliseconds>(RTR_SOLICITATION_INTERVAL);
     while (true)
     {
         /* Wait for a router advertisement */
@@ -328,30 +335,62 @@ void solicit_router(const in6_addr &addr, int sockfd, instance &inst)
         fd.events = POLLIN;
         fd.revents = 0;
 
-        int st = poll(&fd, 1, 1000);
-
+        std::chrono::milliseconds timeout = std::chrono::duration_cast<std::chrono::milliseconds>(
+            deadline - std::chrono::steady_clock::now());
+        if (timeout.count() < 0)
+            timeout = 0ms;
+        int st = poll(&fd, 1, timeout.count());
         if (st == 0)
-        {
-            throw std::runtime_error("Timed out waiting for a router advertisement");
-        }
+            break;
 
-        len = recvfrom(sockfd, buffer, sizeof(buffer), 0, (sockaddr *) &router_addr, &ra_len);
+        len = recvfrom(sockfd, buffer.data(), buffer.size(), 0, (sockaddr *) router_addr, &ra_len);
         if (len < 0)
             throw sys_error("Error receiving packet");
 
-        adv = (nd_router_advert *) buffer;
-
-        if (adv->nd_ra_hdr.icmp6_type != ICMPV6_ROUTER_ADVERT)
+        if ((size_t) len < sizeof(nd_router_advert))
             continue;
 
-        break;
+        adv = (nd_router_advert *) buffer.data();
+        /* rfc4861 6.1.2: Validation of Router Advertisement Messages */
+        /* TODO: we cannot get HOPLIMIT yet from recvfrom/recvmsg */
+        if (adv->nd_ra_hdr.icmp6_type != ICMPV6_ROUTER_ADVERT || adv->nd_ra_code != 0)
+            continue;
+        if (!IN6_IS_ADDR_LINKLOCAL(&router_addr->sin6_addr))
+            continue;
+        *plen = len;
+        return adv;
     }
+
+    return nullptr;
+}
+
+void solicit_router(const in6_addr &addr, int sockfd, instance &inst)
+{
+    struct sockaddr_in6 router_addr;
+    nd_router_advert *adv = nullptr;
+    std::byte buffer[200];
+    size_t ra_len;
+
+    /* rfc4861 6.3.7: Before a host sends an initial solicitation, it SHOULD delay the transmission
+     * for a random amount of time between 0 and MAX_RTR_SOLICITATION_DELAY. */
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds{rand() % MAX_RTR_SOLICITATION_DELAY.count()});
+
+    for (int i = 0; i < MAX_RTR_SOLICITATIONS; i++)
+    {
+        adv = send_rs(addr, sockfd, inst, std::span{buffer}, &ra_len, &router_addr);
+        if (adv)
+            break;
+    }
+
+    if (!adv)
+        throw std::runtime_error("Could not get a router advertisement");
 
     std::vector<ipv6_prefix_info> prefixes;
 
     /* TODO: Manage lifetimes(same problem in dhcp code) */
 
-    parse_rt_advertisement(adv, len, prefixes);
+    parse_rt_advertisement(adv, ra_len, prefixes);
 
     if (prefixes.size() == 0)
         throw std::runtime_error("Router advertisement contained no prefixes");
@@ -485,7 +524,15 @@ void configure_if(netctl::instance &instance)
         throw sys_error("Error adding ICMPv6 filter");
     }
 
-    solicit_router(addr, sockfd, instance);
+    try
+    {
+        solicit_router(addr, sockfd, instance);
+    }
+    catch (std::exception &e)
+    {
+        /* It's alright if we don't have routers */
+        std::cerr << std::format("{} failed to get a router: {}\n", instance.get_name(), e.what());
+    }
 }
 
 } // namespace v6
