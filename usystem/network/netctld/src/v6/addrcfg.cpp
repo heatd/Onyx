@@ -11,6 +11,7 @@
 #include <poll.h>
 #include <sys/socket.h>
 
+#include <cassert>
 #include <chrono>
 #include <iostream>
 #include <random>
@@ -128,9 +129,18 @@ void join_multicast(const in6_addr &addr, int sockfd, std::uint32_t scope_id)
     }
 }
 
+static_assert(sizeof(struct nd_neighbor_advert) == sizeof(struct nd_neighbor_solicit),
+              "Both neighbour discovery message types need to be similarly sized");
+
 ssize_t wait_for_neighbour_advert(const in6_addr &addr, int sockfd)
 {
+    socklen_t addr_len = sizeof(struct sockaddr_in6);
+    struct nd_neighbor_advert na;
+    struct sockaddr_in6 in;
+    bool matches_addr;
     struct pollfd fd;
+    ssize_t ret;
+
     fd.fd = sockfd;
     fd.events = POLLIN;
     fd.revents = 0;
@@ -138,25 +148,35 @@ ssize_t wait_for_neighbour_advert(const in6_addr &addr, int sockfd)
     int st = poll(&fd, 1, 100);
 
     if (st == 0)
-    {
         return 0;
-    }
 
-    struct nd_neighbor_advert na;
-
-    if (recv(sockfd, &na, sizeof(na), 0) < 0)
+    ret = recvfrom(sockfd, &na, sizeof(na), 0, (struct sockaddr *) &in, &addr_len);
+    if (ret < 0)
         throw sys_error("Error receiving packet");
 
-    if (!memcmp(&na.nd_na_target, &addr, sizeof(in6_addr)))
-    {
-        /* Doesn't matter if it was an advert or a solicit,
-         * there's another node on the network that has or is trying to use our address.
-         * We failed. :((((
-         */
-        return -1;
-    }
-    else /* Else, it was unrelated. Continue */
+    assert(addr_len == sizeof(struct sockaddr_in6));
+    /* Weirdly-sized ICMPv6 packet, ignore */
+    if ((size_t) ret != sizeof(na))
         return 1;
+
+    /* Note that for RFC4862 purposes, @addr is tentative (aka not really ours yet). */
+    matches_addr = !memcmp(&na.nd_na_target, &addr, sizeof(in6_addr));
+    switch (na.nd_na_type)
+    {
+        case ICMPV6_NEIGHBOUR_ADVERT:
+            /* rfc4862 5.4.4: If the target address is tentative, the tentative address is not
+             * unique.*/
+            if (matches_addr)
+                return -1;
+            break;
+        case ICMPV6_NEIGHBOUR_SOLICIT:
+            /* rfc4862 5.4.3: if source address is the unspecified address, against the tentative
+             * address, it's someone doing DAD. In which case, it's an error. If it's a unicast
+             * address, then it is someone doing regular neighbour discovery. This is fine. */
+            if (IN6_IS_ADDR_UNSPECIFIED(&in.sin6_addr) && matches_addr)
+                return -1;
+    }
+    return 1;
 }
 
 int perform_dad(const in6_addr &addr, int sockfd, std::uint32_t scope_id)
