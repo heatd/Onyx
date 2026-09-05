@@ -299,7 +299,7 @@ static nd_router_advert *send_rs(const in6_addr &addr, int sockfd, instance &ins
                                  struct sockaddr_in6 *router_addr)
 {
     constexpr size_t source_link_layer_opt = sizeof(icmp6_source_link_layer_opt) + 6;
-    char buf[sizeof(nd_router_solicit) + source_link_layer_opt];
+    alignas(nd_router_solicit) char buf[sizeof(nd_router_solicit) + source_link_layer_opt];
     nd_router_solicit *sol = new (buf) nd_router_solicit;
     sol->nd_rs_hdr.icmp6_type = ICMPV6_ROUTER_SOLICIT;
     sol->nd_rs_hdr.icmp6_code = 0;
@@ -368,7 +368,7 @@ void solicit_router(const in6_addr &addr, int sockfd, instance &inst)
 {
     struct sockaddr_in6 router_addr;
     nd_router_advert *adv = nullptr;
-    std::byte buffer[200];
+    alignas(nd_router_advert) std::byte buffer[200];
     size_t ra_len;
 
     /* rfc4861 6.3.7: Before a host sends an initial solicitation, it SHOULD delay the transmission
