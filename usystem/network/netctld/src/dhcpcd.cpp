@@ -107,7 +107,7 @@ bool packet::decode()
         return false;
     }
 
-    if (memcmp(opt, DHCP_OPTIONS_COOKIE, 4) == 1)
+    if (memcmp(opt, DHCP_OPTIONS_COOKIE, 4) != 0)
     {
         fprintf(stderr, "dhcpcd: Bad cookie, ignoring!\n");
         return false;
