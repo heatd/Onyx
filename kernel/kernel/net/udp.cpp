@@ -419,6 +419,7 @@ bool valid_udp_packet(struct udphdr *header, size_t length)
 int udp_handle_packet_mcast_bcast(const inet_route &route, packetbuf *buf)
 {
     struct udphdr *udp_header = (struct udphdr *) buf->data;
+    struct packetbuf *clone;
 
     auto header = (ip_header *) buf->net_header;
     buf->transport_header = (unsigned char *) udp_header;
@@ -438,10 +439,12 @@ int udp_handle_packet_mcast_bcast(const inet_route &route, packetbuf *buf)
 
         // Only SO_BROADCAST sockets can get broadcast packets
         if (route.flags & INET4_ROUTE_FLAG_BROADCAST && !socket->broadcast_allowed) [[unlikely]]
-            continue;
+            goto next;
 
-        // I don't think we need to copy here?
-        socket->rx_dgram(buf);
+        clone = packetbuf_clone(buf);
+        if (clone)
+            socket->rx_dgram(clone);
+    next:
         socket->unref();
     }
 
