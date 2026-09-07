@@ -1285,7 +1285,7 @@ static int put_cmsg(struct kernel_msghdr *msg, int level, int type, void *data, 
 static int unix_put_cmsg(struct unix_pbf_info *pbf, struct kernel_msghdr *msg)
 {
     socklen_t len = msg->msg_controllen;
-    if (len == 0)
+    if (len <= sizeof(struct cmsghdr))
         return 0;
 
     if (!unix_has_anciliary(pbf))
