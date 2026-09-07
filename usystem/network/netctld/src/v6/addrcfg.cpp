@@ -266,7 +266,7 @@ void parse_rt_advertisement(const nd_router_advert *adv, size_t len,
     {
         auto hdr = (const icmp6_opt_header *) optptr;
         auto length = hdr->length << 3;
-        if (length > options_len)
+        if (length > options_len || !length)
         {
             throw std::runtime_error("Invalid router advertisement: length " +
                                      std::to_string(length) + " > " + std::to_string(options_len));
