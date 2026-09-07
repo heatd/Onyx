@@ -100,9 +100,8 @@ void copy_msgname_to_user(struct kernel_msghdr *msg, packetbuf *buf, bool isv6, 
         in.sin_port = port;
         in.sin_addr.s_addr = hdr->source_ip;
 
-        memcpy(msg->msg_name, &in, min(sizeof(in), (size_t) msg->msg_namelen));
-
         msg->msg_namelen = min(sizeof(in), (size_t) msg->msg_namelen);
+        memcpy(msg->msg_name, &in, msg->msg_namelen);
     }
     else if (buf->domain == AF_INET && isv6)
     {
@@ -117,9 +116,8 @@ void copy_msgname_to_user(struct kernel_msghdr *msg, packetbuf *buf, bool isv6, 
         in6.sin6_scope_id = 0;
         in6.sin6_addr = ip::v6::ipv4_to_ipv4_mapped(hdr->source_ip);
 
-        memcpy(msg->msg_name, &in6, min(sizeof(in6), (size_t) msg->msg_namelen));
-
         msg->msg_namelen = min(sizeof(in6), (size_t) msg->msg_namelen);
+        memcpy(msg->msg_name, &in6, msg->msg_namelen);
     }
     else // if(buf->domain == AF_INET6)
     {
@@ -134,9 +132,8 @@ void copy_msgname_to_user(struct kernel_msghdr *msg, packetbuf *buf, bool isv6, 
         in6.sin6_port = port;
         memcpy(&in6.sin6_addr, &hdr->src_addr, sizeof(hdr->src_addr));
 
-        memcpy(msg->msg_name, &in6, msg->msg_namelen);
-
         msg->msg_namelen = min(sizeof(in6), (size_t) msg->msg_namelen);
+        memcpy(msg->msg_name, &in6, msg->msg_namelen);
     }
 }
 
