@@ -281,6 +281,9 @@ void parse_rt_advertisement(const nd_router_advert *adv, size_t len,
                     throw std::runtime_error("Invalid option length");
                 }
 
+                if (info->nd_opt_pi_prefix_len > 128)
+                    throw std::runtime_error("Bad prefix length " +
+                                             std::to_string(info->nd_opt_pi_prefix_len));
                 ipv6_prefix_info info_{info->nd_opt_pi_prefix, info->nd_opt_pi_prefix_len,
                                        info->nd_opt_pi_flags_reserved,
                                        info->nd_opt_pi_preferred_time, info->nd_opt_pi_valid_time};
