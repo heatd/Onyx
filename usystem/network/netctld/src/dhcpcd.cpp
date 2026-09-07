@@ -98,10 +98,9 @@ off_t dhcp_close_options(dhcp_packet_t *pkt, off_t off)
 bool packet::decode()
 {
     unsigned char *limit = (unsigned char *) packet_ + length;
-
     unsigned char *opt = (unsigned char *) &packet_->options;
 
-    if (length <= DHCP_FIXED_NON_UDP)
+    if (length < DHCP_FIXED_NON_UDP + 4)
     {
         fprintf(stderr, "dhcpcd: Bad packet length %zu, ignoring!\n", length);
         return false;
@@ -116,27 +115,50 @@ bool packet::decode()
     bool has_message_type = false;
 
     opt += 4;
-    while (*opt != DHO_END)
+    while (opt < limit)
     {
-        /* Check for OOB */
-        if (opt >= limit)
+        unsigned char type = *opt, optlen;
+
+        if (type == DHO_PAD)
         {
-            fprintf(stderr, "dhcpcd: Went out of bounds processing options, ignoring!\n");
-            return false;
+            opt++;
+            continue;
         }
 
-        unsigned char type = *opt;
+        if (type == DHO_END)
+            break;
+        /* Check if the length member fits */
+        if (opt + 1 >= limit)
+            goto oob;
         opt++;
-        unsigned char length = *opt;
+        optlen = *opt;
+
+        /* Check if the option actually fits */
+        if (opt + 1 + optlen > limit)
+            goto oob;
+
+        /* No option with a "length" can be 0-sized. This also implicitly makes it so
+         * has_message_type = true means get_option(DHO_DHCP_MESSAGE_TYPE) succeeds. */
+        if (!optlen)
+        {
+            fprintf(stderr, "dhcpcd: Bad 0-length option, ignoring!\n");
+            return false;
+        }
 
         if (type == DHO_DHCP_MESSAGE_TYPE)
             has_message_type = true;
 
-        dhcp_option option{opt + 1, type, length};
-
+        dhcp_option option{opt + 1, type, optlen};
         options.push_back(std::move(option));
+        opt = opt + optlen + 1;
+    }
 
-        opt = opt + length + 1;
+    /* Check for OOB */
+    if (opt >= limit)
+    {
+    oob:
+        fprintf(stderr, "dhcpcd: Went out of bounds processing options, ignoring!\n");
+        return false;
     }
 
     if (!has_message_type)
