@@ -80,8 +80,10 @@ int ndp_handle_na(netif *netif, packetbuf *buf)
     {
         auto hdr = (const icmp6_opt_header *) optptr;
         auto length = hdr->length << 3;
-        if (length > options_len)
+        if (length > options_len || !length)
         {
+            /* RFC4861 4.6: The value 0 is invalid. Nodes MUST silently discard an ND packet that
+             * contains an option with length zero*/
             return -EINVAL;
         }
 
