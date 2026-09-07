@@ -353,7 +353,7 @@ bool valid_packet(struct ip_header *header, size_t size)
     if (header->version != 4)
         return false;
 
-    if (header->ihl < 5)
+    if (header->ihl < 5 || ip_header_length(header) > size)
         return false;
 
     if (ntohs(header->total_len) > size)
