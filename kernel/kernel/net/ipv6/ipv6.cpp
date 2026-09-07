@@ -483,7 +483,7 @@ bool valid_packet(const ip6hdr *header, size_t size)
     if (header->version != 6)
         return false;
 
-    if (ntohs(header->payload_length) > size)
+    if (ntohs(header->payload_length) > size - sizeof(struct ip6hdr))
         return false;
 
     return true;
