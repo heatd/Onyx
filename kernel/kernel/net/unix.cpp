@@ -982,27 +982,32 @@ static int unix_scm_rights(struct unix_pbf_info *info, struct cmsghdr *cmsg)
     size_t data_len = cmsg->cmsg_len - sizeof(cmsghdr);
     unsigned int nfiles = data_len / sizeof(int);
     int *fds = (int *) CMSG_DATA(cmsg);
-    if (nfiles > SCM_MAX_FD)
+    struct file **files;
+
+    /* Note: it is possible that we can have two or more SCM_RIGHTS messages on a single msghdr.
+     * Thus, don't assume info->nfiles or info->rights are 0. They may not be. */
+    if (info->nfiles + nfiles > SCM_MAX_FD)
         return -EINVAL;
 
-    struct file **files = (struct file **) kcalloc(nfiles, sizeof(struct file *), GFP_KERNEL);
+    files = (struct file **) kreallocarray(info->rights, sizeof(struct file *),
+                                           info->nfiles + nfiles, GFP_KERNEL);
     if (!files)
         return -ENOMEM;
-    info->rights = files;
-    info->nfiles = nfiles;
 
+    info->rights = files;
     for (unsigned int i = 0; i < nfiles; i++)
     {
         struct file *file = get_file_description(fds[i]);
         if (!file)
         {
             /* Truncate nfiles so no one looks past the !NULL's */
-            info->nfiles = i;
+            info->nfiles += i;
             return -EBADF;
         }
-        info->rights[i] = file;
+        info->rights[info->nfiles + i] = file;
     }
 
+    info->nfiles += nfiles;
     return 0;
 }
 
