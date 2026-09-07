@@ -209,6 +209,8 @@ static int tcp_parse_synack_options(struct tcp_synack_options *opts, struct pack
         /* For the len */
         if (!pbf_pull(pbf, 1))
             return TCP_DROP_BAD_PACKET;
+        if (opt[1] < 2)
+            return TCP_DROP_BAD_PACKET;
         opt_len = opt[1] - 2;
         if (opt_len)
         {
@@ -1063,6 +1065,8 @@ static int tcp_parse_options(struct tcp_socket *sock, struct packetbuf *pbf)
         options_len -= 2;
         /* For the len */
         if (!pbf_pull(pbf, 1))
+            return TCP_DROP_BAD_PACKET;
+        if (opt[1] < 2)
             return TCP_DROP_BAD_PACKET;
         opt_len = opt[1] - 2;
         if (!opt_len)
