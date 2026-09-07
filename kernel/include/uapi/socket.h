@@ -310,6 +310,13 @@ struct linger
 #define CMSG_SPACE(len) (CMSG_ALIGN(len) + CMSG_ALIGN(sizeof(struct cmsghdr)))
 #define CMSG_LEN(len)   (CMSG_ALIGN(sizeof(struct cmsghdr)) + (len))
 
+#ifdef __is_onyx_kernel
+#define CMSG_OK(mhdr, cmsg)                                        \
+    ((cmsg)->cmsg_len >= sizeof(struct cmsghdr) &&                 \
+     (cmsg)->cmsg_len <= (unsigned long) ((mhdr)->msg_controllen - \
+                                          ((char *) (cmsg) - (char *) (mhdr)->msg_control)))
+#endif
+
 #define SCM_RIGHTS      0x01
 #define SCM_CREDENTIALS 0x02
 

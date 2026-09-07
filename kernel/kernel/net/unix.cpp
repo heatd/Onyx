@@ -1016,6 +1016,9 @@ static int unix_pbf_init(packetbuf *pbf, const struct kernel_msghdr *msg)
     for (struct cmsghdr *cmsg = CMSG_FIRSTHDR(msg); cmsg; cmsg = CMSG_NXTHDR(msg, cmsg))
     {
         int st = -EINVAL;
+
+        if (!CMSG_OK(msg, cmsg))
+            return st;
         if (cmsg->cmsg_level == SOL_SOCKET)
         {
             switch (cmsg->cmsg_type)
