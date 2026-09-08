@@ -120,25 +120,33 @@ void netlink_ack(struct netlink_sock *nlsk, struct packetbuf *in_pbf, struct nlm
     bool wants_req = err != 0;
     struct nlmsghdr *new_msg;
     struct nlmsgerr *msgerr;
+    unsigned int flags = 0;
     size_t size;
 
-    pbf = pbf_alloc_sk(GFP_KERNEL, &nlsk->sock, PAGE_SIZE);
+    /* A netlink ack is composed of:
+     * 1) nlmsghdr (type = NLMSG_ERROR)
+     * 2) nlmsgerr (error + old nlmsghdr)
+     * 3) if error & !capped, old message payload
+     *
+     * So we need to allocate NLMSG_ALIGN(nlmsghdr + nlmsgerr + optionally payload) bytes.
+     */
+    size = sizeof(*msgerr);
+    if (wants_req)
+        size += msg->nlmsg_len - sizeof(struct nlmsghdr);
+    else
+        flags |= NLM_F_CAPPED;
+
+    pbf = pbf_alloc_sk(GFP_KERNEL, &nlsk->sock, NLMSG_ALIGN(sizeof(struct nlmsghdr) + size));
     if (!pbf)
         return;
 
-    size = sizeof(*msg);
-    if (wants_req)
-        size = msg->nlmsg_len;
-
-    new_msg = nl_put(pbf, nlsk->pid, msg->nlmsg_seq, NLMSG_ERROR, wants_req ? 0 : NLM_F_CAPPED,
-                     size + sizeof(int));
-    if (!new_msg)
+    new_msg = nl_put(pbf, nlsk->pid, msg->nlmsg_seq, NLMSG_ERROR, flags, size);
+    /* This shall not fail; it would mean the above logic is wrong. */
+    if (WARN_ON_ONCE(!new_msg))
         goto err;
     msgerr = NLMSG_DATA(new_msg);
     msgerr->error = err;
-    memcpy(&msgerr->msg, msg, sizeof(*msg));
-    if (wants_req)
-        memcpy(msg + 1, in_pbf->data, msg->nlmsg_len - sizeof(*msg));
+    memcpy(&msgerr->msg, msg, size - offsetof(struct nlmsgerr, msg));
     WARN_ON(extack->msg);
     list_add_tail(&pbf->list_node, &nlsk->buf_list);
     wait_queue_wake_all(&nlsk->wq);
