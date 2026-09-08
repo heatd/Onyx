@@ -345,18 +345,21 @@ int send_packet(const iflow &flow, packetbuf *buf, const cul::slice<ip_option> &
     return send_fragment(flow.route, &frag, netif);
 }
 
-bool valid_packet(struct ip_header *header, size_t size)
+static inline bool valid_packet(struct ip_header *header, size_t size)
 {
     if (sizeof(struct ip_header) > size)
         return false;
 
+    const u16 total_len = ntohs(header->total_len);
+    const u16 header_len = ip_header_length(header);
+
     if (header->version != 4)
         return false;
 
-    if (header->ihl < 5 || ip_header_length(header) > size)
+    if (header->ihl < 5 || header_len > size || header_len > total_len)
         return false;
 
-    if (ntohs(header->total_len) > size)
+    if (total_len > size)
         return false;
 
     return true;
