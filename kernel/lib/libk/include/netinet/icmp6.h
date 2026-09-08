@@ -131,6 +131,8 @@ struct nd_neighbor_advert {
 	struct in6_addr   nd_na_target;
 };
 
+#define __BYTE_ORDER __BYTE_ORDER__
+
 #define nd_na_type               nd_na_hdr.icmp6_type
 #define nd_na_code               nd_na_hdr.icmp6_code
 #define nd_na_cksum              nd_na_hdr.icmp6_cksum
