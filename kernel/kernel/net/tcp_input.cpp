@@ -178,49 +178,107 @@ static int tcp_ack(struct tcp_socket *sock, struct packetbuf *pbuf, struct tcp_h
     return 0;
 }
 
+struct tcp_option
+{
+    u8 type;
+    u8 len;
+};
+
+struct tcp_option_iter
+{
+    struct packetbuf *pbf;
+    u16 options_len;
+};
+
+static __always_inline struct tcp_option *tcp_options_next(struct tcp_option_iter *iter)
+{
+    u8 *opt, len;
+
+next:
+    /* Found the end! */
+    if (!iter->options_len)
+        return NULL;
+
+    opt = (u8 *) pbf_pull(iter->pbf, 1);
+    if (WARN_ON_ONCE(!opt))
+        goto badmsg;
+
+    if (*opt == TCP_OPTION_NOP)
+    {
+        iter->options_len--;
+        goto next;
+    }
+
+    if (*opt == TCP_OPTION_END_OF_OPTIONS)
+    {
+        /* RFC9293: This might not coincide with the end of the TCP header according to the Data
+         * Offset field */
+        iter->options_len--;
+        /* Note: if parsing is correct, there should be enough pbf length for the whole options
+         * field. This WARN (and the above) should not fire. */
+        WARN_ON_ONCE(!pbf_pull(iter->pbf, iter->options_len));
+        return NULL;
+    }
+
+    /* Does the TLV fit in the options? */
+    if (unlikely(iter->options_len < 2))
+        goto badmsg;
+    /* Now, pull the length */
+    if (WARN_ON_ONCE(!pbf_pull(iter->pbf, 1)))
+        goto badmsg;
+    len = opt[1];
+    /* len < 2 options are obviously invalid, as they don't include the TLV */
+    if (unlikely(len < 2 || len > iter->options_len))
+        goto badmsg;
+    if (WARN_ON_ONCE(!pbf_pull(iter->pbf, len - 2)))
+        goto badmsg;
+    iter->options_len -= len;
+    return (struct tcp_option *) opt;
+badmsg:
+    return (struct tcp_option *) ERR_PTR(-EBADMSG);
+}
+
+static const u8 tcp_opt_known_min[] = {
+    [TCP_OPTION_END_OF_OPTIONS] = 0,
+    [TCP_OPTION_NOP] = 0,
+    [TCP_OPTION_MSS] = 4,
+    [TCP_OPTION_WINDOW_SCALE] = 3,
+    [TCP_OPTION_SACK_PERMITTED] = 2,
+    [TCP_OPTION_SACK] = 2,
+};
+
+static __always_inline bool tcp_opt_bad(struct tcp_option *opt)
+{
+    if (IS_ERR(opt))
+        return true;
+    if (likely(opt->type < ARRAY_SIZE(tcp_opt_known_min)))
+        return opt->len < tcp_opt_known_min[opt->type];
+    /* Unknown options aren't bad */
+    return false;
+}
+
 static int tcp_parse_synack_options(struct tcp_synack_options *opts, struct packetbuf *pbf,
                                     struct tcp_header *hdr)
 {
-    u8 opt_len;
     u16 options_len = tcp_header_data_off_to_length(hdr->doff) - sizeof(struct tcp_header);
+    struct tcp_option_iter iter = {.pbf = pbf, .options_len = options_len};
+    struct tcp_option *opt;
 
     if (!options_len)
         return 0;
     if (pbf_length(pbf) < options_len)
         return TCP_DROP_BAD_PACKET;
 
-    while (options_len)
+    while ((opt = tcp_options_next(&iter)))
     {
-        u8 *data = NULL;
         u16 *data16;
-        u8 *opt = (u8 *) pbf_pull(pbf, 1);
-        if (!opt)
+        u8 *data;
+
+        if (tcp_opt_bad(opt))
             return TCP_DROP_BAD_PACKET;
 
-        if (*opt == TCP_OPTION_END_OF_OPTIONS)
-            break;
-        if (*opt == TCP_OPTION_NOP)
-        {
-            options_len--;
-            continue;
-        }
-
-        options_len -= 2;
-        /* For the len */
-        if (!pbf_pull(pbf, 1))
-            return TCP_DROP_BAD_PACKET;
-        if (opt[1] < 2)
-            return TCP_DROP_BAD_PACKET;
-        opt_len = opt[1] - 2;
-        if (opt_len)
-        {
-            data = (u8 *) pbf_pull(pbf, opt_len);
-            if (!data)
-                return TCP_DROP_BAD_PACKET;
-            options_len -= opt_len;
-        }
-
-        switch (*opt)
+        data = (u8 *) (opt + 1);
+        switch (opt->type)
         {
             case TCP_OPTION_WINDOW_SCALE:
                 opts->snd_wnd_shift = data[0];
@@ -1042,41 +1100,18 @@ static int tcp_parse_options(struct tcp_socket *sock, struct packetbuf *pbf)
 {
     struct tcp_header *hdr = (struct tcp_header *) pbf->transport_header;
     u16 options_len = tcp_header_data_off_to_length(hdr->doff) - sizeof(struct tcp_header);
-    u8 opt_len;
+    struct tcp_option_iter iter = {.pbf = pbf, .options_len = options_len};
+    struct tcp_option *opt;
 
     if (pbf_length(pbf) < options_len)
         return TCP_DROP_BAD_PACKET;
 
-    while (options_len)
+    while ((opt = tcp_options_next(&iter)))
     {
-        u8 *data;
-        u8 *opt = (u8 *) pbf_pull(pbf, 1);
-        if (!opt)
+        if (tcp_opt_bad(opt))
             return TCP_DROP_BAD_PACKET;
 
-        if (*opt == TCP_OPTION_END_OF_OPTIONS)
-            break;
-        if (*opt == TCP_OPTION_NOP)
-        {
-            options_len--;
-            continue;
-        }
-
-        options_len -= 2;
-        /* For the len */
-        if (!pbf_pull(pbf, 1))
-            return TCP_DROP_BAD_PACKET;
-        if (opt[1] < 2)
-            return TCP_DROP_BAD_PACKET;
-        opt_len = opt[1] - 2;
-        if (!opt_len)
-            continue;
-        data = (u8 *) pbf_pull(pbf, opt_len);
-        if (!data)
-            return TCP_DROP_BAD_PACKET;
-        options_len -= opt_len;
-
-        switch (*opt)
+        switch (opt->type)
         {
             case TCP_OPTION_SACK:
                 if (!sock->sacking)
