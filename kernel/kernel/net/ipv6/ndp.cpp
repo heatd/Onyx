@@ -50,6 +50,22 @@ const struct neigh_ops ndp_ops = {
     .output = ip6_finish_output,
 };
 
+static inline bool valid_nda(const struct packetbuf *pbf, const struct nd_neighbor_advert *adv)
+{
+    /* rfc4861 7.1.2 Validation of Neighbor Advertisements */
+    const struct ip6hdr *hdr = (const struct ip6hdr *) pbf->net_header;
+
+    if (adv->nd_na_code != 0)
+        return false;
+    if (hdr->hop_limit != 255)
+        return false;
+    if (IN6_IS_ADDR_MULTICAST(&adv->nd_na_target))
+        return false;
+    if (IN6_IS_ADDR_MULTICAST(&hdr->dst_addr) && adv->nd_na_flags_reserved & ND_NA_FLAG_SOLICITED)
+        return false;
+    return true;
+}
+
 static constexpr hrtime_t ndp_response_timeout = 250 * NS_PER_MS;
 
 /* 20 minutes in milis */
@@ -57,19 +73,24 @@ static constexpr unsigned long ndp_validity_time_ms = 1200000;
 
 int ndp_handle_na(netif *netif, packetbuf *buf)
 {
+    bool updated = false;
+    int err = -EINVAL;
     (void) ndp_response_timeout;
     (void) ndp_validity_time_ms;
     if (buf->length() < sizeof(nd_neighbor_advert))
         return -EINVAL;
 
     auto ndp = (struct nd_neighbor_advert *) buf->data;
-    int added;
     neigh_proto_addr addr;
     addr.in6addr = ndp->nd_na_target;
 
-    struct neighbour *neigh = neigh_add(&ndp_table, &addr, netif, GFP_ATOMIC, &ndp_ops, &added);
+    if (!valid_nda(buf, ndp))
+        return -EINVAL;
+
+    /* If a neighbour isn't in the cache, the NA is to be dropped (7.2.5) */
+    struct neighbour *neigh = neigh_find(&ndp_table, &addr, netif);
     if (!neigh)
-        return -ENOMEM;
+        return -EINVAL;
 
     const char *optptr = (const char *) (ndp + 1);
     ssize_t options_len = buf->length() - sizeof(nd_neighbor_solicit);
@@ -83,15 +104,15 @@ int ndp_handle_na(netif *netif, packetbuf *buf)
         if (length > options_len || !length)
         {
             /* RFC4861 4.6: The value 0 is invalid. Nodes MUST silently discard an ND packet that
-             * contains an option with length zero*/
-            return -EINVAL;
+             * contains an option with length zero */
+            goto out_put;
         }
 
         switch (hdr->type)
         {
             case ND_OPT_TARGET_LINKADDR: {
                 if (length != 8)
-                    return -EINVAL;
+                    goto out_put;
                 target = (const unsigned char *) optptr + 2;
             }
         }
@@ -100,11 +121,54 @@ int ndp_handle_na(netif *netif, packetbuf *buf)
         options_len -= length;
     }
 
-    if (!target)
-        return 0;
+    err = 0;
+    write_seqlock(&neigh->neigh_seqlock);
+    if (neigh->state == NUD_INCOMPLETE)
+    {
+        if (!target)
+            goto out_unlock;
+        /* If the neigh is incomplete, record the target */
+        __neigh_complete_lookup(neigh, target, ETH_ALEN);
+        if (!(ndp->nd_na_flags_reserved & ND_NA_FLAG_SOLICITED))
+            neigh->state = NUD_STALE;
+    }
+    else
+    {
+        if (!(ndp->nd_na_flags_reserved & ND_NA_FLAG_OVERRIDE))
+        {
+            /* If OVERRIDE is set, and the link-layer address does not match what we have, make it
+             * stale. */
+            if (target && memcmp(neigh->hwaddr, target, ETH_ALEN) != 0)
+            {
+                if (neigh->state == NUD_REACHABLE)
+                    neigh->state = NUD_STALE;
+                goto out_unlock;
+            }
 
-    neigh_complete_lookup(neigh, target, ETH_ALEN);
-    return 0;
+            /* fallthrough */
+        }
+        /* If the Override flag is set, or the supplied link-layer address is the same as that in
+         * the cache, or no Target Link-Layer Address option was supplied, the received
+         * advertisement MUST update the Neighbor Cache entry as follows: */
+        if (memcmp(neigh->hwaddr, target, ETH_ALEN) != 0)
+        {
+            memcpy(neigh->hwaddr, target, ETH_ALEN);
+            neigh->hwaddr_len = ETH_ALEN;
+            updated = true;
+        }
+
+        if (ndp->nd_na_flags_reserved & ND_NA_FLAG_SOLICITED)
+            neigh->state = NUD_REACHABLE;
+        else if (updated)
+            neigh->state = NUD_STALE;
+
+        neigh_output_queued(neigh);
+    }
+out_unlock:
+    write_sequnlock(&neigh->neigh_seqlock);
+out_put:
+    neigh_put(neigh);
+    return err;
 }
 
 int ndp_handle_ns(netif *nif, packetbuf *buf)
@@ -177,8 +241,8 @@ const in6_addr solicited_node_prefix = {0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1
 
 in6_addr solicited_node_address(const in6_addr &our_address)
 {
-    /* Per rfc4291, the solicited node address is formed by taking the low 24-bits of an address and
-     * appending them to the solicited_node_prefix(see above).
+    /* Per rfc4291, the solicited node address is formed by taking the low 24-bits of an address
+     * and appending them to the solicited_node_prefix(see above).
      */
     auto ret = solicited_node_prefix;
     for (int i = 0; i < 3; i++)
