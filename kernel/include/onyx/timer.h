@@ -30,6 +30,15 @@ struct timer;
 struct clockevent;
 
 void timer_cancel_event(struct clockevent *ev);
+
+/**
+ * @brief Try to cancel a clockevent
+ *
+ * @param ev Event to cancel
+ * @retval true if still cancelled
+ * @return false if running
+ */
+bool timer_cancel_try(struct clockevent *ev);
 void timer_mod(struct clockevent *ev, hrtime_t future);
 struct clockevent
 {

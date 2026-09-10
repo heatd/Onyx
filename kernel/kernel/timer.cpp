@@ -232,6 +232,18 @@ static void timer_spin_pending(struct timer *timer, struct clockevent *ev)
         cpu_relax();
 }
 
+/**
+ * @brief Try to cancel a clockevent
+ *
+ * @param ev Event to cancel
+ * @retval true if still cancelled
+ * @return false if running
+ */
+bool timer_cancel_try(struct clockevent *ev)
+{
+    return timer_cancel_event_try(ev) == nullptr;
+}
+
 void timer_cancel_event(struct clockevent *ev)
 {
     struct timer *timer;
@@ -419,13 +431,21 @@ int itimer::disarm()
     scoped_lock g{lock};
 
     if (armed)
-        timer_cancel_event(&ev);
+    {
+        if (!timer_cancel_try(&ev))
+        {
+            /* We can't form a dependency loop between signal_lock, itimer::lock and timer
+             * cancelling (waiting). Thus, back out and try again later. */
+            return -EAGAIN;
+        }
+    }
+
     return 0;
 }
 
-void itimer_disarm(struct itimer *it)
+int itimer_disarm(struct itimer *it)
 {
-    it->disarm();
+    return it->disarm();
 }
 
 int sys_setitimer(int which, const struct itimerval *new_value, struct itimerval *old_value)
@@ -460,7 +480,10 @@ int sys_setitimer(int which, const struct itimerval *new_value, struct itimerval
     auto &timer = current->sig->timers[which];
 
     if (!initial_ns)
-        st = timer.disarm();
+    {
+        while ((st = timer.disarm()) == -EAGAIN)
+            cpu_relax();
+    }
     else
         st = timer.arm(interval_ns, initial_ns);
 
