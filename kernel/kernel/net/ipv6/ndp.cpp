@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 - 2024 Pedro Falcato
+ * Copyright (c) 2020 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -158,7 +158,7 @@ int ndp_handle_na(netif *netif, packetbuf *buf)
         }
 
         if (ndp->nd_na_flags_reserved & ND_NA_FLAG_SOLICITED)
-            neigh->state = NUD_REACHABLE;
+            __neigh_mark_reachable(neigh);
         else if (updated)
             neigh->state = NUD_STALE;
 
