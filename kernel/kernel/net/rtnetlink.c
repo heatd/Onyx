@@ -73,8 +73,14 @@ static int do_handle_rtnl(struct netlink_sock *nlsk, struct packetbuf *pbf, stru
         return err;
     }
 
-    list_add_tail(&new_pbf->list_node, &nlsk->buf_list);
-    wait_queue_wake_all(&nlsk->wq);
+    if (pbf_length(new_pbf) > 0)
+    {
+        list_add_tail(&new_pbf->list_node, &nlsk->buf_list);
+        wait_queue_wake_all(&nlsk->wq);
+    }
+    else
+        pbf_free(new_pbf);
+
     return err;
 }
 
