@@ -13,6 +13,8 @@
 #include <onyx/list.h>
 #include <onyx/spinlock.h>
 
+#include <linux/lockdep_types.h>
+
 __BEGIN_CDECLS
 void udelay(unsigned int us);
 void ndelay(unsigned int ns);
@@ -28,22 +30,21 @@ struct timer;
 struct clockevent;
 
 void timer_cancel_event(struct clockevent *ev);
-
+void timer_mod(struct clockevent *ev, hrtime_t future);
 struct clockevent
 {
-    /* This lock protects the whole structure from concurrent access */
-    struct spinlock lock;
     hrtime_t deadline;
     void *priv;
     unsigned int flags;
     void (*callback)(struct clockevent *ev);
     struct list_head list_node;
     struct timer *timer;
+    struct lockdep_map dep_map;
 
 #ifdef __cplusplus
     clockevent() : deadline{0}, priv{nullptr}, flags{0}, callback{nullptr}, timer{nullptr}
     {
-        spinlock_init(&lock);
+        INIT_LIST_HEAD(&list_node);
     }
 
     ~clockevent()
@@ -54,15 +55,34 @@ struct clockevent
 #endif
 };
 
-static inline void clockevent_init(struct clockevent *ev, void (*cb)(struct clockevent *),
-                                   unsigned int flags)
+static inline void __clockevent_init(struct clockevent *ev, void (*cb)(struct clockevent *),
+                                     unsigned int flags)
 {
-    spin_lock_init(&ev->lock);
     ev->deadline = 0;
     ev->priv = NULL;
     ev->flags = flags;
     ev->callback = cb;
     ev->timer = NULL;
+    INIT_LIST_HEAD(&ev->list_node);
+}
+
+#ifdef CONFIG_LOCKDEP
+void clockevent_init_lockdep(struct clockevent *ev, void (*cb)(struct clockevent *),
+                             unsigned int flags, const char *name, struct lock_class_key *key);
+
+#define clockevent_init(ev, cb, flags)                       \
+    do                                                       \
+    {                                                        \
+        static struct lock_class_key __key;                  \
+        clockevent_init_lockdep(ev, cb, flags, #ev, &__key); \
+    } while (0)
+#else
+#define clockevent_init(ev, cb, flags) __clockevent_init(ev, cb, flags)
+#endif
+
+static inline void clockevent_kill(struct clockevent *ev)
+{
+    WRITE_ONCE(ev->timer, NULL);
 }
 
 #define TIMER_NEXT_EVENT_NOT_PENDING UINT64_MAX

@@ -507,7 +507,10 @@ void tcp_stop_retransmit(struct tcp_socket *sock)
 
 static void tcp_stop_timers(struct tcp_socket *sock)
 {
-    timer_cancel_event(&sock->retransmit_timer);
+    /* We can be inside the timer handler itself (see TIME_WAIT handling). It has a hack to stop us
+     * from canceling ourselves and deadlocking. */
+    if (READ_ONCE(sock->retransmit_timer.timer))
+        timer_cancel_event(&sock->retransmit_timer);
 }
 
 static bool tcp_snd_wnd_check(struct tcp_socket *tp, struct packetbuf *pbf)
@@ -1558,6 +1561,7 @@ static void tcp_do_time_wait_close(struct clockevent *ce)
     struct tcp_socket *sock = (struct tcp_socket *) ce->priv;
     sock->ref();
     sock->socket_lock.lock_bh();
+    clockevent_kill(&sock->retransmit_timer);
     tcp_done(sock);
     sock->socket_lock.unlock_bh();
     sock->unref();
