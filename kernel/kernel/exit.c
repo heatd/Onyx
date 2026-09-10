@@ -839,7 +839,21 @@ static void exit_signal(struct process *task)
         }
 
         for (int i = 0; i < ITIMER_COUNT; i++)
-            itimer_disarm(&sig->timers[i]);
+        {
+            int err;
+        again:
+            err = itimer_disarm(&sig->timers[i]);
+            if (err)
+            {
+                /* itimer_disarm found the timer running. This is problematic: the timer can try to
+                 * send a signal to ourselves, which grabs the signal_lock. To avoid this,
+                 * spin_unlock+relock and retry disarming. */
+                WARN_ON(err != -EAGAIN);
+                spin_unlock(&sighand->signal_lock);
+                spin_lock(&sighand->signal_lock);
+                goto again;
+            }
+        }
     }
 
     /* Remove ourselves from every list we've been apart of. Sibblings, tasklist, pids, threads */
