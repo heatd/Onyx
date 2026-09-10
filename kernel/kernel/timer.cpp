@@ -18,14 +18,13 @@
 #include <onyx/user.h>
 #include <onyx/vm.h>
 
+#include <linux/list.h>
+#include <linux/lockdep.h>
 #include <uapi/time.h>
 
-void timer_queue_clockevent(struct clockevent *ev)
+static void __timer_queue_clockevent(struct clockevent *ev, struct timer *timer)
 {
-    auto timer = platform_get_timer();
-
-    scoped_lock<spinlock, true> g2{ev->lock};
-    scoped_lock<spinlock, true> g{timer->event_list_lock};
+    lockdep_assert_held(&timer->event_list_lock);
 
     if (ev->flags & CLOCKEVENT_FLAG_POISON)
         panic("Tried to queue clockevent that's already queued");
@@ -44,62 +43,76 @@ void timer_queue_clockevent(struct clockevent *ev)
     }
 }
 
+void timer_queue_clockevent(struct clockevent *ev)
+{
+    auto timer = platform_get_timer();
+
+    scoped_lock<spinlock, true> g{timer->event_list_lock};
+    __timer_queue_clockevent(ev, timer);
+}
+
 void timer_disable(struct timer *t)
 {
     if (t->disable_timer)
         t->disable_timer();
 }
 
-void timer_handle_events(struct timer *t)
+struct timer_iterator
 {
-    bool atomic_context = irq_is_disabled();
-    bool has_raised_softirq = false;
-    bool is_pulse;
-    struct list_head to_handle;
-    INIT_LIST_HEAD(&to_handle);
+    hrtime_t now;
+    bool atomic;
+};
 
-    auto current_time = clocksource_get_time();
-
+static struct clockevent *timer_get_expired(struct timer *t, struct timer_iterator *iter)
+{
     unsigned long cpu_flags = spin_lock_irqsave(&t->event_list_lock);
-
+    struct clockevent *ret = NULL;
     hrtime_t lowest = UINT64_MAX;
+    bool raised = false;
 
     list_for_every_safe (&t->event_list)
     {
         struct clockevent *ev = container_of(l, struct clockevent, list_node);
-        if (ev->deadline > current_time)
+        const bool pulse = ev->flags & CLOCKEVENT_FLAG_PULSE;
+
+        if (ev->deadline > iter->now)
         {
-            lowest = lowest < ev->deadline ? lowest : ev->deadline;
+            lowest = min(lowest, ev->deadline);
             continue;
         }
 
+        /* Atomic events can be safely handled under the timer lock */
         if (ev->flags & CLOCKEVENT_FLAG_ATOMIC)
         {
             ev->callback(ev);
-            if (!(ev->flags & CLOCKEVENT_FLAG_PULSE))
+            if (!pulse)
             {
                 ev->flags &= ~CLOCKEVENT_FLAG_POISON;
-                list_remove(&ev->list_node);
+                list_del_init(&ev->list_node);
                 ev->timer = NULL;
             }
             else
             {
-                lowest = lowest < ev->deadline ? lowest : ev->deadline;
+                lowest = min(lowest, ev->deadline);
             }
         }
-        else if (!atomic_context)
+        else if (iter->atomic)
         {
-            ev->flags |= CLOCKEVENT_FLAG_PENDING;
-            list_remove(&ev->list_node);
-            list_add_tail(&ev->list_node, &to_handle);
+            /* We can't handle most timers in atomic context. Schedule a softirq. */
+            if (!raised)
+                softirq_raise(SOFTIRQ_VECTOR_TIMER);
+            raised = true;
         }
         else
         {
-            if (!has_raised_softirq)
-            {
-                has_raised_softirq = true;
-                softirq_raise(SOFTIRQ_VECTOR_TIMER);
-            }
+            /* We _can_ handle this, lets do so. */
+            list_del_init(&ev->list_node);
+            if (!pulse)
+                atomic_and_relaxed(ev->flags, ~(CLOCKEVENT_FLAG_PENDING | CLOCKEVENT_FLAG_POISON));
+
+            t->executing = ev;
+            ret = ev;
+            break;
         }
     }
 
@@ -113,40 +126,55 @@ void timer_handle_events(struct timer *t)
         t->next_event = lowest;
         t->set_oneshot(lowest);
     }
-
     spin_unlock_irqrestore(&t->event_list_lock, cpu_flags);
+    return ret;
+}
 
-    if (!atomic_context)
+static inline bool clockevent_pending(struct clockevent *ev)
+{
+    return !list_is_empty(&ev->list_node);
+}
+
+#ifndef CONFIG_LOCKDEP
+#define lockdep_copy_map(to, from) \
+    do                             \
+    {                              \
+    } while (0)
+#endif
+
+void timer_handle_events(struct timer *t)
+{
+    struct timer_iterator iter = {
+        .now = clocksource_get_time(),
+        .atomic = irq_is_disabled(),
+    };
+    unsigned long cpu_flags;
+    bool is_pulse;
+    struct clockevent *ev;
+
+    while ((ev = timer_get_expired(t, &iter)))
     {
-        // Handle non-atomic contexts
-        list_for_every_safe (&to_handle)
+        struct lockdep_map copy;
+
+        lockdep_copy_map(&copy, &ev->dep_map);
+        is_pulse = ev->flags & CLOCKEVENT_FLAG_PULSE;
+
+        lock_map_acquire(&copy);
+        ev->callback(ev);
+        lock_map_release(&copy);
+
+        cpu_flags = spin_lock_irqsave(&t->event_list_lock);
+        t->executing = NULL;
+
+        /* Note that if the clockevent is pulse, this event needs to be alive (i.e unfreed, but
+         * could be RCU-freed) _after_ the callback runs. It's simply a restriction we have to deal
+         * with. */
+        if (is_pulse && ev->flags & CLOCKEVENT_FLAG_PULSE)
         {
-            struct clockevent *ev = container_of(l, struct clockevent, list_node);
-            list_remove(&ev->list_node);
-            is_pulse = ev->flags & CLOCKEVENT_FLAG_PULSE;
-            cpu_flags = spin_lock_irqsave(&t->event_list_lock);
-            /* Pulse clockevents are guaranteed to stay alive after the callback. Others aren't. */
-            if (!is_pulse)
-            {
-                /* Cancel it, cancel it now! */
-                WRITE_ONCE(ev->timer, NULL);
-                atomic_and_relaxed(ev->flags, ~(CLOCKEVENT_FLAG_PENDING | CLOCKEVENT_FLAG_POISON));
-            }
-
-            t->executing = ev;
-            spin_unlock_irqrestore(&t->event_list_lock, cpu_flags);
-            ev->callback(ev);
-
-            cpu_flags = spin_lock_irqsave(&t->event_list_lock);
-            t->executing = NULL;
-            spin_unlock_irqrestore(&t->event_list_lock, cpu_flags);
-
-            if (is_pulse && ev->flags & CLOCKEVENT_FLAG_PULSE)
-            {
-                ev->flags &= ~CLOCKEVENT_FLAG_POISON;
-                timer_queue_clockevent(ev);
-            }
+            ev->flags &= ~CLOCKEVENT_FLAG_POISON;
+            __timer_queue_clockevent(ev, t);
         }
+        spin_unlock_irqrestore(&t->event_list_lock, cpu_flags);
     }
 }
 
@@ -169,48 +197,113 @@ static struct timer *lock_timer(struct clockevent *ev, unsigned long *cpu_flags)
     return timer;
 }
 
-static bool timer_cancel_event_try(struct clockevent *ev)
+static struct timer *timer_cancel_event_try(struct clockevent *ev)
 {
-    struct timer *timer;
+    struct timer *timer, *ret;
     unsigned long cpu_flags;
-    bool ret = false;
 
     timer = lock_timer(ev, &cpu_flags);
     if (!timer)
-        return true;
+        return NULL;
 
-    /* Pending? We can't touch it. Interested callers can spin on this bit. */
-    if (!(READ_ONCE(ev->flags) & CLOCKEVENT_FLAG_PENDING))
+    /* Running? Lets spin on this */
+    ret = timer;
+    if (timer->executing == ev)
+        goto out;
+
+    ret = NULL;
+    if (clockevent_pending(ev))
     {
-        if (READ_ONCE(ev->timer))
-        {
-            atomic_and_relaxed(ev->flags, ~CLOCKEVENT_FLAG_POISON);
-            list_remove(&ev->list_node);
-            ev->timer = NULL;
-            ret = true;
-        }
+        atomic_and_relaxed(ev->flags, ~CLOCKEVENT_FLAG_POISON);
+        list_del_init(&ev->list_node);
+        ev->timer = NULL;
     }
 
+out:
     spin_unlock_irqrestore(&timer->event_list_lock, cpu_flags);
     return ret;
 }
 
-static void timer_spin_pending(struct clockevent *ev)
+static void timer_spin_pending(struct timer *timer, struct clockevent *ev)
 {
-    while (__atomic_load_n(&ev->flags, __ATOMIC_ACQUIRE) & CLOCKEVENT_FLAG_PENDING)
+    while (READ_ONCE(timer->executing) == ev)
         cpu_relax();
 }
 
 void timer_cancel_event(struct clockevent *ev)
 {
-    bool done;
+    struct timer *timer;
+
+    lock_map_acquire(&ev->dep_map);
+    lock_map_release(&ev->dep_map);
+
     do
     {
-        done = timer_cancel_event_try(ev);
-        if (!done)
-            timer_spin_pending(ev);
-    } while (!done);
+        timer = timer_cancel_event_try(ev);
+        if (timer)
+            timer_spin_pending(timer, ev);
+    } while (timer);
 }
+
+static struct timer *lock_timer_mod(struct clockevent *ev, unsigned long *cpu_flags)
+{
+    struct timer *timer, *read;
+
+    for (;;)
+    {
+        read = timer = READ_ONCE(ev->timer);
+        /* No timer? lock current (we're queuing it, this is a mod operation) */
+        if (!timer)
+            timer = platform_get_timer();
+        *cpu_flags = spin_lock_irqsave(&timer->event_list_lock);
+        if (ev->timer == read)
+            break;
+        spin_unlock_irqrestore(&timer->event_list_lock, *cpu_flags);
+    }
+
+    return timer;
+}
+
+void timer_mod(struct clockevent *ev, hrtime_t future)
+{
+    struct timer *timer;
+    unsigned long cpu_flags;
+
+    timer = lock_timer_mod(ev, &cpu_flags);
+
+    /* Note: ev->timer is stable as long as we hold the corresponding lock */
+    if (clockevent_pending(ev))
+    {
+        DCHECK(timer == ev->timer);
+        /* Bump the timestamp. TODO: getting a satisfactory next-event is impossible. This makes it
+         * so we get spurious events. */
+        ev->deadline = future;
+        if (future < timer->next_event)
+        {
+            timer->next_event = future;
+            timer->set_oneshot(future);
+        }
+    }
+    else
+    {
+        /* Not queued. Queue it. Note that timer_mod() does not guard against the timer being
+         * concurrently executing. That is up to the user to avoid (or deal with the
+         * consequences). */
+        ev->deadline = future;
+        __timer_queue_clockevent(ev, timer);
+    }
+
+    spin_unlock_irqrestore(&timer->event_list_lock, cpu_flags);
+}
+
+#ifdef CONFIG_LOCKDEP
+void clockevent_init_lockdep(struct clockevent *ev, void (*cb)(struct clockevent *),
+                             unsigned int flags, const char *name, struct lock_class_key *key)
+{
+    __clockevent_init(ev, cb, flags);
+    lockdep_init_map(&ev->dep_map, name, key, 0);
+}
+#endif
 
 void itimer_init(struct process *p)
 {
