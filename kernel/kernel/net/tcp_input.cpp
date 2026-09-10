@@ -824,7 +824,8 @@ static int tcp_drop_connreq(struct tcp_connreq *conn)
     else
     {
         conn->tc_sock = NULL;
-        timer_cancel_event(&conn->retransmit_timer);
+        /* Note: there's no need to cancel the retransmit timer, since this only runs from the
+         * retransmit timer itself. */
         list_remove(&conn->tc_list_node);
         kfree_rcu(conn, tc_rcu_head);
     }
