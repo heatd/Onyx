@@ -48,6 +48,7 @@ out:
 
 void neigh_free(struct neighbour* neigh)
 {
+    timer_cancel_event(&neigh->expiry_timer);
     kfree_rcu(neigh, rcu_head);
 }
 
@@ -74,6 +75,7 @@ struct neighbour* neigh_add(struct neighbour_table* table, const union neigh_pro
 
     new (neigh) neighbour(table->domain, *addr, netif);
     neigh->neigh_ops = ops;
+    neigh->table = table;
     spin_lock(&table->lock);
 
     /* No need for _rcu since we hold the lock */
@@ -126,21 +128,102 @@ void neigh_clear(struct neighbour_table* table)
     spin_unlock(&table->lock);
 }
 
+void __neigh_mark_reachable(struct neighbour* neigh)
+{
+    neigh->state = NUD_REACHABLE;
+    neigh->confirmed = clocksource_get_time();
+    timer_mod(&neigh->expiry_timer, neigh->confirmed + neigh->table->reachable_time);
+}
+
+void __neigh_complete_lookup(struct neighbour* neigh, const void* hwaddr, unsigned int len)
+{
+    memcpy(neigh->hwaddr, hwaddr, len);
+    neigh->hwaddr_len = len;
+    __neigh_mark_reachable(neigh);
+    neigh_output_queued(neigh);
+}
+
+void neigh_timer(struct clockevent* ev)
+{
+    struct neighbour* neigh = container_of(ev, struct neighbour, expiry_timer);
+    const struct neighbour_table* tab = neigh->table;
+    hrtime_t now = clocksource_get_time();
+
+    write_seqlock(&neigh->neigh_seqlock);
+    if (neigh->state == NUD_INCOMPLETE)
+    {
+        if (neigh->retry++ > tab->max_retrans)
+        {
+            neigh->state = NUD_FAILED;
+            goto out;
+        }
+
+        neigh->neigh_ops->resolve(neigh, neigh->netif);
+        if (neigh->state == NUD_REACHABLE)
+            goto out;
+        neigh->expiry_timer.deadline = now + tab->retrans_time;
+        timer_queue_clockevent(&neigh->expiry_timer);
+    }
+    else if (neigh->state == NUD_REACHABLE)
+    {
+        if (neigh->confirmed + tab->reachable_time <= now)
+        {
+            /* More than ReachableTime milliseconds elapsed, transition to STALE. */
+            neigh->state = NUD_STALE;
+        }
+        else
+        {
+            neigh->expiry_timer.deadline = neigh->confirmed + tab->reachable_time;
+            timer_queue_clockevent(&neigh->expiry_timer);
+        }
+    }
+    else if (neigh->state == NUD_DELAY)
+    {
+        if (neigh->delay_probe + tab->delay_first_probe_time <= now)
+        {
+            /* Go into PROBE and start probing */
+            neigh->state = NUD_PROBE;
+            neigh->retry = 0;
+            neigh->neigh_ops->resolve(neigh, neigh->netif);
+            neigh->expiry_timer.deadline = now + tab->retrans_time;
+            timer_queue_clockevent(&neigh->expiry_timer);
+        }
+        else if (neigh->confirmed + tab->reachable_time > now)
+        {
+            /* Confirmed by someone, switch to reachable */
+            neigh->state = NUD_REACHABLE;
+            neigh->expiry_timer.deadline = neigh->confirmed + tab->reachable_time;
+            timer_queue_clockevent(&neigh->expiry_timer);
+        }
+    }
+    else if (neigh->state == NUD_PROBE)
+    {
+        if (neigh->retry++ > tab->max_retrans)
+        {
+            neigh->state = NUD_FAILED;
+            goto out;
+        }
+        neigh->neigh_ops->resolve(neigh, neigh->netif);
+        neigh->expiry_timer.deadline = now + tab->retrans_time;
+        timer_queue_clockevent(&neigh->expiry_timer);
+    }
+
+out:
+    write_sequnlock(&neigh->neigh_seqlock);
+}
+
 void neigh_start_resolve(struct neighbour* neigh, struct netif* nif)
 {
     write_seqlock(&neigh->neigh_seqlock);
 
+    neigh->retry = 0;
     if (neigh_needs_resolve(neigh))
+    {
+        WARN_ON_ONCE(neigh->state != 0);
         neigh->neigh_ops->resolve(neigh, nif);
-
-    if (neigh->state & NUD_STALE)
-    {
-        neigh->state &= ~NUD_STALE;
-        neigh->state |= NUD_PROBE;
-    }
-    else
-    {
-        neigh->state |= NUD_INCOMPLETE;
+        neigh->state = NUD_INCOMPLETE;
+        neigh->expiry_timer.deadline = clocksource_get_time() + NS_PER_SEC;
+        timer_queue_clockevent(&neigh->expiry_timer);
     }
 
     write_sequnlock(&neigh->neigh_seqlock);
@@ -158,14 +241,25 @@ int neigh_output(struct neighbour* neigh, struct packetbuf* pbf, struct netif* n
      * the saved packet when the address has been resolved.
      */
 
-    if (state & NUD_REACHABLE)
+    spin_lock(&neigh->neigh_seqlock.lock);
+    state = neigh->state;
+    if (state & (NUD_REACHABLE | NUD_STALE | NUD_DELAY))
     {
-        /* Just send it */
+        /* Just send it. */
+        if (state == NUD_STALE)
+        {
+            /* Neighbour is stale. Move it to probe and start the delay probe. Reachability
+             * confirmation will bring it back to REACHABLE. */
+            neigh->state = NUD_DELAY;
+            neigh->delay_probe = clocksource_get_time();
+            timer_mod(&neigh->expiry_timer,
+                      neigh->delay_probe + neigh->table->delay_first_probe_time);
+        }
+        spin_unlock(&neigh->neigh_seqlock.lock);
         return neigh->neigh_ops->output(neigh, pbf, nif);
     }
 
-    /* Probe pending (or will be). Append our packet and leave. This requires the lock. */
-    spin_lock(&neigh->neigh_seqlock.lock);
+    /* Probe pending (or will be). Append our packet and leave. */
     list_add_tail(&pbf->list_node, &neigh->packet_queue);
     pbf_get(pbf);
     spin_unlock(&neigh->neigh_seqlock.lock);
@@ -206,7 +300,7 @@ static int table_getneigh(struct neighbour_table* table, struct netlink_sock* nl
     rcu_read_lock();
     for (int i = 0; i < NEIGH_TAB_NR_CHAINS; i++)
     {
-        list_for_each_entry_rcu (neigh, &arp_table.neigh_tab[i], list_node)
+        list_for_each_entry_rcu (neigh, &table->neigh_tab[i], list_node)
         {
             err = -EMSGSIZE;
             nlh = nl_put(pbf, nlsk->pid, nlh_->nlmsg_seq, RTM_NEWNEIGH, NLM_F_MULTI, sizeof(*msg));

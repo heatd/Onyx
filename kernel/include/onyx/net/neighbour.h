@@ -45,6 +45,8 @@ struct neigh_ops
     int (*output)(struct neighbour* neigh, struct packetbuf* pbf, struct netif* nif);
 };
 
+void neigh_timer(struct clockevent* ev);
+
 struct neighbour
 {
     unsigned int refcount;
@@ -54,8 +56,11 @@ struct neighbour
         struct rcu_head rcu_head;
     };
 
+    unsigned int retry;
     int domain;
     struct clockevent expiry_timer;
+    hrtime_t confirmed;
+    hrtime_t delay_probe;
     unsigned long validity_ms;
     struct netif* netif;
     u16 flags;
@@ -68,8 +73,8 @@ struct neighbour
     struct list_head packet_queue;
 
     explicit neighbour(int _domain, const neigh_proto_addr& addr, struct netif* netif)
-        : refcount{1}, hwaddr_len{}, domain{_domain}, netif{netif},
-          flags{NEIGHBOUR_FLAG_UNINITIALISED}, state{0}, neigh_ops{}
+        : refcount{1}, hwaddr_len{}, retry{}, domain{_domain}, confirmed{0}, delay_probe{0},
+          netif{netif}, flags{NEIGHBOUR_FLAG_UNINITIALISED}, state{0}, neigh_ops{}
     {
         if (_domain == AF_INET)
             proto_addr.in4addr.s_addr = addr.in4addr.s_addr;
@@ -77,6 +82,7 @@ struct neighbour
             memcpy(&proto_addr.in6addr, &addr.in6addr, sizeof(in6_addr));
         else
             __builtin_unreachable();
+        clockevent_init(&expiry_timer, neigh_timer, 0);
         seqlock_init(&neigh_seqlock);
         INIT_LIST_HEAD(&packet_queue);
     }
@@ -130,21 +136,13 @@ static inline bool neigh_needs_resolve(struct neighbour* neigh)
 {
     /* Only bother trying to resolve neighbours if they're not yet resolved, or if there are no
      * requests pending. */
-    return !(READ_ONCE(neigh->state) & (NUD_PROBE | NUD_REACHABLE | NUD_INCOMPLETE));
+    return !(READ_ONCE(neigh->state) &
+             (NUD_PROBE | NUD_REACHABLE | NUD_INCOMPLETE | NUD_STALE | NUD_DELAY));
 }
 
 void neigh_start_resolve(struct neighbour* neigh, struct netif* nif);
 void neigh_output_queued(struct neighbour* neigh);
-
-static inline void __neigh_complete_lookup(struct neighbour* neigh, const void* hwaddr,
-                                           unsigned int len)
-{
-    memcpy(neigh->hwaddr, hwaddr, len);
-    neigh->hwaddr_len = len;
-    neigh->state &= ~(NUD_PROBE | NUD_INCOMPLETE | NUD_FAILED | NUD_STALE);
-    neigh->state |= NUD_REACHABLE;
-    neigh_output_queued(neigh);
-}
+void __neigh_complete_lookup(struct neighbour* neigh, const void* hwaddr, unsigned int len);
 
 static inline void neigh_complete_lookup(struct neighbour* neigh, const void* hwaddr,
                                          unsigned int len)
@@ -169,8 +167,15 @@ static inline fnv_hash_t hash_protoaddr(const neigh_proto_addr& addr, int domain
 struct neighbour_table
 {
     struct list_head neigh_tab[NEIGH_TAB_NR_CHAINS];
-    struct spinlock lock;
-    const int domain;
+    struct spinlock lock __align_cache;
+
+    /* read-only/read-mostly members (on a separate cacheline) */
+    const int domain __align_cache;
+    const hrtime_t reachable_time{30000 * NS_PER_MS};
+    const hrtime_t retrans_time{1000 * NS_PER_MS};
+    const hrtime_t delay_first_probe_time{5 * NS_PER_SEC};
+    const unsigned int max_retrans{3};
+
     neighbour_table(int domain) : lock{}, domain{domain}
     {
         spinlock_init(&lock);
@@ -226,4 +231,24 @@ static inline void neigh_set_ops(struct neighbour* neigh, struct neigh_ops* ops)
 int do_getneigh(struct netlink_sock* nlsk, struct packetbuf* pbf, struct nlmsghdr* nlh_,
                 struct rtgenmsg* rth);
 
+void __neigh_mark_reachable(struct neighbour* neigh);
+
+#define NEIGH_CONFIRMED_SLACK (100 * NS_PER_MS)
+
+/**
+ * @brief Confirm a neighbour on a packet input path
+ * Only supposed to be used by protocols with two-way communication, where receiving a packet means
+ * that our forward-path is alive. Such an example is TCP, but _not_ UDP.
+ *
+ * @param neigh Neighbour to confirm
+ */
+static void neigh_confirm_input(struct neighbour* neigh)
+{
+    hrtime_t time = clocksource_get_time();
+
+    /* This is best-effort anyway - no need to touch it too often. If it was soon enough, skip the
+     * confirmation. Otherwise, cache ping-ponging happens. */
+    if (READ_ONCE(neigh->confirmed) + NEIGH_CONFIRMED_SLACK < time)
+        WRITE_ONCE(neigh->confirmed, time);
+}
 #endif

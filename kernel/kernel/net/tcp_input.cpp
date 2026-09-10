@@ -169,6 +169,7 @@ static int tcp_ack(struct tcp_socket *sock, struct packetbuf *pbuf, struct tcp_h
     }
 
     sock->snd_una = ack;
+    neigh_confirm_input(sock->route_cache.dst_hw);
 
     if (list_is_empty(&sock->on_wire_queue))
         tcp_stop_retransmit(sock);
