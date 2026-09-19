@@ -754,7 +754,7 @@ int getroute(struct netlink_sock *nlsk, struct packetbuf *pbf, struct nlmsghdr *
         if (nla_put_u32(pbf, RTA_SRC, r->dest))
             break;
 #endif
-        if (nla_put_u32(pbf, RTA_DST, r->dest))
+        if (r->mask > 0 && nla_put_u32(pbf, RTA_DST, r->dest))
             break;
 
         if (r->flags & INET4_ROUTE_FLAG_GATEWAY)
