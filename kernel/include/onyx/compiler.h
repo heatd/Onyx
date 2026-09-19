@@ -11,10 +11,6 @@
 
 #include <stdint.h>
 
-#ifdef __cplusplus
-#include <onyx/is_integral.h>
-#endif
-
 #ifndef __GNUC__
 #error "The OS needs to be compiled using GCC/clang"
 #endif /*__GNUC__ */
@@ -22,17 +18,21 @@
 #error "Onyx needs to be compiled using a Onyx Cross Compiler"
 #endif /* __onyx__ */
 
-#define FUNC_NO_DISCARD             __attribute__((warn_unused_result))
-#define align(x)                    __attribute__((aligned(x)))
-#define __align_cache               align(64)
-#define likely(x)                   __builtin_expect(!!(x), 1)
-#define unlikely(x)                 __builtin_expect(!!(x), 0)
-#define prefetch(...)               __builtin_prefetch(__VA_ARGS__)
-#define ASSUME_ALIGNED(x, y)        __builtin_assume_aligned(x, y)
-#define ARCH_SPECIFIC               extern
-#define UNUSED(x)                   (void) x
-#define UNUSED_PARAMETER            __attribute__((unused))
-#define __init                      __attribute__((constructor))
+#define FUNC_NO_DISCARD      __attribute__((warn_unused_result))
+#define align(x)             __attribute__((aligned(x)))
+#define __align_cache        align(64)
+#define likely(x)            __builtin_expect(!!(x), 1)
+#define unlikely(x)          __builtin_expect(!!(x), 0)
+#define prefetch(...)        __builtin_prefetch(__VA_ARGS__)
+#define ASSUME_ALIGNED(x, y) __builtin_assume_aligned(x, y)
+#define ARCH_SPECIFIC        extern
+#define UNUSED(x)            (void) x
+#define UNUSED_PARAMETER     __attribute__((unused))
+#ifdef __IS_LINUX
+#define __init
+#else
+#define __init __attribute__((constructor))
+#endif
 #define weak_alias(name, aliasname) _weak_alias(name, aliasname)
 #define _weak_alias(name, aliasname) \
     extern __typeof(name) aliasname __attribute__((weak, alias(#name)));
@@ -68,31 +68,6 @@ static inline uint64_t rdtsc(void)
      */
     __asm__ __volatile__("lfence; rdtsc" : "=a"(v.lohi[0]), "=d"(v.lohi[1])::"ecx");
     return v.value;
-}
-
-#endif
-
-#ifdef __cplusplus
-
-template <typename Type>
-unsigned int count_bits(Type val)
-{
-    static_assert(is_integral_v<Type>);
-
-    if constexpr (sizeof(Type) == sizeof(unsigned long))
-    {
-        return __builtin_popcountl(val);
-    }
-    else if constexpr (sizeof(Type) == sizeof(unsigned long long))
-    {
-        return __builtin_popcountll(val);
-    }
-    else
-    {
-        // Anything smaller than unsigned long gets converted to an unsigned
-        // int, as it's the smallest type.
-        return __builtin_popcount(val);
-    }
 }
 
 #endif

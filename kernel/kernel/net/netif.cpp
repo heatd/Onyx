@@ -10,6 +10,7 @@
 #include <net/if.h>
 #include <net/if_arp.h>
 
+#include <onyx/bits.h>
 #include <onyx/byteswap.h>
 #include <onyx/dev.h>
 #include <onyx/init.h>

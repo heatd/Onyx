@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: GPL-2.0-only
  */
 
+#include <onyx/bits.h>
 #include <onyx/err.h>
 #include <onyx/net/icmpv6.h>
 #include <onyx/net/ip.h>

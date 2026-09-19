@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <onyx/bits.h>
 #include <onyx/block.h>
 #include <onyx/block/multiqueue.h>
 #include <onyx/compiler.h>

@@ -13,6 +13,7 @@
 #include <string.h>
 #include <sys/mount.h>
 
+#include <onyx/bits.h>
 #include <onyx/block.h>
 #include <onyx/block/blk_plug.h>
 #include <onyx/block/io-queue.h>
