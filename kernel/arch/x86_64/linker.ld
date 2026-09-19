@@ -70,6 +70,9 @@ SECTIONS
 		PROVIDE_HIDDEN(__start_kparam = .);
 		*(.rodata.kparam*);
 		PROVIDE_HIDDEN(__end_kparam = .);
+		PROVIDE_HIDDEN(__alternatives_start = .);
+		*(.rodata.alternatives*);
+		PROVIDE_HIDDEN(__alternatives_end = .);
 		*(.rodata*)
 		*(.gnu.linkonce.r*)
 		. = ALIGN(8);
