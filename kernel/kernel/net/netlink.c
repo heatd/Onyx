@@ -63,6 +63,52 @@ int nl_done(struct packetbuf *pbf, pid_t pid, u32 seq, int err)
     return 0;
 }
 
+static int __parse_attributes(struct nlattr **out, const struct nla_attribute *attr, size_t len,
+                              struct nlattr *first, size_t attr_len)
+{
+    bool fail_unknown = false;
+    struct nlattr *nla;
+    u32 type_len;
+    u16 type;
+    int rem;
+
+    memset((void *) out, 0, sizeof(struct nlattr *) * len);
+    nla_for_each_attr(nla, first, attr_len, rem)
+    {
+        type = nla->nla_type;
+        /* We certainly don't know this NLA type */
+        if (type >= len || attr[type].type == NLA_UNKNOWN)
+        {
+            if (fail_unknown)
+                return -EINVAL;
+            continue;
+        }
+
+        type_len = attr[type].len;
+        if (attr[type].type == NLA_U32)
+            type_len = sizeof(u32);
+        if (NLA_HDRLEN + type_len > nla->nla_len)
+            return -EINVAL;
+        out[type] = nla;
+    }
+
+    return 0;
+}
+
+int nla_parse_attr(struct nlattr **out, const struct nla_attribute *attr, size_t nr_attrs,
+                   struct nlmsghdr *nlh, size_t header_size)
+{
+    struct nlattr *first;
+    size_t nla_bytes;
+
+    if (nlh->nlmsg_len < NLMSG_HDRLEN + header_size)
+        return -EINVAL;
+
+    first = (struct nlattr *) ((u8 *) nlh + NLMSG_HDRLEN + NLA_ALIGN(header_size));
+    nla_bytes = ((u8 *) nlh + nlh->nlmsg_len) - (u8 *) first;
+    return __parse_attributes(out, attr, nr_attrs, first, nla_bytes);
+}
+
 static void netlink_destroy(struct socket *sock)
 {
     struct netlink_sock *nlsk = (struct netlink_sock *) sock;

@@ -735,6 +735,24 @@ static int do_rtm_newaddr(struct netlink_sock *nlsk, struct packetbuf *pbf, stru
     return -EOPNOTSUPP;
 }
 
+extern "C" int ipv4_newroute(struct netlink_sock *nlsk, struct packetbuf *pbf,
+                             struct nlmsghdr *nlh_, struct rtgenmsg *rth);
+
+static int do_rtm_newroute(struct netlink_sock *nlsk, struct packetbuf *pbf, struct nlmsghdr *nlh,
+                           struct rtgenmsg *rth)
+{
+    int err;
+    rtnl_lock();
+
+    err = -EINVAL;
+    if (rth->rtgen_family != AF_INET)
+        goto out;
+    err = ipv4_newroute(nlsk, pbf, nlh, rth);
+out:
+    rtnl_unlock();
+    return err;
+}
+
 void net_link_status_notify(struct work_struct *work)
 {
     struct netif *netif = container_of(work, struct netif, link_status_work);
@@ -769,6 +787,7 @@ void netif_init_netkernel()
     rtnl_register(RTM_GETLINK, netif_getlink);
     rtnl_register(RTM_GETADDR, netif_getaddr);
     rtnl_register(RTM_NEWADDR, do_rtm_newaddr);
+    rtnl_register(RTM_NEWROUTE, do_rtm_newroute);
     rtnl_register(RTM_GETROUTE, netif_getroute);
     rtnl_register(RTM_GETNEIGH, netif_getneigh);
 }
