@@ -775,6 +775,116 @@ int getroute(struct netlink_sock *nlsk, struct packetbuf *pbf, struct nlmsghdr *
     return err;
 }
 
+static struct netif *newroute_check_nexthop(in_addr_t nexthop)
+{
+    inet_sock_address from{};
+    inet_sock_address to{in_addr{nexthop}, 0};
+
+    /* This is really spotty, but it's good enough to infer the netif from the route */
+    auto ex = route(from, to, AF_INET);
+    if (ex.has_error())
+        return NULL;
+    return ex.value().nif;
+}
+
+/* clang-format off */
+static const struct nla_attribute route_attrs[RTA_MAX + 1] = {
+    [RTA_UNSPEC] = {},
+    [RTA_DST] = {.type = NLA_U32},
+    [RTA_SRC] = {},
+    [RTA_IIF] = {},
+    [RTA_OIF] = {.type = NLA_U32},
+    [RTA_GATEWAY] = {.type = NLA_U32},
+    [RTA_PRIORITY] = {.type = NLA_U32},
+};
+/* clang-format on */
+
+extern "C" int ipv4_newroute(struct netlink_sock *nlsk, struct packetbuf *pbf,
+                             struct nlmsghdr *nlh_, struct rtgenmsg *rth)
+{
+    struct rtmsg *msg = (struct rtmsg *) rth;
+    struct nlattr *tb[RTA_MAX + 1];
+    struct inet4_route rt;
+    int err;
+
+    auto ptr = make_shared<inet4_route>();
+    if (!ptr)
+        return -ENOMEM;
+
+    err = nla_parse_attr(tb, route_attrs, RTA_MAX + 1, nlh_, sizeof(*msg));
+    if (err)
+        goto out;
+
+    err = -EINVAL;
+    if (msg->rtm_table != RT_TABLE_MAIN)
+        goto out;
+    if (msg->rtm_dst_len > 32 || msg->rtm_src_len > 32)
+        goto out;
+
+    err = -EOPNOTSUPP;
+    if (msg->rtm_type != RTN_UNICAST)
+        goto out;
+    if (msg->rtm_src_len > 0)
+        goto out;
+
+    if (tb[RTA_DST])
+        rt.dest = nla_data_u32(tb[RTA_DST]);
+    else
+        rt.dest = 0;
+
+    rt.mask = !msg->rtm_dst_len ? 0 : htonl(-1U << (32 - msg->rtm_dst_len));
+    rt.metric = 100;
+    rt.flags = 0;
+    rt.gateway = 0;
+    rt.nif = NULL;
+
+    if (tb[RTA_GATEWAY])
+    {
+        rt.gateway = nla_data_u32(tb[RTA_GATEWAY]);
+        rt.flags |= INET4_ROUTE_FLAG_GATEWAY;
+    }
+
+    if (tb[RTA_PRIORITY])
+        rt.metric = nla_data_u32(tb[RTA_PRIORITY]);
+
+    if (tb[RTA_OIF])
+    {
+        rt.nif = netif_from_if(nla_data_u32(tb[RTA_OIF]));
+        err = -EINVAL;
+        if (!rt.nif)
+            goto out;
+    }
+
+    if (tb[RTA_GATEWAY])
+    {
+        /* This is a gateway? Resolve it and check the netif */
+        struct netif *nh_netif = newroute_check_nexthop(rt.gateway);
+        if (!nh_netif || (rt.nif && nh_netif != rt.nif))
+        {
+            /* Either we can't route to the nexthop, or the nexthop doesn't match this netif. Either
+             * way, something's funky. */
+            err = -EINVAL;
+            goto out;
+        }
+        rt.nif = nh_netif;
+    }
+    else if (!rt.nif)
+    {
+        err = -EINVAL;
+        goto out;
+    }
+
+    memcpy(ptr.get(), &rt, sizeof(rt));
+    err = 0;
+
+    routing_table_lock.lock_write();
+    if (!routing_table.push_back(cul::move(ptr)))
+        err = -ENOMEM;
+    routing_table_lock.unlock_write();
+out:
+    return err;
+}
+
 static const struct inet_proto_family v4_protocol = {
     .bind = bind,
     .bind_any = bind_any,

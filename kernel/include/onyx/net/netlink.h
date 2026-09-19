@@ -38,6 +38,46 @@ int nl_done(struct packetbuf *pbf, pid_t pid, u32 seq, int err);
 void netlink_ack(struct netlink_sock *nlsk, struct packetbuf *in_pbf, struct nlmsghdr *msg, int err,
                  struct nl_extack *extack);
 void netlink_rcv_pbf(struct netlink_sock *nlsk, struct packetbuf *pbf);
+
+#define NLA_UNKNOWN 0
+#define NLA_U32     1
+
+struct nla_attribute
+{
+    u32 len;
+    u32 type;
+};
+
+static inline bool nla_ok(const struct nlattr *nla, int remaining)
+{
+    return remaining >= (int) sizeof(*nla) && nla->nla_len >= sizeof(*nla) &&
+           nla->nla_len <= remaining;
+}
+
+static inline struct nlattr *nla_next(const struct nlattr *nla, int *remaining)
+{
+    unsigned int totlen = NLA_ALIGN(nla->nla_len);
+
+    *remaining -= totlen;
+    return (struct nlattr *) ((char *) nla + totlen);
+}
+
+#define nla_for_each_attr(pos, head, len, rem) \
+    for (pos = head, rem = len; nla_ok(pos, rem); pos = nla_next(pos, &(rem)))
+
+int nla_parse_attr(struct nlattr **out, const struct nla_attribute *attr, size_t nr_attrs,
+                   struct nlmsghdr *nlh, size_t header_size);
+
+static inline void *nla_data(const struct nlattr *nla)
+{
+    return (char *) nla + NLA_HDRLEN;
+}
+
+static inline u32 nla_data_u32(const struct nlattr *nla)
+{
+    return *(u32 *) nla_data(nla);
+}
+
 __END_CDECLS
 
 #endif
