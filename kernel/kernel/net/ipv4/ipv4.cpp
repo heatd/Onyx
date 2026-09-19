@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <onyx/bits.h>
 #include <onyx/byteswap.h>
 #include <onyx/cred.h>
 #include <onyx/err.h>

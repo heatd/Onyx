@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <stdio.h>
 
+#include <onyx/bits.h>
 #include <onyx/dentry.h>
 #include <onyx/dev.h>
 #include <onyx/init.h>
