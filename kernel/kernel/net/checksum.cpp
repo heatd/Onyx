@@ -69,7 +69,7 @@ inetsum_t do_checksum(const uint8_t *buf, size_t length)
 
             while (nr_blocks)
             {
-                ADD_CARRY_64_BYTES(buf, sum);
+                ADD_CARRY_64_BYTES((may_alias_uint64_t *) buf, sum);
                 buf += 64;
                 nr_blocks--;
             }
@@ -78,7 +78,7 @@ inetsum_t do_checksum(const uint8_t *buf, size_t length)
             nr_8b_blocks %= 8;
             while (nr_8b_blocks)
             {
-                ADD_CARRY_64BIT(buf, sum);
+                ADD_CARRY_64BIT((may_alias_uint64_t *) buf, sum);
                 nr_8b_blocks--;
                 buf += 8;
             }
