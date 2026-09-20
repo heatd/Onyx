@@ -254,12 +254,6 @@ in6_addr solicited_node_address(const in6_addr &our_address)
 int ndp_submit_request(struct neighbour *neigh, struct netif *netif)
 {
     const in6_addr &target_addr = neigh->proto_addr.in6addr;
-    if (target_addr == in6addr_loopback || netif->flags & NETIF_LOOPBACK)
-    {
-        const unsigned char loopback_eth[ETH_ALEN] = {};
-        __neigh_complete_lookup(neigh, loopback_eth, ETH_ALEN);
-        return 0;
-    }
 
     constexpr size_t source_link_layer_opt = sizeof(icmp6_source_link_layer_opt) + 6;
     char buf_[sizeof(nd_neighbor_solicit) + source_link_layer_opt];
