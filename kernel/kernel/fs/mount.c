@@ -178,9 +178,19 @@ static int mnt_commit(struct mount *mnt, const char *target)
         struct path mountpoint;
         int err;
 
-        err = path_openat(AT_FDCWD, target, LOOKUP_MUST_BE_DIR, &mountpoint);
+        err = path_openat(AT_FDCWD, target, 0, &mountpoint);
         if (err < 0)
             return err;
+
+        if (dentry_is_dir(mnt->mnt_root) != dentry_is_dir(mountpoint.dentry))
+        {
+            /* mount(2) can actually mount files (for, e.g, bind mounts). What it cannot (or should
+             * not) do is mount a file over a directory, or a directory over a file. Disallow
+             * that. For most filesystems (for normal mounts), mnt_root is a directory, so
+             * mountpoint also needs to be one. */
+            path_put(&mountpoint);
+            return -ENOTDIR;
+        }
 
         /* Path reference gets dilluted into these two members */
         mnt->mnt_point = mountpoint.dentry;
@@ -686,8 +696,7 @@ int sys_umount2(const char *utarget, int flags)
         goto out;
 
     struct path path;
-    err = path_openat(AT_FDCWD, target,
-                      LOOKUP_MUST_BE_DIR | (flags & UMOUNT_NOFOLLOW ? LOOKUP_NOFOLLOW : 0), &path);
+    err = path_openat(AT_FDCWD, target, (flags & UMOUNT_NOFOLLOW ? LOOKUP_NOFOLLOW : 0), &path);
     if (err < 0)
         goto out;
 
