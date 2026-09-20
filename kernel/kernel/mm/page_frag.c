@@ -30,10 +30,11 @@ static int page_frag_refill(struct page_frag_info *pfi, unsigned int len, gfp_t 
     return 0;
 }
 
-int page_frag_alloc(struct page_frag_info *pfi, unsigned int len, gfp_t gfp, struct page_frag *frag)
+int page_frag_alloc_align(struct page_frag_info *pfi, unsigned int len, unsigned int align,
+                          gfp_t gfp, struct page_frag *frag)
 {
     /* Check if we don't have a page already, or if we dont have enough space for the frag */
-    if (!pfi->page || pfi->len - pfi->offset < len)
+    if (!pfi->page || pfi->len - ALIGN_TO(pfi->offset, align) < len)
     {
         if (page_frag_refill(pfi, len, gfp) < 0)
             return -ENOMEM;
@@ -42,8 +43,8 @@ int page_frag_alloc(struct page_frag_info *pfi, unsigned int len, gfp_t gfp, str
     page_ref(pfi->page);
     frag->page = pfi->page;
     frag->len = len;
-    frag->offset = pfi->offset;
-    pfi->offset += len;
+    frag->offset = ALIGN_TO(pfi->offset, align);
+    pfi->offset = frag->offset + len;
 
     if (pfi->offset == pfi->len)
     {

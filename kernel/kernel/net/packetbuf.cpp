@@ -431,7 +431,7 @@ struct packetbuf *pbf_alloc_sk(gfp_t gfp, struct socket *sock, unsigned int len)
         return NULL;
 
     len = ALIGN_TO(len, 4);
-    if (page_frag_alloc(&sock->sock_pfi, len, gfp, &f) < 0)
+    if (page_frag_alloc_align(&sock->sock_pfi, len, 16, gfp, &f) < 0)
     {
         pbf_free(pbf);
         return NULL;

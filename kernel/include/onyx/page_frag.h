@@ -33,8 +33,14 @@ static inline void pfi_init(struct page_frag_info *pfi)
     pfi->len = pfi->offset = 0;
 }
 
-int page_frag_alloc(struct page_frag_info *pfi, unsigned int len, gfp_t gfp,
-                    struct page_frag *frag);
+int page_frag_alloc_align(struct page_frag_info *pfi, unsigned int len, unsigned int align,
+                          gfp_t gfp, struct page_frag *frag);
+
+static inline int page_frag_alloc(struct page_frag_info *pfi, unsigned int len, gfp_t gfp,
+                                  struct page_frag *frag)
+{
+    return page_frag_alloc_align(pfi, len, 1, gfp, frag);
+}
 
 void pfi_destroy(struct page_frag_info *pfi);
 
