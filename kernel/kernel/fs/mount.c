@@ -319,6 +319,16 @@ void mnt_put_write(struct mount *mnt)
     __atomic_sub_fetch(&mnt->mnt_writecount, 1, __ATOMIC_RELAXED);
 }
 
+static inline void super_lock(struct superblock *sb)
+{
+    rw_lock_write(&sb->s_lock);
+}
+
+static inline void super_unlock(struct superblock *sb)
+{
+    rw_unlock_write(&sb->s_lock);
+}
+
 static struct mount *do_mount_internal(const char *source, const char *target, struct fs_mount *fs,
                                        unsigned long mnt_flags, unsigned int sb_flags,
                                        const void *data)
@@ -352,7 +362,9 @@ static struct mount *do_mount_internal(const char *source, const char *target, s
 
     mnt->mnt_sb->s_root = root_dentry;
     dget(root_dentry);
+    super_lock(mnt->mnt_sb);
     list_add_tail(&mnt->mnt_sb_node, &mnt->mnt_sb->s_mounts);
+    super_unlock(mnt->mnt_sb);
     bdev = NULL;
     mnt->mnt_root = root_dentry;
     mnt->mnt_sb->s_type = fs;
@@ -485,8 +497,10 @@ static struct mount *do_bind_mount(const char *source, const char *target, unsig
     mnt_init(mnt, mnt_flags);
 
     mnt->mnt_sb = path.mount->mnt_sb;
+    super_lock(mnt->mnt_sb);
     super_get(mnt->mnt_sb);
     list_add_tail(&mnt->mnt_sb_node, &mnt->mnt_sb->s_mounts);
+    super_unlock(mnt->mnt_sb);
     mnt->mnt_root = path.dentry;
     mnt->mnt_devname = source;
 
@@ -654,6 +668,8 @@ static int do_umount_path(struct path *path, int flags)
      * this. */
     path_put(path);
 
+    super_lock(sb);
+    list_remove(&mount->mnt_sb_node);
     sb_dead = super_put(sb);
 
     /* If we were holding the last reference to the superblock, lets start sb killing procedures.
@@ -671,6 +687,7 @@ static int do_umount_path(struct path *path, int flags)
     /* Finally, put our root */
     dput(mount->mnt_root);
 
+    super_unlock(sb);
     /* Now shutdown the superblock */
     if (sb_dead)
         sb_shutdown(sb);
