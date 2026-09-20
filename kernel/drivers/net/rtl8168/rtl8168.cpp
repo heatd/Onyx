@@ -240,7 +240,11 @@ struct page_frag_res
     size_t off;
 };
 
-extern "C" struct page_frag_res page_frag_alloc(struct page_frag_alloc_info *inf, size_t size);
+#define page_frag_alloc(...) \
+    do                       \
+    {                        \
+        panic("TODO");       \
+    } while (0)
 
 #include <onyx/byteswap.h>
 /**
@@ -284,6 +288,7 @@ int rtl8168_device::configure_rx()
         return -ENOMEM;
     }
 
+#if 0
     for (unsigned int i = 0; i < number_rx_desc; i++)
     {
         struct page_frag_res res = page_frag_alloc(&alloc_info, rx_buffer_size);
@@ -300,7 +305,7 @@ int rtl8168_device::configure_rx()
             rxdescs_[i].status |= RTL8168_RX_DESC_FLAG_EOR;
         }
     }
-
+#endif
     unsigned long rxd_base = (unsigned long) page_to_phys(p);
 
     regs_.write32(RTL8168_RDSAR_LOW, (uint32_t) rxd_base);
