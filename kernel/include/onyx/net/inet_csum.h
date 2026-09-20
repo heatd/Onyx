@@ -19,19 +19,21 @@ typedef uint8_t __attribute__((may_alias)) may_alias_uint8_t;
 
 #ifdef __x86_64__
 
-#define ADD_CARRY_64_BYTES(buf, result)                 \
-    __asm__ __volatile__("addq 0*8(%[buf]), %[res]\n\t" \
-                         "adcq 1*8(%[buf]), %[res]\n\t" \
-                         "adcq 2*8(%[buf]), %[res]\n\t" \
-                         "adcq 3*8(%[buf]), %[res]\n\t" \
-                         "adcq 4*8(%[buf]), %[res]\n\t" \
-                         "adcq 5*8(%[buf]), %[res]\n\t" \
-                         "adcq 6*8(%[buf]), %[res]\n\t" \
-                         "adcq 7*8(%[buf]), %[res]\n\t" \
-                         "adc $0, %[res]"               \
-                         : [res] "=r"(result)           \
-                         : [buf] "r"(buf), "[res]"      \
-                                           "r"(result))
+#define __CONCAT_CARRY() buf
+
+#define ADD_CARRY_64_BYTES(buf, result)                         \
+    __asm__ __volatile__("addq 0*8(%[buf]), %[res]\n\t"         \
+                         "adcq 1*8(%[buf]), %[res]\n\t"         \
+                         "adcq 2*8(%[buf]), %[res]\n\t"         \
+                         "adcq 3*8(%[buf]), %[res]\n\t"         \
+                         "adcq 4*8(%[buf]), %[res]\n\t"         \
+                         "adcq 5*8(%[buf]), %[res]\n\t"         \
+                         "adcq 6*8(%[buf]), %[res]\n\t"         \
+                         "adcq 7*8(%[buf]), %[res]\n\t"         \
+                         "adc $0, %[res]"                       \
+                         : [res] "=r"(result)                   \
+                         : [__CONCAT_CARRY()] "r"(buf), "[res]" \
+                                                        "r"(result))
 
 #define ADD_CARRY_64BIT(buf, result)         \
     __asm__ __volatile__("addq (%1), %0\n\t" \
