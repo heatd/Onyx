@@ -17,6 +17,7 @@ inetsum_t do_checksum(const uint8_t *buf, size_t length)
      * chunks, and then handling the trailing byte). This seems to be the standard of doing this in
      * software.
      */
+    bool odd_start = false;
 
     uint64_t sum = 0;
     if (length == 0) [[unlikely]]
@@ -28,6 +29,7 @@ inetsum_t do_checksum(const uint8_t *buf, size_t length)
         sum = *buf << 8;
         buf++;
         length--;
+        odd_start = true;
     }
 
     /* Right now, nr_blocks represents the number of 16-bit blocks */
@@ -110,6 +112,12 @@ inetsum_t do_checksum(const uint8_t *buf, size_t length)
     }
 
     sum = addcarry32(sum >> 32, sum & 0xffffffff);
+    if (unlikely(odd_start))
+    {
+        /* Swap bytes within each 16-bit half. This makes sure that reading a lone byte at the start
+         * will not come out inverted. */
+        sum = ((sum & 0x00ff00ff) << 8) | ((sum & 0xff00ff00) >> 8);
+    }
 
     return sum;
 }
