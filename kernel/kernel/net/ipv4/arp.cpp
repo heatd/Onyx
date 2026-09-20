@@ -113,16 +113,6 @@ static int arp_resolve(struct neighbour *neigh, struct netif *netif)
 {
     in_addr_t target_addr = neigh->proto_addr.in4addr.s_addr;
 
-    if (target_addr == INADDR_BROADCAST || target_addr == INADDR_LOOPBACK ||
-        netif->flags & NETIF_LOOPBACK)
-    {
-        const unsigned char bcast_eth[ETH_ALEN] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-        const unsigned char loopback_eth[ETH_ALEN] = {};
-        __neigh_complete_lookup(neigh, target_addr == INADDR_BROADCAST ? bcast_eth : loopback_eth,
-                                ETH_ALEN);
-        return 0;
-    }
-
     auto buf = make_unique<packetbuf>();
     if (!buf)
         return -ENOMEM;
@@ -148,7 +138,7 @@ static int arp_resolve(struct neighbour *neigh, struct netif *netif)
     arp->target_hw_address[4] = 0xFF;
     arp->target_hw_address[5] = 0xFF;
     arp->sender_proto_address = netif_primary_inet_addr(netif);
-    arp->target_proto_address = neigh->proto_addr.in4addr.s_addr;
+    arp->target_proto_address = target_addr;
     if (int st = netif->dll_ops->setup_header(buf.get(), tx_type::broadcast, tx_protocol::arp,
                                               netif, nullptr);
         st < 0)

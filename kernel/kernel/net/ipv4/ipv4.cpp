@@ -684,6 +684,7 @@ expected<inet_route, int> route(const inet_sock_address &from, const inet_sock_a
     r.src_addr.in4.s_addr = netif_primary_inet_addr(r.nif);
     r.flags = best_route->flags;
     r.gateway_addr.in4.s_addr = best_route->gateway;
+    r.dst_hw = NULL;
 
     if (addr_is_broadcast(to.in4.s_addr, r))
         r.flags |= INET4_ROUTE_FLAG_BROADCAST;
@@ -695,9 +696,12 @@ expected<inet_route, int> route(const inet_sock_address &from, const inet_sock_a
     if (r.flags & INET4_ROUTE_FLAG_GATEWAY)
         to_resolve = r.gateway_addr.in4.s_addr;
 
-    r.dst_hw = arp_resolve_in(to_resolve, r.nif);
-    if (IS_ERR(r.dst_hw))
-        return unexpected<int>{PTR_ERR(r.dst_hw)};
+    if (!(r.flags & (INET4_ROUTE_FLAG_BROADCAST | INET4_ROUTE_FLAG_MULTICAST)))
+    {
+        r.dst_hw = arp_resolve_in(to_resolve, r.nif);
+        if (IS_ERR(r.dst_hw))
+            return unexpected<int>{PTR_ERR(r.dst_hw)};
+    }
     return r;
 }
 
