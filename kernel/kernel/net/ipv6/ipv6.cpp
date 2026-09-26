@@ -85,6 +85,7 @@ int send_packet(const iflow &flow, packetbuf *buf)
     hdr->payload_length = htons(length);
     hdr->next_header = next_header;
     hdr->hop_limit = flow.ttl;
+    buf->net_header = (u8 *) hdr;
 
     const auto ttype = ipv6_addr_to_tx_type(route.dst_addr.in6);
     if (ttype == tx_type::multicast)
