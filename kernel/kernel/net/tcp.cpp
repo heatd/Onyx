@@ -277,6 +277,7 @@ static int tcp_sendpbuf(struct tcp_socket *sock, struct packetbuf *pbf)
                 pbf->page_vec[i].page_off, pbf->page_vec[i].length);
 #endif
     hdr = (struct tcp_header *) pbf_push_header(pbf, sizeof(struct tcp_header));
+    pbf->transport_header = (u8 *) hdr;
     memset(hdr, 0, sizeof(struct tcp_header));
     if (pbf->tpi.ack)
         flags |= TCP_FLAG_ACK;
@@ -378,8 +379,9 @@ static void tcp_prepare_nondata_header(struct tcp_socket *sock, struct packetbuf
     hdr->window_size = htons(tcp_select_wsize(sock));
     hdr->data_offset_and_flags =
         htons(TCP_MAKE_DATA_OFF(tcp_header_length_to_data_off(header_len)) | flags);
-    bool need_csum = true;
+    pbf->transport_header = (u8 *) hdr;
 
+    bool need_csum = true;
     if (sock->can_offload_csum(sock->route_cache.nif, pbf))
     {
         pbf->csum_offset = &hdr->checksum;
