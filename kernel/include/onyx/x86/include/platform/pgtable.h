@@ -117,12 +117,12 @@ static inline pgd_t *pgd_offset(struct mm_address_space *mm, unsigned long addr)
 #define pte_val(x)    ((x).pte)
 #define pgprot_val(x) ((x).pgprot)
 
-#define __pgd(x)    ((pgd_t){(x)})
-#define __p4d(x)    ((p4d_t){(x)})
-#define __pud(x)    ((pud_t){(x)})
-#define __pmd(x)    ((pmd_t){(x)})
-#define __pte(x)    ((pte_t){(x)})
-#define __pgprot(x) ((pgprot_t){(x)})
+#define __pgd(x)    ((pgd_t) {(x)})
+#define __p4d(x)    ((p4d_t) {(x)})
+#define __pud(x)    ((pud_t) {(x)})
+#define __pmd(x)    ((pmd_t) {(x)})
+#define __pte(x)    ((pte_t) {(x)})
+#define __pgprot(x) ((pgprot_t) {(x)})
 
 static inline unsigned long p4d_index(unsigned long addr)
 {
@@ -283,6 +283,11 @@ static inline bool pte_special(pte_t pte)
     return pte_val(pte) & _PAGE_SPECIAL;
 }
 
+static inline bool pmd_special(pmd_t pmd)
+{
+    return pmd_val(pmd) & _PAGE_SPECIAL;
+}
+
 static inline bool pte_accessed(pte_t pte)
 {
     return pte_val(pte) & _PAGE_ACCESSED;
@@ -327,6 +332,16 @@ static inline pte_t pte_mkyoung(pte_t pte)
 static inline pte_t pte_mkwrite(pte_t pte)
 {
     return __pte(pte_val(pte) | _PAGE_WRITE);
+}
+
+static inline pte_t pte_mkpte_from_huge(pmd_t pmd)
+{
+    return __pte(pmd_val(pmd) & ~_PAGE_HUGE);
+}
+
+static inline pte_t pte_advance_addr(pte_t pte)
+{
+    return __pte(pte_val(pte) + PAGE_SIZE);
 }
 
 /* PML4-level hugepages not supported on x86, for now... */
@@ -421,7 +436,7 @@ static inline pmd_t pmd_wrprotect(pmd_t pmd)
     return __pmd(pmd_val(pmd) & ~_PAGE_WRITE);
 }
 
-#define X86_CACHING_BITS(index) ((((index) &0x3) << 3) | (((index >> 2) & 1) << 7))
+#define X86_CACHING_BITS(index) ((((index) & 0x3) << 3) | (((index >> 2) & 1) << 7))
 
 static inline pgprot_t calc_pgprot(u64 phys, u64 prot)
 {
@@ -462,9 +477,9 @@ static inline bool pmd_protnone(pmd_t pmd)
 #define SWP_TYPE(entry)   ((entry).swp >> ARCH_SWP_TYPE_SHIFT)
 #define SWP_OFFSET(entry) (((entry).swp & ARCH_SWP_OFF_MASK) >> ARCH_SWP_OFF_SHIFT)
 #define SWP_ENTRY(type, offset) \
-    ((swp_entry_t){.swp = (type) << ARCH_SWP_TYPE_SHIFT | (offset) << ARCH_SWP_OFF_SHIFT})
+    ((swp_entry_t) {.swp = (type) << ARCH_SWP_TYPE_SHIFT | (offset) << ARCH_SWP_OFF_SHIFT})
 
-#define pte_to_swp_entry(pte) ((swp_entry_t){.swp = pte_val(pte)})
+#define pte_to_swp_entry(pte) ((swp_entry_t) {.swp = pte_val(pte)})
 
 /**
  * @brief Invalidate the TLB after upgrading PTE protection

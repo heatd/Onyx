@@ -912,6 +912,12 @@ static inline void folio_add_mapcount(struct folio *folio)
     page_add_mapcount(folio_to_page(folio));
 }
 
+static inline void folio_add_mapcount_many(struct folio *folio, unsigned int many)
+{
+    if (__atomic_add_fetch(&folio->mapcount, many, __ATOMIC_RELAXED) == -1 + many)
+        folio_get(folio);
+}
+
 static inline void folio_get_many(struct folio *folio, unsigned int refs)
 {
     page_ref_many(folio_to_page(folio), refs);

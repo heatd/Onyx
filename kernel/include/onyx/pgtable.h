@@ -20,7 +20,7 @@ typedef struct
     swpval_t swp;
 } swp_entry_t;
 
-#define swpval_to_swp_entry(swpval) ((swp_entry_t){.swp = (swpval)})
+#define swpval_to_swp_entry(swpval) ((swp_entry_t) {.swp = (swpval)})
 
 #include <platform/pgtable.h>
 
@@ -263,6 +263,8 @@ int zap_page_range(unsigned long start, unsigned long end, struct vm_area_struct
 int vma_unmap(struct mm_address_space *mm, void *addr, size_t pages, struct vm_area_struct *vma,
               struct tlbi_tracker *tlbi);
 
+bool vm_do_split_thps(struct mm_address_space *mm, struct vm_area_struct *vma, unsigned long addr);
+pte_t *split_huge_pmd(pmd_t *pmd, struct vm_area_struct *vma, unsigned long addr);
 p4d_t *p4d_get_or_alloc(pgd_t *pgd, unsigned long addr, struct mm_address_space *mm);
 pud_t *pud_get_or_alloc(p4d_t *p4d, unsigned long addr, struct mm_address_space *mm);
 pmd_t *pmd_get_or_alloc(pud_t *pud, unsigned long addr, struct mm_address_space *mm);

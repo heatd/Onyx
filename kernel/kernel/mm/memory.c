@@ -5,6 +5,7 @@
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
+#include <onyx/err.h>
 #include <onyx/filemap.h>
 #include <onyx/mm/page_lru.h>
 #include <onyx/pgtable.h>
@@ -604,6 +605,7 @@ static enum unmap_result pte_unmap_range(struct unmap_info *uinfo, pte_t *pte, u
                                          unsigned long end)
 {
     unsigned long next_start;
+    struct folio *folio;
     int clear = 0;
 
     pte_lock(pte, uinfo->mm);
@@ -624,9 +626,10 @@ static enum unmap_result pte_unmap_range(struct unmap_info *uinfo, pte_t *pte, u
         if (!uinfo->kernel && !pte_special(old) && (pte_present(old) || pte_protnone(old)))
         {
             page = phys_to_page(pte_addr(old));
+            folio = page_folio(page);
             /* Ref the page, so it doesn't go away before the tlbi */
             page_ref(page);
-            page_sub_mapcount(page);
+            folio_sub_mapcount(folio);
         }
 
         if (pte_present(old) || pte_protnone(old))
@@ -746,7 +749,7 @@ static bool pmd_unmap_huge(struct unmap_info *uinfo, pmd_t *pmd, unsigned long s
     if (!lock)
         return false;
 
-    if (!uinfo->kernel && (pmd_present(old) || pmd_protnone(old)))
+    if (!uinfo->kernel && !pmd_special(old) && (pmd_present(old) || pmd_protnone(old)))
     {
         folio = phys_to_folio(pmd_addr(old));
         /* Ref the page, so it doesn't go away before the tlbi */
@@ -938,6 +941,8 @@ int zap_page_range(unsigned long start, unsigned long end, struct vm_area_struct
     unmap_info.tlbi = &tlbi;
     tlbi_tracker_init(&tlbi);
 
+    if (!vm_do_split_thps(mm, vma, start) || !vm_do_split_thps(mm, vma, end))
+        return -ENOMEM;
     pgd_unmap_range(&unmap_info, pgd_offset(mm, start), start, end);
 
     if (tlbi_active(&tlbi))
@@ -1120,6 +1125,8 @@ static int pte_fork_range(struct tlbi_tracker *tlbi, pte_t *pte, pte_t *old_pte,
                           unsigned long start, unsigned long end, struct mm_address_space *mm,
                           struct vm_area_struct *old_vma)
 {
+    struct folio *folio;
+
     /* Let's lock the page tables. It actually *does* matter in our case, because we must have
      * stable ptes (one can imagine a situation where a shared pte getting wp'd races and we get a
      * writable mapping without the page being dirty). */
@@ -1139,7 +1146,10 @@ static int pte_fork_range(struct tlbi_tracker *tlbi, pte_t *pte, pte_t *old_pte,
         }
 
         if (!vma_is_pfnmap(old_vma) && !pte_special(old))
-            page_add_mapcount(phys_to_page(pte_addr(old)));
+        {
+            folio = page_folio(phys_to_page(pte_addr(old)));
+            folio_add_mapcount(folio);
+        }
 
         if (!pte_protnone(old) && vma_private(old_vma) && pte_write(old))
         {
@@ -1168,7 +1178,7 @@ static int pmd_fork_huge(struct tlbi_tracker *tlbi, pmd_t *pmd, pmd_t *old_pmd, 
 
     spin_lock(&mm->page_table_lock);
 
-    if (!vma_is_pfnmap(old_vma))
+    if (!vma_is_pfnmap(old_vma) && !pmd_special(old))
     {
         folio = phys_to_folio(pmd_addr(old));
         folio_add_mapcount(folio);
@@ -1435,30 +1445,30 @@ int pgtable_prealloc(struct mm_address_space *mm, unsigned long virt)
     return 0;
 }
 
-static bool wp_may_reuse_old(struct page *page)
+static bool wp_may_reuse_old(struct folio *folio)
 {
     /* Check if there are circumstances to use the old page as the new dirtied page. Basically,
      * we want to check for refcount/mapcount while also being careful about the page going away
      * at some point. Page tables are locked. */
-    if (READ_ONCE(page->ref) > 1U + page_test_swap(page))
+    if (READ_ONCE(folio->ref) > 1U + folio_test_swap(folio))
         return false;
-    if (page_mapcount(page) > 1)
+    if (folio_mapcount(folio) > 1)
         return false;
     /* Try-lock it, and recheck these conditions. The swap tests for instance are racy without
      * the lock. */
-    if (!try_lock_page(page))
+    if (!folio_try_lock(folio))
         return false;
-    if (READ_ONCE(page->ref) > 1U + page_test_swap(page))
+    if (READ_ONCE(folio->ref) > 1U + folio_test_swap(folio))
         goto no_unlock;
-    if (page_test_swap(page))
+    if (folio_test_swap(folio))
         goto no_unlock;
-    if (page_mapcount(page) > 1)
+    if (folio_mapcount(folio) > 1)
         goto no_unlock;
 
-    unlock_page(page);
+    folio_unlock(folio);
     return true;
 no_unlock:
-    unlock_page(page);
+    folio_unlock(folio);
     return false;
 }
 
@@ -1474,11 +1484,13 @@ static int do_reuse_wp(struct vm_pf_context *context, struct page *oldp, pte_t *
     return 0;
 }
 
+extern struct folio *__huge_zero_folio;
+
 int do_wp_page(struct vm_pf_context *context)
 {
     struct page *oldp = phys_to_page(pte_addr(context->oldpte));
-    bool was_zeropage = oldp == vm_get_zero_page();
-    struct folio *new_folio;
+    bool was_zeropage;
+    struct folio *new_folio, *old_folio;
     pte_t *ptep;
     u64 phys;
     struct spinlock *lock = NULL;
@@ -1494,7 +1506,15 @@ int do_wp_page(struct vm_pf_context *context)
         return 0;
     }
 
-    if (!was_zeropage && wp_may_reuse_old(oldp))
+    old_folio = page_folio(oldp);
+    was_zeropage =
+        (oldp == vm_get_zero_page() || (__huge_zero_folio && old_folio == __huge_zero_folio));
+    if (folio_test_head(old_folio))
+    {
+        pr_warn("doing wp on large folio (refs %u, mapcount %u)\n", old_folio->ref,
+                folio_mapcount(old_folio));
+    }
+    if (!was_zeropage && wp_may_reuse_old(old_folio))
         return do_reuse_wp(context, oldp, ptep, lock);
 
     spin_unlock(lock);
@@ -1527,18 +1547,110 @@ int do_wp_page(struct vm_pf_context *context)
     if (!was_zeropage)
     {
         /* Ref the page, so it doesn't go away before the tlbi */
-        page_ref(oldp);
-        page_sub_mapcount(oldp);
+        folio_get(old_folio);
+        folio_sub_mapcount(old_folio);
     }
 
     phys = (u64) folio_to_phys(new_folio);
     folio_add_mapcount(new_folio);
-    set_pte_over(context->entry, context->vpage, ptep, pte_mkpte(phys, calc_pgprot(phys, context->entry->vm_flags)));
-    tlbi_remove_page(&tlbi, context->vpage, !was_zeropage ? oldp : NULL);
+    set_pte_over(context->entry, context->vpage, ptep,
+                 pte_mkpte(phys, calc_pgprot(phys, context->entry->vm_flags)));
+    tlbi_remove_page(&tlbi, context->vpage, !was_zeropage ? folio_to_page(old_folio) : NULL);
     folio_put(new_folio);
 out:
     if (tlbi_active(&tlbi))
         tlbi_end_batch(&tlbi);
     spin_unlock(lock);
     return 0;
+}
+
+pte_t *split_huge_pmd(pmd_t *pmd, struct vm_area_struct *vma, unsigned long addr)
+{
+    struct mm_address_space *mm = vma->vm_mm;
+    pte_t *ptep = NULL, *pte, tmp;
+    struct spinlock *lock;
+    struct folio *folio;
+    unsigned int i;
+    u64 phys;
+
+    /* Split the huge PMD entry by replacing it with a single PTE table */
+    pte = ptep = __pte_alloc(mm);
+    if (!ptep)
+        return ERR_PTR(-ENOMEM);
+
+    lock = pmd_lockptr(mm, pmd);
+    spin_lock(lock);
+    if (!pmd_huge(*pmd))
+    {
+        /* Raced? */
+        DCHECK(!pmd_none(*pmd));
+        free_page(phys_to_page((unsigned long) pte));
+        ptep = pte_offset(pmd, addr);
+        goto out_unlock;
+    }
+
+    phys = pmd_addr(*pmd);
+
+    if (pmd_special(*pmd))
+        folio = NULL;
+    else
+        folio = phys_to_folio(phys);
+
+    ptep = PHYS_TO_VIRT((unsigned long) pte);
+    tmp = pte_mkpte_from_huge(*pmd);
+    /* No need to split the folio itself; we'll just map the folio partially in 512 PTEs. */
+    for (i = 0; i < PMD_SIZE / PTE_SIZE; i++)
+    {
+        set_pte(ptep + i, tmp);
+        tmp = pte_advance_addr(tmp);
+    }
+
+    if (folio)
+    {
+        /* Add NR_PTES - 1 mapcount references */
+        folio_add_mapcount_many(folio, (PMD_SIZE / PTE_SIZE) - 1);
+    }
+
+    /* Clear out the huge PMD entry. This is safe as long as we hold the PMD lock for all of this.
+     */
+    set_pmd(pmd, __pmd(0));
+    /* and invalidate TLBs. */
+    mmu_invalidate_range(addr & -PMD_SIZE, 1, mm);
+    set_pmd(pmd, pmd_mkpmd((unsigned long) pte, __pgprot(USER_PGTBL)));
+    increment_vm_stat(mm, page_tables_size, PAGE_SIZE);
+    inc_page_stat(phys_to_page((unsigned long) pte), NR_PTES);
+    /* Return the pte for addr, not the table's base (see pte_alloc) */
+    ptep += pte_index(addr);
+out_unlock:
+    spin_unlock(lock);
+    return ptep;
+}
+
+bool vm_do_split_thps(struct mm_address_space *mm, struct vm_area_struct *vma, unsigned long addr)
+{
+    /* We're about to split a VMA. THPs cannot be split across VMAs. Check if one exists at the
+     * split point and, if so, shatter it. */
+    pgd_t *pgd;
+    p4d_t *p4d;
+    pud_t *pud;
+    pmd_t *pmd;
+
+    pgd = pgd_offset(mm, addr);
+
+    p4d = p4d_get_or_alloc(pgd, addr, mm);
+    if (unlikely(!p4d))
+        return true;
+
+    pud = pud_get_or_alloc(p4d, addr, mm);
+    if (unlikely(!pud))
+        return true;
+
+    /* Not supported yet */
+    if (WARN_ON(pud_huge(*pud)))
+        return false;
+
+    pmd = pmd_get_or_alloc(pud, addr, mm);
+    if (unlikely(!pmd) || !pmd_huge(*pmd))
+        return true;
+    return split_huge_pmd(pmd, vma, addr) != NULL;
 }

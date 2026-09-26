@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2025 Pedro Falcato
+ * Copyright (c) 2016 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -57,6 +57,7 @@
 
 #include "vma_internal.h"
 
+static const bool thp_enabled = true;
 static bool enable_aslr = true;
 
 uintptr_t high_half = arch_high_half;
@@ -1064,6 +1065,9 @@ static struct vm_area_struct *vm_split_region(struct mm_address_space *as,
             return NULL;
     }
 
+    if (!vm_do_split_thps(as, vma, addr))
+        return NULL;
+
     newr = vma_alloc();
     if (!newr)
         return NULL;
@@ -1420,8 +1424,16 @@ static bool vm_fault_was_spurious(struct fault_info *info, struct vm_pf_context 
     return true;
 }
 
-static bool vma_may_fault_pmd(struct vm_area_struct *vma)
+static inline bool huge_pmd_fits(unsigned long address, struct vm_area_struct *vma)
 {
+    return address >= vma->vm_start && address + PMD_SIZE <= vma->vm_end;
+}
+
+static bool vma_may_fault_pmd(struct vm_pf_context *context, struct vm_area_struct *vma)
+{
+    /* If the VMA is anonymous, THPs are enabled, and the PMD fits in the VMA, Just Do It. */
+    if (vm_mapping_is_anon(vma) && thp_enabled && huge_pmd_fits(context->vpage & -PMD_SIZE, vma))
+        return true;
     return vma->vm_flags & VM_HUGETLB;
 }
 
@@ -1450,11 +1462,12 @@ static int __vm_handle_pf(struct vm_area_struct *entry, struct fault_info *info)
     const u8 fault_write = info->write;
     struct vm_pf_context context;
     struct mm_address_space *mm = entry->vm_mm;
+    pte_t *ptep = NULL;
     pgd_t *pgd;
     p4d_t *p4d;
     pud_t *pud;
     pmd_t *pmd;
-    pte_t *ptep;
+    int err;
 
     context.entry = entry;
     context.info = info;
@@ -1475,12 +1488,27 @@ static int __vm_handle_pf(struct vm_area_struct *entry, struct fault_info *info)
     if (!pmd)
         goto pgtable_oom;
 
-    if (vma_may_fault_pmd(entry))
-        return do_huge_pmd_fault(&context, pmd);
+    if (vma_may_fault_pmd(&context, entry))
+    {
+        err = do_huge_pmd_fault(&context, pmd);
+        if (err != -EAGAIN)
+            return err;
+    }
 
-    ptep = pte_get_or_alloc(pmd, context.vpage, mm);
+    /* do_wp_page, do_swap_page, etc want to split huge PMDs */
+    if (pmd_huge(*pmd))
+    {
+        ptep = split_huge_pmd(pmd, entry, context.vpage);
+        if (IS_ERR(ptep))
+            return PTR_ERR(ptep);
+    }
+
     if (!ptep)
-        goto pgtable_oom;
+    {
+        ptep = pte_get_or_alloc(pmd, context.vpage, mm);
+        if (!ptep)
+            goto pgtable_oom;
+    }
 
     context.oldpte = ptep_get_lockless(ptep);
     context.mapping_info = get_mapping_info((void *) context.vpage);
