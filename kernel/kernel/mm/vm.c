@@ -1764,7 +1764,9 @@ void vm_destroy_addr_space(struct mm_address_space *mm)
         vm_destroy_area(entry, &tlbi);
 
     __mt_destroy(&mm->region_tree);
-    assert(mm->resident_set_size == 0);
+    if (WARN_ON(mm->resident_set_size != 0))
+        pr_warn("mm: bad RSS %lx for (likely) process %s (%d)\n", mm->resident_set_size,
+                current->comm, current->pid_);
     assert(mm->shared_set_size == 0);
     if (WARN_ON(mm->virtual_memory_size > 0))
     {
