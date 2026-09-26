@@ -12,6 +12,13 @@ config RTL8168
     tristate "Realtek RTL8168 NIC support"
     help
         Realtek RTL8168 NIC support.
+
+config IGB
+    tristate "Intel Gigabit NIC support"
+    help
+        Intel Gigabit NIC support. If you have one of various Intel GbE-capable cards,
+        like the i210, say Y.
+
 endmenu
 
 endif
