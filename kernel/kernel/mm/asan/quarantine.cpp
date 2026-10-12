@@ -156,7 +156,7 @@ private:
 public:
     constexpr quarantine()
     {
-        spinlock_init(&queue_lock_);
+        queue_lock_ = STATIC_SPINLOCK_INIT(queue_lock_);
     }
 
     /**
