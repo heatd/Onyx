@@ -48,8 +48,9 @@ struct clockevent
     void (*callback)(struct clockevent *ev);
     struct list_head list_node;
     struct timer *timer;
+#ifdef CONFIG_LOCKDEP
     struct lockdep_map dep_map;
-
+#endif
 #ifdef __cplusplus
     clockevent() : deadline{0}, priv{nullptr}, flags{0}, callback{nullptr}, timer{nullptr}
     {
