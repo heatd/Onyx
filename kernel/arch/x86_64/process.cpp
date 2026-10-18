@@ -13,6 +13,7 @@
 #include <onyx/process.h>
 #include <onyx/scheduler.h>
 #include <onyx/thread.h>
+#include <onyx/x86/shadow_stack.h>
 
 #include <uapi/clone.h>
 
@@ -68,6 +69,39 @@ struct thread *process_fork_thread(thread_t *src, struct process *dest, unsigned
 
     if (flags & CLONE_SETTLS)
         thread->fs = (void *) tls;
+
+    if (src->shadow_stack)
+    {
+        /* If the two tasks are sharing address spaces, make them create their own shadow stack. An
+         * edge case is CLONE_VFORK, which wants to share the parent's shadow stack state. The libc
+         * knows this and is adapted for it.
+         */
+        if ((flags & (CLONE_VM | CLONE_VFORK)) == CLONE_VM)
+        {
+            if (shstk_clone_thread(thread, src) < 0)
+            {
+                thread_put(thread);
+                return nullptr;
+            }
+        }
+        else
+        {
+            thread->shadow_stack = (void *) rdmsr(IA32_PL3_SSP);
+            /* When sharing an MM, _do not_ try to unmap it at exit. That leads to stuff like
+             * vfork() + _exit() destroying the parent's shadow stack. */
+            if (flags & CLONE_VM)
+            {
+                thread->shadow_stack_base = NULL;
+                thread->shadow_stack_size = 0;
+            }
+            else
+            {
+                thread->shadow_stack_base = src->shadow_stack_base;
+                thread->shadow_stack_size = src->shadow_stack_size;
+            }
+            thread->shstk_state = src->shstk_state;
+        }
+    }
 
     thread->task_affinity = task_curr_affinity();
     save_fpu(thread->fpu_area);
@@ -135,6 +169,9 @@ void core_fill_regs(elf_gregset_t *set, struct process *thread)
 void prepare_execve_exit(void *entry, void *stack)
 {
     struct registers *regs = task_regs(current);
+
+    if (current->thr->shstk_state || current->thr->shadow_stack_base)
+        shstk_clear();
 
     memset(regs, 0, sizeof(*regs));
     regs->rsp = (unsigned long) stack;

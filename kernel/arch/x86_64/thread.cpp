@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2023 Pedro Falcato
+ * Copyright (c) 2016 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -30,8 +30,10 @@
 #include <onyx/x86/eflags.h>
 #include <onyx/x86/msr.h>
 #include <onyx/x86/segments.h>
+#include <onyx/x86/shadow_stack.h>
 
 #include <linux/lockdep.h>
+#include <platform/thread.h>
 #include <platform/vm_layout.h>
 
 #include <onyx/atomic.hpp>
@@ -143,11 +145,26 @@ int sys_arch_prctl(int code, unsigned long *addr)
                 return -EFAULT;
             break;
         }
+
+        case ARCH_SHSTK_DISABLE:
+        case ARCH_SHSTK_ENABLE:
+        case ARCH_SHSTK_LOCK:
+        case ARCH_SHSTK_STATUS:
+            return shstk_prctl(code, (unsigned long) addr);
         default:
             return -EINVAL;
     }
 
     return 0;
+}
+
+void exit_arch(void)
+{
+    struct thread *current = get_current_thread();
+
+    if (current->shadow_stack_base)
+        vm_munmap(current->owner->address_space, current->shadow_stack_base,
+                  current->shadow_stack_size);
 }
 
 struct pcpu_stack_cache
@@ -347,7 +364,11 @@ void arch_save_thread(thread *thread, void *stack)
     assert(thread->canary == THREAD_STRUCT_CANARY);
     /* No need to save the fpu context if we're a kernel thread! */
     if (!(thread->flags & THREAD_KERNEL))
+    {
+        if (x86_has_cap(X86_FEATURE_CET_SS))
+            thread->shadow_stack = (void *) rdmsr(IA32_PL3_SSP);
         save_fpu(thread->fpu_area);
+    }
 }
 
 void arch_load_thread(struct thread *thread, unsigned int cpu)
@@ -364,6 +385,11 @@ void arch_load_thread(struct thread *thread, unsigned int cpu)
 
         wrmsr(FS_BASE_MSR, (uint64_t) thread->fs);
         wrmsr(KERNEL_GS_BASE, (uint64_t) thread->gs);
+        if (x86_has_cap(X86_FEATURE_CET_SS))
+        {
+            wrmsr(IA32_U_CET, thread->shstk_state);
+            wrmsr(IA32_PL3_SSP, (unsigned long) thread->shadow_stack);
+        }
     }
     else
     {

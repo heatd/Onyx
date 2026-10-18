@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2025 Pedro Falcato
+ * Copyright (c) 2019 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -18,6 +18,7 @@
 #include <onyx/user.h>
 #include <onyx/vm.h>
 #include <onyx/x86/eflags.h>
+#include <onyx/x86/msr.h>
 #include <onyx/x86/segments.h>
 #include <onyx/x86/signal.h>
 
@@ -41,11 +42,52 @@ static bool in_syscall(struct registers *regs)
     return regs->int_err_code == -1UL;
 }
 
+static inline int wrussq(unsigned long shstk, unsigned long data)
+{
+    __asm__ goto("%=: wrussq %0, %1\n"
+                 ".pushsection .ehtable\n"
+                 ".quad %=\n"
+                 ".quad %l2\n"
+                 ".popsection\n" ::"r"(data),
+                 "m"(*(u64 *) shstk)
+                 : "memory"
+                 : err);
+    return 0;
+err:
+    return -EFAULT;
+}
+
+static inline void get_shstk(unsigned long *shstk)
+{
+    *shstk = 0;
+    if (current->thr->shstk_state)
+        *shstk = rdmsr(IA32_PL3_SSP);
+}
+
+static inline void finish_shstk(unsigned long shstk)
+{
+    if (shstk > 0)
+        wrmsr(IA32_PL3_SSP, shstk);
+}
+
+static inline int push_shstkq(unsigned long *shstk, unsigned long data)
+{
+    *shstk -= 8;
+    if (wrussq(*shstk, data))
+    {
+        *shstk += 8;
+        return -EFAULT;
+    }
+    return 0;
+}
+
 static int signal_setup_context(int sig, siginfo_t *info, struct k_sigaction *k_sigaction,
                                 struct registers *regs)
 {
     struct thread *curr = get_current_thread();
     unsigned long sp = regs->rsp - REDZONE_OFFSET;
+    unsigned long shstk;
+
     stack_t *altstack = &current->altstack;
     /* Note that we handle the redzone preservation up here, because when running on an altstack
      * we don't need to do that.
@@ -60,6 +102,8 @@ static int signal_setup_context(int sig, siginfo_t *info, struct k_sigaction *k_
                 sigaltstack_init(altstack);
         }
     }
+
+    get_shstk(&shstk);
 
     size_t fpu_size = fpu_get_save_size();
     /* Start setting the register state for the register switch */
@@ -144,6 +188,13 @@ static int signal_setup_context(int sig, siginfo_t *info, struct k_sigaction *k_
     if (copy_to_user(&sframe->uc.uc_mcontext.fpregs, &fpregs, sizeof(void *)) < 0)
         return -EFAULT;
 
+    if (current->thr->shstk_state)
+    {
+        /* Push sa_restorer to the shadow stack */
+        if (push_shstkq(&shstk, (unsigned long) k_sigaction->sa_restorer))
+            return -EFAULT;
+    }
+
     // It should be 8 bytes misaligned
     assert((sframe_location & 0xf) == 0x8);
 
@@ -159,7 +210,7 @@ static int signal_setup_context(int sig, siginfo_t *info, struct k_sigaction *k_
     }
 
     regs->rflags &= ~(EFLAGS_TRAP | EFLAGS_DIRECTION);
-
+    finish_shstk(shstk);
     return 0;
 }
 

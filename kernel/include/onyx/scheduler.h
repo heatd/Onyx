@@ -24,6 +24,15 @@
 #include <onyx/signal.h>
 #include <onyx/spinlock.h>
 
+#if __has_include(<platform/thread.h>)
+#include <platform/thread.h>
+#else
+#define exit_arch() \
+    do              \
+    {               \
+    } while (0)
+#endif
+
 #include <linux/irqflags_types.h>
 #include <linux/lockdep_types.h>
 #include <platform/syscall.h>
@@ -87,6 +96,11 @@ typedef struct thread
     struct registers *regs;
     struct cpumask task_affinity;
     unsigned int pagefault_disabled;
+#ifdef CONFIG_ARCH_SUPPORTS_SHADOW_STACKS
+    void *shadow_stack;
+    void *shadow_stack_base;
+    unsigned long shadow_stack_size;
+#endif
 #ifdef CONFIG_DEBUG_SCHEDULER
     hrtime_t last_finish;
     hrtime_t last_switch_in;
@@ -118,6 +132,7 @@ typedef struct thread
 #ifdef __x86_64__
     void *fs;
     void *gs;
+    unsigned long shstk_state;
 #elif defined(__riscv)
     void *tp;
 #elif defined(__aarch64__)
@@ -135,7 +150,7 @@ typedef struct thread
 #endif
 #ifdef __x86_64__
           ,
-          fs{}, gs{}
+          fs{}, gs{}, shstk_state{}
 #endif
     {
 #ifdef CONFIG_KCSAN
@@ -159,6 +174,10 @@ typedef struct thread
         active_mm = NULL;
         pagefault_disabled = 0;
         task_affinity = cpumask{};
+#ifdef CONFIG_ARCH_SUPPORTS_SHADOW_STACKS
+        shadow_stack = shadow_stack_base = NULL;
+        shadow_stack_size = 0;
+#endif
     }
 
     /**

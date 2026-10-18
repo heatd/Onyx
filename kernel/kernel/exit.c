@@ -267,6 +267,7 @@ __attribute__((noreturn)) void do_exit(unsigned int exit_code)
     current->exit_code = exit_code;
     current->flags |= PROCESS_EXITING;
 
+    exit_arch();
     exit_coredump();
     do_cleartid();
     exit_files(current);
