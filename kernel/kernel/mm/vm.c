@@ -1491,7 +1491,7 @@ static int __vm_handle_pf(struct vm_area_struct *entry, struct fault_info *info)
     if (vma_may_fault_pmd(&context, entry))
     {
         err = do_huge_pmd_fault(&context, pmd);
-        if (err != -EAGAIN)
+        if (err != -EAGAIN && err != -ENOMEM)
             return err;
     }
 
