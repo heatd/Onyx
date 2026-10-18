@@ -22,6 +22,8 @@ const struct vm_operations anon_vmops = {
     .fault_huge_pmd = vm_anon_huge_pmd_fault,
 };
 
+#define GFP_TRANSHUGE (GFP_NOWAIT | __GFP_IO | __GFP_FS)
+
 /* Don't access directly unless you know what you're doing. */
 struct folio *__huge_zero_folio;
 static struct folio *vm_get_huge_zero_folio(void)
@@ -58,7 +60,7 @@ static int huge_anon_pmd_write(struct vm_pf_context *ctx)
         return -ENOMEM;
 
     /* Allocate a brand-new, zero-filled page */
-    folio = folio_alloc(PMD_SHIFT - PTE_SHIFT, GFP_KERNEL);
+    folio = folio_alloc(PMD_SHIFT - PTE_SHIFT, GFP_TRANSHUGE);
     if (!folio)
         goto enomem;
     folio_set_anon(folio);
@@ -135,7 +137,7 @@ static int vm_anon_huge_pmd_fault(struct vm_pf_context *ctx)
             return -ENOMEM;
 
         /* Allocate a brand-new, zero-filled page */
-        folio = folio_alloc(PMD_SHIFT - PTE_SHIFT, GFP_KERNEL);
+        folio = folio_alloc(PMD_SHIFT - PTE_SHIFT, GFP_TRANSHUGE);
         if (!folio)
             goto enomem;
         folio_set_anon(folio);
