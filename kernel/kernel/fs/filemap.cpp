@@ -835,7 +835,7 @@ static int filemap_fault(struct vm_pf_context *ctx) NO_THREAD_SAFETY_ANALYSIS
          * might result in spurious faults for other threads, but it's just way faster than
          * purposefully doing IPIs.
          */
-        set_pte(ptep, pte_mkwrite(oldpte));
+        set_pte(ptep, pte_mkwrite(oldpte, vma));
         tlbi_upgrade_pte_prots(vma->vm_mm, ctx->vpage);
     }
     else

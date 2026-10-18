@@ -1475,7 +1475,7 @@ no_unlock:
 static int do_reuse_wp(struct vm_pf_context *context, struct page *oldp, pte_t *pte,
                        struct spinlock *lock)
 {
-    set_pte(pte, pte_mkwrite(*pte));
+    set_pte(pte, pte_mkwrite(*pte, context->entry));
     /* We keep the same PFN. This is okay. We can get away with a core-local TLB invalidation.
      * Other cores either re-fetch the correct entry from the TLB, or take a spurious fault.
      * Either situation is faster than possibly IPI'ing or broadcasting a TLBI. */

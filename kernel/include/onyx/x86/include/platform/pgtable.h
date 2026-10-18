@@ -301,7 +301,8 @@ static inline bool pte_user(pte_t pte)
 
 static inline bool pte_write(pte_t pte)
 {
-    return pte_val(pte) & _PAGE_WRITE;
+    return pte_val(pte) & _PAGE_WRITE ||
+           ((pte_val(pte) & (_PAGE_DIRTY | _PAGE_WRITE)) == _PAGE_DIRTY);
 }
 
 static inline bool pte_exec(pte_t pte)
@@ -330,8 +331,10 @@ static inline pte_t pte_mkyoung(pte_t pte)
     return __pte(pte_val(pte) & ~_PAGE_ACCESSED);
 }
 
-static inline pte_t pte_mkwrite(pte_t pte)
+static inline pte_t pte_mkwrite(pte_t pte, struct vm_area_struct *vma)
 {
+    if (unlikely(vma->vm_flags & VM_SHADOW_STACK))
+        return __pte(pte_val(pte) | _PAGE_DIRTY);
     return __pte(pte_val(pte) | _PAGE_WRITE);
 }
 
@@ -458,6 +461,14 @@ static inline pgprot_t calc_pgprot(u64 phys, u64 prot)
         (noexec ? _PAGE_NX : 0) | (global ? _PAGE_GLOBAL : 0) | (user ? _PAGE_USER : 0) |
         (write ? _PAGE_WRITE : 0) | X86_CACHING_BITS(caching_bits) |
         (readable ? _PAGE_PRESENT : _PAGE_PROTNONE) | (special_mapping ? _PAGE_SPECIAL : 0);
+
+    /* CET shadow stack pages are identified using dirty=1, write=0*/
+    if (unlikely(prot & VM_SHADOW_STACK))
+    {
+        page_prots &= ~_PAGE_WRITE;
+        page_prots |= _PAGE_DIRTY;
+    }
+
     return __pgprot(page_prots);
 }
 
