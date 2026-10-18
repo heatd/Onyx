@@ -148,7 +148,7 @@ void do_ktests_old(void)
 
 DEFINE_LINKER_SECTION_SYMS(__start_testcases, __end_testcases);
 
-linker_section testcase_section{&__start_testcases, &__end_testcases};
+linker_section testcase_section{__start_testcases, __end_testcases};
 
 int do_ktests_new(void)
 {

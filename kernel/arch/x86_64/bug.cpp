@@ -15,7 +15,7 @@
 
 DEFINE_LINKER_SECTION_SYMS(__start___bug_tab, __end___bug_tab);
 
-static linker_section bug_sec{&__start___bug_tab, &__end___bug_tab};
+static linker_section bug_sec{__start___bug_tab, __end___bug_tab};
 
 static struct bug *find_bug(unsigned long ip)
 {

@@ -17,8 +17,8 @@
 DEFINE_LINKER_SECTION_SYMS(__start_code_patch, __end_code_patch);
 DEFINE_LINKER_SECTION_SYMS(__alternatives_start, __alternatives_end);
 
-static linker_section code_patches{&__start_code_patch, &__end_code_patch};
-static linker_section generic_alternatives{&__alternatives_start, &__alternatives_end};
+static linker_section code_patches{__start_code_patch, __end_code_patch};
+static linker_section generic_alternatives{__alternatives_start, __alternatives_end};
 
 #define ALTERNATIVE_START 0
 #define ALTERNATIVE_EOL   -1u
@@ -71,7 +71,7 @@ out:
     return p;
 }
 
-__attribute__((no_sanitize("undefined"))) static void x86_do_generic_alternatives(void)
+static void x86_do_generic_alternatives(void)
 {
     auto p = generic_alternatives.start;
     auto end = generic_alternatives.end;

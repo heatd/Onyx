@@ -16,7 +16,7 @@
 #include <onyx/linker_section.hpp>
 
 DEFINE_LINKER_SECTION_SYMS(__jump_label_start, __jump_label_end);
-static linker_section jump_labels{&__jump_label_start, &__jump_label_end};
+static linker_section jump_labels{__jump_label_start, __jump_label_end};
 
 static void jump_label_patch(struct jump_label *label);
 
