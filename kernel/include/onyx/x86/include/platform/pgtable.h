@@ -42,6 +42,7 @@ extern unsigned int x86_paging_levels;
  * increment mapcount on zero_page and thus blow it up). add_mapcount and sub_mapcount will not be
  * called on these struct pages. */
 #define _PAGE_SPECIAL      (1 << 9)
+#define _PAGE_SAVEDDIRTY   (1 << 10)
 #define _PAGE_NX           (1UL << 63)
 
 #define _PAGE_PROTNONE _PAGE_GLOBAL
@@ -310,7 +311,7 @@ static inline bool pte_exec(pte_t pte)
 
 static inline bool pte_dirty(pte_t pte)
 {
-    return pte_val(pte) & _PAGE_DIRTY;
+    return pte_val(pte) & (_PAGE_DIRTY | _PAGE_SAVEDDIRTY);
 }
 
 static inline bool pte_global(pte_t pte)
@@ -428,7 +429,11 @@ static inline bool p4d_folded(void)
 
 static inline pte_t pte_wrprotect(pte_t pte)
 {
-    return __pte(pte_val(pte) & ~_PAGE_WRITE);
+    unsigned long val = pte_val(pte) & ~_PAGE_WRITE;
+
+    if (val & _PAGE_DIRTY)
+        val |= _PAGE_SAVEDDIRTY;
+    return __pte(val & ~_PAGE_DIRTY);
 }
 
 static inline pmd_t pmd_wrprotect(pmd_t pmd)
