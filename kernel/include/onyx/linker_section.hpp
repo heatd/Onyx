@@ -9,9 +9,10 @@
 #include <stddef.h>
 
 #define DEFINE_LINKER_SECTION_SYMS(start, end) \
-    extern "C" {                               \
-    extern unsigned char start;                \
-    extern unsigned char end;                  \
+    extern "C"                                 \
+    {                                          \
+    extern unsigned char start[];              \
+    extern unsigned char end[];                \
     }
 
 class linker_section

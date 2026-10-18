@@ -12,7 +12,7 @@ namespace runtime
 {
 
 DEFINE_LINKER_SECTION_SYMS(__init_array_start, __init_array_end);
-linker_section init_array_section{&__init_array_start, &__init_array_end};
+linker_section init_array_section{__init_array_start, __init_array_end};
 
 using ctor = void (*)();
 
