@@ -143,6 +143,8 @@ int sys_arch_prctl(int code, unsigned long *addr)
                 return -EFAULT;
             break;
         }
+        default:
+            return -EINVAL;
     }
 
     return 0;
