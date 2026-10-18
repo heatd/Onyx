@@ -197,6 +197,11 @@ ENTRY(ret_from_fork_asm)
     jmp x86_scheduler_exit
 END(ret_from_fork_asm)
 
+ENTRY(kthread_entry_asm)
+    call kthread_entry
+    jmp x86_scheduler_exit
+END(kthread_entry_asm)
+
 .pushsection .text.x86_entry
 
 /* Everything past this point is permanently mapped */
