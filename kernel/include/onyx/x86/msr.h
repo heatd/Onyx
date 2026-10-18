@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2021 Pedro Falcato
+ * Copyright (c) 2017 - 2026 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the GPLv2 License
  * check LICENSE at the root directory for more information
  *
@@ -23,6 +23,8 @@
 #define IA32_TSC_DEADLINE 0x000006e0
 #define IA32_MISC_ENABLE  0x000001a0
 #define IA32_X2APIC_BASE  0x00000800
+#define IA32_U_CET        0x000006a0
+#define IA32_PL3_SSP      0x000006a7
 
 #define IA32_MISC_ENABLE_FAST_STRINGS_ENABLE      (1 << 0)
 #define IA32_MISC_ENABLE_AUTO_TCC_ENABLE          (1 << 3)
@@ -34,6 +36,9 @@
 #define IA32_MISC_ENABLE_LIMIT_CPUID_MAXVAL       (1 << 22)
 #define IA32_MISC_ENABLE_XTPR_MSG_DISABLE         (1 << 23)
 #define IA32_MISC_ENABLE_XD_BIT_DISABLE           (1UL << 34)
+
+#define CET_SH_STK_EN   (1 << 0)
+#define CET_WR_SHSTK_EN (1 << 1)
 
 /* Syscall/sysret enable */
 #define IA32_EFER_SCE (1 << 0)

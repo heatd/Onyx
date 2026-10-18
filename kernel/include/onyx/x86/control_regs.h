@@ -74,6 +74,8 @@
 #define CR4_SMAP       (1 << 21)
 /* Protection key enable */
 #define CR4_PKE        (1 << 22)
+/* CET enable */
+#define CR4_CET        (1 << 23)
 
 #ifndef __ASSEMBLER__
 
