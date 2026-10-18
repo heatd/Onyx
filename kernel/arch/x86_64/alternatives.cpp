@@ -71,7 +71,7 @@ out:
     return p;
 }
 
-static void x86_do_generic_alternatives(void)
+__attribute__((no_sanitize("undefined"))) static void x86_do_generic_alternatives(void)
 {
     auto p = generic_alternatives.start;
     auto end = generic_alternatives.end;
