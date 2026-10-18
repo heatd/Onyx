@@ -136,7 +136,7 @@ static void ext2_writepage_endio(struct bio_req *req)
 static ssize_t ext2_writepage(struct vm_object *obj, page *page, size_t off) REQUIRES(page)
     RELEASE(page)
 {
-    auto buf = block_buf_from_page(page);
+    auto buf = block_buf_from_page(page), head = buf;
     struct inode *ino = obj->ino;
     auto sb = ext2_superblock_from_inode(ino);
     unsigned int nr_ios = 0;
@@ -144,6 +144,17 @@ static ssize_t ext2_writepage(struct vm_object *obj, page *page, size_t off) REQ
 
     page_start_writeback(page);
 
+    spin_lock(&head->pagestate_lock);
+    while (buf)
+    {
+        WARN_ON(bb_test_flag(buf, BLOCKBUF_FLAG_WRITEBACK));
+        if (buf->block_nr != EXT2_FILE_HOLE_BLOCK)
+            bb_test_and_set(buf, BLOCKBUF_FLAG_WRITEBACK);
+        buf = buf->next;
+    }
+    spin_unlock(&head->pagestate_lock);
+
+    buf = head;
     while (buf)
     {
         page_iov v[1];
@@ -156,8 +167,6 @@ static ssize_t ext2_writepage(struct vm_object *obj, page *page, size_t off) REQ
             buf = buf->next;
             continue;
         }
-
-        buf->flags |= BLOCKBUF_FLAG_WRITEBACK;
 
 #if 0
 		printk("Writing to block %lu\n", buf->block_nr);
