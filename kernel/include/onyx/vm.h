@@ -63,6 +63,11 @@ __BEGIN_CDECLS
 #define VM_GROWSDOWN     (1 << 13)
 #define VM_HUGETLB       (1 << 14)
 #define VM_DONTEXPAND    (1 << 15)
+#ifdef CONFIG_ARCH_SUPPORTS_SHADOW_STACKS
+#define VM_SHADOW_STACK (1 << 16)
+#else
+#define VM_SHADOW_STACK 0
+#endif
 
 /* Internal flags used by the mm code */
 #define __VM_CACHE_TYPE_REGULAR     0
@@ -167,6 +172,7 @@ struct fault_info
     bool read;
     bool exec;
     bool user;
+    bool shstk;
     uintptr_t ip;
     int signal;
     int error_info;

@@ -8,4 +8,7 @@ config PAGEALLOC_POISON
         page contents. There is however a performance penalty.
 
         If in doubt, say N.
+
+config ARCH_SUPPORTS_SHADOW_STACKS
+    bool
 endmenu
