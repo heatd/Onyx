@@ -42,10 +42,10 @@ DEFINE_LINKER_SECTION_SYMS(__return_loc_start, __return_loc_end);
 
 DEFINE_LINKER_SECTION_SYMS(__data_trace_start, __data_trace_end);
 
-linker_section mcount_loc_section(&__mcount_loc_start, &__mcount_loc_end);
-linker_section return_loc_section(&__return_loc_start, &__return_loc_end);
+linker_section mcount_loc_section(__mcount_loc_start, __mcount_loc_end);
+linker_section return_loc_section(__return_loc_start, __return_loc_end);
 
-linker_section trace_event_section(&__data_trace_start, &__data_trace_end);
+linker_section trace_event_section(__data_trace_start, __data_trace_end);
 
 void assign_unique_evid()
 {

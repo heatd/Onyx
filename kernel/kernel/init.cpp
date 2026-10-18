@@ -181,11 +181,11 @@ DEFINE_LINKER_SECTION_SYMS(__init_level8_start, __init_level8_end);
 DEFINE_LINKER_SECTION_SYMS(__init_level9_start, __init_level9_end);
 
 static linker_section init_levels[INIT_LEVEL_CORE_PERCPU_CTOR + 1] = {
-    {&__init_level0_start, &__init_level0_end}, {&__init_level1_start, &__init_level1_end},
-    {&__init_level2_start, &__init_level2_end}, {&__init_level3_start, &__init_level3_end},
-    {&__init_level4_start, &__init_level4_end}, {&__init_level5_start, &__init_level5_end},
-    {&__init_level6_start, &__init_level6_end}, {&__init_level7_start, &__init_level7_end},
-    {&__init_level8_start, &__init_level8_end}, {&__init_level9_start, &__init_level9_end},
+    {__init_level0_start, __init_level0_end}, {__init_level1_start, __init_level1_end},
+    {__init_level2_start, __init_level2_end}, {__init_level3_start, __init_level3_end},
+    {__init_level4_start, __init_level4_end}, {__init_level5_start, __init_level5_end},
+    {__init_level6_start, __init_level6_end}, {__init_level7_start, __init_level7_end},
+    {__init_level8_start, __init_level8_end}, {__init_level9_start, __init_level9_end},
 };
 
 void do_init_level(unsigned int level)
