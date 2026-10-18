@@ -225,6 +225,8 @@ int ext2_prepare_write(inode *ino, struct page *page, size_t page_off, size_t of
     {
         if (int st = ext2_map_page(page, page_off, ino); st < 0)
             return st;
+        bufs = block_buf_from_page(page);
+        DCHECK(bufs != NULL);
     }
 
     while (bufs)
