@@ -111,7 +111,7 @@ struct packetbuf *rtnl_start_broadcast(u32 group)
 {
     struct packetbuf *pbf;
 
-    pbf = pbf_alloc_rx(GFP_KERNEL, PAGE_SIZE);
+    pbf = pbf_alloc_rx(GFP_ATOMIC, PAGE_SIZE);
     /* Unclear if there's something interesting to do with group here. Perhaps we could pre-allocate
      * the clones? */
     return pbf;
