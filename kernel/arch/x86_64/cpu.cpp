@@ -322,6 +322,9 @@ void x86_setup_standard_control_registers(void)
         cr4 |= CR4_LA57;
     }
 
+    if (x86_has_cap(X86_FEATURE_CET_SS))
+        cr4 |= CR4_CET;
+
     /* Note that CR4_PGE could only be set at this point in time since Intel
      * strongly recommends for it to be set after enabling paging
      */

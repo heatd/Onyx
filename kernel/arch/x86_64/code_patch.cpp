@@ -27,7 +27,11 @@ const uint8_t nop_1byte[] = {0x90};
 
 static void disable_writeprotect()
 {
-    unsigned long cr = x86_read_cr0();
+    unsigned long cr;
+    cr = x86_read_cr4();
+    cr &= ~CR4_CET;
+    x86_write_cr4(cr);
+    cr = x86_read_cr0();
     cr &= ~CR0_WP;
     x86_write_cr0(cr);
 }
@@ -37,6 +41,8 @@ static void enable_writeprotect()
     unsigned long cr = x86_read_cr0();
     cr |= CR0_WP;
     x86_write_cr0(cr);
+    if (x86_has_cap(X86_FEATURE_CET_SS))
+        x86_write_cr4(x86_read_cr4() | CR4_CET);
 }
 
 /* hotpatch_lock protects any new hot-patcher against current hot-patchers and serializer CPUs.
