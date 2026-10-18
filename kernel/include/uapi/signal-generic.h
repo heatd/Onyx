@@ -132,6 +132,7 @@ typedef struct __ucontext
 #define SEGV_ACCERR 2
 #define SEGV_BNDERR 3
 #define SEGV_PKUERR 4
+#define SEGV_CPERR  10
 
 #define BUS_ADRALN    1
 #define BUS_ADRERR    2

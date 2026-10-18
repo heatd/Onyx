@@ -565,6 +565,25 @@ void machine_check(struct registers *ctx)
     do_machine_check(ctx);
 }
 
+static void control_protection_exception(struct registers *ctx)
+{
+    if (is_kernel_exception(ctx))
+    {
+        dump_interrupt_context(ctx);
+        /* Shadow stacks are not yet enabled for the kernel. */
+        panic("huh? #CP in kernel mode");
+    }
+
+    siginfo_t info = {};
+    info.si_code = SEGV_CPERR;
+
+    pr_err("%s[%d] control protection trap at %lx sp %lx ssp %lx error code %lx\n",
+           get_current_process()->comm, get_current_process()->pid_, ctx->rip, ctx->rsp,
+           rdmsr(IA32_PL3_SSP), ctx->int_err_code);
+
+    raise_sig_curthr(SIGSEGV, SIGNAL_FORCE, &info);
+}
+
 void (*const int_handlers[])(struct registers *ctx) = {div0_exception,
                                                        debug_trap,
                                                        nmi_exception,
@@ -586,7 +605,7 @@ void (*const int_handlers[])(struct registers *ctx) = {div0_exception,
                                                        machine_check,
                                                        simd_fpu_exception,
                                                        virtualization_exception,
-                                                       exception_panic,
+                                                       control_protection_exception,
                                                        exception_panic,
                                                        exception_panic,
                                                        exception_panic,
