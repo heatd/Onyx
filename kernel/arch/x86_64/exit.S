@@ -42,40 +42,6 @@
 .endm
 
 .text
-# Entry point is at RDI, stack at RSI
-ENTRY(return_from_execve)
-    # Wipe unused registers to avoid leaks
-    xor %rbx, %rbx
-    xor %rbp, %rbp
-    xor %r10, %r10
-    xor %r12, %r12
-    xor %r13, %r13
-    xor %r14, %r14
-    xor %r15, %r15
-    
-    # rdi and rsi aren't zero'd here, only in a few instructions ahead since
-    # they hold RIP and RSP
-    xor %rdx, %rdx
-    xor %rcx, %rcx
-    xor %r8, %r8
-    xor %r9, %r9
-
-    cli
-    swapgs
-
-    mov $0x33, %ax
-    mov %ax, %ds
-    mov %ax, %es
-
-    push $0x33
-    push %rsi
-    push $0x202
-    push $0x2b
-    push %rdi
-
-    iretq
-END(return_from_execve)
-
 ENTRY(__cxa_atexit)
     # NOTE: We can do this with __cxa_atexit because we, as the kernel, will never exit!
     xor %eax, %eax

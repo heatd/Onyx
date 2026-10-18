@@ -5,6 +5,7 @@
  *
  * SPDX-License-Identifier: GPL-2.0-only
  */
+#define DEFINE_CURRENT
 #include <errno.h>
 
 #include <onyx/elf.h>
@@ -20,13 +21,10 @@ namespace x86::internal
 void thread_setup_stack(thread *thread, bool is_user, registers_t *regs);
 }
 
-extern "C" void ret_from_fork_asm(void);
-
 extern "C" void ret_from_fork(void)
 {
     /* We take care of everything that needs to be done post-fork on the child process (that we
      * couldn't really do beforehand) */
-    struct process *current = get_current_process();
     if (current->set_tid)
         copy_to_user(current->set_tid, &current->pid_, sizeof(pid_t));
 }
@@ -72,9 +70,6 @@ struct thread *process_fork_thread(thread_t *src, struct process *dest, unsigned
         thread->fs = (void *) tls;
 
     thread->task_affinity = task_curr_affinity();
-    regs.rip = (unsigned long) &ret_from_fork_asm;
-    x86::internal::thread_setup_stack(thread, false, &regs);
-
     save_fpu(thread->fpu_area);
 
     thread->owner = dest;
@@ -135,4 +130,16 @@ void core_fill_regs(elf_gregset_t *set, struct process *thread)
     static_assert(sizeof(elf_gregset_t) == sizeof(user),
                   "elf_gregset_t's layout needs to match user_regs_struct");
     memcpy(set, &user, sizeof(user));
+}
+
+void prepare_execve_exit(void *entry, void *stack)
+{
+    struct registers *regs = task_regs(current);
+
+    memset(regs, 0, sizeof(*regs));
+    regs->rsp = (unsigned long) stack;
+    regs->rip = (unsigned long) entry;
+    regs->cs = USER_CS;
+    regs->ds = regs->ss = USER_DS;
+    regs->rflags = default_rflags;
 }
