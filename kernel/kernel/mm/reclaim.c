@@ -290,6 +290,18 @@ static enum lru_result shrink_page(struct reclaim_data *data,
 
     page_set_reclaim(page);
 
+    /* Check for writeback *before* attempting pageout. A page may get redirtied while under
+     * writeback, and calling writepage again on it would create two writeback IOs for the same
+     * folio. The first completion would then end writeback while the second IO is still in flight.
+     * Filesystems aren't ready for this, and the page cache never does this when doing writeout.
+     */
+    if (folio_test_writeback(folio))
+    {
+        /* No can do. */
+        folio_unlock(folio);
+        return LRU_ACTIVATE;
+    }
+
     obj = page_vmobj(page);
     if (folio_test_dirty(folio))
     {
@@ -325,13 +337,6 @@ static enum lru_result shrink_page(struct reclaim_data *data,
                 break;
             }
         }
-    }
-
-    if (folio_test_writeback(folio))
-    {
-        /* No can do. */
-        folio_unlock(folio);
-        return LRU_ACTIVATE;
     }
 
     if (obj && folio_test_buffer(folio))
