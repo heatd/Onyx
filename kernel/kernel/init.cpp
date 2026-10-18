@@ -104,7 +104,7 @@ static int try_exec_for(const char *init_path, const char **argv, const char **e
         thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
     }
 
-    return 0;
+    return st;
 }
 
 extern dev_t console_devnr;
@@ -147,12 +147,18 @@ int find_and_exec_init(const char **argv, const char **envp)
     proc->fs->cwd = get_filesystem_root();
 
     if (init_prog)
-        try_exec_for(init_prog, argv, envp);
+    {
+        if (!try_exec_for(init_prog, argv, envp))
+            return 0;
+    }
 
     const char *init_paths[] = {"/sbin/init", "/bin/init", "/bin/sh"};
 
     for (auto init_path : init_paths)
-        try_exec_for(init_path, argv, envp);
+    {
+        if (!try_exec_for(init_path, argv, envp))
+            return 0;
+    }
 
     return -1;
 }

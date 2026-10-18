@@ -7,6 +7,7 @@
  * SPDX-License-Identifier: GPL-2.0-only
  */
 
+#include <onyx/cputime.h>
 #include <onyx/ktrace.h>
 #include <onyx/panic.h>
 #include <onyx/platform.h>
@@ -80,6 +81,15 @@ extern "C" int do_machine_halt(unsigned int flags)
 extern "C" int do_machine_suspend(unsigned int flags)
 {
     return -EIO;
+}
+
+extern "C" [[noreturn]] void return_from_execve(void *entry, void *stack);
+
+void prepare_execve_exit(void *entry, void *stack)
+{
+    /* TODO: Return through the regular syscall exit path, like x86 */
+    context_tracking_exit_kernel();
+    return_from_execve(entry, stack);
 }
 
 void cpu_send_resched(unsigned int cpu)

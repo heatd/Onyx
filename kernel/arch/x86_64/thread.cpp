@@ -95,13 +95,18 @@ void thread_setup_stack(thread *thread, bool is_user, registers_t *regs)
     thread->kernel_stack = stack;
 }
 
-__attribute__((no_sanitize_thread)) void kernel_thread_start(void *arg)
+extern "C" __attribute__((no_sanitize_thread)) void kthread_entry(void *arg)
 {
     auto thread = get_current_thread();
 
     thread->entry(arg);
 
-    thread_exit();
+    /* Did we get an owner magically? If so, do a proper scheduler exit. */
+    if (likely(!thread->owner))
+        thread_exit();
+
+    /* We're returning to userspace through kthread_entry_asm (see sched_spawn_thread) */
+    context_tracking_exit_kernel();
 }
 
 } // namespace internal
@@ -200,6 +205,9 @@ extern "C" void thread_finish_destruction(struct rcu_head *head)
     delete thread;
 }
 
+extern "C" void kthread_entry_asm(void *);
+extern "C" void ret_from_fork_asm(void);
+
 thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
 {
     thread *new_thread = new thread;
@@ -235,7 +243,7 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
         new_thread->addr_limit = VM_KERNEL_ADDR_LIMIT;
 
         // Set trampoline as the starting RIP
-        regs->rip = (unsigned long) x86::internal::kernel_thread_start;
+        regs->rip = (unsigned long) &kthread_entry_asm;
         new_thread->set_aspace(&kernel_address_space);
     }
 
@@ -253,8 +261,40 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
         reinterpret_cast<uintptr_t *>(((char *) new_thread->kernel_stack + kernel_stack_size));
     new_thread->kernel_stack_top = new_thread->kernel_stack;
 
+    /* How the kernel sets up stack frames is a bit funky and deserves a good old comment. There are
+     * two distinct things to consider here. This function's caller specifies a given register state
+     * (which, in userspace, is completely forked from that process's syscall struct registers; for
+     * kernel threads, it's fully 0 apart from rip (target function), rdi (argument) and rflags, ds,
+     * cs, ss). This is, in practice, where the kernel wants to land after the thread is created.
+     * This is all great. However, there are certain tasks that must be done after
+     * creating/"exiting" a thread.
+     *
+     * First off, userspace wants to do things after forking. The only one currently handled is
+     * set_tid (see clone()), which requires the kernel to copy a value to userspace in a proper
+     * preemptible, faultable context. This needs to be done _before_ the task starts executing
+     * code. This is done from ret_from_fork (and ret_from_fork_asm, the asm snippet that pulls
+     * everything together).
+     *
+     * Secondly, kernel threads require two things. The first (main) one is to exit after executing
+     * the thread. This obviously requires a function to be called, so that the kernel thread's
+     * "entry" can return somewhere. The second is a bit funky, but some kernel threads may want to
+     * end up in userspace (the easiest example is the initial thread in kernel_multitasking()).
+     * Therefore, the kernel must set up a stack frame for it to possibly return to (see
+     * kthread_entry() and kthread_entry_asm()).
+     *
+     * Thus, the kernel must set up two stack frames:
+     *     [stack bottom]
+     *     [frame 0]
+     *     [frame 1]
+     *     [stack top/%rsp]
+     * For user threads, frame 1 executes our ret_from_fork code, frame 0 has the actual userspace
+     * context. For kernel threads, frame 1 is our "real" frame, frame 0 may or may not be used.
+     */
     x86::internal::thread_setup_stack(new_thread, is_user, regs);
 
+    if (is_user)
+        regs->rip = (unsigned long) &ret_from_fork_asm;
+    x86::internal::thread_setup_stack(new_thread, false, regs);
     new_thread->fs = fs;
 
     thread_append_to_global_list(new_thread);
