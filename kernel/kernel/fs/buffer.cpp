@@ -627,12 +627,14 @@ static int folio_create_buffers(struct folio *folio, unsigned long start_block,
 
     nblocks = blkdev->nr_sectors / (block_size / blkdev->sector_size);
 
+    folio_set_buffer(folio);
     for (size_t i = 0; i < nr_blocks; i++)
     {
         struct block_buf *b;
         if (!(b = page_add_blockbuf(page, curr_off)))
         {
             page_destroy_block_bufs(page);
+            folio_clear_buffer(folio);
             return -ENOMEM;
         }
 
@@ -644,7 +646,6 @@ static int folio_create_buffers(struct folio *folio, unsigned long start_block,
         curr_off += block_size;
     }
 
-    folio_set_buffer(folio);
     return 0;
 }
 
