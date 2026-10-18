@@ -816,11 +816,13 @@ out_error:
  * @param length The length of the mapping, in bytes.
  * @param prot The desired protection flags (see PROT_* as in mmap(2)).
  * @param flags The mapping flags (see MAP_* as in mmap(2)).
+ * @param extra_vmflags Extra VM_* flags to pass to mmap.
  * @param file An optional pointer to a file, if it is a file mapping.
  * @param off The offset into the file, if it is a file mapping.
  * @return A pointer to the new memory mapping, or an ERR_PTR on error.
  */
-void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file, off_t off)
+void *do_vm_mmap(void *addr, size_t length, int prot, int flags, int extra_vmflags,
+                 struct file *file, off_t off)
 {
     struct vm_area_struct *vma = NULL;
     unsigned long virt = (unsigned long) addr;
@@ -839,7 +841,8 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
         prot |= PROT_READ;
 
     int vm_prot = VM_USER | ((prot & (PROT_READ | PROT_WRITE | PROT_EXEC)) ? VM_READ : 0) |
-                  ((prot & PROT_WRITE) ? VM_WRITE : 0) | ((prot & PROT_EXEC) ? VM_EXEC : 0);
+                  ((prot & PROT_WRITE) ? VM_WRITE : 0) | ((prot & PROT_EXEC) ? VM_EXEC : 0) |
+                  extra_vmflags;
 
     if (flags & MAP_SHARED)
         vm_prot |= VM_SHARED;
@@ -906,9 +909,6 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
     /* vma_merge_around may touch around the vmi, reset the state */
     mas_set_range(&vmi.mas, vmi.index, vmi.end);
 
-    if (!(flags & MAP_HUGETLB) && flags & MAP_ANONYMOUS)
-        file = NULL;
-
     vma = vma_create(&vmi, vm_prot, file, off);
     if (IS_ERR(vma))
         virt = (unsigned long) vma;
@@ -922,6 +922,24 @@ out:
 enomem:
     virt = -ENOMEM;
     goto out;
+}
+
+/**
+ * @brief Creates a new user-space mapping.
+ * Note: This is mmap(2)'s backend and therefore, most semantics are shared
+ * between the two.
+ *
+ * @param addr An optional address hint.
+ * @param length The length of the mapping, in bytes.
+ * @param prot The desired protection flags (see PROT_* as in mmap(2)).
+ * @param flags The mapping flags (see MAP_* as in mmap(2)).
+ * @param file An optional pointer to a file, if it is a file mapping.
+ * @param off The offset into the file, if it is a file mapping.
+ * @return A pointer to the new memory mapping, or an ERR_PTR on error.
+ */
+void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file, off_t off)
+{
+    return do_vm_mmap(addr, length, prot, flags, 0, file, off);
 }
 
 void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off)
@@ -3103,6 +3121,12 @@ bool paging_change_perms(void *addr, int prot)
         as = get_current_address_space();
 
     return __paging_change_perms(as, addr, prot);
+}
+
+void *alloc_shadow_stack(unsigned long size)
+{
+    return do_vm_mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, VM_SHADOW_STACK,
+                      NULL, 0);
 }
 
 struct mm_address_space *get_remote_mm(struct process *task)

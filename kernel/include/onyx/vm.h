@@ -487,6 +487,23 @@ struct file;
  */
 void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file, off_t off);
 
+/**
+ * @brief Creates a new user-space mapping.
+ * Note: This is mmap(2)'s backend and therefore, most semantics are shared
+ * between the two.
+ *
+ * @param addr An optional address hint.
+ * @param length The length of the mapping, in bytes.
+ * @param prot The desired protection flags (see PROT_* as in mmap(2)).
+ * @param flags The mapping flags (see MAP_* as in mmap(2)).
+ * @param extra_vmflags Extra VM_* flags to pass to mmap.
+ * @param file An optional pointer to a file, if it is a file mapping.
+ * @param off The offset into the file, if it is a file mapping.
+ * @return A pointer to the new memory mapping, or an ERR_PTR on error.
+ */
+void *do_vm_mmap(void *addr, size_t length, int prot, int flags, int extra_vmflags,
+                 struct file *file, off_t off);
+
 struct tlb_shootdown
 {
     unsigned long addr;
