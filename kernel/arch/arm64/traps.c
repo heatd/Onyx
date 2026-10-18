@@ -173,7 +173,7 @@ static void page_fault(struct registers *regs, unsigned long esr)
         exec = true;
     }
 
-    struct fault_info info;
+    struct fault_info info = {};
     info.signal = VM_SIGSEGV;
     info.fault_address = fault_address;
     info.write = write;

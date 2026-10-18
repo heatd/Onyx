@@ -1431,6 +1431,9 @@ static inline bool huge_pmd_fits(unsigned long address, struct vm_area_struct *v
 
 static bool vma_may_fault_pmd(struct vm_pf_context *context, struct vm_area_struct *vma)
 {
+    /* Not for the shadow stack. */
+    if (vma->vm_flags & VM_SHADOW_STACK)
+        return false;
     /* If the VMA is anonymous, THPs are enabled, and the PMD fits in the VMA, Just Do It. */
     if (vm_mapping_is_anon(vma) && thp_enabled && huge_pmd_fits(context->vpage & -PMD_SIZE, vma))
         return true;
@@ -1512,6 +1515,12 @@ static int __vm_handle_pf(struct vm_area_struct *entry, struct fault_info *info)
 
     context.oldpte = ptep_get_lockless(ptep);
     context.mapping_info = get_mapping_info((void *) context.vpage);
+
+    if (info->shstk && pte_write(context.oldpte))
+    {
+        info->error_info = VM_SIGSEGV;
+        return -EINVAL;
+    }
 
     if (!pte_none(context.oldpte) && (!pte_present(context.oldpte) || pte_protnone(context.oldpte)))
         return do_swap_page(&context);
@@ -1716,6 +1725,8 @@ int vm_handle_page_fault(struct fault_info *info)
     if (info->user && !(entry->vm_flags & VM_USER))
         goto err;
     if (info->read && !(entry->vm_flags & VM_READ))
+        goto err;
+    if (info->shstk && !(entry->vm_flags & VM_SHADOW_STACK))
         goto err;
 
     info->error_info = 0;
@@ -2558,7 +2569,7 @@ static int get_phys_pages_direct(unsigned long addr, unsigned int flags, struct 
 
 static int gpp_try_to_fault_in(unsigned long addr, struct vm_area_struct *entry, unsigned int flags)
 {
-    struct fault_info finfo;
+    struct fault_info finfo = {};
     finfo.signal = 0;
     finfo.exec = false;
     finfo.fault_address = addr;

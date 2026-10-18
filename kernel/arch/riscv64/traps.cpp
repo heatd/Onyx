@@ -170,7 +170,7 @@ static void do_page_fault(registers_t *ctx, unsigned long pf_flags)
 {
     uintptr_t fault_address = ctx->tval;
 
-    struct fault_info info;
+    struct fault_info info = {};
     info.signal = VM_SIGSEGV;
     info.fault_address = fault_address;
     info.write = pf_flags & PF_W;

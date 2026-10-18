@@ -367,6 +367,16 @@ bool vm_is_smap_fault(struct registers *regs, const fault_info &info)
     return !(regs->rflags & EFLAGS_ALIGNMENT_CHECK) && x86_has_cap(X86_FEATURE_SMAP);
 }
 
+#define PF_ERR_PRESENT (1 << 0)
+#define PF_ERR_WRITE   (1 << 1)
+#define PF_ERR_USER    (1 << 2)
+#define PF_ERR_RSVD    (1 << 3)
+#define PF_ERR_EXEC    (1 << 4)
+#define PF_ERR_PKEYS   (1 << 5)
+#define PF_ERR_SHSTK   (1 << 6)
+#define PF_ERR_HLAT    (1 << 7)
+#define PF_ERR_SGX     (1 << 15)
+
 void page_fault_handler(struct registers *ctx)
 {
     uintptr_t fault_address = cpu_get_cr2();
@@ -379,12 +389,19 @@ void page_fault_handler(struct registers *ctx)
     struct fault_info info;
     info.signal = VM_SIGSEGV;
     info.fault_address = fault_address;
-    info.write = error_code & 0x2;
-    info.read = info.write ? 0 : 1;
-    info.exec = error_code & 0x10;
-    info.user = error_code & 0x4;
+    info.write = error_code & PF_ERR_WRITE;
+    info.read = !info.write;
+    info.exec = error_code & PF_ERR_EXEC;
+    info.user = error_code & PF_ERR_USER;
+    info.shstk = error_code & PF_ERR_SHSTK;
     info.ip = ctx->rip;
     info.error_info = 0;
+
+    if (unlikely(error_code & PF_ERR_RSVD))
+    {
+        pr_err("x86: reserved bits were set in page tables, killing task\n");
+        goto fatal;
+    }
 
     if (vm_is_smap_fault(ctx, info) || vm_handle_page_fault(&info) < 0)
     {
@@ -398,6 +415,7 @@ void page_fault_handler(struct registers *ctx)
             }
         }
 
+    fatal:
         vm_do_fatal_page_fault(&info);
         dumpstack(ctx->rip, (const void *) ctx->rsp);
     }
