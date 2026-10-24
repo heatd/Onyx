@@ -156,6 +156,30 @@ static int do_direct_reclaim(int order, int attempt, unsigned int gfp_flags)
     return page_do_reclaim(&data);
 }
 
+static inline void page_remove_buddy(struct page *page, page_zone *zone, unsigned int order)
+{
+    CHECK(page_is_buddy(page));
+    list_remove(&page->page_allocator_node.list_node);
+    zone->nr_pages[order]--;
+    page_debuddy(page);
+}
+
+static inline void page_add_buddy(struct page *page, page_zone *zone, unsigned int order)
+{
+    CHECK(!page_is_buddy(page));
+    list_add_tail(&page->page_allocator_node.list_node, &zone->pages[order]);
+    zone->nr_pages[order]++;
+    page_make_buddy(page, order);
+}
+
+static inline void page_add_buddy_head(struct page *page, page_zone *zone, unsigned int order)
+{
+    CHECK(!page_is_buddy(page));
+    list_add(&page->page_allocator_node.list_node, &zone->pages[order]);
+    zone->nr_pages[order]++;
+    page_make_buddy(page, order);
+}
+
 static struct page *page_zone_alloc_core(page_zone *zone, unsigned int gfp_flags,
                                          unsigned int order)
 {
@@ -163,7 +187,6 @@ static struct page *page_zone_alloc_core(page_zone *zone, unsigned int gfp_flags
     unsigned long nr_pgs = pow2(order);
     unsigned int i;
     struct page *pages = nullptr;
-    bool no_remove = false;
     bool may_use_reserves = gfp_flags & __GFP_ATOMIC;
     unsigned long free_pages = zone->total_pages - zone->used_pages;
 
@@ -177,8 +200,7 @@ static struct page *page_zone_alloc_core(page_zone *zone, unsigned int gfp_flags
     {
         pages = container_of(list_first_element(&zone->pages[order]), struct page,
                              page_allocator_node.list_node);
-        CHECK(page_is_buddy(pages));
-        page_debuddy(pages);
+        page_remove_buddy(pages, zone, order);
         goto out;
     }
 
@@ -189,11 +211,7 @@ static struct page *page_zone_alloc_core(page_zone *zone, unsigned int gfp_flags
         {
             pages = container_of(list_first_element(&zone->pages[i]), struct page,
                                  page_allocator_node.list_node);
-            CHECK(pages->flags == PAGE_BUDDY);
-            page_debuddy(pages);
-            list_remove(&pages->page_allocator_node.list_node);
-            // No need to remove it later on, we've already done it
-            no_remove = true;
+            page_remove_buddy(pages, zone, i);
             zone->splits++;
             break;
         }
@@ -210,16 +228,13 @@ static struct page *page_zone_alloc_core(page_zone *zone, unsigned int gfp_flags
         size_t nr_pages = pow2(i);
 
         struct page *p2 = pages + nr_pages;
-        list_add_tail(&p2->page_allocator_node.list_node, &zone->pages[i]);
-        DCHECK(!page_is_buddy(p2));
-        page_make_buddy(p2, i);
+        page_add_buddy(p2, zone, i);
+        DCHECK(page_is_buddy(p2));
     }
 
 out:
     DCHECK(!page_is_buddy(pages));
     pages->flags = 0;
-    if (!no_remove)
-        list_remove(&pages->page_allocator_node.list_node);
     zone->used_pages += nr_pgs;
 
     if (gfp_flags & __GFP_WAKE_PAGEDAEMON &&
@@ -363,8 +378,7 @@ static void page_zone_add(unsigned long start, unsigned int order, struct page_z
 
     zone->total_pages += nr_pages;
     struct page *headpage = phys_to_page(start);
-    page_make_buddy(headpage, order);
-    list_add_tail(&headpage->page_allocator_node.list_node, &zone->pages[order]);
+    page_add_buddy(headpage, zone, order);
 }
 
 void page_zone_add_region(unsigned long start, unsigned long nrpgs, struct page_zone *zone)
@@ -439,8 +453,7 @@ static void page_zone_free_core(page_zone *zone, struct page *page, unsigned int
             break;
 
         // Great, it's free, let's merge. The head will be what we're trying to insert.
-        page_debuddy(buddy);
-        list_remove(&buddy->page_allocator_node.list_node);
+        page_remove_buddy(buddy, zone, order);
         struct page *to = buddy < page ? buddy : page;
         page = to;
         zone->merges++;
@@ -448,8 +461,7 @@ static void page_zone_free_core(page_zone *zone, struct page *page, unsigned int
 
     // Now, insert the head into the order. Lets add to the head as this page
     // is likely cache-hot.
-    page_make_buddy(page, order);
-    list_add(&page->page_allocator_node.list_node, &zone->pages[order]);
+    page_add_buddy_head(page, zone, order);
 }
 
 static void page_zone_release_pcpu(page_zone *zone, page_pcpu_data *queue)
