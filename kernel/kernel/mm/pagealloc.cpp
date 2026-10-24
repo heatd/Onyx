@@ -27,6 +27,8 @@
 #include <onyx/page.h>
 #include <onyx/pagecache.h>
 #include <onyx/panic.h>
+#include <onyx/proc.h>
+#include <onyx/seq_file.h>
 #include <onyx/spinlock.h>
 #include <onyx/stackdepot.h>
 #include <onyx/utils.h>
@@ -1353,4 +1355,48 @@ void *alloc_system_hashtable(const char *name, size_t chain_size, unsigned int s
     if (mask)
         *mask = nr_entries - 1;
     return ret;
+}
+
+static unsigned int node_id(struct page_node *node)
+{
+    return 0;
+}
+
+static void zone_show_free(struct seq_file *m, struct page_zone *zone)
+{
+    for (unsigned int i = 0; i < PAGEALLOC_NR_ORDERS; i++)
+        seq_printf(m, " %7lu", zone->nr_pages[i]);
+}
+
+static int proc_buddyinfo_show(struct seq_file *m, void *ptr)
+{
+    for_every_node([&](page_node &node) -> bool {
+        struct page_zone *zone;
+        for_zones_in_node((&node), zone)
+        {
+            unsigned long flags = spin_lock_irqsave(&zone->lock);
+            seq_printf(m, "Node %u, zone %8s:", node_id(&node), zone->name);
+            zone_show_free(m, zone);
+            seq_putc(m, '\n');
+            spin_unlock_irqrestore(&zone->lock, flags);
+        }
+        return true;
+    });
+    return 0;
+}
+
+static int proc_buddyinfo_open(struct file *filp)
+{
+    return single_open(filp, proc_buddyinfo_show, NULL);
+}
+
+static const struct proc_file_ops proc_buddyinfo_ops = {
+    .open = proc_buddyinfo_open,
+    .release = seq_release,
+    .read_iter = seq_read_iter,
+};
+
+static __init void proc_buddyinfo_init(void)
+{
+    procfs_add_entry("buddyinfo", 0444, NULL, &proc_buddyinfo_ops);
 }
