@@ -170,12 +170,26 @@ qemu-efi: iso
 
 qemu-serial-stdio: iso
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) \
-	-s -cdrom Onyx.iso -drive file=hdd.img,format=raw,media=disk,aio=io_uring,cache=none,if=none,id=drive -m 4G \
-	-serial stdio -boot d -netdev user,id=u1 -device virtio-net,netdev=u1 \
+	-s -cdrom Onyx.iso -drive file=hdd.img,format=raw,media=disk,aio=io_uring,cache=none,if=none,id=drive -m 16G \
+-serial stdio -boot d -netdev bridge,helper=/usr/lib/qemu/qemu-bridge-helper,br=br0,id=u1 -device igb,netdev=u1 \
 	-object filter-dump,id=f1,netdev=u1,file=net.pcap \
-	-enable-kvm -cpu host,migratable=on,+invtsc -smp 4 -vga qxl \
-	-device usb-ehci -device usb-mouse \
-	-display gtk,gl=on -machine q35 -device nvme,drive=drive,serial=deadbeef
+	-enable-kvm -cpu host,migratable=on,+invtsc -smp 16 -vga qxl \
+	-device qemu-xhci \
+	-machine q35 -device nvme,drive=drive,serial=deadbeef \
+	-drive file=ext3.img,format=raw,media=disk,aio=io_uring,cache=none,if=none,id=drive2 \
+	-device nvme,drive=drive2,serial=deadbeea
+#	-device amd-iommu,dma-remap=on
+# -trace amdvi*
+
+qemu-serial-stdio2: iso
+	sudo qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) \
+	-s -cdrom Onyx.iso -drive file=hdd.img,format=raw,media=disk,aio=io_uring,cache=none,if=none,id=drive -m 16G \
+	-serial stdio -boot d -net none -device vfio-pci,host=0b:00.0 \
+	-enable-kvm -cpu host,migratable=on,+invtsc -smp 16 -vga qxl \
+	-device qemu-xhci \
+	-machine q35 -device nvme,drive=drive,serial=deadbeef \
+	-drive file=ext3.img,format=raw,media=disk,aio=io_uring,cache=none,if=none,id=drive2 \
+	-device nvme,drive=drive2,serial=deadbeea -trace vfio*
 
 ci-test-qemu: liveiso
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) \

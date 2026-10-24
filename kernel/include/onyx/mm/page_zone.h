@@ -79,6 +79,7 @@ struct page_zone
     unsigned long low_watermark;
     unsigned long high_watermark;
     struct list_head pages[PAGEALLOC_NR_ORDERS];
+    unsigned long nr_pages[PAGEALLOC_NR_ORDERS];
     unsigned long total_pages;
     long used_pages;
     unsigned long splits;
@@ -98,9 +99,10 @@ static inline void page_zone_init(page_zone *zone, const char *name, unsigned lo
     zone->end = end;
     zone->high_watermark = zone->min_watermark = zone->low_watermark = 0;
     spinlock_init(&zone->lock);
-    for (auto &order : zone->pages)
+    for (unsigned int i = 0; i < PAGEALLOC_NR_ORDERS; i++)
     {
-        INIT_LIST_HEAD(&order);
+        INIT_LIST_HEAD(&zone->pages[i]);
+        zone->nr_pages[i] = 0;
     }
 
     zone->total_pages = 0;
