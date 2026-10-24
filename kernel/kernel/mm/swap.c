@@ -842,6 +842,9 @@ int do_swap_page(struct vm_pf_context *context) NO_THREAD_SAFETY_ANALYSIS
     struct vm_object *obj = swap_spaces[SWP_TYPE(swp)];
     struct page *page;
     bool created_page = false;
+    struct spinlock *ptl;
+    pte_t *ptep;
+    u64 phys;
     int err;
 
     if (pte_protnone(context->oldpte))
@@ -887,13 +890,20 @@ int do_swap_page(struct vm_pf_context *context) NO_THREAD_SAFETY_ANALYSIS
 
     if (swap_put_page(page))
         swap_cache_remove(obj, page);
-    if (!vm_map_page(vma->vm_mm, context->vpage, (u64) page_to_phys(page),
-                     context->page_rwx & ~VM_READ, vma))
+
+    ptep = ptep_get_locked(vma->vm_mm, context->vpage, &ptl);
+    if (ptep->pte != context->oldpte.pte)
     {
-        err = -ENOMEM;
-        goto err_unlock;
+        /* pte doesn't match, lets retry */
+        spin_unlock(ptl);
+        unlock_page(page);
+        page_unref(page);
+        return 0;
     }
 
+    phys = (u64) page_to_phys(page);
+    set_pte(ptep, pte_mkpte(phys, calc_pgprot(phys, context->page_rwx & ~VM_WRITE)));
+    spin_unlock(ptl);
     unlock_page(page);
     page_unref(page);
     return VM_FAULT_MAJOR;
