@@ -160,7 +160,7 @@ static int tcp_ack(struct tcp_socket *sock, struct packetbuf *pbuf, struct tcp_h
         }
 
         if (after(pbf->tpi.seq + pbf->tpi.seq_len, ack))
-            tcp_eat_head(pbf, pbf->tpi.seq + pbf->tpi.seq_len - ack);
+            tcp_eat_head(pbf, ack - pbf->tpi.seq);
         else
         {
             list_remove(&pbf->list_node);
