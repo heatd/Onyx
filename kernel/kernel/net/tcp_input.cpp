@@ -954,14 +954,7 @@ static int tcp_input_listen(struct tcp_socket *sock, struct packetbuf *pbf)
     tcp_setup_synack_retransmit(connreq);
     tcp_add_to_synacks(connreq);
 
-    err = tcp_send_synack(connreq);
-    if (err)
-    {
-        kfree(connreq);
-        return err;
-    }
-
-    return 0;
+    return tcp_send_synack(connreq);
 }
 
 static int tcp_input_conn(struct tcp_connreq *conn, struct packetbuf *pbf)
