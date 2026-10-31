@@ -447,7 +447,7 @@ static inline bool sock_charge_rmem_bytes(struct socket *sock, unsigned int byte
     {
         expected = queued;
         new_space = queued + bytes;
-        if (new_space > sock->sk_sndbuf)
+        if (new_space > sock->sk_rcvbuf)
             return false;
         queued = cmpxchg_relaxed(&sock->sk_rmem, expected, new_space);
     } while (queued != expected);
