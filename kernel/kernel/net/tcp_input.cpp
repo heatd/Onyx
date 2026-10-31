@@ -1260,6 +1260,11 @@ static int tcp_in_pbf(struct tcp_socket *sock, struct packetbuf *pbf)
     err = tcp_input(sock, pbf);
     if (err)
         pr_info("segment drop %d\n", err);
+    if (sock->socket_lock.is_ours())
+    {
+        if (sock->sack_needs_send)
+            tcp_send_ack(sock);
+    }
     sock->socket_lock.unlock_bh();
     return err;
 }
