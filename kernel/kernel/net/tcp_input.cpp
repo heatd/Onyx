@@ -105,6 +105,7 @@ static int tcp_ack(struct tcp_socket *sock, struct packetbuf *pbuf, struct tcp_h
 {
     u32 ack = tcphdr->ack_number;
     u32 seq = pbuf->tpi.seq;
+    int err = 0;
     bool attempt_output = false;
 
     /* If the segment acks something not yet sent, send an ACK */
@@ -131,7 +132,10 @@ static int tcp_ack(struct tcp_socket *sock, struct packetbuf *pbuf, struct tcp_h
 
     /* If SND.UNA < SEG.ACK =< SND.NXT, then set SND.UNA <- SEG.ACK */
     if (!after(ack, sock->snd_una))
-        return TCP_DROP_ACK_DUP;
+    {
+	    err = TCP_DROP_ACK_DUP;
+	    goto out;
+    }
 
     struct packetbuf *pbf, *next;
     list_for_each_entry_safe (pbf, next, &sock->on_wire_queue, list_node)
@@ -174,9 +178,10 @@ static int tcp_ack(struct tcp_socket *sock, struct packetbuf *pbuf, struct tcp_h
     if (list_is_empty(&sock->on_wire_queue))
         tcp_stop_retransmit(sock);
 
+out:
     if (attempt_output)
         tcp_output(sock);
-    return 0;
+    return err;
 }
 
 struct tcp_option
