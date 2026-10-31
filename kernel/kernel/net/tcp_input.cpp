@@ -617,7 +617,24 @@ static void tcp_rmem_pbf_dtor(struct packetbuf *pbf)
 
 static int tcp_queue_data(struct tcp_socket *sock, struct packetbuf *pbf)
 {
+    u32 seq = pbf->tpi.seq;
+    const u32 end_seq = seq + pbf->tpi.seq_len;
     int err = 0;
+
+    if (!after(end_seq, sock->rcv_next))
+    {
+        /* Completely old data, drop it. */
+        tcp_send_ack(sock);
+        return TCP_DROP_UNCROMULENT1;
+    }
+
+    if (before(seq, sock->rcv_next))
+    {
+        /* We partially overlap old stale data (before rcv_next), but still have useful data. Ok.
+         * Lets eat the head. */
+        tcp_eat_head(pbf, sock->rcv_next - seq);
+        seq = pbf->tpi.seq;
+    }
 
     if (!sock_charge_rmem_pbf(sock, pbf))
     {
@@ -629,7 +646,7 @@ static int tcp_queue_data(struct tcp_socket *sock, struct packetbuf *pbf)
     pbf->sock = sock;
     pbf->dtor = tcp_rmem_pbf_dtor;
 
-    if (unlikely(sock->rcv_next != pbf->tpi.seq))
+    if (unlikely(sock->rcv_next != seq))
     {
         /* Schedule a duplicate ack since we're missing a packet. tcp_do_out_of_order will take care
          * of any sacking. */
@@ -642,7 +659,7 @@ static int tcp_queue_data(struct tcp_socket *sock, struct packetbuf *pbf)
 
     list_add_tail(&pbf->list_node, &sock->read_queue);
     pbf_get(pbf);
-    sock->rcv_next = pbf->tpi.seq + pbf->tpi.seq_len;
+    sock->rcv_next = end_seq;
 
     if (unlikely(!bst_root_empty(&sock->out_of_order_tree)))
     {
