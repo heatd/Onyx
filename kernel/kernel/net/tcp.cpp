@@ -224,12 +224,16 @@ static size_t tcp_push_options(struct tcp_socket *sock, struct packetbuf *pbf)
 
 u32 tcp_select_initial_win(struct tcp_socket *tp)
 {
-    return tp->sk_rcvbuf - READ_ONCE(tp->sk_rmem);
+    return (tp->sk_rcvbuf - READ_ONCE(tp->sk_rmem)) >> 1;
 }
 
 static u32 tcp_select_win(struct tcp_socket *tp)
 {
-    return tp->sk_rcvbuf - READ_ONCE(tp->sk_rmem);
+    u32 rmem = READ_ONCE(tp->sk_rmem);
+
+    if (unlikely(tp->sk_rcvbuf < rmem))
+        return 0;
+    return (tp->sk_rcvbuf - rmem) >> 1;
 }
 
 static u16 tcp_select_wsize(struct tcp_socket *tp)
