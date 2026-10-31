@@ -565,7 +565,7 @@ eat_next:
 
         if (before(end_seq, pbf2->tpi.seq + pbf2->tpi.seq_len))
         {
-            tcp_eat_head(pbf, pbf2->tpi.seq + pbf2->tpi.seq_len - end_seq);
+            tcp_eat_head(pbf2, end_seq - pbf2->tpi.seq);
             break;
         }
         else
