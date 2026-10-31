@@ -538,6 +538,7 @@ static int tcp_do_out_of_order(struct tcp_socket *sock, struct packetbuf *pbf)
                 /* seq == pbf2->seq and end_seq is beyond other_seq... Replace this segment and eat
                  * next nodes, if required */
                 bst_replace_node(&sock->out_of_order_tree, &pbf2->bst_node, &pbf->bst_node);
+                pbf_put_ref(pbf2);
                 goto eat_next;
             }
         }
@@ -552,10 +553,10 @@ static int tcp_do_out_of_order(struct tcp_socket *sock, struct packetbuf *pbf)
 
     bst_link(nodep, parent, &pbf->bst_node);
     bst_update_rank_insert(&sock->out_of_order_tree, &pbf->bst_node, NULL);
-    pbf_get(pbf);
     if (sock->sacking)
         tcp_add_sack(sock, pbf->tpi.seq, pbf->tpi.seq + pbf->tpi.seq_len);
 eat_next:
+    pbf_get(pbf);
     while ((
         pbf2 = bst_next_type(&sock->out_of_order_tree, &pbf->bst_node, struct packetbuf, bst_node)))
     {
