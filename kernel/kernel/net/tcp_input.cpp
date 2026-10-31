@@ -615,6 +615,15 @@ static void tcp_rmem_pbf_dtor(struct packetbuf *pbf)
     sock_discharge_rmem_pbf(pbf->sock, pbf);
 }
 
+static void tcp_compact_ooo(struct tcp_socket *sock)
+{
+    struct packetbuf *pbf;
+
+    /* Really non-optimal, but this is supposed to be an edgecase (for now). */
+    bst_for_every_entry_delete(&sock->out_of_order_tree, pbf, struct packetbuf, bst_node)
+        pbf_put_ref(pbf);
+}
+
 static int tcp_queue_data(struct tcp_socket *sock, struct packetbuf *pbf)
 {
     u32 seq = pbf->tpi.seq;
@@ -636,10 +645,19 @@ static int tcp_queue_data(struct tcp_socket *sock, struct packetbuf *pbf)
         seq = pbf->tpi.seq;
     }
 
-    if (!sock_charge_rmem_pbf(sock, pbf))
+    if (unlikely(!sock_charge_rmem_pbf(sock, pbf)))
     {
-        /* No memory :( */
-        return TCP_DROP_NO_RMEM;
+        if (!bst_root_empty(&sock->out_of_order_tree))
+        {
+            tcp_compact_ooo(sock);
+            if (unlikely(!sock_charge_rmem_pbf(sock, pbf)))
+                return TCP_DROP_NO_RMEM;
+        }
+        else
+        {
+            /* No memory :( */
+            return TCP_DROP_NO_RMEM;
+        }
     }
 
     /* From now on, the dtor will take care of discharging the pbf */
