@@ -631,6 +631,49 @@ eat_next:
     return 0;
 }
 
+static void tcp_handle_fin(struct tcp_socket *sock, struct packetbuf *pbf, struct tcp_header *hdr)
+{
+    /* If the FIN bit is set, signal the user "connection closing" and return any pending
+     * RECEIVEs with same message, advance RCV.NXT over the FIN, and send an acknowledgment for
+     * the FIN. Note that FIN implies PUSH for any segment text not yet delivered to the user. -
+     * RFC9293 */
+
+    if (pbf->tpi.seq_len == 1)
+    {
+        /* Segment with data was already acked and rcv_next adjusted, no need to do this again.
+         */
+        sock->rcv_next = pbf->tpi.seq + pbf->tpi.seq_len;
+        tcp_send_ack(sock);
+    }
+
+    sock->shutdown_state |= SHUTDOWN_RD;
+
+    /* rcv_next advanced and acked, handle state transitions (these are all defined
+     * per RFC) and ack it . */
+    switch (sock->state)
+    {
+        case TCP_STATE_LAST_ACK:
+            /* Note: LAST_ACK -> CLOSED means you can just destroy the socket, no problem. */
+            tcp_set_state(sock, TCP_STATE_CLOSED);
+            break;
+        case TCP_STATE_SYN_RECEIVED:
+        case TCP_STATE_ESTABLISHED:
+            /* Move into CLOSE_WAIT (waiting for the client to CLOSE) */
+            tcp_set_state(sock, TCP_STATE_CLOSE_WAIT);
+            break;
+        case TCP_STATE_FIN_WAIT_1:
+            /* Simultaneous close - go to CLOSING and ack it */
+            tcp_set_state(sock, TCP_STATE_CLOSING);
+            break;
+        case TCP_STATE_FIN_WAIT_2:
+            tcp_time_wait(sock);
+            break;
+        default:
+            pr_warn("tcp: FIN with state %u\n", sock->state);
+            break;
+    }
+}
+
 static void tcp_attempt_ooo_queue(struct tcp_socket *sock)
 {
     struct packetbuf *pbf;
@@ -658,8 +701,18 @@ static void tcp_attempt_ooo_queue(struct tcp_socket *sock)
 
         CHECK(pbf->tpi.seq == sock->rcv_next);
         bst_delete(&sock->out_of_order_tree, &pbf->bst_node);
-        list_add_tail(&pbf->list_node, &sock->read_queue);
         sock->rcv_next = pbf->tpi.seq + pbf->tpi.seq_len;
+        if (unlikely(pbf->tpi.fin))
+        {
+            tcp_handle_fin(sock, pbf, (struct tcp_header *) pbf->transport_header);
+            /* Don't bother queuing an empty FIN */
+            if (!pbf_length(pbf))
+            {
+                pbf_put_ref(pbf);
+                continue;
+            }
+        }
+        list_add_tail(&pbf->list_node, &sock->read_queue);
     }
 }
 
@@ -728,8 +781,16 @@ static int tcp_queue_data(struct tcp_socket *sock, struct packetbuf *pbf)
         return 0;
     }
 
+    if (unlikely(pbf->tpi.fin))
+    {
+        tcp_handle_fin(sock, pbf, (struct tcp_header *) pbf->transport_header);
+        if (!pbf_length(pbf))
+            goto skip_queue;
+    }
+
     list_add_tail(&pbf->list_node, &sock->read_queue);
     pbf_get(pbf);
+skip_queue:
     sock->rcv_next = end_seq;
 
     if (unlikely(!bst_root_empty(&sock->out_of_order_tree)))
@@ -763,51 +824,6 @@ static int tcp_sequence(const struct tcp_socket *sock, u32 seq, u32 end_seq)
 
     if (after(seq, sock->rcv_next + tcp_receive_window(sock)))
         return TCP_DROP_UNCROMULENT2;
-
-    return 0;
-}
-
-static int tcp_handle_fin(struct tcp_socket *sock, struct packetbuf *pbf, struct tcp_header *hdr)
-{
-    /* If the FIN bit is set, signal the user "connection closing" and return any pending
-     * RECEIVEs with same message, advance RCV.NXT over the FIN, and send an acknowledgment for
-     * the FIN. Note that FIN implies PUSH for any segment text not yet delivered to the user. -
-     * RFC9293 */
-
-    if (pbf->tpi.seq_len == 1)
-    {
-        /* Segment with data was already acked and rcv_next adjusted, no need to do this again.
-         */
-        sock->rcv_next = pbf->tpi.seq + pbf->tpi.seq_len;
-        tcp_send_ack(sock);
-    }
-
-    sock->shutdown_state |= SHUTDOWN_RD;
-
-    /* rcv_next advanced and acked, handle state transitions (these are all defined
-     * per RFC) and ack it . */
-    switch (sock->state)
-    {
-        case TCP_STATE_LAST_ACK:
-            /* Note: LAST_ACK -> CLOSED means you can just destroy the socket, no problem. */
-            tcp_set_state(sock, TCP_STATE_CLOSED);
-            break;
-        case TCP_STATE_SYN_RECEIVED:
-        case TCP_STATE_ESTABLISHED:
-            /* Move into CLOSE_WAIT (waiting for the client to CLOSE) */
-            tcp_set_state(sock, TCP_STATE_CLOSE_WAIT);
-            break;
-        case TCP_STATE_FIN_WAIT_1:
-            /* Simultaneous close - go to CLOSING and ack it */
-            tcp_set_state(sock, TCP_STATE_CLOSING);
-            break;
-        case TCP_STATE_FIN_WAIT_2:
-            tcp_time_wait(sock);
-            break;
-        default:
-            pr_warn("tcp: FIN with state %u\n", sock->state);
-            break;
-    }
 
     return 0;
 }
@@ -1319,10 +1335,8 @@ int tcp_input(struct tcp_socket *sock, struct packetbuf *pbf)
     if (err && err != TCP_DROP_ACK_DUP)
         return err;
 
-    if (seg_len > 0)
+    if (seg_len > 0 || hdr->fin)
         err = tcp_queue_data(sock, pbf);
-    if (unlikely(hdr->fin))
-        err = tcp_handle_fin(sock, pbf, hdr);
     return err;
 not_acceptable:
     if (!hdr->rst)
