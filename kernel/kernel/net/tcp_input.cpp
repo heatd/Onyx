@@ -1226,6 +1226,10 @@ int tcp_input(struct tcp_socket *sock, struct packetbuf *pbf)
 
     pbf->tpi.seq_len = seg_len + (hdr->syn + hdr->fin);
     pbf->tpi.seq = seq;
+    pbf->tpi.syn = hdr->syn;
+    pbf->tpi.ack = hdr->ack;
+    pbf->tpi.fin = hdr->fin;
+    pbf->tpi.rst = hdr->rst;
 
 // TCP_DEBUG
 #ifdef TCP_DEBUG
