@@ -84,9 +84,54 @@ out:
     return req;
 }
 
+static void pbf_eat_head(struct packetbuf *pbf, unsigned int len)
+{
+    unsigned int head_len = pbf->tail - pbf->data, to_eat;
+    struct page_iov *iov;
+
+    if (head_len)
+    {
+        to_eat = min(head_len, len);
+        pbf->data += to_eat;
+        len -= to_eat;
+    }
+
+    if (!len)
+        return;
+    /* Eat the paged bits */
+    for (unsigned long i = 1; i < PBF_PAGE_IOVS; i++)
+    {
+        iov = &pbf->page_vec[i];
+        if (!iov->page)
+            break;
+
+        if (iov->length > 0)
+        {
+            to_eat = min(iov->length, len);
+            iov->page_off += to_eat;
+            iov->length -= to_eat;
+            len -= to_eat;
+
+            /* Empty? Shift everything back. */
+            if (!iov->length)
+            {
+                page_unref(iov->page);
+                for (unsigned int j = i + 1; j < PBF_PAGE_IOVS; j++)
+                {
+                    if (!pbf->page_vec[j].page)
+                        break;
+                    pbf->page_vec[j - 1] = pbf->page_vec[j];
+                    pbf->page_vec[j].page = NULL;
+                }
+                i--;
+                continue;
+            }
+        }
+    }
+}
+
 static void tcp_eat_head(struct packetbuf *pbf, unsigned int len)
 {
-    /* TODO: Support packetbufs larger than PAGE_SIZE */
     if (len > 0 && pbf->tpi.syn)
     {
         pbf->tpi.syn = 0;
@@ -94,11 +139,14 @@ static void tcp_eat_head(struct packetbuf *pbf, unsigned int len)
         len--;
     }
 
+    if (!len)
+        return;
+
     /* Note: FINs count as the last sequence of a segment, so we don't need to partial eat that. */
-    pbf->data += len;
+    pbf_eat_head(pbf, len);
+    CHECK(pbf->tpi.seq_len > len);
     pbf->tpi.seq += len;
     pbf->tpi.seq_len -= len;
-    CHECK(pbf->tpi.seq_len > 0);
 }
 
 static int tcp_ack(struct tcp_socket *sock, struct packetbuf *pbuf, struct tcp_header *tcphdr)
