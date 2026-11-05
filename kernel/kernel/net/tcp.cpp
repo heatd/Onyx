@@ -1403,7 +1403,7 @@ static size_t tcp_push_synack_options(struct tcp_connreq *conn, struct packetbuf
         u8 *scale_opt = (u8 *) pbf_push_header(pbf, 3);
         scale_opt[0] = TCP_OPTION_WINDOW_SCALE;
         scale_opt[1] = 3;
-        scale_opt[2] = 8;
+        scale_opt[2] = tcp_calculate_win_scale(tcp_select_initial_win(conn->tc_sock));
         options_len += 3;
     }
 
