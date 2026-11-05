@@ -752,6 +752,14 @@ static int tcp_queue_data(struct tcp_socket *sock, struct packetbuf *pbf)
         seq = pbf->tpi.seq;
     }
 
+    if (after(end_seq, sock->rcv_next + tcp_receive_window(sock)))
+    {
+        /* Segment ends after the end of the window. Send an ACK and drop it. */
+        tcp_send_ack(sock);
+        return TCP_DROP_UNCROMULENT2;
+    }
+
+
     if (unlikely(!sock_charge_rmem_pbf(sock, pbf)))
     {
         if (!bst_root_empty(&sock->out_of_order_tree))
