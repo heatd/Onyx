@@ -1542,8 +1542,28 @@ void __tcp_send_rst(struct packetbuf *pbf, u32 seq, u32 ack_nr, int ack)
     pbf_put_ref(rst_pbf);
 }
 
-void tcp_send_rst(struct tcp_socket *sock, struct packetbuf *pbf)
+void tcp_send_rst(struct tcp_socket *sock, struct packetbuf *otherpbf)
 {
+    struct tcp_header *hdr;
+
+    struct packetbuf *pbf = pbf_alloc(GFP_ATOMIC);
+    if (!pbf)
+        goto rst;
+    if (!pbf_allocate_space(pbf, MAX_TCP_HEADER_LENGTH))
+    {
+        pbf_free(pbf);
+        goto rst;
+    }
+
+    pbf_reserve_headers(pbf, MAX_TCP_HEADER_LENGTH);
+    pbf_init_tcp(pbf);
+    pbf->tpi.rst = 1;
+    hdr = (struct tcp_header *) otherpbf->transport_header;
+    tcp_prepare_nondata_header(sock, pbf, hdr->ack_number, TCP_FLAG_RST);
+    tcp_send_segment(sock, pbf);
+    pbf_put_ref(pbf);
+rst:
+    tcp_reset(sock);
 }
 
 const char *state_names[] = {
