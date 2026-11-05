@@ -1090,6 +1090,7 @@ static int tcp_input_conn(struct tcp_connreq *conn, struct packetbuf *pbf)
     {
         /* Remote host does not support window scaling, use the traditional defaults. */
         sock->snd_wnd = ntohs(hdr->window_size);
+        sock->rcv_wnd = min<u32>(tcp_select_initial_win(sock), UINT16_MAX);
         sock->snd_wnd_shift = 0;
         sock->rcv_wnd_shift = 0;
     }
