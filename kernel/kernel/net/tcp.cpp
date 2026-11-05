@@ -993,8 +993,9 @@ ssize_t tcp_sendmsg(struct socket *sock_, const kernel_msghdr *msg, int flags)
     len = iovec_iter_bytes(msg->msg_iter);
 
     err = tcp_append_write(sock, msg->msg_iter, sock->mss, flags);
-    if (err < 0)
-        return len - iovec_iter_bytes(msg->msg_iter) ?: err;
+    len = len - iovec_iter_bytes(msg->msg_iter);
+    if (err < 0 && !len)
+        return err;
 
     err = tcp_output(sock);
     if (err < 0)
