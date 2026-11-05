@@ -180,6 +180,8 @@ u8 tcp_calculate_win_scale(u32 win)
 {
     /* We should pick the smallest window scale that allows us to express the given window size (in
      * order to maximize window granularity) */
+    if (win <= UINT16_MAX)
+        return 0;
     return (ilog2(win - 1) + 1) - 15;
 }
 
