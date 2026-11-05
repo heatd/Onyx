@@ -286,6 +286,7 @@ int tcp_send_ack(struct tcp_socket *sock);
 int tcp_output(struct tcp_socket *sock);
 int tcp_send_synack(struct tcp_connreq *conn);
 void __tcp_send_rst(struct packetbuf *pbf, u32 seq, u32 ack_nr, int ack);
+void tcp_reset(struct tcp_socket *sock);
 void tcp_send_rst(struct tcp_socket *sock, struct packetbuf *pbf);
 void tcp_done_error(struct tcp_socket *sock, int err);
 void tcp_time_wait(struct tcp_socket *sock);

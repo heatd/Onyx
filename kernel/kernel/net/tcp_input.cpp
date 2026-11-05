@@ -13,7 +13,6 @@
 #include <onyx/rculist.h>
 #include <onyx/rcupdate.h>
 
-static void tcp_reset(struct tcp_socket *sock);
 
 struct list_head connreq_table[64];
 static struct spinlock connreq_locks[64];
@@ -709,10 +708,12 @@ static void tcp_attempt_ooo_queue(struct tcp_socket *sock)
             if (!pbf_length(pbf))
             {
                 pbf_put_ref(pbf);
-                continue;
+                break;
             }
         }
         list_add_tail(&pbf->list_node, &sock->read_queue);
+        if (unlikely(pbf->tpi.fin))
+            break;
     }
 }
 
@@ -828,7 +829,7 @@ static int tcp_sequence(const struct tcp_socket *sock, u32 seq, u32 end_seq)
     return 0;
 }
 
-static void tcp_reset(struct tcp_socket *sock)
+void tcp_reset(struct tcp_socket *sock)
 {
     int err;
     switch (sock->state)
@@ -1335,8 +1336,41 @@ int tcp_input(struct tcp_socket *sock, struct packetbuf *pbf)
     if (err && err != TCP_DROP_ACK_DUP)
         return err;
 
-    if (seg_len > 0 || hdr->fin)
-        err = tcp_queue_data(sock, pbf);
+    switch (sock->state)
+    {
+        case TCP_STATE_CLOSE_WAIT:
+        case TCP_STATE_CLOSING:
+        case TCP_STATE_LAST_ACK:
+        case TCP_STATE_TIME_WAIT:
+            /* This should not occur since a FIN has been received from the
+             * remote side. Ignore the segment, if its new. */
+            if (!before(seq, sock->rcv_next) || after(seq + pbf->tpi.seq_len, sock->rcv_next))
+                break;
+            /* fallthrough */
+        case TCP_STATE_FIN_WAIT_1:
+        case TCP_STATE_FIN_WAIT_2: {
+            if (sock->shutdown_state & SHUTDOWN_RD &&
+                !before(pbf->tpi.seq, sock->rcv_next) &&
+                after(seq + pbf->tpi.seq_len - pbf->tpi.fin, sock->rcv_next))
+            {
+                /* Socket is shut down for reading, and someone sent a segment with data? And it's
+                 * not an old segment? Reset the connection. */
+                tcp_send_rst(sock, pbf);
+                break;
+            }
+        }
+            /* fallthrough */
+        case TCP_STATE_ESTABLISHED: {
+            if (seg_len > 0 || hdr->fin)
+                err = tcp_queue_data(sock, pbf);
+            break;
+        }
+        default:
+            /* No other state should reach this */
+            WARN_ON_ONCE(1);
+            break;
+    }
+
     return err;
 not_acceptable:
     if (!hdr->rst)
