@@ -734,6 +734,8 @@ short tcp_poll(struct socket *sock_, void *poll_file, short events)
         avail_events |= POLLHUP;
     if (sock->shutdown_state & SHUTDOWN_RD)
         avail_events |= POLLIN | POLLRDNORM | POLLRDHUP;
+    if (sock->has_sock_err())
+        avail_events |= POLLERR;
 
     if (sock->state == tcp_state::TCP_STATE_LISTEN)
     {
