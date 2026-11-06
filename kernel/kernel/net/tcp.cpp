@@ -1287,7 +1287,7 @@ static void tcp_close(struct socket *sock_)
         /* LISTEN -> CLOSED Just Works */
         tcp_set_state(sock, TCP_STATE_CLOSED);
     }
-
+    sock->shutdown_state = SHUTDOWN_RDWR;
     sock->dead = true;
     sock->socket_lock.unlock_sock(sock_);
 
