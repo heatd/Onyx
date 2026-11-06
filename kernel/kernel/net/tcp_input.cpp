@@ -202,7 +202,7 @@ static int tcp_ack(struct tcp_socket *sock, struct packetbuf *pbuf, struct tcp_h
                     tcp_set_state(sock, TCP_STATE_FIN_WAIT_2);
                     break;
                 case TCP_STATE_LAST_ACK:
-                    tcp_set_state(sock, TCP_STATE_CLOSED);
+                    /* Soon moving to CLOSED */
                     break;
                 default:
                     pr_warn("tcp: Received ACK to FIN on state %d?\n", sock->state);
@@ -1344,6 +1344,17 @@ int tcp_input(struct tcp_socket *sock, struct packetbuf *pbf)
     err = tcp_ack(sock, pbf, hdr);
     if (err && err != TCP_DROP_ACK_DUP)
         return err;
+    if (!err)
+    {
+        if (sock->state == TCP_STATE_LAST_ACK)
+        {
+            /* Move it to CLOSED by virtue of tcp_done() and return. The socket
+             * should not be destroyed right now, only after the unlock.
+             */
+            tcp_done(sock);
+            return 0;
+        }
+    }
 
     switch (sock->state)
     {
