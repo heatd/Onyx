@@ -597,6 +597,10 @@ static void tcp_remove_sacks(struct tcp_socket *sock)
             for (unsigned int j = i + 1; j < sock->nr_sacks; j++)
                 sock->sacks[j - 1] = sock->sacks[j];
             sock->nr_sacks--;
+            i--;
+        } else if (after(sock->rcv_next, sock->sacks[i].start))
+        {
+            sock->sacks[i].start = sock->rcv_next;
         }
     }
 }
