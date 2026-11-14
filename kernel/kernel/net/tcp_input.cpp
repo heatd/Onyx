@@ -700,6 +700,8 @@ eat_next:
     return 0;
 }
 
+static void tcp_clear_ooo(struct tcp_socket *sock);
+
 static void tcp_handle_fin(struct tcp_socket *sock, struct packetbuf *pbf, struct tcp_header *hdr)
 {
     /* If the FIN bit is set, signal the user "connection closing" and return any pending
@@ -714,6 +716,9 @@ static void tcp_handle_fin(struct tcp_socket *sock, struct packetbuf *pbf, struc
         sock->rcv_next = pbf->tpi.seq + pbf->tpi.seq_len;
         tcp_send_ack(sock);
     }
+
+    /* FIN means that any pending OoO data needs to be dropped. */
+    tcp_clear_ooo(sock);
 
     sock->shutdown_state |= SHUTDOWN_RD;
 
@@ -792,14 +797,19 @@ static void tcp_rmem_pbf_dtor(struct packetbuf *pbf)
     sock_discharge_rmem_pbf(pbf->sock, pbf);
 }
 
-static void tcp_compact_ooo(struct tcp_socket *sock)
+static void tcp_clear_ooo(struct tcp_socket *sock)
 {
     struct packetbuf *pbf;
 
-    /* Really non-optimal, but this is supposed to be an edgecase (for now). */
     bst_for_every_entry_delete(&sock->out_of_order_tree, pbf, struct packetbuf, bst_node)
         pbf_put_ref(pbf);
     sock->nr_sacks = 0;
+}
+
+static void tcp_compact_ooo(struct tcp_socket *sock)
+{
+    /* Really non-optimal, but this is supposed to be an edgecase (for now). */
+    tcp_clear_ooo(sock);
 }
 
 static int tcp_queue_data(struct tcp_socket *sock, struct packetbuf *pbf)
