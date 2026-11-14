@@ -729,6 +729,7 @@ static void tcp_compact_ooo(struct tcp_socket *sock)
     /* Really non-optimal, but this is supposed to be an edgecase (for now). */
     bst_for_every_entry_delete(&sock->out_of_order_tree, pbf, struct packetbuf, bst_node)
         pbf_put_ref(pbf);
+    sock->nr_sacks = 0;
 }
 
 static int tcp_queue_data(struct tcp_socket *sock, struct packetbuf *pbf)
