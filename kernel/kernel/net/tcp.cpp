@@ -372,7 +372,7 @@ static void tcp_prepare_nondata_header(struct tcp_socket *sock, struct packetbuf
 {
     struct tcp_header *hdr;
     u16 header_len = sizeof(struct tcp_header);
-    if (sock->sack_needs_send)
+    if (sock->nr_sacks)
         header_len += tcp_prepare_sacks(sock, pbf);
 
     hdr = (struct tcp_header *) pbf_push_header(pbf, sizeof(struct tcp_header));
