@@ -484,6 +484,64 @@ static inline bool seqs_overlap(u32 seq0, u32 seq0_end, u32 seq1, u32 seq1_end)
     return !after(seq0, seq1_end) && !after(seq1, seq0_end);
 }
 
+static void tcp_attempt_sack_merges(struct tcp_socket *sock)
+{
+    /* Attempt to merge all possible contiguous segments. No overlaps should
+     * exist, and contiguous segments, other than the one we've just inserted,
+     * should already be merged. */
+    struct tcp_sack_range *s = &sock->sacks[0], *s2;
+    u32 start, end;
+    bool valid[4] = {false};
+    int merged = 0;
+    unsigned int i, j;
+
+    if (sock->nr_sacks == 1)
+        return;
+
+    valid[0] = true;
+    for (i = 1; i < sock->nr_sacks; i++)
+    {
+        s2 = &sock->sacks[i];
+        start = s2->start;
+        end = s2->end;
+        valid[i] = true;
+        if (seqs_overlap(start, end, s->start, s->end) || s->end == start || s->start == end)
+        {
+            /* Merge! */
+            s->start = before(s->start, start) ? s->start : start;
+            s->end = after(s->end, end) ? s->end : end;
+            valid[i] = false;
+            merged++;
+        }
+    }
+
+    if (!merged)
+        return;
+    /* Prune newly unused blocks */
+    for (i = 0; i < 4; i++)
+    {
+        if (valid[i])
+            continue;
+        /* Invalid block (merged). Seek forward and try to swap this with
+         * something else. */
+        for (j = i + 1; j < 4; j++)
+        {
+            if (valid[j])
+            {
+                valid[j] = false;
+                valid[i] = true;
+                sock->sacks[i] = sock->sacks[j];
+                break;
+            }
+        }
+
+        /* No valid block after us? Then we're finished. */
+        if (j == 4)
+            break;
+    }
+    sock->nr_sacks -= merged;
+}
+
 static void tcp_add_sack(struct tcp_socket *sock, u32 start, u32 end)
 {
     struct tcp_sack_range *s, *sack_start;
@@ -501,26 +559,26 @@ static void tcp_add_sack(struct tcp_socket *sock, u32 start, u32 end)
             s->end = after(s->end, end) ? s->end : end;
             if (s != sack_start)
             {
-                struct tcp_sack_range tmp = *sack_start;
-                *sack_start = *s;
-                *s = tmp;
+                struct tcp_sack_range tmp = *s;
+                memmove(&sock->sacks[1], &sock->sacks[0], i * sizeof(struct tcp_sack_range));
+                *sack_start = tmp;
             }
-            sock->sack_needs_send = 1;
-            sock->proto_needs_work = true;
-            return;
+            goto out;
         }
     }
 
     /* We're dropping a SACK, send the pending SACK now */
-     if (sock->nr_sacks == 4 && sock->sack_needs_send)
-            tcp_send_ack(sock);
+    if (sock->nr_sacks == 4 && sock->sack_needs_send)
+        tcp_send_ack(sock);
 
     memmove(&sock->sacks[1], &sock->sacks[0], 3 * sizeof(struct tcp_sack_range));
     sock->sacks[0] = {start, end};
     if (sock->nr_sacks < 4)
         sock->nr_sacks++;
+out:
     sock->sack_needs_send = 1;
     sock->proto_needs_work = true;
+    tcp_attempt_sack_merges(sock);
 }
 
 static void tcp_remove_sacks(struct tcp_socket *sock)
