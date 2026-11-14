@@ -624,6 +624,9 @@ static int tcp_do_out_of_order(struct tcp_socket *sock, struct packetbuf *pbf)
     nodep = &sock->out_of_order_tree.root;
     parent = NULL;
 
+    if (sock->sacking)
+        tcp_add_sack(sock, pbf->tpi.seq, pbf->tpi.seq + pbf->tpi.seq_len);
+
     while (cur)
     {
         pbf2 = container_of(cur, struct packetbuf, bst_node);
@@ -674,8 +677,6 @@ static int tcp_do_out_of_order(struct tcp_socket *sock, struct packetbuf *pbf)
 
     bst_link(nodep, parent, &pbf->bst_node);
     bst_update_rank_insert(&sock->out_of_order_tree, &pbf->bst_node, NULL);
-    if (sock->sacking)
-        tcp_add_sack(sock, pbf->tpi.seq, pbf->tpi.seq + pbf->tpi.seq_len);
 eat_next:
     pbf_get(pbf);
     while ((
