@@ -486,32 +486,39 @@ static inline bool seqs_overlap(u32 seq0, u32 seq0_end, u32 seq1, u32 seq1_end)
 
 static void tcp_add_sack(struct tcp_socket *sock, u32 start, u32 end)
 {
-    struct tcp_sack_range *s;
-    if (sock->nr_sacks)
+    struct tcp_sack_range *s, *sack_start;
+    unsigned int i;
+
+    sack_start = &sock->sacks[0];
+    for (i = 0; i < sock->nr_sacks; i++)
     {
-        s = &sock->sacks[sock->nr_sacks - 1];
+        s = &sock->sacks[i];
         /* Check if we can merge this sack */
         if (seqs_overlap(start, end, s->start, s->end) || s->end == start || s->start == end)
         {
             /* Merge! */
             s->start = before(s->start, start) ? s->start : start;
             s->end = after(s->end, end) ? s->end : end;
+            if (s != sack_start)
+            {
+                struct tcp_sack_range tmp = *sack_start;
+                *sack_start = *s;
+                *s = tmp;
+            }
             sock->sack_needs_send = 1;
             sock->proto_needs_work = true;
             return;
         }
     }
 
-    if (sock->nr_sacks == 4)
-    {
-        if (sock->sack_needs_send)
+    /* We're dropping a SACK, send the pending SACK now */
+     if (sock->nr_sacks == 4 && sock->sack_needs_send)
             tcp_send_ack(sock);
 
-        memmove(&sock->sacks, &sock->sacks[1], 3 * sizeof(struct tcp_sack_range));
-        sock->nr_sacks--;
-    }
-
-    sock->sacks[sock->nr_sacks++] = {start, end};
+    memmove(&sock->sacks[1], &sock->sacks[0], 3 * sizeof(struct tcp_sack_range));
+    sock->sacks[0] = {start, end};
+    if (sock->nr_sacks < 4)
+        sock->nr_sacks++;
     sock->sack_needs_send = 1;
     sock->proto_needs_work = true;
 }
